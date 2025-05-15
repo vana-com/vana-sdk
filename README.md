@@ -145,13 +145,6 @@ const fileId = await publicClient.readContract({
   args: [fileUrl],
 });
 
-const balance = await publicClient.readContract({
-  address: vana.contracts.dataLiquidityPool.address,
-  abi: vana.contracts.dataLiquidityPool.abi,
-  functionName: "balanceOf",
-  args: [userAddress],
-});
-
 // Write operations
 await walletClient.writeContract({
   address: vana.contracts.dataRegistry.address,

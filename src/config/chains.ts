@@ -58,24 +58,6 @@ export const vanaMainnet = defineChain({
   abis: {},
 });
 
-// Add Foundry (Anvil) local chain definition for testing
-export const foundryLocal = defineChain({
-  id: 31337,
-  name: "Foundry Local",
-  nativeCurrency: {
-    name: "Ether",
-    symbol: "ETH",
-    decimals: 18,
-  },
-  rpcUrls: {
-    default: {
-      http: ["http://127.0.0.1:8545"],
-    },
-  },
-  contracts: {},
-  abis: {},
-});
-
 export interface Chains {
   [key: number]: Chain & { abis?: Record<string, Abi> };
 }
@@ -83,5 +65,4 @@ export interface Chains {
 export const chains: Chains = {
   [mokshaTestnet.id]: mokshaTestnet,
   [vanaMainnet.id]: vanaMainnet,
-  [foundryLocal.id]: foundryLocal,
 };

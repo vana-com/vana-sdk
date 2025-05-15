@@ -1,8 +1,15 @@
-import { Account, Address, Chain, Client, createPublicClient, http } from "viem";
-import { CONTRACT_ADDRESSES } from "../config/addresses";
+import {
+  Account,
+  Address,
+  Client,
+  createPublicClient,
+  http,
+  WalletClient
+} from "viem";
 import { VanaContract } from "../abi";
-import { createClient } from "./client";
+import { CONTRACT_ADDRESSES } from "../config/addresses";
 import { getContractController } from "../contracts/contractController";
+import { createClient, createWalletClient } from "./client";
 
 export interface VanaConfig {
   chainId: number;
@@ -24,6 +31,7 @@ export class VanaProvider {
       typeof getContractController<"DataLiquidityPool">
     >;
   };
+  private _walletClient?: WalletClient;
 
   constructor(config: VanaConfig) {
     this.provider = createPublicClient({
@@ -33,6 +41,11 @@ export class VanaProvider {
     this.chainId = config.chainId;
     this.addresses = CONTRACT_ADDRESSES[config.chainId] || {};
     this.client = createClient(config.chainId);
+
+    // Create wallet client if signer is provided
+    if (config.signer) {
+      this._walletClient = createWalletClient(config.chainId, config.signer);
+    }
 
     // Initialize contracts
     this.contracts = {
@@ -51,6 +64,14 @@ export class VanaProvider {
     if (!addr)
       throw new Error(`No address for ${name} on chain ${this.chainId}`);
     return addr;
+  }
+
+  async walletClient(): Promise<WalletClient> {
+    if (!this._walletClient) {
+      throw new Error("No wallet client configured");
+    }
+
+    return this._walletClient;
   }
 
   async signerAddress(): Promise<Address> {

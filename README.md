@@ -19,11 +19,16 @@ A TypeScript library for interacting with Vana Network smart contracts, enabling
   - Automatically handle payments and result retrieval via TEE ComputeEngine.
 - **Utilities:** Helper functions for encryption, key management, and result decoding to abstract away the cryptographic details of interacting with the Vana network.
 
-## Installation
+## 📦 Installation
 
 ```bash
 npm install vana-sdk
 ```
+
+[![npm version](https://img.shields.io/npm/v/vana-sdk)](https://www.npmjs.com/package/vana-sdk)
+
+➡️ [View on npm](https://www.npmjs.com/package/vana-sdk)
+
 
 ## Quick Start Example
 

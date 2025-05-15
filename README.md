@@ -2,6 +2,17 @@
 
 A TypeScript library for interacting with Vana Network smart contracts, enabling data contributions, validations, and queries in a simple way.
 
+## 📦 Installation
+
+```bash
+npm install vana-sdk
+```
+
+[![npm version](https://img.shields.io/npm/v/vana-sdk)](https://www.npmjs.com/package/vana-sdk)
+
+➡️ [View on npm](https://www.npmjs.com/package/vana-sdk)
+
+
 ## Features (Current & Planned)
 
 - **Wallet and Network Integration:** Connect to Vana networks (supports Vana Mainnet `1480` and Moksha Testnet `14800` out of the box) with easy provider configuration.
@@ -18,17 +29,6 @@ A TypeScript library for interacting with Vana Network smart contracts, enabling
   - Approve or revoke query requests (for DLP/refiner owners).
   - Automatically handle payments and result retrieval via TEE ComputeEngine.
 - **Utilities:** Helper functions for encryption, key management, and result decoding to abstract away the cryptographic details of interacting with the Vana network.
-
-## 📦 Installation
-
-```bash
-npm install vana-sdk
-```
-
-[![npm version](https://img.shields.io/npm/v/vana-sdk)](https://www.npmjs.com/package/vana-sdk)
-
-➡️ [View on npm](https://www.npmjs.com/package/vana-sdk)
-
 
 ## Quick Start Example
 

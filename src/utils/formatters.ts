@@ -1,4 +1,4 @@
-import { ethers } from "ethers";
+import { formatEther, formatUnits } from "viem";
 
 /**
  * Format a bigint or BigNumber to a regular number
@@ -16,7 +16,7 @@ export function formatNumber(value: bigint | string | number): number {
  * @returns Formatted ETH value as string
  */
 export function formatEth(wei: bigint | string | number, decimals = 4): string {
-  return ethers.formatEther(wei).slice(0, decimals + 2);
+  return formatEther(BigInt(wei.toString())).slice(0, decimals + 2);
 }
 
 /**
@@ -31,7 +31,7 @@ export function formatToken(
   decimals = 18,
   displayDecimals = 4
 ): string {
-  const value = ethers.formatUnits(amount, decimals);
+  const value = formatUnits(BigInt(amount.toString()), decimals);
   const parts = value.split(".");
 
   if (parts.length === 1) {

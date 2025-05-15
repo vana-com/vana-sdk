@@ -1,5 +1,4 @@
-import { InterfaceAbi } from "ethers";
-import { Chain, defineChain } from "viem";
+import { Abi, Chain, defineChain } from "viem";
 
 export const mokshaTestnet = defineChain({
   id: 14800,
@@ -59,16 +58,30 @@ export const vanaMainnet = defineChain({
   abis: {},
 });
 
+// Add Foundry (Anvil) local chain definition for testing
+export const foundryLocal = defineChain({
+  id: 31337,
+  name: "Foundry Local",
+  nativeCurrency: {
+    name: "Ether",
+    symbol: "ETH",
+    decimals: 18,
+  },
+  rpcUrls: {
+    default: {
+      http: ["http://127.0.0.1:8545"],
+    },
+  },
+  contracts: {},
+  abis: {},
+});
+
 export interface Chains {
-  [key: number]: Chain & { abis?: Record<string, InterfaceAbi> };
+  [key: number]: Chain & { abis?: Record<string, Abi> };
 }
 
 export const chains: Chains = {
   [mokshaTestnet.id]: mokshaTestnet,
   [vanaMainnet.id]: vanaMainnet,
+  [foundryLocal.id]: foundryLocal,
 };
-
-const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 14800);
-export const activeChain = chains[chainId];
-export const activeChainId = chainId;
-if (!activeChain) throw new Error(`Chain with id ${chainId} not found`);

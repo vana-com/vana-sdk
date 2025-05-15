@@ -1,17 +1,14 @@
 // Core modules
-export * from "./core/provider";
-export * from "./core/contractsController";
+export { VanaProvider } from "./core/provider";
 
-// Contract clients
-export * from "./contracts/dataRegistry";
-export * from "./contracts/teePool";
-export * from "./contracts/dataLiquidityPool";
-export * from "./contracts/computeEngine";
+// Base contract class
+export * from "./contracts/contractClient";
+export * from "./contracts/contractController";
 
 // Utilities
 export * from "./utils/encryption";
 export * from "./utils/formatters";
 
 // Configuration
-export * from "./config/addresses";
-export * from "./abi";
+export { getContractAddress } from "./config/addresses";
+export { chains } from "./config/chains";

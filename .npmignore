@@ -1,0 +1,37 @@
+# Source code
+src/
+test/
+
+# Configuration
+tsconfig.json
+.eslintrc.js
+.eslintrc.json
+.eslintignore
+.prettierrc
+.prettierignore
+vitest.config.ts
+jest.config.js
+
+# CI/CD
+.github/
+.circleci/
+.gitlab-ci.yml
+.travis.yml
+
+# Development files
+node_modules/
+coverage/
+.nyc_output/
+*.log
+.DS_Store
+.env
+.env.*
+
+# Editor directories and files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw? 

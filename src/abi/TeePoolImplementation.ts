@@ -1105,4 +1105,4 @@ export const TeePoolImplementationAbi = [
     stateMutability: "pure",
     type: "function",
   },
-];
+] as const;

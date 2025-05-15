@@ -1,4 +1,5 @@
 import { ComputeEngineImplementationAbi } from "./ComputeEngineImplementation";
+import { DataLiquidityPoolImplementationAbi } from "./DataLiquidityPoolImplementation";
 import { DataRegistryImplementationAbi } from "./DataRegistryImplementation";
 import { TeePoolImplementationAbi } from "./TeePoolImplementation";
 
@@ -6,6 +7,7 @@ const contractAbis = {
   DataRegistry: DataRegistryImplementationAbi,
   TeePool: TeePoolImplementationAbi,
   ComputeEngine: ComputeEngineImplementationAbi,
+  DataLiquidityPool: DataLiquidityPoolImplementationAbi,
 } as const;
 
 export type ContractAbis = typeof contractAbis;

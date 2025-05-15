@@ -1,5 +1,5 @@
 import { Chain, createPublicClient, http } from "viem";
-import { activeChainId, chains } from "./chains";
+import { chains, mokshaTestnet } from "../config/chains";
 
 export const defaultFromBlock = BigInt(292220); // No need to query earlier than this
 
@@ -7,7 +7,7 @@ export const defaultFromBlock = BigInt(292220); // No need to query earlier than
 let _client: ReturnType<typeof createClient>;
 
 export const createClient = (
-  chainId: keyof typeof chains = activeChainId
+  chainId: keyof typeof chains = mokshaTestnet.id
 ): ReturnType<typeof createPublicClient> & { chain: Chain } => {
   if (!_client || _client.chain?.id !== chainId) {
     const chain = chains[chainId];

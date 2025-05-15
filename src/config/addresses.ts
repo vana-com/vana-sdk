@@ -15,6 +15,8 @@ export const CONTRACT_ADDRESSES: Record<number, Record<string, string>> = {
     Multicall3: "0xD8d2dFca27E8797fd779F8547166A2d3B29d360E",
     Multisend: "0x8807e8BCDFbaA8c2761760f3FBA37F6f7F2C5b2d",
     ComputeEngine: "0xb2BFe33FA420c45F1Cf1287542ad81ae935447bd",
+    DataLiquidityPool: "0x33CbE8E5B011FE6959D109C8E18A40C759DBAF2E",
+    DataLiquidityPoolProxy: "0x33CbE8E5B011FE6959D109C8E18A40C759DBAF2E",
   },
   1480: {
     // Vana Mainnet
@@ -30,6 +32,8 @@ export const CONTRACT_ADDRESSES: Record<number, Record<string, string>> = {
     Multicall3: "0xD8d2dFca27E8797fd779F8547166A2d3B29d360E",
     Multisend: "0x8807e8BCDFbaA8c2761760f3FBA37F6f7F2C5b2d",
     ComputeEngine: "0xb2BFe33FA420c45F1Cf1287542ad81ae935447bd",
+    DataLiquidityPool: "0x33CbE8E5B011FE6959D109C8E18A40C759DBAF2E",
+    DataLiquidityPoolProxy: "0x33CbE8E5B011FE6959D109C8E18A40C759DBAF2E",
   },
 };
 

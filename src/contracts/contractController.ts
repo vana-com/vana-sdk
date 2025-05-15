@@ -2,8 +2,8 @@ import { Abi } from "abitype";
 import { getContract, GetContractReturnType } from "viem";
 import { ContractAbis, getAbi, VanaContract } from "../abi";
 import { getContractAddress } from "../config/addresses";
-import { createClient } from "./client";
-import { vanaMainnet } from "./chains";
+import { createClient } from "../core/client";
+import { vanaMainnet } from "../config/chains";
 
 // Cache for contract instances
 const controllers = new Map<VanaContract, GetContractReturnType<Abi>>();
@@ -24,7 +24,7 @@ export function getContractController<T extends VanaContract>(
   if (!controller) {
     controller = getContract({
       address: getContractAddress(client.chain?.id ?? vanaMainnet.id, contract),
-      abi: getAbi(contract) as Abi,
+      abi: getAbi(contract),
       client,
     });
     controllers.set(contract, controller);

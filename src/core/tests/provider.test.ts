@@ -1,4 +1,10 @@
-import { createTestClient, http, publicActions, walletActions } from "viem";
+import {
+  createTestClient,
+  http,
+  parseEther,
+  publicActions,
+  walletActions,
+} from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mokshaTestnet } from "../../config/chains";
@@ -99,6 +105,16 @@ describe("VanaProvider", () => {
           abi: vana.contracts.dataRegistry.abi,
           functionName: "version",
         });
+
+        testClient.writeContract({
+          address: vana.contracts.computeEngine.address,
+          abi: vana.contracts.computeEngine.abi,
+          functionName: "submitJob",
+          args: [BigInt(10), true, BigInt(1)],
+          value: parseEther("0.001"),
+          account: signer,
+        });
+
         expect(version).toBeDefined();
       } catch (error) {
         expect(console.log).toHaveBeenCalledWith(

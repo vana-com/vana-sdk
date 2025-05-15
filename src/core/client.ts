@@ -1,14 +1,22 @@
-import { Chain, createPublicClient, http } from "viem";
+import {
+  Chain,
+  createPublicClient,
+  http,
+  Account,
+  createWalletClient as viemCreateWalletClient,
+  PublicClient,
+  WalletClient,
+} from "viem";
 import { chains, mokshaTestnet } from "../config/chains";
 
 export const defaultFromBlock = BigInt(292220); // No need to query earlier than this
 
-// eslint-disable-next-line no-use-before-define -- circular dependency
-let _client: ReturnType<typeof createClient>;
+// Cache for clients
+let _client: PublicClient & { chain: Chain };
 
 export const createClient = (
   chainId: keyof typeof chains = mokshaTestnet.id
-): ReturnType<typeof createPublicClient> & { chain: Chain } => {
+): PublicClient & { chain: Chain } => {
   if (!_client || _client.chain?.id !== chainId) {
     const chain = chains[chainId];
     if (!chain) {
@@ -22,4 +30,20 @@ export const createClient = (
   }
 
   return _client;
+};
+
+export const createWalletClient = (
+  chainId: keyof typeof chains = mokshaTestnet.id,
+  account?: Account
+): WalletClient => {
+  const chain = chains[chainId];
+  if (!chain) {
+    throw new Error(`Chain ${chainId} not found`);
+  }
+
+  return viemCreateWalletClient({
+    chain,
+    transport: http(),
+    account,
+  });
 };

@@ -12,3 +12,7 @@ export * from "./utils/formatters";
 // Configuration
 export { getContractAddress } from "./config/addresses";
 export { chains } from "./config/chains";
+
+// ABIs
+export { getAbi } from "./abi";
+export type { VanaContract } from "./abi";

@@ -1,7 +1,7 @@
-// DataRegistry Implementation Contract
+// DLPPerformance Implementation Contract
 // Generated automatically - do not edit manually
 
-export const DataRegistryABI = [
+export const DLPPerformanceABI = [
   {
     "inputs": [],
     "stateMutability": "nonpayable",
@@ -42,6 +42,17 @@ export const DataRegistryABI = [
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "dlpId",
+        "type": "uint256"
+      }
+    ],
+    "name": "DlpNotEligible",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address",
         "name": "implementation",
         "type": "address"
@@ -62,6 +73,21 @@ export const DataRegistryABI = [
   },
   {
     "inputs": [],
+    "name": "EpochAlreadyFinalized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "EpochNotEnded",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "EpochNotFinalized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ExpectedPause",
     "type": "error"
   },
@@ -72,12 +98,12 @@ export const DataRegistryABI = [
   },
   {
     "inputs": [],
-    "name": "FileNotFound",
+    "name": "InvalidDataAccessFeesScore",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "FileUrlAlreadyUsed",
+    "name": "InvalidEpochDlpPerformancesCount",
     "type": "error"
   },
   {
@@ -87,17 +113,17 @@ export const DataRegistryABI = [
   },
   {
     "inputs": [],
-    "name": "InvalidUrl",
+    "name": "InvalidMetricWeights",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "NoPermission",
+    "name": "InvalidTradingVolumeScore",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "NotFileOwner",
+    "name": "InvalidUniqueContributorsScore",
     "type": "error"
   },
   {
@@ -127,23 +153,145 @@ export const DataRegistryABI = [
       {
         "indexed": true,
         "internalType": "uint256",
-        "name": "fileId",
+        "name": "epochId",
         "type": "uint256"
       },
       {
         "indexed": true,
-        "internalType": "address",
-        "name": "ownerAddress",
-        "type": "address"
+        "internalType": "uint256",
+        "name": "dlpId",
+        "type": "uint256"
       },
       {
         "indexed": false,
-        "internalType": "string",
-        "name": "url",
-        "type": "string"
+        "internalType": "uint256",
+        "name": "tradingVolumeScorePenalty",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "uniqueContributorsScorePenalty",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "dataAccessFeesScorePenalty",
+        "type": "uint256"
       }
     ],
-    "name": "FileAdded",
+    "name": "EpochDlpPenaltyUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "epochId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "dlpId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "tradingVolume",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "uniqueContributors",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "dataAccessFees",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "tradingVolumeScore",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "uniqueContributorsScore",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "dataAccessFeesScore",
+        "type": "uint256"
+      }
+    ],
+    "name": "EpochDlpPerformancesOverridden",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "epochId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "dlpId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "tradingVolume",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "uniqueContributors",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "dataAccessFees",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "tradingVolumeScore",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "uniqueContributorsScore",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "dataAccessFeesScore",
+        "type": "uint256"
+      }
+    ],
+    "name": "EpochDlpPerformancesSaved",
     "type": "event"
   },
   {
@@ -164,124 +312,37 @@ export const DataRegistryABI = [
     "inputs": [
       {
         "indexed": false,
+        "internalType": "uint256",
+        "name": "tradingVolume",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "uniqueContributors",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "dataAccessFees",
+        "type": "uint256"
+      }
+    ],
+    "name": "MetricWeightsUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
         "internalType": "address",
         "name": "account",
         "type": "address"
       }
     ],
     "name": "Paused",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
-      }
-    ],
-    "name": "PermissionGranted",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "ownerAddress",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "proofIndex",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "dlpId",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "score",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "string",
-        "name": "proofUrl",
-        "type": "string"
-      }
-    ],
-    "name": "ProofAdded",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "refinerId",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "string",
-        "name": "url",
-        "type": "string"
-      }
-    ],
-    "name": "RefinementAdded",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "refinerId",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "string",
-        "name": "url",
-        "type": "string"
-      }
-    ],
-    "name": "RefinementUpdated",
     "type": "event"
   },
   {
@@ -413,7 +474,7 @@ export const DataRegistryABI = [
   },
   {
     "inputs": [],
-    "name": "REFINEMENT_SERVICE_ROLE",
+    "name": "MANAGER_ROLE",
     "outputs": [
       {
         "internalType": "bytes32",
@@ -440,182 +501,51 @@ export const DataRegistryABI = [
   {
     "inputs": [
       {
-        "internalType": "string",
-        "name": "url",
-        "type": "string"
+        "internalType": "uint256",
+        "name": "epochId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "dlpId",
+        "type": "uint256"
       }
     ],
-    "name": "addFile",
+    "name": "calculateEpochDlpRewards",
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "rewardAmount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "penaltyAmount",
         "type": "uint256"
       }
     ],
-    "stateMutability": "nonpayable",
+    "stateMutability": "view",
     "type": "function"
   },
   {
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
-      },
-      {
-        "internalType": "string",
-        "name": "key",
-        "type": "string"
-      }
-    ],
-    "name": "addFilePermission",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "string",
-        "name": "url",
-        "type": "string"
-      },
-      {
-        "internalType": "address",
-        "name": "ownerAddress",
-        "type": "address"
-      },
-      {
-        "components": [
-          {
-            "internalType": "address",
-            "name": "account",
-            "type": "address"
-          },
-          {
-            "internalType": "string",
-            "name": "key",
-            "type": "string"
-          }
-        ],
-        "internalType": "struct IDataRegistry.Permission[]",
-        "name": "permissions",
-        "type": "tuple[]"
-      }
-    ],
-    "name": "addFileWithPermissions",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
+        "name": "epochId",
         "type": "uint256"
       }
     ],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      },
-      {
-        "components": [
-          {
-            "internalType": "bytes",
-            "name": "signature",
-            "type": "bytes"
-          },
-          {
-            "components": [
-              {
-                "internalType": "uint256",
-                "name": "score",
-                "type": "uint256"
-              },
-              {
-                "internalType": "uint256",
-                "name": "dlpId",
-                "type": "uint256"
-              },
-              {
-                "internalType": "string",
-                "name": "metadata",
-                "type": "string"
-              },
-              {
-                "internalType": "string",
-                "name": "proofUrl",
-                "type": "string"
-              },
-              {
-                "internalType": "string",
-                "name": "instruction",
-                "type": "string"
-              }
-            ],
-            "internalType": "struct IDataRegistry.ProofData",
-            "name": "data",
-            "type": "tuple"
-          }
-        ],
-        "internalType": "struct IDataRegistry.Proof",
-        "name": "proof",
-        "type": "tuple"
-      }
-    ],
-    "name": "addProof",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "refinerId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "string",
-        "name": "url",
-        "type": "string"
-      },
-      {
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
-      },
-      {
-        "internalType": "string",
-        "name": "key",
-        "type": "string"
-      }
-    ],
-    "name": "addRefinementWithPermission",
+    "name": "confirmEpochFinalScores",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
   },
   {
     "inputs": [],
-    "name": "dataRefinerRegistry",
+    "name": "dlpRegistry",
     "outputs": [
       {
-        "internalType": "contract IDataRefinerRegistry",
+        "internalType": "contract IDLPRegistry",
         "name": "",
         "type": "address"
       }
@@ -626,102 +556,72 @@ export const DataRegistryABI = [
   {
     "inputs": [
       {
-        "internalType": "string",
-        "name": "url",
-        "type": "string"
-      }
-    ],
-    "name": "fileIdByUrl",
-    "outputs": [
-      {
         "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
-      }
-    ],
-    "name": "filePermissions",
-    "outputs": [
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "fileId",
+        "name": "epochId",
         "type": "uint256"
       },
       {
         "internalType": "uint256",
-        "name": "index",
+        "name": "dlpId",
         "type": "uint256"
       }
     ],
-    "name": "fileProofs",
+    "name": "epochDlpPerformances",
     "outputs": [
       {
         "components": [
           {
-            "internalType": "bytes",
-            "name": "signature",
-            "type": "bytes"
+            "internalType": "uint256",
+            "name": "totalScore",
+            "type": "uint256"
           },
           {
-            "components": [
-              {
-                "internalType": "uint256",
-                "name": "score",
-                "type": "uint256"
-              },
-              {
-                "internalType": "uint256",
-                "name": "dlpId",
-                "type": "uint256"
-              },
-              {
-                "internalType": "string",
-                "name": "metadata",
-                "type": "string"
-              },
-              {
-                "internalType": "string",
-                "name": "proofUrl",
-                "type": "string"
-              },
-              {
-                "internalType": "string",
-                "name": "instruction",
-                "type": "string"
-              }
-            ],
-            "internalType": "struct IDataRegistry.ProofData",
-            "name": "data",
-            "type": "tuple"
+            "internalType": "uint256",
+            "name": "tradingVolume",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "uniqueContributors",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "dataAccessFees",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tradingVolumeScore",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "uniqueContributorsScore",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "dataAccessFeesScore",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tradingVolumeScorePenalty",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "uniqueContributorsScorePenalty",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "dataAccessFeesScorePenalty",
+            "type": "uint256"
           }
         ],
-        "internalType": "struct IDataRegistry.Proof",
+        "internalType": "struct IDLPPerformance.EpochDlpPerformanceInfo",
         "name": "",
         "type": "tuple"
       }
@@ -733,75 +633,33 @@ export const DataRegistryABI = [
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "refinerId",
+        "name": "epochId",
         "type": "uint256"
       }
     ],
-    "name": "fileRefinements",
-    "outputs": [
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      }
-    ],
-    "name": "files",
+    "name": "epochMetricWeights",
     "outputs": [
       {
         "components": [
           {
             "internalType": "uint256",
-            "name": "id",
+            "name": "tradingVolume",
             "type": "uint256"
-          },
-          {
-            "internalType": "address",
-            "name": "ownerAddress",
-            "type": "address"
-          },
-          {
-            "internalType": "string",
-            "name": "url",
-            "type": "string"
           },
           {
             "internalType": "uint256",
-            "name": "addedAtBlock",
+            "name": "uniqueContributors",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "dataAccessFees",
             "type": "uint256"
           }
         ],
-        "internalType": "struct IDataRegistry.FileResponse",
+        "internalType": "struct IDLPPerformance.MetricWeights",
         "name": "",
         "type": "tuple"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "filesCount",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -872,12 +730,12 @@ export const DataRegistryABI = [
     "inputs": [
       {
         "internalType": "address",
-        "name": "trustedForwarderAddress",
+        "name": "ownerAddress",
         "type": "address"
       },
       {
         "internalType": "address",
-        "name": "ownerAddress",
+        "name": "dlpRegistryAddress",
         "type": "address"
       }
     ],
@@ -887,19 +745,30 @@ export const DataRegistryABI = [
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "forwarder",
-        "type": "address"
-      }
-    ],
-    "name": "isTrustedForwarder",
+    "inputs": [],
+    "name": "metricWeights",
     "outputs": [
       {
-        "internalType": "bool",
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "tradingVolume",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "uniqueContributors",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "dataAccessFees",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct IDLPPerformance.MetricWeights",
         "name": "",
-        "type": "bool"
+        "type": "tuple"
       }
     ],
     "stateMutability": "view",
@@ -908,19 +777,106 @@ export const DataRegistryABI = [
   {
     "inputs": [
       {
-        "internalType": "bytes[]",
-        "name": "data",
-        "type": "bytes[]"
-      }
-    ],
-    "name": "multicall",
-    "outputs": [
+        "internalType": "uint256",
+        "name": "epochId",
+        "type": "uint256"
+      },
       {
-        "internalType": "bytes[]",
-        "name": "results",
-        "type": "bytes[]"
+        "internalType": "uint256",
+        "name": "dlpId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "tradingVolumeScorePenalty",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "uniqueContributorsScorePenalty",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "dataAccessFeesScorePenalty",
+        "type": "uint256"
       }
     ],
+    "name": "overrideEpochDlpPenalty",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "epochId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "dlpId",
+        "type": "uint256"
+      }
+    ],
+    "name": "overrideEpochDlpReward",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "epochId",
+        "type": "uint256"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "dlpId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tradingVolume",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "uniqueContributors",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "dataAccessFees",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tradingVolumeScore",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "uniqueContributorsScore",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "dataAccessFeesScore",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct IDLPPerformance.EpochDlpPerformanceInput[]",
+        "name": "newEpochDlpPerformances",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "overrideEpochPerformances",
+    "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -996,17 +952,54 @@ export const DataRegistryABI = [
   {
     "inputs": [
       {
-        "internalType": "bytes32",
-        "name": "role",
-        "type": "bytes32"
+        "internalType": "uint256",
+        "name": "epochId",
+        "type": "uint256"
       },
       {
-        "internalType": "bytes32",
-        "name": "adminRole",
-        "type": "bytes32"
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "dlpId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tradingVolume",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "uniqueContributors",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "dataAccessFees",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tradingVolumeScore",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "uniqueContributorsScore",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "dataAccessFeesScore",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct IDLPPerformance.EpochDlpPerformanceInput[]",
+        "name": "newEpochDlpPerformances",
+        "type": "tuple[]"
       }
     ],
-    "name": "setRoleAdmin",
+    "name": "saveEpochPerformances",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -1032,19 +1025,6 @@ export const DataRegistryABI = [
   },
   {
     "inputs": [],
-    "name": "trustedForwarder",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "unpause",
     "outputs": [],
     "stateMutability": "nonpayable",
@@ -1053,12 +1033,42 @@ export const DataRegistryABI = [
   {
     "inputs": [
       {
-        "internalType": "contract IDataRefinerRegistry",
-        "name": "newDataRefinerRegistry",
+        "internalType": "address",
+        "name": "dlpRegistryAddress",
         "type": "address"
       }
     ],
-    "name": "updateDataRefinerRegistry",
+    "name": "updateDlpRegistry",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "tradingVolume",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "uniqueContributors",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "dataAccessFees",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct IDLPPerformance.MetricWeights",
+        "name": "newMetricWeights",
+        "type": "tuple"
+      }
+    ],
+    "name": "updateMetricWeights",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -1067,11 +1077,11 @@ export const DataRegistryABI = [
     "inputs": [
       {
         "internalType": "address",
-        "name": "trustedForwarderAddress",
+        "name": "vanaEpochAddress",
         "type": "address"
       }
     ],
-    "name": "updateTrustedForwarder",
+    "name": "updateVanaEpoch",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -1096,6 +1106,19 @@ export const DataRegistryABI = [
   },
   {
     "inputs": [],
+    "name": "vanaEpoch",
+    "outputs": [
+      {
+        "internalType": "contract IVanaEpoch",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "version",
     "outputs": [
       {
@@ -1109,4 +1132,4 @@ export const DataRegistryABI = [
   }
 ] as const;
 
-export default DataRegistryABI;
+export default DLPPerformanceABI;

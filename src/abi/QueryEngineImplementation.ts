@@ -1,7 +1,7 @@
-// ComputeEngine Implementation Contract
+// QueryEngine Implementation Contract
 // Generated automatically - do not edit manually
 
-export const ComputeEngineABI = [
+export const QueryEngineABI = [
   {
     "inputs": [],
     "stateMutability": "nonpayable",
@@ -51,6 +51,16 @@ export const ComputeEngineABI = [
     "type": "error"
   },
   {
+    "inputs": [],
+    "name": "ColumnNameUnexpected",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "DlpNotFound",
+    "type": "error"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -83,28 +93,12 @@ export const ComputeEngineABI = [
   },
   {
     "inputs": [],
-    "name": "FailedToAssignTee",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "computeInstructionId",
-        "type": "uint256"
-      }
-    ],
-    "name": "InstructionNotFound",
+    "name": "InvalidDlpPaymentPercentage",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "InsufficientBalance",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidAmount",
+    "name": "InvalidDlpTreasuryAddress",
     "type": "error"
   },
   {
@@ -115,54 +109,17 @@ export const ComputeEngineABI = [
   {
     "inputs": [
       {
-        "internalType": "enum IComputeEngine.JobStatus",
-        "name": "currentStatus",
-        "type": "uint8"
-      },
-      {
-        "internalType": "enum IComputeEngine.JobStatus",
-        "name": "newStatus",
-        "type": "uint8"
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
       }
     ],
-    "name": "InvalidStatusTransition",
+    "name": "InvalidPaymentToken",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "InvalidVanaAmount",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "JobAlreadyDone",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "JobLifeCycleEnded",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "jobId",
-        "type": "uint256"
-      }
-    ],
-    "name": "JobNotFound",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "jobId",
-        "type": "uint256"
-      }
-    ],
-    "name": "JobNotSubmitted",
+    "name": "NotDlpOwner",
     "type": "error"
   },
   {
@@ -172,32 +129,27 @@ export const ComputeEngineABI = [
   },
   {
     "inputs": [],
-    "name": "NotJobOwner",
+    "name": "NotRefinerOwner",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "NotLongRunningJob",
+    "name": "PaymentNotReceived",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "NotQueryEngine",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "NotTee",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "OnlyRegisteredJobStatus",
+    "name": "PermissionNotFound",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "ReentrancyGuardReentrantCall",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "RefinerNotFound",
     "type": "error"
   },
   {
@@ -214,17 +166,12 @@ export const ComputeEngineABI = [
   {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "jobId",
-        "type": "uint256"
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
       }
     ],
-    "name": "TeeAlreadyAssigned",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "TeePoolNotFound",
+    "name": "TokenAlreadyWhitelisted",
     "type": "error"
   },
   {
@@ -245,22 +192,7 @@ export const ComputeEngineABI = [
   },
   {
     "inputs": [],
-    "name": "UnauthorizedPaymentRequestor",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "UnexpectedVanaDeposit",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "ZeroAddress",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ZeroTeeAddress",
     "type": "error"
   },
   {
@@ -268,8 +200,14 @@ export const ComputeEngineABI = [
     "inputs": [
       {
         "indexed": true,
+        "internalType": "uint256",
+        "name": "dlpId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
         "internalType": "address",
-        "name": "account",
+        "name": "dlpTreasuryAddress",
         "type": "address"
       },
       {
@@ -285,7 +223,7 @@ export const ComputeEngineABI = [
         "type": "uint256"
       }
     ],
-    "name": "Deposit",
+    "name": "DlpPaymentClaimed",
     "type": "event"
   },
   {
@@ -299,63 +237,6 @@ export const ComputeEngineABI = [
       }
     ],
     "name": "Initialized",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "jobId",
-        "type": "uint256"
-      }
-    ],
-    "name": "JobCanceled",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "jobId",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "ownerAddress",
-        "type": "address"
-      }
-    ],
-    "name": "JobRegistered",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "jobId",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "enum IComputeEngine.JobStatus",
-        "name": "status",
-        "type": "uint8"
-      },
-      {
-        "indexed": false,
-        "internalType": "string",
-        "name": "statusMessage",
-        "type": "string"
-      }
-    ],
-    "name": "JobStatusUpdated",
     "type": "event"
   },
   {
@@ -376,12 +257,6 @@ export const ComputeEngineABI = [
     "inputs": [
       {
         "indexed": true,
-        "internalType": "uint256",
-        "name": "jobId",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
         "internalType": "address",
         "name": "token",
         "type": "address"
@@ -391,9 +266,89 @@ export const ComputeEngineABI = [
         "internalType": "uint256",
         "name": "amount",
         "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "jobId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "refinerId",
+        "type": "uint256"
       }
     ],
-    "name": "PaymentExecuted",
+    "name": "PaymentReceived",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "permissionId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "grantee",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "refinerId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "tableName",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "columnName",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "tokenAddress",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "price",
+        "type": "uint256"
+      }
+    ],
+    "name": "PermissionAdded",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "permissionId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "approved",
+        "type": "bool"
+      }
+    ],
+    "name": "PermissionApprovalUpdated",
     "type": "event"
   },
   {
@@ -475,50 +430,6 @@ export const ComputeEngineABI = [
     "anonymous": false,
     "inputs": [
       {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "jobId",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "bytes",
-        "name": "reason",
-        "type": "bytes"
-      }
-    ],
-    "name": "TeeAssignmentFailed",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "jobId",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "teePoolAddress",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "teeAddress",
-        "type": "address"
-      }
-    ],
-    "name": "TeeAssignmentSucceeded",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
         "indexed": false,
         "internalType": "address",
         "name": "account",
@@ -542,44 +453,6 @@ export const ComputeEngineABI = [
     "type": "event"
   },
   {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
-    ],
-    "name": "Withdraw",
-    "type": "event"
-  },
-  {
-    "inputs": [],
-    "name": "DEDICATED_TIMEOUT",
-    "outputs": [
-      {
-        "internalType": "uint80",
-        "name": "",
-        "type": "uint80"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [],
     "name": "DEFAULT_ADMIN_ROLE",
     "outputs": [
@@ -595,6 +468,32 @@ export const ComputeEngineABI = [
   {
     "inputs": [],
     "name": "MAINTAINER_ROLE",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "ONE_HUNDRED_PERCENT",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "QUERY_ENGINE_ROLE",
     "outputs": [
       {
         "internalType": "bytes32",
@@ -634,9 +533,105 @@ export const ComputeEngineABI = [
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "refinerId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "tableName",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "columnName",
+        "type": "string"
+      },
+      {
         "internalType": "address",
-        "name": "account",
+        "name": "tokenAddress",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "price",
+        "type": "uint256"
+      }
+    ],
+    "name": "addGenericPermission",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "permissionId",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "addPaymentToken",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "grantee",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "refinerId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "tableName",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "columnName",
+        "type": "string"
+      },
+      {
+        "internalType": "address",
+        "name": "tokenAddress",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "price",
+        "type": "uint256"
+      }
+    ],
+    "name": "addPermission",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "permissionId",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "dlpId",
+        "type": "uint256"
       },
       {
         "internalType": "address",
@@ -659,21 +654,26 @@ export const ComputeEngineABI = [
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "jobId",
+        "name": "dlpId",
         "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
       }
     ],
-    "name": "cancelJob",
+    "name": "claimDlpPayment",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
   },
   {
     "inputs": [],
-    "name": "computeEngineTreasury",
+    "name": "computeEngine",
     "outputs": [
       {
-        "internalType": "contract IDataAccessTreasury",
+        "internalType": "contract IComputeEngine",
         "name": "",
         "type": "address"
       }
@@ -682,44 +682,101 @@ export const ComputeEngineABI = [
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      },
+    "inputs": [],
+    "name": "dlpPaymentPercentage",
+    "outputs": [
       {
         "internalType": "uint256",
-        "name": "amount",
+        "name": "",
         "type": "uint256"
       }
     ],
-    "name": "deposit",
-    "outputs": [],
-    "stateMutability": "payable",
+    "stateMutability": "view",
     "type": "function"
   },
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      },
+        "internalType": "uint256",
+        "name": "dlpId",
+        "type": "uint256"
+      }
+    ],
+    "name": "dlpPubKeys",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "pubKey",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
       {
         "internalType": "uint256",
-        "name": "amount",
+        "name": "refinerId",
         "type": "uint256"
       },
       {
-        "internalType": "bytes",
-        "name": "metadata",
-        "type": "bytes"
+        "internalType": "address",
+        "name": "grantee",
+        "type": "address"
       }
     ],
-    "name": "executePaymentRequest",
-    "outputs": [],
-    "stateMutability": "nonpayable",
+    "name": "getPermissions",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "permissionId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "grantee",
+            "type": "address"
+          },
+          {
+            "internalType": "bool",
+            "name": "approved",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint256",
+            "name": "refinerId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "string",
+            "name": "tableName",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "columnName",
+            "type": "string"
+          },
+          {
+            "internalType": "uint256",
+            "name": "price",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "tokenAddress",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct IQueryEngine.PermissionInfo[]",
+        "name": "",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -792,12 +849,7 @@ export const ComputeEngineABI = [
       },
       {
         "internalType": "address",
-        "name": "initQueryEngine",
-        "type": "address"
-      },
-      {
-        "internalType": "contract IComputeEngineTeePoolFactory",
-        "name": "initTeePoolFactory",
+        "name": "initRefinerRegistryAddress",
         "type": "address"
       },
       {
@@ -809,98 +861,6 @@ export const ComputeEngineABI = [
     "name": "initialize",
     "outputs": [],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "instructionRegistry",
-    "outputs": [
-      {
-        "internalType": "contract IComputeInstructionRegistry",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "jobId",
-        "type": "uint256"
-      }
-    ],
-    "name": "jobs",
-    "outputs": [
-      {
-        "components": [
-          {
-            "internalType": "address",
-            "name": "ownerAddress",
-            "type": "address"
-          },
-          {
-            "internalType": "uint80",
-            "name": "maxTimeout",
-            "type": "uint80"
-          },
-          {
-            "internalType": "bool",
-            "name": "gpuRequired",
-            "type": "bool"
-          },
-          {
-            "internalType": "enum IComputeEngine.JobStatus",
-            "name": "status",
-            "type": "uint8"
-          },
-          {
-            "internalType": "address",
-            "name": "teeAddress",
-            "type": "address"
-          },
-          {
-            "internalType": "uint32",
-            "name": "computeInstructionId",
-            "type": "uint32"
-          },
-          {
-            "internalType": "uint48",
-            "name": "addedTimestamp",
-            "type": "uint48"
-          },
-          {
-            "internalType": "string",
-            "name": "statusMessage",
-            "type": "string"
-          },
-          {
-            "internalType": "address",
-            "name": "teePoolAddress",
-            "type": "address"
-          }
-        ],
-        "internalType": "struct IComputeEngine.Job",
-        "name": "",
-        "type": "tuple"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "jobsCount",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -927,21 +887,61 @@ export const ComputeEngineABI = [
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "jobId",
+        "name": "permissionId",
         "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "dlpId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
       }
     ],
-    "name": "paymentInfo",
+    "name": "permissions",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "grantee",
+            "type": "address"
+          },
+          {
+            "internalType": "bool",
+            "name": "approved",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint256",
+            "name": "refinerId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "string",
+            "name": "tableName",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "columnName",
+            "type": "string"
+          },
+          {
+            "internalType": "uint256",
+            "name": "price",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "tokenAddress",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct IQueryEngine.Permission",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "permissionsCount",
     "outputs": [
       {
         "internalType": "uint256",
@@ -967,15 +967,41 @@ export const ComputeEngineABI = [
   },
   {
     "inputs": [],
-    "name": "queryEngine",
+    "name": "queryEngineTreasury",
     "outputs": [
       {
-        "internalType": "address",
+        "internalType": "contract IDataAccessTreasury",
         "name": "",
         "type": "address"
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "refinerRegistry",
+    "outputs": [
+      {
+        "internalType": "contract IDataRefinerRegistry",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "removePaymentToken",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -999,12 +1025,50 @@ export const ComputeEngineABI = [
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes",
+        "name": "metadata",
+        "type": "bytes"
+      }
+    ],
+    "name": "requestPayment",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
         "internalType": "uint256",
         "name": "jobId",
         "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "refinerId",
+        "type": "uint256"
       }
     ],
-    "name": "resubmitJob",
+    "name": "requestPaymentInToken",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -1013,16 +1077,21 @@ export const ComputeEngineABI = [
     "inputs": [
       {
         "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
         "name": "jobId",
         "type": "uint256"
       },
       {
-        "internalType": "address",
-        "name": "teeAddress",
-        "type": "address"
+        "internalType": "uint256",
+        "name": "refinerId",
+        "type": "uint256"
       }
     ],
-    "name": "resubmitJobWithTee",
+    "name": "requestPaymentInVana",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -1048,57 +1117,6 @@ export const ComputeEngineABI = [
   {
     "inputs": [
       {
-        "internalType": "uint80",
-        "name": "maxTimeout",
-        "type": "uint80"
-      },
-      {
-        "internalType": "bool",
-        "name": "gpuRequired",
-        "type": "bool"
-      },
-      {
-        "internalType": "uint256",
-        "name": "computeInstructionId",
-        "type": "uint256"
-      }
-    ],
-    "name": "submitJob",
-    "outputs": [],
-    "stateMutability": "payable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint80",
-        "name": "maxTimeout",
-        "type": "uint80"
-      },
-      {
-        "internalType": "bool",
-        "name": "gpuRequired",
-        "type": "bool"
-      },
-      {
-        "internalType": "uint256",
-        "name": "computeInstructionId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "address",
-        "name": "teeAddress",
-        "type": "address"
-      }
-    ],
-    "name": "submitJobWithTee",
-    "outputs": [],
-    "stateMutability": "payable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "bytes4",
         "name": "interfaceId",
         "type": "bytes4"
@@ -1117,19 +1135,6 @@ export const ComputeEngineABI = [
   },
   {
     "inputs": [],
-    "name": "teePoolFactory",
-    "outputs": [
-      {
-        "internalType": "contract IComputeEngineTeePoolFactory",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "unpause",
     "outputs": [],
     "stateMutability": "nonpayable",
@@ -1138,25 +1143,12 @@ export const ComputeEngineABI = [
   {
     "inputs": [
       {
-        "internalType": "contract IDataAccessTreasury",
-        "name": "newComputeEngineTreasuryAddress",
+        "internalType": "address",
+        "name": "newComputeEngineAddress",
         "type": "address"
       }
     ],
-    "name": "updateComputeEngineTreasury",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "contract IComputeInstructionRegistry",
-        "name": "newInstructionRegistry",
-        "type": "address"
-      }
-    ],
-    "name": "updateInstructionRegistry",
+    "name": "updateComputeEngine",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -1165,21 +1157,60 @@ export const ComputeEngineABI = [
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "jobId",
+        "name": "newDlpPaymentPercentage",
+        "type": "uint256"
+      }
+    ],
+    "name": "updateDlpPaymentPercentage",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "dlpId",
         "type": "uint256"
       },
       {
-        "internalType": "enum IComputeEngine.JobStatus",
-        "name": "status",
-        "type": "uint8"
-      },
-      {
         "internalType": "string",
-        "name": "statusMessage",
+        "name": "pubKey",
         "type": "string"
       }
     ],
-    "name": "updateJobStatus",
+    "name": "updateDlpPubKey",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "permissionId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "approved",
+        "type": "bool"
+      }
+    ],
+    "name": "updatePermissionApproval",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IDataAccessTreasury",
+        "name": "newQueryEngineTreasury",
+        "type": "address"
+      }
+    ],
+    "name": "updateQueryEngineTreasury",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -1188,11 +1219,11 @@ export const ComputeEngineABI = [
     "inputs": [
       {
         "internalType": "address",
-        "name": "newQueryEngineAddress",
+        "name": "newRefinerRegistryAddress",
         "type": "address"
       }
     ],
-    "name": "updateQueryEngine",
+    "name": "updateRefinerRegistry",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -1200,12 +1231,12 @@ export const ComputeEngineABI = [
   {
     "inputs": [
       {
-        "internalType": "contract IComputeEngineTeePoolFactory",
-        "name": "newTeePoolFactory",
+        "internalType": "address",
+        "name": "newVanaTreasury",
         "type": "address"
       }
     ],
-    "name": "updateTeePoolFactory",
+    "name": "updateVanaTreasury",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -1229,24 +1260,13 @@ export const ComputeEngineABI = [
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "jobId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "dlpId",
-        "type": "uint256"
-      }
-    ],
-    "name": "vanaPaymentInfo",
+    "inputs": [],
+    "name": "vanaTreasury",
     "outputs": [
       {
-        "internalType": "uint256",
+        "internalType": "address",
         "name": "",
-        "type": "uint256"
+        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -1266,23 +1286,9 @@ export const ComputeEngineABI = [
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
-    ],
-    "name": "withdraw",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
+    "stateMutability": "payable",
+    "type": "receive"
   }
 ] as const;
 
-export default ComputeEngineABI;
+export default QueryEngineABI;

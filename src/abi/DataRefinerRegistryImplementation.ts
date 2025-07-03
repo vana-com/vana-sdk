@@ -1,7 +1,7 @@
-// DataRegistry Implementation Contract
+// DataRefinerRegistry Implementation Contract
 // Generated automatically - do not edit manually
 
-export const DataRegistryABI = [
+export const DataRefinerRegistryABI = [
   {
     "inputs": [],
     "stateMutability": "nonpayable",
@@ -72,32 +72,12 @@ export const DataRegistryABI = [
   },
   {
     "inputs": [],
-    "name": "FileNotFound",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "FileUrlAlreadyUsed",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "InvalidInitialization",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "InvalidUrl",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "NoPermission",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "NotFileOwner",
+    "name": "NotDlpOwner",
     "type": "error"
   },
   {
@@ -120,31 +100,6 @@ export const DataRegistryABI = [
     ],
     "name": "UUPSUnsupportedProxiableUUID",
     "type": "error"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "ownerAddress",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "string",
-        "name": "url",
-        "type": "string"
-      }
-    ],
-    "name": "FileAdded",
-    "type": "event"
   },
   {
     "anonymous": false,
@@ -178,38 +133,7 @@ export const DataRegistryABI = [
       {
         "indexed": true,
         "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
-      }
-    ],
-    "name": "PermissionGranted",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "ownerAddress",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "proofIndex",
+        "name": "refinerId",
         "type": "uint256"
       },
       {
@@ -220,68 +144,24 @@ export const DataRegistryABI = [
       },
       {
         "indexed": false,
-        "internalType": "uint256",
-        "name": "score",
-        "type": "uint256"
+        "internalType": "string",
+        "name": "name",
+        "type": "string"
       },
       {
         "indexed": false,
         "internalType": "string",
-        "name": "proofUrl",
+        "name": "schemaDefinitionUrl",
         "type": "string"
-      }
-    ],
-    "name": "ProofAdded",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "refinerId",
-        "type": "uint256"
       },
       {
         "indexed": false,
         "internalType": "string",
-        "name": "url",
+        "name": "refinementInstructionUrl",
         "type": "string"
       }
     ],
-    "name": "RefinementAdded",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "refinerId",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "string",
-        "name": "url",
-        "type": "string"
-      }
-    ],
-    "name": "RefinementUpdated",
+    "name": "RefinerAdded",
     "type": "event"
   },
   {
@@ -413,19 +293,6 @@ export const DataRegistryABI = [
   },
   {
     "inputs": [],
-    "name": "REFINEMENT_SERVICE_ROLE",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "UPGRADE_INTERFACE_VERSION",
     "outputs": [
       {
@@ -440,139 +307,17 @@ export const DataRegistryABI = [
   {
     "inputs": [
       {
-        "internalType": "string",
-        "name": "url",
-        "type": "string"
-      }
-    ],
-    "name": "addFile",
-    "outputs": [
-      {
         "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "fileId",
+        "name": "dlpId",
         "type": "uint256"
       },
       {
         "internalType": "address",
-        "name": "account",
+        "name": "refinementService",
         "type": "address"
-      },
-      {
-        "internalType": "string",
-        "name": "key",
-        "type": "string"
       }
     ],
-    "name": "addFilePermission",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "string",
-        "name": "url",
-        "type": "string"
-      },
-      {
-        "internalType": "address",
-        "name": "ownerAddress",
-        "type": "address"
-      },
-      {
-        "components": [
-          {
-            "internalType": "address",
-            "name": "account",
-            "type": "address"
-          },
-          {
-            "internalType": "string",
-            "name": "key",
-            "type": "string"
-          }
-        ],
-        "internalType": "struct IDataRegistry.Permission[]",
-        "name": "permissions",
-        "type": "tuple[]"
-      }
-    ],
-    "name": "addFileWithPermissions",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      },
-      {
-        "components": [
-          {
-            "internalType": "bytes",
-            "name": "signature",
-            "type": "bytes"
-          },
-          {
-            "components": [
-              {
-                "internalType": "uint256",
-                "name": "score",
-                "type": "uint256"
-              },
-              {
-                "internalType": "uint256",
-                "name": "dlpId",
-                "type": "uint256"
-              },
-              {
-                "internalType": "string",
-                "name": "metadata",
-                "type": "string"
-              },
-              {
-                "internalType": "string",
-                "name": "proofUrl",
-                "type": "string"
-              },
-              {
-                "internalType": "string",
-                "name": "instruction",
-                "type": "string"
-              }
-            ],
-            "internalType": "struct IDataRegistry.ProofData",
-            "name": "data",
-            "type": "tuple"
-          }
-        ],
-        "internalType": "struct IDataRegistry.Proof",
-        "name": "proof",
-        "type": "tuple"
-      }
-    ],
-    "name": "addProof",
+    "name": "addRefinementService",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -581,62 +326,50 @@ export const DataRegistryABI = [
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "refinerId",
+        "name": "dlpId",
         "type": "uint256"
       },
       {
         "internalType": "string",
-        "name": "url",
+        "name": "name",
         "type": "string"
       },
       {
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
+        "internalType": "string",
+        "name": "schemaDefinitionUrl",
+        "type": "string"
       },
       {
         "internalType": "string",
-        "name": "key",
+        "name": "refinementInstructionUrl",
         "type": "string"
       }
     ],
-    "name": "addRefinementWithPermission",
-    "outputs": [],
+    "name": "addRefiner",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "dataRefinerRegistry",
-    "outputs": [
-      {
-        "internalType": "contract IDataRefinerRegistry",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
-        "internalType": "string",
-        "name": "url",
-        "type": "string"
+        "internalType": "uint256",
+        "name": "dlpId",
+        "type": "uint256"
       }
     ],
-    "name": "fileIdByUrl",
+    "name": "dlpRefinementServices",
     "outputs": [
       {
-        "internalType": "uint256",
+        "internalType": "address[]",
         "name": "",
-        "type": "uint256"
+        "type": "address[]"
       }
     ],
     "stateMutability": "view",
@@ -646,149 +379,16 @@ export const DataRegistryABI = [
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "fileId",
+        "name": "dlpId",
         "type": "uint256"
-      },
-      {
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
       }
     ],
-    "name": "filePermissions",
+    "name": "dlpRefiners",
     "outputs": [
       {
-        "internalType": "string",
+        "internalType": "uint256[]",
         "name": "",
-        "type": "string"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "index",
-        "type": "uint256"
-      }
-    ],
-    "name": "fileProofs",
-    "outputs": [
-      {
-        "components": [
-          {
-            "internalType": "bytes",
-            "name": "signature",
-            "type": "bytes"
-          },
-          {
-            "components": [
-              {
-                "internalType": "uint256",
-                "name": "score",
-                "type": "uint256"
-              },
-              {
-                "internalType": "uint256",
-                "name": "dlpId",
-                "type": "uint256"
-              },
-              {
-                "internalType": "string",
-                "name": "metadata",
-                "type": "string"
-              },
-              {
-                "internalType": "string",
-                "name": "proofUrl",
-                "type": "string"
-              },
-              {
-                "internalType": "string",
-                "name": "instruction",
-                "type": "string"
-              }
-            ],
-            "internalType": "struct IDataRegistry.ProofData",
-            "name": "data",
-            "type": "tuple"
-          }
-        ],
-        "internalType": "struct IDataRegistry.Proof",
-        "name": "",
-        "type": "tuple"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "refinerId",
-        "type": "uint256"
-      }
-    ],
-    "name": "fileRefinements",
-    "outputs": [
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      }
-    ],
-    "name": "files",
-    "outputs": [
-      {
-        "components": [
-          {
-            "internalType": "uint256",
-            "name": "id",
-            "type": "uint256"
-          },
-          {
-            "internalType": "address",
-            "name": "ownerAddress",
-            "type": "address"
-          },
-          {
-            "internalType": "string",
-            "name": "url",
-            "type": "string"
-          },
-          {
-            "internalType": "uint256",
-            "name": "addedAtBlock",
-            "type": "uint256"
-          }
-        ],
-        "internalType": "struct IDataRegistry.FileResponse",
-        "name": "",
-        "type": "tuple"
+        "type": "uint256[]"
       }
     ],
     "stateMutability": "view",
@@ -796,12 +396,12 @@ export const DataRegistryABI = [
   },
   {
     "inputs": [],
-    "name": "filesCount",
+    "name": "dlpRegistry",
     "outputs": [
       {
-        "internalType": "uint256",
+        "internalType": "contract IDLPRegistry",
         "name": "",
-        "type": "uint256"
+        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -872,12 +472,12 @@ export const DataRegistryABI = [
     "inputs": [
       {
         "internalType": "address",
-        "name": "trustedForwarderAddress",
+        "name": "ownerAddress",
         "type": "address"
       },
       {
         "internalType": "address",
-        "name": "ownerAddress",
+        "name": "initDlpRegistryAddress",
         "type": "address"
       }
     ],
@@ -889,12 +489,17 @@ export const DataRegistryABI = [
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "refinerId",
+        "type": "uint256"
+      },
+      {
         "internalType": "address",
-        "name": "forwarder",
+        "name": "refinementService",
         "type": "address"
       }
     ],
-    "name": "isTrustedForwarder",
+    "name": "isRefinementService",
     "outputs": [
       {
         "internalType": "bool",
@@ -903,25 +508,6 @@ export const DataRegistryABI = [
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes[]",
-        "name": "data",
-        "type": "bytes[]"
-      }
-    ],
-    "name": "multicall",
-    "outputs": [
-      {
-        "internalType": "bytes[]",
-        "name": "results",
-        "type": "bytes[]"
-      }
-    ],
-    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -955,6 +541,83 @@ export const DataRegistryABI = [
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "refinerId",
+        "type": "uint256"
+      }
+    ],
+    "name": "refiners",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "dlpId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "owner",
+            "type": "address"
+          },
+          {
+            "internalType": "string",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "schemaDefinitionUrl",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "refinementInstructionUrl",
+            "type": "string"
+          }
+        ],
+        "internalType": "struct IDataRefinerRegistry.RefinerInfo",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "refinersCount",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "dlpId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "refinementService",
+        "type": "address"
+      }
+    ],
+    "name": "removeRefinementService",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -996,24 +659,6 @@ export const DataRegistryABI = [
   {
     "inputs": [
       {
-        "internalType": "bytes32",
-        "name": "role",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "adminRole",
-        "type": "bytes32"
-      }
-    ],
-    "name": "setRoleAdmin",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "bytes4",
         "name": "interfaceId",
         "type": "bytes4"
@@ -1032,19 +677,6 @@ export const DataRegistryABI = [
   },
   {
     "inputs": [],
-    "name": "trustedForwarder",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "unpause",
     "outputs": [],
     "stateMutability": "nonpayable",
@@ -1053,12 +685,12 @@ export const DataRegistryABI = [
   {
     "inputs": [
       {
-        "internalType": "contract IDataRefinerRegistry",
-        "name": "newDataRefinerRegistry",
-        "type": "address"
+        "internalType": "uint256",
+        "name": "dlpId",
+        "type": "uint256"
       }
     ],
-    "name": "updateDataRefinerRegistry",
+    "name": "updateDlpRefinersOwner",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -1067,11 +699,24 @@ export const DataRegistryABI = [
     "inputs": [
       {
         "internalType": "address",
-        "name": "trustedForwarderAddress",
+        "name": "newDlpRegistryAddress",
         "type": "address"
       }
     ],
-    "name": "updateTrustedForwarder",
+    "name": "updateDlpRegistry",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "refinerId",
+        "type": "uint256"
+      }
+    ],
+    "name": "updateRefinerOwner",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -1109,4 +754,4 @@ export const DataRegistryABI = [
   }
 ] as const;
 
-export default DataRegistryABI;
+export default DataRefinerRegistryABI;

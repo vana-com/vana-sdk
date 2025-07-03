@@ -1,8 +1,7 @@
-// Trusted execution environment pool
-// Contract: TeePool
+// TeePoolDedicatedGpu Implementation Contract
 // Generated automatically - do not edit manually
 
-export const TeePoolABI = [
+export const TeePoolDedicatedGpuABI = [
   {
     "inputs": [],
     "stateMutability": "nonpayable",
@@ -30,38 +29,6 @@ export const TeePoolABI = [
     "type": "error"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "target",
-        "type": "address"
-      }
-    ],
-    "name": "AddressEmptyCode",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "CancelDelayNotPassed",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "implementation",
-        "type": "address"
-      }
-    ],
-    "name": "ERC1967InvalidImplementation",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ERC1967NonPayable",
-    "type": "error"
-  },
-  {
     "inputs": [],
     "name": "EnforcedPause",
     "type": "error"
@@ -73,12 +40,7 @@ export const TeePoolABI = [
   },
   {
     "inputs": [],
-    "name": "FailedInnerCall",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InsufficientFee",
+    "name": "HWRequirementNotMet",
     "type": "error"
   },
   {
@@ -88,22 +50,23 @@ export const TeePoolABI = [
   },
   {
     "inputs": [],
-    "name": "InvalidJobStatus",
+    "name": "MaxTimeoutExceeded",
     "type": "error"
   },
   {
-    "inputs": [],
-    "name": "InvalidJobTee",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "JobCompleted",
-    "type": "error"
-  },
-  {
-    "inputs": [],
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "teePoolAddress",
+        "type": "address"
+      }
+    ],
     "name": "NoActiveTee",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotComputeEngine",
     "type": "error"
   },
   {
@@ -113,17 +76,7 @@ export const TeePoolABI = [
   },
   {
     "inputs": [],
-    "name": "NotJobOwner",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "NothingToClaim",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ReentrancyGuardReentrantCall",
+    "name": "NotTeePoolFactory",
     "type": "error"
   },
   {
@@ -132,48 +85,27 @@ export const TeePoolABI = [
     "type": "error"
   },
   {
-    "inputs": [],
-    "name": "TeeNotActive",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "TransferFailed",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "UUPSUnauthorizedCallContext",
-    "type": "error"
-  },
-  {
     "inputs": [
       {
-        "internalType": "bytes32",
-        "name": "slot",
-        "type": "bytes32"
+        "internalType": "address",
+        "name": "teeAddress",
+        "type": "address"
       }
     ],
-    "name": "UUPSUnsupportedProxiableUUID",
+    "name": "TeeNotActive",
     "type": "error"
   },
   {
     "anonymous": false,
     "inputs": [
       {
-        "indexed": true,
-        "internalType": "address",
-        "name": "teeAddress",
-        "type": "address"
-      },
-      {
         "indexed": false,
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
+        "internalType": "enum IComputeEngineTeePool.HardwareType",
+        "name": "newHardwareType",
+        "type": "uint8"
       }
     ],
-    "name": "Claimed",
+    "name": "HardwareTypeUpdated",
     "type": "event"
   },
   {
@@ -199,7 +131,7 @@ export const TeePoolABI = [
         "type": "uint256"
       }
     ],
-    "name": "JobCanceled",
+    "name": "JobRemoved",
     "type": "event"
   },
   {
@@ -212,22 +144,10 @@ export const TeePoolABI = [
         "type": "uint256"
       },
       {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      },
-      {
         "indexed": false,
         "internalType": "address",
         "name": "teeAddress",
         "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "bidAmount",
-        "type": "uint256"
       }
     ],
     "name": "JobSubmitted",
@@ -244,31 +164,6 @@ export const TeePoolABI = [
       }
     ],
     "name": "Paused",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "attestator",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "jobId",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      }
-    ],
-    "name": "ProofAdded",
     "type": "event"
   },
   {
@@ -354,9 +249,34 @@ export const TeePoolABI = [
         "internalType": "address",
         "name": "teeAddress",
         "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "url",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "publicKey",
+        "type": "string"
       }
     ],
     "name": "TeeAdded",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "enum IComputeEngineTeePool.TeePoolType",
+        "name": "newTeePoolType",
+        "type": "uint8"
+      }
+    ],
+    "name": "TeePoolTypeUpdated",
     "type": "event"
   },
   {
@@ -386,19 +306,6 @@ export const TeePoolABI = [
     "type": "event"
   },
   {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "implementation",
-        "type": "address"
-      }
-    ],
-    "name": "Upgraded",
-    "type": "event"
-  },
-  {
     "inputs": [],
     "name": "DEFAULT_ADMIN_ROLE",
     "outputs": [
@@ -419,19 +326,6 @@ export const TeePoolABI = [
         "internalType": "bytes32",
         "name": "",
         "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "UPGRADE_INTERFACE_VERSION",
-    "outputs": [
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
       }
     ],
     "stateMutability": "view",
@@ -473,19 +367,9 @@ export const TeePoolABI = [
             "type": "string"
           },
           {
-            "internalType": "enum ITeePool.TeeStatus",
+            "internalType": "enum IComputeEngineTeePool.TeeStatus",
             "name": "status",
             "type": "uint8"
-          },
-          {
-            "internalType": "uint256",
-            "name": "amount",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "withdrawnAmount",
-            "type": "uint256"
           },
           {
             "internalType": "uint256",
@@ -498,7 +382,7 @@ export const TeePoolABI = [
             "type": "string"
           }
         ],
-        "internalType": "struct ITeePool.TeeInfo",
+        "internalType": "struct IComputeEngineTeePool.TeeInfo",
         "name": "",
         "type": "tuple"
       }
@@ -522,76 +406,14 @@ export const TeePoolABI = [
   {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "jobId",
-        "type": "uint256"
-      },
-      {
-        "components": [
-          {
-            "internalType": "bytes",
-            "name": "signature",
-            "type": "bytes"
-          },
-          {
-            "components": [
-              {
-                "internalType": "uint256",
-                "name": "score",
-                "type": "uint256"
-              },
-              {
-                "internalType": "uint256",
-                "name": "dlpId",
-                "type": "uint256"
-              },
-              {
-                "internalType": "string",
-                "name": "metadata",
-                "type": "string"
-              },
-              {
-                "internalType": "string",
-                "name": "proofUrl",
-                "type": "string"
-              },
-              {
-                "internalType": "string",
-                "name": "instruction",
-                "type": "string"
-              }
-            ],
-            "internalType": "struct IDataRegistry.ProofData",
-            "name": "data",
-            "type": "tuple"
-          }
-        ],
-        "internalType": "struct IDataRegistry.Proof",
-        "name": "proof",
-        "type": "tuple"
-      }
-    ],
-    "name": "addProof",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "address",
         "name": "teeAddress",
         "type": "address"
       },
       {
-        "internalType": "string",
-        "name": "url",
-        "type": "string"
-      },
-      {
-        "internalType": "string",
-        "name": "publicKey",
-        "type": "string"
+        "internalType": "bytes",
+        "name": "params",
+        "type": "bytes"
       }
     ],
     "name": "addTee",
@@ -601,64 +423,12 @@ export const TeePoolABI = [
   },
   {
     "inputs": [],
-    "name": "cancelDelay",
+    "name": "computeEngine",
     "outputs": [
       {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "jobId",
-        "type": "uint256"
-      }
-    ],
-    "name": "cancelJob",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "claim",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "dataRegistry",
-    "outputs": [
-      {
-        "internalType": "contract IDataRegistry",
+        "internalType": "address",
         "name": "",
         "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      }
-    ],
-    "name": "fileJobIds",
-    "outputs": [
-      {
-        "internalType": "uint256[]",
-        "name": "",
-        "type": "uint256[]"
       }
     ],
     "stateMutability": "view",
@@ -702,6 +472,19 @@ export const TeePoolABI = [
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "hardwareType",
+    "outputs": [
+      {
+        "internalType": "enum IComputeEngineTeePool.HardwareType",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "bytes32",
@@ -729,23 +512,33 @@ export const TeePoolABI = [
     "inputs": [
       {
         "internalType": "address",
-        "name": "trustedForwarderAddress",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
         "name": "ownerAddress",
         "type": "address"
       },
       {
         "internalType": "address",
-        "name": "dataRegistryAddress",
+        "name": "initComputeEngine",
         "type": "address"
       },
       {
-        "internalType": "uint256",
-        "name": "initialCancelDelay",
-        "type": "uint256"
+        "internalType": "address",
+        "name": "initTeePoolFactory",
+        "type": "address"
+      },
+      {
+        "internalType": "enum IComputeEngineTeePool.TeePoolType",
+        "name": "initTeePoolType",
+        "type": "uint8"
+      },
+      {
+        "internalType": "enum IComputeEngineTeePool.HardwareType",
+        "name": "initHardwareType",
+        "type": "uint8"
+      },
+      {
+        "internalType": "uint80",
+        "name": "initMaxTimeout",
+        "type": "uint80"
       }
     ],
     "name": "initialize",
@@ -773,105 +566,16 @@ export const TeePoolABI = [
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "forwarder",
-        "type": "address"
-      }
-    ],
-    "name": "isTrustedForwarder",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "jobId",
-        "type": "uint256"
-      }
-    ],
-    "name": "jobs",
-    "outputs": [
-      {
-        "components": [
-          {
-            "internalType": "uint256",
-            "name": "fileId",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "bidAmount",
-            "type": "uint256"
-          },
-          {
-            "internalType": "enum ITeePool.JobStatus",
-            "name": "status",
-            "type": "uint8"
-          },
-          {
-            "internalType": "uint256",
-            "name": "addedTimestamp",
-            "type": "uint256"
-          },
-          {
-            "internalType": "address",
-            "name": "ownerAddress",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "teeAddress",
-            "type": "address"
-          }
-        ],
-        "internalType": "struct ITeePool.Job",
-        "name": "",
-        "type": "tuple"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [],
-    "name": "jobsCount",
+    "name": "maxTimeout",
     "outputs": [
       {
-        "internalType": "uint256",
+        "internalType": "uint80",
         "name": "",
-        "type": "uint256"
+        "type": "uint80"
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes[]",
-        "name": "data",
-        "type": "bytes[]"
-      }
-    ],
-    "name": "multicall",
-    "outputs": [
-      {
-        "internalType": "bytes[]",
-        "name": "results",
-        "type": "bytes[]"
-      }
-    ],
-    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -895,16 +599,16 @@ export const TeePoolABI = [
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "proxiableUUID",
-    "outputs": [
+    "inputs": [
       {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
+        "internalType": "uint256",
+        "name": "jobId",
+        "type": "uint256"
       }
     ],
-    "stateMutability": "view",
+    "name": "removeJob",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -941,19 +645,6 @@ export const TeePoolABI = [
   {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      }
-    ],
-    "name": "requestContributionProof",
-    "outputs": [],
-    "stateMutability": "payable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "bytes32",
         "name": "role",
         "type": "bytes32"
@@ -972,14 +663,25 @@ export const TeePoolABI = [
   {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
+        "internalType": "bytes",
+        "name": "params",
+        "type": "bytes"
       }
     ],
     "name": "submitJob",
-    "outputs": [],
-    "stateMutability": "payable",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes",
+        "name": "",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -996,48 +698,6 @@ export const TeePoolABI = [
         "internalType": "bool",
         "name": "",
         "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "teeFee",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "teeAddress",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "start",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "limit",
-        "type": "uint256"
-      }
-    ],
-    "name": "teeJobIdsPaginated",
-    "outputs": [
-      {
-        "internalType": "uint256[]",
-        "name": "",
-        "type": "uint256[]"
       }
     ],
     "stateMutability": "view",
@@ -1079,19 +739,9 @@ export const TeePoolABI = [
             "type": "string"
           },
           {
-            "internalType": "enum ITeePool.TeeStatus",
+            "internalType": "enum IComputeEngineTeePool.TeeStatus",
             "name": "status",
             "type": "uint8"
-          },
-          {
-            "internalType": "uint256",
-            "name": "amount",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "withdrawnAmount",
-            "type": "uint256"
           },
           {
             "internalType": "uint256",
@@ -1104,9 +754,35 @@ export const TeePoolABI = [
             "type": "string"
           }
         ],
-        "internalType": "struct ITeePool.TeeInfo",
+        "internalType": "struct IComputeEngineTeePool.TeeInfo",
         "name": "",
         "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "teePoolFactory",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "teePoolType",
+    "outputs": [
+      {
+        "internalType": "enum IComputeEngineTeePool.TeePoolType",
+        "name": "",
+        "type": "uint8"
       }
     ],
     "stateMutability": "view",
@@ -1135,19 +811,9 @@ export const TeePoolABI = [
             "type": "string"
           },
           {
-            "internalType": "enum ITeePool.TeeStatus",
+            "internalType": "enum IComputeEngineTeePool.TeeStatus",
             "name": "status",
             "type": "uint8"
-          },
-          {
-            "internalType": "uint256",
-            "name": "amount",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "withdrawnAmount",
-            "type": "uint256"
           },
           {
             "internalType": "uint256",
@@ -1160,7 +826,7 @@ export const TeePoolABI = [
             "type": "string"
           }
         ],
-        "internalType": "struct ITeePool.TeeInfo",
+        "internalType": "struct IComputeEngineTeePool.TeeInfo",
         "name": "",
         "type": "tuple"
       }
@@ -1183,19 +849,6 @@ export const TeePoolABI = [
   },
   {
     "inputs": [],
-    "name": "trustedForwarder",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "unpause",
     "outputs": [],
     "stateMutability": "nonpayable",
@@ -1204,25 +857,12 @@ export const TeePoolABI = [
   {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "newCancelDelay",
-        "type": "uint256"
-      }
-    ],
-    "name": "updateCancelDelay",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "contract IDataRegistry",
-        "name": "newDataRegistry",
+        "internalType": "address",
+        "name": "newComputeEngine",
         "type": "address"
       }
     ],
-    "name": "updateDataRegistry",
+    "name": "updateComputeEngine",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -1230,12 +870,12 @@ export const TeePoolABI = [
   {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "newTeeFee",
-        "type": "uint256"
+        "internalType": "uint80",
+        "name": "newMaxTimeout",
+        "type": "uint80"
       }
     ],
-    "name": "updateTeeFee",
+    "name": "updateMaxTimeout",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -1244,31 +884,13 @@ export const TeePoolABI = [
     "inputs": [
       {
         "internalType": "address",
-        "name": "trustedForwarderAddress",
+        "name": "newTeePoolFactory",
         "type": "address"
       }
     ],
-    "name": "updateTrustedForwarder",
+    "name": "updateTeePoolFactory",
     "outputs": [],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "newImplementation",
-        "type": "address"
-      },
-      {
-        "internalType": "bytes",
-        "name": "data",
-        "type": "bytes"
-      }
-    ],
-    "name": "upgradeToAndCall",
-    "outputs": [],
-    "stateMutability": "payable",
     "type": "function"
   },
   {
@@ -1286,4 +908,4 @@ export const TeePoolABI = [
   }
 ] as const;
 
-export default TeePoolABI;
+export default TeePoolDedicatedGpuABI;

@@ -48,7 +48,6 @@ describe("VanaProvider", () => {
       expect(vana.contracts).toBeDefined();
       expect(vana.contracts.dataRegistry).toBeDefined();
       expect(vana.contracts.teePool).toBeDefined();
-      expect(vana.contracts.dataLiquidityPool).toBeDefined();
       expect(vana.contracts.computeEngine).toBeDefined();
     });
   });
@@ -128,9 +127,6 @@ describe("VanaProvider", () => {
         /^0x[a-fA-F0-9]{40}$/
       );
       expect(vana.contracts.teePool.address).toMatch(/^0x[a-fA-F0-9]{40}$/);
-      expect(vana.contracts.dataLiquidityPool.address).toMatch(
-        /^0x[a-fA-F0-9]{40}$/
-      );
       expect(vana.contracts.computeEngine.address).toMatch(
         /^0x[a-fA-F0-9]{40}$/
       );

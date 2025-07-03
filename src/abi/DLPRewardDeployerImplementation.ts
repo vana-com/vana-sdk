@@ -1,7 +1,7 @@
-// DataRegistry Implementation Contract
+// DLPRewardDeployer Implementation Contract
 // Generated automatically - do not edit manually
 
-export const DataRegistryABI = [
+export const DLPRewardDeployerABI = [
   {
     "inputs": [],
     "stateMutability": "nonpayable",
@@ -62,6 +62,11 @@ export const DataRegistryABI = [
   },
   {
     "inputs": [],
+    "name": "EpochNotFinalized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ExpectedPause",
     "type": "error"
   },
@@ -72,37 +77,28 @@ export const DataRegistryABI = [
   },
   {
     "inputs": [],
-    "name": "FileNotFound",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "FileUrlAlreadyUsed",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "InvalidInitialization",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "InvalidUrl",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "NoPermission",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "NotFileOwner",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "NotInitializing",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "dlpId",
+        "type": "uint256"
+      }
+    ],
+    "name": "NothingToDistribute",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NothingToWithdraw",
     "type": "error"
   },
   {
@@ -127,23 +123,84 @@ export const DataRegistryABI = [
       {
         "indexed": true,
         "internalType": "uint256",
-        "name": "fileId",
+        "name": "epochId",
         "type": "uint256"
       },
       {
         "indexed": true,
-        "internalType": "address",
-        "name": "ownerAddress",
-        "type": "address"
+        "internalType": "uint256",
+        "name": "dlpId",
+        "type": "uint256"
       },
       {
         "indexed": false,
-        "internalType": "string",
-        "name": "url",
-        "type": "string"
+        "internalType": "uint256",
+        "name": "distributedAmount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "totalPenaltyAmount",
+        "type": "uint256"
       }
     ],
-    "name": "FileAdded",
+    "name": "EpochDlpPenaltyDistributed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "epochId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "dlpId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "trancheId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "trancheAmount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "tokenRewardAmount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "spareToken",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "spareVana",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "usedVanaAmount",
+        "type": "uint256"
+      }
+    ],
+    "name": "EpochDlpRewardDistributed",
     "type": "event"
   },
   {
@@ -170,118 +227,6 @@ export const DataRegistryABI = [
       }
     ],
     "name": "Paused",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
-      }
-    ],
-    "name": "PermissionGranted",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "ownerAddress",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "proofIndex",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "dlpId",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "score",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "string",
-        "name": "proofUrl",
-        "type": "string"
-      }
-    ],
-    "name": "ProofAdded",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "refinerId",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "string",
-        "name": "url",
-        "type": "string"
-      }
-    ],
-    "name": "RefinementAdded",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "refinerId",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "string",
-        "name": "url",
-        "type": "string"
-      }
-    ],
-    "name": "RefinementUpdated",
     "type": "event"
   },
   {
@@ -413,7 +358,7 @@ export const DataRegistryABI = [
   },
   {
     "inputs": [],
-    "name": "REFINEMENT_SERVICE_ROLE",
+    "name": "REWARD_DEPLOYER_ROLE",
     "outputs": [
       {
         "internalType": "bytes32",
@@ -440,205 +385,100 @@ export const DataRegistryABI = [
   {
     "inputs": [
       {
-        "internalType": "string",
-        "name": "url",
-        "type": "string"
-      }
-    ],
-    "name": "addFile",
-    "outputs": [
-      {
         "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "fileId",
+        "name": "epochId",
         "type": "uint256"
       },
       {
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
-      },
-      {
-        "internalType": "string",
-        "name": "key",
-        "type": "string"
+        "internalType": "uint256[]",
+        "name": "dlpIds",
+        "type": "uint256[]"
       }
     ],
-    "name": "addFilePermission",
+    "name": "distributeRewards",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "dlpRegistry",
+    "outputs": [
+      {
+        "internalType": "contract IDLPRegistry",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "dlpRewardSwap",
+    "outputs": [
+      {
+        "internalType": "contract IDLPRewardSwap",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
-        "internalType": "string",
-        "name": "url",
-        "type": "string"
+        "internalType": "uint256",
+        "name": "epochId",
+        "type": "uint256"
       },
       {
-        "internalType": "address",
-        "name": "ownerAddress",
-        "type": "address"
-      },
+        "internalType": "uint256",
+        "name": "dlpId",
+        "type": "uint256"
+      }
+    ],
+    "name": "epochDlpDistributedRewards",
+    "outputs": [
       {
         "components": [
           {
-            "internalType": "address",
-            "name": "account",
-            "type": "address"
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
           },
           {
-            "internalType": "string",
-            "name": "key",
-            "type": "string"
+            "internalType": "uint256",
+            "name": "blockNumber",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenRewardAmount",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "spareToken",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "spareVana",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "usedVanaAmount",
+            "type": "uint256"
           }
         ],
-        "internalType": "struct IDataRegistry.Permission[]",
-        "name": "permissions",
+        "internalType": "struct IDLPRewardDeployer.DistributedReward[]",
+        "name": "",
         "type": "tuple[]"
       }
     ],
-    "name": "addFileWithPermissions",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      },
-      {
-        "components": [
-          {
-            "internalType": "bytes",
-            "name": "signature",
-            "type": "bytes"
-          },
-          {
-            "components": [
-              {
-                "internalType": "uint256",
-                "name": "score",
-                "type": "uint256"
-              },
-              {
-                "internalType": "uint256",
-                "name": "dlpId",
-                "type": "uint256"
-              },
-              {
-                "internalType": "string",
-                "name": "metadata",
-                "type": "string"
-              },
-              {
-                "internalType": "string",
-                "name": "proofUrl",
-                "type": "string"
-              },
-              {
-                "internalType": "string",
-                "name": "instruction",
-                "type": "string"
-              }
-            ],
-            "internalType": "struct IDataRegistry.ProofData",
-            "name": "data",
-            "type": "tuple"
-          }
-        ],
-        "internalType": "struct IDataRegistry.Proof",
-        "name": "proof",
-        "type": "tuple"
-      }
-    ],
-    "name": "addProof",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "refinerId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "string",
-        "name": "url",
-        "type": "string"
-      },
-      {
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
-      },
-      {
-        "internalType": "string",
-        "name": "key",
-        "type": "string"
-      }
-    ],
-    "name": "addRefinementWithPermission",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "dataRefinerRegistry",
-    "outputs": [
-      {
-        "internalType": "contract IDataRefinerRegistry",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "string",
-        "name": "url",
-        "type": "string"
-      }
-    ],
-    "name": "fileIdByUrl",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
     "stateMutability": "view",
     "type": "function"
   },
@@ -646,162 +486,33 @@ export const DataRegistryABI = [
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
-      }
-    ],
-    "name": "filePermissions",
-    "outputs": [
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "fileId",
+        "name": "epochId",
         "type": "uint256"
       },
       {
         "internalType": "uint256",
-        "name": "index",
+        "name": "dlpId",
         "type": "uint256"
       }
     ],
-    "name": "fileProofs",
-    "outputs": [
-      {
-        "components": [
-          {
-            "internalType": "bytes",
-            "name": "signature",
-            "type": "bytes"
-          },
-          {
-            "components": [
-              {
-                "internalType": "uint256",
-                "name": "score",
-                "type": "uint256"
-              },
-              {
-                "internalType": "uint256",
-                "name": "dlpId",
-                "type": "uint256"
-              },
-              {
-                "internalType": "string",
-                "name": "metadata",
-                "type": "string"
-              },
-              {
-                "internalType": "string",
-                "name": "proofUrl",
-                "type": "string"
-              },
-              {
-                "internalType": "string",
-                "name": "instruction",
-                "type": "string"
-              }
-            ],
-            "internalType": "struct IDataRegistry.ProofData",
-            "name": "data",
-            "type": "tuple"
-          }
-        ],
-        "internalType": "struct IDataRegistry.Proof",
-        "name": "",
-        "type": "tuple"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "refinerId",
-        "type": "uint256"
-      }
-    ],
-    "name": "fileRefinements",
-    "outputs": [
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "fileId",
-        "type": "uint256"
-      }
-    ],
-    "name": "files",
+    "name": "epochDlpRewards",
     "outputs": [
       {
         "components": [
           {
             "internalType": "uint256",
-            "name": "id",
+            "name": "totalDistributedAmount",
             "type": "uint256"
-          },
-          {
-            "internalType": "address",
-            "name": "ownerAddress",
-            "type": "address"
-          },
-          {
-            "internalType": "string",
-            "name": "url",
-            "type": "string"
           },
           {
             "internalType": "uint256",
-            "name": "addedAtBlock",
+            "name": "tranchesCount",
             "type": "uint256"
           }
         ],
-        "internalType": "struct IDataRegistry.FileResponse",
+        "internalType": "struct IDLPRewardDeployer.EpochDlpRewardInfo",
         "name": "",
         "type": "tuple"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "filesCount",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -872,13 +583,38 @@ export const DataRegistryABI = [
     "inputs": [
       {
         "internalType": "address",
-        "name": "trustedForwarderAddress",
+        "name": "ownerAddress",
         "type": "address"
       },
       {
         "internalType": "address",
-        "name": "ownerAddress",
+        "name": "dlpRegistryAddress",
         "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "vanaEpochAddress",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "dlpRewardSwapAddress",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "newNumberOfTranches",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "newRewardPercentage",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "newMaximumSlippagePercentage",
+        "type": "uint256"
       }
     ],
     "name": "initialize",
@@ -887,41 +623,29 @@ export const DataRegistryABI = [
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "forwarder",
-        "type": "address"
-      }
-    ],
-    "name": "isTrustedForwarder",
+    "inputs": [],
+    "name": "maximumSlippagePercentage",
     "outputs": [
       {
-        "internalType": "bool",
+        "internalType": "uint256",
         "name": "",
-        "type": "bool"
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "bytes[]",
-        "name": "data",
-        "type": "bytes[]"
-      }
-    ],
-    "name": "multicall",
+    "inputs": [],
+    "name": "numberOfTranches",
     "outputs": [
       {
-        "internalType": "bytes[]",
-        "name": "results",
-        "type": "bytes[]"
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
       }
     ],
-    "stateMutability": "nonpayable",
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -994,21 +718,16 @@ export const DataRegistryABI = [
     "type": "function"
   },
   {
-    "inputs": [
+    "inputs": [],
+    "name": "rewardPercentage",
+    "outputs": [
       {
-        "internalType": "bytes32",
-        "name": "role",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "adminRole",
-        "type": "bytes32"
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
       }
     ],
-    "name": "setRoleAdmin",
-    "outputs": [],
-    "stateMutability": "nonpayable",
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -1032,10 +751,10 @@ export const DataRegistryABI = [
   },
   {
     "inputs": [],
-    "name": "trustedForwarder",
+    "name": "treasury",
     "outputs": [
       {
-        "internalType": "address",
+        "internalType": "contract ITreasury",
         "name": "",
         "type": "address"
       }
@@ -1053,12 +772,12 @@ export const DataRegistryABI = [
   {
     "inputs": [
       {
-        "internalType": "contract IDataRefinerRegistry",
-        "name": "newDataRefinerRegistry",
+        "internalType": "address",
+        "name": "dlpRegistryAddress",
         "type": "address"
       }
     ],
-    "name": "updateDataRefinerRegistry",
+    "name": "updateDlpRegistry",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -1067,11 +786,63 @@ export const DataRegistryABI = [
     "inputs": [
       {
         "internalType": "address",
-        "name": "trustedForwarderAddress",
+        "name": "dlpRewardSwapAddress",
         "type": "address"
       }
     ],
-    "name": "updateTrustedForwarder",
+    "name": "updateDlpRewardSwap",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "newMaximumSlippagePercentage",
+        "type": "uint256"
+      }
+    ],
+    "name": "updateMaximumSlippagePercentage",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "newRewardPercentage",
+        "type": "uint256"
+      }
+    ],
+    "name": "updateRewardPercentage",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "treasuryAddress",
+        "type": "address"
+      }
+    ],
+    "name": "updateTreasury",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "vanaEpochAddress",
+        "type": "address"
+      }
+    ],
+    "name": "updateVanaEpoch",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -1096,6 +867,19 @@ export const DataRegistryABI = [
   },
   {
     "inputs": [],
+    "name": "vanaEpoch",
+    "outputs": [
+      {
+        "internalType": "contract IVanaEpoch",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "version",
     "outputs": [
       {
@@ -1106,7 +890,34 @@ export const DataRegistryABI = [
     ],
     "stateMutability": "pure",
     "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "epochId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "dlpId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "recipientAddress",
+        "type": "address"
+      }
+    ],
+    "name": "withdrawEpochDlpPenaltyAmount",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "stateMutability": "payable",
+    "type": "receive"
   }
 ] as const;
 
-export default DataRegistryABI;
+export default DLPRewardDeployerABI;

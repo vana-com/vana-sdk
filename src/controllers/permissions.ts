@@ -6,7 +6,8 @@ import {
   PermissionGrantTypedData,
   RelayerStorageResponse,
   RelayerTransactionResponse,
-  GrantedPermission
+  GrantedPermission,
+  GrantFile
 } from '../types';
 import { 
   RelayerError, 
@@ -19,6 +20,11 @@ import {
 } from '../errors';
 import { getContractAddress } from '../config/addresses';
 import { getAbi } from '../abi';
+import { 
+  createGrantFile, 
+  storeGrantFile, 
+  getGrantFileHash
+} from '../utils/grantFiles';
 
 
 /**
@@ -39,42 +45,41 @@ export class PermissionsController {
 
   /**
    * Grants permission for an application to access user data.
-   * Implements the complete gasless verifiable permissions flow.
+   * Implements the new IPFS-based grant file flow while maintaining 
+   * compatibility with the existing contract.
    * 
    * @param params - The permission grant parameters
    * @returns Promise resolving to the transaction hash
    */
   async grant(params: GrantPermissionParams): Promise<Hash> {
     try {
-      // Step 1: Parameter Serialization
-      const serializedParameters = this.serializeParameters(params.parameters);
+      const userAddress = await this.getUserAddress();
       
-      // Step 2: Cryptographic Commitment
-      const parametersHash = keccak256(toHex(serializedParameters));
+      // Step 1: Create grant file with all the real data
+      const grantFile = createGrantFile(params, userAddress);
       
-      // Step 3: Off-Chain Storage
-      const grantUrl = await this.storeParameters(serializedParameters);
+      // Step 2: Store grant file in IPFS
+      const grantUrl = await storeGrantFile(grantFile, this.context.relayerUrl || this.DEFAULT_RELAYER_URL);
       
-      // Step 4: Nonce Retrieval
+      // Step 3: Get user nonce
       const nonce = await this.getUserNonce();
       
-      // Step 5: EIP-712 Message Composition
+      // Step 4: Create EIP-712 message with compatibility placeholders
       const typedData = await this.composePermissionGrantMessage({
         to: params.to,
-        operation: params.operation,
-        files: params.files,
+        operation: params.operation, // Placeholder - real data is in IPFS
+        files: params.files, // Placeholder - real data is in IPFS  
         grantUrl,
-        parametersHash,
+        serializedParameters: getGrantFileHash(grantFile), // Hash as placeholder
         nonce
       });
       
-      // Step 6: User Signature
+      // Step 5: User signature
       const signature = await this.signTypedData(typedData);
       
-      // Step 7: Relay for Execution
+      // Step 6: Submit to blockchain via relay
       const transactionHash = await this.relayTransaction(typedData, signature);
       
-      // Step 8: Return Transaction Hash
       return transactionHash;
       
     } catch (error) {
@@ -158,78 +163,6 @@ export class PermissionsController {
     }
   }
 
-  /**
-   * Serializes parameters into a stable, canonical JSON string.
-   */
-  private serializeParameters(parameters: Record<string, any>): string {
-    try {
-      // Create a stable JSON representation by sorting keys
-      const sortedParams = this.sortObjectKeys(parameters);
-      return JSON.stringify(sortedParams);
-    } catch (error) {
-      throw new SerializationError(`Failed to serialize parameters: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
-
-  /**
-   * Recursively sorts object keys for stable serialization.
-   */
-  private sortObjectKeys(obj: any): any {
-    if (obj === null || typeof obj !== 'object') {
-      return obj;
-    }
-    
-    if (Array.isArray(obj)) {
-      return obj.map(item => this.sortObjectKeys(item));
-    }
-    
-    const sortedObj: Record<string, any> = {};
-    Object.keys(obj).sort().forEach(key => {
-      sortedObj[key] = this.sortObjectKeys(obj[key]);
-    });
-    
-    return sortedObj;
-  }
-
-  /**
-   * Stores parameters off-chain via the relayer service.
-   */
-  private async storeParameters(serializedParameters: string): Promise<string> {
-    try {
-      const relayerUrl = this.context.relayerUrl || this.DEFAULT_RELAYER_URL;
-      const response = await fetch(`${relayerUrl}/api/v1/parameters`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          parameters: serializedParameters
-        })
-      });
-
-      if (!response.ok) {
-        throw new RelayerError(
-          `Failed to store parameters: ${response.statusText}`,
-          response.status,
-          await response.text()
-        );
-      }
-
-      const data: RelayerStorageResponse = await response.json();
-      
-      if (!data.success) {
-        throw new RelayerError(data.error || 'Failed to store parameters');
-      }
-
-      return data.grantUrl;
-      
-    } catch (error) {
-      if (error instanceof RelayerError) {
-        throw error;
-      }
-      throw new NetworkError(`Network error while storing parameters: ${error instanceof Error ? error.message : 'Unknown error'}`, error as Error);
-    }
-  }
 
   /**
    * Retrieves the user's current nonce from the PermissionRegistry contract.
@@ -270,31 +203,30 @@ export class PermissionsController {
     operation: string;
     files: number[];
     grantUrl: string;
-    parametersHash: Hash;
+    serializedParameters: string;
     nonce: bigint;
   }): Promise<PermissionGrantTypedData> {
-    const userAddress = await this.getUserAddress();
     const domain = await this.getPermissionDomain();
     
     return {
       domain,
       types: {
-        PermissionGrant: [
-          { name: 'from', type: 'address' },
-          { name: 'to', type: 'address' },
+        Permission: [
+          { name: 'application', type: 'address' },
+          { name: 'files', type: 'uint256[]' },
           { name: 'operation', type: 'string' },
-          { name: 'grantUrl', type: 'string' },
-          { name: 'parametersHash', type: 'bytes32' },
+          { name: 'grant', type: 'string' },
+          { name: 'parameters', type: 'string' },
           { name: 'nonce', type: 'uint256' }
         ]
       },
-      primaryType: 'PermissionGrant',
+      primaryType: 'Permission',
       message: {
-        from: userAddress,
-        to: params.to,
+        application: params.to,
+        files: params.files,
         operation: params.operation,
-        grantUrl: params.grantUrl,
-        parametersHash: params.parametersHash,
+        grant: params.grantUrl,
+        parameters: params.serializedParameters,
         nonce: params.nonce
       },
       files: params.files
@@ -309,7 +241,7 @@ export class PermissionsController {
     const permissionRegistryAddress = getContractAddress(chainId, 'PermissionRegistry');
     
     return {
-      name: 'Vana Permission Registry',
+      name: 'VanaDataWallet',
       version: '1',
       chainId,
       verifyingContract: permissionRegistryAddress
@@ -336,6 +268,11 @@ export class PermissionsController {
    */
   private async relayTransaction(typedData: PermissionGrantTypedData, signature: Hash): Promise<Hash> {
     try {
+      console.log('🔍 SDK Debug - Relaying with typed data:', {
+        hasFiles: 'files' in typedData,
+        files: typedData.files,
+        filesLength: typedData.files?.length
+      });
       const relayerUrl = this.context.relayerUrl || this.DEFAULT_RELAYER_URL;
       const response = await fetch(`${relayerUrl}/api/v1/transactions`, {
         method: 'POST',
@@ -484,7 +421,8 @@ export class PermissionsController {
             application: permission.application,
             files: permission.files.map((f: bigint) => Number(f)),
             operation: permission.operation,
-            prompt: permission.prompt,
+            grant: permission.grant,
+            parameters: permission.parameters,
           });
           
         } catch (error) {
@@ -499,4 +437,5 @@ export class PermissionsController {
       throw new BlockchainError(`Failed to fetch user permissions: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
+
 }

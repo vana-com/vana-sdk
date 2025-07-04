@@ -36,8 +36,10 @@ export interface GrantedPermission {
   files: number[];
   /** Type of operation permitted (e.g., "llm_inference") */
   operation: string;
-  /** The prompt or parameters associated with the permission */
-  prompt: string;
+  /** The grant URL or data access endpoint */
+  grant: string;
+  /** The parameters associated with the permission */
+  parameters: string;
   /** Optional nonce used when granting the permission */
   nonce?: number;
   /** Optional block number when permission was granted */
@@ -110,45 +112,69 @@ export interface PermissionGrantDomain {
 }
 
 /**
- * EIP-712 PermissionGrant message structure.
+ * EIP-712 Permission message structure (current contract format).
  */
 export interface PermissionGrantMessage {
-  from: Address;
-  to: Address;
+  application: Address;
+  files: number[];
   operation: string;
-  grantUrl: string;
-  parametersHash: Hash;
+  grant: string;
+  parameters: string;
   nonce: bigint;
 }
 
 /**
- * EIP-712 typed data structure for PermissionGrant.
+ * EIP-712 Permission message structure (simplified future format).
+ */
+export interface SimplifiedPermissionMessage {
+  application: Address;
+  grant: string;
+  nonce: bigint;
+}
+
+/**
+ * Grant file structure stored in IPFS.
+ */
+export interface GrantFile {
+  operation: string;
+  files: number[];
+  parameters: Record<string, any>;
+  metadata: {
+    timestamp: string;
+    version: string;
+    userAddress: Address;
+  };
+}
+
+/**
+ * EIP-712 typed data structure for Permission.
  */
 export interface PermissionGrantTypedData {
   domain: PermissionGrantDomain;
   types: {
-    PermissionGrant: Array<{
+    Permission: Array<{
       name: string;
       type: string;
     }>;
   };
-  primaryType: 'PermissionGrant';
+  primaryType: 'Permission';
   message: PermissionGrantMessage;
   /** Files to grant permission for (passed to relayer) */
   files?: number[];
 }
 
 /**
- * Response from the relayer service for parameter storage.
+ * Response from the relayer service for grant file storage.
  */
 export interface RelayerStorageResponse {
-  /** The content-addressable URL where parameters are stored */
+  /** The IPFS URL where the grant file is stored */
   grantUrl: string;
   /** Success status */
   success: boolean;
   /** Optional error message */
   error?: string;
 }
+
 
 /**
  * Response from the relayer service for transaction submission.

@@ -278,12 +278,11 @@ describe('PermissionsController', () => {
 
       const typedData = await compose(params)
 
-      expect(typedData.domain.name).toBe('Vana Permission Registry')
+      expect(typedData.domain.name).toBe('VanaDataWallet')
       expect(typedData.domain.version).toBe('1')
       expect(typedData.domain.chainId).toBe(14800)
-      expect(typedData.primaryType).toBe('PermissionGrant')
-      expect(typedData.message.from).toBe(testAccount.address)
-      expect(typedData.message.to).toBe(params.to)
+      expect(typedData.primaryType).toBe('Permission')
+      expect(typedData.message.application).toBe(params.to)
       expect(typedData.message.operation).toBe(params.operation)
       expect(typedData.message.nonce).toBe(params.nonce)
     })

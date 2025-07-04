@@ -119,22 +119,6 @@ export const PermissionRegistryABI = [
     "type": "error"
   },
   {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "value",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "length",
-        "type": "uint256"
-      }
-    ],
-    "name": "StringsInsufficientHexLength",
-    "type": "error"
-  },
-  {
     "inputs": [],
     "name": "UUPSUnauthorizedCallContext",
     "type": "error"
@@ -218,7 +202,13 @@ export const PermissionRegistryABI = [
       {
         "indexed": false,
         "internalType": "string",
-        "name": "prompt",
+        "name": "grant",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "parameters",
         "type": "string"
       }
     ],
@@ -386,7 +376,12 @@ export const PermissionRegistryABI = [
           },
           {
             "internalType": "string",
-            "name": "prompt",
+            "name": "grant",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "parameters",
             "type": "string"
           },
           {
@@ -406,51 +401,6 @@ export const PermissionRegistryABI = [
       }
     ],
     "name": "addPermission",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "components": [
-          {
-            "internalType": "address",
-            "name": "application",
-            "type": "address"
-          },
-          {
-            "internalType": "uint256[]",
-            "name": "files",
-            "type": "uint256[]"
-          },
-          {
-            "internalType": "string",
-            "name": "operation",
-            "type": "string"
-          },
-          {
-            "internalType": "string",
-            "name": "prompt",
-            "type": "string"
-          },
-          {
-            "internalType": "uint256",
-            "name": "nonce",
-            "type": "uint256"
-          }
-        ],
-        "internalType": "struct IDataPermission.PermissionInput",
-        "name": "permission",
-        "type": "tuple"
-      },
-      {
-        "internalType": "bytes",
-        "name": "signature",
-        "type": "bytes"
-      }
-    ],
-    "name": "addPermission2",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -493,6 +443,25 @@ export const PermissionRegistryABI = [
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "application",
+        "type": "address"
+      }
+    ],
+    "name": "applicationPermissionIdsValues",
+    "outputs": [
+      {
+        "internalType": "uint256[]",
+        "name": "",
+        "type": "uint256[]"
       }
     ],
     "stateMutability": "view",
@@ -692,6 +661,11 @@ export const PermissionRegistryABI = [
         "components": [
           {
             "internalType": "address",
+            "name": "user",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
             "name": "application",
             "type": "address"
           },
@@ -707,7 +681,12 @@ export const PermissionRegistryABI = [
           },
           {
             "internalType": "string",
-            "name": "prompt",
+            "name": "grant",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "parameters",
             "type": "string"
           }
         ],
@@ -926,6 +905,25 @@ export const PermissionRegistryABI = [
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      }
+    ],
+    "name": "userPermissionIdsValues",
+    "outputs": [
+      {
+        "internalType": "uint256[]",
+        "name": "",
+        "type": "uint256[]"
       }
     ],
     "stateMutability": "view",

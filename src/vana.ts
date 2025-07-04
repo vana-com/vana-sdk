@@ -3,6 +3,7 @@ import { InvalidConfigurationError } from './errors';
 import { PermissionsController, ControllerContext } from './controllers/permissions';
 import { DataController } from './controllers/data';
 import { ProtocolController } from './controllers/protocol';
+import { StorageManager } from './storage';
 
 /**
  * The main Vana SDK client class.
@@ -56,7 +57,6 @@ export class Vana {
   /** Controller providing low-level access to protocol contracts */
   public readonly protocol: ProtocolController;
 
-  private readonly DEFAULT_RELAYER_URL = 'https://relayer.vana.org';
 
   /**
    * Creates a new Vana SDK client instance.
@@ -68,10 +68,29 @@ export class Vana {
     // Validate configuration
     this.validateConfig(config);
 
+    // Initialize storage manager if storage providers are provided
+    let storageManager: StorageManager | undefined;
+    if (config.storage?.providers) {
+      storageManager = new StorageManager();
+      
+      // Register all provided storage providers
+      for (const [name, provider] of Object.entries(config.storage.providers)) {
+        const isDefault = name === config.storage.defaultProvider;
+        storageManager.register(name, provider, isDefault);
+      }
+      
+      // If no default was explicitly set but providers exist, use the first one
+      if (!config.storage.defaultProvider && Object.keys(config.storage.providers).length > 0) {
+        const firstProviderName = Object.keys(config.storage.providers)[0];
+        storageManager.setDefaultProvider(firstProviderName);
+      }
+    }
+
     // Create shared context for all controllers
     const sharedContext: ControllerContext = {
       walletClient: config.walletClient,
-      relayerUrl: config.relayerUrl || this.DEFAULT_RELAYER_URL
+      relayerUrl: config.relayerUrl || '',
+      storageManager
     };
 
     // Initialize controllers
@@ -169,7 +188,7 @@ export class Vana {
     return {
       chainId: this.chainId,
       chainName: this.chainName,
-      relayerUrl: (this.permissions as any).context.relayerUrl
+      relayerUrl: this.permissions['context'].relayerUrl
     };
   }
 }

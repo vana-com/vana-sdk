@@ -33,7 +33,6 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import {
-  Check,
   ExternalLink,
   Loader2,
   Wallet,
@@ -63,6 +62,10 @@ export default function Home() {
   const [grantTxHash, setGrantTxHash] = useState<string>("");
   const [revokeStatus, setRevokeStatus] = useState<string>("");
   const [revokeInput, setRevokeInput] = useState<string>("");
+
+  // Grant preview state
+  const [grantPreview, setGrantPreview] = useState<any>(null);
+  const [showGrantPreview, setShowGrantPreview] = useState<boolean>(false);
   const [relayerHealth, setRelayerHealth] = useState<any>(null);
   const [isGranting, setIsGranting] = useState(false);
   const [isRevoking, setIsRevoking] = useState(false);
@@ -251,70 +254,101 @@ export default function Home() {
   };
 
   const handleGrantPermission = async () => {
-    if (!vana || selectedFiles.length === 0 || !walletClient) return;
+    if (!vana || selectedFiles.length === 0) return;
 
     setIsGranting(true);
     setGrantStatus("Preparing permission grant...");
     setGrantTxHash("");
 
     try {
-      // Step 1: Generate encryption key using canonical Vana protocol
-      setGrantStatus("Generating encryption key...");
-      const encryptionKey = await generateEncryptionKey(walletClient as any);
-
-      // Step 2: Create permission parameters
-      const parameterData = {
-        prompt: "Analyze my data for insights",
-        files: selectedFiles,
-        maxTokens: 1000,
-        temperature: 0.7,
-        model: "gpt-4",
-        timestamp: new Date().toISOString(),
-        encryptionKey: encryptionKey, // Include the real encryption key
-      };
-
-      // Step 3: Encrypt the parameters using canonical Vana encryption
-      setGrantStatus("Encrypting parameters...");
-      const parameterBlob = new Blob([JSON.stringify(parameterData)], {
-        type: "application/json",
-      });
-      const encryptedParameters = await encryptUserData(
-        parameterBlob,
-        encryptionKey
-      );
-
-      // Step 4: Convert to base64 for storage
-      const encryptedArrayBuffer = await encryptedParameters.arrayBuffer();
-      const encryptedBase64 = btoa(
-        String.fromCharCode(...new Uint8Array(encryptedArrayBuffer))
-      );
-
+      // Create clear, unencrypted parameters for the grant
       const params: GrantPermissionParams = {
         to: "0x1234567890123456789012345678901234567890", // Demo DLP address
         operation: "llm_inference",
-        files: selectedFiles, // Include the selected file IDs
+        files: selectedFiles,
         parameters: {
-          encrypted: true,
-          data: encryptedBase64,
-          encryptionMethod: "vana-openpgp-symmetric",
-          timestamp: new Date().toISOString(),
-        },
+          prompt: "Analyze the user's data for insights and patterns",
+          temperature: 0.7,
+          model: "gpt-4", 
+          maxTokens: 2000,
+          metadata: {
+            requestedBy: "demo-app",
+            timestamp: new Date().toISOString(),
+            purpose: "Data analysis demonstration"
+          }
+        }
       };
 
       console.log('🔍 Debug - Permission params:', {
         selectedFiles,
         paramsFiles: params.files,
-        filesLength: params.files.length
+        filesLength: params.files.length,
+        operation: params.operation
       });
 
+      setGrantStatus("Creating grant file...");
+      
+      // Create grant file preview
+      const grantFilePreview = {
+        operation: params.operation,
+        files: params.files,
+        parameters: params.parameters,
+        metadata: {
+          timestamp: new Date().toISOString(),
+          version: "1.0",
+          userAddress: address
+        }
+      };
+
+      setGrantStatus("Storing grant file in IPFS...");
+      
+      // Store in IPFS first
+      const response = await fetch('/api/v1/parameters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          parameters: JSON.stringify(grantFilePreview) 
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to store grant file: ${response.statusText}`);
+      }
+
+      const storageResult = await response.json();
+      if (!storageResult.success) {
+        throw new Error(storageResult.error || 'Failed to store grant file');
+      }
+
+      // Show preview to user
+      setGrantPreview({
+        grantFile: grantFilePreview,
+        grantUrl: storageResult.grantUrl,
+        params
+      });
+      setShowGrantPreview(true);
+      setGrantStatus("Review the grant file before signing...");
+      
+    } catch (error) {
+      console.error("Failed to prepare grant:", error);
+      setGrantStatus(
+        `Error: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+      setIsGranting(false);
+    }
+  };
+
+  const handleConfirmGrant = async () => {
+    if (!grantPreview) return;
+
+    try {
       setGrantStatus("Awaiting signature...");
 
-      const txHash = await vana.permissions.grant(params);
+      const txHash = await vana!.permissions.grant(grantPreview.params);
 
-      setGrantStatus(
-        "Permission granted successfully! ✅ Real encryption used"
-      );
+      setGrantStatus("Permission granted successfully! ✅ Data stored in IPFS");
       setGrantTxHash(txHash);
+      setShowGrantPreview(false);
     } catch (error) {
       console.error("Failed to grant permission:", error);
       setGrantStatus(
@@ -322,7 +356,15 @@ export default function Home() {
       );
     } finally {
       setIsGranting(false);
+      setGrantPreview(null);
     }
+  };
+
+  const handleCancelGrant = () => {
+    setShowGrantPreview(false);
+    setGrantPreview(null);
+    setIsGranting(false);
+    setGrantStatus("");
   };
 
   const handleRevokePermission = async () => {
@@ -340,7 +382,7 @@ export default function Home() {
 
       const txHash = await vana.permissions.revoke(params);
 
-      setRevokeStatus(`Permission revoked successfully! Tx: ${txHash}`);
+      setRevokeStatus(`Permission revoked successfully! Tx: ${txHash}${txHash.startsWith('0xmock') ? ' (MOCK - contract support coming soon)' : ''}`);
     } catch (error) {
       console.error("Failed to revoke permission:", error);
       setRevokeStatus(
@@ -350,6 +392,7 @@ export default function Home() {
       setIsRevoking(false);
     }
   };
+
 
   // Encryption testing functions
   const handleGenerateKey = async () => {
@@ -858,8 +901,7 @@ export default function Home() {
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold mb-4">Vana SDK Demo</h1>
           <p className="text-muted-foreground text-lg">
-            Experience the Vana SDK: canonical encryption, gasless relayer
-            service, real IPFS storage, and permission management.
+            Build with privacy-preserving data infrastructure
           </p>
         </div>
 
@@ -876,14 +918,9 @@ export default function Home() {
               <ConnectButton />
             </div>
             {relayerHealth && (
-              <Alert>
-                <Check className="h-4 w-4" />
-                <AlertDescription>
-                  <strong>Relayer Status:</strong> {relayerHealth.status} •
-                  <strong> Service:</strong> {relayerHealth.service} •
-                  <strong> Chain:</strong> {relayerHealth.chain}
-                </AlertDescription>
-              </Alert>
+              <p className="text-sm text-green-600 mt-2">
+                ✅ <strong>Relayer:</strong> {relayerHealth.status} • <strong>Service:</strong> {relayerHealth.service} • <strong>Chain:</strong> {relayerHealth.chain}
+              </p>
             )}
           </CardContent>
         </Card>
@@ -984,7 +1021,7 @@ export default function Home() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button onClick={loadUserFiles} className="mb-4">
+                <Button onClick={loadUserFiles} variant="outline" className="mb-4">
                   Refresh User Files
                 </Button>
 
@@ -997,8 +1034,8 @@ export default function Home() {
                       const decryptError = fileDecryptErrors.get(file.id);
 
                       return (
-                        <div key={file.id} className="border rounded-lg">
-                          <div className="flex items-center space-x-3 p-3">
+                        <div key={file.id} className="bg-muted/30 rounded-lg">
+                          <div className="flex items-center space-x-3 p-4">
                             <Checkbox
                               id={`file-${file.id}`}
                               checked={selectedFiles.includes(file.id)}
@@ -1006,28 +1043,36 @@ export default function Home() {
                                 handleFileSelection(file.id, checked as boolean)
                               }
                             />
-                            <div className="flex-1 text-sm">
-                              <strong>ID:</strong> {file.id} |
-                              <strong> URL:</strong>
-                              <a
-                                href={file.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 hover:text-blue-800 underline ml-1 mr-1"
-                              >
-                                {file.url.length > 50
-                                  ? `${file.url.substring(0, 50)}...`
-                                  : file.url}
-                              </a>{" "}
-                              |<strong> Block:</strong>
-                              <a
-                                href={`https://moksha.vanascan.io/block/${file.addedAtBlock}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 hover:text-blue-800 underline ml-1"
-                              >
-                                {file.addedAtBlock.toString()}
-                              </a>
+                            <div className="flex-1">
+                              <div className="text-lg font-medium mb-1">File #{file.id}</div>
+                              <div className="text-sm text-muted-foreground space-y-1">
+                                <div>
+                                  <span className="font-medium">URL:</span>{" "}
+                                  <a
+                                    href={file.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-blue-600 hover:text-blue-800 underline font-mono"
+                                  >
+                                    {file.url.startsWith('ipfs://') 
+                                      ? `ipfs://${file.url.slice(7, 13)}...${file.url.slice(-6)}`
+                                      : file.url.length > 40
+                                        ? `${file.url.substring(0, 40)}...`
+                                        : file.url}
+                                  </a>
+                                </div>
+                                <div>
+                                  <span className="font-medium">Block:</span>{" "}
+                                  <a
+                                    href={`https://moksha.vanascan.io/block/${file.addedAtBlock}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-blue-600 hover:text-blue-800 underline font-mono"
+                                  >
+                                    {file.addedAtBlock.toString()}
+                                  </a>
+                                </div>
+                              </div>
                             </div>
 
                             {/* Decrypt Actions */}
@@ -1087,6 +1132,7 @@ export default function Home() {
                                   </Button>
                                   <Button
                                     size="sm"
+                                    variant="outline"
                                     onClick={() =>
                                       handleDownloadDecryptedFile(file)
                                     }
@@ -1101,11 +1147,11 @@ export default function Home() {
 
                           {/* Show decrypted content */}
                           {decryptedContent && (
-                            <div className="border-t p-3 bg-muted/30">
-                              <Label className="text-xs font-medium mb-2 block">
+                            <div className="mt-3 p-3 bg-green-50 dark:bg-green-950/20 rounded">
+                              <Label className="text-xs font-medium mb-2 block text-green-800 dark:text-green-200">
                                 Decrypted Content:
                               </Label>
-                              <div className="max-h-32 overflow-y-auto bg-background p-2 rounded border">
+                              <div className="max-h-32 overflow-y-auto bg-background p-2 rounded">
                                 <pre className="font-mono text-xs whitespace-pre-wrap break-all">
                                   {decryptedContent}
                                 </pre>
@@ -1115,24 +1161,20 @@ export default function Home() {
 
                           {/* Show decrypt error */}
                           {decryptError && (
-                            <div className="border-t p-3 bg-red-50 dark:bg-red-950/20">
-                              <Alert variant="destructive">
-                                <AlertDescription className="text-sm">
-                                  {decryptError}
-                                </AlertDescription>
-                              </Alert>
+                            <div className="mt-3 p-3 bg-red-50 dark:bg-red-950/20 rounded">
+                              <p className="text-sm text-red-600 dark:text-red-400">
+                                {decryptError}
+                              </p>
                             </div>
                           )}
                         </div>
                       );
                     })}
-                    <Alert>
-                      <AlertDescription>
-                        <strong>Selected files:</strong> {selectedFiles.length}{" "}
-                        • Use "Decrypt" to view encrypted file contents on-chain
-                        using your wallet signature.
-                      </AlertDescription>
-                    </Alert>
+                    <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded">
+                      <p className="text-sm text-blue-800 dark:text-blue-200">
+                        <strong>Selected files:</strong> {selectedFiles.length} • Use "Decrypt" to view encrypted file contents using your wallet signature.
+                      </p>
+                    </div>
                   </div>
                 ) : (
                   <p className="text-muted-foreground">Loading user files...</p>
@@ -1301,6 +1343,10 @@ export default function Home() {
                   <Shield className="h-5 w-5" />
                   Grant Permission (Gasless)
                 </CardTitle>
+                <CardDescription>
+                  Grant permission for applications to access your selected files. 
+                  You'll review the grant details stored on IPFS before signing.
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <Button
@@ -1315,13 +1361,9 @@ export default function Home() {
                 </Button>
 
                 {grantStatus && (
-                  <Alert
-                    variant={
-                      grantStatus.includes("Error") ? "destructive" : "default"
-                    }
-                  >
-                    <AlertDescription>{grantStatus}</AlertDescription>
-                  </Alert>
+                  <p className={`text-sm ${grantStatus.includes("Error") ? "text-red-600" : "text-green-600"} mt-2`}>
+                    {grantStatus}
+                  </p>
                 )}
 
                 {grantTxHash && (
@@ -1350,6 +1392,67 @@ export default function Home() {
               </CardContent>
             </Card>
 
+            {/* Grant Preview Modal */}
+            {showGrantPreview && grantPreview && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+                <Card className="w-full max-w-2xl max-h-[70vh] overflow-y-auto">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Eye className="h-5 w-5" />
+                      Review Grant
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <Label className="font-medium">Operation:</Label>
+                        <p className="text-muted-foreground">{grantPreview.grantFile.operation}</p>
+                      </div>
+                      <div>
+                        <Label className="font-medium">Files:</Label>
+                        <p className="text-muted-foreground">[{grantPreview.grantFile.files.join(', ')}]</p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label className="text-sm font-medium">IPFS URL:</Label>
+                      <a 
+                        href={`https://ipfs.io/ipfs/${grantPreview.grantUrl.replace('ipfs://', '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-600 hover:text-blue-800 underline font-mono break-all block mt-1"
+                      >
+                        {grantPreview.grantUrl}
+                      </a>
+                    </div>
+
+                    <div>
+                      <Label className="text-sm font-medium">Parameters:</Label>
+                      <div className="mt-2 p-3 bg-muted rounded-md max-h-32 overflow-y-auto">
+                        <pre className="text-xs font-mono whitespace-pre-wrap">
+                          {JSON.stringify(grantPreview.grantFile.parameters, null, 2)}
+                        </pre>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3 justify-end pt-2">
+                      <Button 
+                        variant="outline" 
+                        onClick={handleCancelGrant}
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        onClick={handleConfirmGrant}
+                      >
+                        Sign Transaction
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
             {/* Current Permissions */}
             <Card>
               <CardHeader>
@@ -1366,6 +1469,7 @@ export default function Home() {
                   <Button
                     onClick={loadUserPermissions}
                     disabled={isLoadingPermissions}
+                    variant="outline"
                   >
                     {isLoadingPermissions && (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1411,12 +1515,12 @@ export default function Home() {
                                 </span>
                               )}
                             </p>
-                            {permission.prompt && (
+                            {permission.parameters && (
                               <p className="text-sm text-muted-foreground">
-                                <strong>Prompt:</strong>{" "}
-                                {permission.prompt.length > 50
-                                  ? `${permission.prompt.substring(0, 50)}...`
-                                  : permission.prompt}
+                                <strong>Parameters:</strong>{" "}
+                                {permission.parameters.length > 50
+                                  ? `${permission.parameters.substring(0, 50)}...`
+                                  : permission.parameters}
                               </p>
                             )}
                           </div>
@@ -1447,6 +1551,13 @@ export default function Home() {
             <Card>
               <CardHeader>
                 <CardTitle>Revoke Permission</CardTitle>
+                <CardDescription>
+                  Revoke a previously granted permission
+                  <br />
+                  <span className="text-yellow-600 text-xs">
+                    ⚠️ Currently mocked - contract support coming soon
+                  </span>
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -1475,19 +1586,14 @@ export default function Home() {
                   </Button>
 
                   {revokeStatus && (
-                    <Alert
-                      variant={
-                        revokeStatus.includes("Error")
-                          ? "destructive"
-                          : "default"
-                      }
-                    >
-                      <AlertDescription>{revokeStatus}</AlertDescription>
-                    </Alert>
+                    <p className={`text-sm ${revokeStatus.includes("Error") ? "text-red-600" : "text-green-600"} mt-2`}>
+                      {revokeStatus}
+                    </p>
                   )}
                 </div>
               </CardContent>
             </Card>
+
 
             {/* Encryption Testing */}
             <Card>
@@ -1694,10 +1800,9 @@ export default function Home() {
 
                 {/* Results */}
                 {encryptionStatus && (
-                  <Alert>
-                    <Lock className="h-4 w-4" />
-                    <AlertDescription>{encryptionStatus}</AlertDescription>
-                  </Alert>
+                  <p className={`text-sm ${encryptionStatus.includes("❌") ? "text-red-600" : "text-green-600"} mt-2`}>
+                    {encryptionStatus}
+                  </p>
                 )}
 
                 {encryptedData && (
@@ -1719,7 +1824,7 @@ export default function Home() {
                           )}
                           {showEncryptedContent ? "Hide" : "Show"} Content
                         </Button>
-                        <Button size="sm" onClick={handleDownloadEncrypted}>
+                        <Button size="sm" variant="outline" onClick={handleDownloadEncrypted}>
                           <Download className="mr-2 h-4 w-4" />
                           Download
                         </Button>
@@ -1889,12 +1994,9 @@ export default function Home() {
                       </p>
 
                       {uploadToChainStatus && (
-                        <Alert className="mt-3">
-                          <Database className="h-4 w-4" />
-                          <AlertDescription>
-                            {uploadToChainStatus}
-                          </AlertDescription>
-                        </Alert>
+                        <p className={`text-sm ${uploadToChainStatus.includes("❌") ? "text-red-600" : "text-green-600"} mt-3`}>
+                          {uploadToChainStatus}
+                        </p>
                       )}
 
                       {newFileId && (
@@ -1928,7 +2030,7 @@ export default function Home() {
                           <Copy className="mr-2 h-4 w-4" />
                           Copy
                         </Button>
-                        <Button size="sm" onClick={handleDownloadDecrypted}>
+                        <Button size="sm" variant="outline" onClick={handleDownloadDecrypted}>
                           <Download className="mr-2 h-4 w-4" />
                           Download
                         </Button>
@@ -1943,24 +2045,21 @@ export default function Home() {
                       </div>
                     </div>
 
-                    <Alert>
-                      <Check className="h-4 w-4" />
-                      <AlertDescription>
-                        ✅ Round-trip encryption/decryption successful!
-                        {inputMode === "text" && (
-                          <span>
-                            Data matches:{" "}
-                            {decryptedData === testData ? "YES" : "NO"}
-                          </span>
-                        )}
-                        {inputMode === "file" && (
-                          <span>
-                            File decrypted successfully. Download to verify
-                            contents.
-                          </span>
-                        )}
-                      </AlertDescription>
-                    </Alert>
+                    <p className="text-sm text-green-600 mt-2">
+                      ✅ Round-trip encryption/decryption successful!
+                      {inputMode === "text" && (
+                        <span>
+                          Data matches:{" "}
+                          {decryptedData === testData ? "YES" : "NO"}
+                        </span>
+                      )}
+                      {inputMode === "file" && (
+                        <span>
+                          File decrypted successfully. Download to verify
+                          contents.
+                        </span>
+                      )}
+                    </p>
                   </div>
                 )}
 

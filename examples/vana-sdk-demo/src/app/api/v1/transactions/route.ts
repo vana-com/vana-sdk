@@ -36,10 +36,21 @@ export async function POST(request: NextRequest) {
 
     // Step 2: Verify the signature
     console.log('🔍 Verifying signature...')
+    // For the new contract, we need to recover the signer from the signature
+    // and verify it matches who we expect signed it
+    const { recoverTypedDataAddress } = await import('viem')
+    const signerAddress = await recoverTypedDataAddress({
+      domain: typedData.domain,
+      types: typedData.types,
+      primaryType: typedData.primaryType,
+      message: typedData.message,
+      signature: signature as Hash
+    })
+    
     const isValidSignature = await verifyPermissionGrantSignature(
       typedData,
       signature as Hash,
-      typedData.message.from
+      signerAddress
     )
 
     if (!isValidSignature) {

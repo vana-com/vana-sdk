@@ -20,6 +20,7 @@ export * from "./contracts/contractController";
 // Utilities
 export * from "./utils/encryption";
 export * from "./utils/formatters";
+export * from "./utils/grantFiles";
 
 // Storage API
 export * from "./storage";

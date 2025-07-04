@@ -4,10 +4,29 @@
   "description": "A TypeScript library for interacting with Vana Network smart contracts",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./chains": {
+      "types": "./dist/config/chains.d.ts",
+      "import": "./dist/config/chains.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js"
+    },
+    "./errors": {
+      "types": "./dist/errors.d.ts",
+      "import": "./dist/errors.js"
+    }
+  },
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "examples"
   ],
   "scripts": {
     "build": "rimraf dist && tsc",
@@ -27,9 +46,10 @@
   ],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "dependencies": {
     "abitype": "^1.0.8",
+    "openpgp": "^6.1.1",
     "viem": "^2.22.2"
   },
   "devDependencies": {

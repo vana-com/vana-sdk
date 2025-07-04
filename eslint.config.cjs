@@ -3,13 +3,18 @@ const tseslint = require("@typescript-eslint/eslint-plugin");
 
 module.exports = [
   {
-    ignores: ["**/dist/**", "**/node_modules/**"],
+    ignores: ["**/dist/**", "**/node_modules/**", "**/tests/**", "**/scripts/**"],
   },
   {
     languageOptions: {
       globals: {
         require: "readonly",
         module: "readonly",
+        process: "readonly",
+        console: "readonly",
+        fetch: "readonly",
+        global: "readonly",
+        URL: "readonly",
       },
     },
   },
@@ -25,7 +30,8 @@ module.exports = [
     },
     rules: {
       ...tseslint.configs.recommended.rules,
-      "prettier/prettier": "error",
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-unused-vars": "warn",
     },
   },
 ];

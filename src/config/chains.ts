@@ -4,7 +4,7 @@ export const mokshaTestnet = defineChain({
   id: 14800,
   caipNetworkId: "eip155:14800",
   chainNamespace: "eip155",
-  name: "VANA - Moksha",
+  name: "Vana Moksha Testnet",
   nativeCurrency: {
     name: "VANA",
     symbol: "VANA",
@@ -12,17 +12,17 @@ export const mokshaTestnet = defineChain({
   },
   rpcUrls: {
     default: {
-      http: [process.env.NEXT_PUBLIC_RPC_URL || "https://rpc.moksha.vana.org"],
+      http: ["https://rpc.moksha.vana.org"],
     },
   },
   blockExplorers: {
     default: {
       url: "https://moksha.vanascan.io",
-      name: "VANA Scan",
+      name: "Vanascan - Moksha",
     },
-    etherscan: {
+    blockscout: {
       url: "https://moksha.vanascan.io",
-      name: "VANA Scan",
+      name: "Vanascan - Moksha",
     },
   },
   contracts: {},
@@ -33,7 +33,7 @@ export const vanaMainnet = defineChain({
   id: 1480,
   caipNetworkId: "eip155:1480",
   chainNamespace: "eip155",
-  name: "VANA - Mainnet",
+  name: "Vana",
   nativeCurrency: {
     name: "VANA",
     symbol: "VANA",
@@ -41,17 +41,17 @@ export const vanaMainnet = defineChain({
   },
   rpcUrls: {
     default: {
-      http: [process.env.NEXT_PUBLIC_RPC_URL || "https://rpc.vana.org"],
+      http: ["https://rpc.vana.org"],
     },
   },
   blockExplorers: {
     default: {
       url: "https://vanascan.io",
-      name: "VANA Scan",
+      name: "Vanascan",
     },
-    etherscan: {
+    blockscout: {
       url: "https://vanascan.io",
-      name: "VANA Scan",
+      name: "Vanascan",
     },
   },
   contracts: {},

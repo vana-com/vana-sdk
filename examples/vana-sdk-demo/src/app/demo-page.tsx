@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useAccount, useWalletClient } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { getContract } from "viem";
+import { createWalletClient, getContract, http } from "viem";
 import {
   Vana,
   UserFile,
@@ -51,6 +51,7 @@ import {
   Search,
   Copy,
 } from "lucide-react";
+import { privateKeyToAccount } from "viem/accounts";
 
 export default function Home() {
   const { address, isConnected } = useAccount();
@@ -135,9 +136,22 @@ export default function Home() {
   useEffect(() => {
     if (isConnected && walletClient && walletClient.account) {
       try {
+        const applicationPrivateKey = process.env.NEXT_PUBLIC_APPLICATION_PRIVATE_KEY;
+        if (!applicationPrivateKey) {
+          console.error("NEXT_APPLICATION_PRIVATE_KEY not found in .env.local");
+          return;
+        }
+
+        const applicationWallet = createWalletClient({
+          account: privateKeyToAccount(applicationPrivateKey as `0x${string}`),
+          chain: walletClient.chain,
+          transport: http()
+        });
+                
         const vanaInstance = new Vana({
           walletClient: walletClient as any,
           relayerUrl: `${window.location.origin}`,
+          applicationWallet: applicationWallet as any
         });
         setVana(vanaInstance);
         console.log("✅ Vana SDK initialized:", vanaInstance.getConfig());

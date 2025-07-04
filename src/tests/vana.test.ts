@@ -33,6 +33,7 @@ const testAccount = privateKeyToAccount('0xac0974bec39a17e36ba4a6b4d238ff944bacb
 
 describe('Vana', () => {
   let validWalletClient: any
+  let validApplicationWallet: any
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -48,7 +49,8 @@ describe('Vana', () => {
     it('should initialize successfully with valid config', () => {
       const vana = new Vana({
         walletClient: validWalletClient,
-        relayerUrl: 'https://test-relayer.com'
+        relayerUrl: 'https://test-relayer.com',
+        applicationWallet: validApplicationWallet
       })
 
       expect(vana).toBeDefined()
@@ -59,7 +61,8 @@ describe('Vana', () => {
 
     it('should use default relayer URL when not provided', () => {
       const vana = new Vana({
-        walletClient: validWalletClient
+        walletClient: validWalletClient,
+        applicationWallet: validApplicationWallet
       })
 
       expect(vana.getConfig().relayerUrl).toBe('https://relayer.vana.org')
@@ -92,7 +95,8 @@ describe('Vana', () => {
       expect(() => {
         new Vana({
           walletClient: validWalletClient,
-          relayerUrl: ''
+          relayerUrl: '',
+          applicationWallet: validApplicationWallet
         })
       }).toThrow(InvalidConfigurationError)
     })
@@ -101,7 +105,8 @@ describe('Vana', () => {
       expect(() => {
         new Vana({
           walletClient: validWalletClient,
-          relayerUrl: 'not-a-url'
+          relayerUrl: 'not-a-url',
+          applicationWallet: validApplicationWallet
         })
       }).toThrow(InvalidConfigurationError)
     })
@@ -120,7 +125,8 @@ describe('Vana', () => {
 
       expect(() => {
         new Vana({
-          walletClient: invalidChainClient
+          walletClient: invalidChainClient,
+          applicationWallet: validApplicationWallet
         })
       }).toThrow(InvalidConfigurationError)
     })
@@ -133,7 +139,8 @@ describe('Vana', () => {
 
       expect(() => {
         new Vana({
-          walletClient: noChainClient
+          walletClient: noChainClient,
+          applicationWallet: validApplicationWallet
         })
       }).toThrow(InvalidConfigurationError)
     })
@@ -145,7 +152,8 @@ describe('Vana', () => {
     beforeEach(() => {
       vana = new Vana({
         walletClient: validWalletClient,
-        relayerUrl: 'https://test-relayer.com'
+        relayerUrl: 'https://test-relayer.com',
+        applicationWallet: validApplicationWallet
       })
     })
 
@@ -170,7 +178,8 @@ describe('Vana', () => {
     beforeEach(() => {
       vana = new Vana({
         walletClient: validWalletClient,
-        relayerUrl: 'https://test-relayer.com'
+        relayerUrl: 'https://test-relayer.com',
+        applicationWallet: validApplicationWallet
       })
     })
 
@@ -198,7 +207,8 @@ describe('Vana', () => {
     it('should pass shared context to all controllers', () => {
       const vana = new Vana({
         walletClient: validWalletClient,
-        relayerUrl: 'https://test-relayer.com'
+        relayerUrl: 'https://test-relayer.com',
+        applicationWallet: validApplicationWallet
       })
 
       // Verify that controllers were instantiated with the correct context

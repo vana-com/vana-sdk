@@ -8,6 +8,8 @@ export interface VanaConfig {
   walletClient: WalletClient;
   /** Optional URL for the Vana Relayer Service. Defaults to production URL if not provided */
   relayerUrl?: string;
+  /** Optional application wallet for app-specific operations */
+  applicationWallet: WalletClient;
 }
 
 /**

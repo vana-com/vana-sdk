@@ -27,6 +27,7 @@ import { getAbi } from '../abi';
 export interface ControllerContext {
   walletClient: WalletClient;
   relayerUrl: string;
+  applicationWallet: WalletClient;
 }
 
 /**

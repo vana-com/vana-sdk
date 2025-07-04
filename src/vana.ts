@@ -75,7 +75,8 @@ export class Vana {
     // Create shared context for all controllers
     const sharedContext: ControllerContext = {
       walletClient: config.walletClient,
-      relayerUrl: config.relayerUrl || this.DEFAULT_RELAYER_URL
+      relayerUrl: config.relayerUrl || this.DEFAULT_RELAYER_URL,
+      applicationWallet: config.applicationWallet
     };
 
     // Initialize controllers

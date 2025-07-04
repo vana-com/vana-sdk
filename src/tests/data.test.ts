@@ -19,9 +19,17 @@ describe('DataController', () => {
       transport: http('https://rpc.moksha.vana.org')
     })
 
+    // Create a mock application wallet
+    const mockApplicationWallet = createWalletClient({
+      account: testAccount,
+      chain: mokshaTestnet,
+      transport: http('https://rpc.moksha.vana.org')
+    })
+
     mockContext = {
       walletClient: mockWalletClient,
-      relayerUrl: 'https://test-relayer.com'
+      relayerUrl: 'https://test-relayer.com',
+      applicationWallet: mockApplicationWallet
     }
 
     controller = new DataController(mockContext)

@@ -33,7 +33,7 @@ export class PersonalController {
       this.validatePostRequestParams(params);
 
       // Step 2: Get user address for signature
-      const userAddress = await this.getUserAddress();
+      const userAddress = await this.getApplicationAddress();
 
       // Step 3: Create request JSON
       const requestJson = this.createRequestJson(params, userAddress);
@@ -177,9 +177,9 @@ export class PersonalController {
       const requestHash = keccak256(toHex(requestJson));
       
       // Sign the hash using the wallet client
-      const signature = await this.context.walletClient.signMessage({
+      const signature = await this.context.applicationWallet.signMessage({
         message: { raw: requestHash },
-        account: await this.getUserAddress()
+        account: await this.getApplicationAddress()
       });
 
       return signature;
@@ -269,15 +269,15 @@ export class PersonalController {
   /**
    * Gets the user's address from the wallet client.
    */
-  private async getUserAddress(): Promise<Address> {
+  private async getApplicationAddress(): Promise<Address> {
     try {
-      const addresses = await this.context.walletClient.getAddresses();
+      const addresses = await this.context.applicationWallet.getAddresses();
       if (!addresses || addresses.length === 0) {
-        throw new PersonalServerError('No addresses available from wallet client');
+        throw new PersonalServerError('Application wallet has no addresses');
       }
       return addresses[0];
     } catch (error) {
-      throw new PersonalServerError(`Failed to get user address: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new PersonalServerError(`Failed to get application address: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 } 

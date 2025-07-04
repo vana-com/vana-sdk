@@ -32,9 +32,17 @@ describe('ProtocolController', () => {
       transport: http('https://rpc.moksha.vana.org')
     })
 
+    // Create a mock application wallet
+    const validApplicationWallet = createWalletClient({
+      account: testAccount,
+      chain: mokshaTestnet,
+      transport: http('https://rpc.moksha.vana.org')
+    })
+
     mockContext = {
       walletClient: mockWalletClient,
-      relayerUrl: 'https://test-relayer.com'
+      relayerUrl: 'https://test-relayer.com',
+      applicationWallet: validApplicationWallet
     }
 
     controller = new ProtocolController(mockContext)
@@ -83,7 +91,8 @@ describe('ProtocolController', () => {
 
       const noChainController = new ProtocolController({
         walletClient: noChainClient,
-        relayerUrl: 'https://test-relayer.com'
+        relayerUrl: 'https://test-relayer.com',
+        applicationWallet: mockContext.applicationWallet
       })
 
       expect(() => {
@@ -160,7 +169,8 @@ describe('ProtocolController', () => {
 
       const noChainController = new ProtocolController({
         walletClient: noChainClient,
-        relayerUrl: 'https://test-relayer.com'
+        relayerUrl: 'https://test-relayer.com',
+        applicationWallet: mockContext.applicationWallet
       })
 
       expect(() => {
@@ -183,7 +193,8 @@ describe('ProtocolController', () => {
 
       const noChainController = new ProtocolController({
         walletClient: noChainClient,
-        relayerUrl: 'https://test-relayer.com'
+        relayerUrl: 'https://test-relayer.com',
+        applicationWallet: mockContext.applicationWallet
       })
 
       expect(() => {

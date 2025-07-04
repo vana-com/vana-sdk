@@ -54,9 +54,16 @@ describe('PermissionsController', () => {
     mockWalletClient.getAddresses = vi.fn().mockResolvedValue([testAccount.address])
     mockWalletClient.signTypedData = vi.fn().mockResolvedValue('0xsignature' as Hash)
 
+    // Create a mock application wallet
+    const mockApplicationWallet = {
+      ...mockWalletClient,
+      getAddresses: vi.fn().mockResolvedValue([testAccount.address])
+    }
+
     mockContext = {
       walletClient: mockWalletClient,
-      relayerUrl: 'https://test-relayer.com'
+      relayerUrl: 'https://test-relayer.com',
+      applicationWallet: mockApplicationWallet
     }
 
     controller = new PermissionsController(mockContext)

@@ -122,6 +122,15 @@ export default function Home() {
   const [isLookingUpFile, setIsLookingUpFile] = useState(false);
   const [fileLookupStatus, setFileLookupStatus] = useState<string>("");
 
+  // Add state for personal server call
+  const [personalOp, setPersonalOp] = useState<string>("llm_inference");
+  const [personalPrompt, setPersonalPrompt] = useState<string>("Analyze personality: {{data}}");
+  const [personalFileIds, setPersonalFileIds] = useState<string>("");
+  const [personalResult, setPersonalResult] = useState<any>(null);
+  const [personalError, setPersonalError] = useState<string>("");
+  const [isPersonalLoading, setIsPersonalLoading] = useState(false);
+  const [isPolling, setIsPolling] = useState(false);
+
   // Initialize Vana SDK when wallet is connected
   useEffect(() => {
     if (isConnected && walletClient && walletClient.account) {
@@ -132,6 +141,8 @@ export default function Home() {
         });
         setVana(vanaInstance);
         console.log("✅ Vana SDK initialized:", vanaInstance.getConfig());
+        console.log("🔍 Debug - vanaInstance properties:", Object.keys(vanaInstance));
+        console.log("🔍 Debug - vanaInstance.personal:", (vanaInstance as any).personal);
 
         // Initialize storage manager
         const manager = new StorageManager();
@@ -851,6 +862,63 @@ export default function Home() {
     return `https://moksha.vanascan.io/tx/${txHash}`;
   };
 
+  const handlePersonalServerCall = async () => {
+    if (!vana || !address) return;
+    
+    if (!vana.personal) {
+      setPersonalError("Personal controller not available. Please check SDK version.");
+      return;
+    }
+    
+    // Parse file IDs
+    let fileIds: number[] = [];
+    if (personalFileIds.trim()) {
+      try {
+        fileIds = personalFileIds.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+      } catch (e) {
+        setPersonalError("File IDs must be comma-separated numbers");
+        return;
+      }
+    }
+    
+    if (fileIds.length === 0) {
+      setPersonalError("Please provide at least one file ID");
+      return;
+    }
+    
+    setIsPersonalLoading(true);
+    setPersonalError("");
+    setPersonalResult(null);
+    try {
+      const result = await vana.personal.postRequest({
+        owner: address,
+        fileIds,
+        operation: personalOp,
+        parameters: { prompt: personalPrompt }
+      });
+      setPersonalResult(result);
+    } catch (e: any) {
+      setPersonalError(e?.message || "Unknown error");
+    } finally {
+      setIsPersonalLoading(false);
+    }
+  };
+
+  const handlePollStatus = async () => {
+    if (!vana || !personalResult?.urls?.get) return;
+    
+    setIsPolling(true);
+    setPersonalError("");
+    try {
+      const updatedResult = await (vana as any).personal.pollStatus(personalResult.urls.get);
+      setPersonalResult(updatedResult);
+    } catch (e: any) {
+      setPersonalError(e?.message || "Unknown error");
+    } finally {
+      setIsPolling(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -1313,7 +1381,6 @@ export default function Home() {
                   )}
                   Grant Permission to Selected Files
                 </Button>
-
                 {grantStatus && (
                   <Alert
                     variant={
@@ -1323,7 +1390,6 @@ export default function Home() {
                     <AlertDescription>{grantStatus}</AlertDescription>
                   </Alert>
                 )}
-
                 {grantTxHash && (
                   <div className="mt-4 p-4 bg-muted rounded-lg">
                     <p className="font-medium mb-2">Transaction Hash:</p>
@@ -1349,6 +1415,8 @@ export default function Home() {
                 )}
               </CardContent>
             </Card>
+
+
 
             {/* Current Permissions */}
             <Card>
@@ -2003,6 +2071,110 @@ export default function Home() {
                       </ul>
                     </div>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Personal Server Computation */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Database className="h-5 w-5" />
+                  Personal Server Computation
+                </CardTitle>
+                <CardDescription>
+                  Trigger a computation on your personal server using selected files.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div>
+                    <Label>File IDs (comma-separated)</Label>
+                    <Input
+                      value={personalFileIds}
+                      onChange={e => setPersonalFileIds(e.target.value)}
+                      placeholder="e.g., 12, 15, 28"
+                      className="mb-2"
+                    />
+                  </div>
+                  <div>
+                    <Label>Operation</Label>
+                    <Input
+                      value={personalOp}
+                      onChange={e => setPersonalOp(e.target.value)}
+                      placeholder="llm_inference"
+                      className="mb-2"
+                    />
+                  </div>
+                  <div>
+                    <Label>Prompt</Label>
+                    <Input
+                      value={personalPrompt}
+                      onChange={e => setPersonalPrompt(e.target.value)}
+                      placeholder="Analyze personality: {{data}}"
+                      className="mb-2"
+                    />
+                  </div>
+                  <Button
+                    onClick={handlePersonalServerCall}
+                    disabled={!personalFileIds.trim() || isPersonalLoading}
+                  >
+                    {isPersonalLoading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Database className="mr-2 h-4 w-4" />
+                    )}
+                    Run Computation on Personal Server
+                  </Button>
+                  {personalError && (
+                    <Alert variant="destructive">
+                      <AlertDescription>{personalError}</AlertDescription>
+                    </Alert>
+                  )}
+                  {personalResult && (
+                    <div className="mt-4 p-4 bg-muted rounded-lg">
+                      <div className="mb-2">
+                        <span className="font-medium">Prediction ID:</span> {personalResult.id}
+                      </div>
+                      <div className="mb-2">
+                        <span className="font-medium">Status:</span> {personalResult.status}
+                      </div>
+                      <div className="mb-2">
+                        <span className="font-medium">Get Result:</span>{" "}
+                        <a href={personalResult.urls.get} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">{personalResult.urls.get}</a>
+                      </div>
+                      <div className="mb-2">
+                        <span className="font-medium">Cancel:</span>{" "}
+                        <a href={personalResult.urls.cancel} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">{personalResult.urls.cancel}</a>
+                      </div>
+                      {personalResult.output && (
+                        <div className="mb-2">
+                          <span className="font-medium">Output:</span>
+                          <pre className="bg-background p-2 rounded text-xs overflow-x-auto mt-1">{JSON.stringify(personalResult.output, null, 2)}</pre>
+                        </div>
+                      )}
+                      {personalResult.error && (
+                        <div className="mb-2 text-red-600">
+                          <span className="font-medium">Error:</span> {personalResult.error}
+                        </div>
+                      )}
+                      <div className="mt-3">
+                        <Button
+                          onClick={handlePollStatus}
+                          disabled={isPolling || personalResult.status === 'succeeded' || personalResult.status === 'failed' || personalResult.status === 'canceled'}
+                          variant="outline"
+                          size="sm"
+                        >
+                          {isPolling ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <RotateCcw className="mr-2 h-4 w-4" />
+                          )}
+                          {isPolling ? "Polling..." : "Poll Status"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

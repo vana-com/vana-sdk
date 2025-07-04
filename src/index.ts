@@ -12,6 +12,7 @@ export * from "./errors";
 export { PermissionsController } from "./controllers/permissions";
 export { DataController } from "./controllers/data";
 export { ProtocolController } from "./controllers/protocol";
+export { PersonalController } from "./controllers/personal";
 
 // Base contract class
 export * from "./contracts/contractClient";

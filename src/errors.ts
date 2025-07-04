@@ -93,3 +93,12 @@ export class NonceError extends VanaError {
     super(message, 'NONCE_ERROR');
   }
 }
+
+/**
+ * Error thrown when a personal server operation fails.
+ */
+export class PersonalServerError extends VanaError {
+  constructor(message: string, public readonly originalError?: Error) {
+    super(message, 'PERSONAL_SERVER_ERROR');
+  }
+}

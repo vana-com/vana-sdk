@@ -3,6 +3,7 @@ import { InvalidConfigurationError } from './errors';
 import { PermissionsController, ControllerContext } from './controllers/permissions';
 import { DataController } from './controllers/data';
 import { ProtocolController } from './controllers/protocol';
+import { PersonalController } from './controllers/personal';
 
 /**
  * The main Vana SDK client class.
@@ -56,6 +57,9 @@ export class Vana {
   /** Controller providing low-level access to protocol contracts */
   public readonly protocol: ProtocolController;
 
+  /** Controller for managing personal server interactions */
+  public readonly personal: PersonalController;
+
   private readonly DEFAULT_RELAYER_URL = 'https://relayer.vana.org';
 
   /**
@@ -78,6 +82,15 @@ export class Vana {
     this.permissions = new PermissionsController(sharedContext);
     this.data = new DataController(sharedContext);
     this.protocol = new ProtocolController(sharedContext);
+    this.personal = new PersonalController(sharedContext);
+    
+    // Debug: Log controller initialization
+    console.log("🔧 Controllers initialized:", {
+      permissions: !!this.permissions,
+      data: !!this.data,
+      protocol: !!this.protocol,
+      personal: !!this.personal
+    });
   }
 
   /**

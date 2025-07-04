@@ -114,6 +114,28 @@ This controller serves as the designated "escape hatch" for advanced developers.
 - **Description:** Provides direct, low-level access to the addresses and ABIs of Vana's canonical smart contracts.
 - **Action:** This function will look up the requested contract's details from an internal registry maintained within the SDK and return them. This allows a developer to construct their own `viem` contract interactions if the high-level abstractions are insufficient for their use case.
 
+### 4.3. `vana.personal`: The Personal Server Controller
+
+This controller enables interactions with user's personal server to perform computation
+
+#### `postRequest(params: { owner: Address, files: number[], operation: string, parameters: dict<string to string>}): ResponseWithLinkToGetResultOrCancelComputation
+
+- **Description:** Executes request conforming to this schema:
+```
+curl -X POST "https://api.replicate.com/v1/predictions" \
+  -H "Authorization: Token <REPLICATE_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "version": "vana-com/personal-server:1ef2dbffd550699b73b1a4d43ec9407e129333bdb59cdb701caefa6c03a42155",
+    "input": {
+      "replicate_api_token": "<REPLICATE_TOKEN - apparently has to be passed again if we proxy to another Client (Deepseek LLM)>",
+      "signature": "309d2e8a267ec9347ecd7a8878a87f95bb1be8cc6d3e096764111291756b9e6c0ac7631ea5bc970aa2127fcc5a6fa8a979652e6403c8b550fcd3bcd7e7e148d11c",
+      "request_json": "{\"user_address\": \"0xf0ebD65BEaDacD191dc96D8EC69bbA4ABCf621D4\", \"file_ids\": [999], \"operation\": \"llm_inference\", \"parameters\": {\"prompt\": \"Analyze personality: {{data}}\"}}"
+    }
+  }'
+```
+- **Action:** This function will prepare all parameters, sets a required replicate authentication key and executes the request.
+
 ## 5. The Demo Application: The Reference Implementation
 
 A core, non-negotiable deliverable for this project is a minimal but complete demo application. This serves as a living, unambiguous reference for how to use the SDK.

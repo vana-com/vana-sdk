@@ -1,4 +1,5 @@
 import type { WalletClient, Address, Hash, Abi } from 'viem';
+import type { StorageProvider } from './storage';
 
 /**
  * Configuration object for the main Vana class.
@@ -6,8 +7,15 @@ import type { WalletClient, Address, Hash, Abi } from 'viem';
 export interface VanaConfig {
   /** The viem WalletClient instance used for signing transactions */
   walletClient: WalletClient;
-  /** Optional URL for the Vana Relayer Service. Defaults to production URL if not provided */
+  /** Optional URL for a Vana Relayer Service for gasless transactions */
   relayerUrl?: string;
+  /** Optional storage providers configuration for file upload/download */
+  storage?: {
+    /** Map of provider name to storage provider instance */
+    providers?: Record<string, StorageProvider>;
+    /** Default provider name to use when none specified */
+    defaultProvider?: string;
+  };
 }
 
 /**
@@ -58,6 +66,8 @@ export interface GrantPermissionParams {
   files: number[];
   /** The full, off-chain parameters (e.g., LLM prompt) */
   parameters: Record<string, any>;
+  /** Optional pre-stored grant URL to avoid duplicate IPFS storage */
+  grantUrl?: string;
 }
 
 /**
@@ -196,4 +206,18 @@ export interface ContractInfo {
   address: Address;
   /** The contract's ABI */
   abi: Abi;
+}
+
+/**
+ * Result of uploading an encrypted file to storage and blockchain.
+ */
+export interface UploadEncryptedFileResult {
+  /** The new file ID assigned by the DataRegistry */
+  fileId: number;
+  /** The storage URL where the encrypted file is stored */
+  url: string;
+  /** Size of the encrypted file in bytes */
+  size: number;
+  /** Transaction hash of the file registration */
+  transactionHash?: Hash;
 }

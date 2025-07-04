@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useAccount, useWalletClient } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { getContract } from "viem";
 import {
   Vana,
   UserFile,
@@ -32,6 +31,11 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
+import { AddressDisplay } from "@/components/AddressDisplay";
+import { BlockDisplay } from "@/components/BlockDisplay";
+import { FileDisplay } from "@/components/FileDisplay";
+import { PermissionDisplay } from "@/components/PermissionDisplay";
+import { FileCard } from "@/components/FileCard";
 import {
   ExternalLink,
   Loader2,
@@ -56,12 +60,12 @@ export default function Home() {
   const { data: walletClient } = useWalletClient();
 
   const [vana, setVana] = useState<Vana | null>(null);
-  const [userFiles, setUserFiles] = useState<UserFile[]>([]);
+  const [userFiles, setUserFiles] = useState<(UserFile & { source?: 'discovered' | 'looked-up' | 'uploaded' })[]>([]);
+  const [isLoadingFiles, setIsLoadingFiles] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<number[]>([]);
   const [grantStatus, setGrantStatus] = useState<string>("");
   const [grantTxHash, setGrantTxHash] = useState<string>("");
   const [revokeStatus, setRevokeStatus] = useState<string>("");
-  const [revokeInput, setRevokeInput] = useState<string>("");
 
   // Grant preview state
   const [grantPreview, setGrantPreview] = useState<any>(null);
@@ -108,7 +112,7 @@ export default function Home() {
   const [uploadToChainStatus, setUploadToChainStatus] = useState<string>("");
   const [newFileId, setNewFileId] = useState<number | null>(null);
 
-  // Storage state
+  // Storage state (kept for demo UI functionality)
   const [storageManager, setStorageManager] = useState<StorageManager | null>(
     null
   );
@@ -121,7 +125,6 @@ export default function Home() {
 
   // File lookup state
   const [fileLookupId, setFileLookupId] = useState<string>("");
-  const [lookedUpFile, setLookedUpFile] = useState<any>(null);
   const [isLookingUpFile, setIsLookingUpFile] = useState(false);
   const [fileLookupStatus, setFileLookupStatus] = useState<string>("");
 
@@ -129,22 +132,15 @@ export default function Home() {
   useEffect(() => {
     if (isConnected && walletClient && walletClient.account) {
       try {
-        const vanaInstance = new Vana({
-          walletClient: walletClient as any,
-          relayerUrl: `${window.location.origin}`,
-        });
-        setVana(vanaInstance);
-        console.log("✅ Vana SDK initialized:", vanaInstance.getConfig());
-
-        // Initialize storage manager
-        const manager = new StorageManager();
-
-        // Option A: App-managed IPFS (always available)
-        console.log("🏢 Registering app-managed IPFS storage");
+        // Initialize storage providers
+        console.log("🏢 Setting up app-managed IPFS storage");
         const serverIPFS = new ServerIPFSStorage({
           uploadEndpoint: "/api/ipfs/upload",
         });
-        manager.register("app-ipfs", serverIPFS, true); // Default
+
+        const storageProviders: Record<string, any> = {
+          "app-ipfs": serverIPFS,
+        };
 
         // Option B: User-managed IPFS (if configured)
         const pinataJWT = process.env.NEXT_PUBLIC_PINATA_JWT;
@@ -153,12 +149,12 @@ export default function Home() {
           "https://gateway.pinata.cloud";
 
         if (pinataJWT) {
-          console.log("👤 Registering user-managed Pinata IPFS storage");
+          console.log("👤 Setting up user-managed Pinata IPFS storage");
           const pinataStorage = new PinataStorage({
             jwt: pinataJWT,
             gatewayUrl: pinataGateway,
           });
-          manager.register("user-ipfs", pinataStorage);
+          storageProviders["user-ipfs"] = pinataStorage;
 
           // Test the connection
           pinataStorage.testConnection().then((result: any) => {
@@ -177,6 +173,23 @@ export default function Home() {
           );
         }
 
+        // Initialize Vana SDK with storage configuration
+        const vanaInstance = new Vana({
+          walletClient: walletClient as any,
+          relayerUrl: `${window.location.origin}`,
+          storage: {
+            providers: storageProviders,
+            defaultProvider: "app-ipfs"
+          }
+        });
+        setVana(vanaInstance);
+        console.log("✅ Vana SDK initialized:", vanaInstance.getConfig());
+
+        // Create a separate storage manager for the demo UI (to maintain existing UI functionality)
+        const manager = new StorageManager();
+        for (const [name, provider] of Object.entries(storageProviders)) {
+          manager.register(name, provider, name === "app-ipfs");
+        }
         setStorageManager(manager);
         console.log("✅ Storage manager initialized with both IPFS patterns");
       } catch (error) {
@@ -213,11 +226,15 @@ export default function Home() {
   const loadUserFiles = useCallback(async () => {
     if (!vana || !address) return;
 
+    setIsLoadingFiles(true);
     try {
       const files = await vana.data.getUserFiles({ owner: address });
-      setUserFiles(files);
+      const discoveredFiles = files.map(file => ({ ...file, source: 'discovered' as const }));
+      setUserFiles(discoveredFiles);
     } catch (error) {
       console.error("Failed to load user files:", error);
+    } finally {
+      setIsLoadingFiles(false);
     }
   }, [vana, address]);
 
@@ -324,7 +341,10 @@ export default function Home() {
       setGrantPreview({
         grantFile: grantFilePreview,
         grantUrl: storageResult.grantUrl,
-        params
+        params: {
+          ...params,
+          grantUrl: storageResult.grantUrl // Pass the pre-stored URL to avoid duplicate storage
+        }
       });
       setShowGrantPreview(true);
       setGrantStatus("Review the grant file before signing...");
@@ -346,9 +366,14 @@ export default function Home() {
 
       const txHash = await vana!.permissions.grant(grantPreview.params);
 
-      setGrantStatus("Permission granted successfully! ✅ Data stored in IPFS");
+      setGrantStatus(""); // Clear status since permission will appear in list
       setGrantTxHash(txHash);
       setShowGrantPreview(false);
+      
+      // Refresh permissions to show the new grant
+      setTimeout(() => {
+        loadUserPermissions();
+      }, 2000);
     } catch (error) {
       console.error("Failed to grant permission:", error);
       setGrantStatus(
@@ -367,22 +392,26 @@ export default function Home() {
     setGrantStatus("");
   };
 
-  const handleRevokePermission = async () => {
-    if (!vana || !revokeInput.trim()) return;
+  const handleRevokePermissionById = async (permissionId: string) => {
+    if (!vana || !permissionId.trim()) return;
 
     setIsRevoking(true);
     setRevokeStatus("Preparing permission revoke...");
 
     try {
+      // Convert permission ID to hash for revoke (this is simplified)
       const params: RevokePermissionParams = {
-        grantId: revokeInput.trim() as `0x${string}`,
+        grantId: `0x${permissionId.padStart(64, '0')}` as `0x${string}`,
       };
 
       setRevokeStatus("Awaiting signature...");
 
-      const txHash = await vana.permissions.revoke(params);
+      await vana.permissions.revoke(params);
 
-      setRevokeStatus(`Permission revoked successfully! Tx: ${txHash}${txHash.startsWith('0xmock') ? ' (MOCK - contract support coming soon)' : ''}`);
+      setRevokeStatus(""); // Clear status since permission will disappear from list
+      
+      // Refresh permissions list
+      loadUserPermissions();
     } catch (error) {
       console.error("Failed to revoke permission:", error);
       setRevokeStatus(
@@ -549,12 +578,13 @@ export default function Home() {
     }
   };
 
+
   const handleDecryptFile = async (file: UserFile) => {
-    if (!walletClient) {
+    if (!vana) {
       setFileDecryptErrors((prev) =>
         new Map(prev).set(
           file.id,
-          "Wallet not connected. Please connect your wallet first."
+          "SDK not initialized. Please refresh the page and try again."
         )
       );
       return;
@@ -569,62 +599,25 @@ export default function Home() {
     });
 
     try {
-      // Step 1: Generate encryption key using the same method
-      const encryptionKey = await generateEncryptionKey(
-        walletClient as any,
-        DEFAULT_ENCRYPTION_SEED
-      );
-
-      // Step 2: Fetch the encrypted file from the URL
-      const response = await fetch(file.url);
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error(
-            "File not found. The encrypted file may have been moved or deleted."
-          );
-        } else if (response.status === 403) {
-          throw new Error(
-            "Access denied. You may not have permission to access this file."
-          );
-        } else {
-          throw new Error(
-            `Network error: ${response.status} ${response.statusText}`
-          );
-        }
-      }
-
-      const encryptedBlob = await response.blob();
-
-      // Check if we got actual content
-      if (encryptedBlob.size === 0) {
-        throw new Error("File is empty or could not be retrieved.");
-      }
-
-      // Step 3: Decrypt the file using our canonical function
-      const decryptedBlob = await decryptUserData(encryptedBlob, encryptionKey);
+      // Use SDK method to handle the complete decryption flow
+      const decryptedBlob = await vana.data.decryptFile(file, DEFAULT_ENCRYPTION_SEED);
       const decryptedText = await decryptedBlob.text();
 
-      // Step 4: Store the decrypted content
+      // Store the decrypted content
       setDecryptedFiles((prev) => new Map(prev).set(file.id, decryptedText));
     } catch (error) {
       console.error("Failed to decrypt file:", error);
 
       let userMessage = "";
       if (error instanceof Error) {
-        if (
-          error.message.includes("Session key decryption failed") ||
-          error.message.includes("Error decrypting message")
-        ) {
-          userMessage = `🔑 Wrong encryption key. This file may have been encrypted with a different wallet or encryption seed. Try using the same wallet that originally encrypted this file.`;
-        } else if (
-          error.message.includes("Failed to fetch") ||
-          error.message.includes("Network error")
-        ) {
-          userMessage = `🌐 Network error: Cannot access the file URL. The file may be stored on a server that's not accessible or has CORS restrictions.`;
+        if (error.message.includes("Wrong encryption key")) {
+          userMessage = `🔑 ${error.message}`;
+        } else if (error.message.includes("Network error")) {
+          userMessage = `🌐 ${error.message}`;
         } else if (error.message.includes("File not found")) {
-          userMessage = `📁 File not found: The encrypted file is no longer available at the stored URL.`;
-        } else if (error.message.includes("not a valid OpenPGP message")) {
-          userMessage = `📄 Invalid file format: This file doesn't appear to be encrypted with the Vana protocol.`;
+          userMessage = `📁 ${error.message}`;
+        } else if (error.message.includes("Invalid file format")) {
+          userMessage = `📄 ${error.message}`;
         } else {
           userMessage = `❌ ${error.message}`;
         }
@@ -661,7 +654,6 @@ export default function Home() {
 
     setIsLookingUpFile(true);
     setFileLookupStatus("🔍 Looking up file...");
-    setLookedUpFile(null);
 
     try {
       const fileId = parseInt(fileLookupId.trim());
@@ -671,29 +663,22 @@ export default function Home() {
         );
       }
 
-      // Get file details from DataRegistry
-      const contractInfo = vana.protocol.getContract("DataRegistry");
-      const dataRegistry = getContract({
-        address: contractInfo.address,
-        abi: contractInfo.abi,
-        client: walletClient,
+      // Get file details using SDK method
+      const file = await vana.data.getFileById(fileId);
+
+      // Add to main files array if not already present
+      setUserFiles(prev => {
+        const exists = prev.find(f => f.id === file.id);
+        if (exists) {
+          // Update existing file to show it was also looked up
+          return prev.map(f => f.id === file.id ? { ...f, source: 'looked-up' } : f);
+        } else {
+          // Add new file with looked-up source
+          return [...prev, { ...file, source: 'looked-up' as const }];
+        }
       });
-      
-      const fileDetails = await dataRegistry.read.files([BigInt(fileId)]) as any;
-
-      if (!fileDetails || fileDetails.id === BigInt(0)) {
-        throw new Error("File not found");
-      }
-
-      const file = {
-        id: Number(fileDetails.id),
-        ownerAddress: fileDetails.ownerAddress,
-        url: fileDetails.url,
-        addedAtBlock: Number(fileDetails.addedAtBlock),
-      };
-
-      setLookedUpFile(file);
-      setFileLookupStatus(`✅ File ${fileId} found!`);
+      setFileLookupStatus(""); // Clear status since file appearance provides feedback
+      setFileLookupId(""); // Clear the input
     } catch (error) {
       console.error("❌ Error looking up file:", error);
       let userMessage = "❌ Failed to lookup file: ";
@@ -708,65 +693,11 @@ export default function Home() {
     }
   };
 
-  const handleDecryptLookedUpFile = async () => {
-    if (!lookedUpFile || !vana || !walletClient) {
-      setFileLookupStatus("❌ No file selected or wallet not connected");
-      return;
-    }
-
-    setFileLookupStatus("🔓 Decrypting file...");
-
-    try {
-      // Step 1: Download the encrypted file from IPFS
-      const response = await fetch(lookedUpFile.url.replace('ipfs://', 'https://gateway.pinata.cloud/ipfs/'));
-      if (!response.ok) {
-        throw new Error(`Failed to download file: ${response.statusText}`);
-      }
-      
-      const encryptedData = await response.arrayBuffer();
-      const encryptedBlob = new Blob([encryptedData]);
-      
-      console.log('📊 Debug info:', {
-        fileUrl: lookedUpFile.url,
-        downloadedSize: encryptedData.byteLength,
-        blobSize: encryptedBlob.size,
-        contentType: response.headers.get('content-type')
-      });
-
-      // Step 2: Generate the encryption key using the same method as encryption
-      console.log('🔑 Generating encryption key for decryption...');
-      // Use the same seed as used during encryption - check encryptionSeed state or use DEFAULT_ENCRYPTION_SEED
-      const seedToUse = encryptionSeed || DEFAULT_ENCRYPTION_SEED;
-      console.log('🔑 Using seed:', seedToUse);
-      const encryptionKey = await generateEncryptionKey(walletClient as any, seedToUse);
-      console.log('🔑 Generated key length:', encryptionKey.length);
-      console.log('🔑 Key starts with:', encryptionKey.substring(0, 20) + '...');
-
-      // Step 3: Decrypt the data
-      const decryptedBlob = await decryptUserData(encryptedBlob, encryptionKey);
-      const decryptedContent = await decryptedBlob.text();
-
-      // Step 4: Store the decrypted content for display
-      setDecryptedFiles((prev) => new Map(prev).set(lookedUpFile.id, decryptedContent));
-      
-      setFileLookupStatus(`✅ File ${lookedUpFile.id} decrypted successfully!`);
-
-    } catch (error) {
-      console.error("❌ Error decrypting looked up file:", error);
-      let userMessage = "❌ Failed to decrypt file: ";
-      if (error instanceof Error) {
-        userMessage += error.message;
-      } else {
-        userMessage += "Unknown error occurred";
-      }
-      setFileLookupStatus(userMessage);
-    }
-  };
 
   const handleUploadToBlockchain = async () => {
-    if (!encryptedData || !vana || !storageManager) {
+    if (!encryptedData || !vana) {
       setUploadToChainStatus(
-        "❌ No encrypted data to upload or storage not initialized"
+        "❌ No encrypted data to upload or SDK not initialized"
       );
       return;
     }
@@ -806,54 +737,28 @@ export default function Home() {
     setUploadToChainStatus(`📤 Uploading encrypted data via ${displayName}...`);
 
     try {
-      // Step 1: Upload encrypted blob using storage manager
+      // Use SDK method to handle the complete upload flow
       const filename = originalFileName
         ? `${originalFileName}.encrypted`
         : "encrypted-data.bin";
 
-      const uploadResult = await storageManager.upload(
+      const result = await vana.data.uploadEncryptedFile(
         encryptedData,
         filename,
         providerName
       );
-      const storageUrl = uploadResult.url;
 
-      console.log("✅ File uploaded to storage:", {
-        provider: selectedStorageProvider,
-        url: storageUrl,
-        size: uploadResult.size,
-        contentType: uploadResult.contentType,
+      console.log("✅ File uploaded and registered:", {
+        fileId: result.fileId,
+        url: result.url,
+        size: result.size,
+        transactionHash: result.transactionHash,
       });
 
-      setUploadToChainStatus("⛓️ Registering file on Vana blockchain...");
+      setNewFileId(result.fileId);
+      setUploadToChainStatus(""); // Clear status since file will appear in list
 
-      // Step 2: Register file on DataRegistry via relayer
-      const addFileResponse = await fetch("/api/relay/addFile", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          url: storageUrl,
-          userAddress: address,
-        }),
-      });
-
-      if (!addFileResponse.ok) {
-        throw new Error(
-          `Failed to add file to blockchain: ${addFileResponse.statusText}`
-        );
-      }
-
-      const addFileData = await addFileResponse.json();
-      const fileId = addFileData.fileId;
-
-      setNewFileId(fileId);
-      setUploadToChainStatus(
-        `✅ File registered successfully! File ID: ${fileId}`
-      );
-
-      // Step 3: Refresh user files to show the new file
+      // Refresh user files to show the new file
       setTimeout(() => {
         loadUserFiles();
       }, 2000);
@@ -978,7 +883,9 @@ export default function Home() {
                     </p>
                     <p>
                       <strong>User Address:</strong>{" "}
-                      <span className="text-sm font-mono">{address}</span>
+                      <span className="text-sm font-mono">
+                        {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : ''}
+                      </span>
                     </p>
                   </div>
                   <div>
@@ -995,7 +902,7 @@ export default function Home() {
                       <p className="mb-2">
                         <strong>Relayer Address:</strong>{" "}
                         <span className="text-sm font-mono">
-                          {relayerHealth.relayer}
+                          {`${relayerHealth.relayer.slice(0, 6)}...${relayerHealth.relayer.slice(-4)}`}
                         </span>
                       </p>
                     )}
@@ -1007,167 +914,65 @@ export default function Home() {
               </CardContent>
             </Card>
 
-            {/* Data Files */}
+            {/* Your Data */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Database className="h-5 w-5" />
-                  Data Files
+                  Your Data
                 </CardTitle>
                 <CardDescription>
-                  Your registered data files from the blockchain. Click
-                  "Decrypt" to decrypt and view content using the canonical Vana
-                  protocol.
+                  Manage your registered data files and grant permissions
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button onClick={loadUserFiles} variant="outline" className="mb-4">
-                  Refresh User Files
-                </Button>
+                <div className="flex items-center gap-4 mb-4">
+                  <Button onClick={loadUserFiles} variant="outline">
+                    Refresh Files
+                  </Button>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <Label htmlFor="file-lookup">Lookup by ID:</Label>
+                    <input
+                      id="file-lookup"
+                      type="text"
+                      value={fileLookupId}
+                      onChange={(e) => setFileLookupId(e.target.value)}
+                      placeholder="Enter file ID"
+                      className="w-32 p-2 border rounded text-sm bg-background text-foreground border-input"
+                    />
+                    <Button
+                      onClick={handleLookupFile}
+                      disabled={isLookingUpFile || !fileLookupId.trim()}
+                      size="sm"
+                    >
+                      {isLookingUpFile ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Search className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
 
                 {userFiles.length > 0 ? (
                   <div className="space-y-3">
-                    <p className="font-medium">Your registered data files:</p>
                     {userFiles.map((file) => {
                       const isDecrypting = decryptingFiles.has(file.id);
                       const decryptedContent = decryptedFiles.get(file.id);
-                      const decryptError = fileDecryptErrors.get(file.id);
 
                       return (
-                        <div key={file.id} className="bg-muted/30 rounded-lg">
-                          <div className="flex items-center space-x-3 p-4">
-                            <Checkbox
-                              id={`file-${file.id}`}
-                              checked={selectedFiles.includes(file.id)}
-                              onCheckedChange={(checked) =>
-                                handleFileSelection(file.id, checked as boolean)
-                              }
-                            />
-                            <div className="flex-1">
-                              <div className="text-lg font-medium mb-1">File #{file.id}</div>
-                              <div className="text-sm text-muted-foreground space-y-1">
-                                <div>
-                                  <span className="font-medium">URL:</span>{" "}
-                                  <a
-                                    href={file.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-blue-600 hover:text-blue-800 underline font-mono"
-                                  >
-                                    {file.url.startsWith('ipfs://') 
-                                      ? `ipfs://${file.url.slice(7, 13)}...${file.url.slice(-6)}`
-                                      : file.url.length > 40
-                                        ? `${file.url.substring(0, 40)}...`
-                                        : file.url}
-                                  </a>
-                                </div>
-                                <div>
-                                  <span className="font-medium">Block:</span>{" "}
-                                  <a
-                                    href={`https://moksha.vanascan.io/block/${file.addedAtBlock}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-blue-600 hover:text-blue-800 underline font-mono"
-                                  >
-                                    {file.addedAtBlock.toString()}
-                                  </a>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Decrypt Actions */}
-                            <div className="flex gap-2">
-                              {!decryptedContent && !decryptError && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleDecryptFile(file)}
-                                  disabled={isDecrypting}
-                                >
-                                  {isDecrypting ? (
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <Shield className="mr-2 h-4 w-4" />
-                                  )}
-                                  {isDecrypting ? "Decrypting..." : "Decrypt"}
-                                </Button>
-                              )}
-
-                              {decryptError && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleDecryptFile(file)}
-                                  disabled={isDecrypting}
-                                >
-                                  {isDecrypting ? (
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <Shield className="mr-2 h-4 w-4" />
-                                  )}
-                                  {isDecrypting ? "Retrying..." : "Retry"}
-                                </Button>
-                              )}
-
-                              {decryptedContent && (
-                                <>
-                                  <Badge
-                                    variant="secondary"
-                                    className="text-xs"
-                                  >
-                                    ✅ Decrypted
-                                  </Badge>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() =>
-                                      copyToClipboard(
-                                        decryptedContent,
-                                        `File ${file.id} content`
-                                      )
-                                    }
-                                  >
-                                    <Copy className="mr-2 h-4 w-4" />
-                                    Copy
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() =>
-                                      handleDownloadDecryptedFile(file)
-                                    }
-                                  >
-                                    <Download className="mr-2 h-4 w-4" />
-                                    Download
-                                  </Button>
-                                </>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Show decrypted content */}
-                          {decryptedContent && (
-                            <div className="mt-3 p-3 bg-green-50 dark:bg-green-950/20 rounded">
-                              <Label className="text-xs font-medium mb-2 block text-green-800 dark:text-green-200">
-                                Decrypted Content:
-                              </Label>
-                              <div className="max-h-32 overflow-y-auto bg-background p-2 rounded">
-                                <pre className="font-mono text-xs whitespace-pre-wrap break-all">
-                                  {decryptedContent}
-                                </pre>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Show decrypt error */}
-                          {decryptError && (
-                            <div className="mt-3 p-3 bg-red-50 dark:bg-red-950/20 rounded">
-                              <p className="text-sm text-red-600 dark:text-red-400">
-                                {decryptError}
-                              </p>
-                            </div>
-                          )}
-                        </div>
+                        <FileCard
+                          key={file.id}
+                          file={file}
+                          isSelected={selectedFiles.includes(file.id)}
+                          isDecrypted={!!decryptedContent}
+                          decryptedContent={decryptedContent}
+                          isDecrypting={isDecrypting}
+                          userAddress={address}
+                          onSelect={() => handleFileSelection(file.id, !selectedFiles.includes(file.id))}
+                          onDecrypt={() => handleDecryptFile(file)}
+                          onDownloadDecrypted={() => handleDownloadDecryptedFile(file)}
+                        />
                       );
                     })}
                     <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded">
@@ -1176,221 +981,65 @@ export default function Home() {
                       </p>
                     </div>
                   </div>
-                ) : (
-                  <p className="text-muted-foreground">Loading user files...</p>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* File Lookup */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Search className="h-5 w-5" />
-                  File Lookup
-                </CardTitle>
-                <CardDescription>
-                  Look up any file by its ID from the DataRegistry contract.
-                  This allows you to access files that don't have proof events
-                  yet.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="file-lookup-id">File ID:</Label>
-                    <input
-                      id="file-lookup-id"
-                      type="text"
-                      value={fileLookupId}
-                      onChange={(e) => setFileLookupId(e.target.value)}
-                      placeholder="Enter file ID (e.g., 123)"
-                      className="flex-1 p-2 border rounded-md text-sm bg-background text-foreground border-input"
-                    />
-                    <Button
-                      onClick={handleLookupFile}
-                      disabled={isLookingUpFile || !fileLookupId.trim()}
-                      size="sm"
-                    >
-                      {isLookingUpFile ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Search className="mr-2 h-4 w-4" />
-                      )}
-                      Lookup
-                    </Button>
+                ) : isLoadingFiles ? (
+                  <div className="text-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-muted-foreground" />
+                    <p className="text-muted-foreground">Loading your data files...</p>
                   </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p className="font-medium mb-2">No data files found</p>
+                    <p className="text-sm">Upload and encrypt files to get started</p>
+                  </div>
+                )}
 
-                  {fileLookupStatus && (
-                    <Alert
-                      variant={
-                        fileLookupStatus.includes("❌")
-                          ? "destructive"
-                          : "default"
-                      }
-                    >
-                      <AlertDescription>{fileLookupStatus}</AlertDescription>
-                    </Alert>
-                  )}
-
-                  {lookedUpFile && (
-                    <div className="border rounded-md p-4 bg-muted/50">
-                      <h4 className="font-medium mb-2">File Details:</h4>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div>
-                          <span className="font-medium">ID:</span>{" "}
-                          {lookedUpFile.id}
-                        </div>
-                        <div>
-                          <span className="font-medium">Block:</span>{" "}
-                          {lookedUpFile.addedAtBlock}
-                        </div>
-                        <div className="col-span-2">
-                          <span className="font-medium">Owner:</span>
-                          <span className="font-mono text-xs ml-1">
-                            {lookedUpFile.ownerAddress}
-                          </span>
-                        </div>
-                        <div className="col-span-2">
-                          <span className="font-medium">URL:</span>
-                          <span className="font-mono text-xs ml-1 break-all">
-                            {lookedUpFile.url}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 flex gap-2 flex-wrap">
-                        <Button
-                          size="sm"
-                          variant={selectedFiles.includes(lookedUpFile.id) ? "default" : "outline"}
-                          onClick={() => {
-                            if (selectedFiles.includes(lookedUpFile.id)) {
-                              // Remove from selection
-                              setSelectedFiles(prev => prev.filter(id => id !== lookedUpFile.id));
-                            } else {
-                              // Add to selection (replace current selection for simplicity)
-                              setSelectedFiles([lookedUpFile.id]);
-                            }
-                          }}
-                        >
-                          <Shield className="mr-2 h-4 w-4" />
-                          {selectedFiles.includes(lookedUpFile.id) ? "Selected ✓" : "Select for Permission Grant"}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            // Copy URL to clipboard
-                            navigator.clipboard.writeText(lookedUpFile.url);
-                          }}
-                        >
-                          <Copy className="mr-2 h-4 w-4" />
-                          Copy URL
-                        </Button>
-                        {lookedUpFile.ownerAddress.toLowerCase() === address?.toLowerCase() && (
-                          <Button
-                            size="sm"
-                            variant="default"
-                            onClick={handleDecryptLookedUpFile}
-                          >
-                            <Key className="mr-2 h-4 w-4" />
-                            Decrypt File
-                          </Button>
-                        )}
-                      </div>
-                      
-                      {decryptedFiles.has(lookedUpFile.id) && (
-                        <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
-                          <h5 className="font-medium text-green-800 dark:text-green-200 mb-2">
-                            Decrypted Content:
-                          </h5>
-                          <pre className="text-sm text-green-700 dark:text-green-300 whitespace-pre-wrap break-words max-h-32 overflow-y-auto">
-                            {decryptedFiles.get(lookedUpFile.id)}
-                          </pre>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="mt-2"
-                            onClick={() => {
-                              const content = decryptedFiles.get(lookedUpFile.id);
-                              if (content) {
-                                const blob = new Blob([content], { type: "text/plain" });
-                                const filename = `decrypted_file_${lookedUpFile.id}.txt`;
-                                const url = URL.createObjectURL(blob);
-                                const a = document.createElement('a');
-                                a.href = url;
-                                a.download = filename;
-                                a.click();
-                                URL.revokeObjectURL(url);
-                              }
-                            }}
-                          >
-                            <Download className="mr-2 h-4 w-4" />
-                            Download
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Grant Permission */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Shield className="h-5 w-5" />
-                  Grant Permission (Gasless)
-                </CardTitle>
-                <CardDescription>
-                  Grant permission for applications to access your selected files. 
-                  You'll review the grant details stored on IPFS before signing.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button
-                  onClick={handleGrantPermission}
-                  disabled={selectedFiles.length === 0 || isGranting}
-                  className="mb-4"
-                >
-                  {isGranting && (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  )}
-                  Grant Permission to Selected Files
-                </Button>
-
-                {grantStatus && (
-                  <p className={`text-sm ${grantStatus.includes("Error") ? "text-red-600" : "text-green-600"} mt-2`}>
-                    {grantStatus}
+                {fileLookupStatus && (
+                  <p className={`text-sm mt-4 ${fileLookupStatus.includes("❌") ? "text-red-600" : "text-green-600"}`}>
+                    {fileLookupStatus}
                   </p>
                 )}
 
-                {grantTxHash && (
-                  <div className="mt-4 p-4 bg-muted rounded-lg">
-                    <p className="font-medium mb-2">Transaction Hash:</p>
-                    <a
-                      href={getExplorerUrl(grantTxHash)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm font-mono mb-3 break-all text-blue-600 hover:text-blue-800 underline block"
+
+                {/* Grant Permission Section */}
+                {selectedFiles.length > 0 && (
+                  <div className="mt-6 p-4 bg-green-50 dark:bg-green-950/20 rounded">
+                    <h3 className="font-medium mb-3 text-green-800 dark:text-green-200">
+                      Grant Permission ({selectedFiles.length} file{selectedFiles.length !== 1 ? 's' : ''} selected)
+                    </h3>
+                    <Button
+                      onClick={handleGrantPermission}
+                      disabled={selectedFiles.length === 0 || isGranting}
+                      className="mb-4"
                     >
-                      {grantTxHash}
-                    </a>
-                    <Button variant="outline" size="sm" asChild>
-                      <a
-                        href={getExplorerUrl(grantTxHash)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <ExternalLink className="mr-2 h-4 w-4" />
-                        View on Block Explorer
-                      </a>
+                      {isGranting && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
+                      Grant Permission to Selected Files
                     </Button>
+
+                    {grantStatus && (
+                      <p className={`text-sm ${grantStatus.includes("Error") ? "text-red-600" : "text-green-600"} mt-2`}>
+                        {grantStatus}
+                      </p>
+                    )}
+
+                    {grantTxHash && (
+                      <div className="mt-4 p-4 bg-muted rounded-lg">
+                        <p className="font-medium mb-2">Transaction Hash:</p>
+                        <AddressDisplay 
+                          address={grantTxHash}
+                          explorerUrl={getExplorerUrl(grantTxHash)}
+                          truncate={true}
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
             </Card>
+
+            {/* Permissions Management */}
 
             {/* Grant Preview Modal */}
             {showGrantPreview && grantPreview && (
@@ -1402,7 +1051,7 @@ export default function Home() {
                       Review Grant
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                  <CardContent className="space-y-3">
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <Label className="font-medium">Operation:</Label>
@@ -1428,7 +1077,7 @@ export default function Home() {
 
                     <div>
                       <Label className="text-sm font-medium">Parameters:</Label>
-                      <div className="mt-2 p-3 bg-muted rounded-md max-h-32 overflow-y-auto">
+                      <div className="mt-2 p-2 bg-muted rounded max-h-28 overflow-y-auto">
                         <pre className="text-xs font-mono whitespace-pre-wrap">
                           {JSON.stringify(grantPreview.grantFile.parameters, null, 2)}
                         </pre>
@@ -1453,15 +1102,15 @@ export default function Home() {
               </div>
             )}
 
-            {/* Current Permissions */}
+            {/* Permissions Management */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Shield className="h-5 w-5" />
-                  Current Permissions
+                  Permissions Management
                 </CardTitle>
                 <CardDescription>
-                  Permissions you have granted to applications
+                  View and manage data access permissions
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1482,6 +1131,16 @@ export default function Home() {
                   </div>
                 </div>
 
+                {revokeStatus && (
+                  <div className={`text-sm p-3 rounded-md mb-4 ${
+                    revokeStatus.includes("Error") 
+                      ? "bg-red-50 text-red-700 border border-red-200" 
+                      : "bg-green-50 text-green-700 border border-green-200"
+                  }`}>
+                    {revokeStatus}
+                  </div>
+                )}
+
                 {userPermissions.length > 0 ? (
                   <div className="space-y-3">
                     {userPermissions.map((permission) => (
@@ -1489,41 +1148,58 @@ export default function Home() {
                         key={permission.id}
                         className="p-4 border rounded-lg"
                       >
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <p className="text-sm font-medium">
-                              Permission ID: {permission.id}
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              <strong>Application:</strong>
-                              <span className="font-mono ml-1">
-                                {permission.application.slice(0, 6)}...
-                                {permission.application.slice(-4)}
-                              </span>
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              <strong>Operation:</strong> {permission.operation}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">
-                              <strong>Files:</strong> {permission.files.length}{" "}
-                              file{permission.files.length !== 1 ? "s" : ""}
-                              {permission.files.length > 0 && (
-                                <span className="ml-1">
-                                  ({permission.files.join(", ")})
-                                </span>
-                              )}
-                            </p>
-                            {permission.parameters && (
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <div className="text-sm font-medium">
+                                Permission ID: <PermissionDisplay permissionId={permission.id} className="inline-flex" />
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                <strong>Application:</strong>
+                                <AddressDisplay 
+                                  address={permission.application}
+                                  explorerUrl={getExplorerUrl(permission.application)}
+                                  truncate={false}
+                                  className="ml-1"
+                                />
+                              </div>
                               <p className="text-sm text-muted-foreground">
-                                <strong>Parameters:</strong>{" "}
-                                {permission.parameters.length > 50
-                                  ? `${permission.parameters.substring(0, 50)}...`
-                                  : permission.parameters}
+                                <strong>Operation:</strong> {permission.operation}
                               </p>
-                            )}
+                            </div>
+                            <div>
+                              <p className="text-sm text-muted-foreground">
+                                <strong>Files:</strong> {permission.files.length}{" "}
+                                file{permission.files.length !== 1 ? "s" : ""}
+                                {permission.files.length > 0 && (
+                                  <span className="ml-1">
+                                    ({permission.files.join(", ")})
+                                  </span>
+                                )}
+                              </p>
+                              {permission.parameters && (
+                                <p className="text-sm text-muted-foreground">
+                                  <strong>Parameters:</strong>{" "}
+                                  {permission.parameters.length > 50
+                                    ? `${permission.parameters.substring(0, 50)}...`
+                                    : permission.parameters}
+                                </p>
+                              )}
+                            </div>
                           </div>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleRevokePermissionById(permission.id.toString())}
+                            disabled={isRevoking}
+                            className="ml-4"
+                          >
+                            {isRevoking ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              "Revoke"
+                            )}
+                          </Button>
                         </div>
                       </div>
                     ))}
@@ -1547,52 +1223,6 @@ export default function Home() {
               </CardContent>
             </Card>
 
-            {/* Revoke Permission */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Revoke Permission</CardTitle>
-                <CardDescription>
-                  Revoke a previously granted permission
-                  <br />
-                  <span className="text-yellow-600 text-xs">
-                    ⚠️ Currently mocked - contract support coming soon
-                  </span>
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="grant-id">
-                      Grant ID (transaction hash or grant identifier):
-                    </Label>
-                    <Input
-                      id="grant-id"
-                      value={revokeInput}
-                      onChange={(e) => setRevokeInput(e.target.value)}
-                      placeholder="0x..."
-                      className="font-mono"
-                    />
-                  </div>
-
-                  <Button
-                    onClick={handleRevokePermission}
-                    disabled={!revokeInput.trim() || isRevoking}
-                    variant="destructive"
-                  >
-                    {isRevoking && (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    )}
-                    Revoke Permission
-                  </Button>
-
-                  {revokeStatus && (
-                    <p className={`text-sm ${revokeStatus.includes("Error") ? "text-red-600" : "text-green-600"} mt-2`}>
-                      {revokeStatus}
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
 
 
             {/* Encryption Testing */}
@@ -2063,46 +1693,6 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* Protocol Functions */}
-                <div className="mt-6 p-4 bg-muted/50 rounded-md">
-                  <h4 className="font-medium mb-3">
-                    🔐 Canonical Vana Protocol Functions:
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <h5 className="font-medium text-sm mb-2">
-                        Core Functions:
-                      </h5>
-                      <ul className="text-sm text-muted-foreground space-y-1">
-                        <li>
-                          • <code>generateEncryptionKey(wallet, seed?)</code>
-                        </li>
-                        <li>
-                          • <code>encryptUserData(data, key)</code>
-                        </li>
-                        <li>
-                          • <code>decryptUserData(encryptedData, key)</code>
-                        </li>
-                      </ul>
-                    </div>
-                    <div>
-                      <h5 className="font-medium text-sm mb-2">
-                        Storage Functions:
-                      </h5>
-                      <ul className="text-sm text-muted-foreground space-y-1">
-                        <li>
-                          • <code>StorageManager.upload()</code>
-                        </li>
-                        <li>
-                          • <code>vana.data.getUserFiles()</code>
-                        </li>
-                        <li>
-                          • <code>DataRegistry.addFile()</code>
-                        </li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
               </CardContent>
             </Card>
 
@@ -2133,10 +1723,12 @@ export default function Home() {
                             <p className="font-medium text-sm">
                               {contractName}
                             </p>
-                            <p className="text-xs text-muted-foreground font-mono">
-                              {contract.address.slice(0, 10)}...
-                              {contract.address.slice(-8)}
-                            </p>
+                            <AddressDisplay 
+                              address={contract.address}
+                              explorerUrl={explorerUrl}
+                              showExternalLink={false}
+                              className="text-xs"
+                            />
                           </div>
                           <Button size="sm" variant="outline" asChild>
                             <a

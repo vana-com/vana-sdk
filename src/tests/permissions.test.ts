@@ -1,39 +1,78 @@
 import { describe, it, expect, vi, beforeEach, Mock } from 'vitest'
-import { createWalletClient, http, Hash } from 'viem'
-import { privateKeyToAccount } from 'viem/accounts'
-import { mokshaTestnet } from '../config/chains'
+import { Hash } from 'viem'
 import { PermissionsController, ControllerContext } from '../controllers/permissions'
 import { 
   RelayerError, 
   UserRejectedRequestError, 
   SerializationError, 
-  NonceError 
+  NonceError,
+  NetworkError,
+  BlockchainError,
+  SignatureError 
 } from '../errors'
 
-// Mock external dependencies
-vi.mock('viem', async () => {
-  const actual = await vi.importActual('viem')
-  return {
-    ...actual,
-    createPublicClient: vi.fn(() => ({
-      readContract: vi.fn()
-    }))
+// Mock ALL external dependencies to ensure pure unit tests
+vi.mock('viem', () => ({
+  createPublicClient: vi.fn(() => ({
+    readContract: vi.fn()
+  })),
+  getContract: vi.fn(() => ({
+    read: {
+      userPermissionIdsLength: vi.fn(),
+      userPermissionIdsAt: vi.fn(),
+      permissions: vi.fn()
+    }
+  })),
+  http: vi.fn(),
+  createWalletClient: vi.fn()
+}))
+
+vi.mock('viem/accounts', () => ({
+  privateKeyToAccount: vi.fn(() => ({
+    address: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+  }))
+}))
+
+vi.mock('../config/chains', () => ({
+  mokshaTestnet: {
+    id: 14800,
+    name: 'Moksha Testnet'
   }
-})
+}))
 
 vi.mock('../config/addresses', () => ({
   getContractAddress: vi.fn().mockReturnValue('0x1234567890123456789012345678901234567890')
 }))
 
 vi.mock('../abi', () => ({
-  getAbi: vi.fn().mockReturnValue([])
+  getAbi: vi.fn().mockReturnValue([
+    {
+      name: 'userNonce',
+      type: 'function',
+      inputs: [{ name: 'user', type: 'address' }],
+      outputs: [{ name: '', type: 'uint256' }]
+    },
+    {
+      name: 'addPermission',
+      type: 'function',
+      inputs: [
+        { name: 'permission', type: 'tuple' },
+        { name: 'signature', type: 'bytes' }
+      ],
+      outputs: []
+    }
+  ])
 }))
 
-// Mock fetch globally
+// Mock fetch globally - no real network calls
 global.fetch = vi.fn()
 
-// Test account
-const testAccount = privateKeyToAccount('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80')
+// Mock grant file utilities - no real IPFS operations
+vi.mock('../utils/grantFiles', () => ({
+  createGrantFile: vi.fn(),
+  storeGrantFile: vi.fn().mockResolvedValue('https://ipfs.io/ipfs/Qm...'),
+  getGrantFileHash: vi.fn().mockReturnValue('0xgrantfilehash')
+}))
 
 describe('PermissionsController', () => {
   let controller: PermissionsController
@@ -43,16 +82,24 @@ describe('PermissionsController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     
-    mockWalletClient = createWalletClient({
-      account: testAccount,
-      chain: mokshaTestnet,
-      transport: http('https://rpc.moksha.vana.org')
-    })
-
-    // Mock wallet client methods
-    mockWalletClient.getChainId = vi.fn().mockResolvedValue(14800)
-    mockWalletClient.getAddresses = vi.fn().mockResolvedValue([testAccount.address])
-    mockWalletClient.signTypedData = vi.fn().mockResolvedValue('0xsignature' as Hash)
+    // Reset fetch mock to a working state
+    const mockFetch = fetch as Mock
+    mockFetch.mockReset()
+    
+    // Create a fully mocked wallet client - no real viem objects
+    mockWalletClient = {
+      account: {
+        address: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+      },
+      chain: {
+        id: 14800,
+        name: 'Moksha Testnet'
+      },
+      getChainId: vi.fn().mockResolvedValue(14800),
+      getAddresses: vi.fn().mockResolvedValue(['0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266']),
+      signTypedData: vi.fn().mockResolvedValue('0xsignature' as Hash),
+      writeContract: vi.fn().mockResolvedValue('0xtxhash' as Hash)
+    }
 
     mockContext = {
       walletClient: mockWalletClient,
@@ -76,23 +123,12 @@ describe('PermissionsController', () => {
     it('should successfully grant permission with complete flow', async () => {
       // Mock all the required calls
       const mockFetch = fetch as Mock
-      
-      // Mock parameter storage response
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({
-          success: true,
-          grantUrl: 'https://ipfs.io/ipfs/Qm...'
-        })
-      })
 
-      // Mock nonce retrieval
+      // Mock nonce retrieval using the global mock
       const { createPublicClient } = await import('viem')
-      const mockPublicClient = createPublicClient({
-        chain: mockWalletClient.chain,
-        transport: () => ({})
+      vi.mocked(createPublicClient).mockReturnValueOnce({
+        readContract: vi.fn().mockResolvedValue(BigInt(0))
       } as any)
-      ;(mockPublicClient.readContract as Mock).mockResolvedValue(BigInt(0))
 
       // Mock transaction relay response
       mockFetch.mockResolvedValueOnce({
@@ -107,26 +143,15 @@ describe('PermissionsController', () => {
 
       expect(result).toBe('0xtxhash')
       expect(mockWalletClient.signTypedData).toHaveBeenCalled()
-      expect(fetch).toHaveBeenCalledTimes(2) // Parameter storage + transaction relay
+      expect(fetch).toHaveBeenCalledTimes(1) // Only transaction relay (storeGrantFile is mocked)
     })
 
     it('should handle user rejection gracefully', async () => {
-      // Mock parameter storage and nonce retrieval
-      const mockFetch = fetch as Mock
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({
-          success: true,
-          grantUrl: 'https://ipfs.io/ipfs/Qm...'
-        })
-      })
-
+      // Mock nonce retrieval
       const { createPublicClient } = await import('viem')
-      const mockPublicClient = createPublicClient({
-        chain: mockWalletClient.chain,
-        transport: () => ({})
+      vi.mocked(createPublicClient).mockReturnValueOnce({
+        readContract: vi.fn().mockResolvedValue(BigInt(0))
       } as any)
-      ;(mockPublicClient.readContract as Mock).mockResolvedValue(BigInt(0))
 
       // Mock user rejection
       mockWalletClient.signTypedData.mockRejectedValue(new Error('User rejected request'))
@@ -136,6 +161,14 @@ describe('PermissionsController', () => {
 
     it('should handle relayer errors', async () => {
       const mockFetch = fetch as Mock
+
+      // Mock nonce retrieval
+      const { createPublicClient } = await import('viem')
+      vi.mocked(createPublicClient).mockReturnValueOnce({
+        readContract: vi.fn().mockResolvedValue(BigInt(0))
+      } as any)
+
+      // Mock failed transaction relay
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 500,
@@ -146,15 +179,19 @@ describe('PermissionsController', () => {
       await expect(controller.grant(mockGrantParams)).rejects.toThrow(RelayerError)
     })
 
-    it('should handle invalid parameters', async () => {
-      const invalidParams = {
-        ...mockGrantParams,
-        parameters: { circular: {} }
-      }
-      // Create circular reference
-      invalidParams.parameters.circular = invalidParams.parameters
+    it('should handle network errors gracefully', async () => {
+      const mockFetch = fetch as Mock
+      
+      // Mock nonce retrieval
+      const { createPublicClient } = await import('viem')
+      vi.mocked(createPublicClient).mockReturnValueOnce({
+        readContract: vi.fn().mockResolvedValue(BigInt(0))
+      } as any)
 
-      await expect(controller.grant(invalidParams)).rejects.toThrow()
+      // Mock network error on relay
+      mockFetch.mockRejectedValue(new Error('Network error'))
+
+      await expect(controller.grant(mockGrantParams)).rejects.toThrow(NetworkError)
     })
   })
 
@@ -174,7 +211,7 @@ describe('PermissionsController', () => {
       } as any)
       ;(mockPublicClient.readContract as Mock).mockResolvedValue(BigInt(1))
 
-      // Mock transaction relay response
+      // Mock transaction relay response for revoke
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({
@@ -191,13 +228,7 @@ describe('PermissionsController', () => {
 
     it('should handle revoke errors', async () => {
       const mockFetch = fetch as Mock
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 404,
-        statusText: 'Not Found',
-        text: () => Promise.resolve('Grant not found')
-      })
-
+      
       const { createPublicClient } = await import('viem')
       const mockPublicClient = createPublicClient({
         chain: mockWalletClient.chain,
@@ -205,54 +236,14 @@ describe('PermissionsController', () => {
       } as any)
       ;(mockPublicClient.readContract as Mock).mockResolvedValue(BigInt(1))
 
-      await expect(controller.revoke(mockRevokeParams)).rejects.toThrow(RelayerError)
-    })
-  })
-
-  describe('Parameter serialization', () => {
-    it('should serialize parameters in a stable, sorted manner', () => {
-      const params1 = { b: 2, a: 1, c: { z: 26, y: 25 } }
-      const params2 = { c: { y: 25, z: 26 }, a: 1, b: 2 }
-
-      // Access private method for testing
-      const serialize = (controller as any).serializeParameters.bind(controller)
-      
-      const serialized1 = serialize(params1)
-      const serialized2 = serialize(params2)
-
-      expect(serialized1).toBe(serialized2)
-      expect(JSON.parse(serialized1)).toEqual({ a: 1, b: 2, c: { y: 25, z: 26 } })
-    })
-
-    it('should handle arrays in parameters', () => {
-      const params = { 
-        files: [3, 1, 2], 
-        metadata: { tags: ['b', 'a', 'c'] } 
-      }
-
-      const serialize = (controller as any).serializeParameters.bind(controller)
-      const serialized = serialize(params)
-
-      expect(JSON.parse(serialized)).toEqual({
-        files: [3, 1, 2], // Arrays should maintain order
-        metadata: { tags: ['b', 'a', 'c'] }
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+        text: () => Promise.resolve('Grant not found')
       })
-    })
 
-    it('should handle null and undefined values', () => {
-      const params = { 
-        nullValue: null, 
-        undefinedValue: undefined,
-        validValue: 'test'
-      }
-
-      const serialize = (controller as any).serializeParameters.bind(controller)
-      const serialized = serialize(params)
-
-      const parsed = JSON.parse(serialized)
-      expect(parsed.nullValue).toBe(null)
-      expect(parsed.undefinedValue).toBe(undefined)
-      expect(parsed.validValue).toBe('test')
+      await expect(controller.revoke(mockRevokeParams)).rejects.toThrow(RelayerError)
     })
   })
 
@@ -271,8 +262,9 @@ describe('PermissionsController', () => {
       const params = {
         to: '0x1234567890123456789012345678901234567890' as `0x${string}`,
         operation: 'test_operation',
+        files: [1, 2, 3],
         grantUrl: 'https://example.com/grant',
-        parametersHash: '0xparamshash' as Hash,
+        serializedParameters: '0xparamshash' as Hash,
         nonce: BigInt(5)
       }
 
@@ -282,34 +274,75 @@ describe('PermissionsController', () => {
       expect(typedData.domain.version).toBe('1')
       expect(typedData.domain.chainId).toBe(14800)
       expect(typedData.primaryType).toBe('Permission')
-      expect(typedData.message.application).toBe(params.to)
-      expect(typedData.message.operation).toBe(params.operation)
       expect(typedData.message.nonce).toBe(params.nonce)
+      expect(typedData.message.grant).toBe(params.grantUrl)
+      expect(typedData.files).toEqual(params.files)
+    })
+  })
+
+  describe('Direct Transaction Path', () => {
+    let directController: PermissionsController
+    
+    beforeEach(() => {
+      // Create controller without relayer URL for direct transactions
+      directController = new PermissionsController({
+        walletClient: mockWalletClient,
+        // No relayerUrl - forces direct transaction path
+      })
+    })
+
+    it('should throw error when no grantUrl provided and no relayer configured', async () => {
+      const mockParams = {
+        to: '0x1234567890123456789012345678901234567890' as `0x${string}`,
+        operation: 'llm_inference',
+        files: [],
+        parameters: { prompt: 'Test prompt' }
+        // No grantUrl and no relayer
+      }
+
+      await expect(directController.grant(mockParams)).rejects.toThrow(
+        'No relayerUrl configured and no grantUrl provided'
+      )
+    })
+
+    it('should execute direct transaction when grantUrl is provided', async () => {
+      const mockParams = {
+        to: '0x1234567890123456789012345678901234567890' as `0x${string}`,
+        operation: 'llm_inference',
+        files: [1, 2, 3],
+        parameters: { prompt: 'Test prompt' },
+        grantUrl: 'https://example.com/grant.json'
+      }
+
+      // Mock nonce retrieval
+      const { createPublicClient } = await import('viem')
+      vi.mocked(createPublicClient).mockReturnValueOnce({
+        readContract: vi.fn().mockResolvedValue(BigInt(5))
+      } as any)
+
+      // Mock direct transaction
+      mockWalletClient.writeContract = vi.fn().mockResolvedValue('0xdirecttxhash')
+
+      const result = await directController.grant(mockParams)
+
+      expect(result).toBe('0xdirecttxhash')
+      expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          address: '0x1234567890123456789012345678901234567890',
+          abi: expect.any(Array),
+          functionName: 'addPermission'
+        })
+      )
     })
   })
 
   describe('Error handling', () => {
-    it('should handle network errors gracefully', async () => {
-      const mockFetch = fetch as Mock
-      mockFetch.mockRejectedValue(new Error('Network error'))
-
-      const params = {
-        to: '0x1234567890123456789012345678901234567890' as `0x${string}`,
-        operation: 'test',
-        files: [],
-        parameters: { test: 'value' }
-      }
-
-      await expect(controller.grant(params)).rejects.toThrow()
-    })
-
     it('should handle nonce retrieval errors', async () => {
+      // Mock the viem createPublicClient to return a client that fails on readContract
       const { createPublicClient } = await import('viem')
-      const mockPublicClient = createPublicClient({
-        chain: mockWalletClient.chain,
-        transport: () => ({})
+      vi.mocked(createPublicClient).mockReturnValueOnce({
+        readContract: vi.fn().mockRejectedValue(new Error('Contract call failed'))
       } as any)
-      ;(mockPublicClient.readContract as Mock).mockRejectedValue(new Error('Contract call failed'))
 
       const params = {
         to: '0x1234567890123456789012345678901234567890' as `0x${string}`,
@@ -320,5 +353,239 @@ describe('PermissionsController', () => {
 
       await expect(controller.grant(params)).rejects.toThrow(NonceError)
     })
+
+    it('should handle wallet address retrieval errors', async () => {
+      // Mock wallet client with no addresses
+      mockWalletClient.getAddresses.mockResolvedValue([])
+
+      const mockParams = {
+        to: '0x1234567890123456789012345678901234567890' as `0x${string}`,
+        operation: 'test',
+        files: [],
+        parameters: { test: 'value' }
+      }
+
+      await expect(controller.grant(mockParams)).rejects.toThrow(BlockchainError)
+      expect(mockWalletClient.getAddresses).toHaveBeenCalled()
+    })
+
+    it('should handle signature errors with specific messages', async () => {
+      const mockParams = {
+        to: '0x1234567890123456789012345678901234567890' as `0x${string}`,
+        operation: 'test',
+        files: [],
+        parameters: { test: 'value' }
+      }
+
+      // Mock grant file storage
+      const mockFetch = fetch as Mock
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          success: true,
+          grantUrl: 'https://ipfs.io/ipfs/QmTest'
+        })
+      })
+
+      // Mock nonce retrieval
+      const { createPublicClient } = await import('viem')
+      const mockPublicClient = createPublicClient({
+        chain: mockWalletClient.chain,
+        transport: () => ({})
+      } as any)
+      ;(mockPublicClient.readContract as Mock).mockResolvedValue(BigInt(0))
+
+      // Mock signature failure with specific error
+      mockWalletClient.signTypedData.mockRejectedValue(new Error('Signature verification failed'))
+
+      await expect(controller.grant(mockParams)).rejects.toThrow(SignatureError)
+    })
   })
+
+  describe('Grant File Handling', () => {
+    it('should create and store grant file when no grantUrl provided', async () => {
+      const mockParams = {
+        to: '0x1234567890123456789012345678901234567890' as `0x${string}`,
+        operation: 'llm_inference',
+        files: [1, 2, 3],
+        parameters: { prompt: 'Test prompt', maxTokens: 100 }
+      }
+
+      // Mock grant file utilities
+      const { createGrantFile, storeGrantFile } = await import('../utils/grantFiles')
+      const mockCreateGrantFile = createGrantFile as Mock
+      const mockStoreGrantFile = storeGrantFile as Mock
+
+      mockCreateGrantFile.mockReturnValue({
+        operation: mockParams.operation,
+        files: mockParams.files,
+        parameters: mockParams.parameters,
+        metadata: {
+          timestamp: '2023-01-01T00:00:00.000Z',
+          version: '1.0',
+          userAddress: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+        }
+      })
+
+      mockStoreGrantFile.mockResolvedValue('https://ipfs.io/ipfs/QmGrantFile')
+
+      // Mock other dependencies - use single-use mock to avoid pollution
+      const mockFetch = fetch as Mock
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          success: true,
+          transactionHash: '0xgrantfilehash'
+        })
+      })
+
+      const { createPublicClient } = await import('viem')
+      vi.mocked(createPublicClient).mockReturnValueOnce({
+        readContract: vi.fn().mockResolvedValue(BigInt(0))
+      } as any)
+
+      const result = await controller.grant(mockParams)
+
+      expect(mockCreateGrantFile).toHaveBeenCalledWith(mockParams, '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266')
+      expect(mockStoreGrantFile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operation: mockParams.operation,
+          files: mockParams.files,
+          parameters: mockParams.parameters
+        }),
+        'https://test-relayer.com'
+      )
+      expect(result).toBe('0xgrantfilehash')
+    })
+  })
+
+  describe('getUserPermissions', () => {
+    beforeEach(() => {
+      vi.clearAllMocks()
+    })
+
+    it('should get user permissions successfully', async () => {
+      const { getContract } = await import('viem')
+      
+      // Mock permission registry contract
+      const mockPermissionRegistry = {
+        read: {
+          userPermissionIdsLength: vi.fn().mockResolvedValue(BigInt(2)),
+          userPermissionIdsAt: vi.fn()
+            .mockResolvedValueOnce(BigInt(1))
+            .mockResolvedValueOnce(BigInt(2)),
+          permissions: vi.fn()
+            .mockResolvedValueOnce({
+              user: mockWalletClient.account.address,
+              nonce: BigInt(1),
+              grant: 'https://ipfs.io/ipfs/Qm1',
+              signature: '0xsig1'
+            })
+            .mockResolvedValueOnce({
+              user: mockWalletClient.account.address,
+              nonce: BigInt(2),
+              grant: 'https://ipfs.io/ipfs/Qm2',
+              signature: '0xsig2'
+            })
+        }
+      }
+
+      vi.mocked(getContract).mockReturnValue(mockPermissionRegistry as any)
+
+      const result = await controller.getUserPermissions()
+
+      expect(result).toHaveLength(2)
+      expect(result[0]).toEqual({
+        id: 2,
+        files: [],
+        grant: 'https://ipfs.io/ipfs/Qm2'
+      })
+      expect(result[1]).toEqual({
+        id: 1,
+        files: [],
+        grant: 'https://ipfs.io/ipfs/Qm1'
+      })
+    })
+
+    it('should return empty array when user has no permissions', async () => {
+      const { getContract } = await import('viem')
+      
+      const mockPermissionRegistry = {
+        read: {
+          userPermissionIdsLength: vi.fn().mockResolvedValue(BigInt(0)),
+          userPermissionIds: vi.fn(),
+          permissions: vi.fn()
+        }
+      }
+
+      vi.mocked(getContract).mockReturnValue(mockPermissionRegistry as any)
+
+      const result = await controller.getUserPermissions()
+
+      expect(result).toEqual([])
+      expect(mockPermissionRegistry.read.userPermissionIdsLength).toHaveBeenCalledWith([
+        mockWalletClient.account.address
+      ])
+    })
+
+    it('should handle permissions with limit parameter', async () => {
+      const { getContract } = await import('viem')
+      
+      const mockPermissionRegistry = {
+        read: {
+          userPermissionIdsLength: vi.fn().mockResolvedValue(BigInt(5)),
+          userPermissionIdsAt: vi.fn()
+            .mockResolvedValueOnce(BigInt(1))
+            .mockResolvedValueOnce(BigInt(2)),
+          permissions: vi.fn()
+            .mockResolvedValue({
+              user: mockWalletClient.account.address,
+              nonce: BigInt(1),
+              grant: 'https://ipfs.io/ipfs/Qm1',
+              signature: '0xsig1'
+            })
+        }
+      }
+
+      vi.mocked(getContract).mockReturnValue(mockPermissionRegistry as any)
+
+      const result = await controller.getUserPermissions({ limit: 2 })
+
+      expect(result).toHaveLength(2)
+      expect(mockPermissionRegistry.read.userPermissionIdsAt).toHaveBeenCalledTimes(2)
+    })
+
+    it('should handle chain ID not available error', async () => {
+      const noChainWallet = {
+        ...mockWalletClient,
+        chain: null
+      }
+
+      const noChainController = new PermissionsController({
+        walletClient: noChainWallet,
+        relayerUrl: 'https://test-relayer.com'
+      })
+
+      await expect(noChainController.getUserPermissions())
+        .rejects.toThrow(BlockchainError)
+    })
+
+    it('should handle contract read errors gracefully', async () => {
+      const { getContract } = await import('viem')
+      
+      const mockPermissionRegistry = {
+        read: {
+          userPermissionIdsLength: vi.fn().mockRejectedValue(new Error('Contract read failed')),
+          userPermissionIds: vi.fn(),
+          permissions: vi.fn()
+        }
+      }
+
+      vi.mocked(getContract).mockReturnValue(mockPermissionRegistry as any)
+
+      await expect(controller.getUserPermissions())
+        .rejects.toThrow(BlockchainError)
+    })
+  })
+
 })

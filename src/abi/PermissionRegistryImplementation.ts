@@ -84,6 +84,11 @@ export const PermissionRegistryABI = [
   },
   {
     "inputs": [],
+    "name": "EmptyGrant",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "EnforcedPause",
     "type": "error"
   },
@@ -99,6 +104,11 @@ export const PermissionRegistryABI = [
   },
   {
     "inputs": [],
+    "name": "GrantAlreadyUsed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidInitialization",
     "type": "error"
   },
@@ -106,11 +116,21 @@ export const PermissionRegistryABI = [
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "nonce",
+        "name": "expectedNonce",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "providedNonce",
         "type": "uint256"
       }
     ],
     "name": "InvalidNonce",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidSignature",
     "type": "error"
   },
   {
@@ -178,37 +198,13 @@ export const PermissionRegistryABI = [
       {
         "indexed": true,
         "internalType": "address",
-        "name": "signer",
+        "name": "user",
         "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "application",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256[]",
-        "name": "files",
-        "type": "uint256[]"
-      },
-      {
-        "indexed": false,
-        "internalType": "string",
-        "name": "operation",
-        "type": "string"
       },
       {
         "indexed": false,
         "internalType": "string",
         "name": "grant",
-        "type": "string"
-      },
-      {
-        "indexed": false,
-        "internalType": "string",
-        "name": "parameters",
         "type": "string"
       }
     ],
@@ -360,34 +356,14 @@ export const PermissionRegistryABI = [
       {
         "components": [
           {
-            "internalType": "address",
-            "name": "application",
-            "type": "address"
-          },
-          {
-            "internalType": "uint256[]",
-            "name": "files",
-            "type": "uint256[]"
-          },
-          {
-            "internalType": "string",
-            "name": "operation",
-            "type": "string"
+            "internalType": "uint256",
+            "name": "nonce",
+            "type": "uint256"
           },
           {
             "internalType": "string",
             "name": "grant",
             "type": "string"
-          },
-          {
-            "internalType": "string",
-            "name": "parameters",
-            "type": "string"
-          },
-          {
-            "internalType": "uint256",
-            "name": "nonce",
-            "type": "uint256"
           }
         ],
         "internalType": "struct IDataPermission.PermissionInput",
@@ -401,70 +377,14 @@ export const PermissionRegistryABI = [
       }
     ],
     "name": "addPermission",
-    "outputs": [],
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "application",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "permissionIndex",
-        "type": "uint256"
-      }
-    ],
-    "name": "applicationPermissionIdsAt",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "application",
-        "type": "address"
-      }
-    ],
-    "name": "applicationPermissionIdsLength",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "application",
-        "type": "address"
-      }
-    ],
-    "name": "applicationPermissionIdsValues",
-    "outputs": [
-      {
-        "internalType": "uint256[]",
-        "name": "",
-        "type": "uint256[]"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -650,8 +570,27 @@ export const PermissionRegistryABI = [
   {
     "inputs": [
       {
+        "internalType": "string",
+        "name": "grant",
+        "type": "string"
+      }
+    ],
+    "name": "permissionIdByGrant",
+    "outputs": [
+      {
         "internalType": "uint256",
-        "name": "id",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "permissionId",
         "type": "uint256"
       }
     ],
@@ -665,19 +604,9 @@ export const PermissionRegistryABI = [
             "type": "address"
           },
           {
-            "internalType": "address",
-            "name": "application",
-            "type": "address"
-          },
-          {
-            "internalType": "uint256[]",
-            "name": "files",
-            "type": "uint256[]"
-          },
-          {
-            "internalType": "string",
-            "name": "operation",
-            "type": "string"
+            "internalType": "uint256",
+            "name": "nonce",
+            "type": "uint256"
           },
           {
             "internalType": "string",
@@ -685,9 +614,9 @@ export const PermissionRegistryABI = [
             "type": "string"
           },
           {
-            "internalType": "string",
-            "name": "parameters",
-            "type": "string"
+            "internalType": "bytes",
+            "name": "signature",
+            "type": "bytes"
           }
         ],
         "internalType": "struct IDataPermission.Permission",

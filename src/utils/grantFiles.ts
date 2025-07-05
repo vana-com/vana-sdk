@@ -99,9 +99,16 @@ export async function retrieveGrantFile(
 
     for (const gatewayUrl of gateways) {
       try {
-        const response = await fetch(gatewayUrl, {
-          timeout: 10000, // 10 second timeout
+        // Create a timeout promise
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('Request timeout')), 10000);
         });
+        
+        // Race between fetch and timeout
+        const response = await Promise.race([
+          fetch(gatewayUrl),
+          timeoutPromise
+        ]);
 
         if (response.ok) {
           const text = await response.text();

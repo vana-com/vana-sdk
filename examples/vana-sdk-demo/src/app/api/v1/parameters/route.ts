@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { storeParametersOnIPFS, testPinataConnection } from '@/lib/ipfs-storage'
+import { StorageManager, PinataStorage } from 'vana-sdk'
 import { relayerStorage, generateContentId } from '@/lib/relayer'
 
 export async function POST(request: NextRequest) {
@@ -14,56 +14,72 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if Pinata is configured
-    const pinataTest = await testPinataConnection()
+    // Initialize storage manager with Pinata provider if available
+    const storageManager = new StorageManager()
+    const pinataJwt = process.env.PINATA_JWT
     
-    if (pinataTest.success) {
-      // Use real IPFS storage via Pinata
-      console.log('📤 Using Pinata IPFS storage')
+    if (pinataJwt) {
+      // Use SDK's Pinata storage provider
+      console.log('📤 Using SDK Pinata IPFS storage')
       
-      const ipfsResult = await storeParametersOnIPFS(parameters, {
-        name: `vana-permission-${Date.now()}.json`,
-        keyvalues: {
-          source: 'vana-sdk-relayer',
-          type: 'permission-parameters'
-        }
+      const pinataProvider = new PinataStorage({
+        jwt: pinataJwt,
+        gatewayUrl: process.env.PINATA_GATEWAY_URL || 'https://gateway.pinata.cloud'
       })
       
-      console.log('📦 Stored parameters on IPFS:', {
-        ipfsHash: ipfsResult.ipfsHash,
-        grantUrl: ipfsResult.grantUrl,
-        size: ipfsResult.size
-      })
+      // Test connection first
+      const connectionTest = await pinataProvider.testConnection()
+      
+      if (connectionTest.success) {
+        storageManager.register('pinata', pinataProvider, true)
+        
+        // Create a blob from the parameters
+        const blob = new Blob([parameters], { type: 'application/json' })
+        const filename = `vana-permission-${Date.now()}.json`
+        
+        const uploadResult = await storageManager.upload(blob, filename)
+        
+        // Extract IPFS URL from metadata
+        const ipfsUrl = uploadResult.metadata?.ipfsUrl || `ipfs://${uploadResult.metadata?.ipfsHash}`
+        
+        console.log('📦 Stored parameters on IPFS via SDK:', {
+          ipfsHash: uploadResult.metadata?.ipfsHash,
+          grantUrl: ipfsUrl,
+          size: uploadResult.size
+        })
 
-      return NextResponse.json({
-        success: true,
-        grantUrl: ipfsResult.grantUrl,
-        ipfsHash: ipfsResult.ipfsHash,
-        storage: 'ipfs'
-      })
-      
+        return NextResponse.json({
+          success: true,
+          grantUrl: ipfsUrl,
+          ipfsHash: uploadResult.metadata?.ipfsHash,
+          storage: 'ipfs'
+        })
+      } else {
+        console.log('⚠️ Pinata connection test failed:', connectionTest.error)
+      }
     } else {
-      // Fallback to in-memory storage
-      console.log('⚠️ Pinata not configured, falling back to in-memory storage')
-      console.log('💡 Configure PINATA_JWT in .env.local for real IPFS storage')
-      
-      const contentId = generateContentId(parameters)
-      relayerStorage.store(contentId, parameters)
-      const grantUrl = `ipfs://${contentId}`
-      
-      console.log('📦 Stored parameters (in-memory):', {
-        contentId,
-        grantUrl,
-        size: parameters.length
-      })
-
-      return NextResponse.json({
-        success: true,
-        grantUrl,
-        storage: 'memory',
-        warning: 'Using in-memory storage. Configure PINATA_JWT for real IPFS storage.'
-      })
+      console.log('⚠️ Pinata not configured (missing PINATA_JWT)')
     }
+    
+    // Fallback to in-memory storage
+    console.log('💡 Configure PINATA_JWT in .env.local for real IPFS storage')
+    
+    const contentId = generateContentId(parameters)
+    relayerStorage.store(contentId, parameters)
+    const grantUrl = `ipfs://${contentId}`
+    
+    console.log('📦 Stored parameters (in-memory):', {
+      contentId,
+      grantUrl,
+      size: parameters.length
+    })
+
+    return NextResponse.json({
+      success: true,
+      grantUrl,
+      storage: 'memory',
+      warning: 'Using in-memory storage. Configure PINATA_JWT for real IPFS storage.'
+    })
     
   } catch (error) {
     console.error('❌ Error storing parameters:', error)

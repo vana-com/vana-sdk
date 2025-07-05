@@ -804,7 +804,7 @@ export default function Home() {
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold mb-4">Vana SDK Demo</h1>
+          <h1 className="text-4xl font-bold mb-4 text-foreground">Vana SDK Demo</h1>
           <p className="text-muted-foreground text-lg">
             Build with privacy-preserving data infrastructure
           </p>

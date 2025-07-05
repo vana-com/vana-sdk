@@ -1,39 +1,59 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { testPinataConnection, listRecentPins } from '@/lib/ipfs-storage'
+import { PinataStorage } from 'vana-sdk'
 import { relayerStorage } from '@/lib/relayer'
 
 export async function GET() {
   try {
-    // Test Pinata connection
-    const pinataTest = await testPinataConnection()
-    
+    // Test Pinata connection using SDK
     let ipfsInfo = null
-    if (pinataTest.success) {
+    
+    if (process.env.PINATA_JWT) {
       try {
-        // Get recent pins
-        const recentPins = await listRecentPins(10)
-        ipfsInfo = {
-          connected: true,
-          accountInfo: pinataTest.accountInfo,
-          recentPins: recentPins.map(pin => ({
-            hash: pin.ipfsHash,
-            name: pin.name,
-            size: pin.size,
-            date: pin.timestamp,
-            metadata: pin.keyvalues
-          }))
+        const pinataProvider = new PinataStorage({
+          jwt: process.env.PINATA_JWT,
+          gatewayUrl: process.env.PINATA_GATEWAY_URL || 'https://gateway.pinata.cloud'
+        })
+        
+        const pinataTest = await pinataProvider.testConnection()
+        
+        if (pinataTest.success) {
+          try {
+            // Get recent pins using SDK
+            const recentPins = await pinataProvider.list({ limit: 10 })
+            ipfsInfo = {
+              connected: true,
+              accountInfo: pinataTest.data,
+              recentPins: recentPins.map((pin: any) => ({
+                hash: pin.metadata?.ipfsHash || pin.id,
+                name: pin.name,
+                size: pin.size,
+                date: pin.createdAt,
+                metadata: pin.metadata?.pinataMetadata
+              }))
+            }
+          } catch (error) {
+            ipfsInfo = {
+              connected: true,
+              accountInfo: pinataTest.data,
+              error: `Failed to list pins: ${error instanceof Error ? error.message : 'Unknown error'}`
+            }
+          }
+        } else {
+          ipfsInfo = {
+            connected: false,
+            error: pinataTest.error
+          }
         }
       } catch (error) {
         ipfsInfo = {
-          connected: true,
-          accountInfo: pinataTest.accountInfo,
-          error: `Failed to list pins: ${error instanceof Error ? error.message : 'Unknown error'}`
+          connected: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
         }
       }
     } else {
       ipfsInfo = {
         connected: false,
-        error: pinataTest.error
+        error: 'PINATA_JWT not configured'
       }
     }
     
@@ -76,17 +96,18 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { testData = 'test-data-' + Date.now() } = body
     
-    const testPinata = await testPinataConnection()
-    if (!testPinata.success) {
+    if (!process.env.PINATA_JWT) {
       return NextResponse.json({
         success: false,
-        error: 'Pinata not configured or connection failed',
-        details: testPinata.error
+        error: 'Pinata not configured - PINATA_JWT missing'
       }, { status: 400 })
     }
     
-    // Import the storage function dynamically to test it
-    const { storeParametersOnIPFS } = await import('@/lib/ipfs-storage')
+    // Use SDK storage for testing
+    const pinataProvider = new PinataStorage({
+      jwt: process.env.PINATA_JWT,
+      gatewayUrl: process.env.PINATA_GATEWAY_URL || 'https://gateway.pinata.cloud'
+    })
     
     const testParameters = JSON.stringify({
       test: true,
@@ -95,23 +116,22 @@ export async function POST(request: NextRequest) {
       purpose: 'debug-test'
     })
     
-    const result = await storeParametersOnIPFS(testParameters, {
-      name: `debug-test-${Date.now()}.json`,
-      keyvalues: {
-        type: 'debug-test',
-        timestamp: new Date().toISOString()
-      }
-    })
+    const blob = new Blob([testParameters], { type: 'application/json' })
+    const filename = `debug-test-${Date.now()}.json`
+    
+    const result = await pinataProvider.upload(blob, filename)
     
     return NextResponse.json({
       success: true,
       message: 'Test storage successful',
       result: {
-        ipfsHash: result.ipfsHash,
-        grantUrl: result.grantUrl,
-        size: result.size
+        ipfsHash: result.metadata?.ipfsHash,
+        grantUrl: result.metadata?.ipfsUrl,
+        size: result.size,
+        url: result.url
       },
-      testData: JSON.parse(testParameters)
+      testData: JSON.parse(testParameters),
+      timestamp: new Date().toISOString()
     })
     
   } catch (error) {

@@ -1,5 +1,5 @@
-import type { WalletClient, Address, Hash, Abi } from 'viem';
-import type { StorageProvider } from './storage';
+import type { WalletClient, Address, Hash, Abi } from "viem";
+import type { StorageProvider } from "./storage";
 
 /**
  * Configuration object for the main Vana class.
@@ -38,16 +38,14 @@ export interface UserFile {
 export interface GrantedPermission {
   /** Unique identifier for the permission */
   id: number;
-  /** Address of the application that received the permission */
-  application: Address;
   /** Array of file IDs included in the permission */
   files: number[];
   /** Type of operation permitted (e.g., "llm_inference") */
-  operation: string;
-  /** The grant URL or data access endpoint */
+  operation?: string;
+  /** The grant URL containing all permission details */
   grant: string;
   /** The parameters associated with the permission */
-  parameters: string;
+  parameters?: any;
   /** Optional nonce used when granting the permission */
   nonce?: number;
   /** Optional block number when permission was granted */
@@ -81,9 +79,9 @@ export interface RevokePermissionParams {
 /**
  * A union type of all canonical Vana contract names.
  */
-export type VanaContract = 
+export type VanaContract =
   | "PermissionRegistry"
-  | "DataRegistry" 
+  | "DataRegistry"
   | "TeePool"
   | "ComputeEngine"
   | "TeePoolPhala"
@@ -134,6 +132,14 @@ export interface PermissionGrantMessage {
 }
 
 /**
+ * EIP-712 PermissionInput message structure (new simplified format).
+ */
+export interface PermissionInputMessage {
+  nonce: bigint;
+  grant: string;
+}
+
+/**
  * EIP-712 Permission message structure (simplified future format).
  */
 export interface SimplifiedPermissionMessage {
@@ -167,8 +173,8 @@ export interface PermissionGrantTypedData {
       type: string;
     }>;
   };
-  primaryType: 'Permission';
-  message: PermissionGrantMessage;
+  primaryType: "Permission";
+  message: PermissionInputMessage;
   /** Files to grant permission for (passed to relayer) */
   files?: number[];
 }
@@ -184,7 +190,6 @@ export interface RelayerStorageResponse {
   /** Optional error message */
   error?: string;
 }
-
 
 /**
  * Response from the relayer service for transaction submission.

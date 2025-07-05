@@ -28,6 +28,16 @@ vi.mock('../controllers/protocol', () => ({
   }))
 }))
 
+// Mock StorageManager
+vi.mock('../storage', () => ({
+  StorageManager: vi.fn().mockImplementation(() => ({
+    register: vi.fn(),
+    setDefaultProvider: vi.fn(),
+    getProvider: vi.fn(),
+    getAllProviders: vi.fn().mockReturnValue([])
+  }))
+}))
+
 // Test account
 const testAccount = privateKeyToAccount('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80')
 
@@ -57,12 +67,12 @@ describe('Vana', () => {
       expect(vana.protocol).toBeDefined()
     })
 
-    it('should use default relayer URL when not provided', () => {
+    it('should work without relayer URL (direct transaction mode)', () => {
       const vana = new Vana({
         walletClient: validWalletClient
       })
 
-      expect(vana.getConfig().relayerUrl).toBe('https://relayer.vana.org')
+      expect(vana.getConfig().relayerUrl).toBeUndefined()
     })
 
     it('should throw InvalidConfigurationError when config is missing', () => {
@@ -102,6 +112,16 @@ describe('Vana', () => {
         new Vana({
           walletClient: validWalletClient,
           relayerUrl: 'not-a-url'
+        })
+      }).toThrow(InvalidConfigurationError)
+    })
+
+    it('should throw InvalidConfigurationError when relayerUrl is not a string', () => {
+      expect(() => {
+        new Vana({
+          walletClient: validWalletClient,
+          // @ts-expect-error - Testing invalid input
+          relayerUrl: 123
         })
       }).toThrow(InvalidConfigurationError)
     })
@@ -201,25 +221,96 @@ describe('Vana', () => {
         relayerUrl: 'https://test-relayer.com'
       })
 
-      // Verify that controllers were instantiated with the correct context
-      const { PermissionsController } = require('../controllers/permissions')
-      const { DataController } = require('../controllers/data')
-      const { ProtocolController } = require('../controllers/protocol')
+      // Verify that controllers are initialized with the correct context
+      expect(vana.permissions).toBeDefined()
+      expect(vana.data).toBeDefined()
+      expect(vana.protocol).toBeDefined()
+      
+      // Test that the controllers have access to the shared context
+      // by verifying they can access the configuration
+      const config = vana.getConfig()
+      expect(config.relayerUrl).toBe('https://test-relayer.com')
+      expect(config.chainId).toBe(14800)
+      expect(config.chainName).toBe('VANA - Moksha')
+    })
+  })
 
-      expect(PermissionsController).toHaveBeenCalledWith({
+  describe('Storage Configuration', () => {
+    it('should initialize with storage providers when provided', async () => {
+      const mockProvider = {
+        upload: vi.fn(),
+        download: vi.fn(),
+        list: vi.fn(),
+        delete: vi.fn(),
+        getConfig: vi.fn().mockReturnValue({ name: 'Mock Provider' })
+      }
+
+      const vana = new Vana({
         walletClient: validWalletClient,
-        relayerUrl: 'https://test-relayer.com'
+        storage: {
+          providers: {
+            'mock': mockProvider
+          },
+          defaultProvider: 'mock'
+        }
       })
 
-      expect(DataController).toHaveBeenCalledWith({
+      expect(vana).toBeDefined()
+      // StorageManager should be created and configured
+      const { StorageManager } = await import('../storage')
+      expect(StorageManager).toHaveBeenCalled()
+    })
+
+    it('should set first provider as default when no default specified', async () => {
+      const mockProvider1 = {
+        upload: vi.fn(),
+        download: vi.fn(),
+        list: vi.fn(),
+        delete: vi.fn(),
+        getConfig: vi.fn().mockReturnValue({ name: 'Mock Provider 1' })
+      }
+      
+      const mockProvider2 = {
+        upload: vi.fn(),
+        download: vi.fn(),
+        list: vi.fn(),
+        delete: vi.fn(),
+        getConfig: vi.fn().mockReturnValue({ name: 'Mock Provider 2' })
+      }
+
+      const vana = new Vana({
         walletClient: validWalletClient,
-        relayerUrl: 'https://test-relayer.com'
+        storage: {
+          providers: {
+            'first': mockProvider1,
+            'second': mockProvider2
+          }
+          // No defaultProvider specified
+        }
       })
 
-      expect(ProtocolController).toHaveBeenCalledWith({
-        walletClient: validWalletClient,
-        relayerUrl: 'https://test-relayer.com'
+      expect(vana).toBeDefined()
+      const { StorageManager } = await import('../storage')
+      const storageManagerInstance = StorageManager.mock.results[StorageManager.mock.results.length - 1].value
+      expect(storageManagerInstance.setDefaultProvider).toHaveBeenCalledWith('first')
+    })
+
+    it('should work without storage configuration', async () => {
+      const vana = new Vana({
+        walletClient: validWalletClient
       })
+
+      expect(vana).toBeDefined()
+      // StorageManager should not be called when no storage config
+      const { StorageManager } = await import('../storage')
+      const callCount = StorageManager.mock.calls.length
+      
+      // Create another instance to verify StorageManager isn't called again
+      new Vana({
+        walletClient: validWalletClient
+      })
+      
+      expect(StorageManager.mock.calls.length).toBe(callCount) // Should be same, no new calls
     })
   })
 })

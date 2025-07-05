@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { storeParametersOnIPFS, testPinataConnection } from '@/lib/ipfs-storage'
+import { StorageManager, PinataStorage } from 'vana-sdk'
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,10 +22,8 @@ export async function POST(request: NextRequest) {
     })
 
     // Check if Pinata is configured
-    const pinataTest = await testPinataConnection()
-    
-    if (!pinataTest.success) {
-      console.error('❌ Pinata not configured:', pinataTest.error)
+    if (!process.env.PINATA_JWT) {
+      console.error('❌ Pinata not configured: PINATA_JWT missing')
       return NextResponse.json(
         { 
           success: false, 
@@ -35,20 +33,23 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Store binary file directly on IPFS via Pinata (don't convert to text!)
-    const { PinataSDK } = await import('pinata')
-    const pinata = new PinataSDK({
-      pinataJwt: process.env.PINATA_JWT!,
-      pinataGateway: process.env.PINATA_GATEWAY_URL || 'https://gateway.pinata.cloud'
+    // Use SDK's storage manager for file upload
+    const storageManager = new StorageManager()
+    const pinataProvider = new PinataStorage({
+      jwt: process.env.PINATA_JWT,
+      gatewayUrl: process.env.PINATA_GATEWAY_URL || 'https://gateway.pinata.cloud'
     })
+    
+    storageManager.register('pinata', pinataProvider, true)
 
-    // Upload the file directly without text conversion
-    const upload = await pinata.upload.public.file(file)
+    // Convert File to Blob for SDK upload
+    const blob = new Blob([await file.arrayBuffer()], { type: file.type })
+    const uploadResult = await storageManager.upload(blob, file.name)
     
     const ipfsResult = {
-      ipfsHash: upload.cid,
-      grantUrl: `ipfs://${upload.cid}`,
-      size: file.size
+      ipfsHash: uploadResult.metadata?.ipfsHash,
+      grantUrl: uploadResult.metadata?.ipfsUrl || `ipfs://${uploadResult.metadata?.ipfsHash}`,
+      size: uploadResult.size
     }
 
     console.log('✅ File uploaded to IPFS:', {

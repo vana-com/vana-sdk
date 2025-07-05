@@ -15,6 +15,14 @@ vi.mock('../abi', () => ({
   getAbi: vi.fn()
 }))
 
+// Import the mocked functions
+import { getContractAddress } from '../config/addresses'
+import { getAbi } from '../abi'
+
+// Type the mocked functions
+const mockGetContractAddress = vi.mocked(getContractAddress)
+const mockGetAbi = vi.mocked(getAbi)
+
 // Test account
 const testAccount = privateKeyToAccount('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80')
 
@@ -42,14 +50,11 @@ describe('ProtocolController', () => {
 
   describe('getContract', () => {
     it('should return contract info for valid contract', () => {
-      const { getContractAddress } = require('../config/addresses')
-      const { getAbi } = require('../abi')
-      
       const mockAddress = '0x1234567890123456789012345678901234567890'
       const mockAbi = [{ type: 'function', name: 'test' }]
       
-      getContractAddress.mockReturnValue(mockAddress)
-      getAbi.mockReturnValue(mockAbi)
+      mockGetContractAddress.mockReturnValue(mockAddress)
+      mockGetAbi.mockReturnValue(mockAbi)
 
       const result = controller.getContract('DataRegistry')
 
@@ -63,9 +68,7 @@ describe('ProtocolController', () => {
     })
 
     it('should throw ContractNotFoundError for non-existent contract', () => {
-      const { getContractAddress } = require('../config/addresses')
-      
-      getContractAddress.mockImplementation(() => {
+      mockGetContractAddress.mockImplementation(() => {
         throw new Error('Contract address not found for NonExistentContract on chain 14800')
       })
 
@@ -92,11 +95,8 @@ describe('ProtocolController', () => {
     })
 
     it('should work with all contract types', () => {
-      const { getContractAddress } = require('../config/addresses')
-      const { getAbi } = require('../abi')
-      
-      getContractAddress.mockReturnValue('0x1234567890123456789012345678901234567890')
-      getAbi.mockReturnValue([])
+      mockGetContractAddress.mockReturnValue('0x1234567890123456789012345678901234567890')
+      mockGetAbi.mockReturnValue([])
 
       // Test a few different contract types
       const contracts = ['DataRegistry', 'PermissionRegistry', 'TeePoolPhala', 'ComputeEngine'] as const
@@ -172,7 +172,7 @@ describe('ProtocolController', () => {
   describe('getChainName', () => {
     it('should return chain name from wallet client', () => {
       const chainName = controller.getChainName()
-      expect(chainName).toBe('VANA - Moksha')
+      expect(chainName).toBe('Vana Moksha Testnet')
     })
 
     it('should throw error when chain name is not available', () => {
@@ -194,8 +194,7 @@ describe('ProtocolController', () => {
 
   describe('Integration with contract system', () => {
     it('should properly integrate with address configuration', () => {
-      const { getContractAddress } = require('../config/addresses')
-      getContractAddress.mockReturnValue('0x1234567890123456789012345678901234567890')
+      mockGetContractAddress.mockReturnValue('0x1234567890123456789012345678901234567890')
 
       controller.getContract('DataRegistry')
 
@@ -204,12 +203,9 @@ describe('ProtocolController', () => {
     })
 
     it('should properly integrate with ABI system', () => {
-      const { getContractAddress } = require('../config/addresses')
-      const { getAbi } = require('../abi')
-      
-      getContractAddress.mockReturnValue('0x1234567890123456789012345678901234567890')
+      mockGetContractAddress.mockReturnValue('0x1234567890123456789012345678901234567890')
       const mockAbi = [{ type: 'function', name: 'version', inputs: [], outputs: [] }]
-      getAbi.mockReturnValue(mockAbi)
+      mockGetAbi.mockReturnValue(mockAbi)
 
       const result = controller.getContract('DataRegistry')
 
@@ -220,11 +216,8 @@ describe('ProtocolController', () => {
 
   describe('Error scenarios', () => {
     it('should handle ABI retrieval errors', () => {
-      const { getContractAddress } = require('../config/addresses')
-      const { getAbi } = require('../abi')
-      
-      getContractAddress.mockReturnValue('0x1234567890123456789012345678901234567890')
-      getAbi.mockImplementation(() => {
+      mockGetContractAddress.mockReturnValue('0x1234567890123456789012345678901234567890')
+      mockGetAbi.mockImplementation(() => {
         throw new Error('ABI not found')
       })
 
@@ -234,9 +227,7 @@ describe('ProtocolController', () => {
     })
 
     it('should handle unexpected errors gracefully', () => {
-      const { getContractAddress } = require('../config/addresses')
-      
-      getContractAddress.mockImplementation(() => {
+      mockGetContractAddress.mockImplementation(() => {
         throw new Error('Unexpected error')
       })
 

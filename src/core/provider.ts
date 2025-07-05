@@ -25,7 +25,7 @@ export class VanaProvider {
   client: ReturnType<typeof createClient>;
   contracts: {
     dataRegistry: ReturnType<typeof getContractController<"DataRegistry">>;
-    teePool: ReturnType<typeof getContractController<"TeePool">>;
+    teePool: ReturnType<typeof getContractController<"TeePoolPhala">>;
     computeEngine: ReturnType<typeof getContractController<"ComputeEngine">>;
   };
   private _walletClient?: WalletClient;
@@ -47,7 +47,7 @@ export class VanaProvider {
     // Initialize contracts
     this.contracts = {
       dataRegistry: getContractController("DataRegistry", this.client),
-      teePool: getContractController("TeePool", this.client),
+      teePool: getContractController("TeePoolPhala", this.client),
       computeEngine: getContractController("ComputeEngine", this.client),
     };
   }

@@ -1155,13 +1155,17 @@ export default function Home() {
                                 Permission ID: <PermissionDisplay permissionId={permission.id} className="inline-flex" />
                               </div>
                               <div className="text-sm text-muted-foreground">
-                                <strong>Application:</strong>
-                                <AddressDisplay 
-                                  address={permission.application}
-                                  explorerUrl={getExplorerUrl(permission.application)}
-                                  truncate={false}
-                                  className="ml-1"
-                                />
+                                <strong>Grant File:</strong>
+                                <a 
+                                  href={permission.grant.startsWith('ipfs://') 
+                                    ? permission.grant.replace('ipfs://', 'https://ipfs.io/ipfs/') 
+                                    : permission.grant}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="ml-1 text-blue-600 hover:text-blue-800 underline"
+                                >
+                                  View Grant File
+                                </a>
                               </div>
                               <p className="text-sm text-muted-foreground">
                                 <strong>Operation:</strong> {permission.operation}
@@ -1178,12 +1182,18 @@ export default function Home() {
                                 )}
                               </p>
                               {permission.parameters && (
-                                <p className="text-sm text-muted-foreground">
-                                  <strong>Parameters:</strong>{" "}
-                                  {permission.parameters.length > 50
-                                    ? `${permission.parameters.substring(0, 50)}...`
-                                    : permission.parameters}
-                                </p>
+                                <div className="text-sm text-muted-foreground">
+                                  <details className="group">
+                                    <summary className="cursor-pointer hover:text-foreground">
+                                      <strong>Parameters:</strong> Click to expand
+                                    </summary>
+                                    <pre className="mt-2 text-xs bg-muted p-2 rounded overflow-auto max-h-40">
+                                      {typeof permission.parameters === 'string' 
+                                        ? permission.parameters 
+                                        : JSON.stringify(permission.parameters, null, 2)}
+                                    </pre>
+                                  </details>
+                                </div>
                               )}
                             </div>
                           </div>

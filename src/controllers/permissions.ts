@@ -1,8 +1,6 @@
 import {
   Address,
   Hash,
-  keccak256,
-  toHex,
   createPublicClient,
   http,
   getContract,
@@ -12,10 +10,8 @@ import {
   GrantPermissionParams,
   RevokePermissionParams,
   PermissionGrantTypedData,
-  RelayerStorageResponse,
   RelayerTransactionResponse,
   GrantedPermission,
-  GrantFile,
 } from "../types";
 import {
   RelayerError,
@@ -40,7 +36,7 @@ import { StorageManager } from "../storage";
  */
 export interface ControllerContext {
   walletClient: WalletClient;
-  relayerUrl: string;
+  relayerUrl?: string;
   storageManager?: StorageManager;
 }
 
@@ -245,7 +241,7 @@ export class PermissionsController {
   }
 
   /**
-   * Composes the EIP-712 typed data for PermissionGrant.
+   * Composes the EIP-712 typed data for PermissionGrant (new simplified format).
    */
   private async composePermissionGrantMessage(params: {
     to: Address;
@@ -261,22 +257,14 @@ export class PermissionsController {
       domain,
       types: {
         Permission: [
-          { name: "application", type: "address" },
-          { name: "files", type: "uint256[]" },
-          { name: "operation", type: "string" },
-          { name: "grant", type: "string" },
-          { name: "parameters", type: "string" },
           { name: "nonce", type: "uint256" },
+          { name: "grant", type: "string" },
         ],
       },
       primaryType: "Permission",
       message: {
-        application: params.to,
-        files: params.files,
-        operation: params.operation,
-        grant: params.grantUrl,
-        parameters: params.serializedParameters,
         nonce: params.nonce,
+        grant: params.grantUrl,
       },
       files: params.files,
     };
@@ -334,14 +322,10 @@ export class PermissionsController {
       );
       const permissionRegistryAbi = getAbi("PermissionRegistry");
 
-      // Prepare the PermissionInput struct
+      // Prepare the PermissionInput struct (simplified format)
       const permissionInput = {
-        application: typedData.message.application,
-        files: (typedData.files || []).map((f) => BigInt(f)),
-        operation: typedData.message.operation,
-        grant: typedData.message.grant,
-        parameters: typedData.message.parameters,
         nonce: BigInt(typedData.message.nonce),
+        grant: typedData.message.grant,
       };
 
       // Submit directly to the contract
@@ -350,6 +334,8 @@ export class PermissionsController {
         abi: permissionRegistryAbi,
         functionName: "addPermission",
         args: [permissionInput, signature],
+        account: this.context.walletClient.account || await this.getUserAddress(),
+        chain: this.context.walletClient.chain || null,
       });
 
       return txHash;
@@ -537,11 +523,8 @@ export class PermissionsController {
 
           userPermissions.push({
             id,
-            application: permission.application,
-            files: permission.files.map((f: bigint) => Number(f)),
-            operation: permission.operation,
+            files: [], // Files are now stored in the grant URL (IPFS)
             grant: permission.grant,
-            parameters: permission.parameters,
           });
         } catch (error) {
           console.warn(`Failed to read permission at index ${i}:`, error);
@@ -554,6 +537,41 @@ export class PermissionsController {
       throw new BlockchainError(
         `Failed to fetch user permissions: ${error instanceof Error ? error.message : "Unknown error"}`
       );
+    }
+  }
+
+  /**
+   * Fetches grant data from any URL (IPFS or HTTP) with graceful error handling
+   */
+  private async fetchGrantFromIPFS(grantUrl: string): Promise<any> {
+    try {
+      // Convert IPFS URL to HTTP gateway URL if needed
+      let fetchUrl = grantUrl;
+      if (grantUrl.startsWith('ipfs://')) {
+        // Use a public IPFS gateway - could be configurable
+        fetchUrl = grantUrl.replace('ipfs://', 'https://ipfs.io/ipfs/');
+      }
+
+      const response = await fetch(fetchUrl, { 
+        signal: AbortSignal.timeout(5000) // 5 second timeout
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      // Basic validation - check if it looks like grant data
+      if (typeof data === 'object' && data !== null) {
+        return data;
+      }
+      
+      return null;
+    } catch (error) {
+      // Don't throw - let caller handle graceful degradation
+      console.debug(`IPFS fetch failed for ${grantUrl}:`, error);
+      return null;
     }
   }
 }

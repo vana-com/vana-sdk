@@ -17,24 +17,28 @@ import { TeePoolDedicatedStandardABI } from "./TeePoolDedicatedStandardImplement
 import { TeePoolDedicatedGpuABI } from "./TeePoolDedicatedGpuImplementation";
 
 // DLP Reward Contracts
-import { VanaEpochABI } from './VanaEpochImplementation';
-import { DLPRegistryABI } from './DLPRegistryImplementation';
-import { DLPRegistryTreasuryABI } from './DLPTreasuryImplementation';
-import { DLPPerformanceABI } from './DLPPerformanceImplementation';
-import { DLPRewardDeployerABI } from './DLPRewardDeployerImplementation';
-import { DLPRewardSwapABI } from './DLPRewardSwapImplementation';
-import { SwapHelperABI } from './SwapHelperImplementation';
+import { VanaEpochABI } from "./VanaEpochImplementation";
+import { DLPRegistryABI } from "./DLPRegistryImplementation";
+import { DLPRegistryTreasuryABI } from "./DLPTreasuryImplementation";
+import { DLPRewardDeployerTreasuryABI } from "./DLPRewardDeployerTreasuryImplementation";
+import { DLPPerformanceABI } from "./DLPPerformanceImplementation";
+import { DLPRewardDeployerABI } from "./DLPRewardDeployerImplementation";
+import { DLPRewardSwapABI } from "./DLPRewardSwapImplementation";
+import { SwapHelperABI } from "./SwapHelperImplementation";
+import { DLPRootImplementation2Abi } from "./DLPRootImplementation";
+import { DataLiquidityPoolImplementationAbi } from "./DataLiquidityPoolImplementation";
+import { DLPRegistryTreasuryABI as DLPRegistryTreasuryImplementationABI } from "./DLPRegistryTreasuryImplementation";
 
 // VanaPool (Staking)
-import { VanaPoolStakingABI } from './VanaPoolStakingImplementation';
-import { VanaPoolEntityABI } from './VanaPoolEntityImplementation';
-import { VanaPoolTreasuryABI } from './VanaPoolTreasuryImplementation';
+import { VanaPoolStakingABI } from "./VanaPoolStakingImplementation";
+import { VanaPoolEntityABI } from "./VanaPoolEntityImplementation";
+import { VanaPoolTreasuryABI } from "./VanaPoolTreasuryImplementation";
 
 // DLP Deployment Contracts
-import { DATABI } from './DATImplementation';
-import { DATFactoryABI } from './DATFactoryImplementation';
-import { DATPausableABI } from './DATPausableImplementation';
-import { DATVotesABI } from './DATVotesImplementation';
+import { DATABI } from "./DATImplementation";
+import { DATFactoryABI } from "./DATFactoryImplementation";
+import { DATPausableABI } from "./DATPausableImplementation";
+import { DATVotesABI } from "./DATVotesImplementation";
 
 const contractAbis = {
   PermissionRegistry: PermissionRegistryABI,
@@ -58,11 +62,13 @@ const contractAbis = {
   VanaEpoch: VanaEpochABI,
   DLPRegistry: DLPRegistryABI,
   DLPRegistryTreasury: DLPRegistryTreasuryABI,
+  DLPRewardDeployerTreasury: DLPRewardDeployerTreasuryABI,
+  DLPRegistryTreasuryImplementation: DLPRegistryTreasuryImplementationABI,
   DLPPerformance: DLPPerformanceABI,
   DLPRewardDeployer: DLPRewardDeployerABI,
-  DLPRewardDeployerTreasury: DLPRegistryTreasuryABI, // Shares implementation
   DLPRewardSwap: DLPRewardSwapABI,
   SwapHelper: SwapHelperABI,
+  DataLiquidityPool: DataLiquidityPoolImplementationAbi,
 
   // VanaPool (Staking)
   VanaPoolStaking: VanaPoolStakingABI,
@@ -76,6 +82,7 @@ const contractAbis = {
   DATVotes: DATVotesABI,
 
   // Legacy/Deprecated (backward compatibility)
+  DLPRoot: DLPRootImplementation2Abi,
   TeePool: TeePoolABI, // DEPRECATED: Intel SGX version (use TeePoolPhala instead)
 } as const;
 
@@ -92,4 +99,14 @@ export function getAbi<T extends VanaContract>(contract: T): ContractAbis[T] {
 }
 
 // Export individual ABIs
-export { VanaEpochABI, DLPRegistryABI, DLPRegistryTreasuryABI, DLPPerformanceABI, DLPRewardDeployerABI };
+export {
+  VanaEpochABI,
+  DLPRegistryABI,
+  DLPRegistryTreasuryABI,
+  DLPPerformanceABI,
+  DLPRewardDeployerABI,
+  DLPRewardDeployerTreasuryABI,
+  DLPRegistryTreasuryImplementationABI,
+  DLPRootImplementation2Abi,
+  DataLiquidityPoolImplementationAbi,
+};

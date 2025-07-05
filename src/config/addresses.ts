@@ -5,7 +5,7 @@ export const CONTRACTS = {
   // Core Platform Contracts
   PermissionRegistry: {
     addresses: {
-      14800: "0x9f03B01A17d54c6934F2735B5d38a60C56Bf0dBe",
+      14800: "0x3acB2023DF2617EFb61422BA0c8C6E97916961e0",
       1480: "0x0000000000000000000000000000000000000000",
     },
   },

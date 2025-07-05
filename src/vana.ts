@@ -56,6 +56,8 @@ export class Vana {
   
   /** Controller providing low-level access to protocol contracts */
   public readonly protocol: ProtocolController;
+  
+  private readonly relayerUrl?: string;
 
 
   /**
@@ -67,6 +69,9 @@ export class Vana {
   constructor(config: VanaConfig) {
     // Validate configuration
     this.validateConfig(config);
+    
+    // Store relayer URL
+    this.relayerUrl = config.relayerUrl;
 
     // Initialize storage manager if storage providers are provided
     let storageManager: StorageManager | undefined;
@@ -89,7 +94,7 @@ export class Vana {
     // Create shared context for all controllers
     const sharedContext: ControllerContext = {
       walletClient: config.walletClient,
-      relayerUrl: config.relayerUrl || '',
+      relayerUrl: config.relayerUrl,
       storageManager
     };
 
@@ -188,7 +193,7 @@ export class Vana {
     return {
       chainId: this.chainId,
       chainName: this.chainName,
-      relayerUrl: this.permissions['context'].relayerUrl
+      relayerUrl: this.relayerUrl
     };
   }
 }

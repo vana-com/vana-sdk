@@ -592,4 +592,30 @@ describe("Grant Files Utils", () => {
       );
     });
   });
+
+  describe("retrieveGrantFile", () => {
+    it("should handle non-NetworkError exceptions in catch block", async () => {
+      // Mock fetch to throw a non-NetworkError
+      const mockFetch = fetch as Mock;
+      mockFetch.mockRejectedValue(new Error("Some other error"));
+
+      await expect(
+        retrieveGrantFile("https://example.com/grant.json"),
+      ).rejects.toThrow("Failed to retrieve grant file from any IPFS gateway");
+    });
+
+    it("should re-throw NetworkError exceptions directly", async () => {
+      // Mock fetch to throw a NetworkError
+      const mockFetch = fetch as Mock;
+      const networkError = new NetworkError(
+        "Network failed",
+        new Error("Base error"),
+      );
+      mockFetch.mockRejectedValue(networkError);
+
+      await expect(
+        retrieveGrantFile("https://example.com/grant.json"),
+      ).rejects.toThrow(NetworkError);
+    });
+  });
 });

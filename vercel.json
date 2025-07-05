@@ -1,0 +1,6 @@
+{
+  "buildCommand": "npm run build:demo",
+  "outputDirectory": "examples/vana-sdk-demo/.next",
+  "installCommand": "npm ci",
+  "framework": null
+}

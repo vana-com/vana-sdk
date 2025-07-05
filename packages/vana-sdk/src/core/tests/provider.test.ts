@@ -221,4 +221,14 @@ describe("VanaProvider", () => {
       expect(typeof walletClient).toBe("object");
     });
   });
+
+  describe("getContractAddress", () => {
+    it("should return contract address when address exists", () => {
+      // Test successful address retrieval to cover line 59 in provider.ts
+      const address = vana.getContractAddress("DataRegistry");
+      expect(address).toBeDefined();
+      expect(typeof address).toBe("string");
+      expect(address.startsWith("0x")).toBe(true);
+    });
+  });
 });

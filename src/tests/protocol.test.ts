@@ -1,239 +1,291 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { createWalletClient, http } from 'viem'
-import { privateKeyToAccount } from 'viem/accounts'
-import { mokshaTestnet } from '../config/chains'
-import { ProtocolController } from '../controllers/protocol'
-import { ControllerContext } from '../controllers/permissions'
-import { ContractNotFoundError } from '../errors'
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createWalletClient, http } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { mokshaTestnet } from "../config/chains";
+import { ProtocolController } from "../controllers/protocol";
+import { ControllerContext } from "../controllers/permissions";
+import { ContractNotFoundError } from "../errors";
 
 // Mock the config and ABI modules
-vi.mock('../config/addresses', () => ({
-  getContractAddress: vi.fn()
-}))
+vi.mock("../config/addresses", () => ({
+  getContractAddress: vi.fn(),
+}));
 
-vi.mock('../abi', () => ({
-  getAbi: vi.fn()
-}))
+vi.mock("../abi", () => ({
+  getAbi: vi.fn(),
+}));
 
 // Import the mocked functions
-import { getContractAddress } from '../config/addresses'
-import { getAbi } from '../abi'
+import { getContractAddress } from "../config/addresses";
+import { getAbi } from "../abi";
 
 // Type the mocked functions
-const mockGetContractAddress = vi.mocked(getContractAddress)
-const mockGetAbi = vi.mocked(getAbi)
+const mockGetContractAddress = vi.mocked(getContractAddress);
+const mockGetAbi = vi.mocked(getAbi);
 
 // Test account
-const testAccount = privateKeyToAccount('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80')
+const testAccount = privateKeyToAccount(
+  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+);
 
-describe('ProtocolController', () => {
-  let controller: ProtocolController
-  let mockContext: ControllerContext
-  let mockWalletClient: any
+describe("ProtocolController", () => {
+  let controller: ProtocolController;
+  let mockContext: ControllerContext;
+  let mockWalletClient: any;
 
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.clearAllMocks();
 
     mockWalletClient = createWalletClient({
       account: testAccount,
       chain: mokshaTestnet,
-      transport: http('https://rpc.moksha.vana.org')
-    })
+      transport: http("https://rpc.moksha.vana.org"),
+    });
 
     mockContext = {
       walletClient: mockWalletClient,
-      relayerUrl: 'https://test-relayer.com'
-    }
+      relayerUrl: "https://test-relayer.com",
+    };
 
-    controller = new ProtocolController(mockContext)
-  })
+    controller = new ProtocolController(mockContext);
+  });
 
-  describe('getContract', () => {
-    it('should return contract info for valid contract', () => {
-      const mockAddress = '0x1234567890123456789012345678901234567890'
-      const mockAbi = [{ type: 'function', name: 'test' }]
-      
-      mockGetContractAddress.mockReturnValue(mockAddress)
-      mockGetAbi.mockReturnValue(mockAbi)
+  describe("getContract", () => {
+    it("should return contract info for valid contract", () => {
+      const mockAddress = "0x1234567890123456789012345678901234567890";
+      const mockAbi = [{ type: "function", name: "test" }];
 
-      const result = controller.getContract('DataRegistry')
+      mockGetContractAddress.mockReturnValue(mockAddress);
+      mockGetAbi.mockReturnValue(mockAbi);
+
+      const result = controller.getContract("DataRegistry");
 
       expect(result).toEqual({
         address: mockAddress,
-        abi: mockAbi
-      })
+        abi: mockAbi,
+      });
 
-      expect(getContractAddress).toHaveBeenCalledWith(14800, 'DataRegistry')
-      expect(getAbi).toHaveBeenCalledWith('DataRegistry')
-    })
+      expect(getContractAddress).toHaveBeenCalledWith(14800, "DataRegistry");
+      expect(getAbi).toHaveBeenCalledWith("DataRegistry");
+    });
 
-    it('should throw ContractNotFoundError for non-existent contract', () => {
+    it("should throw ContractNotFoundError for non-existent contract", () => {
       mockGetContractAddress.mockImplementation(() => {
-        throw new Error('Contract address not found for NonExistentContract on chain 14800')
-      })
+        throw new Error(
+          "Contract address not found for NonExistentContract on chain 14800"
+        );
+      });
 
       expect(() => {
-        controller.getContract('DataRegistry')
-      }).toThrow(ContractNotFoundError)
-    })
+        controller.getContract("DataRegistry");
+      }).toThrow(ContractNotFoundError);
+    });
 
-    it('should handle missing chain ID gracefully', () => {
+    it("should handle missing chain ID gracefully", () => {
       // Mock wallet client without chain
       const noChainClient = {
         ...mockWalletClient,
-        chain: undefined
-      }
+        chain: undefined,
+      };
 
       const noChainController = new ProtocolController({
         walletClient: noChainClient,
-        relayerUrl: 'https://test-relayer.com'
-      })
+        relayerUrl: "https://test-relayer.com",
+      });
 
       expect(() => {
-        noChainController.getContract('DataRegistry')
-      }).toThrow('Chain ID not available from wallet client')
-    })
+        noChainController.getContract("DataRegistry");
+      }).toThrow("Chain ID not available from wallet client");
+    });
 
-    it('should work with all contract types', () => {
-      mockGetContractAddress.mockReturnValue('0x1234567890123456789012345678901234567890')
-      mockGetAbi.mockReturnValue([])
+    it("should work with all contract types", () => {
+      mockGetContractAddress.mockReturnValue(
+        "0x1234567890123456789012345678901234567890"
+      );
+      mockGetAbi.mockReturnValue([]);
 
       // Test a few different contract types
-      const contracts = ['DataRegistry', 'PermissionRegistry', 'TeePoolPhala', 'ComputeEngine'] as const
+      const contracts = [
+        "DataRegistry",
+        "PermissionRegistry",
+        "TeePoolPhala",
+        "ComputeEngine",
+      ] as const;
 
-      contracts.forEach(contractName => {
-        const result = controller.getContract(contractName)
-        expect(result).toHaveProperty('address')
-        expect(result).toHaveProperty('abi')
-      })
-    })
-  })
+      contracts.forEach((contractName) => {
+        const result = controller.getContract(contractName);
+        expect(result).toHaveProperty("address");
+        expect(result).toHaveProperty("abi");
+      });
+    });
 
-  describe('getAvailableContracts', () => {
-    it('should return array of all available contract names', () => {
-      const contracts = controller.getAvailableContracts()
+    it("should handle unexpected errors gracefully", () => {
+      mockGetContractAddress.mockImplementation(() => {
+        throw new Error("Unexpected error");
+      });
 
-      expect(Array.isArray(contracts)).toBe(true)
-      expect(contracts.length).toBeGreaterThan(0)
+      expect(() => {
+        controller.getContract("DataRegistry");
+      }).toThrow("Unexpected error");
+    });
+
+    it("should handle non-Error exceptions in getContract", () => {
+      // Mock a rejection with a non-Error object
+      mockGetContractAddress.mockImplementation(() => {
+        throw "String error message";
+      });
+
+      expect(() => {
+        controller.getContract("DataRegistry");
+      }).toThrow("Failed to get contract DataRegistry: Unknown error");
+    });
+
+    it("should handle undefined/null exceptions in getContract", () => {
+      // Mock a rejection with null/undefined
+      mockGetContractAddress.mockImplementation(() => {
+        throw null;
+      });
+
+      expect(() => {
+        controller.getContract("DataRegistry");
+      }).toThrow("Failed to get contract DataRegistry: Unknown error");
+    });
+
+    it("should handle object exceptions in getContract", () => {
+      // Mock a rejection with an object that's not an Error
+      mockGetContractAddress.mockImplementation(() => {
+        throw { code: 500, message: "Server error" };
+      });
+
+      expect(() => {
+        controller.getContract("DataRegistry");
+      }).toThrow("Failed to get contract DataRegistry: Unknown error");
+    });
+  });
+
+  describe("getAvailableContracts", () => {
+    it("should return array of all available contract names", () => {
+      const contracts = controller.getAvailableContracts();
+
+      expect(Array.isArray(contracts)).toBe(true);
+      expect(contracts.length).toBeGreaterThan(0);
 
       // Should include core contracts
-      expect(contracts).toContain('PermissionRegistry')
-      expect(contracts).toContain('DataRegistry')
-      expect(contracts).toContain('TeePoolPhala')
-      expect(contracts).toContain('ComputeEngine')
+      expect(contracts).toContain("PermissionRegistry");
+      expect(contracts).toContain("DataRegistry");
+      expect(contracts).toContain("TeePoolPhala");
+      expect(contracts).toContain("ComputeEngine");
 
       // Should include DLP contracts
-      expect(contracts).toContain('DLPRegistry')
-      expect(contracts).toContain('VanaEpoch')
+      expect(contracts).toContain("DLPRegistry");
+      expect(contracts).toContain("VanaEpoch");
 
       // Should include TEE pool variants
-      expect(contracts).toContain('TeePoolEphemeralStandard')
-      expect(contracts).toContain('TeePoolPersistentStandard')
-    })
+      expect(contracts).toContain("TeePoolEphemeralStandard");
+      expect(contracts).toContain("TeePoolPersistentStandard");
+    });
 
-    it('should return unique contract names', () => {
-      const contracts = controller.getAvailableContracts()
-      const uniqueContracts = [...new Set(contracts)]
+    it("should return unique contract names", () => {
+      const contracts = controller.getAvailableContracts();
+      const uniqueContracts = [...new Set(contracts)];
 
-      expect(contracts).toHaveLength(uniqueContracts.length)
-    })
+      expect(contracts).toHaveLength(uniqueContracts.length);
+    });
 
-    it('should return consistent results across calls', () => {
-      const contracts1 = controller.getAvailableContracts()
-      const contracts2 = controller.getAvailableContracts()
+    it("should return consistent results across calls", () => {
+      const contracts1 = controller.getAvailableContracts();
+      const contracts2 = controller.getAvailableContracts();
 
-      expect(contracts1).toEqual(contracts2)
-    })
-  })
+      expect(contracts1).toEqual(contracts2);
+    });
+  });
 
-  describe('getChainId', () => {
-    it('should return chain ID from wallet client', () => {
-      const chainId = controller.getChainId()
-      expect(chainId).toBe(14800)
-    })
+  describe("getChainId", () => {
+    it("should return chain ID from wallet client", () => {
+      const chainId = controller.getChainId();
+      expect(chainId).toBe(14800);
+    });
 
-    it('should throw error when chain ID is not available', () => {
+    it("should throw error when chain ID is not available", () => {
       const noChainClient = {
         ...mockWalletClient,
-        chain: undefined
-      }
+        chain: undefined,
+      };
 
       const noChainController = new ProtocolController({
         walletClient: noChainClient,
-        relayerUrl: 'https://test-relayer.com'
-      })
+        relayerUrl: "https://test-relayer.com",
+      });
 
       expect(() => {
-        noChainController.getChainId()
-      }).toThrow('Chain ID not available from wallet client')
-    })
-  })
+        noChainController.getChainId();
+      }).toThrow("Chain ID not available from wallet client");
+    });
+  });
 
-  describe('getChainName', () => {
-    it('should return chain name from wallet client', () => {
-      const chainName = controller.getChainName()
-      expect(chainName).toBe('Vana Moksha Testnet')
-    })
+  describe("getChainName", () => {
+    it("should return chain name from wallet client", () => {
+      const chainName = controller.getChainName();
+      expect(chainName).toBe("Vana Moksha Testnet");
+    });
 
-    it('should throw error when chain name is not available', () => {
+    it("should throw error when chain name is not available", () => {
       const noChainClient = {
         ...mockWalletClient,
-        chain: { ...mockWalletClient.chain, name: undefined }
-      }
+        chain: { ...mockWalletClient.chain, name: undefined },
+      };
 
       const noChainController = new ProtocolController({
         walletClient: noChainClient,
-        relayerUrl: 'https://test-relayer.com'
-      })
+        relayerUrl: "https://test-relayer.com",
+      });
 
       expect(() => {
-        noChainController.getChainName()
-      }).toThrow('Chain name not available from wallet client')
-    })
-  })
+        noChainController.getChainName();
+      }).toThrow("Chain name not available from wallet client");
+    });
+  });
 
-  describe('Integration with contract system', () => {
-    it('should properly integrate with address configuration', () => {
-      mockGetContractAddress.mockReturnValue('0x1234567890123456789012345678901234567890')
+  describe("Integration with contract system", () => {
+    it("should properly integrate with address configuration", () => {
+      mockGetContractAddress.mockReturnValue(
+        "0x1234567890123456789012345678901234567890"
+      );
 
-      controller.getContract('DataRegistry')
+      controller.getContract("DataRegistry");
 
       // Should call with correct chain ID
-      expect(getContractAddress).toHaveBeenCalledWith(14800, 'DataRegistry')
-    })
+      expect(getContractAddress).toHaveBeenCalledWith(14800, "DataRegistry");
+    });
 
-    it('should properly integrate with ABI system', () => {
-      mockGetContractAddress.mockReturnValue('0x1234567890123456789012345678901234567890')
-      const mockAbi = [{ type: 'function', name: 'version', inputs: [], outputs: [] }]
-      mockGetAbi.mockReturnValue(mockAbi)
+    it("should properly integrate with ABI system", () => {
+      mockGetContractAddress.mockReturnValue(
+        "0x1234567890123456789012345678901234567890"
+      );
+      const mockAbi = [
+        { type: "function", name: "version", inputs: [], outputs: [] },
+      ];
+      mockGetAbi.mockReturnValue(mockAbi);
 
-      const result = controller.getContract('DataRegistry')
+      const result = controller.getContract("DataRegistry");
 
-      expect(getAbi).toHaveBeenCalledWith('DataRegistry')
-      expect(result.abi).toBe(mockAbi)
-    })
-  })
+      expect(getAbi).toHaveBeenCalledWith("DataRegistry");
+      expect(result.abi).toBe(mockAbi);
+    });
+  });
 
-  describe('Error scenarios', () => {
-    it('should handle ABI retrieval errors', () => {
-      mockGetContractAddress.mockReturnValue('0x1234567890123456789012345678901234567890')
+  describe("Error scenarios", () => {
+    it("should handle ABI retrieval errors", () => {
+      mockGetContractAddress.mockReturnValue(
+        "0x1234567890123456789012345678901234567890"
+      );
       mockGetAbi.mockImplementation(() => {
-        throw new Error('ABI not found')
-      })
+        throw new Error("ABI not found");
+      });
 
       expect(() => {
-        controller.getContract('DataRegistry')
-      }).toThrow('ABI not found')
-    })
-
-    it('should handle unexpected errors gracefully', () => {
-      mockGetContractAddress.mockImplementation(() => {
-        throw new Error('Unexpected error')
-      })
-
-      expect(() => {
-        controller.getContract('DataRegistry')
-      }).toThrow('Unexpected error')
-    })
-  })
-})
+        controller.getContract("DataRegistry");
+      }).toThrow("ABI not found");
+    });
+  });
+});

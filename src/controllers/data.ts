@@ -239,6 +239,15 @@ export class DataController {
       const count = await dataRegistry.read.filesCount();
       return Number(count);
     } catch (error) {
+      // Re-throw validation errors (like missing chain ID)
+      if (
+        error instanceof Error &&
+        error.message === "Chain ID not available"
+      ) {
+        throw error;
+      }
+
+      // Return 0 for contract errors
       console.error("Failed to fetch total files count:", error);
       return 0;
     }

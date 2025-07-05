@@ -101,13 +101,13 @@ export async function retrieveGrantFile(
       try {
         // Create a timeout promise
         const timeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error('Request timeout')), 10000);
+          setTimeout(() => reject(new Error("Request timeout")), 10000);
         });
-        
+
         // Race between fetch and timeout
         const response = await Promise.race([
           fetch(gatewayUrl),
-          timeoutPromise
+          timeoutPromise,
         ]);
 
         if (response.ok) {
@@ -192,7 +192,7 @@ function sortObjectKeys(obj: any): any {
  * Validates that a grant file has the required structure.
  */
 export function validateGrantFile(data: any): data is GrantFile {
-  return (
+  return !!(
     data &&
     typeof data.operation === "string" &&
     Array.isArray(data.files) &&

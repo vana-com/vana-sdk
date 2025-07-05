@@ -8,6 +8,9 @@ import { vanaMainnet } from "../config/chains";
 // Cache for contract instances
 const controllers = new Map<VanaContract, GetContractReturnType<Abi>>();
 
+// Export cache for testing
+export const __controllersCache = controllers;
+
 /**
  * Gets a typed contract instance for the specified contract name
  *

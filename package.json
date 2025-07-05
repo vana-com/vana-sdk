@@ -30,6 +30,7 @@
   ],
   "scripts": {
     "build": "rimraf dist && tsc",
+    "build:demo": "npm run build && cd examples/vana-sdk-demo && npm ci && npm run build",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write .",
     "test": "vitest run",

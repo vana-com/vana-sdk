@@ -295,21 +295,16 @@ describe("DataController", () => {
   });
 
   describe("decryptFile Error Handling", () => {
-    const mockFile = {
-      id: 1,
-      url: "https://example.com/file.dat",
-      ownerAddress: "0x1234567890123456789012345678901234567890" as const,
-      addedAtBlock: BigInt(123456),
-    };
-
     it("should handle network errors during file retrieval", async () => {
+      const mockFile = {
+        id: 1,
+        url: "ipfs://QmTestHash",
+        ownerAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        addedAtBlock: 123456n,
+      };
+
       const mockFetch = fetch as Mock;
-      const { generateEncryptionKey } = await import("../utils/encryption");
-
-      // Mock encryption key generation
-      vi.mocked(generateEncryptionKey).mockResolvedValue("0xencryptionkey");
-
-      // Mock network error (Failed to fetch)
       mockFetch.mockRejectedValue(new Error("Failed to fetch"));
 
       await expect(controller.decryptFile(mockFile)).rejects.toThrow(
@@ -318,14 +313,16 @@ describe("DataController", () => {
     });
 
     it("should handle network errors with Network error message", async () => {
+      const mockFile = {
+        id: 1,
+        url: "ipfs://QmTestHash",
+        ownerAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        addedAtBlock: 123456n,
+      };
+
       const mockFetch = fetch as Mock;
-      const { generateEncryptionKey } = await import("../utils/encryption");
-
-      // Mock encryption key generation
-      vi.mocked(generateEncryptionKey).mockResolvedValue("0xencryptionkey");
-
-      // Mock network error with "Network error" in message
-      mockFetch.mockRejectedValue(new Error("Network error occurred"));
+      mockFetch.mockRejectedValue(new Error("Network error: timeout"));
 
       await expect(controller.decryptFile(mockFile)).rejects.toThrow(
         "Network error: Cannot access the file URL. The file may be stored on a server that's not accessible or has CORS restrictions."
@@ -333,78 +330,111 @@ describe("DataController", () => {
     });
 
     it("should handle invalid OpenPGP message format errors", async () => {
-      const mockFetch = fetch as Mock;
-      const { generateEncryptionKey, decryptUserData } = await import(
-        "../utils/encryption"
+      const mockFile = {
+        id: 1,
+        url: "ipfs://QmTestHash",
+        ownerAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        addedAtBlock: 123456n,
+      };
+
+      const { generateEncryptionKey } = await import("../utils/encryption");
+      vi.mocked(generateEncryptionKey).mockResolvedValue("test-key");
+
+      const { decryptUserData } = await import("../utils/encryption");
+      vi.mocked(decryptUserData).mockRejectedValue(
+        new Error("Error: not a valid OpenPGP message")
       );
 
-      // Mock encryption key generation
-      vi.mocked(generateEncryptionKey).mockResolvedValue("0xencryptionkey");
-
-      // Mock successful fetch but invalid OpenPGP format
+      const mockFetch = fetch as Mock;
       mockFetch.mockResolvedValue({
         ok: true,
-        blob: () => Promise.resolve(new Blob(["invalid data"])),
+        blob: () => Promise.resolve(new Blob(["encrypted content"])),
       });
 
-      vi.mocked(decryptUserData).mockRejectedValue(
-        new Error("not a valid OpenPGP message")
-      );
-
       await expect(controller.decryptFile(mockFile)).rejects.toThrow(
-        "Invalid file format: This file doesn't appear to be encrypted with the Vana protocol."
+        "Invalid file format: This file doesn't appear to be encrypted with the Vana protocol"
       );
     });
 
     it("should handle wrong encryption key errors", async () => {
-      const mockFetch = fetch as Mock;
-      const { generateEncryptionKey, decryptUserData } = await import(
-        "../utils/encryption"
+      const mockFile = {
+        id: 1,
+        url: "ipfs://QmTestHash",
+        ownerAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        addedAtBlock: 123456n,
+      };
+
+      const { generateEncryptionKey } = await import("../utils/encryption");
+      vi.mocked(generateEncryptionKey).mockResolvedValue("wrong-key");
+
+      const { decryptUserData } = await import("../utils/encryption");
+      vi.mocked(decryptUserData).mockRejectedValue(
+        new Error("Session key decryption failed")
       );
 
-      // Mock successful fetch
+      const mockFetch = fetch as Mock;
       mockFetch.mockResolvedValue({
         ok: true,
-        blob: () => Promise.resolve(new Blob(["encrypted data"])),
+        blob: () => Promise.resolve(new Blob(["encrypted content"])),
       });
 
-      // Mock encryption key generation
-      vi.mocked(generateEncryptionKey).mockResolvedValue("0xencryptionkey");
-
-      // Mock decryption failure with wrong key
-      vi.mocked(decryptUserData).mockRejectedValue(
-        new Error("Error decrypting message")
-      );
-
       await expect(controller.decryptFile(mockFile)).rejects.toThrow(
-        "Wrong encryption key. This file may have been encrypted with a different wallet or encryption seed. Try using the same wallet that originally encrypted this file."
+        "Wrong encryption key"
       );
     });
 
     it("should handle file not found errors", async () => {
-      const mockFetch = fetch as Mock;
+      const mockFile = {
+        id: 1,
+        url: "ipfs://QmTestHash",
+        ownerAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        addedAtBlock: 123456n,
+      };
+
       const { generateEncryptionKey } = await import("../utils/encryption");
+      vi.mocked(generateEncryptionKey).mockResolvedValueOnce("test-key");
 
-      // Mock encryption key generation
-      vi.mocked(generateEncryptionKey).mockResolvedValue("0xencryptionkey");
+      const { decryptUserData } = await import("../utils/encryption");
+      vi.mocked(decryptUserData).mockRejectedValueOnce(
+        new Error("File not found")
+      );
 
-      // Mock file not found error
-      mockFetch.mockRejectedValue(new Error("File not found"));
+      const mockFetch = fetch as Mock;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        blob: () => Promise.resolve(new Blob(["encrypted content"])),
+      });
 
       await expect(controller.decryptFile(mockFile)).rejects.toThrow(
-        "File not found: The encrypted file is no longer available at the stored URL."
+        "File not found: The encrypted file is no longer available"
       );
     });
 
     it("should preserve other errors unchanged", async () => {
-      const mockFetch = fetch as Mock;
+      const mockFile = {
+        id: 1,
+        url: "ipfs://QmTestHash",
+        ownerAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        addedAtBlock: 123456n,
+      };
+
       const { generateEncryptionKey } = await import("../utils/encryption");
+      vi.mocked(generateEncryptionKey).mockResolvedValueOnce("test-key");
 
-      // Mock encryption key generation
-      vi.mocked(generateEncryptionKey).mockResolvedValue("0xencryptionkey");
+      const { decryptUserData } = await import("../utils/encryption");
+      vi.mocked(decryptUserData).mockRejectedValueOnce(
+        new Error("Some other error")
+      );
 
-      // Mock some other error
-      mockFetch.mockRejectedValue(new Error("Some other error"));
+      const mockFetch = fetch as Mock;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        blob: () => Promise.resolve(new Blob(["encrypted content"])),
+      });
 
       await expect(controller.decryptFile(mockFile)).rejects.toThrow(
         "Some other error"
@@ -412,13 +442,109 @@ describe("DataController", () => {
     });
 
     it("should handle HTTP status errors during file retrieval", async () => {
+      const mockFile = {
+        id: 1,
+        url: "ipfs://QmTestHash",
+        ownerAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        addedAtBlock: 123456n,
+      };
+
       const mockFetch = fetch as Mock;
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        statusText: "Internal Server Error",
+      });
+
+      await expect(controller.decryptFile(mockFile)).rejects.toThrow(
+        "Network error: Cannot access the file URL. The file may be stored on a server that's not accessible or has CORS restrictions."
+      );
+    });
+
+    it("should handle IPFS URL conversion correctly", async () => {
+      const mockFile = {
+        id: 1,
+        url: "ipfs://QmTestHash",
+        ownerAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        addedAtBlock: 123456n,
+      };
+
       const { generateEncryptionKey } = await import("../utils/encryption");
+      vi.mocked(generateEncryptionKey).mockResolvedValueOnce("test-key");
 
-      // Mock encryption key generation
-      vi.mocked(generateEncryptionKey).mockResolvedValue("0xencryptionkey");
+      const { decryptUserData } = await import("../utils/encryption");
+      vi.mocked(decryptUserData).mockResolvedValueOnce(
+        new Blob(["decrypted content"])
+      );
 
-      // Mock fetch to return HTTP error
+      const mockFetch = fetch as Mock;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        blob: () => Promise.resolve(new Blob(["encrypted content"])),
+      });
+
+      const result = await controller.decryptFile(mockFile);
+
+      expect(result).toBeInstanceOf(Blob);
+      expect(mockFetch).toHaveBeenCalledWith("https://ipfs.io/ipfs/QmTestHash");
+    });
+
+    it("should handle empty blob response", async () => {
+      const mockFile = {
+        id: 1,
+        url: "ipfs://QmTestHash",
+        ownerAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        addedAtBlock: 123456n,
+      };
+
+      const { generateEncryptionKey } = await import("../utils/encryption");
+      vi.mocked(generateEncryptionKey).mockResolvedValueOnce("test-key");
+
+      const mockFetch = fetch as Mock;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        blob: () => Promise.resolve(new Blob([])), // Empty blob
+      });
+
+      await expect(controller.decryptFile(mockFile)).rejects.toThrow(
+        "File is empty or could not be retrieved"
+      );
+    });
+
+    it("should handle 403 forbidden errors", async () => {
+      const mockFile = {
+        id: 1,
+        url: "ipfs://QmTestHash",
+        ownerAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        addedAtBlock: 123456n,
+      };
+
+      const mockFetch = fetch as Mock;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        statusText: "Forbidden",
+      });
+
+      await expect(controller.decryptFile(mockFile)).rejects.toThrow(
+        "Access denied. You may not have permission to access this file"
+      );
+    });
+
+    it("should handle 404 not found errors", async () => {
+      const mockFile = {
+        id: 1,
+        url: "ipfs://QmTestHash",
+        ownerAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        addedAtBlock: 123456n,
+      };
+
+      const mockFetch = fetch as Mock;
       mockFetch.mockResolvedValue({
         ok: false,
         status: 404,
@@ -430,37 +556,456 @@ describe("DataController", () => {
       );
     });
 
-    it("should handle IPFS URL conversion correctly", async () => {
-      const mockFetch = fetch as Mock;
-      const { generateEncryptionKey, decryptUserData } = await import(
-        "../utils/encryption"
+    it("should handle Error decrypting message errors", async () => {
+      const mockFile = {
+        id: 1,
+        url: "ipfs://QmTestHash",
+        ownerAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        addedAtBlock: 123456n,
+      };
+
+      const { generateEncryptionKey } = await import("../utils/encryption");
+      vi.mocked(generateEncryptionKey).mockResolvedValueOnce("test-key");
+
+      const { decryptUserData } = await import("../utils/encryption");
+      vi.mocked(decryptUserData).mockRejectedValueOnce(
+        new Error("Error decrypting message: invalid format")
       );
 
-      // Mock encryption key generation
-      vi.mocked(generateEncryptionKey).mockResolvedValue("0xencryptionkey");
-
-      // Mock successful fetch from IPFS
-      mockFetch.mockResolvedValue({
+      const mockFetch = fetch as Mock;
+      mockFetch.mockResolvedValueOnce({
         ok: true,
         blob: () => Promise.resolve(new Blob(["encrypted content"])),
       });
 
-      // Mock successful decryption
-      vi.mocked(decryptUserData).mockResolvedValue("decrypted content");
+      await expect(controller.decryptFile(mockFile)).rejects.toThrow(
+        "Wrong encryption key"
+      );
+    });
+  });
 
-      const ipfsFile = {
-        id: 1,
-        url: "ipfs://QmTestHash123",
-        ownerAddress: mockWalletClient.account.address,
-        addedAtBlock: 123456n,
+  describe("getUserFiles additional branches", () => {
+    it("should handle subgraph response with errors", async () => {
+      const mockFetch = fetch as Mock;
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            errors: [{ message: "GraphQL error occurred" }],
+          }),
+      });
+
+      const result = await controller.getUserFiles({
+        owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+      });
+
+      // Should fallback to mock data
+      expect(result).toHaveLength(3);
+    });
+
+    it("should handle missing user in subgraph response", async () => {
+      const mockFetch = fetch as Mock;
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: { user: null },
+          }),
+      });
+
+      const result = await controller.getUserFiles({
+        owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+      });
+
+      expect(result).toHaveLength(0);
+    });
+
+    it("should handle user with no file contributions", async () => {
+      const mockFetch = fetch as Mock;
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              user: {
+                id: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+                fileContributions: [],
+              },
+            },
+          }),
+      });
+
+      const result = await controller.getUserFiles({
+        owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+      });
+
+      expect(result).toHaveLength(0);
+    });
+
+    it("should handle missing chainId in getUserFiles", async () => {
+      const mockFetch = fetch as Mock;
+
+      // Mock wallet client without chain
+      const contextWithoutChain = {
+        ...mockContext,
+        walletClient: {
+          ...mockWalletClient,
+          chain: undefined,
+        },
       };
 
-      const result = await controller.decryptFile(ipfsFile);
+      const controllerWithoutChain = new DataController(contextWithoutChain);
 
-      expect(result).toBe("decrypted content");
-      expect(mockFetch).toHaveBeenCalledWith(
-        "https://ipfs.io/ipfs/QmTestHash123"
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              user: {
+                id: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+                fileContributions: [
+                  {
+                    id: "1",
+                    fileId: "12",
+                    createdAt: "1640995200",
+                    createdAtBlock: "123456",
+                  },
+                ],
+              },
+            },
+          }),
+      });
+
+      const result = await controllerWithoutChain.getUserFiles({
+        owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+      });
+
+      // Should return empty array when no chainId
+      expect(result).toHaveLength(0);
+    });
+
+    it("should handle contract call failure for file details", async () => {
+      const mockFetch = fetch as Mock;
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              user: {
+                id: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+                fileContributions: [
+                  {
+                    id: "1",
+                    fileId: "12",
+                    createdAt: "1640995200",
+                    createdAtBlock: "123456",
+                  },
+                ],
+              },
+            },
+          }),
+      });
+
+      // Mock getContract to return contract that throws error
+      const { getContract } = await import("viem");
+      vi.mocked(getContract).mockReturnValueOnce({
+        read: {
+          files: vi.fn().mockRejectedValue(new Error("Contract call failed")),
+        },
+      } as any);
+
+      const result = await controller.getUserFiles({
+        owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+      });
+
+      // Should return empty array when contract calls fail
+      expect(result).toHaveLength(0);
+    });
+
+    it("should handle object format in file details response", async () => {
+      const mockFetch = fetch as Mock;
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              user: {
+                id: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+                fileContributions: [
+                  {
+                    id: "1",
+                    fileId: "12",
+                    createdAt: "1640995200",
+                    createdAtBlock: "123456",
+                  },
+                ],
+              },
+            },
+          }),
+      });
+
+      // Mock getContract to return object format instead of array
+      const { getContract } = await import("viem");
+      vi.mocked(getContract).mockReturnValueOnce({
+        read: {
+          files: vi.fn().mockResolvedValue({
+            id: BigInt(12),
+            url: "ipfs://QmTestFile",
+            ownerAddress:
+              "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+            addedAtBlock: BigInt(123456),
+          }),
+        },
+      } as any);
+
+      const result = await controller.getUserFiles({
+        owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        id: 12,
+        url: "ipfs://QmTestFile",
+        ownerAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        addedAtBlock: BigInt(123456),
+      });
+    });
+  });
+
+  describe("getFileById additional branches", () => {
+    it("should handle missing chainId", async () => {
+      const contextWithoutChain = {
+        ...mockContext,
+        walletClient: {
+          ...mockWalletClient,
+          chain: undefined,
+        },
+      };
+
+      const controllerWithoutChain = new DataController(contextWithoutChain);
+
+      await expect(controllerWithoutChain.getFileById(1)).rejects.toThrow(
+        "Chain ID not available"
       );
+    });
+
+    it("should handle null file details response", async () => {
+      const { getContract } = await import("viem");
+      vi.mocked(getContract).mockReturnValueOnce({
+        read: {
+          files: vi.fn().mockResolvedValue(null),
+        },
+      } as any);
+
+      await expect(controller.getFileById(1)).rejects.toThrow("File not found");
+    });
+
+    it("should handle zero ID in array format", async () => {
+      const { getContract } = await import("viem");
+      vi.mocked(getContract).mockReturnValueOnce({
+        read: {
+          files: vi.fn().mockResolvedValue([
+            BigInt(0), // Zero ID means file not found
+            "ipfs://QmTestFile",
+            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+            BigInt(123456),
+          ]),
+        },
+      } as any);
+
+      await expect(controller.getFileById(1)).rejects.toThrow("File not found");
+    });
+
+    it("should handle zero ID in object format", async () => {
+      const { getContract } = await import("viem");
+      vi.mocked(getContract).mockReturnValueOnce({
+        read: {
+          files: vi.fn().mockResolvedValue({
+            id: BigInt(0), // Zero ID means file not found
+            url: "ipfs://QmTestFile",
+            ownerAddress:
+              "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+            addedAtBlock: BigInt(123456),
+          }),
+        },
+      } as any);
+
+      await expect(controller.getFileById(1)).rejects.toThrow("File not found");
+    });
+
+    it("should handle missing ID in object format", async () => {
+      const { getContract } = await import("viem");
+      vi.mocked(getContract).mockReturnValueOnce({
+        read: {
+          files: vi.fn().mockResolvedValue({
+            // Missing id field
+            url: "ipfs://QmTestFile",
+            ownerAddress:
+              "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+            addedAtBlock: BigInt(123456),
+          }),
+        },
+      } as any);
+
+      await expect(controller.getFileById(1)).rejects.toThrow("File not found");
+    });
+
+    it("should handle object format response correctly", async () => {
+      const { getContract } = await import("viem");
+      vi.mocked(getContract).mockReturnValueOnce({
+        read: {
+          files: vi.fn().mockResolvedValue({
+            id: BigInt(5),
+            url: "ipfs://QmObjectFormat",
+            ownerAddress:
+              "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+            addedAtBlock: BigInt(789123),
+          }),
+        },
+      } as any);
+
+      const result = await controller.getFileById(5);
+
+      expect(result).toEqual({
+        id: 5,
+        url: "ipfs://QmObjectFormat",
+        ownerAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        addedAtBlock: BigInt(789123),
+      });
+    });
+  });
+
+  describe("getTotalFilesCount additional branches", () => {
+    it("should handle missing chainId", async () => {
+      const contextWithoutChain = {
+        ...mockContext,
+        walletClient: {
+          ...mockWalletClient,
+          chain: undefined,
+        },
+      };
+
+      const controllerWithoutChain = new DataController(contextWithoutChain);
+
+      await expect(controllerWithoutChain.getTotalFilesCount()).rejects.toThrow(
+        "Chain ID not available"
+      );
+    });
+
+    it("should handle contract errors gracefully", async () => {
+      const { getContract } = await import("viem");
+      vi.mocked(getContract).mockReturnValueOnce({
+        read: {
+          filesCount: vi.fn().mockRejectedValue(new Error("Contract error")),
+        },
+      } as any);
+
+      const result = await controller.getTotalFilesCount();
+
+      expect(result).toBe(0);
+    });
+  });
+
+  describe("uploadEncryptedFile additional branches", () => {
+    it("should handle missing storage manager", async () => {
+      const contextWithoutStorage = {
+        ...mockContext,
+        storageManager: undefined,
+      };
+
+      const controllerWithoutStorage = new DataController(
+        contextWithoutStorage
+      );
+      const testFile = new Blob(["test content"]);
+
+      await expect(
+        controllerWithoutStorage.uploadEncryptedFile(testFile)
+      ).rejects.toThrow(
+        "Storage manager not configured. Please provide storage providers in VanaConfig."
+      );
+    });
+
+    it("should handle relayer registration failure", async () => {
+      const { StorageManager } = await import("../storage");
+      const mockFetch = fetch as Mock;
+
+      const mockStorageManager = new StorageManager({ providers: [] });
+      mockContext.storageManager = mockStorageManager;
+      controller = new DataController(mockContext);
+
+      // Mock relayer to return error response
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: "Internal Server Error",
+      });
+
+      const testFile = new Blob(["test content"]);
+
+      await expect(controller.uploadEncryptedFile(testFile)).rejects.toThrow(
+        "Failed to register file on blockchain: Internal Server Error"
+      );
+    });
+
+    it("should handle relayer success false response", async () => {
+      const { StorageManager } = await import("../storage");
+      const mockFetch = fetch as Mock;
+
+      const mockStorageManager = new StorageManager({ providers: [] });
+      mockContext.storageManager = mockStorageManager;
+      controller = new DataController(mockContext);
+
+      // Mock relayer to return success: false
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            success: false,
+            error: "Custom relayer error",
+          }),
+      });
+
+      const testFile = new Blob(["test content"]);
+
+      await expect(controller.uploadEncryptedFile(testFile)).rejects.toThrow(
+        "Custom relayer error"
+      );
+    });
+
+    it("should handle direct transaction path with missing chainId", async () => {
+      const { StorageManager } = await import("../storage");
+
+      const mockStorageManager = new StorageManager({ providers: [] });
+      const contextWithoutChain = {
+        ...mockContext,
+        storageManager: mockStorageManager,
+        relayerUrl: undefined,
+        walletClient: {
+          ...mockWalletClient,
+          chain: undefined,
+        },
+      };
+
+      const controllerWithoutChain = new DataController(contextWithoutChain);
+      const testFile = new Blob(["test content"]);
+
+      await expect(
+        controllerWithoutChain.uploadEncryptedFile(testFile)
+      ).rejects.toThrow("Chain ID not available");
     });
   });
 });

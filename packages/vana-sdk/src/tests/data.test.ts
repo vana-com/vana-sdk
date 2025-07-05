@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
 import { DataController } from "../controllers/data";
 import { ControllerContext } from "../controllers/permissions";
+import { mokshaTestnet } from "../config/chains";
 
 // Mock ALL external dependencies for pure unit tests
 vi.mock("../utils/encryption", () => ({
@@ -1007,6 +1008,166 @@ describe("DataController", () => {
       await expect(
         controllerWithoutChain.uploadEncryptedFile(testFile),
       ).rejects.toThrow("Chain ID not available");
+    });
+
+    it("should handle direct transaction path successfully", async () => {
+      const { StorageManager } = await import("../storage");
+
+      const mockStorageManager = new StorageManager();
+      const mockWalletClient = {
+        ...mockContext.walletClient,
+        writeContract: vi.fn().mockResolvedValue("0xsuccessfultxhash"),
+        chain: mokshaTestnet,
+      };
+
+      const contextWithDirectTx = {
+        ...mockContext,
+        storageManager: mockStorageManager,
+        relayerUrl: undefined, // No relayer URL forces direct transaction
+        walletClient: mockWalletClient,
+      };
+
+      const controller = new DataController(contextWithDirectTx);
+      const testFile = new Blob(["test content"]);
+
+      const result = await controller.uploadEncryptedFile(testFile);
+
+      expect(result.fileId).toBe(0); // Direct transaction returns 0 as per TODO comment
+      expect(result.url).toBe("https://ipfs.io/ipfs/QmTestHash");
+      expect(result.size).toBe(1024);
+      expect(result.transactionHash).toBe("0xsuccessfultxhash");
+    });
+  });
+
+  describe("convertIpfsUrl private method testing", () => {
+    it("should handle non-IPFS URLs", async () => {
+      const controller = new DataController(mockContext);
+
+      // Test via decryptFile which calls convertIpfsUrl internally
+      const testFile: import("../types").UserFile = {
+        id: 1,
+        url: "https://example.com/file.dat", // Non-IPFS URL
+        ownerAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        addedAtBlock: BigInt(123456),
+      };
+
+      // Mock fetch to simulate file retrieval
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        blob: () => Promise.resolve(new Blob(["encrypted content"])),
+      });
+
+      const { decryptUserData } = await import("../utils/encryption");
+      (decryptUserData as Mock).mockResolvedValueOnce(
+        new Blob(["decrypted content"]),
+      );
+
+      await controller.decryptFile(testFile);
+
+      // Verify that fetch was called with the non-IPFS URL directly
+      expect(global.fetch).toHaveBeenCalledWith("https://example.com/file.dat");
+    });
+  });
+
+  describe("getUserAddress error handling", () => {
+    it("should handle wallet client with no addresses", async () => {
+      const contextWithNoAddresses = {
+        ...mockContext,
+        walletClient: {
+          ...mockContext.walletClient,
+          getAddresses: vi.fn().mockResolvedValue([]), // Empty array
+        },
+      };
+
+      const controller = new DataController(contextWithNoAddresses);
+
+      // Test via uploadEncryptedFile which calls getUserAddress internally
+      const { StorageManager } = await import("../storage");
+      const mockStorageManager = new StorageManager();
+      const contextWithStorage = {
+        ...contextWithNoAddresses,
+        storageManager: mockStorageManager,
+        relayerUrl: "https://relayer.test.com",
+      };
+
+      const controllerWithStorage = new DataController(contextWithStorage);
+      const testFile = new Blob(["test content"]);
+
+      await expect(
+        controllerWithStorage.uploadEncryptedFile(testFile),
+      ).rejects.toThrow("No addresses available in wallet client");
+    });
+  });
+
+  describe("getUserFiles subgraph error handling", () => {
+    it("should handle failed subgraph HTTP request", async () => {
+      // Mock fetch to return non-ok response
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: "Internal Server Error",
+      });
+
+      const controller = new DataController(mockContext);
+
+      const result = await controller.getUserFiles({
+        owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        subgraphUrl: "https://subgraph.test.com",
+      });
+
+      // Should fall back to mock data due to error
+      expect(result).toHaveLength(3);
+      expect(result[0].id).toBe(12);
+      expect(result[1].id).toBe(15);
+      expect(result[2].id).toBe(28);
+    });
+
+    it("should handle duplicate file IDs in subgraph response", async () => {
+      // Mock fetch to return response with duplicate file IDs
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              user: {
+                id: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+                fileContributions: [
+                  {
+                    id: "contribution1",
+                    fileId: "10", // Duplicate
+                    createdAt: "2024-01-01T00:00:00Z",
+                    createdAtBlock: "100000",
+                  },
+                  {
+                    id: "contribution2",
+                    fileId: "20",
+                    createdAt: "2024-01-02T00:00:00Z",
+                    createdAtBlock: "100001",
+                  },
+                  {
+                    id: "contribution3",
+                    fileId: "10", // Duplicate - should be filtered out
+                    createdAt: "2024-01-03T00:00:00Z",
+                    createdAtBlock: "100002",
+                  },
+                ],
+              },
+            },
+          }),
+      });
+
+      const controller = new DataController(mockContext);
+
+      const result = await controller.getUserFiles({
+        owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        subgraphUrl: "https://subgraph.test.com",
+      });
+
+      // Should only have 2 unique file IDs (10 and 20), duplicate 10 should be filtered
+      expect(result).toHaveLength(2);
+      // Results should be sorted by latest block first
+      expect(result[0].id).toBe(20); // Latest block (100001)
+      expect(result[1].id).toBe(10); // Earlier block (100000)
     });
   });
 });

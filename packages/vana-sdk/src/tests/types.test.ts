@@ -413,7 +413,7 @@ describe("TypeScript Types", () => {
         "0x1234567890123456789012345678901234567890",
       );
       expect(contractInfo.abi).toHaveLength(1);
-      expect(contractInfo.abi[0].name).toBe("test");
+      expect((contractInfo.abi[0] as any).name).toBe("test");
     });
   });
 

@@ -7,7 +7,8 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Vana SDK Demo - Data Wallet (shadcn/ui)",
-  description: "Demonstrate data portability with Vana SDK using shadcn/ui components",
+  description:
+    "Demonstrate data portability with Vana SDK using shadcn/ui components",
 };
 
 export default function RootLayout({
@@ -18,9 +19,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={inter.className}>
-        <Providers>
-          {children}
-        </Providers>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

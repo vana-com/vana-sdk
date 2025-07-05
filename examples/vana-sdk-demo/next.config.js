@@ -2,7 +2,7 @@
 const nextConfig = {
   // Instructs Next.js to compile the 'vana-sdk' package from source.
   // This resolves module mismatches (ESM/CJS) and handles dependencies correctly.
-  transpilePackages: ['vana-sdk'],
+  transpilePackages: ["vana-sdk"],
 
   webpack: (config, { isServer }) => {
     // These fallbacks are still needed for dependencies that use Node.js APIs
@@ -14,25 +14,25 @@ const nextConfig = {
         net: false,
         tls: false,
         child_process: false,
-        stream: require.resolve('stream-browserify'),
-        crypto: require.resolve('crypto-browserify'),
-        buffer: require.resolve('buffer'),
-        process: require.resolve('process/browser'),
-      }
-      
+        stream: require.resolve("stream-browserify"),
+        crypto: require.resolve("crypto-browserify"),
+        buffer: require.resolve("buffer"),
+        process: require.resolve("process/browser"),
+      };
+
       config.plugins.push(
-        new (require('webpack')).ProvidePlugin({
-          process: 'process/browser',
-          Buffer: ['buffer', 'Buffer'],
-        })
-      )
+        new (require("webpack").ProvidePlugin)({
+          process: "process/browser",
+          Buffer: ["buffer", "Buffer"],
+        }),
+      );
     }
-    
+
     // This is needed for certain dependencies that are not fully ESM-compatible.
-    config.externals.push('pino-pretty', 'lokijs', 'encoding')
+    config.externals.push("pino-pretty", "lokijs", "encoding");
 
-    return config
+    return config;
   },
-}
+};
 
-module.exports = nextConfig
+module.exports = nextConfig;

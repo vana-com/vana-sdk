@@ -1,25 +1,26 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { PinataStorage } from 'vana-sdk'
-import { relayerStorage } from '@/lib/relayer'
+import { NextRequest, NextResponse } from "next/server";
+import { PinataStorage } from "vana-sdk";
+import { relayerStorage } from "@/lib/relayer";
 
 export async function GET() {
   try {
     // Test Pinata connection using SDK
-    let ipfsInfo = null
-    
+    let ipfsInfo = null;
+
     if (process.env.PINATA_JWT) {
       try {
         const pinataProvider = new PinataStorage({
           jwt: process.env.PINATA_JWT,
-          gatewayUrl: process.env.PINATA_GATEWAY_URL || 'https://gateway.pinata.cloud'
-        })
-        
-        const pinataTest = await pinataProvider.testConnection()
-        
+          gatewayUrl:
+            process.env.PINATA_GATEWAY_URL || "https://gateway.pinata.cloud",
+        });
+
+        const pinataTest = await pinataProvider.testConnection();
+
         if (pinataTest.success) {
           try {
             // Get recent pins using SDK
-            const recentPins = await pinataProvider.list({ limit: 10 })
+            const recentPins = await pinataProvider.list({ limit: 10 });
             ipfsInfo = {
               connected: true,
               accountInfo: pinataTest.data,
@@ -28,38 +29,38 @@ export async function GET() {
                 name: pin.name,
                 size: pin.size,
                 date: pin.createdAt,
-                metadata: pin.metadata?.pinataMetadata
-              }))
-            }
+                metadata: pin.metadata?.pinataMetadata,
+              })),
+            };
           } catch (error) {
             ipfsInfo = {
               connected: true,
               accountInfo: pinataTest.data,
-              error: `Failed to list pins: ${error instanceof Error ? error.message : 'Unknown error'}`
-            }
+              error: `Failed to list pins: ${error instanceof Error ? error.message : "Unknown error"}`,
+            };
           }
         } else {
           ipfsInfo = {
             connected: false,
-            error: pinataTest.error
-          }
+            error: pinataTest.error,
+          };
         }
       } catch (error) {
         ipfsInfo = {
           connected: false,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        }
+          error: error instanceof Error ? error.message : "Unknown error",
+        };
       }
     } else {
       ipfsInfo = {
         connected: false,
-        error: 'PINATA_JWT not configured'
-      }
+        error: "PINATA_JWT not configured",
+      };
     }
-    
+
     // Get in-memory storage info
-    const memoryStorage = relayerStorage.getAll()
-    
+    const memoryStorage = relayerStorage.getAll();
+
     return NextResponse.json({
       success: true,
       timestamp: new Date().toISOString(),
@@ -68,80 +69,83 @@ export async function GET() {
         memory: {
           enabled: true,
           entries: memoryStorage.length,
-          data: memoryStorage
-        }
+          data: memoryStorage,
+        },
       },
       environment: {
         pinataConfigured: !!process.env.PINATA_JWT,
-        gatewayUrl: process.env.PINATA_GATEWAY_URL || 'https://gateway.pinata.cloud'
-      }
-    })
-    
+        gatewayUrl:
+          process.env.PINATA_GATEWAY_URL || "https://gateway.pinata.cloud",
+      },
+    });
   } catch (error) {
-    console.error('❌ Debug endpoint error:', error)
+    console.error("❌ Debug endpoint error:", error);
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString()
+        error: error instanceof Error ? error.message : "Unknown error",
+        timestamp: new Date().toISOString(),
       },
-      { status: 500 }
-    )
+      { status: 500 },
+    );
   }
 }
 
 // POST endpoint to test IPFS storage
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { testData = 'test-data-' + Date.now() } = body
-    
+    const body = await request.json();
+    const { testData = "test-data-" + Date.now() } = body;
+
     if (!process.env.PINATA_JWT) {
-      return NextResponse.json({
-        success: false,
-        error: 'Pinata not configured - PINATA_JWT missing'
-      }, { status: 400 })
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Pinata not configured - PINATA_JWT missing",
+        },
+        { status: 400 },
+      );
     }
-    
+
     // Use SDK storage for testing
     const pinataProvider = new PinataStorage({
       jwt: process.env.PINATA_JWT,
-      gatewayUrl: process.env.PINATA_GATEWAY_URL || 'https://gateway.pinata.cloud'
-    })
-    
+      gatewayUrl:
+        process.env.PINATA_GATEWAY_URL || "https://gateway.pinata.cloud",
+    });
+
     const testParameters = JSON.stringify({
       test: true,
       data: testData,
       timestamp: new Date().toISOString(),
-      purpose: 'debug-test'
-    })
-    
-    const blob = new Blob([testParameters], { type: 'application/json' })
-    const filename = `debug-test-${Date.now()}.json`
-    
-    const result = await pinataProvider.upload(blob, filename)
-    
+      purpose: "debug-test",
+    });
+
+    const blob = new Blob([testParameters], { type: "application/json" });
+    const filename = `debug-test-${Date.now()}.json`;
+
+    const result = await pinataProvider.upload(blob, filename);
+
     return NextResponse.json({
       success: true,
-      message: 'Test storage successful',
+      message: "Test storage successful",
       result: {
         ipfsHash: result.metadata?.ipfsHash,
         grantUrl: result.metadata?.ipfsUrl,
         size: result.size,
-        url: result.url
+        url: result.url,
       },
       testData: JSON.parse(testParameters),
-      timestamp: new Date().toISOString()
-    })
-    
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
-    console.error('❌ IPFS test error:', error)
+    console.error("❌ IPFS test error:", error);
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500 }
-    )
+      { status: 500 },
+    );
   }
 }

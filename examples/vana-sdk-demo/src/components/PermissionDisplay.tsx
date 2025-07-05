@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { ExternalLink, Shield } from "lucide-react";
-import { keccak256, toHex } from "viem";
+import { getContractUrl } from "@/lib/explorer";
+import { useChainId } from "wagmi";
 
 interface PermissionDisplayProps {
   permissionId: number;
@@ -15,12 +16,22 @@ export function PermissionDisplay({
   showExternalLink = true,
   className = "",
 }: PermissionDisplayProps) {
+  const chainId = useChainId();
+
   // Calculate the hash for the contract tab URL
   const hashForUrl =
     grantHash || `0x${permissionId.toString(16).padStart(8, "0")}`;
 
   // Link to the PermissionRegistry contract with the permission hash
-  const contractUrl = `https://moksha.vanascan.io/address/0x9f03B01A17d54c6934F2735B5d38a60C56Bf0dBe?tab=read_proxy&source_address=0xEfcd140D3b740dEfCa423fC12F4B5548E1FC0B36#${hashForUrl}`; // TODO: change to the correct explorer url and source address and contract address
+  const contractUrl = getContractUrl(
+    chainId,
+    "0x9f03B01A17d54c6934F2735B5d38a60C56Bf0dBe",
+    {
+      tab: "read_proxy",
+      sourceAddress: "0xEfcd140D3b740dEfCa423fC12F4B5548E1FC0B36",
+      hash: hashForUrl,
+    },
+  ); // TODO: change to the correct source address and contract address
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>

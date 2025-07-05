@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AddressDisplay } from "./AddressDisplay";
 import { BlockDisplay } from "./BlockDisplay";
+import { getAddressUrl } from "@/lib/explorer";
+import { useChainId } from "wagmi";
 import {
   FileText,
   Key,
@@ -43,6 +45,7 @@ export function FileCard({
   onDecrypt,
   onDownloadDecrypted,
 }: FileCardProps) {
+  const chainId = useChainId();
   const [isExpanded, setIsExpanded] = useState(false);
   const isOwner =
     userAddress &&
@@ -83,7 +86,7 @@ export function FileCard({
               <AddressDisplay
                 address={file.ownerAddress}
                 label="Owner"
-                explorerUrl={`https://moksha.vanascan.io/address/${file.ownerAddress}`} // TODO: change to the correct explorer url
+                explorerUrl={getAddressUrl(chainId || 14800, file.ownerAddress)}
                 truncate={true}
               />
             </div>

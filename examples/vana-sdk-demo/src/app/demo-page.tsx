@@ -286,7 +286,7 @@ export default function Home() {
         parameters: {
           prompt: "Analyze the user's data for insights and patterns",
           temperature: 0.7,
-          model: "gpt-4", 
+          model: "gpt-4",
           maxTokens: 2000,
           metadata: {
             requestedBy: "demo-app",
@@ -304,7 +304,7 @@ export default function Home() {
       });
 
       setGrantStatus("Creating grant file...");
-      
+
       // Create grant file preview
       const grantFilePreview = {
         operation: params.operation,
@@ -318,13 +318,13 @@ export default function Home() {
       };
 
       setGrantStatus("Storing grant file in IPFS...");
-      
+
       // Store in IPFS first
       const response = await fetch('/api/v1/parameters', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          parameters: JSON.stringify(grantFilePreview) 
+        body: JSON.stringify({
+          parameters: JSON.stringify(grantFilePreview)
         })
       });
 
@@ -348,7 +348,7 @@ export default function Home() {
       });
       setShowGrantPreview(true);
       setGrantStatus("Review the grant file before signing...");
-      
+
     } catch (error) {
       console.error("Failed to prepare grant:", error);
       setGrantStatus(
@@ -369,7 +369,7 @@ export default function Home() {
       setGrantStatus(""); // Clear status since permission will appear in list
       setGrantTxHash(txHash);
       setShowGrantPreview(false);
-      
+
       // Refresh permissions to show the new grant
       setTimeout(() => {
         loadUserPermissions();
@@ -409,7 +409,7 @@ export default function Home() {
       await vana.permissions.revoke(params);
 
       setRevokeStatus(""); // Clear status since permission will disappear from list
-      
+
       // Refresh permissions list
       loadUserPermissions();
     } catch (error) {
@@ -977,7 +977,7 @@ export default function Home() {
                     })}
                     <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded">
                       <p className="text-sm text-blue-800 dark:text-blue-200">
-                        <strong>Selected files:</strong> {selectedFiles.length} • Use "Decrypt" to view encrypted file contents using your wallet signature.
+                        <strong>Selected files:</strong> {selectedFiles.length} • Use &quot;Decrypt&quot; to view encrypted file contents using your wallet signature.
                       </p>
                     </div>
                   </div>
@@ -1027,7 +1027,7 @@ export default function Home() {
                     {grantTxHash && (
                       <div className="mt-4 p-4 bg-muted rounded-lg">
                         <p className="font-medium mb-2">Transaction Hash:</p>
-                        <AddressDisplay 
+                        <AddressDisplay
                           address={grantTxHash}
                           explorerUrl={getExplorerUrl(grantTxHash)}
                           truncate={true}
@@ -1065,7 +1065,7 @@ export default function Home() {
 
                     <div>
                       <Label className="text-sm font-medium">IPFS URL:</Label>
-                      <a 
+                      <a
                         href={`https://ipfs.io/ipfs/${grantPreview.grantUrl.replace('ipfs://', '')}`}
                         target="_blank"
                         rel="noopener noreferrer"
@@ -1085,13 +1085,13 @@ export default function Home() {
                     </div>
 
                     <div className="flex gap-3 justify-end pt-2">
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         onClick={handleCancelGrant}
                       >
                         Cancel
                       </Button>
-                      <Button 
+                      <Button
                         onClick={handleConfirmGrant}
                       >
                         Sign Transaction
@@ -1133,8 +1133,8 @@ export default function Home() {
 
                 {revokeStatus && (
                   <div className={`text-sm p-3 rounded-md mb-4 ${
-                    revokeStatus.includes("Error") 
-                      ? "bg-red-50 text-red-700 border border-red-200" 
+                    revokeStatus.includes("Error")
+                      ? "bg-red-50 text-red-700 border border-red-200"
                       : "bg-green-50 text-green-700 border border-green-200"
                   }`}>
                     {revokeStatus}
@@ -1156,9 +1156,9 @@ export default function Home() {
                               </div>
                               <div className="text-sm text-muted-foreground">
                                 <strong>Grant File:</strong>
-                                <a 
-                                  href={permission.grant.startsWith('ipfs://') 
-                                    ? permission.grant.replace('ipfs://', 'https://ipfs.io/ipfs/') 
+                                <a
+                                  href={permission.grant.startsWith('ipfs://')
+                                    ? permission.grant.replace('ipfs://', 'https://ipfs.io/ipfs/')
                                     : permission.grant}
                                   target="_blank"
                                   rel="noopener noreferrer"
@@ -1188,8 +1188,8 @@ export default function Home() {
                                       <strong>Parameters:</strong> Click to expand
                                     </summary>
                                     <pre className="mt-2 text-xs bg-muted p-2 rounded overflow-auto max-h-40">
-                                      {typeof permission.parameters === 'string' 
-                                        ? permission.parameters 
+                                      {typeof permission.parameters === 'string'
+                                        ? permission.parameters
                                         : JSON.stringify(permission.parameters, null, 2)}
                                     </pre>
                                   </details>
@@ -1266,7 +1266,7 @@ export default function Home() {
                     className="font-mono text-sm"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Default: "{DEFAULT_ENCRYPTION_SEED}"
+                    Default: &quot;{DEFAULT_ENCRYPTION_SEED}&quot;
                   </p>
                 </div>
 
@@ -1563,7 +1563,7 @@ export default function Home() {
                               onClick={() => setIpfsMode("app-managed")}
                               disabled={isUploadingToChain}
                             >
-                              🏢 App's IPFS
+                              🏢 App&apos;s IPFS
                             </Button>
                             <Button
                               size="sm"
@@ -1586,7 +1586,7 @@ export default function Home() {
                           <div className="text-xs text-muted-foreground space-y-1">
                             {ipfsMode === "app-managed" ? (
                               <p>
-                                ✅ Uses the app's Pinata account. No setup
+                                ✅ Uses the app&apos;s Pinata account. No setup
                                 required!
                               </p>
                             ) : process.env.NEXT_PUBLIC_PINATA_JWT ? (
@@ -1629,7 +1629,7 @@ export default function Home() {
                         storage provider and register it on the Vana
                         DataRegistry. The Storage API provides a unified
                         interface for different storage backends. Once uploaded,
-                        it will appear in your "Data Files" list above and you
+                        it will appear in your &quot;Data Files&quot; list above and you
                         can decrypt it to test the complete workflow.
                       </p>
 
@@ -1646,7 +1646,7 @@ export default function Home() {
                             ID: <strong>{newFileId}</strong>
                           </p>
                           <p className="text-xs text-green-600 dark:text-green-300 mt-1">
-                            Check your "Data Files" section above to see the new
+                            Check your &quot;Data Files&quot; section above to see the new
                             file and try decrypting it!
                           </p>
                         </div>
@@ -1733,7 +1733,7 @@ export default function Home() {
                             <p className="font-medium text-sm">
                               {contractName}
                             </p>
-                            <AddressDisplay 
+                            <AddressDisplay
                               address={contract.address}
                               explorerUrl={explorerUrl}
                               showExternalLink={false}

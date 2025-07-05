@@ -267,13 +267,37 @@ describe("PinataStorage", () => {
     });
 
     it("should handle network errors during download", async () => {
-      mockFetch.mockRejectedValue(new Error("Connection timeout"));
+      mockFetch.mockRejectedValueOnce(new Error("Network timeout"));
 
       await expect(storage.download("ipfs://QmTestHash")).rejects.toThrow(
-        StorageError
+        "Pinata download error: Network timeout"
       );
+    });
+
+    it("should handle non-Error exceptions during download", async () => {
+      // Mock a rejection with a non-Error object
+      mockFetch.mockRejectedValueOnce("Download string error");
+
       await expect(storage.download("ipfs://QmTestHash")).rejects.toThrow(
-        "Connection timeout"
+        "Pinata download error: Unknown error"
+      );
+    });
+
+    it("should handle undefined/null exceptions during download", async () => {
+      // Mock a rejection with null/undefined
+      mockFetch.mockRejectedValueOnce(undefined);
+
+      await expect(storage.download("ipfs://QmTestHash")).rejects.toThrow(
+        "Pinata download error: Unknown error"
+      );
+    });
+
+    it("should handle object exceptions during download", async () => {
+      // Mock a rejection with an object that's not an Error
+      mockFetch.mockRejectedValueOnce({ status: "failed", reason: "Timeout" });
+
+      await expect(storage.download("ipfs://QmTestHash")).rejects.toThrow(
+        "Pinata download error: Unknown error"
       );
     });
   });
@@ -380,13 +404,18 @@ describe("PinataStorage", () => {
 
     it("should handle files without metadata gracefully", async () => {
       const mockResponse = {
-        count: 1,
         rows: [
           {
-            ipfs_pin_hash: "QmFileNoMeta",
+            ipfs_pin_hash: "QmTestHash1",
             size: "512",
             date_pinned: "2023-01-01T00:00:00Z",
-            // No metadata field
+            // No metadata
+          },
+          {
+            ipfs_pin_hash: "QmTestHash2",
+            metadata: null, // Null metadata
+            size: "1024",
+            date_pinned: "2023-01-02T00:00:00Z",
           },
         ],
       };
@@ -398,9 +427,114 @@ describe("PinataStorage", () => {
 
       const files = await storage.list();
 
-      expect(files).toHaveLength(1);
+      expect(files).toHaveLength(2);
       expect(files[0].name).toBe("Unnamed");
       expect(files[0].size).toBe(512);
+      expect(files[1].name).toBe("Unnamed");
+      expect(files[1].size).toBe(1024);
+    });
+
+    it("should handle list with offset that is not a string", async () => {
+      const mockResponse = {
+        rows: [
+          {
+            ipfs_pin_hash: "QmTestHash1",
+            metadata: { name: "test.txt" },
+            size: "512",
+            date_pinned: "2023-01-01T00:00:00Z",
+          },
+        ],
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      // Test with number offset (not string)
+      const files = await storage.list({ offset: 10 as any });
+
+      expect(files).toHaveLength(1);
+      // Verify that pageOffset was not set for non-string offset
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("data/pinList"),
+        expect.objectContaining({
+          headers: { Authorization: "Bearer test-jwt-token" },
+        })
+      );
+
+      const callUrl = mockFetch.mock.calls[0][0] as string;
+      expect(callUrl).not.toContain("pageOffset");
+    });
+
+    it("should handle list with undefined offset", async () => {
+      const mockResponse = {
+        rows: [
+          {
+            ipfs_pin_hash: "QmTestHash1",
+            metadata: { name: "test.txt" },
+            size: "512",
+            date_pinned: "2023-01-01T00:00:00Z",
+          },
+        ],
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      // Test with undefined offset
+      const files = await storage.list({ offset: undefined });
+
+      expect(files).toHaveLength(1);
+      // Verify that pageOffset was not set for undefined offset
+      const callUrl = mockFetch.mock.calls[0][0] as string;
+      expect(callUrl).not.toContain("pageOffset");
+    });
+
+    it("should handle list with string offset", async () => {
+      const mockResponse = {
+        rows: [
+          {
+            ipfs_pin_hash: "QmTestHash1",
+            metadata: { name: "test.txt" },
+            size: "512",
+            date_pinned: "2023-01-01T00:00:00Z",
+          },
+        ],
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      // Test with string offset
+      const files = await storage.list({ offset: "next-token" });
+
+      expect(files).toHaveLength(1);
+      // Verify that pageOffset was set for string offset
+      const callUrl = mockFetch.mock.calls[0][0] as string;
+      expect(callUrl).toContain("pageOffset=next-token");
+    });
+
+    it("should handle non-Error exceptions during list", async () => {
+      // Mock a rejection with a non-Error object
+      mockFetch.mockRejectedValueOnce("List string error");
+
+      await expect(storage.list()).rejects.toThrow(
+        "Pinata list error: Unknown error"
+      );
+    });
+
+    it("should handle undefined/null exceptions during list", async () => {
+      // Mock a rejection with null/undefined
+      mockFetch.mockRejectedValueOnce(null);
+
+      await expect(storage.list()).rejects.toThrow(
+        "Pinata list error: Unknown error"
+      );
     });
   });
 
@@ -461,6 +595,33 @@ describe("PinataStorage", () => {
         "Invalid IPFS URL format"
       );
     });
+
+    it("should handle non-Error exceptions during delete", async () => {
+      // Mock a rejection with a non-Error object
+      mockFetch.mockRejectedValueOnce("Delete string error");
+
+      await expect(storage.delete("ipfs://QmTestHash")).rejects.toThrow(
+        "Pinata delete error: Unknown error"
+      );
+    });
+
+    it("should handle undefined/null exceptions during delete", async () => {
+      // Mock a rejection with null/undefined
+      mockFetch.mockRejectedValueOnce(null);
+
+      await expect(storage.delete("ipfs://QmTestHash")).rejects.toThrow(
+        "Pinata delete error: Unknown error"
+      );
+    });
+
+    it("should handle object exceptions during delete", async () => {
+      // Mock a rejection with an object that's not an Error
+      mockFetch.mockRejectedValueOnce({ code: 403, reason: "Forbidden" });
+
+      await expect(storage.delete("ipfs://QmTestHash")).rejects.toThrow(
+        "Pinata delete error: Unknown error"
+      );
+    });
   });
 
   describe("IPFS Hash Extraction", () => {
@@ -510,6 +671,111 @@ describe("PinataStorage", () => {
 
       for (const url of invalidUrls) {
         await expect(storage.download(url)).rejects.toThrow(StorageError);
+      }
+    });
+
+    it("should handle URLs with patterns that don't match", async () => {
+      // Test URLs that definitely don't match any of the regex patterns
+      const unmatchedUrls = [
+        "https://example.com/file.txt", // Regular HTTP URL - no ipfs/ pattern
+        "ftp://example.com/file", // Different protocol - no ipfs/ pattern
+        "ipfs://", // Empty hash after ipfs://
+        "https://cdn.example.com/assets/file.pdf", // Different structure entirely
+        "mailto:test@example.com", // Completely different protocol
+      ];
+
+      for (const url of unmatchedUrls) {
+        // Reset and configure mock for each URL
+        mockFetch.mockReset();
+        mockFetch.mockResolvedValue({
+          ok: true,
+          blob: () => Promise.resolve(new Blob(["test"])),
+        });
+
+        try {
+          await storage.download(url);
+          // If we get here, the URL unexpectedly succeeded
+          throw new Error(
+            `URL ${url} unexpectedly succeeded when it should have failed`
+          );
+        } catch (error) {
+          // We expect this to throw a StorageError with "Invalid IPFS URL format"
+          expect(error).toBeInstanceOf(StorageError);
+          expect(error.message).toContain("Invalid IPFS URL format");
+        }
+      }
+    });
+
+    it("should handle delete with non-404 error codes", async () => {
+      // Test specific error codes that are not 404
+      const errorCodes = [400, 401, 403, 500, 502, 503];
+
+      for (const errorCode of errorCodes) {
+        // Reset and configure mock for each error code
+        mockFetch.mockReset();
+        mockFetch.mockResolvedValue({
+          ok: false,
+          status: errorCode,
+          text: () => Promise.resolve(`HTTP ${errorCode} Error`),
+        });
+
+        await expect(storage.delete("ipfs://QmTestHash")).rejects.toThrow(
+          StorageError
+        );
+        await expect(storage.delete("ipfs://QmTestHash")).rejects.toThrow(
+          "Failed to delete from Pinata"
+        );
+      }
+    });
+
+    it("should handle delete with 404 status specifically", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        text: () => Promise.resolve("Pin not found"),
+      });
+
+      const result = await storage.delete("ipfs://QmMissingHash");
+      expect(result).toBe(true); // Should still return true for 404
+    });
+
+    it("should handle different URL patterns in extractIPFSHash", async () => {
+      // Test various URL formats to ensure all regex patterns are covered
+      const testCases = [
+        {
+          url: "https://gateway.pinata.cloud/ipfs/QmTestHash1",
+          description: "Gateway URL with ipfs/ pattern",
+        },
+        {
+          url: "https://ipfs.io/ipfs/QmTestHash2",
+          description: "Different gateway with ipfs/ pattern",
+        },
+        {
+          url: "ipfs://QmTestHash3",
+          description: "IPFS protocol URL",
+        },
+        {
+          url: "QmTestHash4567890123456789012345678901234567890",
+          description: "Direct hash (46+ chars)",
+        },
+      ];
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        blob: () => Promise.resolve(new Blob(["test"])),
+      });
+
+      for (const testCase of testCases) {
+        try {
+          await storage.download(testCase.url);
+          // Verify the correct hash was extracted
+          const lastCall =
+            mockFetch.mock.calls[mockFetch.mock.calls.length - 1];
+          expect(lastCall[0]).toContain("ipfs/");
+        } catch (error) {
+          console.log(`Failed for ${testCase.description}: ${testCase.url}`);
+          throw error;
+        }
       }
     });
 

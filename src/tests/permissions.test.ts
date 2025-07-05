@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
-import { Hash } from "viem";
+import { Hash, Address } from "viem";
 import {
   PermissionsController,
   ControllerContext,
@@ -978,25 +978,38 @@ describe("PermissionsController", () => {
     });
 
     it("should handle submitToRelayer network errors", async () => {
-      const mockFetch = fetch as Mock;
-
-      // Mock nonce retrieval
-      const { createPublicClient } = await import("viem");
-      vi.mocked(createPublicClient).mockReturnValueOnce({
-        readContract: vi.fn().mockResolvedValue(BigInt(0)),
-      } as any);
-
-      // Mock network error on submitToRelayer
-      mockFetch.mockRejectedValueOnce(new Error("Connection refused"));
+      const controller = new PermissionsController({
+        walletClient: mockWalletClient,
+        relayerUrl: "https://test-relayer.com",
+      });
 
       const mockParams = {
-        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
-        operation: "test",
+        to: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+        operation: "read",
         files: [],
-        parameters: { test: "value" },
+        parameters: { someKey: "someValue" },
       };
 
-      await expect(controller.grant(mockParams)).rejects.toThrow(NetworkError);
+      const mockFetch = fetch as Mock;
+      mockFetch.mockRejectedValue(new Error("Network timeout"));
+
+      await expect(controller.grant(mockParams)).rejects.toThrow(
+        "Network error while relaying transaction: Network timeout"
+      );
+    });
+
+    it("should handle getUserPermissions with non-Error exceptions", async () => {
+      const controller = new PermissionsController({
+        walletClient: mockWalletClient,
+        relayerUrl: "https://test-relayer.com",
+      });
+
+      // Mock getAddresses to throw non-Error object
+      mockWalletClient.getAddresses.mockRejectedValue(null);
+
+      await expect(controller.getUserPermissions()).rejects.toThrow(
+        "Failed to fetch user permissions: Unknown error"
+      );
     });
   });
 });

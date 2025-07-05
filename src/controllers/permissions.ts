@@ -1,10 +1,4 @@
-import {
-  Address,
-  Hash,
-  createPublicClient,
-  http,
-  getContract,
-} from "viem";
+import { Address, Hash, createPublicClient, http, getContract } from "viem";
 import type { WalletClient } from "viem";
 import {
   GrantPermissionParams,
@@ -128,11 +122,16 @@ export class PermissionsController {
   /**
    * Revokes a previously granted permission.
    *
-   * @param params - The permission revoke parameters
-   * @returns Promise resolving to the transaction hash
+   * @param params - Parameters for revoking the permission
+   * @returns Promise resolving to transaction hash
    */
   async revoke(params: RevokePermissionParams): Promise<Hash> {
     try {
+      // Check chain ID availability early
+      if (!this.context.walletClient.chain?.id) {
+        throw new BlockchainError("Chain ID not available");
+      }
+
       // Implementation follows similar pattern to grant
       // For now, we'll implement a simplified version
       // TODO: Implement complete revoke flow with proper EIP-712 structure
@@ -334,7 +333,8 @@ export class PermissionsController {
         abi: permissionRegistryAbi,
         functionName: "addPermission",
         args: [permissionInput, signature],
-        account: this.context.walletClient.account || await this.getUserAddress(),
+        account:
+          this.context.walletClient.account || (await this.getUserAddress()),
         chain: this.context.walletClient.chain || null,
       });
 
@@ -547,26 +547,30 @@ export class PermissionsController {
     try {
       // Convert IPFS URL to HTTP gateway URL if needed
       let fetchUrl = grantUrl;
-      if (grantUrl.startsWith('ipfs://')) {
+      if (grantUrl.startsWith("ipfs://")) {
         // Use a public IPFS gateway - could be configurable
-        fetchUrl = grantUrl.replace('ipfs://', 'https://ipfs.io/ipfs/');
+        fetchUrl = grantUrl.replace("ipfs://", "https://ipfs.io/ipfs/");
       }
 
-      const response = await fetch(fetchUrl, { 
-        signal: AbortSignal.timeout(5000) // 5 second timeout
+      // Create a timeout promise
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("Request timeout")), 5000);
       });
-      
+
+      // Race between fetch and timeout
+      const response = await Promise.race([fetch(fetchUrl), timeoutPromise]);
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
       const data = await response.json();
-      
+
       // Basic validation - check if it looks like grant data
-      if (typeof data === 'object' && data !== null) {
+      if (typeof data === "object" && data !== null) {
         return data;
       }
-      
+
       return null;
     } catch (error) {
       // Don't throw - let caller handle graceful degradation

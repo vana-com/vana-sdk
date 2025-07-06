@@ -5,6 +5,12 @@ const nextConfig = {
   transpilePackages: ["vana-sdk"],
 
   webpack: (config, { isServer }) => {
+    // Add resolve aliases to match tsconfig.json paths
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "@": require("path").resolve(__dirname, "src"),
+    };
+
     // These fallbacks are still needed for dependencies that use Node.js APIs
     // in a way that can be polyfilled for the browser.
     if (!isServer) {

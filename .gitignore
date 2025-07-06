@@ -15,9 +15,6 @@ jspm_packages/
 # Build output
 dist/
 build/
-# Only ignore lib at package root level, not src/lib source code
-packages/*/lib/
-/lib/
 
 # Logs
 logs
@@ -50,7 +47,7 @@ coverage/
 pids
 *.pid
 *.seed
-*.pid.lock 
+*.pid.lock
 .vercel
 
 # Next.js specific
@@ -72,7 +69,7 @@ tmp/
 # OS specific
 Thumbs.db
 
-# Editor specific  
+# Editor specific
 *.sublime-workspace
 *.sublime-project
 

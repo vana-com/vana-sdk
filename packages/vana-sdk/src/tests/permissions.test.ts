@@ -1207,4 +1207,47 @@ describe("PermissionsController", () => {
       expect(result).toMatch(/^0xmock/);
     });
   });
+
+  describe("Missing Relayer URL Scenarios", () => {
+    it("should throw error when no relayer URL configured for grant", async () => {
+      const contextWithoutRelayer = {
+        ...mockContext,
+        relayerUrl: undefined, // No relayer configured
+      };
+
+      const controller = new PermissionsController(contextWithoutRelayer);
+
+      const mockParams = {
+        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        operation: "test",
+        files: [],
+        parameters: { test: "value" },
+      };
+
+      await expect(controller.grant(mockParams)).rejects.toThrow(
+        "No relayerUrl configured and no grantUrl provided",
+      );
+    });
+
+    it("should throw error when no relayer URL configured for revoke", async () => {
+      const contextWithoutRelayer = {
+        ...mockContext,
+        relayerUrl: undefined, // No relayer configured
+        walletClient: {
+          ...mockContext.walletClient,
+          chain: null, // Missing chain to trigger error path
+        },
+      };
+
+      const controller = new PermissionsController(contextWithoutRelayer);
+
+      const mockRevokeParams = {
+        grantId: "0xgrantid123" as Hash,
+      };
+
+      await expect(controller.revoke(mockRevokeParams)).rejects.toThrow(
+        "Chain ID not available",
+      );
+    });
+  });
 });

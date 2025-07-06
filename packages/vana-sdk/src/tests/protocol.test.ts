@@ -287,5 +287,20 @@ describe("ProtocolController", () => {
         controller.getContract("DataRegistry");
       }).toThrow("ABI not found");
     });
+
+    it("should use chain ID fallback when handling contract address errors", async () => {
+      // Create context with missing chain entirely
+      const contextWithoutChain = {
+        walletClient: {
+          chain: null, // No chain object
+        },
+      };
+
+      const controller = new ProtocolController(contextWithoutChain);
+
+      expect(() => {
+        controller.getContract("DataRegistry");
+      }).toThrow("Chain ID not available from wallet client");
+    });
   });
 });

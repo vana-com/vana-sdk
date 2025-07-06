@@ -1226,4 +1226,82 @@ describe("DataController", () => {
       expect(result[1].id).toBe(10); // Earlier block (100000)
     });
   });
+
+  describe("Non-Error Exception Handling", () => {
+    it("should handle non-Error exceptions in getFileById", async () => {
+      // Create a controller that will directly trigger the error path
+      const contextWithError = {
+        ...mockContext,
+        walletClient: {
+          ...mockContext.walletClient,
+          chain: null, // This will cause chainId to be falsy, triggering error
+        },
+      };
+
+      const controller = new DataController(contextWithError);
+
+      await expect(controller.getFileById(123)).rejects.toThrow(
+        "Chain ID not available",
+      );
+    });
+
+    it("should handle non-Error exceptions in uploadEncryptedFile", async () => {
+      const { StorageManager } = await import("../storage");
+      const mockStorageManager = new StorageManager();
+
+      // Mock storage manager to throw non-Error
+      mockStorageManager.upload = vi.fn().mockImplementation(() => {
+        throw { code: 500, message: "Server error" }; // Non-Error object
+      });
+
+      const contextWithStorage = {
+        ...mockContext,
+        storageManager: mockStorageManager,
+      };
+
+      const controller = new DataController(contextWithStorage);
+      const testFile = new Blob(["test content"]);
+
+      await expect(controller.uploadEncryptedFile(testFile)).rejects.toThrow(
+        "Upload failed: Unknown error",
+      );
+    });
+
+    it("should use fallbacks when wallet client missing account/chain", async () => {
+      const { StorageManager } = await import("../storage");
+      const mockStorageManager = new StorageManager();
+
+      // Mock wallet client with missing account and chain properties but valid chain ID
+      const contextWithPartialWallet = {
+        ...mockContext,
+        storageManager: mockStorageManager,
+        walletClient: {
+          ...mockContext.walletClient,
+          account: null, // Missing account - should use userAddress fallback
+          chain: { id: 14800 }, // Valid chain ID but will use null fallback for chain object
+          writeContract: vi.fn().mockResolvedValue("0xsuccesshash"),
+          getAddresses: vi.fn().mockResolvedValue(["0xfallbackaddress"]),
+        },
+      };
+
+      const controller = new DataController(contextWithPartialWallet);
+      const testFile = new Blob(["test content"]);
+
+      const result = await controller.uploadEncryptedFile(testFile);
+
+      // Should succeed and use fallback values
+      expect(result.transactionHash).toBe("0xsuccesshash");
+      expect(result.fileId).toBe(0); // Direct transaction path
+
+      // Verify writeContract was called with fallback values
+      expect(
+        contextWithPartialWallet.walletClient.writeContract,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          account: "0xfallbackaddress", // Should use getUserAddress result
+          // Chain should be the actual chain object, not null in this case
+        }),
+      );
+    });
+  });
 });

@@ -617,5 +617,23 @@ describe("Grant Files Utils", () => {
         retrieveGrantFile("https://example.com/grant.json"),
       ).rejects.toThrow(NetworkError);
     });
+
+    it("should handle non-Error exceptions in grant file retrieval", async () => {
+      // Mock fetch to throw a non-Error object
+      const mockFetch = fetch as Mock;
+      mockFetch.mockImplementation(() => {
+        throw { code: 500, message: "Server error" }; // Non-Error object
+      });
+
+      await expect(
+        retrieveGrantFile("https://example.com/grant.json"),
+      ).rejects.toThrow(NetworkError);
+
+      try {
+        await retrieveGrantFile("https://example.com/grant.json");
+      } catch (error) {
+        expect(error.message).toContain("Unknown error");
+      }
+    });
   });
 });

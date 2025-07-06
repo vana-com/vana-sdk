@@ -961,4 +961,68 @@ describe("PinataStorage", () => {
       }
     });
   });
+
+  describe("Edge Cases and Fallbacks", () => {
+    it("should handle invalid pin size in list response", async () => {
+      const mockResponse = {
+        rows: [
+          {
+            ipfs_pin_hash: "QmTestHash",
+            size: "invalid", // Non-numeric size
+            date_pinned: "2023-01-01T00:00:00Z",
+            metadata: { name: "test.txt" },
+          },
+          {
+            ipfs_pin_hash: "QmTestHash2",
+            size: "", // Empty string size
+            date_pinned: "2023-01-01T00:00:00Z",
+            metadata: { name: "test2.txt" },
+          },
+        ],
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const files = await storage.list();
+
+      expect(files).toHaveLength(2);
+      // Both should fallback to size 0 due to parseInt(invalid) || 0
+      expect(files[0].size).toBe(0);
+      expect(files[1].size).toBe(0);
+    });
+
+    it("should handle non-Error exceptions in list operation", async () => {
+      mockFetch.mockImplementation(() => {
+        throw { code: 500, message: "Server error" }; // Non-Error object
+      });
+
+      await expect(storage.list()).rejects.toThrow(
+        "Pinata list error: Unknown error",
+      );
+    });
+
+    it("should handle non-Error exceptions in delete operation", async () => {
+      mockFetch.mockImplementation(() => {
+        throw "network failure"; // Non-Error string
+      });
+
+      await expect(storage.delete("ipfs://QmTestHash")).rejects.toThrow(
+        "Pinata delete error: Unknown error",
+      );
+    });
+
+    it("should handle non-Error exceptions in testConnection", async () => {
+      mockFetch.mockImplementation(() => {
+        throw null; // Non-Error value
+      });
+
+      const result = await storage.testConnection();
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe("Unknown error");
+    });
+  });
 });

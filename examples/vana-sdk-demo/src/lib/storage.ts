@@ -4,6 +4,23 @@
 import { StorageManager, PinataStorage, ServerIPFSStorage } from "vana-sdk";
 
 /**
+ * Get the Pinata gateway URL with fallback
+ */
+function getPinataGatewayUrl(): string {
+  return process.env.PINATA_GATEWAY_URL || "https://gateway.pinata.cloud";
+}
+
+/**
+ * Create a Pinata storage provider with the given JWT
+ */
+function createPinataStorageWithJWT(jwt: string): PinataStorage {
+  return new PinataStorage({
+    jwt,
+    gatewayUrl: getPinataGatewayUrl(),
+  });
+}
+
+/**
  * Create a configured storage manager with available providers
  * This centralizes storage configuration across the demo app
  */
@@ -18,11 +35,7 @@ export function createStorageManager(): StorageManager {
 
   // Add Pinata if configured
   if (process.env.PINATA_JWT) {
-    const pinataProvider = new PinataStorage({
-      jwt: process.env.PINATA_JWT,
-      gatewayUrl:
-        process.env.PINATA_GATEWAY_URL || "https://gateway.pinata.cloud",
-    });
+    const pinataProvider = createPinataStorageWithJWT(process.env.PINATA_JWT);
     storageManager.register("pinata", pinataProvider);
   }
 
@@ -38,11 +51,7 @@ export function createPinataProvider(): PinataStorage {
     throw new Error("PINATA_JWT not configured");
   }
 
-  return new PinataStorage({
-    jwt: process.env.PINATA_JWT,
-    gatewayUrl:
-      process.env.PINATA_GATEWAY_URL || "https://gateway.pinata.cloud",
-  });
+  return createPinataStorageWithJWT(process.env.PINATA_JWT);
 }
 
 /**
@@ -54,8 +63,5 @@ export function createClientPinataProvider(jwt: string): PinataStorage | null {
     return null;
   }
 
-  return new PinataStorage({
-    jwt,
-    gatewayUrl: "https://gateway.pinata.cloud",
-  });
+  return createPinataStorageWithJWT(jwt);
 }

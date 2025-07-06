@@ -15,7 +15,9 @@ jspm_packages/
 # Build output
 dist/
 build/
-lib/
+# Only ignore lib at package root level, not src/lib source code
+packages/*/lib/
+/lib/
 
 # Logs
 logs

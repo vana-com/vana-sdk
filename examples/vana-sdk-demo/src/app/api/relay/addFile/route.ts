@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createWalletClient, createPublicClient, http, type Hash } from "viem";
+import { Vana } from "vana-sdk";
+import { createWalletClient, http, type Hash } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { getContractAddress, getAbi, chains } from "vana-sdk";
+import { mokshaTestnet } from "vana-sdk";
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,72 +20,42 @@ export async function POST(request: NextRequest) {
     console.log("📝 URL:", url);
     console.log("👤 User address:", userAddress);
 
-    // Step 1: Set up relayer wallet
+    // Step 1: Set up relayer wallet and SDK
     const relayerPrivateKey = process.env.RELAYER_PRIVATE_KEY as Hash;
     if (!relayerPrivateKey) {
       throw new Error("RELAYER_PRIVATE_KEY not configured");
     }
 
     const account = privateKeyToAccount(relayerPrivateKey);
-    const chainId = parseInt(process.env.CHAIN_ID || "14800");
     const rpcUrl = process.env.CHAIN_RPC_URL || "https://rpc.moksha.vana.org";
 
     const walletClient = createWalletClient({
       account,
-      chain: chains[chainId],
+      chain: mokshaTestnet,
       transport: http(rpcUrl),
     });
 
-    const publicClient = createPublicClient({
-      chain: chains[chainId],
-      transport: http(rpcUrl),
+    // Step 2: Use SDK to upload file
+    const vana = new Vana({ walletClient });
+
+    console.log("⛓️ Using SDK to upload file to DataRegistry...");
+    console.log("📄 URL:", url);
+
+    // Step 3: Use SDK's data controller to register the file
+    const fileId = await vana.data.uploadEncryptedFile({
+      url,
+      metadata: {
+        uploadedBy: userAddress,
+        uploadedAt: new Date().toISOString(),
+      },
     });
 
-    // Step 2: Get DataRegistry contract address
-    const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
-
-    console.log("⛓️ Calling DataRegistry.addFile...");
-    console.log("📍 Contract:", dataRegistryAddress);
-
-    // Step 3: Call DataRegistry.addFile function
-    const txHash = await walletClient.writeContract({
-      address: dataRegistryAddress as Hash,
-      abi: getAbi("DataRegistry"),
-      functionName: "addFile",
-      args: [url],
-    });
-
-    console.log("✅ Transaction submitted:", txHash);
-
-    // Step 4: Wait for transaction to be mined and get file ID
-    const receipt = await publicClient.waitForTransactionReceipt({
-      hash: txHash,
-    });
-
-    console.log("✅ Transaction mined:", receipt.transactionHash);
-
-    // Step 5: Extract file ID from logs
-    let fileId = null;
-    for (const log of receipt.logs) {
-      try {
-        if (log.address.toLowerCase() === dataRegistryAddress.toLowerCase()) {
-          // Look for FileAdded event
-          if (log.topics[0] && log.topics[1]) {
-            // FileAdded event has fileId as first indexed parameter
-            fileId = parseInt(log.topics[1], 16);
-            break;
-          }
-        }
-      } catch (error) {
-        // Continue looking through other logs
-      }
-    }
+    console.log("✅ File registered with ID:", fileId);
 
     console.log("📄 File ID:", fileId);
 
     return NextResponse.json({
       success: true,
-      transactionHash: txHash,
       fileId: fileId,
       url: url,
     });

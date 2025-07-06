@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { relayerConfig } from "@/lib/relayer";
-import { PinataStorage } from "vana-sdk";
+import { createPinataProvider } from "@/lib/storage";
 
 export async function GET() {
   // Test Pinata connection using SDK
@@ -11,11 +11,7 @@ export async function GET() {
 
   if (process.env.PINATA_JWT) {
     try {
-      const pinataProvider = new PinataStorage({
-        jwt: process.env.PINATA_JWT,
-        gatewayUrl:
-          process.env.PINATA_GATEWAY_URL || "https://gateway.pinata.cloud",
-      });
+      const pinataProvider = createPinataProvider();
       pinataTest = await pinataProvider.testConnection();
     } catch (error) {
       pinataTest = {

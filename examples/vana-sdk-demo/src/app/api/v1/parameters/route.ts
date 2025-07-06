@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { StorageManager, PinataStorage } from "vana-sdk";
+import { createPinataProvider } from "@/lib/storage";
 import { relayerStorage, generateContentId } from "@/lib/relayer";
 
 export async function POST(request: NextRequest) {
@@ -14,51 +14,48 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Initialize storage manager with Pinata provider if available
-    const storageManager = new StorageManager();
-    const pinataJwt = process.env.PINATA_JWT;
+    // Try using centralized Pinata storage if configured
+    if (process.env.PINATA_JWT) {
+      try {
+        console.log("📤 Using SDK Pinata IPFS storage");
 
-    if (pinataJwt) {
-      // Use SDK's Pinata storage provider
-      console.log("📤 Using SDK Pinata IPFS storage");
+        const pinataProvider = createPinataProvider();
 
-      const pinataProvider = new PinataStorage({
-        jwt: pinataJwt,
-        gatewayUrl:
-          process.env.PINATA_GATEWAY_URL || "https://gateway.pinata.cloud",
-      });
+        // Test connection first
+        const connectionTest = await pinataProvider.testConnection();
 
-      // Test connection first
-      const connectionTest = await pinataProvider.testConnection();
+        if (connectionTest.success) {
+          // Create a blob from the parameters
+          const blob = new Blob([parameters], { type: "application/json" });
+          const filename = `vana-permission-${Date.now()}.json`;
 
-      if (connectionTest.success) {
-        storageManager.register("pinata", pinataProvider, true);
+          const uploadResult = await pinataProvider.upload(blob, filename);
 
-        // Create a blob from the parameters
-        const blob = new Blob([parameters], { type: "application/json" });
-        const filename = `vana-permission-${Date.now()}.json`;
+          // Extract IPFS URL from metadata
+          const ipfsUrl =
+            uploadResult.metadata?.ipfsUrl ||
+            `ipfs://${uploadResult.metadata?.ipfsHash}`;
 
-        const uploadResult = await storageManager.upload(blob, filename);
+          console.log("📦 Stored parameters on IPFS via SDK:", {
+            ipfsHash: uploadResult.metadata?.ipfsHash,
+            grantUrl: ipfsUrl,
+            size: uploadResult.size,
+          });
 
-        // Extract IPFS URL from metadata
-        const ipfsUrl =
-          uploadResult.metadata?.ipfsUrl ||
-          `ipfs://${uploadResult.metadata?.ipfsHash}`;
-
-        console.log("📦 Stored parameters on IPFS via SDK:", {
-          ipfsHash: uploadResult.metadata?.ipfsHash,
-          grantUrl: ipfsUrl,
-          size: uploadResult.size,
-        });
-
-        return NextResponse.json({
-          success: true,
-          grantUrl: ipfsUrl,
-          ipfsHash: uploadResult.metadata?.ipfsHash,
-          storage: "ipfs",
-        });
-      } else {
-        console.log("⚠️ Pinata connection test failed:", connectionTest.error);
+          return NextResponse.json({
+            success: true,
+            grantUrl: ipfsUrl,
+            ipfsHash: uploadResult.metadata?.ipfsHash,
+            storage: "ipfs",
+          });
+        } else {
+          console.log(
+            "⚠️ Pinata connection test failed:",
+            connectionTest.error,
+          );
+        }
+      } catch (pinataError) {
+        console.log("⚠️ Pinata upload failed:", pinataError);
       }
     } else {
       console.log("⚠️ Pinata not configured (missing PINATA_JWT)");

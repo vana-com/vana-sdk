@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { StorageManager, PinataStorage } from "vana-sdk";
+import { createPinataProvider } from "@/lib/storage";
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,19 +34,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Use SDK's storage manager for file upload
-    const storageManager = new StorageManager();
-    const pinataProvider = new PinataStorage({
-      jwt: process.env.PINATA_JWT,
-      gatewayUrl:
-        process.env.PINATA_GATEWAY_URL || "https://gateway.pinata.cloud",
-    });
-
-    storageManager.register("pinata", pinataProvider, true);
+    // Use centralized storage configuration
+    const pinataProvider = createPinataProvider();
 
     // Convert File to Blob for SDK upload
     const blob = new Blob([await file.arrayBuffer()], { type: file.type });
-    const uploadResult = await storageManager.upload(blob, file.name);
+    const uploadResult = await pinataProvider.upload(blob, file.name);
 
     const ipfsResult = {
       ipfsHash: uploadResult.metadata?.ipfsHash,

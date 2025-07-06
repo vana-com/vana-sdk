@@ -7,7 +7,7 @@ import {
   getDefaultConfig,
   darkTheme,
 } from "@rainbow-me/rainbowkit";
-import { mokshaTestnet } from "@/lib/chains";
+import { mokshaTestnet } from "vana-sdk";
 import "@rainbow-me/rainbowkit/styles.css";
 
 // Configure wagmi

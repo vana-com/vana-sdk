@@ -1024,5 +1024,27 @@ describe("PinataStorage", () => {
       expect(result.success).toBe(false);
       expect(result.error).toBe("Unknown error");
     });
+
+    it("should handle non-Error exceptions in list catch block (line 216)", async () => {
+      // Mock fetch to throw non-Error object to specifically trigger line 216
+      mockFetch.mockImplementation(() => {
+        throw { code: 500, message: "Server error" }; // Non-Error object
+      });
+
+      await expect(storage.list()).rejects.toThrow(
+        "Pinata list error: Unknown error",
+      );
+    });
+
+    it("should handle non-Error exceptions in delete catch block (line 257)", async () => {
+      // Mock fetch to throw non-Error string to specifically trigger line 257
+      mockFetch.mockImplementation(() => {
+        throw "string error"; // Non-Error string
+      });
+
+      await expect(storage.delete("ipfs://QmTestHash")).rejects.toThrow(
+        "Pinata delete error: Unknown error",
+      );
+    });
   });
 });

@@ -1096,11 +1096,6 @@ describe("PermissionsController", () => {
     });
 
     it("should handle submitToRelayer with missing relayer URL", async () => {
-      const noRelayerController = new PermissionsController({
-        walletClient: mockWalletClient,
-        relayerUrl: undefined,
-      });
-
       const mockRevokeParams = {
         grantId: "0xgrantid123" as Hash,
       };
@@ -1108,7 +1103,7 @@ describe("PermissionsController", () => {
       // Mock chain to be available but still no relayer URL
       const mockWalletClientWithChain = {
         ...mockWalletClient,
-        chain: { id: 14800 },
+        chain: mockWalletClient.chain, // Use existing chain
       };
 
       const controllerWithChain = new PermissionsController({
@@ -1176,18 +1171,10 @@ describe("PermissionsController", () => {
     // In practice, these would only be hit if the context object is modified during execution.
 
     it("should handle submitToRelayer with undefined relayerUrl context", async () => {
-      // Create a controller where relayerUrl is initially set but becomes undefined during execution
-      const dynamicContext = {
-        walletClient: mockWalletClient,
-        relayerUrl: undefined as string | undefined,
-      };
-
-      const controller = new PermissionsController(dynamicContext);
-
       // Test through revoke which calls submitToRelayer when there's a chain ID
       const mockWalletClientWithChain = {
         ...mockWalletClient,
-        chain: { id: 14800 },
+        chain: mockWalletClient.chain, // Use existing chain
       };
 
       const controllerWithChain = new PermissionsController({
@@ -1235,7 +1222,7 @@ describe("PermissionsController", () => {
         relayerUrl: undefined, // No relayer configured
         walletClient: {
           ...mockContext.walletClient,
-          chain: null, // Missing chain to trigger error path
+          chain: undefined, // Missing chain to trigger error path
         },
       };
 
@@ -1248,6 +1235,39 @@ describe("PermissionsController", () => {
       await expect(controller.revoke(mockRevokeParams)).rejects.toThrow(
         "Chain ID not available",
       );
+    });
+
+    it("should trigger submitToRelayer missing URL check in revoke path", async () => {
+      // Create a scenario that forces the revoke method to use the relayer path
+      // and then hits the missing relayerUrl check in submitToRelayer
+
+      const contextWithRelayer = {
+        ...mockContext,
+        relayerUrl: "https://relayer.test.com", // Start with relayer URL
+      };
+
+      const controller = new PermissionsController(contextWithRelayer);
+
+      // We need to modify the context after controller construction but before submitToRelayer call
+      // Let's spy on the submitToRelayer method to intercept and modify context
+      const originalMethod = (controller as any).submitToRelayer;
+      const spySubmitToRelayer = vi.spyOn(controller as any, "submitToRelayer");
+      spySubmitToRelayer.mockImplementation(async (...args: any[]) => {
+        // Clear relayerUrl right before the check
+        (controller as any).context.relayerUrl = undefined;
+        // Call original method which will now fail on the relayerUrl check
+        return originalMethod.call(controller, ...args);
+      });
+
+      const mockRevokeParams = {
+        grantId: "0xgrantid123" as Hash,
+      };
+
+      await expect(controller.revoke(mockRevokeParams)).rejects.toThrow(
+        "Relayer URL is not configured",
+      );
+
+      spySubmitToRelayer.mockRestore();
     });
   });
 });

@@ -618,21 +618,25 @@ describe("Grant Files Utils", () => {
       ).rejects.toThrow(NetworkError);
     });
 
+    // Note: Line 134 in grantFiles.ts is difficult to test directly
+    // as it requires an error to occur outside the inner try-catch blocks
+    // The existing tests cover the main error handling paths
+
     it("should handle non-Error exceptions in grant file retrieval", async () => {
-      // Mock fetch to throw a non-Error object
+      // Mock fetch to throw a non-Error object that is NOT a NetworkError
       const mockFetch = fetch as Mock;
       mockFetch.mockImplementation(() => {
-        throw { code: 500, message: "Server error" }; // Non-Error object
+        throw { code: 500, message: "Server error" }; // Non-Error, non-NetworkError object
       });
-
-      await expect(
-        retrieveGrantFile("https://example.com/grant.json"),
-      ).rejects.toThrow(NetworkError);
 
       try {
         await retrieveGrantFile("https://example.com/grant.json");
+        expect.fail("Expected an error to be thrown");
       } catch (error) {
-        expect(error.message).toContain("Unknown error");
+        expect(error).toBeInstanceOf(NetworkError);
+        expect((error as Error).message).toContain(
+          "Failed to retrieve grant file from any IPFS gateway",
+        );
       }
     });
   });

@@ -203,6 +203,25 @@ describe("IPFSStorage", () => {
       );
     });
 
+    it("should handle file with no type (fallback to default content type)", async () => {
+      // Create a blob without specifying type (will be empty string)
+      const testFile = new Blob(["test content"]);
+      const mockResponse = { Hash: "QmTestHash123456789" };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const result = await storage.upload(testFile, "test-file.txt");
+
+      // Verify the result uses the fallback content type
+      expect(result.contentType).toBe("application/octet-stream");
+      expect(result.url).toBe(
+        "https://gateway.example.com/ipfs/QmTestHash123456789",
+      );
+    });
+
     it("should handle different hash field names in response", async () => {
       const testFile = new Blob(["test"], { type: "text/plain" });
 
@@ -557,6 +576,37 @@ describe("IPFSStorage", () => {
           expect(error).toBeInstanceOf(StorageError);
           expect((error as StorageError).code).toBe(errorCase.expectedCode);
           expect((error as StorageError).provider).toBe("ipfs");
+        }
+      }
+    });
+
+    it("should handle non-Error objects thrown during operations", async () => {
+      const nonErrorCases = [
+        {
+          operation: () => storage.upload(new Blob(["test"])),
+          expectedCode: "UPLOAD_ERROR",
+          thrownValue: "string error",
+        },
+        {
+          operation: () => storage.download("ipfs://QmTestHash"),
+          expectedCode: "DOWNLOAD_ERROR",
+          thrownValue: { message: "object error" },
+        },
+      ];
+
+      for (const errorCase of nonErrorCases) {
+        mockFetch.mockImplementation(() => {
+          throw errorCase.thrownValue;
+        });
+
+        try {
+          await errorCase.operation();
+          expect.fail("Expected operation to throw");
+        } catch (error) {
+          expect(error).toBeInstanceOf(StorageError);
+          expect((error as StorageError).code).toBe(errorCase.expectedCode);
+          expect((error as StorageError).provider).toBe("ipfs");
+          expect((error as StorageError).message).toContain("Unknown error");
         }
       }
     });

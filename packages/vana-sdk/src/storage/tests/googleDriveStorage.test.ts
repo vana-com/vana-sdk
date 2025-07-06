@@ -277,6 +277,28 @@ describe("GoogleDriveStorage", () => {
       expect(bodyText).toContain("Content-Type: text/plain");
       expect(bodyText).toContain("test content");
     });
+
+    it("should handle file with no type (fallback to default content type)", async () => {
+      // Create a blob without specifying type (will be empty string)
+      const testFile = new Blob(["test content"]);
+      const mockUploadResponse = { id: "test-id", name: "test.txt" };
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockUploadResponse),
+      });
+
+      const result = await storage.upload(testFile, "test-file.txt");
+
+      // Verify the result uses the fallback content type
+      expect(result.contentType).toBe("application/octet-stream");
+
+      // Verify the request body uses fallback content type
+      const uploadCall = mockFetch.mock.calls[0];
+      const requestBody = uploadCall[1].body as Blob;
+      const bodyText = await requestBody.text();
+      expect(bodyText).toContain("Content-Type: application/octet-stream");
+    });
   });
 
   describe("Download", () => {
@@ -916,6 +938,54 @@ describe("GoogleDriveStorage", () => {
           expect(error).toBeInstanceOf(StorageError);
           expect((error as StorageError).code).toBe(errorCase.expectedCode);
           expect((error as StorageError).provider).toBe("google-drive");
+        }
+      }
+    });
+
+    it("should handle non-Error objects thrown during operations", async () => {
+      const nonErrorCases = [
+        {
+          operation: () => storage.upload(new Blob(["test"])),
+          expectedCode: "UPLOAD_ERROR",
+          thrownValue: "string error",
+        },
+        {
+          operation: () =>
+            storage.download("https://drive.google.com/file/d/test/view"),
+          expectedCode: "DOWNLOAD_ERROR",
+          thrownValue: { message: "object error" },
+        },
+        {
+          operation: () => storage.list(),
+          expectedCode: "LIST_ERROR",
+          thrownValue: 42,
+        },
+        {
+          operation: () =>
+            storage.delete("https://drive.google.com/file/d/test/view"),
+          expectedCode: "DELETE_ERROR",
+          thrownValue: null,
+        },
+        {
+          operation: () => storage.refreshAccessToken(),
+          expectedCode: "TOKEN_REFRESH_ERROR",
+          thrownValue: undefined,
+        },
+      ];
+
+      for (const errorCase of nonErrorCases) {
+        mockFetch.mockImplementation(() => {
+          throw errorCase.thrownValue;
+        });
+
+        try {
+          await errorCase.operation();
+          expect.fail("Expected operation to throw");
+        } catch (error) {
+          expect(error).toBeInstanceOf(StorageError);
+          expect((error as StorageError).code).toBe(errorCase.expectedCode);
+          expect((error as StorageError).provider).toBe("google-drive");
+          expect((error as StorageError).message).toContain("Unknown error");
         }
       }
     });

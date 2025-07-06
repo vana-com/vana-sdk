@@ -199,6 +199,29 @@ describe("PinataStorage", () => {
         },
       });
     });
+
+    it("should handle file with no type (fallback to default content type)", async () => {
+      // Create a blob without specifying type (will be empty string)
+      const testFile = new Blob(["test content"]);
+      const mockUploadResponse = {
+        IpfsHash: "QmTestHash123456789",
+        PinSize: "12",
+        Timestamp: "2023-01-01T00:00:00Z",
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockUploadResponse),
+      });
+
+      const result = await storage.upload(testFile, "test-file.txt");
+
+      // Verify the result uses the fallback content type
+      expect(result.contentType).toBe("application/octet-stream");
+      expect(result.url).toBe(
+        "https://test-gateway.pinata.cloud/ipfs/QmTestHash123456789",
+      );
+    });
   });
 
   describe("Download", () => {
@@ -894,6 +917,47 @@ describe("PinataStorage", () => {
         );
         expect((error as StorageError).code).toBe("UPLOAD_ERROR");
         expect((error as StorageError).provider).toBe("pinata");
+      }
+    });
+
+    it("should handle non-Error objects thrown during operations", async () => {
+      const nonErrorCases = [
+        {
+          operation: () => storage.upload(new Blob(["test"])),
+          expectedCode: "UPLOAD_ERROR",
+          thrownValue: "string error",
+        },
+        {
+          operation: () => storage.download("ipfs://QmTestHash"),
+          expectedCode: "DOWNLOAD_ERROR",
+          thrownValue: { message: "object error" },
+        },
+        {
+          operation: () => storage.list(),
+          expectedCode: "LIST_ERROR",
+          thrownValue: 42,
+        },
+        {
+          operation: () => storage.delete("ipfs://QmTestHash"),
+          expectedCode: "DELETE_ERROR",
+          thrownValue: null,
+        },
+      ];
+
+      for (const errorCase of nonErrorCases) {
+        mockFetch.mockImplementation(() => {
+          throw errorCase.thrownValue;
+        });
+
+        try {
+          await errorCase.operation();
+          expect.fail("Expected operation to throw");
+        } catch (error) {
+          expect(error).toBeInstanceOf(StorageError);
+          expect((error as StorageError).code).toBe(errorCase.expectedCode);
+          expect((error as StorageError).provider).toBe("pinata");
+          expect((error as StorageError).message).toContain("Unknown error");
+        }
       }
     });
   });

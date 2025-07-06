@@ -199,6 +199,28 @@ describe("ServerIPFSStorage", () => {
         "Failed to upload to server: Unknown error",
       );
     });
+
+    it("should fallback to file size when server doesn't return size", async () => {
+      const mockFetch = fetch as Mock;
+      const testFile = new Blob(["test content"]);
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            success: true,
+            url: "https://ipfs.io/ipfs/QmTestHash",
+            // No size field returned from server
+            ipfsHash: "QmTestHash",
+          }),
+      });
+
+      const result = await storage.upload(testFile);
+
+      // Should fallback to file.size when result.size is missing
+      expect(result.size).toBe(testFile.size);
+      expect(result.url).toBe("https://ipfs.io/ipfs/QmTestHash");
+    });
   });
 
   describe("download", () => {

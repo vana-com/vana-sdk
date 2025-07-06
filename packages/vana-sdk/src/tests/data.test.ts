@@ -1037,6 +1037,62 @@ describe("DataController", () => {
       expect(result.size).toBe(1024);
       expect(result.transactionHash).toBe("0xsuccessfultxhash");
     });
+
+    it("should handle relayer failure with success false", async () => {
+      const { StorageManager } = await import("../storage");
+
+      const mockStorageManager = new StorageManager();
+      const contextWithRelayer = {
+        ...mockContext,
+        storageManager: mockStorageManager,
+        relayerUrl: "https://relayer.test.com",
+      };
+
+      const controller = new DataController(contextWithRelayer);
+      const testFile = new Blob(["test content"]);
+
+      // Mock successful upload to storage but failed relayer registration
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            success: false, // This triggers the uncovered branch
+            error: "Blockchain registration failed",
+          }),
+      });
+
+      await expect(controller.uploadEncryptedFile(testFile)).rejects.toThrow(
+        "Blockchain registration failed",
+      );
+    });
+
+    it("should handle relayer failure with success false and no error message", async () => {
+      const { StorageManager } = await import("../storage");
+
+      const mockStorageManager = new StorageManager();
+      const contextWithRelayer = {
+        ...mockContext,
+        storageManager: mockStorageManager,
+        relayerUrl: "https://relayer.test.com",
+      };
+
+      const controller = new DataController(contextWithRelayer);
+      const testFile = new Blob(["test content"]);
+
+      // Mock successful upload to storage but failed relayer registration without error message
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            success: false, // This triggers the uncovered branch
+            // No error property to test the fallback
+          }),
+      });
+
+      await expect(controller.uploadEncryptedFile(testFile)).rejects.toThrow(
+        "Failed to register file on blockchain",
+      );
+    });
   });
 
   describe("convertIpfsUrl private method testing", () => {

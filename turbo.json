@@ -4,7 +4,8 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+      "env": ["RELAYER_PRIVATE_KEY", "CHAIN_RPC_URL", "CHAIN_ID"]
     },
     "dev": {
       "cache": false,

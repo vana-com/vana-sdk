@@ -11,16 +11,16 @@ interface AddressDisplayProps {
   className?: string;
 }
 
-export function AddressDisplay({ 
-  address, 
-  label, 
-  explorerUrl, 
-  showCopy = true, 
+export function AddressDisplay({
+  address,
+  label,
+  explorerUrl,
+  showCopy = true,
   showExternalLink = true,
   truncate = true,
-  className = ""
+  className = "",
 }: AddressDisplayProps) {
-  const displayAddress = truncate 
+  const displayAddress = truncate
     ? `${address.slice(0, 6)}...${address.slice(-4)}`
     : address;
 
@@ -28,17 +28,14 @@ export function AddressDisplay({
     try {
       await navigator.clipboard.writeText(address);
     } catch (error) {
-      console.error('Failed to copy address:', error);
+      console.error("Failed to copy address:", error);
     }
   };
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>
       {label && <span className="text-sm font-medium">{label}:</span>}
-      <span 
-        className="font-mono text-sm cursor-default" 
-        title={address}
-      >
+      <span className="font-mono text-sm cursor-default" title={address}>
         {displayAddress}
       </span>
       {showCopy && (
@@ -52,12 +49,7 @@ export function AddressDisplay({
         </Button>
       )}
       {showExternalLink && explorerUrl && (
-        <Button
-          size="sm"
-          variant="ghost"
-          asChild
-          className="h-6 w-6 p-0"
-        >
+        <Button size="sm" variant="ghost" asChild className="h-6 w-6 p-0">
           <a href={explorerUrl} target="_blank" rel="noopener noreferrer">
             <ExternalLink className="h-3 w-3" />
           </a>

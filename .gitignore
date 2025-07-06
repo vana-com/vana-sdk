@@ -15,7 +15,6 @@ jspm_packages/
 # Build output
 dist/
 build/
-lib/
 
 # Logs
 logs
@@ -48,5 +47,32 @@ coverage/
 pids
 *.pid
 *.seed
-*.pid.lock 
+*.pid.lock
 .vercel
+
+# Next.js specific
+.next/
+out/
+
+# Turbo
+.turbo/
+
+# Package manager lockfiles (only keep root one in monorepo)
+packages/*/package-lock.json
+examples/*/package-lock.json
+
+# Temporary files and folders
+.claude/
+.tmp/
+tmp/
+
+# OS specific
+Thumbs.db
+
+# Editor specific
+*.sublime-workspace
+*.sublime-project
+
+# Test output
+test-results/
+playwright-report/

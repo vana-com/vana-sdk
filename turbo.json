@@ -1,0 +1,40 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": ["**/.env.*local"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+      "env": ["RELAYER_PRIVATE_KEY", "CHAIN_RPC_URL", "CHAIN_ID"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "outputs": []
+    },
+    "lint:fix": {
+      "outputs": []
+    },
+    "typecheck": {
+      "outputs": []
+    },
+    "test": {
+      "outputs": ["coverage/**"]
+    },
+    "test:watch": {
+      "cache": false,
+      "persistent": true
+    },
+    "test:coverage": {
+      "outputs": ["coverage/**"]
+    },
+    "fetch-abis": {
+      "outputs": ["src/abi/**"]
+    },
+    "clean": {
+      "cache": false
+    }
+  }
+}

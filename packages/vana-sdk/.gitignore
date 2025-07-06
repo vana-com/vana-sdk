@@ -1,0 +1,5 @@
+# Temporary coverage validation files
+cov/
+test-cov/
+.nyc_output/
+v8-bug-reproduction.js

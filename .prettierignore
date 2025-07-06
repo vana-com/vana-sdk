@@ -1,0 +1,29 @@
+# Build outputs
+dist/
+build/
+coverage/
+
+# Dependencies
+node_modules/
+
+# Generated files
+*.d.ts
+*.tsbuildinfo
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Lock files
+package-lock.json
+yarn.lock
+
+# IDE files
+.vscode/
+.idea/
+
+# Other
+.DS_Store
+*.min.js
+*.min.css

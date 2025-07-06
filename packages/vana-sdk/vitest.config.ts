@@ -17,12 +17,13 @@ export default defineConfig({
         "examples/",
         "**/*.test.ts",
         "**/*.spec.ts",
+        "src/types.ts", // Pure TypeScript definitions - no executable code
       ],
       reportOnFailure: true,
       thresholds: {
         lines: 99,
         functions: 99,
-        branches: 90,
+        branches: 99,
         statements: 99,
       },
     },

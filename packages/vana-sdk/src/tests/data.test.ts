@@ -1376,6 +1376,63 @@ describe("DataController", () => {
         }),
       );
     });
+
+    it("should use null chain fallback when wallet client chain becomes undefined during writeContract call", async () => {
+      const { StorageManager } = await import("../storage");
+      const mockStorageManager = new StorageManager();
+
+      // Mock successful storage upload
+      mockStorageManager.upload = vi.fn().mockResolvedValue({
+        url: "https://ipfs.io/ipfs/QmTestHash",
+        size: 1024,
+        contentType: "application/octet-stream",
+      });
+
+      // Create wallet client with dynamic chain property
+      let chainCallCount = 0;
+      const mockWalletClientDynamic = {
+        ...mockContext.walletClient,
+        writeContract: vi.fn().mockImplementation((params) => {
+          // Verify chain parameter is null (from || null fallback)
+          expect(params.chain).toBe(null);
+          return Promise.resolve("0xsuccesshash");
+        }),
+      };
+
+      // Override chain getter to return undefined on second access (during writeContract)
+      Object.defineProperty(mockWalletClientDynamic, "chain", {
+        get() {
+          chainCallCount++;
+          // First call returns valid chain (for initial checks)
+          // Second call returns undefined (triggering || null fallback)
+          return chainCallCount === 1 ? mokshaTestnet : undefined;
+        },
+        configurable: true,
+      });
+
+      const contextWithDynamicChain = {
+        ...mockContext,
+        relayerUrl: undefined, // Force direct transaction path
+        storageManager: mockStorageManager,
+        walletClient: mockWalletClientDynamic,
+      };
+
+      const controller = new DataController(contextWithDynamicChain);
+      const testFile = new Blob(["test content"]);
+
+      const result = await controller.uploadEncryptedFile(testFile);
+
+      // Should succeed with fallback
+      expect(result.transactionHash).toBe("0xsuccesshash");
+      expect(result.fileId).toBe(0);
+
+      // Verify writeContract was called with chain: null
+      expect(mockWalletClientDynamic.writeContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          chain: null, // The || null fallback was triggered
+        }),
+      );
+    });
   });
 
   // Note: Pinata non-Error exception tests are in pinataStorage.test.ts

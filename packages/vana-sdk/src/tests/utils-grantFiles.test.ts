@@ -618,9 +618,58 @@ describe("Grant Files Utils", () => {
       ).rejects.toThrow(NetworkError);
     });
 
-    // Note: Line 134 in grantFiles.ts is difficult to test directly
-    // as it requires an error to occur outside the inner try-catch blocks
-    // The existing tests cover the main error handling paths
+    it("should handle non-Error thrown during IPFS hash extraction from grant URL", async () => {
+      // Mock String.prototype.startsWith to throw non-Error when checking for 'ipfs://'
+      const originalStartsWith = String.prototype.startsWith;
+      String.prototype.startsWith = function (searchString: string) {
+        if (
+          this.toString().includes("example.com") &&
+          searchString === "ipfs://"
+        ) {
+          throw { code: "INVALID_URL", message: "URL parsing failed" }; // Non-Error object
+        }
+        return originalStartsWith.call(this, searchString);
+      };
+
+      try {
+        await retrieveGrantFile("https://example.com/grant.json");
+        expect.fail("Expected an error to be thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(NetworkError);
+        expect((error as NetworkError).message).toBe(
+          "Error retrieving grant file: Unknown error",
+        );
+      } finally {
+        String.prototype.startsWith = originalStartsWith;
+      }
+    });
+
+    it("should handle non-Error thrown during grant file parsing after retrieval", async () => {
+      // This test targets the outer catch by making extracting the IPFS hash throw non-Error
+      // We override String.prototype.startsWith in a way that will trigger early in the function
+      const originalStartsWith = String.prototype.startsWith;
+      String.prototype.startsWith = function (searchString: string) {
+        if (
+          this.toString() === "ipfs://QmTestHash" &&
+          searchString === "ipfs://"
+        ) {
+          throw "Hash extraction failed"; // Non-Error string that won't be caught by inner try-catch
+        }
+        return originalStartsWith.call(this, searchString);
+      };
+
+      try {
+        await retrieveGrantFile("ipfs://QmTestHash");
+        expect.fail("Expected an error to be thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(NetworkError);
+        expect((error as NetworkError).message).toBe(
+          "Error retrieving grant file: Unknown error",
+        );
+      } finally {
+        String.prototype.startsWith = originalStartsWith;
+      }
+    });
 
     it("should handle non-Error exceptions in grant file retrieval", async () => {
       // Mock fetch to throw a non-Error object that is NOT a NetworkError
@@ -637,6 +686,139 @@ describe("Grant Files Utils", () => {
         expect((error as Error).message).toContain(
           "Failed to retrieve grant file from any IPFS gateway",
         );
+      }
+    });
+
+    it("should handle non-Error exceptions when data.error is falsy (line 61)", async () => {
+      const mockFetch = fetch as Mock;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            success: false,
+            error: null, // Falsy error to trigger || fallback
+          }),
+      });
+
+      const grantFile = {
+        operation: "test",
+        files: [1, 2, 3],
+        parameters: { key: "value" },
+        metadata: {
+          timestamp: "2023-01-01T00:00:00.000Z",
+          version: "1.0",
+          userAddress: "0xuser" as `0x${string}`,
+        },
+      };
+
+      await expect(
+        storeGrantFile(grantFile, "https://relayer.com"),
+      ).rejects.toThrow("Failed to store grant file");
+    });
+  });
+
+  describe("getGrantFileHash error handling", () => {
+    it("should handle non-Error exceptions in hash generation (line 164)", () => {
+      // Mock JSON.stringify to throw non-Error during hash generation
+      const originalStringify = JSON.stringify;
+      JSON.stringify = function (value: any) {
+        if (value && value.operation === "test-hash") {
+          throw { code: "STRINGIFY_FAILED", reason: "Cannot serialize" }; // Non-Error object
+        }
+        return originalStringify.call(this, value);
+      };
+
+      const grantFile = {
+        operation: "test-hash",
+        files: [1, 2, 3],
+        parameters: { key: "value" },
+        metadata: {
+          timestamp: "2023-01-01T00:00:00.000Z",
+          version: "1.0",
+          userAddress: "0xuser" as `0x${string}`,
+        },
+      };
+
+      try {
+        getGrantFileHash(grantFile);
+        expect.fail("Expected an error to be thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(SerializationError);
+        expect((error as SerializationError).message).toBe(
+          "Failed to generate grant file hash: Unknown error",
+        );
+      } finally {
+        JSON.stringify = originalStringify;
+      }
+    });
+  });
+
+  describe("retrieveGrantFile error handling", () => {
+    it("should handle non-Error exceptions in outer catch with instanceof check (line 135)", async () => {
+      // Mock String.prototype.replace to throw non-Error at the very start of the function
+      const originalReplace = String.prototype.replace;
+      String.prototype.replace = function (
+        searchValue: any,
+        replaceValue: any,
+      ) {
+        if (
+          this.toString() === "ipfs://QmTestHash" &&
+          searchValue === "ipfs://"
+        ) {
+          throw "URL processing failed"; // Non-Error string that will be caught in outer catch
+        }
+        return originalReplace.call(this, searchValue, replaceValue);
+      };
+
+      try {
+        await retrieveGrantFile("ipfs://QmTestHash");
+        expect.fail("Expected an error to be thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(NetworkError);
+        expect((error as NetworkError).message).toBe(
+          "Error retrieving grant file: Unknown error",
+        );
+      } finally {
+        String.prototype.replace = originalReplace;
+      }
+    });
+
+    it("should handle synchronous non-Error exceptions to cover the Unknown error branch (line 135)", async () => {
+      // Mock Symbol.iterator to throw during the for-loop setup to hit outer catch
+      const grantUrl = "ipfs://QmTestHashForFailure";
+      const errorMessage = "Iterator failed";
+
+      // Mock the array iterator that the for-loop uses
+      const originalIterator = Array.prototype[Symbol.iterator];
+      Array.prototype[Symbol.iterator] = function* (this: any[]) {
+        if (
+          this.length === 3 &&
+          this[0] &&
+          this[0].includes("gateway.pinata.cloud")
+        ) {
+          throw errorMessage; // Throw during for-loop initialization
+        }
+        yield* originalIterator.call(this);
+      };
+
+      try {
+        await expect(retrieveGrantFile(grantUrl)).rejects.toThrow(
+          "Error retrieving grant file: Unknown error",
+        );
+
+        // Detailed check
+        try {
+          await retrieveGrantFile(grantUrl);
+          expect.fail("Expected error");
+        } catch (error) {
+          expect(error).toBeInstanceOf(NetworkError);
+          expect((error as NetworkError).message).toBe(
+            "Error retrieving grant file: Unknown error",
+          );
+        }
+      } finally {
+        // Clean up
+        Array.prototype[Symbol.iterator] = originalIterator;
       }
     });
   });

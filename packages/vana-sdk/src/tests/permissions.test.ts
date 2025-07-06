@@ -1269,5 +1269,347 @@ describe("PermissionsController", () => {
 
       spySubmitToRelayer.mockRestore();
     });
+
+    it("should throw RelayerError when relayer URL is cleared after initial validation but before submission", async () => {
+      // This tests the defensive check at lines 372-373 in submitToRelayer
+      const contextWithRelayer = {
+        ...mockContext,
+        relayerUrl: "https://relayer.test.com",
+      };
+
+      const controller = new PermissionsController(contextWithRelayer);
+
+      // Mock the relayTransaction private method to clear relayerUrl mid-execution
+      const originalRelayTransaction = (controller as any).relayTransaction;
+      vi.spyOn(controller as any, "relayTransaction").mockImplementation(
+        async function (this: any, ...args: any[]) {
+          // Clear relayerUrl after method starts but before submitToRelayer is called
+          this.context.relayerUrl = undefined;
+          // Call original which will eventually call submitToRelayer
+          return originalRelayTransaction.apply(this, args);
+        },
+      );
+
+      const mockParams = {
+        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        operation: "test",
+        files: [],
+        parameters: { test: "value" },
+      };
+
+      await expect(controller.grant(mockParams)).rejects.toThrow(
+        "Relayer URL is not configured",
+      );
+    });
+
+    it("should handle non-Error exceptions in direct transaction catch block (line 350)", async () => {
+      // Use context WITHOUT relayerUrl to force direct transaction path
+      const originalBigInt = global.BigInt;
+      const directTransactionContext = {
+        ...mockContext,
+        relayerUrl: undefined, // No relayer URL to force direct transaction
+      };
+
+      // Mock walletClient.writeContract to throw non-Error
+      directTransactionContext.walletClient.writeContract = vi
+        .fn()
+        .mockImplementation(() => {
+          throw { code: 500, message: "Server error" }; // Non-Error object
+        });
+
+      const controller = new PermissionsController(directTransactionContext);
+
+      // Mock getUserNonce to return a proper bigint
+      vi.spyOn(controller as any, "getUserNonce").mockResolvedValue(
+        BigInt(123),
+      );
+      // Mock signTypedData to return a signature
+      vi.spyOn(controller as any, "signTypedData").mockResolvedValue(
+        "0xsignature123" as `0x${string}`,
+      );
+
+      const mockParams = {
+        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        operation: "test",
+        files: [1, 2, 3],
+        parameters: { test: "value" },
+        grantUrl: "https://ipfs.io/ipfs/QmGrantFile123", // Provide grantUrl to skip early validation
+      };
+
+      try {
+        await controller.grant(mockParams);
+        expect.fail("Expected an error to be thrown");
+      } catch (error) {
+        expect(error.message).toContain(
+          "Permission grant failed: Direct transaction failed: Unknown error",
+        );
+      } finally {
+        global.BigInt = originalBigInt;
+      }
+    });
+
+    it("should handle non-Error exceptions in relayTransaction catch block (line 411)", async () => {
+      const contextWithRelayer = {
+        ...mockContext,
+        relayerUrl: "https://relayer.test.com",
+      };
+
+      const controller = new PermissionsController(contextWithRelayer);
+
+      // Mock fetch to throw non-Error, which will be caught in relayTransaction's catch block
+      const mockFetch = fetch as Mock;
+      mockFetch.mockImplementation(() => {
+        throw "Network timeout"; // Non-Error string
+      });
+
+      const mockParams = {
+        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        operation: "test",
+        files: [1, 2, 3],
+        parameters: { test: "value" },
+      };
+
+      await expect(controller.grant(mockParams)).rejects.toThrow(
+        "Network error while relaying transaction: Unknown error",
+      );
+    });
+
+    it("should handle non-Error exceptions when relayer returns error (line 448)", async () => {
+      const contextWithRelayer = {
+        ...mockContext,
+        relayerUrl: "https://relayer.test.com",
+      };
+
+      const controller = new PermissionsController(contextWithRelayer);
+
+      // Mock fetch to return error response with data.error
+      const mockFetch = fetch as Mock;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            success: false,
+            error: "Transaction validation failed",
+          }),
+      });
+
+      const mockParams = {
+        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        operation: "test",
+        files: [1, 2, 3],
+        parameters: { test: "value" },
+      };
+
+      await expect(controller.grant(mockParams)).rejects.toThrow(
+        "Transaction validation failed",
+      );
+    });
+
+    it("should handle non-Error exceptions in submitToRelayer catch block (line 457)", async () => {
+      const contextWithRelayer = {
+        ...mockContext,
+        relayerUrl: "https://relayer.test.com",
+      };
+
+      const controller = new PermissionsController(contextWithRelayer);
+
+      // Mock fetch to throw non-Error
+      const mockFetch = fetch as Mock;
+      mockFetch.mockImplementation(() => {
+        throw { status: 500, message: "Server error" }; // Non-Error object
+      });
+
+      const mockParams = {
+        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        operation: "test",
+        files: [1, 2, 3],
+        parameters: { test: "value" },
+      };
+
+      await expect(controller.grant(mockParams)).rejects.toThrow(
+        "Network error while relaying transaction: Unknown error",
+      );
+    });
+
+    it("should handle non-Error exceptions in signTypedData (line 309)", async () => {
+      // Mock signTypedData to throw non-Error object (not containing "rejected")
+      mockContext.walletClient.signTypedData = vi
+        .fn()
+        .mockImplementation(() => {
+          throw { code: "SIGN_FAILED", reason: "Hardware wallet disconnected" }; // Non-Error
+        });
+
+      const controller = new PermissionsController(mockContext);
+      const mockParams = {
+        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        operation: "test",
+        files: [1, 2, 3],
+        parameters: { test: "value" },
+        grantUrl: "https://ipfs.io/ipfs/QmGrantFile123",
+      };
+
+      await expect(controller.grant(mockParams)).rejects.toThrow(
+        "Failed to sign typed data: Unknown error",
+      );
+    });
+
+    it("should use chain null fallback in submitDirectTransaction (line 344)", async () => {
+      const contextWithNullChain = {
+        ...mockContext,
+        relayerUrl: undefined, // Force direct transaction path
+        walletClient: {
+          ...mockContext.walletClient,
+          chain: undefined, // Trigger || null fallback
+          getChainId: vi.fn().mockResolvedValue(14800),
+          account: { address: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" }, // Add account to prevent fallback call
+        },
+      };
+
+      // Mock writeContract to verify it receives chain: null
+      contextWithNullChain.walletClient.writeContract = vi
+        .fn()
+        .mockImplementation((params) => {
+          expect(params.chain).toBe(null); // Verify null fallback was used
+          return Promise.resolve("0xhash");
+        });
+
+      const controller = new PermissionsController(contextWithNullChain);
+
+      // Mock getUserNonce to return a proper bigint
+      vi.spyOn(controller as any, "getUserNonce").mockResolvedValue(
+        BigInt(123),
+      );
+      // Mock signTypedData to return a signature
+      vi.spyOn(controller as any, "signTypedData").mockResolvedValue(
+        "0xsignature123" as `0x${string}`,
+      );
+
+      const mockParams = {
+        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        operation: "test",
+        files: [1, 2, 3],
+        parameters: { test: "value" },
+        grantUrl: "https://ipfs.io/ipfs/QmGrantFile123",
+      };
+
+      await controller.grant(mockParams);
+      expect(
+        contextWithNullChain.walletClient.writeContract,
+      ).toHaveBeenCalledWith(expect.objectContaining({ chain: null }));
+    });
+
+    it("should use fallback error message when relayer error is falsy (line 448)", async () => {
+      const contextWithRelayer = {
+        ...mockContext,
+        relayerUrl: "https://relayer.test.com",
+      };
+
+      const controller = new PermissionsController(contextWithRelayer);
+      const mockFetch = fetch as Mock;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            success: false,
+            error: null, // Falsy error triggers || fallback
+          }),
+      });
+
+      const mockParams = {
+        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        operation: "test",
+        files: [1, 2, 3],
+        parameters: { test: "value" },
+      };
+
+      await expect(controller.grant(mockParams)).rejects.toThrow(
+        "Failed to relay transaction", // Correct fallback message
+      );
+    });
+
+    it("should handle non-Error exceptions in submitToRelayer JSON parsing (line 457)", async () => {
+      const contextWithRelayer = {
+        ...mockContext,
+        relayerUrl: "https://relayer.test.com",
+      };
+
+      const controller = new PermissionsController(contextWithRelayer);
+      const mockFetch = fetch as Mock;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => {
+          throw "JSON parsing failed"; // Non-Error string
+        },
+      });
+
+      const mockParams = {
+        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        operation: "test",
+        files: [1, 2, 3],
+        parameters: { test: "value" },
+      };
+
+      await expect(controller.grant(mockParams)).rejects.toThrow(
+        "Network error while relaying transaction: Unknown error",
+      );
+    });
+
+    it("should handle non-Error exceptions in getUserNonce catch block (line 238)", async () => {
+      const controller = new PermissionsController(mockContext);
+
+      // Mock getChainId to throw non-Error
+      mockContext.walletClient.getChainId = vi.fn().mockImplementation(() => {
+        throw { code: "CHAIN_ACCESS_ERROR", reason: "Network unavailable" }; // Non-Error object
+      });
+
+      await expect((controller as any).getUserNonce()).rejects.toThrow(
+        "Failed to retrieve user nonce: Unknown error",
+      );
+    });
+
+    it("should use fallback error message when submitToRelayer data.error is falsy (line 448)", async () => {
+      const contextWithRelayer = {
+        ...mockContext,
+        relayerUrl: "https://relayer.test.com",
+      };
+
+      const controller = new PermissionsController(contextWithRelayer);
+
+      // Mock fetch to return success: false with falsy error
+      const mockFetch = fetch as Mock;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            success: false,
+            error: null, // Falsy error to trigger || fallback
+          }),
+      });
+
+      await expect(
+        (controller as any).submitToRelayer("test", { data: "test" }),
+      ).rejects.toThrow("Failed to submit to relayer");
+    });
+
+    it("should handle non-Error exceptions in submitToRelayer network error (line 457)", async () => {
+      const contextWithRelayer = {
+        ...mockContext,
+        relayerUrl: "https://relayer.test.com",
+      };
+
+      const controller = new PermissionsController(contextWithRelayer);
+
+      // Mock fetch to throw non-Error object directly
+      const mockFetch = fetch as Mock;
+      mockFetch.mockImplementation(() => {
+        throw "Network connection failed"; // Non-Error string
+      });
+
+      await expect(
+        (controller as any).submitToRelayer("test", { data: "test" }),
+      ).rejects.toThrow(
+        "Network error while submitting to relayer: Unknown error",
+      );
+    });
   });
 });

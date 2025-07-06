@@ -340,5 +340,66 @@ describe("ProtocolController", () => {
         // This tests the fallback logic in the catch block
       }
     });
+
+    it("should use chain ID 0 fallback when getContractAddress throws and chain.id is undefined", () => {
+      // Create wallet client with valid chain to pass initial check, but id is dynamic
+      let chainIdCallCount = 0;
+      const walletClientWithDynamicId = {
+        ...mockWalletClient,
+        chain: {
+          ...mockWalletClient.chain,
+          get id() {
+            chainIdCallCount++;
+            // First call returns valid ID (passes initial check)
+            // Second call (in catch block) returns undefined to trigger || 0
+            return chainIdCallCount === 1 ? 14800 : undefined;
+          },
+        },
+      };
+
+      const controller = new ProtocolController({
+        walletClient: walletClientWithDynamicId,
+      });
+
+      // Mock getContractAddress to throw an error that contains "Contract address not found"
+      mockGetContractAddress.mockImplementation(() => {
+        throw new Error(
+          "Contract address not found for DataRegistry on chain 14800",
+        );
+      });
+
+      try {
+        controller.getContract("DataRegistry");
+        expect.fail("Expected an error to be thrown");
+      } catch (error) {
+        // Should throw ContractNotFoundError with chain ID 0 (from || 0 fallback)
+        expect(error).toBeInstanceOf(ContractNotFoundError);
+        expect((error as ContractNotFoundError).message).toContain(
+          "on chain 0",
+        );
+      }
+    });
+
+    it("should handle chain object where id property access throws an error", () => {
+      // Create wallet client with chain object that throws when accessing id
+      const walletClientWithThrowingId = {
+        ...mockWalletClient,
+        chain: {
+          get id() {
+            throw new Error("Chain ID access failed");
+          },
+          name: "Test Chain",
+        } as any,
+      };
+
+      const controller = new ProtocolController({
+        walletClient: walletClientWithThrowingId,
+      });
+
+      // Should throw the error from the id getter
+      expect(() => controller.getContract("DataRegistry")).toThrow(
+        "Chain ID access failed",
+      );
+    });
   });
 });

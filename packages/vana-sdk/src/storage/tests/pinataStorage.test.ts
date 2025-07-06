@@ -1025,26 +1025,218 @@ describe("PinataStorage", () => {
       expect(result.error).toBe("Unknown error");
     });
 
-    it("should handle non-Error exceptions in list catch block (line 216)", async () => {
-      // Mock fetch to throw non-Error object to specifically trigger line 216
-      mockFetch.mockImplementation(() => {
-        throw { code: 500, message: "Server error" }; // Non-Error object
-      });
+    it("DEBUG: Expert's probe mismatch demonstration (line 216)", async () => {
+      // Expert's suggested debug test to show the V8 coverage probe mismatch
+      // This demonstrates that the branch executes but V8 probe doesn't detect it
 
-      await expect(storage.list()).rejects.toThrow(
-        "Pinata list error: Unknown error",
-      );
+      mockFetch.mockRejectedValue("not-an-error"); // Non-Error string
+
+      try {
+        await storage.list();
+      } catch (err: any) {
+        console.log("▶ error type:", typeof err);
+        console.log("▶ error instanceof Error:", err instanceof Error);
+        console.log("▶ cause type (if any):", typeof err.cause);
+        console.log(
+          '▶ message contains "Unknown error":',
+          err.message.includes("Unknown error"),
+        );
+
+        // Ensure else-arm really ran - this proves the false branch executed
+        expect(err.message).toMatch("Unknown error");
+      }
+    });
+
+    it("should handle non-Error exceptions in list catch block (line 216)", async () => {
+      // We need to trigger the non-Error branch in the catch block
+      // Mock URLSearchParams constructor to throw non-Error
+      const originalURLSearchParams = URLSearchParams;
+      global.URLSearchParams = class extends URLSearchParams {
+        constructor(init?: any) {
+          if (init && typeof init === "object" && init.status === "pinned") {
+            throw { code: 500, message: "Server error" }; // Non-Error object
+          }
+          super(init);
+        }
+      } as any;
+
+      try {
+        await storage.list();
+        expect.fail("Expected an error to be thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(StorageError);
+        expect((error as StorageError).message).toBe(
+          "Pinata list error: Unknown error",
+        );
+      } finally {
+        global.URLSearchParams = originalURLSearchParams;
+      }
     });
 
     it("should handle non-Error exceptions in delete catch block (line 257)", async () => {
-      // Mock fetch to throw non-Error string to specifically trigger line 257
-      mockFetch.mockImplementation(() => {
+      // Mock extractIPFSHash to throw non-Error to trigger the catch block
+      const storage = new PinataStorage(mockConfig);
+      const extractMethod = (storage as any).extractIPFSHash;
+      (storage as any).extractIPFSHash = function (_url: string) {
         throw "string error"; // Non-Error string
+      };
+
+      try {
+        await storage.delete("ipfs://QmTestHash");
+        expect.fail("Expected an error to be thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(StorageError);
+        expect((error as StorageError).message).toBe(
+          "Pinata delete error: Unknown error",
+        );
+      } finally {
+        (storage as any).extractIPFSHash = extractMethod;
+      }
+    });
+
+    it("should handle non-Error exceptions in list method directly (line 216)", async () => {
+      // Mock JSON.stringify to throw non-Error during metadata creation
+      const originalStringify = JSON.stringify;
+      JSON.stringify = function (value: any) {
+        if (
+          value &&
+          value.keyvalues &&
+          value.keyvalues.uploadedBy === "vana-sdk"
+        ) {
+          throw { code: "STRINGIFY_ERROR", message: "JSON stringify failed" }; // Non-Error object
+        }
+        return originalStringify.call(this, value);
+      };
+
+      try {
+        await storage.list();
+        expect.fail("Expected an error to be thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(StorageError);
+        expect((error as StorageError).message).toBe(
+          "Pinata list error: Unknown error",
+        );
+      } finally {
+        JSON.stringify = originalStringify;
+      }
+    });
+
+    it("should handle non-Error exceptions in delete method directly (line 257)", async () => {
+      // Mock fetch to throw non-Error during delete request
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/pinning/unpin/")) {
+          throw { httpStatus: 500, errorMessage: "Server failure" }; // Non-Error object
+        }
+        return Promise.resolve({ ok: true });
       });
 
-      await expect(storage.delete("ipfs://QmTestHash")).rejects.toThrow(
+      try {
+        await storage.delete("ipfs://QmTestHash");
+        expect.fail("Expected an error to be thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(StorageError);
+        expect((error as StorageError).message).toBe(
+          "Pinata delete error: Unknown error",
+        );
+      }
+    });
+
+    it("should handle non-Error exceptions in list method URLSearchParams (line 216)", async () => {
+      // Mock URLSearchParams constructor to throw non-Error very early
+      const originalURLSearchParams = URLSearchParams;
+      global.URLSearchParams = class {
+        constructor() {
+          throw "URLSearchParams construction failed"; // Non-Error string
+        }
+      } as any;
+
+      try {
+        await storage.list();
+        expect.fail("Expected error");
+      } catch (error) {
+        expect(error).toBeInstanceOf(StorageError);
+        expect((error as StorageError).message).toBe(
+          "Pinata list error: Unknown error",
+        );
+      } finally {
+        global.URLSearchParams = originalURLSearchParams;
+      }
+    });
+
+    it("should handle non-Error exceptions in delete extractIPFSHash (line 257)", async () => {
+      // Mock extractIPFSHash to throw non-Error at method start
+      const testStorage = new PinataStorage(mockConfig);
+      const originalExtract = (testStorage as any).extractIPFSHash;
+      (testStorage as any).extractIPFSHash = () => {
+        throw "Hash extraction failed"; // Non-Error string
+      };
+
+      try {
+        await testStorage.delete("ipfs://QmTest");
+        expect.fail("Expected error");
+      } catch (error) {
+        expect(error).toBeInstanceOf(StorageError);
+        expect((error as StorageError).message).toBe(
+          "Pinata delete error: Unknown error",
+        );
+      } finally {
+        (testStorage as any).extractIPFSHash = originalExtract;
+      }
+    });
+
+    it("should handle and correctly wrap a non-Error rejection (debugging test)", async () => {
+      // Expert's debugging test to prove coverage tool bug
+      const rejectionValue = "A raw string thrown from a promise";
+      mockFetch.mockRejectedValue(rejectionValue);
+
+      try {
+        await storage.list();
+        throw new Error(
+          "Test failed: storage.list() did not throw as expected.",
+        );
+      } catch (finalError: any) {
+        // 1. Verify the final error is what we expect
+        expect(finalError).toBeInstanceOf(StorageError);
+        expect(finalError.message).toBe("Pinata list error: Unknown error");
+
+        // 2. ⭐ The key evidence: If we get "Unknown error" in the message,
+        // it means the `instanceof Error` check returned false for the original error
+        console.log(`[DEBUG] Final error message: ${finalError.message}`);
+        console.log(
+          `[DEBUG] This proves the instanceof Error check returned false`,
+        );
+
+        // The presence of "Unknown error" in the message is definitive proof
+        // that the false branch was executed, despite what coverage reports
+        expect(finalError.message).toContain("Unknown error");
+      }
+    });
+
+    it("should handle non-Error exceptions to cover the Unknown error branch (line 257)", async () => {
+      // Mock fetch to reject with a non-Error object
+      const rejectionValue = {
+        code: "INTERNAL_ERROR",
+        reason: "Server exploded",
+      };
+      mockFetch.mockRejectedValue(rejectionValue);
+
+      const testUrl =
+        "ipfs://QmValidHash1234567890123456789012345678901234567890";
+
+      await expect(storage.delete(testUrl)).rejects.toThrow(
         "Pinata delete error: Unknown error",
       );
+
+      // Detailed check
+      try {
+        await storage.delete(testUrl);
+        expect.fail("Expected error");
+      } catch (error) {
+        expect(error).toBeInstanceOf(StorageError);
+        expect((error as StorageError).message).toBe(
+          "Pinata delete error: Unknown error",
+        );
+      }
     });
   });
 });

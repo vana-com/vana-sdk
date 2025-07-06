@@ -790,7 +790,9 @@ describe("Grant Files Utils", () => {
 
       // Mock the array iterator that the for-loop uses
       const originalIterator = Array.prototype[Symbol.iterator];
-      Array.prototype[Symbol.iterator] = function* (this: any[]) {
+      Array.prototype[Symbol.iterator] = function* (
+        this: any[],
+      ): Generator<any, undefined, unknown> {
         if (
           this.length === 3 &&
           this[0] &&
@@ -799,6 +801,7 @@ describe("Grant Files Utils", () => {
           throw errorMessage; // Throw during for-loop initialization
         }
         yield* originalIterator.call(this);
+        return undefined;
       };
 
       try {

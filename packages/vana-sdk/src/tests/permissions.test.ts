@@ -1339,7 +1339,7 @@ describe("PermissionsController", () => {
       try {
         await controller.grant(mockParams);
         expect.fail("Expected an error to be thrown");
-      } catch (error) {
+      } catch (error: any) {
         expect(error.message).toContain(
           "Permission grant failed: Direct transaction failed: Unknown error",
         );
@@ -1461,7 +1461,7 @@ describe("PermissionsController", () => {
           ...mockContext.walletClient,
           chain: undefined, // Trigger || null fallback
           getChainId: vi.fn().mockResolvedValue(14800),
-          account: { address: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" }, // Add account to prevent fallback call
+          account: mockContext.walletClient.account, // Use the proper account object
         },
       };
 

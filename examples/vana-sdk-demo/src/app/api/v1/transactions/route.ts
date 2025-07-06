@@ -67,6 +67,7 @@ export async function POST(request: NextRequest) {
     console.log("🔍 Signature used:", signature);
 
     // Submit to the PermissionRegistry contract
+    // This endpoint implements the relayer service that the SDK calls
     console.log("⛓️ Submitting to blockchain...");
     const txHash = await submitPermissionGrant(typedData, signature as Hash);
 

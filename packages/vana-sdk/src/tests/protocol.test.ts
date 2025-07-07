@@ -32,6 +32,7 @@ describe("ProtocolController", () => {
   let controller: ProtocolController;
   let mockContext: ControllerContext;
   let mockWalletClient: any;
+  let mockPublicClient: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -42,8 +43,14 @@ describe("ProtocolController", () => {
       transport: http("https://rpc.moksha.vana.org"),
     });
 
+    // Create a fully mocked public client
+    mockPublicClient = {
+      waitForTransactionReceipt: vi.fn().mockResolvedValue({ logs: [] }),
+    };
+
     mockContext = {
       walletClient: mockWalletClient,
+      publicClient: mockPublicClient,
       relayerUrl: "https://test-relayer.com",
     };
 
@@ -90,6 +97,7 @@ describe("ProtocolController", () => {
 
       const noChainController = new ProtocolController({
         walletClient: noChainClient,
+        publicClient: mockPublicClient,
         relayerUrl: "https://test-relayer.com",
       });
 
@@ -214,6 +222,7 @@ describe("ProtocolController", () => {
 
       const noChainController = new ProtocolController({
         walletClient: noChainClient,
+        publicClient: mockPublicClient,
         relayerUrl: "https://test-relayer.com",
       });
 
@@ -237,6 +246,7 @@ describe("ProtocolController", () => {
 
       const noChainController = new ProtocolController({
         walletClient: noChainClient,
+        publicClient: mockPublicClient,
         relayerUrl: "https://test-relayer.com",
       });
 
@@ -295,6 +305,7 @@ describe("ProtocolController", () => {
           ...mockWalletClient,
           chain: undefined, // No chain object
         },
+        publicClient: mockPublicClient,
       };
 
       const controller = new ProtocolController(contextWithoutChain);
@@ -359,6 +370,7 @@ describe("ProtocolController", () => {
 
       const controller = new ProtocolController({
         walletClient: walletClientWithDynamicId,
+        publicClient: mockPublicClient,
       });
 
       // Mock getContractAddress to throw an error that contains "Contract address not found"
@@ -394,6 +406,7 @@ describe("ProtocolController", () => {
 
       const controller = new ProtocolController({
         walletClient: walletClientWithThrowingId,
+        publicClient: mockPublicClient,
       });
 
       // Should throw the error from the id getter

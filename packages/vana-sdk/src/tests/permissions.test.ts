@@ -84,39 +84,6 @@ describe("PermissionsController", () => {
   let mockWalletClient: any;
   let mockPublicClient: any;
 
-  // Helper function to create a complete mock context
-  const createMockContext = (
-    overrides: Partial<ControllerContext> = {},
-  ): ControllerContext => {
-    const defaultMockPublicClient = {
-      readContract: vi.fn().mockResolvedValue(BigInt(0)),
-      waitForTransactionReceipt: vi.fn().mockResolvedValue({ logs: [] }),
-    };
-
-    const defaultMockWalletClient = {
-      account: {
-        address: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-      },
-      chain: {
-        id: 14800,
-        name: "Moksha Testnet",
-      },
-      getChainId: vi.fn().mockResolvedValue(14800),
-      getAddresses: vi
-        .fn()
-        .mockResolvedValue(["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"]),
-      signTypedData: vi.fn().mockResolvedValue("0xsignature" as Hash),
-      writeContract: vi.fn().mockResolvedValue("0xtxhash" as Hash),
-    };
-
-    return {
-      walletClient: defaultMockWalletClient as any,
-      publicClient: defaultMockPublicClient as any,
-      relayerUrl: "https://test-relayer.com",
-      ...overrides,
-    };
-  };
-
   beforeEach(() => {
     vi.clearAllMocks();
 
@@ -171,13 +138,7 @@ describe("PermissionsController", () => {
       // Mock all the required calls
       const mockFetch = fetch as Mock;
 
-      // Mock nonce retrieval using the global mock
-      const { createPublicClient } = await import("viem");
-      vi.mocked(createPublicClient).mockReturnValueOnce({
-        readContract: vi.fn().mockResolvedValue(BigInt(0)),
-      } as any);
-
-      // Mock transaction relay response
+      // Mock for relayer transaction submission (storeGrantFile is already mocked above)
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () =>
@@ -191,7 +152,8 @@ describe("PermissionsController", () => {
 
       expect(result).toBe("0xtxhash");
       expect(mockWalletClient.signTypedData).toHaveBeenCalled();
-      expect(fetch).toHaveBeenCalledTimes(1); // Only transaction relay (storeGrantFile is mocked)
+      // Since we have relayerUrl configured, it should use relayer path
+      expect(fetch).toHaveBeenCalledTimes(1); // Only relayer transaction (storeGrantFile is mocked separately)
     });
 
     it("should handle user rejection gracefully", async () => {
@@ -363,7 +325,7 @@ describe("PermissionsController", () => {
       };
 
       await expect(directController.grant(mockParams)).rejects.toThrow(
-        "No relayerUrl configured and no grantUrl provided",
+        "No storage available. Provide a grantUrl, configure relayerUrl, or provide storageManager.",
       );
     });
 
@@ -947,7 +909,7 @@ describe("PermissionsController", () => {
       mockWalletClient.getAddresses.mockRejectedValue("string error");
 
       await expect(controller.grant(mockParams)).rejects.toThrow(
-        "Permission grant failed with unknown error",
+        "Permission grant preparation failed with unknown error",
       );
     });
 
@@ -1014,7 +976,7 @@ describe("PermissionsController", () => {
       };
 
       await expect(controller.grant(mockParams)).rejects.toThrow(
-        "No relayerUrl configured and no grantUrl provided",
+        "No storage available. Provide a grantUrl, configure relayerUrl, or provide storageManager.",
       );
     });
 
@@ -1143,7 +1105,7 @@ describe("PermissionsController", () => {
       };
 
       await expect(controller.grant(mockParams)).rejects.toThrow(
-        "No relayerUrl configured and no grantUrl provided",
+        "No storage available. Provide a grantUrl, configure relayerUrl, or provide storageManager.",
       );
     });
 
@@ -1212,14 +1174,15 @@ describe("PermissionsController", () => {
 
       const controller = new PermissionsController(contextWithRelayer);
 
-      // Mock the relayTransaction private method to clear relayerUrl mid-execution
-      const originalRelayTransaction = (controller as any).relayTransaction;
-      vi.spyOn(controller as any, "relayTransaction").mockImplementation(
+      // Mock the relaySignedTransaction private method to clear relayerUrl mid-execution
+      const originalRelaySignedTransaction = (controller as any)
+        .relaySignedTransaction;
+      vi.spyOn(controller as any, "relaySignedTransaction").mockImplementation(
         async function (this: any, ...args: any[]) {
           // Clear relayerUrl after method starts but before submitToRelayer is called
           this.context.relayerUrl = undefined;
           // Call original which will eventually call submitToRelayer
-          return originalRelayTransaction.apply(this, args);
+          return originalRelaySignedTransaction.apply(this, args);
         },
       );
 
@@ -1274,7 +1237,7 @@ describe("PermissionsController", () => {
         expect.fail("Expected an error to be thrown");
       } catch (error: any) {
         expect(error.message).toContain(
-          "Permission grant failed: Permission submission failed: Unknown error",
+          "Permission submission failed: Unknown error",
         );
       } finally {
         global.BigInt = originalBigInt;

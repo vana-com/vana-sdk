@@ -3,6 +3,7 @@ import tseslint from "@typescript-eslint/eslint-plugin";
 import tsparser from "@typescript-eslint/parser";
 import prettierConfig from "eslint-config-prettier";
 import globals from "globals";
+import nextPlugin from "@next/eslint-plugin-next";
 
 export default [
   // Global ignore patterns
@@ -113,6 +114,33 @@ export default [
       "no-console": "off",
       "@typescript-eslint/no-var-requires": "off",
       "@typescript-eslint/no-require-imports": "off",
+    },
+  },
+
+  // Next.js specific configuration for demo app
+  {
+    files: ["examples/vana-sdk-demo/**/*.{js,jsx,ts,tsx}"],
+    plugins: {
+      "@next/next": nextPlugin,
+    },
+    languageOptions: {
+      parser: tsparser,
+      parserOptions: {
+        ecmaVersion: "latest",
+        sourceType: "module",
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+      globals: {
+        ...globals.browser,
+        ...globals.es2021,
+        React: "readonly",
+      },
+    },
+    rules: {
+      ...nextPlugin.configs.recommended.rules,
+      ...nextPlugin.configs["core-web-vitals"].rules,
     },
   },
 

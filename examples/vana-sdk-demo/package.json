@@ -38,6 +38,7 @@
     "viem": "^2.31.7"
   },
   "devDependencies": {
+    "@next/eslint-plugin-next": "^15.3.5",
     "@tailwindcss/postcss": "^4.1.11",
     "@types/node": "^24.0.10",
     "@types/react": "^19",

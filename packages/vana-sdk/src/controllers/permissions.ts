@@ -45,79 +45,14 @@ export class PermissionsController {
 
   /**
    * Grants permission for an application to access user data.
-   * Implements the new IPFS-based grant file flow while maintaining
-   * compatibility with the existing contract.
+   * Combines createAndSign + submitSignedGrant for a complete end-to-end flow.
    *
    * @param params - The permission grant parameters
    * @returns Promise resolving to the transaction hash
    */
   async grant(params: GrantPermissionParams): Promise<Hash> {
-    try {
-      const userAddress = await this.getUserAddress();
-
-      // Step 1: Create grant file with all the real data
-      const grantFile = createGrantFile(params, userAddress);
-
-      // Step 2: Use provided grantUrl or store grant file in IPFS
-      let grantUrl = params.grantUrl;
-      if (!grantUrl) {
-        if (!this.context.relayerUrl) {
-          throw new Error(
-            "No relayerUrl configured and no grantUrl provided. For direct transactions, please provide a grantUrl. For gasless transactions, configure a relayer service.",
-          );
-        }
-        grantUrl = await storeGrantFile(grantFile, this.context.relayerUrl);
-      }
-
-      // Step 3: Get user nonce
-      const nonce = await this.getUserNonce();
-
-      // Step 4: Create EIP-712 message with compatibility placeholders
-      const typedData = await this.composePermissionGrantMessage({
-        to: params.to,
-        operation: params.operation, // Placeholder - real data is in IPFS
-        files: params.files, // Placeholder - real data is in IPFS
-        grantUrl,
-        serializedParameters: getGrantFileHash(grantFile), // Hash as placeholder
-        nonce,
-      });
-
-      // Step 5: User signature
-      const signature = await this.signTypedData(typedData);
-
-      // Step 6: Submit to blockchain
-      // For backward compatibility, use relayer if configured, otherwise direct submission
-      let transactionHash: Hash;
-      if (this.context.relayerUrl) {
-        // Backward compatibility: use relayer service if configured
-        transactionHash = await this.relayTransaction(typedData, signature);
-      } else {
-        // Use the new unified submission method
-        transactionHash = await this.submitSignedGrant(typedData, signature);
-      }
-
-      return transactionHash;
-    } catch (error) {
-      if (error instanceof Error) {
-        // Re-throw known Vana errors directly
-        if (
-          error instanceof RelayerError ||
-          error instanceof UserRejectedRequestError ||
-          error instanceof SerializationError ||
-          error instanceof SignatureError ||
-          error instanceof NetworkError ||
-          error instanceof NonceError
-        ) {
-          throw error;
-        }
-        // Wrap unknown errors
-        throw new BlockchainError(
-          `Permission grant failed: ${error.message}`,
-          error,
-        );
-      }
-      throw new BlockchainError("Permission grant failed with unknown error");
-    }
+    const { typedData, signature } = await this.createAndSign(params);
+    return await this.submitSignedGrant(typedData, signature);
   }
 
   /**
@@ -208,8 +143,7 @@ export class PermissionsController {
 
   /**
    * Submits an already-signed permission grant to the blockchain.
-   * This method works universally - client-side, server-side, or relayer-side.
-   * The walletClient provided to the SDK determines who pays gas.
+   * Supports both relayer-based gasless transactions and direct transactions.
    *
    * @param typedData - The EIP-712 typed data
    * @param signature - The user's signature
@@ -220,32 +154,23 @@ export class PermissionsController {
     signature: Hash,
   ): Promise<Hash> {
     try {
-      const chainId = await this.context.walletClient.getChainId();
-      const permissionRegistryAddress = getContractAddress(
-        chainId,
-        "PermissionRegistry",
-      );
-      const permissionRegistryAbi = getAbi("PermissionRegistry");
-
-      // Prepare the PermissionInput struct (simplified format)
-      const permissionInput = {
-        nonce: BigInt(typedData.message.nonce),
-        grant: typedData.message.grant,
-      };
-
-      // Submit directly to the contract using the provided wallet client
-      const txHash = await this.context.walletClient.writeContract({
-        address: permissionRegistryAddress,
-        abi: permissionRegistryAbi,
-        functionName: "addPermission",
-        args: [permissionInput, signature],
-        account:
-          this.context.walletClient.account || (await this.getUserAddress()),
-        chain: this.context.walletClient.chain || null,
-      });
-
-      return txHash;
+      // Use relayer if configured, otherwise direct transaction
+      if (this.context.relayerUrl) {
+        return await this.relaySignedTransaction(typedData, signature);
+      } else {
+        return await this.submitDirectTransaction(typedData, signature);
+      }
     } catch (error) {
+      // Re-throw known Vana errors directly to preserve error types
+      if (
+        error instanceof RelayerError ||
+        error instanceof NetworkError ||
+        error instanceof UserRejectedRequestError ||
+        error instanceof SignatureError ||
+        error instanceof NonceError
+      ) {
+        throw error;
+      }
       throw new BlockchainError(
         `Permission submission failed: ${error instanceof Error ? error.message : "Unknown error"}`,
         error as Error,
@@ -254,15 +179,93 @@ export class PermissionsController {
   }
 
   /**
-   * Convenience method that combines createAndSign + submitSignedGrant.
-   * This is equivalent to the original grant() method but uses the new simplified architecture.
-   *
-   * @param params - The permission grant parameters
-   * @returns Promise resolving to the transaction hash
+   * Submits a signed transaction directly to the blockchain.
    */
-  async grantSimplified(params: GrantPermissionParams): Promise<Hash> {
-    const { typedData, signature } = await this.createAndSign(params);
-    return await this.submitSignedGrant(typedData, signature);
+  private async submitDirectTransaction(
+    typedData: PermissionGrantTypedData,
+    signature: Hash,
+  ): Promise<Hash> {
+    const chainId = await this.context.walletClient.getChainId();
+    const permissionRegistryAddress = getContractAddress(
+      chainId,
+      "PermissionRegistry",
+    );
+    const permissionRegistryAbi = getAbi("PermissionRegistry");
+
+    // Prepare the PermissionInput struct (simplified format)
+    const permissionInput = {
+      nonce: BigInt(typedData.message.nonce),
+      grant: typedData.message.grant,
+    };
+
+    // Submit directly to the contract using the provided wallet client
+    const txHash = await this.context.walletClient.writeContract({
+      address: permissionRegistryAddress,
+      abi: permissionRegistryAbi,
+      functionName: "addPermission",
+      args: [permissionInput, signature],
+      account:
+        this.context.walletClient.account || (await this.getUserAddress()),
+      chain: this.context.walletClient.chain || null,
+    });
+
+    return txHash;
+  }
+
+  /**
+   * Submits a signed transaction via the relayer service.
+   */
+  private async relaySignedTransaction(
+    typedData: PermissionGrantTypedData,
+    signature: Hash,
+  ): Promise<Hash> {
+    try {
+      const relayerUrl = this.context.relayerUrl;
+      if (!relayerUrl) {
+        throw new RelayerError("Relayer URL is not configured", 500);
+      }
+
+      const response = await fetch(`${relayerUrl}/api/relay`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          typedData: {
+            ...typedData,
+            message: {
+              ...typedData.message,
+              nonce: Number(typedData.message.nonce),
+            },
+          },
+          signature,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new RelayerError(
+          `Failed to relay transaction: ${response.statusText}`,
+          response.status,
+          await response.text(),
+        );
+      }
+
+      const data: RelayerTransactionResponse = await response.json();
+
+      if (!data.success) {
+        throw new RelayerError(data.error || "Failed to relay transaction");
+      }
+
+      return data.transactionHash;
+    } catch (error) {
+      if (error instanceof RelayerError) {
+        throw error;
+      }
+      throw new NetworkError(
+        `Network error while relaying transaction: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
   }
 
   /**
@@ -445,67 +448,6 @@ export class PermissionsController {
       }
       throw new SignatureError(
         `Failed to sign typed data: ${error instanceof Error ? error.message : "Unknown error"}`,
-        error as Error,
-      );
-    }
-  }
-
-  /**
-   * Submits a signed transaction to the relayer service.
-   */
-  private async relayTransaction(
-    typedData: PermissionGrantTypedData,
-    signature: Hash,
-  ): Promise<Hash> {
-    try {
-      console.log("🔍 SDK Debug - Relaying with typed data:", {
-        hasFiles: "files" in typedData,
-        files: typedData.files,
-        filesLength: typedData.files?.length,
-      });
-
-      const relayerUrl = this.context.relayerUrl;
-      if (!relayerUrl) {
-        throw new RelayerError("Relayer URL is not configured", 500);
-      }
-      const response = await fetch(`${relayerUrl}/api/relay`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          typedData: {
-            ...typedData,
-            message: {
-              ...typedData.message,
-              nonce: Number(typedData.message.nonce),
-            },
-          },
-          signature,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new RelayerError(
-          `Failed to relay transaction: ${response.statusText}`,
-          response.status,
-          await response.text(),
-        );
-      }
-
-      const data: RelayerTransactionResponse = await response.json();
-
-      if (!data.success) {
-        throw new RelayerError(data.error || "Failed to relay transaction");
-      }
-
-      return data.transactionHash;
-    } catch (error) {
-      if (error instanceof RelayerError) {
-        throw error;
-      }
-      throw new NetworkError(
-        `Network error while relaying transaction: ${error instanceof Error ? error.message : "Unknown error"}`,
         error as Error,
       );
     }

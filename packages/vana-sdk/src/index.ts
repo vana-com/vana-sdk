@@ -2,8 +2,63 @@
 export { Vana } from "./vana";
 export { VanaProvider } from "./core/provider";
 
-// Types
+// Types - modular exports
 export type * from "./types";
+
+// Specific type exports for convenience
+export type {
+  // Configuration types
+  VanaConfig,
+  WalletConfig,
+  ChainConfig,
+  RuntimeConfig,
+  StorageConfig,
+
+  // Chain types
+  VanaChainId,
+  VanaChain,
+
+  // Contract types
+  VanaContractName,
+  ContractInfo,
+  VanaContract,
+  ContractAddresses,
+
+  // Data types
+  UserFile,
+  FileMetadata,
+  UploadFileParams,
+  UploadFileResult,
+  UploadEncryptedFileResult,
+
+  // Permission types
+  GrantedPermission,
+  GrantPermissionParams,
+  RevokePermissionParams,
+  PermissionGrantTypedData,
+  GrantFile,
+
+  // Relayer types
+  RelayerStorageResponse,
+  RelayerTransactionResponse,
+  RelayerConfig,
+
+  // Utility types
+  ApiResponse,
+  VanaError,
+  PaginationParams,
+  PaginationResult,
+  TransactionOptions,
+  TransactionReceipt,
+} from "./types";
+
+// Type guards and utilities
+export {
+  isWalletConfig,
+  isChainConfig,
+  isVanaChainId,
+  isVanaChain,
+} from "./types";
 
 // Error classes
 export * from "./errors";
@@ -31,4 +86,7 @@ export { chains, mokshaTestnet, vanaMainnet } from "./config/chains";
 
 // ABIs
 export { getAbi } from "./abi";
-export type { VanaContract } from "./abi";
+export type { VanaContract as VanaContractAbi } from "./abi";
+
+// Legacy exports for backward compatibility
+export type { VanaContract } from "./types";

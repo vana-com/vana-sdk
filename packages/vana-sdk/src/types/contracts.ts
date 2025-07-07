@@ -61,7 +61,8 @@ export interface ContractDeployment {
 /**
  * Typed contract instance
  */
-export type VanaContract<TAbi extends Abi = Abi> = GetContractReturnType<TAbi>;
+export type VanaContractInstance<TAbi extends Abi = Abi> =
+  GetContractReturnType<TAbi>;
 
 /**
  * Contract addresses mapping by chain and contract name

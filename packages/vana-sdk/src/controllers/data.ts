@@ -1,5 +1,5 @@
 import { Address, getContract, decodeEventLog } from "viem";
-import { UserFile, UploadEncryptedFileResult } from "../types";
+import { UserFile, UploadEncryptedFileResult } from "../types/index";
 import { ControllerContext } from "./permissions";
 import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../abi";

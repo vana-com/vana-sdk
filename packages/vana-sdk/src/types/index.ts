@@ -22,11 +22,14 @@ export type {
   VanaContractName,
   ContractInfo,
   ContractDeployment,
-  VanaContract,
+  VanaContractInstance,
   ContractAddresses,
   ContractMethodParams,
   ContractMethodReturnType,
 } from "./contracts";
+
+// Export VanaContract from ABI module (the canonical type)
+export type { VanaContract, ContractAbis } from "../abi";
 
 // Data types
 export type {

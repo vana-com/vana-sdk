@@ -6,7 +6,7 @@ import {
   type WalletClient,
 } from "viem";
 import { type ContractAbis, getAbi, type VanaContract } from "../abi";
-import type { VanaChainId, ContractInfo } from "../types";
+import type { VanaChainId, ContractInfo } from "../types/index";
 import { getContractAddress, CONTRACT_ADDRESSES } from "../config/addresses";
 import { createClient } from "../core/client";
 import { vanaMainnet } from "../config/chains";

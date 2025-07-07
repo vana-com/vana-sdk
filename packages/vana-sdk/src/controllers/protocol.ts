@@ -1,4 +1,4 @@
-import type { VanaContract, ContractInfo, VanaChainId } from "../types";
+import type { VanaContract, ContractInfo, VanaChainId } from "../types/index";
 import { ContractNotFoundError } from "../errors";
 import {
   getContractController,

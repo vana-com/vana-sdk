@@ -12,7 +12,9 @@
     "strict": true,
     "skipLibCheck": true,
     "types": ["node"],
-    "rootDir": "./"
+    "rootDir": "./",
+    "incremental": true,
+    "tsBuildInfoFile": ".tsbuildinfo"
   },
   "include": ["src/**/*", "scripts/**/*", "tests/**/*"],
   "exclude": ["node_modules", "dist", "examples/**/*"]

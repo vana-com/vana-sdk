@@ -4,7 +4,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**", ".tsbuildinfo"],
       "env": ["RELAYER_PRIVATE_KEY", "CHAIN_RPC_URL", "CHAIN_ID"]
     },
     "dev": {
@@ -18,7 +18,7 @@
       "outputs": []
     },
     "typecheck": {
-      "outputs": []
+      "outputs": [".tsbuildinfo"]
     },
     "test": {
       "outputs": ["coverage/**"]

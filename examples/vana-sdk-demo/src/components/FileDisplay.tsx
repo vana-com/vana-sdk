@@ -12,7 +12,6 @@ interface FileDisplayProps {
 
 export function FileDisplay({
   fileId,
-  url,
   showExternalLink = true,
   className = "",
 }: FileDisplayProps) {

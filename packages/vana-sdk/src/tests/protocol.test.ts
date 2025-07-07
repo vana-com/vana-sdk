@@ -9,6 +9,32 @@ import { ContractNotFoundError } from "../errors";
 // Mock the config and ABI modules
 vi.mock("../config/addresses", () => ({
   getContractAddress: vi.fn(),
+  CONTRACT_ADDRESSES: {
+    14800: {
+      PermissionRegistry: "0x3acB2023DF2617EFb61422BA0c8C6E97916961e0",
+      DataRegistry: "0x8C8788f98385F6ba1adD4234e551ABba0f82Cb7C",
+      TeePool: "0x3c92fD91639b41f13338CE62f19131e7d19eaa0D",
+      TeePoolPhala: "0xE8EC6BD73b23Ad40E6B9a6f4bD343FAc411bD99A",
+      ComputeEngine: "0xb2BFe33FA420c45F1Cf1287542ad81ae935447bd",
+      DLPRegistry: "0x4D59880a924526d1dD33260552Ff4328b1E18a43",
+      VanaEpoch: "0x2063cFF0609D59bCCc196E20Eb58A8696a6b15A0",
+      VanaPoolStaking: "0x641C18E2F286c86f96CE95C8ec1EB9fC0415Ca0e",
+      TeePoolEphemeralStandard: "0xe124bae846D5ec157f75Bd9e68ca87C4d2AB835A",
+      TeePoolPersistentStandard: "0xe8bB8d0629651Cf33e0845d743976Dc1f0971d76",
+    },
+    1480: {
+      PermissionRegistry: "0x0000000000000000000000000000000000000000",
+      DataRegistry: "0x8C8788f98385F6ba1adD4234e551ABba0f82Cb7C",
+      TeePool: "0x3c92fD91639b41f13338CE62f19131e7d19eaa0D",
+      TeePoolPhala: "0xE8EC6BD73b23Ad40E6B9a6f4bD343FAc411bD99A",
+      ComputeEngine: "0xb2BFe33FA420c45F1Cf1287542ad81ae935447bd",
+      DLPRegistry: "0x4D59880a924526d1dD33260552Ff4328b1E18a43",
+      VanaEpoch: "0x2063cFF0609D59bCCc196E20Eb58A8696a6b15A0",
+      VanaPoolStaking: "0x641C18E2F286c86f96CE95C8ec1EB9fC0415Ca0e",
+      TeePoolEphemeralStandard: "0xe124bae846D5ec157f75Bd9e68ca87C4d2AB835A",
+      TeePoolPersistentStandard: "0xe8bB8d0629651Cf33e0845d743976Dc1f0971d76",
+    },
+  },
 }));
 
 vi.mock("../abi", () => ({
@@ -32,6 +58,7 @@ describe("ProtocolController", () => {
   let controller: ProtocolController;
   let mockContext: ControllerContext;
   let mockWalletClient: any;
+  let mockPublicClient: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -42,8 +69,14 @@ describe("ProtocolController", () => {
       transport: http("https://rpc.moksha.vana.org"),
     });
 
+    // Create a fully mocked public client
+    mockPublicClient = {
+      waitForTransactionReceipt: vi.fn().mockResolvedValue({ logs: [] }),
+    };
+
     mockContext = {
       walletClient: mockWalletClient,
+      publicClient: mockPublicClient,
       relayerUrl: "https://test-relayer.com",
     };
 
@@ -90,12 +123,13 @@ describe("ProtocolController", () => {
 
       const noChainController = new ProtocolController({
         walletClient: noChainClient,
+        publicClient: mockPublicClient,
         relayerUrl: "https://test-relayer.com",
       });
 
       expect(() => {
         noChainController.getContract("DataRegistry");
-      }).toThrow("Chain ID not available from wallet client");
+      }).toThrow(ContractNotFoundError);
     });
 
     it("should work with all contract types", () => {
@@ -214,6 +248,7 @@ describe("ProtocolController", () => {
 
       const noChainController = new ProtocolController({
         walletClient: noChainClient,
+        publicClient: mockPublicClient,
         relayerUrl: "https://test-relayer.com",
       });
 
@@ -237,6 +272,7 @@ describe("ProtocolController", () => {
 
       const noChainController = new ProtocolController({
         walletClient: noChainClient,
+        publicClient: mockPublicClient,
         relayerUrl: "https://test-relayer.com",
       });
 
@@ -295,13 +331,14 @@ describe("ProtocolController", () => {
           ...mockWalletClient,
           chain: undefined, // No chain object
         },
+        publicClient: mockPublicClient,
       };
 
       const controller = new ProtocolController(contextWithoutChain);
 
       expect(() => {
         controller.getContract("DataRegistry");
-      }).toThrow("Chain ID not available from wallet client");
+      }).toThrow(ContractNotFoundError);
     });
 
     it("should use chain ID fallback (|| 0) when chain.id is undefined in catch block", async () => {
@@ -359,6 +396,7 @@ describe("ProtocolController", () => {
 
       const controller = new ProtocolController({
         walletClient: walletClientWithDynamicId,
+        publicClient: mockPublicClient,
       });
 
       // Mock getContractAddress to throw an error that contains "Contract address not found"
@@ -394,6 +432,7 @@ describe("ProtocolController", () => {
 
       const controller = new ProtocolController({
         walletClient: walletClientWithThrowingId,
+        publicClient: mockPublicClient,
       });
 
       // Should throw the error from the id getter

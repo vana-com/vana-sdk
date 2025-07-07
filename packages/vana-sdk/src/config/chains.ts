@@ -1,4 +1,5 @@
-import { Abi, Chain, defineChain } from "viem";
+import type { Abi, Chain } from "viem";
+import { defineChain } from "viem";
 
 export const mokshaTestnet = defineChain({
   id: 14800,

@@ -194,7 +194,7 @@ describe("VanaProvider", () => {
           rpcUrl: "https://test.example.com",
           signer: mockSigner,
         });
-      }).toThrow("Chain 999999 not found");
+      }).toThrow("Unsupported chain ID: 999999");
     });
 
     it("should throw error for unknown contract address", () => {

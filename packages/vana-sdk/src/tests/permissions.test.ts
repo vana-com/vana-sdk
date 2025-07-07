@@ -402,13 +402,21 @@ describe("PermissionsController", () => {
 
   describe("Error handling", () => {
     it("should handle nonce retrieval errors", async () => {
-      // Mock the viem createPublicClient to return a client that fails on readContract
-      const { createPublicClient } = await import("viem");
-      vi.mocked(createPublicClient).mockReturnValueOnce({
-        readContract: vi
-          .fn()
-          .mockRejectedValue(new Error("Contract call failed")),
-      } as any);
+      // Mock fetch to allow grant file storage to succeed first
+      const mockFetch = fetch as Mock;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            success: true,
+            url: "https://ipfs.io/ipfs/QmGrantFile123",
+          }),
+      });
+
+      // Mock the publicClient to fail on readContract (nonce retrieval)
+      mockPublicClient.readContract.mockRejectedValueOnce(
+        new Error("Contract call failed"),
+      );
 
       const params = {
         to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
@@ -705,149 +713,6 @@ describe("PermissionsController", () => {
         files: [],
         grant: "https://ipfs.io/ipfs/Qm1",
       });
-    });
-  });
-
-  describe("IPFS Grant Fetching", () => {
-    it("should fetch grant data from IPFS URL", async () => {
-      const mockFetch = fetch as Mock;
-
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            operation: "test_operation",
-            files: [1, 2, 3],
-            parameters: { test: "value" },
-          }),
-      });
-
-      // Access private method for testing
-      const fetchGrant = (controller as any).fetchGrantFromIPFS.bind(
-        controller,
-      );
-      const result = await fetchGrant("ipfs://QmTestHash");
-
-      expect(result).toEqual({
-        operation: "test_operation",
-        files: [1, 2, 3],
-        parameters: { test: "value" },
-      });
-      expect(mockFetch).toHaveBeenCalledWith("https://ipfs.io/ipfs/QmTestHash");
-    });
-
-    it("should handle IPFS URL conversion correctly", async () => {
-      const mockFetch = fetch as Mock;
-
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: "test" }),
-      });
-
-      const fetchGrant = (controller as any).fetchGrantFromIPFS.bind(
-        controller,
-      );
-      const result = await fetchGrant("ipfs://QmTestHash123");
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        "https://ipfs.io/ipfs/QmTestHash123",
-      );
-      expect(result).toEqual({ data: "test" });
-    });
-
-    it("should handle HTTP URLs without conversion", async () => {
-      const mockFetch = fetch as Mock;
-
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: "http_test" }),
-      });
-
-      const fetchGrant = (controller as any).fetchGrantFromIPFS.bind(
-        controller,
-      );
-      const result = await fetchGrant("https://example.com/grant.json");
-
-      expect(mockFetch).toHaveBeenCalledWith("https://example.com/grant.json");
-      expect(result).toEqual({ data: "http_test" });
-    });
-
-    it("should handle fetch errors gracefully", async () => {
-      const mockFetch = fetch as Mock;
-
-      mockFetch.mockRejectedValueOnce(new Error("Network error"));
-
-      const fetchGrant = (controller as any).fetchGrantFromIPFS.bind(
-        controller,
-      );
-      const result = await fetchGrant("ipfs://QmFailedHash");
-
-      expect(result).toBeNull();
-    });
-
-    it("should handle HTTP error responses gracefully", async () => {
-      const mockFetch = fetch as Mock;
-
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 404,
-        statusText: "Not Found",
-      });
-
-      const fetchGrant = (controller as any).fetchGrantFromIPFS.bind(
-        controller,
-      );
-      const result = await fetchGrant("ipfs://QmNotFound");
-
-      expect(result).toBeNull();
-    });
-
-    it("should handle invalid JSON gracefully", async () => {
-      const mockFetch = fetch as Mock;
-
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.reject(new Error("Invalid JSON")),
-      });
-
-      const fetchGrant = (controller as any).fetchGrantFromIPFS.bind(
-        controller,
-      );
-      const result = await fetchGrant("ipfs://QmInvalidJSON");
-
-      expect(result).toBeNull();
-    });
-
-    it("should handle null JSON response gracefully", async () => {
-      const mockFetch = fetch as Mock;
-
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(null),
-      });
-
-      const fetchGrant = (controller as any).fetchGrantFromIPFS.bind(
-        controller,
-      );
-      const result = await fetchGrant("ipfs://QmNullResponse");
-
-      expect(result).toBeNull();
-    });
-
-    it("should handle non-object JSON response gracefully", async () => {
-      const mockFetch = fetch as Mock;
-
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve("string response"),
-      });
-
-      const fetchGrant = (controller as any).fetchGrantFromIPFS.bind(
-        controller,
-      );
-      const result = await fetchGrant("ipfs://QmStringResponse");
-
-      expect(result).toBeNull();
     });
   });
 

@@ -30,6 +30,6 @@
     "incremental": true,
     "tsBuildInfoFile": ".tsbuildinfo"
   },
-  "include": ["src/**/*", "scripts/**/*", "tests/**/*"],
+  "include": ["src/**/*", "scripts/**/*", "tests/**/*", "vitest.config.ts"],
   "exclude": ["node_modules", "dist", "examples/**/*", "coverage/**/*"]
 }

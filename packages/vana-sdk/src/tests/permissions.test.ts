@@ -547,7 +547,7 @@ describe("PermissionsController", () => {
 
       expect(result).toHaveLength(2);
       expect(result[0]).toEqual({
-        id: 2,
+        id: 2n,
         files: [],
         grant: "https://ipfs.io/ipfs/Qm2",
         operation: "",
@@ -557,7 +557,7 @@ describe("PermissionsController", () => {
         grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
       });
       expect(result[1]).toEqual({
-        id: 1,
+        id: 1n,
         files: [],
         grant: "https://ipfs.io/ipfs/Qm1",
         operation: "",
@@ -681,7 +681,7 @@ describe("PermissionsController", () => {
       // Should still return the one successful permission
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({
-        id: 1,
+        id: 1n,
         files: [],
         grant: "https://ipfs.io/ipfs/Qm1",
         operation: "",

@@ -53,7 +53,7 @@ export default [
     },
     rules: {
       ...tseslint.configs.recommended.rules,
-      "no-console": ["error", { allow: ["warn", "error"] }],
+      "no-console": ["error", { allow: ["info", "debug", "warn", "error"] }],
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-unused-vars": [
         "error",

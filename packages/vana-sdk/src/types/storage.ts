@@ -98,13 +98,18 @@ export interface StorageProviderConfig {
 export class StorageError extends Error {
   public readonly code: string;
   public readonly provider: string;
-  public override readonly cause?: Error;
+  // The 'cause' property is now inherited from the base Error class
 
-  constructor(message: string, code: string, provider: string, cause?: Error) {
-    super(message);
+  constructor(
+    message: string,
+    code: string,
+    provider: string,
+    options?: { cause?: Error },
+  ) {
+    // Pass the options object with 'cause' to the super constructor
+    super(message, options);
     this.name = "StorageError";
     this.code = code;
     this.provider = provider;
-    this.cause = cause;
   }
 }

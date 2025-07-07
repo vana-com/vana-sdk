@@ -155,7 +155,7 @@ export function getGrantFileHash(grantFile: GrantFile): string {
     };
 
     const jsonString = JSON.stringify(sortedFile);
-    console.log(`Hash: ${keccak256(toHex(jsonString))}`);
+    console.info(`Hash: ${keccak256(toHex(jsonString))}`);
     return keccak256(toHex(jsonString));
   } catch (error) {
     throw new SerializationError(

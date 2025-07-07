@@ -13,9 +13,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("🔄 Relaying file registration to DataRegistry...");
-    console.log("📄 URL:", url);
-    console.log("👤 User:", userAddress);
+    console.info("🔄 Relaying file registration to DataRegistry...");
+    console.info("📄 URL:", url);
+    console.info("👤 User:", userAddress);
 
     // Create Vana SDK instance with relayer wallet
     const vana = createRelayerVana();
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
       [], // No additional permissions needed at registration time
     );
 
-    console.log(`✅ File registered with ID: ${result.fileId}`);
+    console.info(`✅ File registered with ID: ${result.fileId}`);
 
     // TODO: In the future, we should:
     // 1. Require a signature from the user proving they consent to file registration

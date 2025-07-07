@@ -590,7 +590,7 @@ export class PermissionsController {
           }
 
           userPermissions.push({
-            id: Number(permissionId), // Convert bigint to number for interface compatibility
+            id: permissionId,
             files: files,
             operation: operation || "",
             parameters: (parameters as Record<string, unknown>) || {},
@@ -606,8 +606,8 @@ export class PermissionsController {
 
       return userPermissions.sort((a, b) => {
         // Sort bigints - most recent first
-        if (b.id > a.id) return 1;
-        if (b.id < a.id) return -1;
+        if (a.id < b.id) return 1;
+        if (a.id > b.id) return -1;
         return 0;
       });
     } catch (error) {

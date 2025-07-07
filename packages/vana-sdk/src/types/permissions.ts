@@ -5,15 +5,15 @@ import type { Address, Hash } from "viem";
  */
 export interface GrantedPermission {
   /** Unique identifier for the permission */
-  id: number;
+  id: bigint;
   /** Array of file IDs included in the permission */
   files: number[];
   /** Type of operation permitted (e.g., "llm_inference") */
-  operation: string;
+  operation?: string;
   /** The grant URL containing all permission details */
   grant: string;
   /** The parameters associated with the permission */
-  parameters: Record<string, unknown>;
+  parameters?: Record<string, unknown>;
   /** Optional nonce used when granting the permission */
   nonce?: number;
   /** Optional block number when permission was granted */

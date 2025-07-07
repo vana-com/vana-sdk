@@ -3,7 +3,7 @@ export * from "./types/index";
 
 // Also re-export legacy types for backward compatibility
 // These were previously defined in this file and are now in the types module
-import type { WalletClient, Address, Hash } from "viem";
+import type { WalletClient, Address } from "viem";
 import type { StorageProvider } from "./storage";
 
 /**
@@ -39,26 +39,6 @@ export interface UserFile {
 }
 
 /**
- * Represents a granted permission from the PermissionRegistry.
- */
-export interface GrantedPermission {
-  /** Unique identifier for the permission */
-  id: bigint;
-  /** Array of file IDs included in the permission */
-  files: number[];
-  /** Type of operation permitted (e.g., "llm_inference") */
-  operation?: string;
-  /** The grant URL containing all permission details */
-  grant: string;
-  /** The parameters associated with the permission */
-  parameters?: unknown;
-  /** Optional nonce used when granting the permission */
-  nonce?: number;
-  /** Optional block number when permission was granted */
-  grantedAt?: number;
-}
-
-/**
  * Parameters for the `vana.permissions.grant` method.
  */
 export interface GrantPermissionParams {
@@ -72,14 +52,6 @@ export interface GrantPermissionParams {
   parameters: Record<string, unknown>;
   /** Optional pre-stored grant URL to avoid duplicate IPFS storage */
   grantUrl?: string;
-}
-
-/**
- * Parameters for the `vana.permissions.revoke` method.
- */
-export interface RevokePermissionParams {
-  /** The permission ID (from GrantedPermission.id) OR the keccak256 hash of the original PermissionGrant struct to revoke */
-  grantId: Hash | bigint | number | string;
 }
 
 /**

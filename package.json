@@ -24,7 +24,8 @@
     "test:coverage": "turbo run test:coverage",
     "fetch-abis": "turbo run fetch-abis --filter='vana-sdk'",
     "clean": "turbo run clean",
-    "prepare": "husky"
+    "prepare": "husky",
+    "validate": "turbo run lint && turbo run typecheck && turbo run test"
   },
   "devDependencies": {
     "husky": "^9.1.7",
@@ -34,8 +35,8 @@
   },
   "packageManager": "npm@10.9.2",
   "engines": {
-    "node": ">=16.0.0",
-    "npm": ">=7.0.0"
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [

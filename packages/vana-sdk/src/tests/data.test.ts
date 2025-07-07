@@ -90,6 +90,7 @@ describe("DataController", () => {
   let controller: DataController;
   let mockContext: ControllerContext;
   let mockWalletClient: any;
+  let mockPublicClient: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -111,8 +112,14 @@ describe("DataController", () => {
       writeContract: vi.fn().mockResolvedValue("0xtxhash"),
     };
 
+    // Create a fully mocked public client
+    mockPublicClient = {
+      waitForTransactionReceipt: vi.fn().mockResolvedValue({ logs: [] }),
+    };
+
     mockContext = {
       walletClient: mockWalletClient,
+      publicClient: mockPublicClient,
       relayerUrl: "https://test-relayer.com",
     };
 

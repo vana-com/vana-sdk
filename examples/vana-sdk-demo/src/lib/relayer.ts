@@ -1,7 +1,7 @@
-import { createWalletClient, http } from "viem";
+import { createWalletClient, createPublicClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { createHash } from "crypto";
-import { mokshaTestnet } from "./chains";
+import { mokshaTestnet, Vana } from "vana-sdk";
 
 // Simple in-memory storage for demo purposes
 const parameterStorage = new Map<string, string>();
@@ -25,11 +25,17 @@ const walletClient = createWalletClient({
   transport: http(CHAIN_RPC_URL),
 });
 
+const publicClient = createPublicClient({
+  chain: mokshaTestnet,
+  transport: http(CHAIN_RPC_URL),
+});
+
 export const relayerConfig = {
   account: relayerAccount,
   chainId: CHAIN_ID,
   chainRpcUrl: CHAIN_RPC_URL,
   walletClient,
+  publicClient,
 };
 
 export const relayerStorage = {
@@ -50,7 +56,7 @@ export const relayerStorage = {
   },
 };
 
-export const generateMockTxHash = (data: any): string => {
+export const generateMockTxHash = (data: unknown): string => {
   return `0x${createHash("sha256")
     .update(JSON.stringify(data) + Date.now())
     .digest("hex")}`;
@@ -60,3 +66,10 @@ export const generateContentId = (parameters: string): string => {
   const hash = createHash("sha256").update(parameters).digest("hex");
   return `Qm${hash.substring(0, 44)}`; // Mock IPFS CID format
 };
+
+/**
+ * Create a pre-configured Vana SDK instance using the relayer wallet
+ */
+export function createRelayerVana(): Vana {
+  return new Vana({ walletClient });
+}

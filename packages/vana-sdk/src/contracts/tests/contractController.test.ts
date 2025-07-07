@@ -1,8 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import {
-  getContractController,
-  __controllersCache,
-} from "../contractController";
+import { getContractController, __contractCache } from "../contractController";
 import { VanaContract } from "../../abi";
 import { createClient } from "../../core/client";
 import { vanaMainnet, mokshaTestnet } from "../../config/chains";
@@ -62,7 +59,7 @@ describe("contractController", () => {
     vi.clearAllMocks();
 
     // Clear the controllers cache to avoid cross-test contamination
-    __controllersCache.clear();
+    __contractCache.clear();
 
     // Mock createClient to return our mock client
     vi.mocked(createClient).mockReturnValue(mockClient);

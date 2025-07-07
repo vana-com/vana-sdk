@@ -82,6 +82,7 @@ describe("PermissionsController", () => {
   let controller: PermissionsController;
   let mockContext: ControllerContext;
   let mockWalletClient: any;
+  let mockPublicClient: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -107,8 +108,15 @@ describe("PermissionsController", () => {
       writeContract: vi.fn().mockResolvedValue("0xtxhash" as Hash),
     };
 
+    // Create a mock publicClient
+    mockPublicClient = {
+      readContract: vi.fn().mockResolvedValue(BigInt(0)),
+      waitForTransactionReceipt: vi.fn().mockResolvedValue({ logs: [] }),
+    };
+
     mockContext = {
       walletClient: mockWalletClient,
+      publicClient: mockPublicClient as any,
       relayerUrl: "https://test-relayer.com",
     };
 
@@ -130,13 +138,7 @@ describe("PermissionsController", () => {
       // Mock all the required calls
       const mockFetch = fetch as Mock;
 
-      // Mock nonce retrieval using the global mock
-      const { createPublicClient } = await import("viem");
-      vi.mocked(createPublicClient).mockReturnValueOnce({
-        readContract: vi.fn().mockResolvedValue(BigInt(0)),
-      } as any);
-
-      // Mock transaction relay response
+      // Mock for relayer transaction submission (storeGrantFile is already mocked above)
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () =>
@@ -150,7 +152,8 @@ describe("PermissionsController", () => {
 
       expect(result).toBe("0xtxhash");
       expect(mockWalletClient.signTypedData).toHaveBeenCalled();
-      expect(fetch).toHaveBeenCalledTimes(1); // Only transaction relay (storeGrantFile is mocked)
+      // Since we have relayerUrl configured, it should use relayer path
+      expect(fetch).toHaveBeenCalledTimes(1); // Only relayer transaction (storeGrantFile is mocked separately)
     });
 
     it("should handle user rejection gracefully", async () => {
@@ -212,7 +215,7 @@ describe("PermissionsController", () => {
 
   describe("revoke", () => {
     const mockRevokeParams = {
-      grantId: "0xgrantid123" as Hash,
+      grantId: "0x123" as `0x${string}`, // Can now pass permission ID as hex string
     };
 
     it("should successfully revoke permission", async () => {
@@ -307,6 +310,7 @@ describe("PermissionsController", () => {
       // Create controller without relayer URL for direct transactions
       directController = new PermissionsController({
         walletClient: mockWalletClient,
+        publicClient: mockPublicClient,
         // No relayerUrl - forces direct transaction path
       });
     });
@@ -321,7 +325,7 @@ describe("PermissionsController", () => {
       };
 
       await expect(directController.grant(mockParams)).rejects.toThrow(
-        "No relayerUrl configured and no grantUrl provided",
+        "No storage available. Provide a grantUrl, configure relayerUrl, or provide storageManager.",
       );
     });
 
@@ -360,13 +364,21 @@ describe("PermissionsController", () => {
 
   describe("Error handling", () => {
     it("should handle nonce retrieval errors", async () => {
-      // Mock the viem createPublicClient to return a client that fails on readContract
-      const { createPublicClient } = await import("viem");
-      vi.mocked(createPublicClient).mockReturnValueOnce({
-        readContract: vi
-          .fn()
-          .mockRejectedValue(new Error("Contract call failed")),
-      } as any);
+      // Mock fetch to allow grant file storage to succeed first
+      const mockFetch = fetch as Mock;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            success: true,
+            url: "https://ipfs.io/ipfs/QmGrantFile123",
+          }),
+      });
+
+      // Mock the publicClient to fail on readContract (nonce retrieval)
+      mockPublicClient.readContract.mockRejectedValueOnce(
+        new Error("Contract call failed"),
+      );
 
       const params = {
         to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
@@ -535,14 +547,24 @@ describe("PermissionsController", () => {
 
       expect(result).toHaveLength(2);
       expect(result[0]).toEqual({
-        id: 2,
+        id: 2n,
         files: [],
         grant: "https://ipfs.io/ipfs/Qm2",
+        operation: "",
+        parameters: {},
+        active: true,
+        grantor: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
       });
       expect(result[1]).toEqual({
-        id: 1,
+        id: 1n,
         files: [],
         grant: "https://ipfs.io/ipfs/Qm1",
+        operation: "",
+        parameters: {},
+        active: true,
+        grantor: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
       });
     });
 
@@ -604,6 +626,7 @@ describe("PermissionsController", () => {
 
       const noChainController = new PermissionsController({
         walletClient: noChainWallet,
+        publicClient: mockPublicClient,
         relayerUrl: "https://test-relayer.com",
       });
 
@@ -658,153 +681,15 @@ describe("PermissionsController", () => {
       // Should still return the one successful permission
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({
-        id: 1,
+        id: 1n,
         files: [],
         grant: "https://ipfs.io/ipfs/Qm1",
+        operation: "",
+        parameters: {},
+        active: true,
+        grantor: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
       });
-    });
-  });
-
-  describe("IPFS Grant Fetching", () => {
-    it("should fetch grant data from IPFS URL", async () => {
-      const mockFetch = fetch as Mock;
-
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            operation: "test_operation",
-            files: [1, 2, 3],
-            parameters: { test: "value" },
-          }),
-      });
-
-      // Access private method for testing
-      const fetchGrant = (controller as any).fetchGrantFromIPFS.bind(
-        controller,
-      );
-      const result = await fetchGrant("ipfs://QmTestHash");
-
-      expect(result).toEqual({
-        operation: "test_operation",
-        files: [1, 2, 3],
-        parameters: { test: "value" },
-      });
-      expect(mockFetch).toHaveBeenCalledWith("https://ipfs.io/ipfs/QmTestHash");
-    });
-
-    it("should handle IPFS URL conversion correctly", async () => {
-      const mockFetch = fetch as Mock;
-
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: "test" }),
-      });
-
-      const fetchGrant = (controller as any).fetchGrantFromIPFS.bind(
-        controller,
-      );
-      const result = await fetchGrant("ipfs://QmTestHash123");
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        "https://ipfs.io/ipfs/QmTestHash123",
-      );
-      expect(result).toEqual({ data: "test" });
-    });
-
-    it("should handle HTTP URLs without conversion", async () => {
-      const mockFetch = fetch as Mock;
-
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: "http_test" }),
-      });
-
-      const fetchGrant = (controller as any).fetchGrantFromIPFS.bind(
-        controller,
-      );
-      const result = await fetchGrant("https://example.com/grant.json");
-
-      expect(mockFetch).toHaveBeenCalledWith("https://example.com/grant.json");
-      expect(result).toEqual({ data: "http_test" });
-    });
-
-    it("should handle fetch errors gracefully", async () => {
-      const mockFetch = fetch as Mock;
-
-      mockFetch.mockRejectedValueOnce(new Error("Network error"));
-
-      const fetchGrant = (controller as any).fetchGrantFromIPFS.bind(
-        controller,
-      );
-      const result = await fetchGrant("ipfs://QmFailedHash");
-
-      expect(result).toBeNull();
-    });
-
-    it("should handle HTTP error responses gracefully", async () => {
-      const mockFetch = fetch as Mock;
-
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 404,
-        statusText: "Not Found",
-      });
-
-      const fetchGrant = (controller as any).fetchGrantFromIPFS.bind(
-        controller,
-      );
-      const result = await fetchGrant("ipfs://QmNotFound");
-
-      expect(result).toBeNull();
-    });
-
-    it("should handle invalid JSON gracefully", async () => {
-      const mockFetch = fetch as Mock;
-
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.reject(new Error("Invalid JSON")),
-      });
-
-      const fetchGrant = (controller as any).fetchGrantFromIPFS.bind(
-        controller,
-      );
-      const result = await fetchGrant("ipfs://QmInvalidJSON");
-
-      expect(result).toBeNull();
-    });
-
-    it("should handle null JSON response gracefully", async () => {
-      const mockFetch = fetch as Mock;
-
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(null),
-      });
-
-      const fetchGrant = (controller as any).fetchGrantFromIPFS.bind(
-        controller,
-      );
-      const result = await fetchGrant("ipfs://QmNullResponse");
-
-      expect(result).toBeNull();
-    });
-
-    it("should handle non-object JSON response gracefully", async () => {
-      const mockFetch = fetch as Mock;
-
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve("string response"),
-      });
-
-      const fetchGrant = (controller as any).fetchGrantFromIPFS.bind(
-        controller,
-      );
-      const result = await fetchGrant("ipfs://QmStringResponse");
-
-      expect(result).toBeNull();
     });
   });
 
@@ -868,6 +753,7 @@ describe("PermissionsController", () => {
     it("should handle direct transaction blockchain errors", async () => {
       const directController = new PermissionsController({
         walletClient: mockWalletClient,
+        publicClient: mockPublicClient,
         // No relayerUrl - forces direct transaction path
       });
 
@@ -899,10 +785,14 @@ describe("PermissionsController", () => {
       const noChainWallet = {
         ...mockWalletClient,
         chain: null,
+        getChainId: vi
+          .fn()
+          .mockRejectedValue(new Error("Chain ID not available")),
       };
 
       const directController = new PermissionsController({
         walletClient: noChainWallet,
+        publicClient: mockPublicClient,
         // No relayerUrl - forces direct transaction path
       });
 
@@ -915,7 +805,7 @@ describe("PermissionsController", () => {
       };
 
       await expect(directController.grant(mockParams)).rejects.toThrow(
-        BlockchainError,
+        NonceError,
       );
     });
 
@@ -927,6 +817,7 @@ describe("PermissionsController", () => {
 
       const directController = new PermissionsController({
         walletClient: noAccountWallet,
+        publicClient: mockPublicClient,
         // No relayerUrl - forces direct transaction path
       });
 
@@ -964,11 +855,13 @@ describe("PermissionsController", () => {
 
       const noChainController = new PermissionsController({
         walletClient: noChainWallet,
+        publicClient: mockPublicClient,
         relayerUrl: "https://test-relayer.com",
       });
 
       const mockRevokeParams = {
-        grantId: "0xgrantid123" as Hash,
+        grantId:
+          "0x1234567890123456789012345678901234567890123456789012345678901234" as Hash,
       };
 
       await expect(noChainController.revoke(mockRevokeParams)).rejects.toThrow(
@@ -979,6 +872,7 @@ describe("PermissionsController", () => {
     it("should handle submitToRelayer network errors", async () => {
       const controller = new PermissionsController({
         walletClient: mockWalletClient,
+        publicClient: mockPublicClient,
         relayerUrl: "https://test-relayer.com",
       });
 
@@ -1000,6 +894,7 @@ describe("PermissionsController", () => {
     it("should handle getUserPermissions with non-Error exceptions", async () => {
       const controller = new PermissionsController({
         walletClient: mockWalletClient,
+        publicClient: mockPublicClient,
         relayerUrl: "https://test-relayer.com",
       });
 
@@ -1014,6 +909,7 @@ describe("PermissionsController", () => {
     it("should handle grant with non-Error exceptions", async () => {
       const controller = new PermissionsController({
         walletClient: mockWalletClient,
+        publicClient: mockPublicClient,
         relayerUrl: "https://test-relayer.com",
       });
 
@@ -1028,7 +924,7 @@ describe("PermissionsController", () => {
       mockWalletClient.getAddresses.mockRejectedValue("string error");
 
       await expect(controller.grant(mockParams)).rejects.toThrow(
-        "Permission grant failed with unknown error",
+        "Permission grant preparation failed with unknown error",
       );
     });
 
@@ -1045,11 +941,13 @@ describe("PermissionsController", () => {
 
       const controller = new PermissionsController({
         walletClient: faultyWalletClient,
+        publicClient: mockPublicClient,
         relayerUrl: "https://test-relayer.com",
       });
 
       const mockRevokeParams = {
-        grantId: "0xgrantid123" as Hash,
+        grantId:
+          "0x1234567890123456789012345678901234567890123456789012345678901234" as Hash,
       };
 
       await expect(controller.revoke(mockRevokeParams)).rejects.toThrow(
@@ -1060,12 +958,13 @@ describe("PermissionsController", () => {
     it("should handle direct revoke transaction path", async () => {
       const controller = new PermissionsController({
         walletClient: mockWalletClient,
+        publicClient: mockPublicClient,
         relayerUrl: undefined, // No relayer to force direct transaction path
       });
 
       const mockRevokeParams = {
         grantId:
-          "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef12345678" as Hash,
+          "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890" as Hash,
       };
 
       const result = await controller.revoke(mockRevokeParams);
@@ -1079,6 +978,7 @@ describe("PermissionsController", () => {
     it("should handle relayTransaction with missing relayer URL", async () => {
       const controller = new PermissionsController({
         walletClient: mockWalletClient,
+        publicClient: mockPublicClient,
         relayerUrl: undefined,
       });
 
@@ -1091,13 +991,14 @@ describe("PermissionsController", () => {
       };
 
       await expect(controller.grant(mockParams)).rejects.toThrow(
-        "No relayerUrl configured and no grantUrl provided",
+        "No storage available. Provide a grantUrl, configure relayerUrl, or provide storageManager.",
       );
     });
 
     it("should handle submitToRelayer with missing relayer URL", async () => {
       const mockRevokeParams = {
-        grantId: "0xgrantid123" as Hash,
+        grantId:
+          "0x1234567890123456789012345678901234567890123456789012345678901234" as Hash,
       };
 
       // Mock chain to be available but still no relayer URL
@@ -1108,6 +1009,7 @@ describe("PermissionsController", () => {
 
       const controllerWithChain = new PermissionsController({
         walletClient: mockWalletClientWithChain,
+        publicClient: mockPublicClient,
         relayerUrl: undefined,
       });
 
@@ -1122,11 +1024,13 @@ describe("PermissionsController", () => {
     it("should handle failed relayer response in submitToRelayer", async () => {
       const controller = new PermissionsController({
         walletClient: mockWalletClient,
+        publicClient: mockPublicClient,
         relayerUrl: "https://test-relayer.com",
       });
 
       const mockRevokeParams = {
-        grantId: "0xgrantid123" as Hash,
+        grantId:
+          "0x1234567890123456789012345678901234567890123456789012345678901234" as Hash,
       };
 
       // Mock fetch to return failed response
@@ -1149,11 +1053,13 @@ describe("PermissionsController", () => {
     it("should handle network errors in submitToRelayer", async () => {
       const controller = new PermissionsController({
         walletClient: mockWalletClient,
+        publicClient: mockPublicClient,
         relayerUrl: "https://test-relayer.com",
       });
 
       const mockRevokeParams = {
-        grantId: "0xgrantid123" as Hash,
+        grantId:
+          "0x1234567890123456789012345678901234567890123456789012345678901234" as Hash,
       };
 
       // Mock fetch to throw non-RelayerError
@@ -1179,11 +1085,13 @@ describe("PermissionsController", () => {
 
       const controllerWithChain = new PermissionsController({
         walletClient: mockWalletClientWithChain,
+        publicClient: mockPublicClient,
         relayerUrl: undefined,
       });
 
       const mockRevokeParams = {
-        grantId: "0xgrantid123" as Hash,
+        grantId:
+          "0x1234567890123456789012345678901234567890123456789012345678901234" as Hash,
       };
 
       // This should trigger direct transaction path, not submitToRelayer
@@ -1212,7 +1120,7 @@ describe("PermissionsController", () => {
       };
 
       await expect(controller.grant(mockParams)).rejects.toThrow(
-        "No relayerUrl configured and no grantUrl provided",
+        "No storage available. Provide a grantUrl, configure relayerUrl, or provide storageManager.",
       );
     });
 
@@ -1229,7 +1137,8 @@ describe("PermissionsController", () => {
       const controller = new PermissionsController(contextWithoutRelayer);
 
       const mockRevokeParams = {
-        grantId: "0xgrantid123" as Hash,
+        grantId:
+          "0x1234567890123456789012345678901234567890123456789012345678901234" as Hash,
       };
 
       await expect(controller.revoke(mockRevokeParams)).rejects.toThrow(
@@ -1260,7 +1169,8 @@ describe("PermissionsController", () => {
       });
 
       const mockRevokeParams = {
-        grantId: "0xgrantid123" as Hash,
+        grantId:
+          "0x1234567890123456789012345678901234567890123456789012345678901234" as Hash,
       };
 
       await expect(controller.revoke(mockRevokeParams)).rejects.toThrow(
@@ -1279,14 +1189,15 @@ describe("PermissionsController", () => {
 
       const controller = new PermissionsController(contextWithRelayer);
 
-      // Mock the relayTransaction private method to clear relayerUrl mid-execution
-      const originalRelayTransaction = (controller as any).relayTransaction;
-      vi.spyOn(controller as any, "relayTransaction").mockImplementation(
+      // Mock the relaySignedTransaction private method to clear relayerUrl mid-execution
+      const originalRelaySignedTransaction = (controller as any)
+        .relaySignedTransaction;
+      vi.spyOn(controller as any, "relaySignedTransaction").mockImplementation(
         async function (this: any, ...args: any[]) {
           // Clear relayerUrl after method starts but before submitToRelayer is called
           this.context.relayerUrl = undefined;
           // Call original which will eventually call submitToRelayer
-          return originalRelayTransaction.apply(this, args);
+          return originalRelaySignedTransaction.apply(this, args);
         },
       );
 
@@ -1341,7 +1252,7 @@ describe("PermissionsController", () => {
         expect.fail("Expected an error to be thrown");
       } catch (error: any) {
         expect(error.message).toContain(
-          "Permission grant failed: Direct transaction failed: Unknown error",
+          "Permission submission failed: Unknown error",
         );
       } finally {
         global.BigInt = originalBigInt;

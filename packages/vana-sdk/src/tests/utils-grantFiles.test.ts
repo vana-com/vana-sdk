@@ -148,7 +148,7 @@ describe("Grant Files Utils", () => {
         json: () =>
           Promise.resolve({
             success: true,
-            grantUrl: "https://ipfs.io/ipfs/QmGrantFile123",
+            url: "https://ipfs.io/ipfs/QmGrantFile123",
           }),
       });
 
@@ -159,15 +159,10 @@ describe("Grant Files Utils", () => {
 
       expect(result).toBe("https://ipfs.io/ipfs/QmGrantFile123");
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://relayer.test/api/v1/parameters",
+        "https://relayer.test/api/ipfs/upload",
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            parameters: JSON.stringify(mockGrantFile),
-          }),
+          body: expect.any(FormData),
         },
       );
     });

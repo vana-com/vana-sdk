@@ -285,15 +285,15 @@ export const LEGACY_ADDRESSES = {
   ),
 } as const;
 
-import { VanaContract } from "../abi";
+import type { VanaContract } from "../abi";
 
 export const getContractAddress = (
   chainId: keyof typeof CONTRACT_ADDRESSES,
   contract: VanaContract,
 ) => {
-  const contractAddress = CONTRACT_ADDRESSES[chainId][
-    contract
-  ] as `0x${string}`;
+  const contractAddress = CONTRACT_ADDRESSES[chainId]?.[contract] as
+    | `0x${string}`
+    | undefined;
   if (!contractAddress) {
     throw new Error(
       `Contract address not found for ${contract} on chain ${chainId}`,

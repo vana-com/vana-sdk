@@ -2,52 +2,145 @@ import js from "@eslint/js";
 import tseslint from "@typescript-eslint/eslint-plugin";
 import tsparser from "@typescript-eslint/parser";
 import prettierConfig from "eslint-config-prettier";
-import prettierPlugin from "eslint-plugin-prettier";
 import globals from "globals";
+import nextPlugin from "@next/eslint-plugin-next";
 
 export default [
-  // Ignore patterns for monorepo
+  // Global ignore patterns
   {
     ignores: [
-      "node_modules/**",
-      "dist/**",
-      "build/**",
-      ".vercel/**",
-      ".next/**",
-      "out/**",
-      "coverage/**",
-      "*.log",
-      ".DS_Store",
-      "examples/**", // Ignore all examples
-      "packages/**", // Let each package handle its own linting
-      ".eslintignore",
+      "**/dist/**",
+      "**/node_modules/**",
+      "**/coverage/**",
+      "**/build/**",
+      "**/.next/**",
+      "**/out/**",
+      "**/*.min.js",
+      "**/.vercel/**",
+      "**/*.log",
+      "**/.DS_Store",
+      "**/.eslintignore",
     ],
   },
 
   // Base JavaScript config
   js.configs.recommended,
 
-  // Root level config files only
+  // TypeScript files configuration
   {
-    files: ["*.config.js", "*.config.ts"],
+    files: ["**/*.ts", "**/*.tsx"],
     plugins: {
       "@typescript-eslint": tseslint,
-      prettier: prettierPlugin,
     },
     languageOptions: {
       parser: tsparser,
       parserOptions: {
         ecmaVersion: "latest",
         sourceType: "module",
+        projectService: true,
       },
       globals: {
-        ...globals.node,
-        ...globals.es2021,
+        ...globals.nodeBuiltin,
+        ...globals.browser,
+        process: "readonly",
+        console: "readonly",
+        fetch: "readonly",
+        global: "readonly",
+        URL: "readonly",
+        Buffer: "readonly",
+        __dirname: "readonly",
+        __filename: "readonly",
+      },
+    },
+    rules: {
+      ...tseslint.configs.recommended.rules,
+      "no-console": ["error", { allow: ["info", "debug", "warn", "error"] }],
+      "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+        },
+      ],
+      "@typescript-eslint/no-non-null-assertion": "warn",
+      "@typescript-eslint/no-var-requires": "error",
+      "prefer-const": "error",
+      "no-var": "error",
+      eqeqeq: ["error", "always"],
+      curly: ["error", "all"],
+    },
+  },
+
+  // Test files configuration
+  {
+    files: ["**/*.test.ts", "**/*.test.tsx", "**/tests/**/*.ts"],
+    languageOptions: {
+      globals: {
+        ...globals.nodeBuiltin,
+        ...globals.browser,
+        describe: "readonly",
+        it: "readonly",
+        expect: "readonly",
+        beforeEach: "readonly",
+        afterEach: "readonly",
+        beforeAll: "readonly",
+        afterAll: "readonly",
+        vi: "readonly",
+        vitest: "readonly",
       },
     },
     rules: {
       "no-console": "off",
-      "prettier/prettier": "error",
+      "@typescript-eslint/no-explicit-any": "warn",
+    },
+  },
+
+  // Config files configuration
+  {
+    files: ["**/*.config.{js,ts,cjs,mjs}", "**/scripts/**/*.{js,ts}"],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        ...globals.nodeBuiltin,
+        require: "readonly",
+        module: "readonly",
+        __dirname: "readonly",
+        __filename: "readonly",
+        process: "readonly",
+      },
+    },
+    rules: {
+      "no-console": "off",
+      "@typescript-eslint/no-var-requires": "off",
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
+
+  // Next.js specific configuration for demo app
+  {
+    files: ["examples/vana-sdk-demo/**/*.{js,jsx,ts,tsx}"],
+    plugins: {
+      "@next/next": nextPlugin,
+    },
+    languageOptions: {
+      parser: tsparser,
+      parserOptions: {
+        ecmaVersion: "latest",
+        sourceType: "module",
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+      globals: {
+        ...globals.browser,
+        ...globals.es2021,
+        React: "readonly",
+      },
+    },
+    rules: {
+      ...nextPlugin.configs.recommended.rules,
+      ...nextPlugin.configs["core-web-vitals"].rules,
     },
   },
 

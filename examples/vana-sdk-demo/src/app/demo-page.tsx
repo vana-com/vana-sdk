@@ -327,12 +327,19 @@ export default function Home() {
       setGrantStatus("Storing grant file in IPFS...");
 
       // Store in IPFS first
-      const response = await fetch("/api/v1/parameters", {
+      const grantFileBlob = new Blob(
+        [JSON.stringify(grantFilePreview, null, 2)],
+        {
+          type: "application/json",
+        },
+      );
+
+      const formData = new FormData();
+      formData.append("file", grantFileBlob, "grant-file.json");
+
+      const response = await fetch("/api/ipfs/upload", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          parameters: JSON.stringify(grantFilePreview),
-        }),
+        body: formData,
       });
 
       if (!response.ok) {
@@ -347,10 +354,10 @@ export default function Home() {
       // Show preview to user
       setGrantPreview({
         grantFile: grantFilePreview,
-        grantUrl: storageResult.grantUrl,
+        grantUrl: storageResult.url,
         params: {
           ...params,
-          grantUrl: storageResult.grantUrl, // Pass the pre-stored URL to avoid duplicate storage
+          grantUrl: storageResult.url, // Pass the pre-stored URL to avoid duplicate storage
         },
       });
       setShowGrantPreview(true);

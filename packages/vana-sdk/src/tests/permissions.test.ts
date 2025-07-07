@@ -110,7 +110,7 @@ describe("PermissionsController", () => {
     };
 
     return {
-      walletClient: defaultMockWalletClient,
+      walletClient: defaultMockWalletClient as any,
       publicClient: defaultMockPublicClient as any,
       relayerUrl: "https://test-relayer.com",
       ...overrides,
@@ -348,6 +348,7 @@ describe("PermissionsController", () => {
       // Create controller without relayer URL for direct transactions
       directController = new PermissionsController({
         walletClient: mockWalletClient,
+        publicClient: mockPublicClient,
         // No relayerUrl - forces direct transaction path
       });
     });
@@ -645,6 +646,7 @@ describe("PermissionsController", () => {
 
       const noChainController = new PermissionsController({
         walletClient: noChainWallet,
+        publicClient: mockPublicClient,
         relayerUrl: "https://test-relayer.com",
       });
 
@@ -909,6 +911,7 @@ describe("PermissionsController", () => {
     it("should handle direct transaction blockchain errors", async () => {
       const directController = new PermissionsController({
         walletClient: mockWalletClient,
+        publicClient: mockPublicClient,
         // No relayerUrl - forces direct transaction path
       });
 
@@ -944,6 +947,7 @@ describe("PermissionsController", () => {
 
       const directController = new PermissionsController({
         walletClient: noChainWallet,
+        publicClient: mockPublicClient,
         // No relayerUrl - forces direct transaction path
       });
 
@@ -968,6 +972,7 @@ describe("PermissionsController", () => {
 
       const directController = new PermissionsController({
         walletClient: noAccountWallet,
+        publicClient: mockPublicClient,
         // No relayerUrl - forces direct transaction path
       });
 
@@ -1005,6 +1010,7 @@ describe("PermissionsController", () => {
 
       const noChainController = new PermissionsController({
         walletClient: noChainWallet,
+        publicClient: mockPublicClient,
         relayerUrl: "https://test-relayer.com",
       });
 
@@ -1020,6 +1026,7 @@ describe("PermissionsController", () => {
     it("should handle submitToRelayer network errors", async () => {
       const controller = new PermissionsController({
         walletClient: mockWalletClient,
+        publicClient: mockPublicClient,
         relayerUrl: "https://test-relayer.com",
       });
 
@@ -1041,6 +1048,7 @@ describe("PermissionsController", () => {
     it("should handle getUserPermissions with non-Error exceptions", async () => {
       const controller = new PermissionsController({
         walletClient: mockWalletClient,
+        publicClient: mockPublicClient,
         relayerUrl: "https://test-relayer.com",
       });
 
@@ -1055,6 +1063,7 @@ describe("PermissionsController", () => {
     it("should handle grant with non-Error exceptions", async () => {
       const controller = new PermissionsController({
         walletClient: mockWalletClient,
+        publicClient: mockPublicClient,
         relayerUrl: "https://test-relayer.com",
       });
 
@@ -1086,6 +1095,7 @@ describe("PermissionsController", () => {
 
       const controller = new PermissionsController({
         walletClient: faultyWalletClient,
+        publicClient: mockPublicClient,
         relayerUrl: "https://test-relayer.com",
       });
 
@@ -1101,6 +1111,7 @@ describe("PermissionsController", () => {
     it("should handle direct revoke transaction path", async () => {
       const controller = new PermissionsController({
         walletClient: mockWalletClient,
+        publicClient: mockPublicClient,
         relayerUrl: undefined, // No relayer to force direct transaction path
       });
 
@@ -1120,6 +1131,7 @@ describe("PermissionsController", () => {
     it("should handle relayTransaction with missing relayer URL", async () => {
       const controller = new PermissionsController({
         walletClient: mockWalletClient,
+        publicClient: mockPublicClient,
         relayerUrl: undefined,
       });
 
@@ -1149,6 +1161,7 @@ describe("PermissionsController", () => {
 
       const controllerWithChain = new PermissionsController({
         walletClient: mockWalletClientWithChain,
+        publicClient: mockPublicClient,
         relayerUrl: undefined,
       });
 
@@ -1163,6 +1176,7 @@ describe("PermissionsController", () => {
     it("should handle failed relayer response in submitToRelayer", async () => {
       const controller = new PermissionsController({
         walletClient: mockWalletClient,
+        publicClient: mockPublicClient,
         relayerUrl: "https://test-relayer.com",
       });
 
@@ -1190,6 +1204,7 @@ describe("PermissionsController", () => {
     it("should handle network errors in submitToRelayer", async () => {
       const controller = new PermissionsController({
         walletClient: mockWalletClient,
+        publicClient: mockPublicClient,
         relayerUrl: "https://test-relayer.com",
       });
 
@@ -1220,6 +1235,7 @@ describe("PermissionsController", () => {
 
       const controllerWithChain = new PermissionsController({
         walletClient: mockWalletClientWithChain,
+        publicClient: mockPublicClient,
         relayerUrl: undefined,
       });
 

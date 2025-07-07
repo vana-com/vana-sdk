@@ -1,4 +1,4 @@
-import { createWalletClient, http } from "viem";
+import { createWalletClient, createPublicClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { createHash } from "crypto";
 import { mokshaTestnet, Vana } from "vana-sdk";
@@ -25,11 +25,17 @@ const walletClient = createWalletClient({
   transport: http(CHAIN_RPC_URL),
 });
 
+const publicClient = createPublicClient({
+  chain: mokshaTestnet,
+  transport: http(CHAIN_RPC_URL),
+});
+
 export const relayerConfig = {
   account: relayerAccount,
   chainId: CHAIN_ID,
   chainRpcUrl: CHAIN_RPC_URL,
   walletClient,
+  publicClient,
 };
 
 export const relayerStorage = {

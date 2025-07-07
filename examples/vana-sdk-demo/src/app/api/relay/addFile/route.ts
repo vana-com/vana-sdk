@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
     console.log("✅ File registered, getting receipt for fileId...");
 
     // Get the transaction receipt to parse the FileAdded event
-    const receipt = await relayerConfig.walletClient.waitForTransactionReceipt({
+    const receipt = await relayerConfig.publicClient.waitForTransactionReceipt({
       hash: txHash,
     });
 

@@ -127,12 +127,18 @@ export default function Home() {
     "app-managed",
   );
 
+  // User IPFS configuration state
+  const [userIpfsJwt, setUserIpfsJwt] = useState<string>("");
+  const [userIpfsGateway, setUserIpfsGateway] = useState<string>(
+    "https://gateway.pinata.cloud",
+  );
+
   // File lookup state
   const [fileLookupId, setFileLookupId] = useState<string>("");
   const [isLookingUpFile, setIsLookingUpFile] = useState(false);
   const [fileLookupStatus, setFileLookupStatus] = useState<string>("");
 
-  // Initialize Vana SDK when wallet is connected
+  // Initialize Vana SDK when wallet is connected or user IPFS config changes
   useEffect(() => {
     if (isConnected && walletClient && walletClient.account) {
       try {
@@ -146,17 +152,12 @@ export default function Home() {
           "app-ipfs": serverIPFS,
         };
 
-        // Option B: User-managed IPFS (if configured)
-        const pinataJWT = process.env.NEXT_PUBLIC_PINATA_JWT;
-        const pinataGateway =
-          process.env.NEXT_PUBLIC_PINATA_GATEWAY_URL ||
-          "https://gateway.pinata.cloud";
-
-        if (pinataJWT) {
-          console.log("👤 Setting up user-managed Pinata IPFS storage");
+        // Add user-managed IPFS if configured
+        if (userIpfsJwt) {
+          console.log("👤 Adding user-managed Pinata IPFS storage");
           const pinataStorage = new PinataStorage({
-            jwt: pinataJWT,
-            gatewayUrl: pinataGateway,
+            jwt: userIpfsJwt,
+            gatewayUrl: userIpfsGateway,
           });
           storageProviders["user-ipfs"] = pinataStorage;
 
@@ -168,13 +169,6 @@ export default function Home() {
               console.warn("⚠️ User Pinata connection failed:", result.error);
             }
           });
-        } else {
-          console.log(
-            "💡 NEXT_PUBLIC_PINATA_JWT not configured - user-managed IPFS unavailable",
-          );
-          console.log(
-            "ℹ️ Add NEXT_PUBLIC_PINATA_JWT to .env.local to enable user-managed IPFS",
-          );
         }
 
         // Initialize Vana SDK with storage configuration
@@ -205,7 +199,7 @@ export default function Home() {
       setUserFiles([]);
       setSelectedFiles([]);
     }
-  }, [isConnected, walletClient]);
+  }, [isConnected, walletClient, userIpfsJwt, userIpfsGateway]);
 
   // Check relayer health
   useEffect(() => {
@@ -412,9 +406,9 @@ export default function Home() {
     setRevokeStatus("Preparing permission revoke...");
 
     try {
-      // Convert permission ID to hash for revoke (this is simplified)
+      // SDK now handles the conversion internally - just pass the permission ID
       const params: RevokePermissionParams = {
-        grantId: `0x${permissionId.padStart(64, "0")}` as `0x${string}`,
+        grantId: permissionId,
       };
 
       setRevokeStatus("Awaiting signature...");
@@ -734,9 +728,9 @@ export default function Home() {
         : selectedStorageProvider;
 
     // Check if user-managed IPFS is selected but not configured
-    if (providerName === "user-ipfs" && !process.env.NEXT_PUBLIC_PINATA_JWT) {
+    if (providerName === "user-ipfs" && !userIpfsJwt) {
       setUploadToChainStatus(
-        "❌ User-managed IPFS not configured. Add NEXT_PUBLIC_PINATA_JWT to .env.local or use app-managed IPFS.",
+        "❌ User-managed IPFS not configured. Enter your Pinata JWT token or use app-managed IPFS.",
       );
       return;
     }
@@ -1188,7 +1182,7 @@ export default function Home() {
                   <div className="space-y-3">
                     {userPermissions.map((permission) => (
                       <div
-                        key={permission.id}
+                        key={permission.id.toString()}
                         className="p-4 border rounded-lg"
                       >
                         <div className="flex items-start justify-between">
@@ -1640,14 +1634,9 @@ export default function Home() {
                                   : "outline"
                               }
                               onClick={() => setIpfsMode("user-managed")}
-                              disabled={
-                                isUploadingToChain ||
-                                !process.env.NEXT_PUBLIC_PINATA_JWT
-                              }
+                              disabled={isUploadingToChain}
                             >
                               👤 My IPFS
-                              {!process.env.NEXT_PUBLIC_PINATA_JWT &&
-                                " (Not Configured)"}
                             </Button>
                           </div>
                           <div className="text-xs text-muted-foreground space-y-1">
@@ -1656,16 +1645,55 @@ export default function Home() {
                                 ✅ Uses the app&apos;s Pinata account. No setup
                                 required!
                               </p>
-                            ) : process.env.NEXT_PUBLIC_PINATA_JWT ? (
-                              <p>
-                                ✅ Uses your personal Pinata account via
-                                NEXT_PUBLIC_PINATA_JWT
-                              </p>
                             ) : (
-                              <p>
-                                ⚠️ Add NEXT_PUBLIC_PINATA_JWT to .env.local to
-                                use your own Pinata account
-                              </p>
+                              <div className="space-y-2">
+                                <p>
+                                  👤 Use your own Pinata account - enter your
+                                  API key below:
+                                </p>
+                                <div className="space-y-2">
+                                  <div>
+                                    <Label className="text-xs">
+                                      Pinata JWT Token:
+                                    </Label>
+                                    <Input
+                                      type="password"
+                                      placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                                      value={userIpfsJwt}
+                                      onChange={(e) =>
+                                        setUserIpfsJwt(e.target.value)
+                                      }
+                                      className="text-xs"
+                                      disabled={isUploadingToChain}
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-xs">
+                                      Gateway URL (optional):
+                                    </Label>
+                                    <Input
+                                      type="url"
+                                      placeholder="https://gateway.pinata.cloud"
+                                      value={userIpfsGateway}
+                                      onChange={(e) =>
+                                        setUserIpfsGateway(e.target.value)
+                                      }
+                                      className="text-xs"
+                                      disabled={isUploadingToChain}
+                                    />
+                                  </div>
+                                </div>
+                                {userIpfsJwt ? (
+                                  <p className="text-green-600">
+                                    ✅ Your Pinata configuration is ready!
+                                  </p>
+                                ) : (
+                                  <p>
+                                    ⚠️ Enter your Pinata JWT token to use your
+                                    own IPFS account
+                                  </p>
+                                )}
+                              </div>
                             )}
                           </div>
                         </div>

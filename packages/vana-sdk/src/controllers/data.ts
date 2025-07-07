@@ -1,4 +1,4 @@
-import { Address, getContract } from "viem";
+import { Address, getContract, decodeEventLog } from "viem";
 import { UserFile, UploadEncryptedFileResult } from "../types";
 import { ControllerContext } from "./permissions";
 import { getContractAddress } from "../config/addresses";
@@ -407,10 +407,35 @@ export class DataController {
           chain: this.context.walletClient.chain || null,
         });
 
-        // For direct transactions, we can't easily get the file ID without waiting for the transaction
-        // For now, return 0 as fileId - this could be improved by parsing transaction receipt
+        // Wait for transaction receipt to parse the FileAdded event
+        const receipt =
+          await this.context.publicClient.waitForTransactionReceipt({
+            hash: txHash,
+            timeout: 30_000, // 30 seconds timeout
+          });
+
+        // Parse the FileAdded event to get the actual fileId
+        let fileId = 0;
+        for (const log of receipt.logs) {
+          try {
+            const decoded = decodeEventLog({
+              abi: dataRegistryAbi,
+              data: log.data,
+              topics: log.topics,
+            });
+
+            if (decoded.eventName === "FileAdded") {
+              fileId = Number(decoded.args.fileId);
+              break;
+            }
+          } catch {
+            // Ignore logs that don't match our ABI
+            continue;
+          }
+        }
+
         return {
-          fileId: 0, // TODO: Parse transaction receipt to get actual file ID
+          fileId: fileId,
           url: uploadResult.url,
           size: uploadResult.size,
           transactionHash: txHash,
@@ -533,5 +558,84 @@ export class DataController {
       throw new Error("No addresses available in wallet client");
     }
     return addresses[0];
+  }
+
+  /**
+   * Adds a file with permissions to the DataRegistry contract.
+   *
+   * @param url - The file URL to register
+   * @param ownerAddress - The address of the file owner
+   * @param permissions - Array of permissions to set for the file
+   * @returns Promise resolving to file ID and transaction hash
+   *
+   * @description This method handles the core logic of registering a file
+   * with specific permissions on the DataRegistry contract. It can be used
+   * by both direct transactions and relayer services.
+   */
+  async addFileWithPermissions(
+    url: string,
+    ownerAddress: Address,
+    permissions: Array<{ account: Address; key: string }> = [],
+  ): Promise<{
+    fileId: number;
+    transactionHash: string;
+  }> {
+    try {
+      const chainId = this.context.walletClient.chain?.id;
+      if (!chainId) {
+        throw new Error("Chain ID not available");
+      }
+
+      const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
+      const dataRegistryAbi = getAbi("DataRegistry");
+
+      // Execute the transaction using the wallet client
+      const txHash = await this.context.walletClient.writeContract({
+        address: dataRegistryAddress,
+        abi: dataRegistryAbi,
+        functionName: "addFileWithPermissions",
+        args: [url, ownerAddress, permissions],
+        account: this.context.walletClient.account || ownerAddress,
+        chain: this.context.walletClient.chain || null,
+      });
+
+      // Wait for transaction receipt to parse the FileAdded event
+      const receipt = await this.context.publicClient.waitForTransactionReceipt(
+        {
+          hash: txHash,
+          timeout: 30_000, // 30 seconds timeout
+        },
+      );
+
+      // Parse the FileAdded event to get the actual fileId
+      let fileId = 0;
+      for (const log of receipt.logs) {
+        try {
+          const decoded = decodeEventLog({
+            abi: dataRegistryAbi,
+            data: log.data,
+            topics: log.topics,
+          });
+
+          if (decoded.eventName === "FileAdded") {
+            fileId = Number(decoded.args.fileId);
+            break;
+          }
+        } catch {
+          // Ignore logs that don't match our ABI
+          continue;
+        }
+      }
+
+      return {
+        fileId: fileId,
+        transactionHash: txHash,
+      };
+    } catch (error) {
+      console.error("Failed to add file with permissions:", error);
+      throw new Error(
+        `Failed to add file with permissions: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
   }
 }

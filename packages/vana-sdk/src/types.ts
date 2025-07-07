@@ -37,7 +37,7 @@ export interface UserFile {
  */
 export interface GrantedPermission {
   /** Unique identifier for the permission */
-  id: number;
+  id: bigint;
   /** Array of file IDs included in the permission */
   files: number[];
   /** Type of operation permitted (e.g., "llm_inference") */
@@ -72,8 +72,8 @@ export interface GrantPermissionParams {
  * Parameters for the `vana.permissions.revoke` method.
  */
 export interface RevokePermissionParams {
-  /** The keccak256 hash of the original PermissionGrant struct to revoke */
-  grantId: Hash;
+  /** The permission ID (from GrantedPermission.id) OR the keccak256 hash of the original PermissionGrant struct to revoke */
+  grantId: Hash | bigint | number | string;
 }
 
 /**

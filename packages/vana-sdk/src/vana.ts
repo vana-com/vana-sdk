@@ -7,6 +7,7 @@ import {
 import { DataController } from "./controllers/data";
 import { ProtocolController } from "./controllers/protocol";
 import { StorageManager } from "./storage";
+import { createPublicClient, http } from "viem";
 
 /**
  * The main Vana SDK client class.
@@ -96,9 +97,16 @@ export class Vana {
       }
     }
 
+    // Create public client for reading contracts
+    const publicClient = createPublicClient({
+      chain: config.walletClient.chain,
+      transport: http(),
+    });
+
     // Create shared context for all controllers
     const sharedContext: ControllerContext = {
       walletClient: config.walletClient,
+      publicClient,
       relayerUrl: config.relayerUrl,
       storageManager,
     };

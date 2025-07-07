@@ -37,15 +37,17 @@ export async function storeGrantFile(
   relayerUrl: string,
 ): Promise<string> {
   try {
-    // Use existing parameters endpoint that handles IPFS storage
-    const response = await fetch(`${relayerUrl}/api/v1/parameters`, {
+    // Convert grant file to blob and use IPFS upload endpoint
+    const grantFileBlob = new Blob([JSON.stringify(grantFile, null, 2)], {
+      type: "application/json",
+    });
+
+    const formData = new FormData();
+    formData.append("file", grantFileBlob, "grant-file.json");
+
+    const response = await fetch(`${relayerUrl}/api/ipfs/upload`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        parameters: JSON.stringify(grantFile),
-      }),
+      body: formData,
     });
 
     if (!response.ok) {
@@ -55,13 +57,13 @@ export async function storeGrantFile(
       );
     }
 
-    const data: RelayerStorageResponse = await response.json();
+    const data = await response.json();
 
     if (!data.success) {
       throw new NetworkError(data.error || "Failed to store grant file");
     }
 
-    return data.grantUrl;
+    return data.url; // The IPFS URL from the upload response
   } catch (error) {
     if (error instanceof NetworkError) {
       throw error;

@@ -91,9 +91,6 @@ PINATA_GATEWAY_URL=https://gateway.pinata.cloud
 ### Optional Configuration
 
 ```bash
-# For user-managed IPFS (optional)
-NEXT_PUBLIC_PINATA_JWT=user_pinata_jwt_for_client_side_uploads
-
 # Custom styling (optional)
 NEXT_PUBLIC_THEME=dark
 ```

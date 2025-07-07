@@ -82,6 +82,40 @@ describe("PermissionsController", () => {
   let controller: PermissionsController;
   let mockContext: ControllerContext;
   let mockWalletClient: any;
+  let mockPublicClient: any;
+
+  // Helper function to create a complete mock context
+  const createMockContext = (
+    overrides: Partial<ControllerContext> = {},
+  ): ControllerContext => {
+    const defaultMockPublicClient = {
+      readContract: vi.fn().mockResolvedValue(BigInt(0)),
+      waitForTransactionReceipt: vi.fn().mockResolvedValue({ logs: [] }),
+    };
+
+    const defaultMockWalletClient = {
+      account: {
+        address: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      },
+      chain: {
+        id: 14800,
+        name: "Moksha Testnet",
+      },
+      getChainId: vi.fn().mockResolvedValue(14800),
+      getAddresses: vi
+        .fn()
+        .mockResolvedValue(["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"]),
+      signTypedData: vi.fn().mockResolvedValue("0xsignature" as Hash),
+      writeContract: vi.fn().mockResolvedValue("0xtxhash" as Hash),
+    };
+
+    return {
+      walletClient: defaultMockWalletClient,
+      publicClient: defaultMockPublicClient as any,
+      relayerUrl: "https://test-relayer.com",
+      ...overrides,
+    };
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -107,8 +141,15 @@ describe("PermissionsController", () => {
       writeContract: vi.fn().mockResolvedValue("0xtxhash" as Hash),
     };
 
+    // Create a mock publicClient
+    mockPublicClient = {
+      readContract: vi.fn().mockResolvedValue(BigInt(0)),
+      waitForTransactionReceipt: vi.fn().mockResolvedValue({ logs: [] }),
+    };
+
     mockContext = {
       walletClient: mockWalletClient,
+      publicClient: mockPublicClient as any,
       relayerUrl: "https://test-relayer.com",
     };
 
@@ -212,7 +253,7 @@ describe("PermissionsController", () => {
 
   describe("revoke", () => {
     const mockRevokeParams = {
-      grantId: "0xgrantid123" as Hash,
+      grantId: "123", // Can now pass permission ID as string
     };
 
     it("should successfully revoke permission", async () => {
@@ -535,12 +576,12 @@ describe("PermissionsController", () => {
 
       expect(result).toHaveLength(2);
       expect(result[0]).toEqual({
-        id: 2,
+        id: 2n,
         files: [],
         grant: "https://ipfs.io/ipfs/Qm2",
       });
       expect(result[1]).toEqual({
-        id: 1,
+        id: 1n,
         files: [],
         grant: "https://ipfs.io/ipfs/Qm1",
       });
@@ -658,7 +699,7 @@ describe("PermissionsController", () => {
       // Should still return the one successful permission
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({
-        id: 1,
+        id: 1n,
         files: [],
         grant: "https://ipfs.io/ipfs/Qm1",
       });

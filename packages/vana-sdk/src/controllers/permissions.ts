@@ -1,5 +1,5 @@
-import { Address, Hash, createPublicClient, http, getContract } from "viem";
-import type { WalletClient } from "viem";
+import { Address, Hash, getContract } from "viem";
+import type { WalletClient, PublicClient } from "viem";
 import {
   GrantPermissionParams,
   RevokePermissionParams,
@@ -23,6 +23,7 @@ import {
   createGrantFile,
   storeGrantFile,
   getGrantFileHash,
+  retrieveGrantFile,
 } from "../utils/grantFiles";
 import { StorageManager } from "../storage";
 
@@ -31,6 +32,7 @@ import { StorageManager } from "../storage";
  */
 export interface ControllerContext {
   walletClient: WalletClient;
+  publicClient: PublicClient;
   relayerUrl?: string;
   storageManager?: StorageManager;
 }
@@ -276,9 +278,8 @@ export class PermissionsController {
         throw new BlockchainError("Chain ID not available");
       }
 
-      // Implementation follows similar pattern to grant
-      // For now, we'll implement a simplified version
-      // TODO: Implement complete revoke flow with proper EIP-712 structure
+      // Normalize grantId to hex format internally
+      const grantId = this.normalizeGrantId(params.grantId);
 
       const userAddress = await this.getUserAddress();
       const nonce = await this.getUserNonce();
@@ -286,7 +287,7 @@ export class PermissionsController {
       // Create revoke message (simplified for now)
       const revokeMessage = {
         from: userAddress,
-        grantId: params.grantId,
+        grantId: grantId,
         nonce,
       };
 
@@ -324,7 +325,7 @@ export class PermissionsController {
       } else {
         // TODO: Implement direct revoke transaction
         // For now, return a mock hash since the contract doesn't have revoke yet
-        return `0xmock${params.grantId.slice(2).substring(0, 60)}` as Hash;
+        return `0xmock${grantId.slice(2).substring(0, 60)}` as Hash;
       }
     } catch (error) {
       if (error instanceof Error) {
@@ -356,19 +357,13 @@ export class PermissionsController {
       const userAddress = await this.getUserAddress();
       const chainId = await this.context.walletClient.getChainId();
 
-      // Create a public client for reading contracts
-      const publicClient = createPublicClient({
-        chain: this.context.walletClient.chain,
-        transport: http(),
-      });
-
       const permissionRegistryAddress = getContractAddress(
         chainId,
         "PermissionRegistry",
       );
       const permissionRegistryAbi = getAbi("PermissionRegistry");
 
-      const nonce = (await publicClient.readContract({
+      const nonce = (await this.context.publicClient.readContract({
         address: permissionRegistryAddress,
         abi: permissionRegistryAbi,
         functionName: "userNonce",
@@ -453,19 +448,6 @@ export class PermissionsController {
         error as Error,
       );
     }
-  }
-
-  /**
-   * @deprecated Use submitSignedGrant() instead. This method is now redundant.
-   *
-   * Submits a transaction directly to the blockchain (user pays gas).
-   */
-  private async submitDirectTransaction(
-    typedData: PermissionGrantTypedData,
-    signature: Hash,
-  ): Promise<Hash> {
-    // Just delegate to the new unified method
-    return await this.submitSignedGrant(typedData, signature);
   }
 
   /**
@@ -641,16 +623,35 @@ export class PermissionsController {
               userAddress,
               BigInt(i),
             ]);
-          const id = Number(permissionId);
 
           // Get the permission details
           const permission = await permissionRegistry.read.permissions([
             permissionId,
           ]);
 
+          // Fetch and parse the grant file from IPFS to get complete permission data
+          let operation: string | undefined;
+          let files: number[] = [];
+          let parameters: unknown | undefined;
+
+          try {
+            const grantFile = await retrieveGrantFile(permission.grant);
+            operation = grantFile.operation;
+            files = grantFile.files;
+            parameters = grantFile.parameters;
+          } catch (error) {
+            console.warn(
+              `Failed to retrieve grant file for permission ${permissionId}:`,
+              error,
+            );
+            // Continue with basic permission data even if grant file can't be retrieved
+          }
+
           userPermissions.push({
-            id,
-            files: [], // Files are now stored in the grant URL (IPFS)
+            id: permissionId, // Keep as bigint to preserve precision
+            files: files,
+            operation: operation,
+            parameters: parameters,
             grant: permission.grant,
           });
         } catch (error) {
@@ -658,7 +659,12 @@ export class PermissionsController {
         }
       }
 
-      return userPermissions.sort((a, b) => b.id - a.id); // Most recent first
+      return userPermissions.sort((a, b) => {
+        // Sort bigints - most recent first
+        if (b.id > a.id) return 1;
+        if (b.id < a.id) return -1;
+        return 0;
+      });
     } catch (error) {
       console.error("Failed to fetch user permissions:", error);
       throw new BlockchainError(
@@ -668,41 +674,30 @@ export class PermissionsController {
   }
 
   /**
-   * Fetches grant data from any URL (IPFS or HTTP) with graceful error handling
+   * Normalizes grant ID to hex format.
+   * Handles conversion from permission ID (bigint/number/string) to proper hex hash format.
+   *
+   * @param grantId - Permission ID or grant hash in various formats
+   * @returns Normalized hex hash
    */
-  private async fetchGrantFromIPFS(grantUrl: string): Promise<unknown> {
+  private normalizeGrantId(grantId: Hash | bigint | number | string): Hash {
+    // If it's already a hex string (Hash), return as-is
+    if (
+      typeof grantId === "string" &&
+      grantId.startsWith("0x") &&
+      grantId.length === 66
+    ) {
+      return grantId as Hash;
+    }
+
+    // Convert permission ID to hex format (same logic as demo was using)
     try {
-      // Convert IPFS URL to HTTP gateway URL if needed
-      let fetchUrl = grantUrl;
-      if (grantUrl.startsWith("ipfs://")) {
-        // Use a public IPFS gateway - could be configurable
-        fetchUrl = grantUrl.replace("ipfs://", "https://ipfs.io/ipfs/");
-      }
-
-      // Create a timeout promise
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error("Request timeout")), 5000);
-      });
-
-      // Race between fetch and timeout
-      const response = await Promise.race([fetch(fetchUrl), timeoutPromise]);
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-
-      // Basic validation - check if it looks like grant data
-      if (typeof data === "object" && data !== null) {
-        return data;
-      }
-
-      return null;
-    } catch (error) {
-      // Don't throw - let caller handle graceful degradation
-      console.debug(`IPFS fetch failed for ${grantUrl}:`, error);
-      return null;
+      const bigIntId = BigInt(grantId);
+      return `0x${bigIntId.toString(16).padStart(64, "0")}` as Hash;
+    } catch {
+      throw new Error(
+        `Invalid grant ID format: ${grantId}. Must be a permission ID (number/bigint/string) or a 32-byte hex hash.`,
+      );
     }
   }
 }

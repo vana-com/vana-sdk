@@ -4,19 +4,22 @@ This document outlines the improvements made to better align the demo app with S
 
 ## Issues Addressed
 
-### 1. ✅ **Removed Direct Contract Interactions**
+### 1. ✅ **Replaced Direct Contract Interactions with SDK Methods**
 
 **Problem:** `lib/blockchain.ts` was duplicating SDK functionality with direct contract calls.
 
 **Solution:**
 
-- Removed `submitPermissionGrant()` function that manually called contracts
-- Demo should use `vana.permissions.grant()` instead
-- Kept only relayer configuration for demo purposes
+- **SDK Enhancement**: Added universal `submitSignedGrant()` method
+- **Demo App**: Now uses `vana.permissions.submitSignedGrant()` instead of custom contract code
+- **Architecture**: Relayer service uses the same SDK method as client apps
+- **Result**: No more duplicate permission logic between SDK and demo
 
 **Files Changed:**
 
-- `src/lib/blockchain.ts` - Removed redundant contract interaction code
+- `packages/vana-sdk/src/controllers/permissions.ts` - Added `submitSignedGrant()` and `createAndSign()` methods
+- `src/app/api/v1/transactions/route.ts` - Uses SDK instead of custom blockchain code
+- `src/lib/blockchain.ts` - Removed entirely (no longer needed)
 
 ### 2. ✅ **Centralized Storage Configuration**
 
@@ -98,13 +101,47 @@ This is valuable for developers building similar applications.
 - `lib/relayer.ts` - Demo relayer functionality is appropriate
 - API routes structure - Demonstrates real patterns developers need
 
+## 🎯 **Key Architectural Improvement: Simplified Permission API**
+
+The most significant improvement was implementing a **universal permission submission pattern** in the SDK:
+
+### **Before (Complex)**:
+
+```typescript
+// Multiple pathways depending on setup
+if (relayerUrl) {
+  await vana.permissions.grant(params); // Calls external relayer
+} else {
+  // Custom contract interaction code in demo app
+  await submitPermissionGrant(typedData, signature);
+}
+```
+
+### **After (Simplified)**:
+
+```typescript
+// One method works everywhere - client, server, relayer
+const vana = new Vana({ walletClient }); // walletClient determines who pays gas
+await vana.permissions.submitSignedGrant(typedData, signature);
+
+// Or the full flow:
+await vana.permissions.grant(params); // Works universally
+```
+
+### **New SDK Methods**:
+
+- `createAndSign(params)` - Create typed data and get user signature
+- `submitSignedGrant(typedData, signature)` - Submit already-signed permission (universal)
+- `grant(params)` - Convenience method combining both (backward compatible)
+
 ## Summary
 
 These focused improvements:
 
-1. **Reduce duplication** - Centralized storage configuration
-2. **Better SDK usage** - Use SDK methods instead of direct contract calls
-3. **Cleaner imports** - Remove redundant re-exports
-4. **Maintain demo value** - Keep appropriate demo-specific functionality
+1. **Simplified architecture** - Universal permission submission method
+2. **Reduced duplication** - Centralized storage configuration
+3. **Better SDK usage** - Demo uses same SDK methods as any other app
+4. **Cleaner separation** - No more duplicate permission logic
+5. **Maintained demo value** - Still shows comprehensive patterns
 
 The demo app now better demonstrates **how to use the SDK** rather than **how to work around it**.

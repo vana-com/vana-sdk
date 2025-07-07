@@ -83,17 +83,15 @@ export class PermissionsController {
       // Step 5: User signature
       const signature = await this.signTypedData(typedData);
 
-      // Step 6: Submit to blockchain (either via relay or direct)
+      // Step 6: Submit to blockchain
+      // For backward compatibility, use relayer if configured, otherwise direct submission
       let transactionHash: Hash;
       if (this.context.relayerUrl) {
-        // Gasless transaction via relayer
+        // Backward compatibility: use relayer service if configured
         transactionHash = await this.relayTransaction(typedData, signature);
       } else {
-        // Direct transaction with gas payment
-        transactionHash = await this.submitDirectTransaction(
-          typedData,
-          signature,
-        );
+        // Use the new unified submission method
+        transactionHash = await this.submitSignedGrant(typedData, signature);
       }
 
       return transactionHash;
@@ -118,6 +116,151 @@ export class PermissionsController {
       }
       throw new BlockchainError("Permission grant failed with unknown error");
     }
+  }
+
+  /**
+   * Creates typed data and signature for a permission grant.
+   * This is the first step in the permission grant process.
+   *
+   * @param params - The permission grant parameters
+   * @returns Promise resolving to typed data and signature
+   */
+  async createAndSign(params: GrantPermissionParams): Promise<{
+    typedData: PermissionGrantTypedData;
+    signature: Hash;
+  }> {
+    try {
+      const userAddress = await this.getUserAddress();
+
+      // Step 1: Create grant file with all the real data
+      const grantFile = createGrantFile(params, userAddress);
+
+      // Step 2: Use provided grantUrl or store grant file in IPFS
+      let grantUrl = params.grantUrl;
+      if (!grantUrl) {
+        if (!this.context.relayerUrl && !this.context.storageManager) {
+          throw new Error(
+            "No storage available. Provide a grantUrl, configure relayerUrl, or provide storageManager.",
+          );
+        }
+        if (this.context.relayerUrl) {
+          grantUrl = await storeGrantFile(grantFile, this.context.relayerUrl);
+        } else if (this.context.storageManager) {
+          // Store using local storage manager if available
+          const blob = new Blob([JSON.stringify(grantFile)], {
+            type: "application/json",
+          });
+          const result = await this.context.storageManager.upload(
+            blob,
+            `grant-${Date.now()}.json`,
+          );
+          grantUrl = result.url;
+        }
+
+        if (!grantUrl) {
+          throw new Error("Failed to store grant file - no URL returned");
+        }
+      }
+
+      // Step 3: Get user nonce
+      const nonce = await this.getUserNonce();
+
+      // Step 4: Create EIP-712 message with compatibility placeholders
+      const typedData = await this.composePermissionGrantMessage({
+        to: params.to,
+        operation: params.operation, // Placeholder - real data is in IPFS
+        files: params.files, // Placeholder - real data is in IPFS
+        grantUrl,
+        serializedParameters: getGrantFileHash(grantFile), // Hash as placeholder
+        nonce,
+      });
+
+      // Step 5: User signature
+      const signature = await this.signTypedData(typedData);
+
+      return { typedData, signature };
+    } catch (error) {
+      if (error instanceof Error) {
+        // Re-throw known Vana errors directly
+        if (
+          error instanceof RelayerError ||
+          error instanceof UserRejectedRequestError ||
+          error instanceof SerializationError ||
+          error instanceof SignatureError ||
+          error instanceof NetworkError ||
+          error instanceof NonceError
+        ) {
+          throw error;
+        }
+        // Wrap unknown errors
+        throw new BlockchainError(
+          `Permission grant preparation failed: ${error.message}`,
+          error,
+        );
+      }
+      throw new BlockchainError(
+        "Permission grant preparation failed with unknown error",
+      );
+    }
+  }
+
+  /**
+   * Submits an already-signed permission grant to the blockchain.
+   * This method works universally - client-side, server-side, or relayer-side.
+   * The walletClient provided to the SDK determines who pays gas.
+   *
+   * @param typedData - The EIP-712 typed data
+   * @param signature - The user's signature
+   * @returns Promise resolving to the transaction hash
+   */
+  async submitSignedGrant(
+    typedData: PermissionGrantTypedData,
+    signature: Hash,
+  ): Promise<Hash> {
+    try {
+      const chainId = await this.context.walletClient.getChainId();
+      const permissionRegistryAddress = getContractAddress(
+        chainId,
+        "PermissionRegistry",
+      );
+      const permissionRegistryAbi = getAbi("PermissionRegistry");
+
+      // Prepare the PermissionInput struct (simplified format)
+      const permissionInput = {
+        nonce: BigInt(typedData.message.nonce),
+        grant: typedData.message.grant,
+      };
+
+      // Submit directly to the contract using the provided wallet client
+      const txHash = await this.context.walletClient.writeContract({
+        address: permissionRegistryAddress,
+        abi: permissionRegistryAbi,
+        functionName: "addPermission",
+        args: [permissionInput, signature],
+        account:
+          this.context.walletClient.account || (await this.getUserAddress()),
+        chain: this.context.walletClient.chain || null,
+      });
+
+      return txHash;
+    } catch (error) {
+      throw new BlockchainError(
+        `Permission submission failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Convenience method that combines createAndSign + submitSignedGrant.
+   * This is equivalent to the original grant() method but uses the new simplified architecture.
+   *
+   * @param params - The permission grant parameters
+   * @returns Promise resolving to the transaction hash
+   */
+  async grantSimplified(params: GrantPermissionParams): Promise<Hash> {
+    const { typedData, signature } = await this.createAndSign(params);
+    return await this.submitSignedGrant(typedData, signature);
   }
 
   /**
@@ -313,44 +456,16 @@ export class PermissionsController {
   }
 
   /**
+   * @deprecated Use submitSignedGrant() instead. This method is now redundant.
+   *
    * Submits a transaction directly to the blockchain (user pays gas).
    */
   private async submitDirectTransaction(
     typedData: PermissionGrantTypedData,
     signature: Hash,
   ): Promise<Hash> {
-    try {
-      const chainId = await this.context.walletClient.getChainId();
-      const permissionRegistryAddress = getContractAddress(
-        chainId,
-        "PermissionRegistry",
-      );
-      const permissionRegistryAbi = getAbi("PermissionRegistry");
-
-      // Prepare the PermissionInput struct (simplified format)
-      const permissionInput = {
-        nonce: BigInt(typedData.message.nonce),
-        grant: typedData.message.grant,
-      };
-
-      // Submit directly to the contract
-      const txHash = await this.context.walletClient.writeContract({
-        address: permissionRegistryAddress,
-        abi: permissionRegistryAbi,
-        functionName: "addPermission",
-        args: [permissionInput, signature],
-        account:
-          this.context.walletClient.account || (await this.getUserAddress()),
-        chain: this.context.walletClient.chain || null,
-      });
-
-      return txHash;
-    } catch (error) {
-      throw new BlockchainError(
-        `Direct transaction failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-        error as Error,
-      );
-    }
+    // Just delegate to the new unified method
+    return await this.submitSignedGrant(typedData, signature);
   }
 
   /**

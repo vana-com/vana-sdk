@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { submitPermissionGrant } from "@/lib/blockchain";
+import { Vana } from "vana-sdk";
+import { createWalletClient, http } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { mokshaTestnet } from "vana-sdk";
 import type { Hash } from "viem";
 
 export async function POST(request: NextRequest) {
@@ -66,10 +69,31 @@ export async function POST(request: NextRequest) {
     console.log("✅ Signature verified successfully, signer:", signerAddress);
     console.log("🔍 Signature used:", signature);
 
-    // Submit to the PermissionRegistry contract
+    // Submit to the PermissionRegistry contract using SDK
     // This endpoint implements the relayer service that the SDK calls
-    console.log("⛓️ Submitting to blockchain...");
-    const txHash = await submitPermissionGrant(typedData, signature as Hash);
+    console.log("⛓️ Submitting to blockchain via SDK...");
+
+    // Set up relayer wallet for gasless transaction
+    const relayerPrivateKey = process.env.RELAYER_PRIVATE_KEY;
+    if (!relayerPrivateKey) {
+      throw new Error("RELAYER_PRIVATE_KEY not configured");
+    }
+
+    const account = privateKeyToAccount(relayerPrivateKey as Hash);
+    const walletClient = createWalletClient({
+      account,
+      chain: mokshaTestnet,
+      transport: http(
+        process.env.CHAIN_RPC_URL || "https://rpc.moksha.vana.org",
+      ),
+    });
+
+    // Use SDK's unified permission submission method
+    const vana = new Vana({ walletClient });
+    const txHash = await vana.permissions.submitSignedGrant(
+      typedData,
+      signature as Hash,
+    );
 
     console.log("✅ Transaction relayed successfully:", txHash);
 

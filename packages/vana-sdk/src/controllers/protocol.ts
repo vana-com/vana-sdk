@@ -1,15 +1,9 @@
-import type {
-  VanaContract,
-  ContractInfo,
-  VanaContractName,
-  VanaChainId,
-} from "../types";
+import type { VanaContract, ContractInfo, VanaChainId } from "../types";
 import { ContractNotFoundError } from "../errors";
 import {
   getContractController,
   getContractInfo,
   ContractFactory,
-  CONTRACT_ADDRESSES,
 } from "../contracts/contractController";
 import { ContractAbis } from "../abi";
 import { ControllerContext } from "./permissions";
@@ -48,14 +42,23 @@ export class ProtocolController {
       const chainId = this.context.walletClient.chain?.id;
 
       if (!chainId) {
-        throw new Error("Chain ID not available from wallet client");
+        throw new ContractNotFoundError(contractName, 0);
       }
 
       return getContractInfo(contractName, chainId as VanaChainId);
     } catch (error) {
+      if (error instanceof ContractNotFoundError) {
+        throw error;
+      }
       if (error instanceof Error) {
         if (error.message.includes("Contract address not found")) {
-          const chainId = this.context.walletClient.chain?.id || 0;
+          let chainId = 0;
+          try {
+            chainId = this.context.walletClient.chain?.id || 0;
+          } catch {
+            // Use 0 as fallback if chain ID access fails
+            chainId = 0;
+          }
           throw new ContractNotFoundError(contractName, chainId);
         }
         throw error;

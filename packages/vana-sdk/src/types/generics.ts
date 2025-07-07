@@ -1,5 +1,4 @@
-import type { Address, Hash, Abi } from "viem";
-import type { GetContractReturnType } from "viem";
+import type { Address, Hash } from "viem";
 
 /**
  * Generic request pattern for all SDK operations

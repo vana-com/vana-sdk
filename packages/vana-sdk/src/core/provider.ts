@@ -7,7 +7,7 @@ import {
   WalletClient,
 } from "viem";
 import type { VanaContractName, ChainConfig } from "../types";
-import { isVanaChainId } from "../types";
+import { isVanaChainId } from "../types/index";
 import { CONTRACT_ADDRESSES } from "../config/addresses";
 import { getContractController } from "../contracts/contractController";
 import { createClient, createWalletClient } from "./client";

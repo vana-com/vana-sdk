@@ -203,6 +203,8 @@ describe("Vana", () => {
         chainId: 14800,
         chainName: "VANA - Moksha",
         relayerUrl: "https://test-relayer.com",
+        defaultStorageProvider: undefined,
+        storageProviders: [],
       });
     });
 

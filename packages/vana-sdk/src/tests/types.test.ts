@@ -3,8 +3,6 @@ import type {
   VanaConfig,
   WalletConfig,
   ChainConfig,
-  VanaChainId,
-  VanaContractName,
   UserFile,
   GrantedPermission,
   GrantPermissionParams,
@@ -31,22 +29,16 @@ import type {
 } from "../types";
 import {
   Vana,
-  getContractController,
   getContractInfo,
   ContractFactory,
-  BaseController,
   RetryUtility,
   RateLimiter,
   MemoryCache,
   EventEmitter,
   ApiClient,
 } from "../index";
-import {
-  isVanaChainId,
-  isVanaChain,
-  isWalletConfig,
-  isChainConfig,
-} from "../types";
+import { isVanaChainId, isVanaChain } from "../types/chains";
+import { isWalletConfig, isChainConfig } from "../types/config";
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { mokshaTestnet } from "../config/chains";
@@ -876,7 +868,12 @@ describe("TypeScript Types", () => {
   describe("Enhanced Vana Class", () => {
     describe("Factory Methods", () => {
       it("should create Vana from ChainConfig", () => {
-        const vana = Vana.fromChain({ chainId: 14800 });
+        const account = privateKeyToAccount(testPrivateKey);
+        const vana = Vana.fromChain({
+          chainId: 14800,
+          rpcUrl: "https://rpc.moksha.vana.org",
+          account,
+        });
         expect(vana).toBeInstanceOf(Vana);
       });
 
@@ -903,7 +900,12 @@ describe("TypeScript Types", () => {
         });
 
         const vanaWithWallet = new Vana({ walletClient });
-        const vanaWithChain = new Vana({ chainId: 14800 });
+        const account2 = privateKeyToAccount(testPrivateKey);
+        const vanaWithChain = new Vana({
+          chainId: 14800,
+          rpcUrl: "https://rpc.moksha.vana.org",
+          account: account2,
+        });
 
         expect(vanaWithWallet).toBeInstanceOf(Vana);
         expect(vanaWithChain).toBeInstanceOf(Vana);

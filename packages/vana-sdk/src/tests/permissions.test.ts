@@ -547,14 +547,24 @@ describe("PermissionsController", () => {
 
       expect(result).toHaveLength(2);
       expect(result[0]).toEqual({
-        id: 2n,
+        id: 2,
         files: [],
         grant: "https://ipfs.io/ipfs/Qm2",
+        operation: "",
+        parameters: {},
+        active: true,
+        grantor: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
       });
       expect(result[1]).toEqual({
-        id: 1n,
+        id: 1,
         files: [],
         grant: "https://ipfs.io/ipfs/Qm1",
+        operation: "",
+        parameters: {},
+        active: true,
+        grantor: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
       });
     });
 
@@ -671,9 +681,14 @@ describe("PermissionsController", () => {
       // Should still return the one successful permission
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({
-        id: 1n,
+        id: 1,
         files: [],
         grant: "https://ipfs.io/ipfs/Qm1",
+        operation: "",
+        parameters: {},
+        active: true,
+        grantor: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
       });
     });
   });

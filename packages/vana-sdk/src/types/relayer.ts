@@ -1,4 +1,4 @@
-import type { Address, Hash } from "viem";
+import type { Hash } from "viem";
 import type { GrantFile, PermissionGrantTypedData } from "./permissions";
 
 /**

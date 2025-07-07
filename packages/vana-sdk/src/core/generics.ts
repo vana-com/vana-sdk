@@ -3,7 +3,6 @@ import type {
   ControllerContext,
   GenericRequest,
   GenericResponse,
-  AsyncResult,
   RetryConfig,
   RateLimiterConfig,
   Middleware,

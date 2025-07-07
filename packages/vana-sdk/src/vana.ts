@@ -5,7 +5,7 @@ import type {
   RuntimeConfig,
   VanaChainId,
 } from "./types";
-import { isWalletConfig, isChainConfig, isVanaChainId } from "./types";
+import { isWalletConfig, isChainConfig, isVanaChainId } from "./types/index";
 import { InvalidConfigurationError } from "./errors";
 import {
   PermissionsController,

@@ -3,7 +3,7 @@ export * from "./types";
 
 // Also re-export legacy types for backward compatibility
 // These were previously defined in this file and are now in the types module
-import type { WalletClient, Address, Hash, Abi } from "viem";
+import type { WalletClient, Address, Hash } from "viem";
 import type { StorageProvider } from "./storage";
 
 /**

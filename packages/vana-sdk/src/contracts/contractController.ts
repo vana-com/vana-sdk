@@ -107,7 +107,11 @@ export class ContractFactory {
     client: PublicClient | WalletClient | ReturnType<typeof createClient>,
   ) {
     this.client = client;
-    this.chainId = client.chain?.id ?? vanaMainnet.id;
+    try {
+      this.chainId = client.chain?.id ?? vanaMainnet.id;
+    } catch {
+      this.chainId = vanaMainnet.id;
+    }
   }
 
   /**

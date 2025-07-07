@@ -38,8 +38,8 @@ export interface WalletConfig extends BaseConfig {
 export interface ChainConfig extends BaseConfig {
   /** The chain ID for Vana network */
   chainId: VanaChainId;
-  /** RPC URL for the chain */
-  rpcUrl: string;
+  /** RPC URL for the chain (optional, will use default for the chain if not provided) */
+  rpcUrl?: string;
   /** Optional account for signing transactions */
   account?: Account;
 }
@@ -76,7 +76,7 @@ export function isWalletConfig(config: VanaConfig): config is WalletConfig {
  * Type guard to check if config is ChainConfig
  */
 export function isChainConfig(config: VanaConfig): config is ChainConfig {
-  return "chainId" in config && "rpcUrl" in config;
+  return "chainId" in config && !("walletClient" in config);
 }
 
 /**

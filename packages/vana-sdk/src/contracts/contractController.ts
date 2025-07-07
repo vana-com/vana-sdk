@@ -179,8 +179,7 @@ export function clearContractCache(
   }
 }
 
-// Legacy export for backward compatibility
-export { getContractController as getContractController };
+// Function is already exported above, no need for redundant export
 
 // Type-only exports for enhanced type safety
 export type { GetContractReturnType } from "viem";

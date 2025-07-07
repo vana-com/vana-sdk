@@ -215,7 +215,7 @@ describe("PermissionsController", () => {
 
   describe("revoke", () => {
     const mockRevokeParams = {
-      grantId: "123", // Can now pass permission ID as string
+      grantId: "0x123" as `0x${string}`, // Can now pass permission ID as hex string
     };
 
     it("should successfully revoke permission", async () => {
@@ -550,11 +550,21 @@ describe("PermissionsController", () => {
         id: 2n,
         files: [],
         grant: "https://ipfs.io/ipfs/Qm2",
+        operation: "",
+        parameters: {},
+        active: true,
+        grantor: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
       });
       expect(result[1]).toEqual({
         id: 1n,
         files: [],
         grant: "https://ipfs.io/ipfs/Qm1",
+        operation: "",
+        parameters: {},
+        active: true,
+        grantor: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
       });
     });
 
@@ -674,6 +684,11 @@ describe("PermissionsController", () => {
         id: 1n,
         files: [],
         grant: "https://ipfs.io/ipfs/Qm1",
+        operation: "",
+        parameters: {},
+        active: true,
+        grantor: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
       });
     });
   });

@@ -6,6 +6,12 @@ const nextConfig = {
   // This resolves module mismatches (ESM/CJS) and handles dependencies correctly.
   transpilePackages: ["vana-sdk"],
 
+  // ESLint configuration
+  eslint: {
+    // Disable Next.js built-in ESLint since we use root-level config
+    ignoreDuringBuilds: true,
+  },
+
   webpack: (config, { isServer }) => {
     // Add resolve aliases to match tsconfig.json paths
     config.resolve.alias = {

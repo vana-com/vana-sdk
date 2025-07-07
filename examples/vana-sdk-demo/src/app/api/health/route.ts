@@ -4,7 +4,7 @@ import { createPinataProvider } from "@/lib/storage";
 
 export async function GET() {
   // Test Pinata connection using SDK
-  let pinataTest: { success: boolean; error?: string; data?: any } = {
+  let pinataTest: { success: boolean; error?: string; data?: unknown } = {
     success: false,
     error: "PINATA_JWT not configured",
   };

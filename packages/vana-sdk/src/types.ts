@@ -1,10 +1,16 @@
-import type { WalletClient, Address, Hash, Abi } from "viem";
+// Re-export all types from the new modular structure
+export * from "./types/index";
+
+// Also re-export legacy types for backward compatibility
+// These were previously defined in this file and are now in the types module
+import type { WalletClient, Address } from "viem";
 import type { StorageProvider } from "./storage";
 
 /**
+ * @deprecated Use VanaConfig from "./types" instead
  * Configuration object for the main Vana class.
  */
-export interface VanaConfig {
+export interface VanaConfigLegacy {
   /** The viem WalletClient instance used for signing transactions */
   walletClient: WalletClient;
   /** Optional URL for a Vana Relayer Service for gasless transactions */
@@ -33,26 +39,6 @@ export interface UserFile {
 }
 
 /**
- * Represents a granted permission from the PermissionRegistry.
- */
-export interface GrantedPermission {
-  /** Unique identifier for the permission */
-  id: bigint;
-  /** Array of file IDs included in the permission */
-  files: number[];
-  /** Type of operation permitted (e.g., "llm_inference") */
-  operation?: string;
-  /** The grant URL containing all permission details */
-  grant: string;
-  /** The parameters associated with the permission */
-  parameters?: unknown;
-  /** Optional nonce used when granting the permission */
-  nonce?: number;
-  /** Optional block number when permission was granted */
-  grantedAt?: number;
-}
-
-/**
  * Parameters for the `vana.permissions.grant` method.
  */
 export interface GrantPermissionParams {
@@ -69,14 +55,7 @@ export interface GrantPermissionParams {
 }
 
 /**
- * Parameters for the `vana.permissions.revoke` method.
- */
-export interface RevokePermissionParams {
-  /** The permission ID (from GrantedPermission.id) OR the keccak256 hash of the original PermissionGrant struct to revoke */
-  grantId: Hash | bigint | number | string;
-}
-
-/**
+ * @deprecated Use VanaContractName from "./types" instead
  * A union type of all canonical Vana contract names.
  */
 export type VanaContract =
@@ -108,131 +87,3 @@ export type VanaContract =
   | "DATFactory"
   | "DATPausable"
   | "DATVotes";
-
-/**
- * EIP-712 domain definition for PermissionGrant signatures.
- */
-export interface PermissionGrantDomain {
-  name: string;
-  version: string;
-  chainId: number;
-  verifyingContract: Address;
-}
-
-/**
- * EIP-712 Permission message structure (current contract format).
- */
-export interface PermissionGrantMessage {
-  application: Address;
-  files: number[];
-  operation: string;
-  grant: string;
-  parameters: string;
-  nonce: bigint;
-}
-
-/**
- * EIP-712 PermissionInput message structure (new simplified format).
- */
-export interface PermissionInputMessage {
-  nonce: bigint;
-  grant: string;
-}
-
-/**
- * EIP-712 Permission message structure (simplified future format).
- */
-export interface SimplifiedPermissionMessage {
-  application: Address;
-  grant: string;
-  nonce: bigint;
-}
-
-/**
- * Grant file structure stored in IPFS.
- */
-export interface GrantFile {
-  operation: string;
-  files: number[];
-  parameters: Record<string, unknown>;
-  metadata: {
-    timestamp: string;
-    version: string;
-    userAddress: Address;
-  };
-}
-
-/**
- * EIP-712 typed data structure for Permission.
- */
-export interface PermissionGrantTypedData {
-  domain: PermissionGrantDomain;
-  types: {
-    Permission: Array<{
-      name: string;
-      type: string;
-    }>;
-  };
-  primaryType: "Permission";
-  message: PermissionInputMessage;
-  /** Files to grant permission for (passed to relayer) */
-  files?: number[];
-}
-
-/**
- * Generic EIP-712 typed data structure.
- */
-export interface GenericTypedData {
-  domain: PermissionGrantDomain;
-  types: Record<string, Array<{ name: string; type: string }>>;
-  primaryType: string;
-  message: Record<string, unknown>;
-}
-
-/**
- * Response from the relayer service for grant file storage.
- */
-export interface RelayerStorageResponse {
-  /** The IPFS URL where the grant file is stored */
-  grantUrl: string;
-  /** Success status */
-  success: boolean;
-  /** Optional error message */
-  error?: string;
-}
-
-/**
- * Response from the relayer service for transaction submission.
- */
-export interface RelayerTransactionResponse {
-  /** The transaction hash of the submitted transaction */
-  transactionHash: Hash;
-  /** Success status */
-  success: boolean;
-  /** Optional error message */
-  error?: string;
-}
-
-/**
- * Contract information returned by the protocol controller.
- */
-export interface ContractInfo {
-  /** The contract's deployed address */
-  address: Address;
-  /** The contract's ABI */
-  abi: Abi;
-}
-
-/**
- * Result of uploading an encrypted file to storage and blockchain.
- */
-export interface UploadEncryptedFileResult {
-  /** The new file ID assigned by the DataRegistry */
-  fileId: number;
-  /** The storage URL where the encrypted file is stored */
-  url: string;
-  /** Size of the encrypted file in bytes */
-  size: number;
-  /** Transaction hash of the file registration */
-  transactionHash?: Hash;
-}

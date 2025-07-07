@@ -7,7 +7,7 @@ import {
   GenericTypedData,
   RelayerTransactionResponse,
   GrantedPermission,
-} from "../types";
+} from "../types/index";
 import {
   RelayerError,
   UserRejectedRequestError,
@@ -590,11 +590,14 @@ export class PermissionsController {
           }
 
           userPermissions.push({
-            id: permissionId, // Keep as bigint to preserve precision
+            id: permissionId,
             files: files,
-            operation: operation,
-            parameters: parameters,
+            operation: operation || "",
+            parameters: (parameters as Record<string, unknown>) || {},
             grant: permission.grant,
+            grantor: permission.user, // The user field contains the grantor address
+            grantee: userAddress, // Current user is the grantee in this context
+            active: true, // Default to active if not specified
           });
         } catch (error) {
           console.warn(`Failed to read permission at index ${i}:`, error);
@@ -603,8 +606,8 @@ export class PermissionsController {
 
       return userPermissions.sort((a, b) => {
         // Sort bigints - most recent first
-        if (b.id > a.id) return 1;
-        if (b.id < a.id) return -1;
+        if (a.id < b.id) return 1;
+        if (a.id > b.id) return -1;
         return 0;
       });
     } catch (error) {

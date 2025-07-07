@@ -56,7 +56,7 @@ export const relayerStorage = {
   },
 };
 
-export const generateMockTxHash = (data: any): string => {
+export const generateMockTxHash = (data: unknown): string => {
   return `0x${createHash("sha256")
     .update(JSON.stringify(data) + Date.now())
     .digest("hex")}`;

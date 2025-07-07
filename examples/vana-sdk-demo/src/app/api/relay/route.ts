@@ -22,15 +22,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("🔄 Processing transaction relay...");
+    console.info("🔄 Processing transaction relay...");
 
     // Verify signature
-    console.log("🔍 Verifying signature...");
+    console.info("🔍 Verifying signature...");
     const signerAddress = await recoverTypedDataAddress({
       domain: typedData.domain,
       types: typedData.types,
       primaryType: typedData.primaryType,
-      message: typedData.message as any, // Type assertion for viem compatibility
+      message: typedData.message as unknown as Record<string, unknown>, // Type assertion for viem compatibility
       signature,
     });
 
@@ -41,17 +41,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("✅ Signature verified, signer:", signerAddress);
+    console.info("✅ Signature verified, signer:", signerAddress);
 
     // Submit to blockchain using SDK
-    console.log("⛓️ Submitting to blockchain via SDK...");
+    console.info("⛓️ Submitting to blockchain via SDK...");
     const vana = createRelayerVana();
     const txHash = await vana.permissions.submitSignedGrant(
       typedData,
       signature,
     );
 
-    console.log("✅ Transaction relayed successfully:", txHash);
+    console.info("✅ Transaction relayed successfully:", txHash);
 
     return NextResponse.json({
       success: true,

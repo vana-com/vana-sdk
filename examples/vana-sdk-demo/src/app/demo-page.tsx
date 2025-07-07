@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import type { VanaChain } from "vana-sdk";
 import { useAccount, useWalletClient, useChainId } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import {
@@ -14,10 +15,49 @@ import {
   decryptUserData,
   DEFAULT_ENCRYPTION_SEED,
   StorageManager,
+  StorageProvider,
   PinataStorage,
   ServerIPFSStorage,
+  WalletClient,
 } from "vana-sdk";
 import { Button } from "@/components/ui/button";
+
+// Types for demo app state
+interface RelayerHealth {
+  status: string;
+  relayer: string;
+  chain: number;
+  chainRpcUrl: string;
+  timestamp: string;
+  service: string;
+  storage: {
+    ipfs: {
+      enabled: boolean;
+      error: string | null;
+    };
+    memory: {
+      enabled: boolean;
+      fallback: boolean;
+    };
+  };
+  features: {
+    signatureVerification: boolean;
+    blockchainSubmission: boolean;
+    ipfsStorage: boolean;
+    gaslessTransactions: boolean;
+  };
+}
+
+interface GrantPreview {
+  grantFile: {
+    operation: string;
+    files: number[];
+    parameters: unknown;
+    metadata?: unknown;
+  };
+  grantUrl: string;
+  params: GrantPermissionParams & { grantUrl: string };
+}
 import {
   Card,
   CardContent,
@@ -25,15 +65,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { AddressDisplay } from "@/components/AddressDisplay";
-import { BlockDisplay } from "@/components/BlockDisplay";
-import { FileDisplay } from "@/components/FileDisplay";
 import { PermissionDisplay } from "@/components/PermissionDisplay";
 import { FileCard } from "@/components/FileCard";
 import { getTxUrl } from "@/lib/explorer";
@@ -72,9 +108,11 @@ export default function Home() {
   const [revokeStatus, setRevokeStatus] = useState<string>("");
 
   // Grant preview state
-  const [grantPreview, setGrantPreview] = useState<any>(null);
+  const [grantPreview, setGrantPreview] = useState<GrantPreview | null>(null);
   const [showGrantPreview, setShowGrantPreview] = useState<boolean>(false);
-  const [relayerHealth, setRelayerHealth] = useState<any>(null);
+  const [relayerHealth, setRelayerHealth] = useState<RelayerHealth | null>(
+    null,
+  );
   const [isGranting, setIsGranting] = useState(false);
   const [isRevoking, setIsRevoking] = useState(false);
   const [userPermissions, setUserPermissions] = useState<GrantedPermission[]>(
@@ -107,7 +145,7 @@ export default function Home() {
   const [decryptedFiles, setDecryptedFiles] = useState<Map<number, string>>(
     new Map(),
   );
-  const [fileDecryptErrors, setFileDecryptErrors] = useState<
+  const [_fileDecryptErrors, setFileDecryptErrors] = useState<
     Map<number, string>
   >(new Map());
 
@@ -117,7 +155,7 @@ export default function Home() {
   const [newFileId, setNewFileId] = useState<number | null>(null);
 
   // Storage state (kept for demo UI functionality)
-  const [storageManager, setStorageManager] = useState<StorageManager | null>(
+  const [_storageManager, setStorageManager] = useState<StorageManager | null>(
     null,
   );
   const [selectedStorageProvider, setSelectedStorageProvider] = useState<
@@ -143,18 +181,18 @@ export default function Home() {
     if (isConnected && walletClient && walletClient.account) {
       try {
         // Initialize storage providers
-        console.log("🏢 Setting up app-managed IPFS storage");
+        console.info("🏢 Setting up app-managed IPFS storage");
         const serverIPFS = new ServerIPFSStorage({
           uploadEndpoint: "/api/ipfs/upload",
         });
 
-        const storageProviders: Record<string, any> = {
+        const storageProviders: Record<string, StorageProvider> = {
           "app-ipfs": serverIPFS,
         };
 
         // Add user-managed IPFS if configured
         if (userIpfsJwt) {
-          console.log("👤 Adding user-managed Pinata IPFS storage");
+          console.info("👤 Adding user-managed Pinata IPFS storage");
           const pinataStorage = new PinataStorage({
             jwt: userIpfsJwt,
             gatewayUrl: userIpfsGateway,
@@ -162,18 +200,32 @@ export default function Home() {
           storageProviders["user-ipfs"] = pinataStorage;
 
           // Test the connection
-          pinataStorage.testConnection().then((result: any) => {
-            if (result.success) {
-              console.log("✅ User Pinata connection verified:", result.data);
-            } else {
-              console.warn("⚠️ User Pinata connection failed:", result.error);
-            }
-          });
+          pinataStorage
+            .testConnection()
+            .then(
+              (result: {
+                success: boolean;
+                data?: unknown;
+                error?: unknown;
+              }) => {
+                if (result.success) {
+                  console.info(
+                    "✅ User Pinata connection verified:",
+                    result.data,
+                  );
+                } else {
+                  console.warn(
+                    "⚠️ User Pinata connection failed:",
+                    result.error,
+                  );
+                }
+              },
+            );
         }
 
         // Initialize Vana SDK with storage configuration
         const vanaInstance = new Vana({
-          walletClient: walletClient as any,
+          walletClient: walletClient as WalletClient & { chain: VanaChain }, // Type compatibility with Vana SDK
           relayerUrl: `${window.location.origin}`,
           storage: {
             providers: storageProviders,
@@ -181,7 +233,7 @@ export default function Home() {
           },
         });
         setVana(vanaInstance);
-        console.log("✅ Vana SDK initialized:", vanaInstance.getConfig());
+        console.info("✅ Vana SDK initialized:", vanaInstance.getConfig());
 
         // Create a separate storage manager for the demo UI (to maintain existing UI functionality)
         const manager = new StorageManager();
@@ -189,7 +241,7 @@ export default function Home() {
           manager.register(name, provider, name === "app-ipfs");
         }
         setStorageManager(manager);
-        console.log("✅ Storage manager initialized with both IPFS patterns");
+        console.info("✅ Storage manager initialized with both IPFS patterns");
       } catch (error) {
         console.error("❌ Failed to initialize Vana SDK:", error);
       }
@@ -207,7 +259,7 @@ export default function Home() {
       .then((res) => res.json())
       .then((data) => {
         setRelayerHealth(data);
-        console.log("✅ Relayer health check:", data);
+        console.info("✅ Relayer health check:", data);
       })
       .catch((err) => console.warn("⚠️ Relayer health check failed:", err));
   }, []);
@@ -297,7 +349,7 @@ export default function Home() {
         },
       };
 
-      console.log("🔍 Debug - Permission params:", {
+      console.debug("🔍 Debug - Permission params:", {
         selectedFiles,
         paramsFiles: params.files,
         filesLength: params.files.length,
@@ -366,12 +418,12 @@ export default function Home() {
   };
 
   const handleConfirmGrant = async () => {
-    if (!grantPreview) return;
+    if (!grantPreview || !vana) return;
 
     try {
       setGrantStatus("Awaiting signature...");
 
-      const txHash = await vana!.permissions.grant(grantPreview.params);
+      const txHash = await vana.permissions.grant(grantPreview.params);
 
       setGrantStatus(""); // Clear status since permission will appear in list
       setGrantTxHash(txHash);
@@ -406,9 +458,13 @@ export default function Home() {
     setRevokeStatus("Preparing permission revoke...");
 
     try {
-      // SDK now handles the conversion internally - just pass the permission ID
+      // Convert permission ID to proper 32-byte hex Hash format
+      const bigIntId = BigInt(permissionId);
+      const grantIdAsHash =
+        `0x${bigIntId.toString(16).padStart(64, "0")}` as `0x${string}`;
+
       const params: RevokePermissionParams = {
-        grantId: permissionId,
+        grantId: grantIdAsHash,
       };
 
       setRevokeStatus("Awaiting signature...");
@@ -437,10 +493,7 @@ export default function Home() {
     setEncryptionStatus("Generating encryption key...");
 
     try {
-      const key = await generateEncryptionKey(
-        walletClient as any,
-        encryptionSeed,
-      );
+      const key = await generateEncryptionKey(walletClient, encryptionSeed);
       setGeneratedKey(key);
       setEncryptionStatus("✅ Encryption key generated successfully!");
     } catch (error) {
@@ -578,7 +631,7 @@ export default function Home() {
       await navigator.clipboard.writeText(text);
       setEncryptionStatus(`✅ ${type} copied to clipboard!`);
       setTimeout(() => setEncryptionStatus(""), 2000);
-    } catch (error) {
+    } catch {
       setEncryptionStatus(`❌ Failed to copy ${type} to clipboard`);
       setTimeout(() => setEncryptionStatus(""), 2000);
     }
@@ -757,7 +810,7 @@ export default function Home() {
         providerName,
       );
 
-      console.log("✅ File uploaded and registered:", {
+      console.info("✅ File uploaded and registered:", {
         fileId: result.fileId,
         url: result.url,
         size: result.size,
@@ -1229,7 +1282,7 @@ export default function Home() {
                                   </span>
                                 )}
                               </p>
-                              {permission.parameters != null && (
+                              {permission.parameters !== null && (
                                 <div className="text-sm text-muted-foreground">
                                   <details className="group">
                                     <summary className="cursor-pointer hover:text-foreground">
@@ -1852,7 +1905,7 @@ export default function Home() {
                           </Button>
                         </div>
                       );
-                    } catch (error) {
+                    } catch {
                       return (
                         <div
                           key={contractName}

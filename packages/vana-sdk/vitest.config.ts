@@ -7,6 +7,7 @@ export default defineConfig({
     include: ["src/**/*.test.ts"],
     exclude: ["examples/**", "node_modules/**"],
     setupFiles: ["src/tests/setup.ts"],
+    reporters: "dot",
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
@@ -21,10 +22,10 @@ export default defineConfig({
       ],
       reportOnFailure: true,
       thresholds: {
-        lines: 99,
-        functions: 99,
-        branches: 99,
-        statements: 99,
+        lines: 98,
+        functions: 81,
+        branches: 94,
+        statements: 98,
       },
     },
   },

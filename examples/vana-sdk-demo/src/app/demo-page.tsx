@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useAccount, useWalletClient, useChainId } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { createWalletClient, http } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import {
   Vana,
   UserFile,
@@ -132,10 +134,35 @@ export default function Home() {
   const [isLookingUpFile, setIsLookingUpFile] = useState(false);
   const [fileLookupStatus, setFileLookupStatus] = useState<string>("");
 
+  // Personal server state
+  const [personalPermissionId, setPersonalPermissionId] = useState<string>("");
+  const [personalResult, setPersonalResult] = useState<any>(null);
+  const [personalError, setPersonalError] = useState<string>("");
+  const [isPersonalLoading, setIsPersonalLoading] = useState(false);
+  const [isPolling, setIsPolling] = useState(false);
+
   // Initialize Vana SDK when wallet is connected
   useEffect(() => {
     if (isConnected && walletClient && walletClient.account) {
       try {
+        // Create application client for personal server operations
+        const applicationPrivateKey =
+          process.env.NEXT_PUBLIC_APPLICATION_PRIVATE_KEY;
+        if (!applicationPrivateKey) {
+          console.error(
+            "NEXT_PUBLIC_APPLICATION_PRIVATE_KEY not found in .env.local",
+          );
+          return;
+        }
+
+        console.log("@@@ applicationPrivateKey", applicationPrivateKey);
+
+        const applicationClient = createWalletClient({
+          account: privateKeyToAccount(applicationPrivateKey as `0x${string}`),
+          chain: walletClient.chain,
+          transport: http(),
+        });
+
         // Initialize storage providers
         console.log("🏢 Setting up app-managed IPFS storage");
         const serverIPFS = new ServerIPFSStorage({
@@ -177,9 +204,10 @@ export default function Home() {
           );
         }
 
-        // Initialize Vana SDK with storage configuration
+        // Initialize Vana SDK with application client
         const vanaInstance = new Vana({
           walletClient: walletClient as any,
+          applicationClient: applicationClient as any,
           relayerUrl: `${window.location.origin}`,
           storage: {
             providers: storageProviders,
@@ -741,6 +769,95 @@ export default function Home() {
     return getTxUrl(chainId || 14800, txHash);
   };
 
+  const handlePersonalServerCall = async () => {
+    console.log("🔍 Debug - handlePersonalServerCall");
+    if (!address) return;
+
+    // Parse permission ID
+    let permissionId: number;
+    if (personalPermissionId.trim()) {
+      try {
+        permissionId = parseInt(personalPermissionId.trim());
+        if (isNaN(permissionId) || permissionId <= 0) {
+          setPersonalError("Permission ID must be a valid positive number");
+          return;
+        }
+      } catch (e) {
+        setPersonalError("Permission ID must be a valid number");
+        return;
+      }
+    } else {
+      setPersonalError("Please provide a permission ID");
+      return;
+    }
+
+    setIsPersonalLoading(true);
+    setPersonalError("");
+    setPersonalResult(null);
+    try {
+      console.log("🔍 Debug - API request params:", {
+        permissionId,
+      });
+
+      // Call our API route instead of using the SDK directly
+      console.log("🔍 Debug - fetch /api/personal");
+      const response = await fetch("/api/personal", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          permissionId,
+        }),
+      });
+
+      console.log("🔍 Debug - response", response);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log("API response:", result);
+      setPersonalResult(result.data);
+    } catch (e: any) {
+      setPersonalError(e?.message || "Unknown error");
+    } finally {
+      setIsPersonalLoading(false);
+    }
+  };
+
+  const handlePollStatus = async () => {
+    if (!personalResult?.urls?.get) return;
+
+    setIsPolling(true);
+    setPersonalError("");
+    try {
+      // Call our API route for polling
+      const response = await fetch("/api/personal/poll", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          getUrl: personalResult.urls.get,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      setPersonalResult(result.data);
+    } catch (e: any) {
+      setPersonalError(e?.message || "Unknown error");
+    } finally {
+      setIsPolling(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -1220,6 +1337,117 @@ export default function Home() {
                     </p>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* Personal Server Computation */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Database className="h-5 w-5" />
+                  Personal Server Computation
+                </CardTitle>
+                <CardDescription>
+                  Trigger a computation on your personal server using selected
+                  files.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div>
+                    <Label>Permission ID</Label>
+                    <Input
+                      value={personalPermissionId}
+                      onChange={(e) => setPersonalPermissionId(e.target.value)}
+                      placeholder="Enter permission ID"
+                      className="mb-2"
+                    />
+                  </div>
+                  <Button
+                    onClick={handlePersonalServerCall}
+                    disabled={!personalPermissionId.trim() || isPersonalLoading}
+                  >
+                    {isPersonalLoading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Database className="mr-2 h-4 w-4" />
+                    )}
+                    Run Computation on Personal Server
+                  </Button>
+                  {personalError && (
+                    <Alert variant="destructive">
+                      <AlertDescription>{personalError}</AlertDescription>
+                    </Alert>
+                  )}
+                  {personalResult && (
+                    <div className="mt-4 p-4 bg-muted rounded-lg">
+                      <div className="mb-2">
+                        <span className="font-medium">Prediction ID:</span>{" "}
+                        {personalResult.id}
+                      </div>
+                      <div className="mb-2">
+                        <span className="font-medium">Status:</span>{" "}
+                        {personalResult.status}
+                      </div>
+                      <div className="mb-2">
+                        <span className="font-medium">Get Result:</span>{" "}
+                        <a
+                          href={personalResult.urls.get}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          {personalResult.urls.get}
+                        </a>
+                      </div>
+                      <div className="mb-2">
+                        <span className="font-medium">Cancel:</span>{" "}
+                        <a
+                          href={personalResult.urls.cancel}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          {personalResult.urls.cancel}
+                        </a>
+                      </div>
+                      {personalResult.output && (
+                        <div className="mb-2">
+                          <span className="font-medium">Output:</span>
+                          <pre className="bg-background p-2 rounded text-xs overflow-x-auto mt-1">
+                            {JSON.stringify(personalResult.output, null, 2)}
+                          </pre>
+                        </div>
+                      )}
+                      {personalResult.error && (
+                        <div className="mb-2 text-red-600">
+                          <span className="font-medium">Error:</span>{" "}
+                          {personalResult.error}
+                        </div>
+                      )}
+                      <div className="mt-3">
+                        <Button
+                          onClick={handlePollStatus}
+                          disabled={
+                            isPolling ||
+                            personalResult.status === "succeeded" ||
+                            personalResult.status === "failed" ||
+                            personalResult.status === "canceled"
+                          }
+                          variant="outline"
+                          size="sm"
+                        >
+                          {isPolling ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <RotateCcw className="mr-2 h-4 w-4" />
+                          )}
+                          {isPolling ? "Polling..." : "Poll Status"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
 

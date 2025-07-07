@@ -89,6 +89,12 @@ export type {
   RelayerWebhookPayload,
 } from "./relayer";
 
+// Personal server types
+export type {
+  PostRequestParams,
+  ReplicatePredictionResponse,
+} from "./personal";
+
 // Utility types
 export type {
   PartialExcept,

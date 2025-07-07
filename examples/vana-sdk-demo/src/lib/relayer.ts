@@ -71,5 +71,8 @@ export const generateContentId = (parameters: string): string => {
  * Create a pre-configured Vana SDK instance using the relayer wallet
  */
 export function createRelayerVana(): Vana {
-  return new Vana({ walletClient });
+  return new Vana({ 
+    walletClient,
+    applicationClient: walletClient // Use the same client for both user and application
+  });
 }

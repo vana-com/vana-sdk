@@ -30,6 +30,7 @@ export interface WalletConfig extends BaseConfig {
   walletClient: WalletClient & {
     chain: VanaChain;
   };
+  applicationClient: WalletClient;
 }
 
 /**

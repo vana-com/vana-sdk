@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { relayerConfig } from "@/lib/relayer";
+import { decodeEventLog } from "viem";
 
-// DataRegistry contract ABI - only the addFileWithPermissions function we need
+// DataRegistry contract ABI - function and event we need
 const dataRegistryAbi = [
   {
     inputs: [
@@ -20,6 +21,16 @@ const dataRegistryAbi = [
     outputs: [{ name: "", type: "uint256" }],
     stateMutability: "nonpayable",
     type: "function",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: "fileId", type: "uint256" },
+      { indexed: true, name: "ownerAddress", type: "address" },
+      { indexed: false, name: "url", type: "string" },
+    ],
+    name: "FileAdded",
+    type: "event",
   },
 ] as const;
 
@@ -56,16 +67,41 @@ export async function POST(request: NextRequest) {
       ],
     });
 
-    console.log("✅ File registered successfully:", txHash);
+    console.log("✅ File registered, getting receipt for fileId...");
+
+    // Get the transaction receipt to parse the FileAdded event
+    const receipt = await relayerConfig.walletClient.waitForTransactionReceipt({
+      hash: txHash,
+    });
+
+    // Parse the FileAdded event to get the actual fileId
+    let fileId = 0;
+    for (const log of receipt.logs) {
+      try {
+        const decoded = decodeEventLog({
+          abi: dataRegistryAbi,
+          data: log.data,
+          topics: log.topics,
+        });
+
+        if (decoded.eventName === "FileAdded") {
+          fileId = Number(decoded.args.fileId);
+          console.log(`📄 File registered with ID: ${fileId}`);
+          break;
+        }
+      } catch (error) {
+        // Ignore logs that don't match our ABI
+        continue;
+      }
+    }
 
     // TODO: In the future, we should:
     // 1. Require a signature from the user proving they consent to file registration
     // 2. Use a hypothetical addFileWithSignature method that verifies this signature
-    // 3. Parse the transaction receipt to get the actual fileId from FileAdded event
 
     return NextResponse.json({
       success: true,
-      fileId: 0, // TODO: Parse from transaction receipt FileAdded event
+      fileId: fileId,
       transactionHash: txHash,
     });
   } catch (error) {

@@ -1,12 +1,12 @@
-import { Abi } from "abitype";
+import type { Abi } from "abitype";
 import {
   getContract,
-  GetContractReturnType,
-  PublicClient,
-  WalletClient,
+  type GetContractReturnType,
+  type PublicClient,
+  type WalletClient,
 } from "viem";
-import { ContractAbis, getAbi, VanaContract } from "../abi";
-import type { VanaChainId, ContractInfo, VanaContractName } from "../types";
+import { type ContractAbis, getAbi, type VanaContract } from "../abi";
+import type { VanaChainId, ContractInfo } from "../types";
 import { getContractAddress, CONTRACT_ADDRESSES } from "../config/addresses";
 import { createClient } from "../core/client";
 import { vanaMainnet } from "../config/chains";

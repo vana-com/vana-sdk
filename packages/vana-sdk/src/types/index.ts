@@ -13,11 +13,7 @@ export type {
 export { isWalletConfig, isChainConfig } from "./config";
 
 // Chain types
-export type {
-  VanaChainId,
-  VanaChain,
-  ChainConfig as ChainConfigType,
-} from "./chains";
+export type { VanaChainId, VanaChain } from "./chains";
 
 export { isVanaChainId, isVanaChain } from "./chains";
 

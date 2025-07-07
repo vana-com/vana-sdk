@@ -24,7 +24,7 @@ const dataRegistryAbi = [
 ] as const;
 
 // DataRegistry address on Moksha testnet
-const MOKSHA_DATA_REGISTRY = "0x590E134DEF5844B0fc836ce2cc4087A957559BAD";
+const MOKSHA_DATA_REGISTRY = "0x8C8788f98385F6ba1adD4234e551ABba0f82Cb7C";
 
 export async function POST(request: NextRequest) {
   try {

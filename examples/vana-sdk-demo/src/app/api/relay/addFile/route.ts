@@ -1,11 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { relayerConfig } from "@/lib/relayer";
 
-// DataRegistry contract ABI - only the addFile function we need
+// DataRegistry contract ABI - only the addFileWithPermissions function we need
 const dataRegistryAbi = [
   {
-    inputs: [{ name: "url", type: "string" }],
-    name: "addFile",
+    inputs: [
+      { name: "url", type: "string" },
+      { name: "ownerAddress", type: "address" },
+      {
+        name: "permissions",
+        type: "tuple[]",
+        components: [
+          { name: "account", type: "address" },
+          { name: "key", type: "string" },
+        ],
+      },
+    ],
+    name: "addFileWithPermissions",
     outputs: [{ name: "", type: "uint256" }],
     stateMutability: "nonpayable",
     type: "function",
@@ -32,18 +43,29 @@ export async function POST(request: NextRequest) {
     console.log("👤 User:", userAddress);
 
     // Use relayer wallet to submit transaction
+    // We use addFileWithPermissions to ensure the file is registered to the user's address
+    // In the future, this could be improved with addFileWithSignature to verify user consent
     const txHash = await relayerConfig.walletClient.writeContract({
       address: MOKSHA_DATA_REGISTRY,
       abi: dataRegistryAbi,
-      functionName: "addFile",
-      args: [url],
+      functionName: "addFileWithPermissions",
+      args: [
+        url,
+        userAddress as `0x${string}`,
+        [], // No additional permissions needed at registration time
+      ],
     });
 
     console.log("✅ File registered successfully:", txHash);
 
+    // TODO: In the future, we should:
+    // 1. Require a signature from the user proving they consent to file registration
+    // 2. Use a hypothetical addFileWithSignature method that verifies this signature
+    // 3. Parse the transaction receipt to get the actual fileId from FileAdded event
+
     return NextResponse.json({
       success: true,
-      fileId: 0, // TODO: Parse from transaction receipt
+      fileId: 0, // TODO: Parse from transaction receipt FileAdded event
       transactionHash: txHash,
     });
   } catch (error) {

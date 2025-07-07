@@ -2,8 +2,11 @@
 export { Vana } from "./vana";
 export { VanaProvider } from "./core/provider";
 
-// Types
+// Types - modular exports
 export type * from "./types";
+
+// VanaContract is exported from abi to avoid circular dependencies
+export type { VanaContract } from "./abi";
 
 // Error classes
 export * from "./errors";
@@ -31,4 +34,27 @@ export { chains, mokshaTestnet, vanaMainnet } from "./config/chains";
 
 // ABIs
 export { getAbi } from "./abi";
-export type { VanaContract } from "./abi";
+export type { VanaContract as VanaContractAbi } from "./abi";
+
+// Generic utilities for extensibility
+export {
+  BaseController,
+  RetryUtility,
+  RateLimiter,
+  MemoryCache,
+  EventEmitter,
+  MiddlewarePipeline,
+  AsyncQueue,
+  CircuitBreaker,
+} from "./core/generics";
+
+export { ApiClient } from "./core/apiClient";
+
+export type {
+  ApiClientConfig,
+  HttpMethod,
+  RequestOptions,
+} from "./core/apiClient";
+
+// Legacy exports for backward compatibility
+// VanaContract is already exported from "./types" above

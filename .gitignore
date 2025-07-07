@@ -76,3 +76,8 @@ Thumbs.db
 # Test output
 test-results/
 playwright-report/
+
+CLAUDE.md
+.devcontainer/
+
+hidden/

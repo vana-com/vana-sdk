@@ -1,5 +1,5 @@
-import { Address, Hash, createPublicClient, http, getContract } from "viem";
-import type { WalletClient } from "viem";
+import { Address, Hash, getContract } from "viem";
+import type { WalletClient, PublicClient } from "viem";
 import {
   GrantPermissionParams,
   RevokePermissionParams,
@@ -7,7 +7,7 @@ import {
   GenericTypedData,
   RelayerTransactionResponse,
   GrantedPermission,
-} from "../types";
+} from "../types/index";
 import {
   RelayerError,
   UserRejectedRequestError,
@@ -23,6 +23,7 @@ import {
   createGrantFile,
   storeGrantFile,
   getGrantFileHash,
+  retrieveGrantFile,
 } from "../utils/grantFiles";
 import { StorageManager } from "../storage";
 
@@ -31,6 +32,7 @@ import { StorageManager } from "../storage";
  */
 export interface ControllerContext {
   walletClient: WalletClient;
+  publicClient: PublicClient;
   relayerUrl?: string;
   storageManager?: StorageManager;
 }
@@ -43,13 +45,27 @@ export class PermissionsController {
 
   /**
    * Grants permission for an application to access user data.
-   * Implements the new IPFS-based grant file flow while maintaining
-   * compatibility with the existing contract.
+   * Combines createAndSign + submitSignedGrant for a complete end-to-end flow.
    *
    * @param params - The permission grant parameters
    * @returns Promise resolving to the transaction hash
    */
   async grant(params: GrantPermissionParams): Promise<Hash> {
+    const { typedData, signature } = await this.createAndSign(params);
+    return await this.submitSignedGrant(typedData, signature);
+  }
+
+  /**
+   * Creates typed data and signature for a permission grant.
+   * This is the first step in the permission grant process.
+   *
+   * @param params - The permission grant parameters
+   * @returns Promise resolving to typed data and signature
+   */
+  async createAndSign(params: GrantPermissionParams): Promise<{
+    typedData: PermissionGrantTypedData;
+    signature: Hash;
+  }> {
     try {
       const userAddress = await this.getUserAddress();
 
@@ -59,12 +75,28 @@ export class PermissionsController {
       // Step 2: Use provided grantUrl or store grant file in IPFS
       let grantUrl = params.grantUrl;
       if (!grantUrl) {
-        if (!this.context.relayerUrl) {
+        if (!this.context.relayerUrl && !this.context.storageManager) {
           throw new Error(
-            "No relayerUrl configured and no grantUrl provided. For direct transactions, please provide a grantUrl. For gasless transactions, configure a relayer service.",
+            "No storage available. Provide a grantUrl, configure relayerUrl, or provide storageManager.",
           );
         }
-        grantUrl = await storeGrantFile(grantFile, this.context.relayerUrl);
+        if (this.context.relayerUrl) {
+          grantUrl = await storeGrantFile(grantFile, this.context.relayerUrl);
+        } else if (this.context.storageManager) {
+          // Store using local storage manager if available
+          const blob = new Blob([JSON.stringify(grantFile)], {
+            type: "application/json",
+          });
+          const result = await this.context.storageManager.upload(
+            blob,
+            `grant-${Date.now()}.json`,
+          );
+          grantUrl = result.url;
+        }
+
+        if (!grantUrl) {
+          throw new Error("Failed to store grant file - no URL returned");
+        }
       }
 
       // Step 3: Get user nonce
@@ -83,20 +115,7 @@ export class PermissionsController {
       // Step 5: User signature
       const signature = await this.signTypedData(typedData);
 
-      // Step 6: Submit to blockchain (either via relay or direct)
-      let transactionHash: Hash;
-      if (this.context.relayerUrl) {
-        // Gasless transaction via relayer
-        transactionHash = await this.relayTransaction(typedData, signature);
-      } else {
-        // Direct transaction with gas payment
-        transactionHash = await this.submitDirectTransaction(
-          typedData,
-          signature,
-        );
-      }
-
-      return transactionHash;
+      return { typedData, signature };
     } catch (error) {
       if (error instanceof Error) {
         // Re-throw known Vana errors directly
@@ -112,11 +131,140 @@ export class PermissionsController {
         }
         // Wrap unknown errors
         throw new BlockchainError(
-          `Permission grant failed: ${error.message}`,
+          `Permission grant preparation failed: ${error.message}`,
           error,
         );
       }
-      throw new BlockchainError("Permission grant failed with unknown error");
+      throw new BlockchainError(
+        "Permission grant preparation failed with unknown error",
+      );
+    }
+  }
+
+  /**
+   * Submits an already-signed permission grant to the blockchain.
+   * Supports both relayer-based gasless transactions and direct transactions.
+   *
+   * @param typedData - The EIP-712 typed data
+   * @param signature - The user's signature
+   * @returns Promise resolving to the transaction hash
+   */
+  async submitSignedGrant(
+    typedData: PermissionGrantTypedData,
+    signature: Hash,
+  ): Promise<Hash> {
+    try {
+      // Use relayer if configured, otherwise direct transaction
+      if (this.context.relayerUrl) {
+        return await this.relaySignedTransaction(typedData, signature);
+      } else {
+        return await this.submitDirectTransaction(typedData, signature);
+      }
+    } catch (error) {
+      // Re-throw known Vana errors directly to preserve error types
+      if (
+        error instanceof RelayerError ||
+        error instanceof NetworkError ||
+        error instanceof UserRejectedRequestError ||
+        error instanceof SignatureError ||
+        error instanceof NonceError
+      ) {
+        throw error;
+      }
+      throw new BlockchainError(
+        `Permission submission failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Submits a signed transaction directly to the blockchain.
+   */
+  private async submitDirectTransaction(
+    typedData: PermissionGrantTypedData,
+    signature: Hash,
+  ): Promise<Hash> {
+    const chainId = await this.context.walletClient.getChainId();
+    const permissionRegistryAddress = getContractAddress(
+      chainId,
+      "PermissionRegistry",
+    );
+    const permissionRegistryAbi = getAbi("PermissionRegistry");
+
+    // Prepare the PermissionInput struct (simplified format)
+    const permissionInput = {
+      nonce: BigInt(typedData.message.nonce),
+      grant: typedData.message.grant,
+    };
+
+    // Submit directly to the contract using the provided wallet client
+    const txHash = await this.context.walletClient.writeContract({
+      address: permissionRegistryAddress,
+      abi: permissionRegistryAbi,
+      functionName: "addPermission",
+      args: [permissionInput, signature],
+      account:
+        this.context.walletClient.account || (await this.getUserAddress()),
+      chain: this.context.walletClient.chain || null,
+    });
+
+    return txHash;
+  }
+
+  /**
+   * Submits a signed transaction via the relayer service.
+   */
+  private async relaySignedTransaction(
+    typedData: PermissionGrantTypedData,
+    signature: Hash,
+  ): Promise<Hash> {
+    try {
+      const relayerUrl = this.context.relayerUrl;
+      if (!relayerUrl) {
+        throw new RelayerError("Relayer URL is not configured", 500);
+      }
+
+      const response = await fetch(`${relayerUrl}/api/relay`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          typedData: {
+            ...typedData,
+            message: {
+              ...typedData.message,
+              nonce: Number(typedData.message.nonce),
+            },
+          },
+          signature,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new RelayerError(
+          `Failed to relay transaction: ${response.statusText}`,
+          response.status,
+          await response.text(),
+        );
+      }
+
+      const data: RelayerTransactionResponse = await response.json();
+
+      if (!data.success) {
+        throw new RelayerError(data.error || "Failed to relay transaction");
+      }
+
+      return data.transactionHash;
+    } catch (error) {
+      if (error instanceof RelayerError) {
+        throw error;
+      }
+      throw new NetworkError(
+        `Network error while relaying transaction: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
     }
   }
 
@@ -133,9 +281,8 @@ export class PermissionsController {
         throw new BlockchainError("Chain ID not available");
       }
 
-      // Implementation follows similar pattern to grant
-      // For now, we'll implement a simplified version
-      // TODO: Implement complete revoke flow with proper EIP-712 structure
+      // Normalize grantId to hex format internally
+      const grantId = this.normalizeGrantId(params.grantId);
 
       const userAddress = await this.getUserAddress();
       const nonce = await this.getUserNonce();
@@ -143,7 +290,7 @@ export class PermissionsController {
       // Create revoke message (simplified for now)
       const revokeMessage = {
         from: userAddress,
-        grantId: params.grantId,
+        grantId: grantId,
         nonce,
       };
 
@@ -181,7 +328,7 @@ export class PermissionsController {
       } else {
         // TODO: Implement direct revoke transaction
         // For now, return a mock hash since the contract doesn't have revoke yet
-        return `0xmock${params.grantId.slice(2).substring(0, 60)}` as Hash;
+        return `0xmock${grantId.slice(2).substring(0, 60)}` as Hash;
       }
     } catch (error) {
       if (error instanceof Error) {
@@ -213,19 +360,13 @@ export class PermissionsController {
       const userAddress = await this.getUserAddress();
       const chainId = await this.context.walletClient.getChainId();
 
-      // Create a public client for reading contracts
-      const publicClient = createPublicClient({
-        chain: this.context.walletClient.chain,
-        transport: http(),
-      });
-
       const permissionRegistryAddress = getContractAddress(
         chainId,
         "PermissionRegistry",
       );
       const permissionRegistryAbi = getAbi("PermissionRegistry");
 
-      const nonce = (await publicClient.readContract({
+      const nonce = (await this.context.publicClient.readContract({
         address: permissionRegistryAddress,
         abi: permissionRegistryAbi,
         functionName: "userNonce",
@@ -307,108 +448,6 @@ export class PermissionsController {
       }
       throw new SignatureError(
         `Failed to sign typed data: ${error instanceof Error ? error.message : "Unknown error"}`,
-        error as Error,
-      );
-    }
-  }
-
-  /**
-   * Submits a transaction directly to the blockchain (user pays gas).
-   */
-  private async submitDirectTransaction(
-    typedData: PermissionGrantTypedData,
-    signature: Hash,
-  ): Promise<Hash> {
-    try {
-      const chainId = await this.context.walletClient.getChainId();
-      const permissionRegistryAddress = getContractAddress(
-        chainId,
-        "PermissionRegistry",
-      );
-      const permissionRegistryAbi = getAbi("PermissionRegistry");
-
-      // Prepare the PermissionInput struct (simplified format)
-      const permissionInput = {
-        nonce: BigInt(typedData.message.nonce),
-        grant: typedData.message.grant,
-      };
-
-      // Submit directly to the contract
-      const txHash = await this.context.walletClient.writeContract({
-        address: permissionRegistryAddress,
-        abi: permissionRegistryAbi,
-        functionName: "addPermission",
-        args: [permissionInput, signature],
-        account:
-          this.context.walletClient.account || (await this.getUserAddress()),
-        chain: this.context.walletClient.chain || null,
-      });
-
-      return txHash;
-    } catch (error) {
-      throw new BlockchainError(
-        `Direct transaction failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-        error as Error,
-      );
-    }
-  }
-
-  /**
-   * Submits a signed transaction to the relayer service.
-   */
-  private async relayTransaction(
-    typedData: PermissionGrantTypedData,
-    signature: Hash,
-  ): Promise<Hash> {
-    try {
-      console.log("🔍 SDK Debug - Relaying with typed data:", {
-        hasFiles: "files" in typedData,
-        files: typedData.files,
-        filesLength: typedData.files?.length,
-      });
-
-      const relayerUrl = this.context.relayerUrl;
-      if (!relayerUrl) {
-        throw new RelayerError("Relayer URL is not configured", 500);
-      }
-      const response = await fetch(`${relayerUrl}/api/v1/transactions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          typedData: {
-            ...typedData,
-            message: {
-              ...typedData.message,
-              nonce: Number(typedData.message.nonce),
-            },
-          },
-          signature,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new RelayerError(
-          `Failed to relay transaction: ${response.statusText}`,
-          response.status,
-          await response.text(),
-        );
-      }
-
-      const data: RelayerTransactionResponse = await response.json();
-
-      if (!data.success) {
-        throw new RelayerError(data.error || "Failed to relay transaction");
-      }
-
-      return data.transactionHash;
-    } catch (error) {
-      if (error instanceof RelayerError) {
-        throw error;
-      }
-      throw new NetworkError(
-        `Network error while relaying transaction: ${error instanceof Error ? error.message : "Unknown error"}`,
         error as Error,
       );
     }
@@ -526,24 +565,51 @@ export class PermissionsController {
               userAddress,
               BigInt(i),
             ]);
-          const id = Number(permissionId);
 
           // Get the permission details
           const permission = await permissionRegistry.read.permissions([
             permissionId,
           ]);
 
+          // Fetch and parse the grant file from IPFS to get complete permission data
+          let operation: string | undefined;
+          let files: number[] = [];
+          let parameters: unknown | undefined;
+
+          try {
+            const grantFile = await retrieveGrantFile(permission.grant);
+            operation = grantFile.operation;
+            files = grantFile.files;
+            parameters = grantFile.parameters;
+          } catch (error) {
+            console.warn(
+              `Failed to retrieve grant file for permission ${permissionId}:`,
+              error,
+            );
+            // Continue with basic permission data even if grant file can't be retrieved
+          }
+
           userPermissions.push({
-            id,
-            files: [], // Files are now stored in the grant URL (IPFS)
+            id: permissionId,
+            files: files,
+            operation: operation || "",
+            parameters: (parameters as Record<string, unknown>) || {},
             grant: permission.grant,
+            grantor: permission.user, // The user field contains the grantor address
+            grantee: userAddress, // Current user is the grantee in this context
+            active: true, // Default to active if not specified
           });
         } catch (error) {
           console.warn(`Failed to read permission at index ${i}:`, error);
         }
       }
 
-      return userPermissions.sort((a, b) => b.id - a.id); // Most recent first
+      return userPermissions.sort((a, b) => {
+        // Sort bigints - most recent first
+        if (a.id < b.id) return 1;
+        if (a.id > b.id) return -1;
+        return 0;
+      });
     } catch (error) {
       console.error("Failed to fetch user permissions:", error);
       throw new BlockchainError(
@@ -553,41 +619,30 @@ export class PermissionsController {
   }
 
   /**
-   * Fetches grant data from any URL (IPFS or HTTP) with graceful error handling
+   * Normalizes grant ID to hex format.
+   * Handles conversion from permission ID (bigint/number/string) to proper hex hash format.
+   *
+   * @param grantId - Permission ID or grant hash in various formats
+   * @returns Normalized hex hash
    */
-  private async fetchGrantFromIPFS(grantUrl: string): Promise<unknown> {
+  private normalizeGrantId(grantId: Hash | bigint | number | string): Hash {
+    // If it's already a hex string (Hash), return as-is
+    if (
+      typeof grantId === "string" &&
+      grantId.startsWith("0x") &&
+      grantId.length === 66
+    ) {
+      return grantId as Hash;
+    }
+
+    // Convert permission ID to hex format (same logic as demo was using)
     try {
-      // Convert IPFS URL to HTTP gateway URL if needed
-      let fetchUrl = grantUrl;
-      if (grantUrl.startsWith("ipfs://")) {
-        // Use a public IPFS gateway - could be configurable
-        fetchUrl = grantUrl.replace("ipfs://", "https://ipfs.io/ipfs/");
-      }
-
-      // Create a timeout promise
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error("Request timeout")), 5000);
-      });
-
-      // Race between fetch and timeout
-      const response = await Promise.race([fetch(fetchUrl), timeoutPromise]);
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-
-      // Basic validation - check if it looks like grant data
-      if (typeof data === "object" && data !== null) {
-        return data;
-      }
-
-      return null;
-    } catch (error) {
-      // Don't throw - let caller handle graceful degradation
-      console.debug(`IPFS fetch failed for ${grantUrl}:`, error);
-      return null;
+      const bigIntId = BigInt(grantId);
+      return `0x${bigIntId.toString(16).padStart(64, "0")}` as Hash;
+    } catch {
+      throw new Error(
+        `Invalid grant ID format: ${grantId}. Must be a permission ID (number/bigint/string) or a 32-byte hex hash.`,
+      );
     }
   }
 }

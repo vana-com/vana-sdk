@@ -361,11 +361,12 @@ NEXT_PUBLIC_SUBGRAPH_URL=your_subgraph_endpoint
 
 The demo includes a complete backend implementation:
 
-| Endpoint                | Purpose          | Description                      |
-| ----------------------- | ---------------- | -------------------------------- |
-| `GET /api/health`       | Service health   | Relayer and blockchain status    |
-| `POST /api/ipfs/upload` | File storage     | Server-managed IPFS uploads      |
-| `POST /api/relay`       | Permission relay | Submit gasless permission grants |
+| Endpoint                  | Purpose           | Description                      |
+| ------------------------- | ----------------- | -------------------------------- |
+| `GET /api/health`         | Service health    | Relayer and blockchain status    |
+| `POST /api/ipfs/upload`   | File storage      | Server-managed IPFS uploads      |
+| `POST /api/relay`         | Permission relay  | Submit gasless permission grants |
+| `POST /api/relay/addFile` | File registration | Register file URLs on blockchain |
 
 ---
 

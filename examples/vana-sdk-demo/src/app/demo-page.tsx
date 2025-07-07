@@ -310,71 +310,13 @@ export default function Home() {
         operation: params.operation,
       });
 
-      setGrantStatus("Creating grant file...");
-
-      // Create grant file preview
-      const grantFilePreview = {
-        operation: params.operation,
-        files: params.files,
-        parameters: params.parameters,
-        metadata: {
-          timestamp: new Date().toISOString(),
-          version: "1.0",
-          userAddress: address,
-        },
-      };
-
-      setGrantStatus("Storing grant file in IPFS...");
-
-      // Store in IPFS first
-      const response = await fetch("/api/v1/parameters", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          parameters: JSON.stringify(grantFilePreview),
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to store grant file: ${response.statusText}`);
-      }
-
-      const storageResult = await response.json();
-      if (!storageResult.success) {
-        throw new Error(storageResult.error || "Failed to store grant file");
-      }
-
-      // Show preview to user
-      setGrantPreview({
-        grantFile: grantFilePreview,
-        grantUrl: storageResult.grantUrl,
-        params: {
-          ...params,
-          grantUrl: storageResult.grantUrl, // Pass the pre-stored URL to avoid duplicate storage
-        },
-      });
-      setShowGrantPreview(true);
-      setGrantStatus("Review the grant file before signing...");
-    } catch (error) {
-      console.error("Failed to prepare grant:", error);
-      setGrantStatus(
-        `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-      setIsGranting(false);
-    }
-  };
-
-  const handleConfirmGrant = async () => {
-    if (!grantPreview) return;
-
-    try {
       setGrantStatus("Awaiting signature...");
 
-      const txHash = await vana!.permissions.grant(grantPreview.params);
+      // Use the SDK's grant method directly - it handles IPFS storage internally
+      const txHash = await vana.permissions.grant(params);
 
       setGrantStatus(""); // Clear status since permission will appear in list
       setGrantTxHash(txHash);
-      setShowGrantPreview(false);
 
       // Refresh permissions to show the new grant
       setTimeout(() => {
@@ -387,15 +329,7 @@ export default function Home() {
       );
     } finally {
       setIsGranting(false);
-      setGrantPreview(null);
     }
-  };
-
-  const handleCancelGrant = () => {
-    setShowGrantPreview(false);
-    setGrantPreview(null);
-    setIsGranting(false);
-    setGrantStatus("");
   };
 
   const handleRevokePermissionById = async (permissionId: string) => {
@@ -1124,11 +1058,11 @@ export default function Home() {
                     </div>
 
                     <div className="flex gap-3 justify-end pt-2">
-                      <Button variant="outline" onClick={handleCancelGrant}>
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowGrantPreview(false)}
+                      >
                         Cancel
-                      </Button>
-                      <Button onClick={handleConfirmGrant}>
-                        Sign Transaction
                       </Button>
                     </div>
                   </CardContent>

@@ -4,7 +4,7 @@ import { getContractUrl } from "@/lib/explorer";
 import { useChainId } from "wagmi";
 
 interface PermissionDisplayProps {
-  permissionId: number;
+  permissionId: bigint;
   grantHash?: string;
   showExternalLink?: boolean;
   className?: string;
@@ -20,7 +20,7 @@ export function PermissionDisplay({
 
   // Calculate the hash for the contract tab URL
   const hashForUrl =
-    grantHash || `0x${permissionId.toString(16).padStart(8, "0")}`;
+    grantHash || `0x${permissionId.toString(16).padStart(64, "0")}`; // Use 64 chars for full uint256
 
   // Link to the PermissionRegistry contract with the permission hash
   const contractUrl = getContractUrl(
@@ -36,7 +36,7 @@ export function PermissionDisplay({
   return (
     <div className={`flex items-center gap-2 ${className}`}>
       <Shield className="h-4 w-4 text-muted-foreground" />
-      <span className="font-mono text-sm">#{permissionId}</span>
+      <span className="font-mono text-sm">#{permissionId.toString()}</span>
       {showExternalLink && (
         <Button size="sm" variant="ghost" asChild className="h-6 w-6 p-0">
           <a href={contractUrl} target="_blank" rel="noopener noreferrer">

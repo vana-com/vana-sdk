@@ -91,9 +91,6 @@ PINATA_GATEWAY_URL=https://gateway.pinata.cloud
 ### Optional Configuration
 
 ```bash
-# For user-managed IPFS (optional)
-NEXT_PUBLIC_PINATA_JWT=user_pinata_jwt_for_client_side_uploads
-
 # Custom styling (optional)
 NEXT_PUBLIC_THEME=dark
 ```
@@ -361,11 +358,12 @@ NEXT_PUBLIC_SUBGRAPH_URL=your_subgraph_endpoint
 
 The demo includes a complete backend implementation:
 
-| Endpoint                | Purpose          | Description                      |
-| ----------------------- | ---------------- | -------------------------------- |
-| `GET /api/health`       | Service health   | Relayer and blockchain status    |
-| `POST /api/ipfs/upload` | File storage     | Server-managed IPFS uploads      |
-| `POST /api/relay`       | Permission relay | Submit gasless permission grants |
+| Endpoint                  | Purpose           | Description                      |
+| ------------------------- | ----------------- | -------------------------------- |
+| `GET /api/health`         | Service health    | Relayer and blockchain status    |
+| `POST /api/ipfs/upload`   | File storage      | Server-managed IPFS uploads      |
+| `POST /api/relay`         | Permission relay  | Submit gasless permission grants |
+| `POST /api/relay/addFile` | File registration | Register file URLs on blockchain |
 
 ---
 

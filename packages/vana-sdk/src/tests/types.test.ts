@@ -117,19 +117,19 @@ describe("TypeScript Types", () => {
   describe("GrantedPermission", () => {
     it("should have all required properties", () => {
       const permission: GrantedPermission = {
-        id: 1,
+        id: 1n,
         files: [10, 20, 30],
         grant: "ipfs://QmGrant123",
       };
 
-      expect(permission.id).toBe(1);
+      expect(permission.id).toBe(1n);
       expect(permission.files).toEqual([10, 20, 30]);
       expect(permission.grant).toBe("ipfs://QmGrant123");
     });
 
     it("should accept optional properties", () => {
       const permission: GrantedPermission = {
-        id: 2,
+        id: 2n,
         files: [40, 50],
         grant: "ipfs://QmGrant456",
         operation: "llm_inference",

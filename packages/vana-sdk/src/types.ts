@@ -25,6 +25,64 @@ export interface VanaConfigLegacy {
 }
 
 /**
+ * Represents a user's registered data file.
+ */
+export interface UserFile {
+  /** Unique identifier for the file */
+  id: number;
+  /** URL where the file is stored */
+  url: string;
+  /** Ethereum address of the file owner */
+  ownerAddress: Address;
+  /** Block number when the file was added to the registry */
+  addedAtBlock: bigint;
+}
+
+/**
+ * Represents a granted permission from the PermissionRegistry.
+ */
+export interface GrantedPermission {
+  /** Unique identifier for the permission */
+  id: bigint;
+  /** Array of file IDs included in the permission */
+  files: number[];
+  /** Type of operation permitted (e.g., "llm_inference") */
+  operation?: string;
+  /** The grant URL containing all permission details */
+  grant: string;
+  /** The parameters associated with the permission */
+  parameters?: unknown;
+  /** Optional nonce used when granting the permission */
+  nonce?: number;
+  /** Optional block number when permission was granted */
+  grantedAt?: number;
+}
+
+/**
+ * Parameters for the `vana.permissions.grant` method.
+ */
+export interface GrantPermissionParams {
+  /** The on-chain identity of the application */
+  to: Address;
+  /** The class of computation, e.g., "llm_inference" */
+  operation: string;
+  /** Array of file IDs to grant permission for */
+  files: number[];
+  /** The full, off-chain parameters (e.g., LLM prompt) */
+  parameters: Record<string, unknown>;
+  /** Optional pre-stored grant URL to avoid duplicate IPFS storage */
+  grantUrl?: string;
+}
+
+/**
+ * Parameters for the `vana.permissions.revoke` method.
+ */
+export interface RevokePermissionParams {
+  /** The permission ID (from GrantedPermission.id) OR the keccak256 hash of the original PermissionGrant struct to revoke */
+  grantId: Hash | bigint | number | string;
+}
+
+/**
  * @deprecated Use VanaContractName from "./types" instead
  * A union type of all canonical Vana contract names.
  */

@@ -294,14 +294,16 @@ export class EventEmitter<TEvent = unknown> implements Observable<TEvent> {
 /**
  * Generic middleware pipeline
  */
-export class MiddlewarePipeline<TRequest = unknown, TResponse = unknown> {
-  private middleware: Middleware<TRequest, TResponse>[] = [];
+export class MiddlewarePipeline {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private middleware: Middleware<any, any>[] = [];
 
-  use(middleware: Middleware<TRequest, TResponse>): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  use(middleware: Middleware<any, any>): void {
     this.middleware.push(middleware);
   }
 
-  async processRequest(request: TRequest): Promise<TRequest> {
+  async processRequest<TRequest>(request: TRequest): Promise<TRequest> {
     let processed = request;
 
     for (const mw of this.middleware) {
@@ -313,7 +315,7 @@ export class MiddlewarePipeline<TRequest = unknown, TResponse = unknown> {
     return processed;
   }
 
-  async processResponse(response: TResponse): Promise<TResponse> {
+  async processResponse<TResponse>(response: TResponse): Promise<TResponse> {
     let processed = response;
 
     // Process in reverse order
@@ -326,7 +328,7 @@ export class MiddlewarePipeline<TRequest = unknown, TResponse = unknown> {
     return processed;
   }
 
-  async handleError(
+  async handleError<TRequest, TResponse>(
     error: Error,
     request: TRequest,
   ): Promise<TResponse | void> {
@@ -340,7 +342,8 @@ export class MiddlewarePipeline<TRequest = unknown, TResponse = unknown> {
     }
   }
 
-  getMiddleware(): Middleware<TRequest, TResponse>[] {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getMiddleware(): Middleware<any, any>[] {
     return [...this.middleware];
   }
 
@@ -410,7 +413,7 @@ export class AsyncQueue<T = unknown> {
 /**
  * Generic circuit breaker pattern
  */
-export class CircuitBreaker<T = unknown> {
+export class CircuitBreaker {
   private state: "closed" | "open" | "half-open" = "closed";
   private failures = 0;
   private lastFailureTime = 0;
@@ -424,7 +427,7 @@ export class CircuitBreaker<T = unknown> {
     },
   ) {}
 
-  async execute(operation: () => Promise<T>): Promise<T> {
+  async execute<TResult>(operation: () => Promise<TResult>): Promise<TResult> {
     if (this.state === "open") {
       if (Date.now() - this.lastFailureTime > this.config.recoveryTimeout) {
         this.state = "half-open";

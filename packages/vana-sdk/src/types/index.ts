@@ -28,8 +28,19 @@ export type {
   ContractMethodReturnType,
 } from "./contracts";
 
-// Export VanaContract from ABI module (the canonical type)
-export type { VanaContract, ContractAbis } from "../abi";
+// Note: VanaContract and ContractAbis are exported directly from src/index.ts
+// to avoid circular dependencies. Do not re-export them here.
+
+// Storage types
+export type {
+  StorageProvider,
+  StorageUploadResult,
+  StorageFile,
+  StorageListOptions,
+  StorageProviderConfig,
+} from "./storage";
+
+export { StorageError } from "./storage";
 
 // Data types
 export type {
@@ -105,7 +116,6 @@ export type {
   TransactionOptions,
   TransactionReceipt,
   ApiResponse,
-  VanaError,
   CacheConfig,
   ValidationResult,
   StatusInfo,
@@ -143,7 +153,6 @@ export type {
   EventLog,
   ControllerContext,
   Controller,
-  StorageProvider,
   Cache,
   RetryConfig,
   RateLimiterConfig,

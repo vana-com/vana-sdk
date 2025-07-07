@@ -130,7 +130,7 @@ export class ApiClient {
     if (this.circuitBreaker) {
       return this.circuitBreaker.execute(() =>
         this.executeRequest<TData>(request),
-      ) as Promise<GenericResponse<TData>>;
+      );
     }
 
     return this.executeRequest<TData>(request);
@@ -223,24 +223,34 @@ export class ApiClient {
 
         // Make the actual HTTP request
         const response = await this.makeHttpRequest<TData>(
-          (processedRequest as typeof request).params.url,
-          (processedRequest as typeof request).params.options,
+          (
+            processedRequest as GenericRequest<{
+              url: string;
+              options: RequestOptions;
+            }>
+          ).params.url,
+          (
+            processedRequest as GenericRequest<{
+              url: string;
+              options: RequestOptions;
+            }>
+          ).params.options,
         );
 
         // Process response through middleware
         const processedResponse =
           await this.middleware.processResponse(response);
 
-        return processedResponse as GenericResponse<TData>;
+        return processedResponse;
       } catch (error) {
         // Try to handle error with middleware
-        const handledResponse = await this.middleware.handleError(
-          error as Error,
-          request,
-        );
+        const handledResponse = await this.middleware.handleError<
+          typeof request,
+          GenericResponse<TData>
+        >(error as Error, request);
 
         if (handledResponse) {
-          return handledResponse as GenericResponse<TData>;
+          return handledResponse;
         }
 
         throw error;
@@ -288,7 +298,7 @@ export class ApiClient {
 
       if (!response.ok) {
         return {
-          data: undefined as unknown as TData,
+          data: null as unknown as TData,
           success: false,
           error: {
             code: response.status.toString(),
@@ -299,7 +309,7 @@ export class ApiClient {
       }
 
       return {
-        data: data as TData,
+        data: data,
         success: true,
         meta: {
           status: response.status,
@@ -312,7 +322,7 @@ export class ApiClient {
 
       if (error instanceof Error && error.name === "AbortError") {
         return {
-          data: undefined as unknown as TData,
+          data: null as unknown as TData,
           success: false,
           error: {
             code: "TIMEOUT",
@@ -323,7 +333,7 @@ export class ApiClient {
       }
 
       return {
-        data: undefined as unknown as TData,
+        data: null as unknown as TData,
         success: false,
         error: {
           code: "NETWORK_ERROR",

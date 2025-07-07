@@ -3,9 +3,9 @@ import type {
   WalletConfig,
   ChainConfig,
   RuntimeConfig,
-} from "./types/config";
-import type { VanaChainId } from "./types/chains";
-import { isWalletConfig, isChainConfig, isVanaChainId } from "./types/index";
+  VanaChainId,
+} from "./types";
+import { isWalletConfig, isChainConfig, isVanaChainId } from "./types";
 import { InvalidConfigurationError } from "./errors";
 import {
   PermissionsController,

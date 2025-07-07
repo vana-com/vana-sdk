@@ -3,11 +3,12 @@
 <div align="center">
   <h3>TypeScript SDK for User-Owned Data</h3>
   <p>Build applications on the Vana Network with gasless permissions, privacy-preserving storage, and seamless data ownership.</p>
-  
-  [![npm version](https://img.shields.io/npm/v/vana-sdk)](https://www.npmjs.com/package/vana-sdk)
-  [![Downloads](https://img.shields.io/npm/dm/vana-sdk)](https://www.npmjs.com/package/vana-sdk)
-  [![License](https://img.shields.io/npm/l/vana-sdk)](./LICENSE)
-  [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
+
+[![npm version](https://img.shields.io/npm/v/vana-sdk)](https://www.npmjs.com/package/vana-sdk)
+[![Downloads](https://img.shields.io/npm/dm/vana-sdk)](https://www.npmjs.com/package/vana-sdk)
+[![License](https://img.shields.io/npm/l/vana-sdk)](./LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
+
 </div>
 
 ---
@@ -394,9 +395,9 @@ try {
 
 ## Documentation
 
-📚 **[Complete Documentation](https://docs.vana.org/vana-sdk)**  
-🎯 **[API Reference](https://docs.vana.org/vana-sdk/api)**  
-🔧 **[Integration Guides](https://docs.vana.org/vana-sdk/guides)**  
+📚 **[Complete Documentation](https://docs.vana.org/vana-sdk)**
+🎯 **[API Reference](https://docs.vana.org/vana-sdk/api)**
+🔧 **[Integration Guides](https://docs.vana.org/vana-sdk/guides)**
 💡 **[Examples Repository](./examples/)**
 
 ### Quick Links

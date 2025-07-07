@@ -1,6 +1,6 @@
 import type { WalletClient, Account } from "viem";
 import type { VanaChainId, VanaChain } from "./chains";
-import type { StorageProvider } from "../storage";
+import type { StorageProvider } from "./storage";
 
 /**
  * Configuration for storage providers

@@ -1,5 +1,5 @@
 // Re-export all types from the new modular structure
-export * from "./types";
+export * from "./types/index";
 
 // Also re-export legacy types for backward compatibility
 // These were previously defined in this file and are now in the types module

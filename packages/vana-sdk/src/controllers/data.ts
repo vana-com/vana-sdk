@@ -110,7 +110,7 @@ export class DataController {
 
       const user = result.data?.user;
       if (!user || !user.fileContributions?.length) {
-        console.log("No file contributions found for user:", owner);
+        console.warn("No file contributions found for user:", owner);
         return [];
       }
 
@@ -181,7 +181,7 @@ export class DataController {
         }
       }
 
-      console.log(
+      console.warn(
         `Found ${userFiles.length} files with contributions from user:`,
         owner,
       );
@@ -474,7 +474,7 @@ export class DataController {
 
       // Step 2: Fetch the encrypted file from the URL
       const fetchUrl = this.convertIpfsUrl(file.url);
-      console.log(`🔍 Fetching file from: ${file.url} -> ${fetchUrl}`);
+      console.warn(`🔍 Fetching file from: ${file.url} -> ${fetchUrl}`);
 
       const response = await fetch(fetchUrl);
       if (!response.ok) {
@@ -637,21 +637,5 @@ export class DataController {
         `Failed to add file with permissions: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
-  }
-
-  /**
-   * Get list of registered storage provider names
-   * @returns Array of provider names
-   */
-  getStorageProviders(): string[] {
-    return this.context.storageManager?.getStorageProviders() || [];
-  }
-
-  /**
-   * Get the default storage provider name
-   * @returns Default provider name or undefined
-   */
-  getDefaultStorageProvider(): string | undefined {
-    return this.context.storageManager?.getDefaultStorageProvider();
   }
 }

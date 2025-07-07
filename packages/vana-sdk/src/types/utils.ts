@@ -121,18 +121,6 @@ export interface ApiResponse<T> {
 }
 
 /**
- * Error with additional context
- */
-export interface VanaError extends Error {
-  /** Error code */
-  code?: string;
-  /** Additional error details */
-  details?: Record<string, unknown>;
-  /** Original error if this is a wrapped error */
-  cause?: Error;
-}
-
-/**
  * Retry configuration
  */
 export interface RetryConfig {

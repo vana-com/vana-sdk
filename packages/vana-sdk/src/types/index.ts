@@ -139,6 +139,44 @@ export type {
 
 export type { ContractInfo as ContractInfoLegacy } from "./contracts";
 
+// Generic types for extensibility
+export type {
+  GenericRequest,
+  GenericResponse,
+  AsyncResult,
+  ContractCall,
+  EventFilter,
+  EventLog,
+  ControllerContext,
+  Controller,
+  StorageProvider,
+  Cache,
+  RetryConfig,
+  RateLimiterConfig,
+  Middleware,
+  Plugin,
+  Factory,
+  Repository,
+  Validator,
+  Transformer,
+  Service,
+  Observer,
+  Observable,
+  StateMachine,
+  ConditionalOptional,
+  PromiseResult,
+  AllKeys,
+  DeepPartial,
+  DeepReadonly,
+  RequireKeys,
+  OptionalKeys,
+  NonNullable,
+  PickByType,
+  OmitByType,
+  Brand,
+  Nominal,
+} from "./generics";
+
 // Re-export viem types that are commonly used
 export type {
   Address,

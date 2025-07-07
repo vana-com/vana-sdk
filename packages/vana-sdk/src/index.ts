@@ -88,5 +88,25 @@ export { chains, mokshaTestnet, vanaMainnet } from "./config/chains";
 export { getAbi } from "./abi";
 export type { VanaContract as VanaContractAbi } from "./abi";
 
+// Generic utilities for extensibility
+export {
+  BaseController,
+  RetryUtility,
+  RateLimiter,
+  MemoryCache,
+  EventEmitter,
+  MiddlewarePipeline,
+  AsyncQueue,
+  CircuitBreaker,
+} from "./core/generics";
+
+export { ApiClient } from "./core/apiClient";
+
+export type {
+  ApiClientConfig,
+  HttpMethod,
+  RequestOptions,
+} from "./core/apiClient";
+
 // Legacy exports for backward compatibility
 export type { VanaContract } from "./types";

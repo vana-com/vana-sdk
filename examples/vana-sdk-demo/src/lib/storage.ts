@@ -29,6 +29,7 @@ export function createStorageManager(): StorageManager {
 
   // Always provide server-managed IPFS as fallback
   const serverIPFS = new ServerIPFSStorage({
+    uploadEndpoint: "/upload",
     baseUrl: "/api/ipfs",
   });
   storageManager.register("app-ipfs", serverIPFS);

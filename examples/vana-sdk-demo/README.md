@@ -361,14 +361,11 @@ NEXT_PUBLIC_SUBGRAPH_URL=your_subgraph_endpoint
 
 The demo includes a complete backend implementation:
 
-| Endpoint                    | Purpose           | Description                   |
-| --------------------------- | ----------------- | ----------------------------- |
-| `GET /api/health`           | Service health    | Relayer and blockchain status |
-| `POST /api/ipfs/upload`     | File storage      | Server-managed IPFS uploads   |
-| `POST /api/relay/addFile`   | File registration | Gasless file registration     |
-| `POST /api/v1/parameters`   | Grant storage     | Store permission parameters   |
-| `POST /api/v1/transactions` | Transaction relay | Submit gasless transactions   |
-| `POST /api/v1/revoke`       | Permission revoke | Revoke data permissions       |
+| Endpoint                | Purpose          | Description                      |
+| ----------------------- | ---------------- | -------------------------------- |
+| `GET /api/health`       | Service health   | Relayer and blockchain status    |
+| `POST /api/ipfs/upload` | File storage     | Server-managed IPFS uploads      |
+| `POST /api/relay`       | Permission relay | Submit gasless permission grants |
 
 ---
 
@@ -432,12 +429,12 @@ console.log("Relayer status:", health.status);
 console.log("Chain connection:", health.chain);
 ```
 
-**IPFS Debug Endpoint**
+**Service Health Endpoint**
 
 ```typescript
-// Test IPFS connectivity
-const ipfsTest = await fetch("/api/v1/debug/ipfs");
-console.log("IPFS gateway test:", ipfsTest);
+// Test service connectivity
+const healthTest = await fetch("/api/health");
+console.log("Service status:", healthTest);
 ```
 
 **Console Logging**

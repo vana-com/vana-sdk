@@ -486,7 +486,7 @@ export class PermissionsController {
       if (!relayerUrl) {
         throw new RelayerError("Relayer URL is not configured", 500);
       }
-      const response = await fetch(`${relayerUrl}/api/v1/transactions`, {
+      const response = await fetch(`${relayerUrl}/api/relay`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

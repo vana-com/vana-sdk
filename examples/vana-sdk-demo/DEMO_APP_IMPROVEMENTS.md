@@ -18,7 +18,7 @@ This document outlines the improvements made to better align the demo app with S
 **Files Changed:**
 
 - `packages/vana-sdk/src/controllers/permissions.ts` - Added `submitSignedGrant()` and `createAndSign()` methods
-- `src/app/api/v1/transactions/route.ts` - Uses SDK instead of custom blockchain code
+- `src/app/api/relay/route.ts` - Uses SDK instead of custom blockchain code
 - `src/lib/blockchain.ts` - Removed entirely (no longer needed)
 
 ### 2. ✅ **Centralized Storage Configuration**
@@ -39,19 +39,19 @@ This document outlines the improvements made to better align the demo app with S
 - `src/app/api/v1/parameters/route.ts` - Use centralized config
 - `src/app/api/health/route.ts` - Use centralized config
 
-### 3. ✅ **Improved SDK Usage in API Routes**
+### 3. ✅ **Removed Inefficient File Relay Endpoint**
 
-**Problem:** `api/relay/addFile/route.ts` was using low-level contract calls instead of SDK.
+**Problem:** `api/relay/addFile/route.ts` implemented an inefficient pattern where files were downloaded and re-uploaded.
 
 **Solution:**
 
-- Use `vana.data.uploadEncryptedFile()` instead of direct contract calls
-- Let SDK handle transaction details and file ID extraction
-- Simpler, more maintainable code
+- Removed the entire `/api/relay/addFile` endpoint
+- This endpoint was unused by the frontend and represented a bad pattern
+- The SDK provides better direct file upload patterns
 
 **Files Changed:**
 
-- `src/app/api/relay/addFile/route.ts` - Use SDK instead of direct contract calls
+- `src/app/api/relay/addFile/route.ts` - Removed entirely
 
 ### 4. ✅ **Removed Redundant Chain Configuration**
 

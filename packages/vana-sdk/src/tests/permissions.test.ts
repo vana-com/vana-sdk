@@ -1341,7 +1341,7 @@ describe("PermissionsController", () => {
         expect.fail("Expected an error to be thrown");
       } catch (error: any) {
         expect(error.message).toContain(
-          "Permission grant failed: Direct transaction failed: Unknown error",
+          "Permission grant failed: Permission submission failed: Unknown error",
         );
       } finally {
         global.BigInt = originalBigInt;

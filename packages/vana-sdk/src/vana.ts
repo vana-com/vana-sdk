@@ -3,8 +3,8 @@ import type {
   WalletConfig,
   ChainConfig,
   RuntimeConfig,
-  VanaChainId,
-} from "./types";
+} from "./types/config";
+import type { VanaChainId } from "./types/chains";
 import { isWalletConfig, isChainConfig, isVanaChainId } from "./types/index";
 import { InvalidConfigurationError } from "./errors";
 import {
@@ -13,7 +13,7 @@ import {
 } from "./controllers/permissions";
 import { DataController } from "./controllers/data";
 import { ProtocolController } from "./controllers/protocol";
-import { StorageManager } from "./storage";
+import { StorageManager, StorageProvider } from "./storage";
 import { createWalletClient, createPublicClient, http } from "viem";
 import { chains } from "./config/chains";
 
@@ -70,6 +70,7 @@ export class Vana {
   public readonly protocol: ProtocolController;
 
   private readonly relayerUrl?: string;
+  private readonly storageManager?: StorageManager;
 
   /**
    * Creates a Vana SDK instance from a chain configuration.
@@ -142,14 +143,17 @@ export class Vana {
     this.relayerUrl = config.relayerUrl;
 
     // Initialize storage manager if storage providers are provided
-    let storageManager: StorageManager | undefined;
     if (config.storage?.providers) {
-      storageManager = new StorageManager();
+      this.storageManager = new StorageManager();
 
       // Register all provided storage providers
       for (const [name, provider] of Object.entries(config.storage.providers)) {
         const isDefault = name === config.storage.defaultProvider;
-        storageManager.register(name, provider, isDefault);
+        this.storageManager.register(
+          name,
+          provider as StorageProvider,
+          isDefault,
+        );
       }
 
       // If no default was explicitly set but providers exist, use the first one
@@ -158,7 +162,7 @@ export class Vana {
         Object.keys(config.storage.providers).length > 0
       ) {
         const firstProviderName = Object.keys(config.storage.providers)[0];
-        storageManager.setDefaultProvider(firstProviderName);
+        this.storageManager.setDefaultProvider(firstProviderName);
       }
     }
 
@@ -205,7 +209,7 @@ export class Vana {
       walletClient,
       publicClient,
       relayerUrl: config.relayerUrl,
-      storageManager,
+      storageManager: this.storageManager,
     };
 
     // Initialize controllers
@@ -377,8 +381,8 @@ export class Vana {
       chainId: this.chainId as VanaChainId,
       chainName: this.chainName,
       relayerUrl: this.relayerUrl,
-      storageProviders: this.data.getStorageProviders?.() || [],
-      defaultStorageProvider: this.data.getDefaultStorageProvider?.(),
+      storageProviders: this.storageManager?.getStorageProviders() || [],
+      defaultStorageProvider: this.storageManager?.getDefaultStorageProvider(),
     };
   }
 }

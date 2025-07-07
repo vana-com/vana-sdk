@@ -1,5 +1,5 @@
 import { Address, keccak256, toHex } from "viem";
-import { GrantFile, GrantPermissionParams } from "../types";
+import type { GrantFile, GrantPermissionParams } from "../types/permissions";
 import { SerializationError, NetworkError } from "../errors";
 
 /**

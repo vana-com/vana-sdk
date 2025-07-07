@@ -79,23 +79,20 @@ describe("Vana", () => {
 
     it("should throw InvalidConfigurationError when config is missing", () => {
       expect(() => {
-        // @ts-expect-error - Testing invalid input
-        new Vana(null);
+        new Vana(null as any);
       }).toThrow(InvalidConfigurationError);
     });
 
     it("should throw InvalidConfigurationError when walletClient is missing", () => {
       expect(() => {
-        // @ts-expect-error - Testing invalid input
-        new Vana({});
+        new Vana({} as any);
       }).toThrow(InvalidConfigurationError);
     });
 
     it("should throw InvalidConfigurationError when walletClient is invalid", () => {
       expect(() => {
         new Vana({
-          // @ts-expect-error - Testing invalid input
-          walletClient: {},
+          walletClient: {} as any,
         });
       }).toThrow(InvalidConfigurationError);
     });
@@ -122,8 +119,7 @@ describe("Vana", () => {
       expect(() => {
         new Vana({
           walletClient: validWalletClient,
-          // @ts-expect-error - Testing invalid input
-          relayerUrl: 123,
+          relayerUrl: 123 as any,
         });
       }).toThrow(InvalidConfigurationError);
     });
@@ -132,7 +128,7 @@ describe("Vana", () => {
       const invalidChainClient = createWalletClient({
         account: testAccount,
         chain: {
-          id: 99999,
+          id: 99999 as any, // Invalid chain ID for testing
           name: "Unsupported Chain",
           nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
           rpcUrls: { default: { http: ["http://localhost:8545"] } },

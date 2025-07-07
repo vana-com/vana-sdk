@@ -638,4 +638,20 @@ export class DataController {
       );
     }
   }
+
+  /**
+   * Get list of registered storage provider names
+   * @returns Array of provider names
+   */
+  getStorageProviders(): string[] {
+    return this.context.storageManager?.getStorageProviders() || [];
+  }
+
+  /**
+   * Get the default storage provider name
+   * @returns Default provider name or undefined
+   */
+  getDefaultStorageProvider(): string | undefined {
+    return this.context.storageManager?.getDefaultStorageProvider();
+  }
 }

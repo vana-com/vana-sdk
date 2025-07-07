@@ -215,7 +215,7 @@ describe("PermissionsController", () => {
 
   describe("revoke", () => {
     const mockRevokeParams = {
-      grantId: "123", // Can now pass permission ID as string
+      grantId: "0x123" as `0x${string}`, // Can now pass permission ID as hex string
     };
 
     it("should successfully revoke permission", async () => {

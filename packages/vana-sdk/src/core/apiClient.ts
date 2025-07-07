@@ -130,7 +130,7 @@ export class ApiClient {
     if (this.circuitBreaker) {
       return this.circuitBreaker.execute(() =>
         this.executeRequest<TData>(request),
-      );
+      ) as Promise<GenericResponse<TData>>;
     }
 
     return this.executeRequest<TData>(request);
@@ -223,15 +223,15 @@ export class ApiClient {
 
         // Make the actual HTTP request
         const response = await this.makeHttpRequest<TData>(
-          processedRequest.params.url,
-          processedRequest.params.options,
+          (processedRequest as typeof request).params.url,
+          (processedRequest as typeof request).params.options,
         );
 
         // Process response through middleware
         const processedResponse =
           await this.middleware.processResponse(response);
 
-        return processedResponse;
+        return processedResponse as GenericResponse<TData>;
       } catch (error) {
         // Try to handle error with middleware
         const handledResponse = await this.middleware.handleError(

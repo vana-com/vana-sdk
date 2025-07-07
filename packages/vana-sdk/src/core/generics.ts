@@ -37,7 +37,9 @@ export abstract class BaseController<
       let processedRequest = request;
       for (const mw of middleware) {
         if (mw.request) {
-          processedRequest = await mw.request(processedRequest);
+          processedRequest = (await mw.request(
+            processedRequest,
+          )) as GenericRequest<TParams>;
         }
       }
 
@@ -47,7 +49,7 @@ export abstract class BaseController<
       // Apply response middleware
       for (const mw of middleware.reverse()) {
         if (mw.response) {
-          response = await mw.response(response);
+          response = (await mw.response(response)) as Awaited<TResponse>;
         }
       }
 

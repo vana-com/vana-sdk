@@ -1,13 +1,10 @@
 import { describe, it, expect } from "vitest";
+import type { VanaConfig, WalletConfig, ChainConfig } from "../types/config";
+import type { UserFile, UploadEncryptedFileResult } from "../types/data";
 import type {
-  VanaConfig,
-  WalletConfig,
-  ChainConfig,
-  UserFile,
   GrantedPermission,
   GrantPermissionParams,
   RevokePermissionParams,
-  VanaContract,
   PermissionGrantDomain,
   PermissionGrantMessage,
   PermissionInputMessage,
@@ -15,10 +12,13 @@ import type {
   GrantFile,
   PermissionGrantTypedData,
   GenericTypedData,
+} from "../types/permissions";
+import type {
   RelayerStorageResponse,
   RelayerTransactionResponse,
-  ContractInfo,
-  UploadEncryptedFileResult,
+} from "../types/relayer";
+import type { ContractInfo } from "../types/contracts";
+import type {
   GenericRequest,
   GenericResponse,
   DeepPartial,
@@ -26,7 +26,8 @@ import type {
   OptionalKeys,
   Brand,
   Nominal,
-} from "../types";
+} from "../types/generics";
+import type { VanaContract } from "../abi";
 import {
   Vana,
   getContractInfo,
@@ -109,23 +110,31 @@ describe("TypeScript Types", () => {
   describe("GrantedPermission", () => {
     it("should have all required properties", () => {
       const permission: GrantedPermission = {
-        id: 1n,
+        id: 1,
         files: [10, 20, 30],
         grant: "ipfs://QmGrant123",
+        operation: "test_operation",
+        parameters: {},
+        grantor: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        grantee: "0x0987654321098765432109876543210987654321" as `0x${string}`,
+        active: true,
       };
 
-      expect(permission.id).toBe(1n);
+      expect(permission.id).toBe(1);
       expect(permission.files).toEqual([10, 20, 30]);
       expect(permission.grant).toBe("ipfs://QmGrant123");
     });
 
     it("should accept optional properties", () => {
       const permission: GrantedPermission = {
-        id: 2n,
+        id: 2,
         files: [40, 50],
         grant: "ipfs://QmGrant456",
         operation: "llm_inference",
         parameters: { prompt: "Test prompt" },
+        grantor: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        grantee: "0x0987654321098765432109876543210987654321" as `0x${string}`,
+        active: true,
         nonce: 123,
         grantedAt: 456789,
       };
@@ -501,7 +510,19 @@ describe("TypeScript Types", () => {
           walletClient,
           relayerUrl: "https://relayer.test.com",
           storage: {
-            providers: { ipfs: { url: "https://ipfs.test.com" } },
+            providers: {
+              ipfs: {
+                upload: async () => ({
+                  url: "https://ipfs.test.com/file",
+                  size: 100,
+                  contentType: "text/plain",
+                }),
+                download: async () => new Blob(),
+                list: async () => [],
+                delete: async () => true,
+                getConfig: () => ({ name: "ipfs" }),
+              } as any,
+            },
             defaultProvider: "ipfs",
           },
         };
@@ -528,7 +549,19 @@ describe("TypeScript Types", () => {
           chainId: 1480,
           relayerUrl: "https://relayer.mainnet.com",
           storage: {
-            providers: { ipfs: { url: "https://ipfs.mainnet.com" } },
+            providers: {
+              ipfs: {
+                upload: async () => ({
+                  url: "https://ipfs.mainnet.com/file",
+                  size: 100,
+                  contentType: "text/plain",
+                }),
+                download: async () => new Blob(),
+                list: async () => [],
+                delete: async () => true,
+                getConfig: () => ({ name: "ipfs" }),
+              } as any,
+            },
             defaultProvider: "ipfs",
           },
         };
@@ -579,7 +612,14 @@ describe("TypeScript Types", () => {
 
       it("should correctly identify VanaChain", () => {
         expect(isVanaChain(mokshaTestnet)).toBe(true);
-        expect(isVanaChain({ id: 1, name: "Ethereum" })).toBe(false);
+        expect(
+          isVanaChain({
+            id: 1,
+            name: "Ethereum",
+            nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+            rpcUrls: { default: { http: ["https://eth.llamarpc.com"] } },
+          }),
+        ).toBe(false);
       });
     });
   });
@@ -587,7 +627,10 @@ describe("TypeScript Types", () => {
   describe("Generic Type System", () => {
     describe("GenericRequest", () => {
       it("should support typed parameters", () => {
-        const request: GenericRequest<{ id: number; name: string }> = {
+        const request: GenericRequest<
+          { id: number; name: string },
+          { timeout: number }
+        > = {
           params: { id: 123, name: "test" },
           options: { timeout: 5000 },
         };
@@ -729,7 +772,9 @@ describe("TypeScript Types", () => {
         const events: { type: string; data: unknown }[] = [];
 
         const unsubscribe = emitter.subscribe({
-          notify: (event) => events.push(event),
+          notify: (event) => {
+            events.push(event);
+          },
         });
 
         emitter.emit({ type: "test", data: "value" });

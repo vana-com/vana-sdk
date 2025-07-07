@@ -877,6 +877,7 @@ export default function Home() {
   };
 
   const handlePersonalServerCall = async () => {
+    console.log("🔍 Debug - handlePersonalServerCall");
     if (!vana || !address) return;
     
     if (!vana.personal) {
@@ -904,12 +905,20 @@ export default function Home() {
     setPersonalError("");
     setPersonalResult(null);
     try {
-      const result = await vana.personal.postRequest({
+      console.log("🔍 Debug - postRequest params:", {
         owner: address,
         fileIds,
         operation: personalOp,
         parameters: { prompt: personalPrompt }
       });
+      console.log(vana.personal)
+      const result = await vana.personal.postRequest({
+        owner: address,
+        fileIds: fileIds,
+        operation: personalOp,
+        parameters: { prompt: personalPrompt }
+      });
+      console.log("after postRequest")
       setPersonalResult(result);
     } catch (e: any) {
       setPersonalError(e?.message || "Unknown error");

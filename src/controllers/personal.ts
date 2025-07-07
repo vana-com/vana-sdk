@@ -1,4 +1,5 @@
 import { Address, keccak256, toHex } from 'viem';
+import { signMessage } from 'viem/accounts';
 import type { WalletClient } from 'viem';
 import { 
   PostRequestParams, 
@@ -28,6 +29,7 @@ export class PersonalController {
    * @returns Promise resolving to the response with links to get results or cancel computation
    */
   async postRequest(params: PostRequestParams): Promise<ReplicatePredictionResponse> {
+    console.log("🔍 Debug - inside postRequest params:", params);
     try {
       // Step 1: Validate parameters
       this.validatePostRequestParams(params);
@@ -172,16 +174,24 @@ export class PersonalController {
    * Creates a signature for the request JSON.
    */
   private async createSignature(requestJson: string): Promise<string> {
+    console.log("🔍 Debug - inside createSignature")
     try {
       // Create a hash of the request JSON
       const requestHash = keccak256(toHex(requestJson));
       
-      // Sign the hash using the wallet client
-      const signature = await this.context.applicationWallet.signMessage({
+      // Get the account from the application wallet
+      const account = this.context.applicationWallet.account;
+      if (!account || !('privateKey' in account)) {
+        throw new SignatureError('No private key available in application wallet');
+      }
+      
+      // Sign locally using the private key
+      const signature = await signMessage({
         message: { raw: requestHash },
-        account: await this.getApplicationAddress()
+        privateKey: account.privateKey as `0x${string}`
       });
 
+      console.log("✅ Signature created successfully:", signature.substring(0, 20) + "...");
       return signature;
     } catch (error) {
       if (error instanceof Error && error.message.includes('User rejected')) {

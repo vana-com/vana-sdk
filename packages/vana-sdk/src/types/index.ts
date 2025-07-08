@@ -84,6 +84,14 @@ export type {
   PermissionQueryResult,
   PermissionAnalytics,
   PermissionEvent,
+  Server,
+  AddServerParams,
+  TrustServerParams,
+  UntrustServerParams,
+  TrustServerInput,
+  UntrustServerInput,
+  TrustServerTypedData,
+  UntrustServerTypedData,
 } from "./permissions";
 
 // Personal server types

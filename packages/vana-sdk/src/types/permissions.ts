@@ -294,6 +294,100 @@ export interface PermissionAnalytics {
 }
 
 /**
+ * Server information
+ */
+export interface Server {
+  /** Server URL */
+  url: string;
+}
+
+/**
+ * Parameters for adding a server
+ */
+export interface AddServerParams {
+  /** Server URL */
+  url: string;
+}
+
+/**
+ * Parameters for trusting a server
+ */
+export interface TrustServerParams {
+  /** Server ID (address) */
+  serverId: Address;
+  /** Server URL */
+  serverUrl: string;
+}
+
+/**
+ * Parameters for untrusting a server
+ */
+export interface UntrustServerParams {
+  /** Server ID (address) */
+  serverId: Address;
+}
+
+/**
+ * Input for trusting a server with signature (gasless)
+ */
+export interface TrustServerInput {
+  /** User nonce */
+  nonce: bigint;
+  /** Server ID (address) */
+  serverId: Address;
+  /** Server URL */
+  serverUrl: string;
+}
+
+/**
+ * Input for untrusting a server with signature (gasless)
+ */
+export interface UntrustServerInput {
+  /** User nonce */
+  nonce: bigint;
+  /** Server ID (address) */
+  serverId: Address;
+}
+
+/**
+ * EIP-712 typed data for TrustServer
+ */
+export interface TrustServerTypedData {
+  /** EIP-712 domain */
+  domain: PermissionGrantDomain;
+  /** EIP-712 types */
+  types: {
+    TrustServer: Array<{
+      name: string;
+      type: string;
+    }>;
+  };
+  /** Primary type */
+  primaryType: "TrustServer";
+  /** Message to sign */
+  message: TrustServerInput;
+}
+
+/**
+ * EIP-712 typed data for UntrustServer
+ */
+export interface UntrustServerTypedData {
+  /** EIP-712 domain */
+  domain: PermissionGrantDomain;
+  /** EIP-712 types */
+  types: {
+    UntrustServer: Array<{
+      name: string;
+      type: string;
+    }>;
+  };
+  /** Primary type */
+  primaryType: "UntrustServer";
+  /** Message to sign */
+  message: UntrustServerInput;
+}
+
+/**
  * Permission event data
  */
 export interface PermissionEvent {

@@ -184,6 +184,16 @@ export default function Home() {
   const [isPersonalLoading, setIsPersonalLoading] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
 
+  // Trust server state
+  const [serverId, setServerId] = useState<string>("");
+  const [serverUrl, setServerUrl] = useState<string>("");
+  const [trustServerError, setTrustServerError] = useState<string>("");
+  const [trustServerResult, setTrustServerResult] = useState<string>("");
+  const [isTrustingServer, setIsTrustingServer] = useState(false);
+  const [isUntrusting, setIsUntrusting] = useState(false);
+  const [trustedServers, setTrustedServers] = useState<string[]>([]);
+  const [isLoadingTrustedServers, setIsLoadingTrustedServers] = useState(false);
+
   // Initialize Vana SDK when wallet is connected or user IPFS config changes
   useEffect(() => {
     if (isConnected && walletClient && walletClient.account) {
@@ -955,6 +965,99 @@ export default function Home() {
     }
   };
 
+  // Trust server handlers
+  const handleTrustServer = async () => {
+    if (!vana || !address) return;
+
+    // Validate inputs
+    if (!serverId.trim()) {
+      setTrustServerError("Please provide a server ID (address)");
+      return;
+    }
+
+    if (!serverUrl.trim()) {
+      setTrustServerError("Please provide a server URL");
+      return;
+    }
+
+    // Basic URL validation
+    try {
+      new URL(serverUrl);
+    } catch {
+      setTrustServerError("Please provide a valid URL");
+      return;
+    }
+
+    setIsTrustingServer(true);
+    setTrustServerError("");
+    setTrustServerResult("");
+
+    try {
+      const txHash = await vana.permissions.trustServer({
+        serverId: serverId as `0x${string}`,
+        serverUrl: serverUrl,
+      });
+
+      setTrustServerResult(
+        `Server trusted successfully! Transaction: ${txHash}`,
+      );
+      // Refresh trusted servers list
+      await loadTrustedServers();
+    } catch (error) {
+      setTrustServerError(
+        error instanceof Error ? error.message : "Failed to trust server",
+      );
+    } finally {
+      setIsTrustingServer(false);
+    }
+  };
+
+  const handleUntrustServer = async (serverIdToUntrust: string) => {
+    if (!vana || !address) return;
+
+    setIsUntrusting(true);
+    setTrustServerError("");
+
+    try {
+      const txHash = await vana.permissions.untrustServer({
+        serverId: serverIdToUntrust as `0x${string}`,
+      });
+
+      setTrustServerResult(
+        `Server untrusted successfully! Transaction: ${txHash}`,
+      );
+      // Refresh trusted servers list
+      await loadTrustedServers();
+    } catch (error) {
+      setTrustServerError(
+        error instanceof Error ? error.message : "Failed to untrust server",
+      );
+    } finally {
+      setIsUntrusting(false);
+    }
+  };
+
+  const loadTrustedServers = async () => {
+    if (!vana || !address) return;
+
+    setIsLoadingTrustedServers(true);
+    try {
+      const servers = await vana.permissions.getTrustedServers();
+      setTrustedServers(servers);
+    } catch (error) {
+      console.error("Failed to load trusted servers:", error);
+    } finally {
+      setIsLoadingTrustedServers(false);
+    }
+  };
+
+  // Load trusted servers when vana is initialized
+  useEffect(() => {
+    if (vana && address) {
+      loadTrustedServers();
+    }
+  }, [vana, address]);
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -1513,6 +1616,133 @@ export default function Home() {
                     </div>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* Trust Server */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="h-5 w-5" />
+                  Trust Server Management
+                </CardTitle>
+                <CardDescription>
+                  Manage trusted servers for data processing. Add servers to
+                  your trust list or remove them.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Trust Server Form */}
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="server-id">Server ID (Address)</Label>
+                    <Input
+                      id="server-id"
+                      value={serverId}
+                      onChange={(e) => setServerId(e.target.value)}
+                      placeholder="0x1234567890abcdef..."
+                      className="font-mono"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="server-url">Server URL</Label>
+                    <Input
+                      id="server-url"
+                      value={serverUrl}
+                      onChange={(e) => setServerUrl(e.target.value)}
+                      placeholder="https://replicate.com/vana-server"
+                      type="url"
+                    />
+                  </div>
+                  <Button
+                    onClick={handleTrustServer}
+                    disabled={
+                      isTrustingServer || !serverId.trim() || !serverUrl.trim()
+                    }
+                  >
+                    {isTrustingServer ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Shield className="h-4 w-4 mr-2" />
+                    )}
+                    Trust Server
+                  </Button>
+                </div>
+
+                {/* Error Display */}
+                {trustServerError && (
+                  <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-red-700 text-sm">{trustServerError}</p>
+                  </div>
+                )}
+
+                {/* Success Result Display */}
+                {trustServerResult && (
+                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <p className="text-green-700 text-sm">
+                      {trustServerResult}
+                    </p>
+                  </div>
+                )}
+
+                {/* Trusted Servers List */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium">Your Trusted Servers</h4>
+                    <Button
+                      onClick={loadTrustedServers}
+                      disabled={isLoadingTrustedServers}
+                      variant="outline"
+                      size="sm"
+                    >
+                      {isLoadingTrustedServers ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <RotateCcw className="h-4 w-4 mr-2" />
+                      )}
+                      Refresh
+                    </Button>
+                  </div>
+
+                  {isLoadingTrustedServers ? (
+                    <div className="flex items-center justify-center p-4">
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Loading trusted servers...
+                    </div>
+                  ) : trustedServers.length > 0 ? (
+                    <div className="space-y-2">
+                      {trustedServers.map((server, index) => (
+                        <div
+                          key={server}
+                          className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border"
+                        >
+                          <div className="flex items-center space-x-2">
+                            <Badge variant="secondary">{index + 1}</Badge>
+                            <code className="text-sm font-mono bg-white px-2 py-1 rounded border">
+                              {server}
+                            </code>
+                          </div>
+                          <Button
+                            onClick={() => handleUntrustServer(server)}
+                            disabled={isUntrusting}
+                            variant="destructive"
+                            size="sm"
+                          >
+                            {isUntrusting ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              "Untrust"
+                            )}
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center p-4 text-gray-500">
+                      No trusted servers found. Add one above to get started.
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
 

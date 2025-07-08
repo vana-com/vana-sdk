@@ -89,6 +89,11 @@ export const PermissionRegistryABI = [
   },
   {
     inputs: [],
+    name: "EmptyUrl",
+    type: "error",
+  },
+  {
+    inputs: [],
     name: "EnforcedPause",
     type: "error",
   },
@@ -140,6 +145,37 @@ export const PermissionRegistryABI = [
   },
   {
     inputs: [],
+    name: "ServerAlreadyRegistered",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "ServerNotFound",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "ServerNotTrusted",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "string",
+        name: "existingUrl",
+        type: "string",
+      },
+      {
+        internalType: "string",
+        name: "providedUrl",
+        type: "string",
+      },
+    ],
+    name: "ServerUrlMismatch",
+    type: "error",
+  },
+  {
+    inputs: [],
     name: "UUPSUnauthorizedCallContext",
     type: "error",
   },
@@ -152,6 +188,11 @@ export const PermissionRegistryABI = [
       },
     ],
     name: "UUPSUnsupportedProxiableUUID",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "ZeroAddress",
     type: "error",
   },
   {
@@ -290,6 +331,69 @@ export const PermissionRegistryABI = [
     anonymous: false,
     inputs: [
       {
+        indexed: true,
+        internalType: "address",
+        name: "serverId",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "string",
+        name: "url",
+        type: "string",
+      },
+    ],
+    name: "ServerAdded",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "user",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "serverId",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "string",
+        name: "serverUrl",
+        type: "string",
+      },
+    ],
+    name: "ServerTrusted",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "user",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "serverId",
+        type: "address",
+      },
+    ],
+    name: "ServerUntrusted",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
         indexed: false,
         internalType: "address",
         name: "account",
@@ -384,6 +488,26 @@ export const PermissionRegistryABI = [
         type: "uint256",
       },
     ],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        components: [
+          {
+            internalType: "string",
+            name: "url",
+            type: "string",
+          },
+        ],
+        internalType: "struct IDataPermission.Server",
+        name: "serverInput",
+        type: "tuple",
+      },
+    ],
+    name: "addServer",
+    outputs: [],
     stateMutability: "nonpayable",
     type: "function",
   },
@@ -692,6 +816,32 @@ export const PermissionRegistryABI = [
   {
     inputs: [
       {
+        internalType: "address",
+        name: "serverId",
+        type: "address",
+      },
+    ],
+    name: "servers",
+    outputs: [
+      {
+        components: [
+          {
+            internalType: "string",
+            name: "url",
+            type: "string",
+          },
+        ],
+        internalType: "struct IDataPermission.Server",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
         internalType: "bytes32",
         name: "role",
         type: "bytes32",
@@ -727,6 +877,59 @@ export const PermissionRegistryABI = [
     type: "function",
   },
   {
+    inputs: [
+      {
+        internalType: "address",
+        name: "serverId",
+        type: "address",
+      },
+      {
+        internalType: "string",
+        name: "serverUrl",
+        type: "string",
+      },
+    ],
+    name: "trustServer",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        components: [
+          {
+            internalType: "uint256",
+            name: "nonce",
+            type: "uint256",
+          },
+          {
+            internalType: "address",
+            name: "serverId",
+            type: "address",
+          },
+          {
+            internalType: "string",
+            name: "serverUrl",
+            type: "string",
+          },
+        ],
+        internalType: "struct IDataPermission.TrustServerInput",
+        name: "trustServerInput",
+        type: "tuple",
+      },
+      {
+        internalType: "bytes",
+        name: "signature",
+        type: "bytes",
+      },
+    ],
+    name: "trustServerWithSignature",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
     inputs: [],
     name: "trustedForwarder",
     outputs: [
@@ -742,6 +945,49 @@ export const PermissionRegistryABI = [
   {
     inputs: [],
     name: "unpause",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "serverId",
+        type: "address",
+      },
+    ],
+    name: "untrustServer",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        components: [
+          {
+            internalType: "uint256",
+            name: "nonce",
+            type: "uint256",
+          },
+          {
+            internalType: "address",
+            name: "serverId",
+            type: "address",
+          },
+        ],
+        internalType: "struct IDataPermission.UntrustServerInput",
+        name: "untrustServerInput",
+        type: "tuple",
+      },
+      {
+        internalType: "bytes",
+        name: "signature",
+        type: "bytes",
+      },
+    ],
+    name: "untrustServerWithSignature",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -853,6 +1099,68 @@ export const PermissionRegistryABI = [
         internalType: "uint256[]",
         name: "",
         type: "uint256[]",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "user",
+        type: "address",
+      },
+      {
+        internalType: "uint256",
+        name: "serverIndex",
+        type: "uint256",
+      },
+    ],
+    name: "userServerIdsAt",
+    outputs: [
+      {
+        internalType: "address",
+        name: "",
+        type: "address",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "user",
+        type: "address",
+      },
+    ],
+    name: "userServerIdsLength",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "user",
+        type: "address",
+      },
+    ],
+    name: "userServerIdsValues",
+    outputs: [
+      {
+        internalType: "address[]",
+        name: "",
+        type: "address[]",
       },
     ],
     stateMutability: "view",

@@ -72,7 +72,7 @@ import { Separator } from "@/components/ui/separator";
 import { AddressDisplay } from "@/components/AddressDisplay";
 import { PermissionDisplay } from "@/components/PermissionDisplay";
 import { FileCard } from "@/components/FileCard";
-import { getTxUrl } from "@/lib/explorer";
+import { getTxUrl, getAddressUrl } from "@/lib/explorer";
 import {
   ExternalLink,
   Loader2,
@@ -90,6 +90,7 @@ import {
   EyeOff,
   Search,
   Copy,
+  Brain,
 } from "lucide-react";
 
 export default function Home() {
@@ -175,6 +176,30 @@ export default function Home() {
   const [fileLookupId, setFileLookupId] = useState<string>("");
   const [isLookingUpFile, setIsLookingUpFile] = useState(false);
   const [fileLookupStatus, setFileLookupStatus] = useState<string>("");
+
+  // Personal server state
+  const [personalPermissionId, setPersonalPermissionId] = useState<string>("");
+  const [personalResult, setPersonalResult] = useState<unknown>(null);
+  const [personalError, setPersonalError] = useState<string>("");
+  const [isPersonalLoading, setIsPersonalLoading] = useState(false);
+  const [isPolling, setIsPolling] = useState(false);
+
+  // Trust server state
+  const [serverId, setServerId] = useState<string>("");
+  const [serverUrl, setServerUrl] = useState<string>("");
+  const [trustServerError, setTrustServerError] = useState<string>("");
+  const [trustServerResult, setTrustServerResult] = useState<string>("");
+  const [isTrustingServer, setIsTrustingServer] = useState(false);
+  const [isUntrusting, setIsUntrusting] = useState(false);
+  const [trustedServers, setTrustedServers] = useState<string[]>([]);
+  const [isLoadingTrustedServers, setIsLoadingTrustedServers] = useState(false);
+  const [useGaslessTransaction, setUseGaslessTransaction] = useState(false);
+
+  // Personal server setup state
+  const [isSettingUpPersonalServer, setIsSettingUpPersonalServer] =
+    useState(false);
+  const [personalServerError, setPersonalServerError] = useState<string>("");
+  const [personalServerResult, setPersonalServerResult] = useState<string>("");
 
   // Initialize Vana SDK when wallet is connected or user IPFS config changes
   useEffect(() => {
@@ -861,6 +886,280 @@ export default function Home() {
     return getTxUrl(chainId || 14800, txHash);
   };
 
+  const handlePersonalServerCall = async () => {
+    if (!address) return;
+
+    // Parse permission ID
+    let permissionId: number;
+    if (personalPermissionId.trim()) {
+      try {
+        permissionId = parseInt(personalPermissionId.trim());
+        if (isNaN(permissionId) || permissionId <= 0) {
+          setPersonalError("Permission ID must be a valid positive number");
+          return;
+        }
+      } catch {
+        setPersonalError("Permission ID must be a valid number");
+        return;
+      }
+    } else {
+      setPersonalError("Please provide a permission ID");
+      return;
+    }
+
+    setIsPersonalLoading(true);
+    setPersonalError("");
+    setPersonalResult(null);
+    try {
+      // Call our API route instead of using the SDK directly
+      const response = await fetch("/api/personal", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          permissionId,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      setPersonalResult(result.data);
+    } catch (error) {
+      setPersonalError(
+        error instanceof Error ? error.message : "Unknown error",
+      );
+    } finally {
+      setIsPersonalLoading(false);
+    }
+  };
+
+  const handlePollStatus = async () => {
+    const result = personalResult as { urls?: { get?: string } };
+    if (!result?.urls?.get) return;
+
+    setIsPolling(true);
+    setPersonalError("");
+    try {
+      // Call our API route for polling
+      const response = await fetch("/api/personal/poll", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          getUrl: result.urls.get,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const pollingResult = await response.json();
+      setPersonalResult(pollingResult.data);
+    } catch (error) {
+      setPersonalError(
+        error instanceof Error ? error.message : "Unknown error",
+      );
+    } finally {
+      setIsPolling(false);
+    }
+  };
+
+  // Trust server handlers
+
+  const handleTrustServer = async () => {
+    if (!vana || !address) return;
+
+    // Validate inputs
+    if (!serverId.trim()) {
+      setTrustServerError("Please provide a server ID (address)");
+      return;
+    }
+
+    if (!serverUrl.trim()) {
+      setTrustServerError("Please provide a server URL");
+      return;
+    }
+
+    // Basic URL validation
+    try {
+      new URL(serverUrl);
+    } catch {
+      setTrustServerError("Please provide a valid URL");
+      return;
+    }
+
+    setIsTrustingServer(true);
+    setTrustServerError("");
+    setTrustServerResult("");
+
+    try {
+      const txHash = await vana.permissions.trustServer({
+        serverId: serverId as `0x${string}`,
+        serverUrl: serverUrl,
+      });
+
+      setTrustServerResult(txHash);
+      // Refresh trusted servers list
+      await loadTrustedServers();
+    } catch (error) {
+      setTrustServerError(
+        error instanceof Error ? error.message : "Failed to trust server",
+      );
+    } finally {
+      setIsTrustingServer(false);
+    }
+  };
+
+  const handleTrustServerGasless = async () => {
+    if (!vana || !address) return;
+
+    // Validate inputs
+    if (!serverId.trim()) {
+      setTrustServerError("Please provide a server ID");
+      return;
+    }
+
+    if (!serverUrl.trim()) {
+      setTrustServerError("Please provide a server URL");
+      return;
+    }
+
+    // Basic URL validation
+    try {
+      new URL(serverUrl);
+    } catch {
+      setTrustServerError("Please provide a valid URL");
+      return;
+    }
+
+    setIsTrustingServer(true);
+    setTrustServerError("");
+    setTrustServerResult("");
+
+    try {
+      const txHash = await vana.permissions.trustServerWithSignature({
+        serverId: serverId as `0x${string}`,
+        serverUrl: serverUrl,
+      });
+
+      setTrustServerResult(txHash);
+      // Clear the form fields on success
+      setServerId("");
+      setServerUrl("");
+      // Refresh trusted servers list
+      await loadTrustedServers();
+    } catch (error) {
+      setTrustServerError(
+        error instanceof Error ? error.message : "Failed to trust server",
+      );
+    } finally {
+      setIsTrustingServer(false);
+    }
+  };
+
+  const handleUntrustServer = async (serverIdToUntrust: string) => {
+    if (!vana || !address) return;
+
+    setIsUntrusting(true);
+    setTrustServerError("");
+
+    try {
+      const txHash = await vana.permissions.untrustServer({
+        serverId: serverIdToUntrust as `0x${string}`,
+      });
+
+      setTrustServerResult(txHash);
+      // Refresh trusted servers list
+      await loadTrustedServers();
+    } catch (error) {
+      setTrustServerError(
+        error instanceof Error ? error.message : "Failed to untrust server",
+      );
+    } finally {
+      setIsUntrusting(false);
+    }
+  };
+
+  const loadTrustedServers = async () => {
+    if (!vana || !address) return;
+
+    setIsLoadingTrustedServers(true);
+    try {
+      const servers = await vana.permissions.getTrustedServers();
+      setTrustedServers(servers);
+    } catch (error) {
+      console.error("Failed to load trusted servers:", error);
+    } finally {
+      setIsLoadingTrustedServers(false);
+    }
+  };
+
+  const handleSetupPersonalServer = async () => {
+    if (!address) return;
+
+    setIsSettingUpPersonalServer(true);
+    setPersonalServerError("");
+    setPersonalServerResult("");
+
+    try {
+      // Call our API route instead of using the SDK directly
+      const response = await fetch("/api/personal/setup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userAddress: address,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      const personalServerData = result.data;
+
+      // Check if derived address is present
+      const derivedAddress =
+        personalServerData.identity.metadata?.derivedAddress;
+
+      if (derivedAddress) {
+        // Auto-populate the server ID field for easy trusting
+        setServerId(derivedAddress);
+      }
+
+      setPersonalServerResult("success");
+
+      // Refresh trusted servers list to show the new personal server
+      await loadTrustedServers();
+    } catch (error) {
+      setPersonalServerError(
+        error instanceof Error
+          ? error.message
+          : "Failed to setup personal server",
+      );
+    } finally {
+      setIsSettingUpPersonalServer(false);
+    }
+  };
+
+  // Load trusted servers when vana is initialized
+  useEffect(() => {
+    if (vana && address) {
+      loadTrustedServers();
+    }
+  }, [vana, address]);
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -947,14 +1246,18 @@ export default function Home() {
                       <strong>Chain:</strong> {vana.chainName} (ID:{" "}
                       {vana.chainId})
                     </p>
-                    <p>
-                      <strong>User Address:</strong>{" "}
-                      <span className="text-sm font-mono">
-                        {address
-                          ? `${address.slice(0, 6)}...${address.slice(-4)}`
-                          : ""}
-                      </span>
-                    </p>
+                    <div>
+                      <span className="font-medium">User Address:</span>{" "}
+                      {address && (
+                        <AddressDisplay
+                          address={address}
+                          showCopy={true}
+                          showExternalLink={true}
+                          explorerUrl={getAddressUrl(chainId, address)}
+                          className="inline-block"
+                        />
+                      )}
+                    </div>
                   </div>
                   <div>
                     <p className="mb-2">
@@ -967,12 +1270,19 @@ export default function Home() {
                       </span>
                     </p>
                     {relayerHealth?.relayer && (
-                      <p className="mb-2">
-                        <strong>Relayer Address:</strong>{" "}
-                        <span className="text-sm font-mono">
-                          {`${relayerHealth.relayer.slice(0, 6)}...${relayerHealth.relayer.slice(-4)}`}
-                        </span>
-                      </p>
+                      <div className="mb-2">
+                        <span className="font-medium">Relayer Address:</span>{" "}
+                        <AddressDisplay
+                          address={relayerHealth.relayer}
+                          showCopy={true}
+                          showExternalLink={true}
+                          explorerUrl={getAddressUrl(
+                            chainId,
+                            relayerHealth.relayer,
+                          )}
+                          className="inline-block"
+                        />
+                      </div>
                     )}
                     <p>
                       <strong>Type:</strong> Gasless Demo Service
@@ -1050,8 +1360,8 @@ export default function Home() {
                         />
                       );
                     })}
-                    <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded">
-                      <p className="text-sm text-blue-800 dark:text-blue-200">
+                    <div className="mt-4 p-3 bg-primary/10 rounded">
+                      <p className="text-sm text-primary">
                         <strong>Selected files:</strong> {selectedFiles.length}{" "}
                         • Use &quot;Decrypt&quot; to view encrypted file
                         contents using your wallet signature.
@@ -1077,7 +1387,7 @@ export default function Home() {
 
                 {fileLookupStatus && (
                   <p
-                    className={`text-sm mt-4 ${fileLookupStatus.includes("❌") ? "text-red-600" : "text-green-600"}`}
+                    className={`text-sm mt-4 ${fileLookupStatus.includes("❌") ? "text-destructive" : "text-green-600"}`}
                   >
                     {fileLookupStatus}
                   </p>
@@ -1085,8 +1395,8 @@ export default function Home() {
 
                 {/* Grant Permission Section */}
                 {selectedFiles.length > 0 && (
-                  <div className="mt-6 p-4 bg-green-50 dark:bg-green-950/20 rounded">
-                    <h3 className="font-medium mb-3 text-green-800 dark:text-green-200">
+                  <div className="mt-6 p-4 bg-green-50/50 rounded">
+                    <h3 className="font-medium mb-3 text-green-700">
                       Grant Permission ({selectedFiles.length} file
                       {selectedFiles.length !== 1 ? "s" : ""} selected)
                     </h3>
@@ -1103,7 +1413,7 @@ export default function Home() {
 
                     {grantStatus && (
                       <p
-                        className={`text-sm ${grantStatus.includes("Error") ? "text-red-600" : "text-green-600"} mt-2`}
+                        className={`text-sm ${grantStatus.includes("Error") ? "text-destructive" : "text-green-600"} mt-2`}
                       >
                         {grantStatus}
                       </p>
@@ -1343,6 +1653,370 @@ export default function Home() {
               </CardContent>
             </Card>
 
+            {/* Trust Server */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="h-5 w-5" />
+                  Trusted Server Management
+                </CardTitle>
+                <CardDescription>
+                  Manage trusted servers for data processing. Trust a server to
+                  automatically register it and add it to your trust list, or
+                  remove servers you no longer trust.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Trust Server Form */}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="server-id" className="text-sm font-medium">
+                      Server ID (Ethereum Address)
+                    </Label>
+                    <Input
+                      id="server-id"
+                      value={serverId}
+                      onChange={(e) => setServerId(e.target.value)}
+                      placeholder="0x1234567890abcdef..."
+                      className="font-mono bg-background border-input"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      The Ethereum address that identifies the server
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="server-url" className="text-sm font-medium">
+                      Server URL
+                    </Label>
+                    <Input
+                      id="server-url"
+                      value={serverUrl}
+                      onChange={(e) => setServerUrl(e.target.value)}
+                      placeholder="https://api.replicate.com/v1/predictions"
+                      type="url"
+                      className="bg-background border-input"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      The API endpoint where the server can be reached
+                    </p>
+                  </div>
+
+                  {/* Transaction Type Selection */}
+                  <div className="space-y-3 p-3 bg-muted/30 rounded-lg border">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">
+                        Transaction Type
+                      </Label>
+                      <div className="flex gap-3">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="transaction-type"
+                            value="regular"
+                            checked={!useGaslessTransaction}
+                            onChange={() => setUseGaslessTransaction(false)}
+                            className="text-primary"
+                          />
+                          <span className="text-sm">Regular (Pay Gas)</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="transaction-type"
+                            value="gasless"
+                            checked={useGaslessTransaction}
+                            onChange={() => setUseGaslessTransaction(true)}
+                            className="text-primary"
+                          />
+                          <span className="text-sm">Gasless (Signature)</span>
+                        </label>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {useGaslessTransaction
+                          ? "Sign a message to trust the server without paying gas fees"
+                          : "Submit a blockchain transaction to trust the server"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={
+                        useGaslessTransaction
+                          ? handleTrustServerGasless
+                          : handleTrustServer
+                      }
+                      disabled={
+                        isTrustingServer ||
+                        !serverId.trim() ||
+                        !serverUrl.trim()
+                      }
+                      className="flex-1"
+                    >
+                      {isTrustingServer ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Shield className="h-4 w-4 mr-2" />
+                      )}
+                      {useGaslessTransaction
+                        ? "Sign & Trust Server"
+                        : "Trust Server"}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Error Display */}
+                {trustServerError && (
+                  <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+                    <p className="text-destructive text-sm">
+                      {trustServerError}
+                    </p>
+                  </div>
+                )}
+
+                {/* Success Result Display */}
+                {trustServerResult && (
+                  <div className="p-4 bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 rounded-lg">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                      <p className="text-green-700 dark:text-green-300 font-medium">
+                        Server trusted successfully!
+                      </p>
+                    </div>
+                    <div className="bg-white dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-700">
+                      <AddressDisplay
+                        address={trustServerResult}
+                        showCopy={true}
+                        showExternalLink={true}
+                        explorerUrl={getTxUrl(chainId, trustServerResult)}
+                        label="Transaction Hash"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Trusted Servers List */}
+                <div className="space-y-4 pt-2 border-t">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium text-base">
+                        Your Trusted Servers
+                      </h4>
+                      <p className="text-sm text-muted-foreground">
+                        Servers you've authorized for data processing
+                      </p>
+                    </div>
+                    <Button
+                      onClick={loadTrustedServers}
+                      disabled={isLoadingTrustedServers}
+                      variant="outline"
+                      size="sm"
+                    >
+                      {isLoadingTrustedServers ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <RotateCcw className="h-4 w-4 mr-2" />
+                      )}
+                      Refresh
+                    </Button>
+                  </div>
+
+                  {isLoadingTrustedServers ? (
+                    <div className="flex items-center justify-center p-4">
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Loading trusted servers...
+                    </div>
+                  ) : trustedServers.length > 0 ? (
+                    <div className="space-y-3">
+                      {trustedServers.map((server, index) => (
+                        <div
+                          key={server}
+                          className="flex items-center justify-between p-4 bg-muted rounded-lg border hover:bg-muted/80 transition-colors"
+                        >
+                          <div className="flex items-center space-x-3">
+                            <Badge variant="secondary" className="text-xs">
+                              #{index + 1}
+                            </Badge>
+                            <div className="flex-1">
+                              <AddressDisplay
+                                address={server}
+                                showCopy={true}
+                                showExternalLink={true}
+                                explorerUrl={getAddressUrl(chainId, server)}
+                                className="text-sm"
+                              />
+                            </div>
+                          </div>
+                          <Button
+                            onClick={() => handleUntrustServer(server)}
+                            disabled={isUntrusting}
+                            variant="destructive"
+                            size="sm"
+                          >
+                            {isUntrusting ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              "Untrust"
+                            )}
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center p-6 text-muted-foreground">
+                      <p className="mb-4">No trusted servers found.</p>
+                      {!serverId ? (
+                        <div className="space-y-2">
+                          <p className="text-sm">
+                            Set up your personal server first to get a server
+                            ID, then trust it above.
+                          </p>
+                          <Button
+                            onClick={handleSetupPersonalServer}
+                            disabled={isSettingUpPersonalServer || !isConnected}
+                            className="w-full max-w-xs"
+                          >
+                            {isSettingUpPersonalServer ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Setting up Personal Server...
+                              </>
+                            ) : (
+                              <>
+                                <Brain className="mr-2 h-4 w-4" />
+                                Setup Vana Personal Server
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      ) : (
+                        <p className="text-sm">
+                          Use the form above to trust your personal server or
+                          other servers.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Personal Server Setup Result Display */}
+                {personalServerError && (
+                  <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+                    <p className="text-destructive text-sm">
+                      {personalServerError}
+                    </p>
+                  </div>
+                )}
+
+                {personalServerResult && (
+                  <div className="p-4 bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 rounded-lg">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                      <p className="text-green-700 dark:text-green-300 font-medium">
+                        Personal server initialized successfully!
+                      </p>
+                    </div>
+                    {serverId && (
+                      <div className="space-y-2">
+                        <p className="text-green-600 dark:text-green-400 text-sm">
+                          Your server ID has been auto-populated above. You can
+                          now trust your server.
+                        </p>
+                        <div className="bg-white dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-700">
+                          <AddressDisplay
+                            address={serverId}
+                            showCopy={true}
+                            showExternalLink={true}
+                            explorerUrl={getAddressUrl(chainId, serverId)}
+                            label="Server ID (Derived Address)"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Personal Server */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Brain className="h-5 w-5" />
+                  Personal Server Integration
+                </CardTitle>
+                <CardDescription>
+                  Interact with the Vana Personal Server to run computations on
+                  granted data permissions. Submit a computation request using a
+                  permission ID.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="permission-id">Permission ID</Label>
+                    <Input
+                      id="permission-id"
+                      value={personalPermissionId}
+                      onChange={(e) => setPersonalPermissionId(e.target.value)}
+                      placeholder="Enter permission ID (e.g., 123)"
+                      type="number"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handlePersonalServerCall}
+                      disabled={
+                        isPersonalLoading || !personalPermissionId.trim()
+                      }
+                    >
+                      {isPersonalLoading ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Brain className="h-4 w-4 mr-2" />
+                      )}
+                      Submit Request
+                    </Button>
+                    {Boolean(
+                      personalResult &&
+                        (personalResult as { urls?: { get?: string } })?.urls
+                          ?.get,
+                    ) && (
+                      <Button
+                        onClick={handlePollStatus}
+                        disabled={isPolling}
+                        variant="outline"
+                      >
+                        {isPolling ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <RotateCcw className="h-4 w-4 mr-2" />
+                        )}
+                        Check Status
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {personalError && (
+                  <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+                    <p className="text-destructive text-sm">{personalError}</p>
+                  </div>
+                )}
+
+                {Boolean(personalResult) && (
+                  <div className="space-y-4">
+                    <h4 className="font-medium">Computation Result:</h4>
+                    <div className="bg-muted p-4 rounded-lg border">
+                      <pre className="text-sm whitespace-pre-wrap overflow-auto">
+                        {JSON.stringify(personalResult, null, 2)}
+                      </pre>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Encryption Testing */}
             <Card>
               <CardHeader>
@@ -1549,7 +2223,7 @@ export default function Home() {
                 {/* Results */}
                 {encryptionStatus && (
                   <p
-                    className={`text-sm ${encryptionStatus.includes("❌") ? "text-red-600" : "text-green-600"} mt-2`}
+                    className={`text-sm ${encryptionStatus.includes("❌") ? "text-destructive" : "text-green-600"} mt-2`}
                   >
                     {encryptionStatus}
                   </p>
@@ -1771,7 +2445,7 @@ export default function Home() {
                       </Button>
                     </div>
 
-                    <div className="p-3 bg-blue-50 dark:bg-blue-950/20 rounded-md">
+                    <div className="p-3 bg-primary/10 rounded-md">
                       <p className="text-sm text-muted-foreground mb-2">
                         This will upload your encrypted file using the selected
                         storage provider and register it on the Vana
@@ -1783,19 +2457,19 @@ export default function Home() {
 
                       {uploadToChainStatus && (
                         <p
-                          className={`text-sm ${uploadToChainStatus.includes("❌") ? "text-red-600" : "text-green-600"} mt-3`}
+                          className={`text-sm ${uploadToChainStatus.includes("❌") ? "text-destructive" : "text-green-600"} mt-3`}
                         >
                           {uploadToChainStatus}
                         </p>
                       )}
 
                       {newFileId && (
-                        <div className="mt-3 p-2 bg-green-100 dark:bg-green-950/20 rounded border">
-                          <p className="text-sm font-medium text-green-800 dark:text-green-200">
+                        <div className="mt-3 p-2 bg-green-50/50 rounded border">
+                          <p className="text-sm font-medium text-green-700">
                             🎉 Success! Your file is now on the blockchain with
                             ID: <strong>{newFileId}</strong>
                           </p>
-                          <p className="text-xs text-green-600 dark:text-green-300 mt-1">
+                          <p className="text-xs text-green-600 mt-1">
                             Check your &quot;Data Files&quot; section above to
                             see the new file and try decrypting it!
                           </p>

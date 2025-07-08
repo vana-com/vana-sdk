@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { recoverTypedDataAddress } from "viem";
 import type { Hash } from "viem";
 import { createRelayerVana } from "@/lib/relayer";
-import type { PermissionGrantTypedData } from "vana-sdk";
+import type {
+  PermissionGrantTypedData,
+  TrustServerTypedData,
+  GenericTypedData,
+} from "vana-sdk";
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,7 +15,7 @@ export async function POST(request: NextRequest) {
       typedData,
       signature,
     }: {
-      typedData: PermissionGrantTypedData;
+      typedData: GenericTypedData;
       signature: Hash;
     } = body;
 
@@ -23,6 +27,14 @@ export async function POST(request: NextRequest) {
     }
 
     console.info("🔄 Processing transaction relay...");
+    console.debug(
+      "🔍 Debug - Received typed data:",
+      JSON.stringify(
+        typedData,
+        (key, value) => (typeof value === "bigint" ? value.toString() : value),
+        2,
+      ),
+    );
 
     // Verify signature
     console.info("🔍 Verifying signature...");
@@ -46,10 +58,23 @@ export async function POST(request: NextRequest) {
     // Submit to blockchain using SDK
     console.info("⛓️ Submitting to blockchain via SDK...");
     const vana = createRelayerVana();
-    const txHash = await vana.permissions.submitSignedGrant(
-      typedData,
-      signature,
-    );
+
+    let txHash: Hash;
+
+    // Route to appropriate method based on operation type
+    if (typedData.primaryType === "Permission") {
+      txHash = await vana.permissions.submitSignedGrant(
+        typedData as unknown as PermissionGrantTypedData,
+        signature,
+      );
+    } else if (typedData.primaryType === "TrustServer") {
+      txHash = await vana.permissions.submitSignedTrustServer(
+        typedData as unknown as TrustServerTypedData,
+        signature,
+      );
+    } else {
+      throw new Error(`Unsupported operation type: ${typedData.primaryType}`);
+    }
 
     console.info("✅ Transaction relayed successfully:", txHash);
 

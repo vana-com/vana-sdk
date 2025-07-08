@@ -90,6 +90,7 @@ import {
   EyeOff,
   Search,
   Copy,
+  Brain,
 } from "lucide-react";
 
 export default function Home() {
@@ -175,6 +176,13 @@ export default function Home() {
   const [fileLookupId, setFileLookupId] = useState<string>("");
   const [isLookingUpFile, setIsLookingUpFile] = useState(false);
   const [fileLookupStatus, setFileLookupStatus] = useState<string>("");
+
+  // Personal server state
+  const [personalPermissionId, setPersonalPermissionId] = useState<string>("");
+  const [personalResult, setPersonalResult] = useState<unknown>(null);
+  const [personalError, setPersonalError] = useState<string>("");
+  const [isPersonalLoading, setIsPersonalLoading] = useState(false);
+  const [isPolling, setIsPolling] = useState(false);
 
   // Initialize Vana SDK when wallet is connected or user IPFS config changes
   useEffect(() => {
@@ -861,6 +869,92 @@ export default function Home() {
     return getTxUrl(chainId || 14800, txHash);
   };
 
+  const handlePersonalServerCall = async () => {
+    if (!address) return;
+
+    // Parse permission ID
+    let permissionId: number;
+    if (personalPermissionId.trim()) {
+      try {
+        permissionId = parseInt(personalPermissionId.trim());
+        if (isNaN(permissionId) || permissionId <= 0) {
+          setPersonalError("Permission ID must be a valid positive number");
+          return;
+        }
+      } catch {
+        setPersonalError("Permission ID must be a valid number");
+        return;
+      }
+    } else {
+      setPersonalError("Please provide a permission ID");
+      return;
+    }
+
+    setIsPersonalLoading(true);
+    setPersonalError("");
+    setPersonalResult(null);
+    try {
+      // Call our API route instead of using the SDK directly
+      const response = await fetch("/api/personal", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          permissionId,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      setPersonalResult(result.data);
+    } catch (error) {
+      setPersonalError(
+        error instanceof Error ? error.message : "Unknown error",
+      );
+    } finally {
+      setIsPersonalLoading(false);
+    }
+  };
+
+  const handlePollStatus = async () => {
+    const result = personalResult as { urls?: { get?: string } };
+    if (!result?.urls?.get) return;
+
+    setIsPolling(true);
+    setPersonalError("");
+    try {
+      // Call our API route for polling
+      const response = await fetch("/api/personal/poll", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          getUrl: result.urls.get,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const pollingResult = await response.json();
+      setPersonalResult(pollingResult.data);
+    } catch (error) {
+      setPersonalError(
+        error instanceof Error ? error.message : "Unknown error",
+      );
+    } finally {
+      setIsPolling(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -1338,6 +1432,85 @@ export default function Home() {
                     <p className="text-muted-foreground">
                       Loading permissions...
                     </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Personal Server */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Brain className="h-5 w-5" />
+                  Personal Server Integration
+                </CardTitle>
+                <CardDescription>
+                  Interact with the Vana Personal Server to run computations on
+                  granted data permissions. Submit a computation request using a
+                  permission ID.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="permission-id">Permission ID</Label>
+                    <Input
+                      id="permission-id"
+                      value={personalPermissionId}
+                      onChange={(e) => setPersonalPermissionId(e.target.value)}
+                      placeholder="Enter permission ID (e.g., 123)"
+                      type="number"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handlePersonalServerCall}
+                      disabled={
+                        isPersonalLoading || !personalPermissionId.trim()
+                      }
+                    >
+                      {isPersonalLoading ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Brain className="h-4 w-4 mr-2" />
+                      )}
+                      Submit Request
+                    </Button>
+                    {Boolean(
+                      personalResult &&
+                        (personalResult as { urls?: { get?: string } })?.urls
+                          ?.get,
+                    ) && (
+                      <Button
+                        onClick={handlePollStatus}
+                        disabled={isPolling}
+                        variant="outline"
+                      >
+                        {isPolling ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <RotateCcw className="h-4 w-4 mr-2" />
+                        )}
+                        Check Status
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {personalError && (
+                  <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-red-700 text-sm">{personalError}</p>
+                  </div>
+                )}
+
+                {Boolean(personalResult) && (
+                  <div className="space-y-4">
+                    <h4 className="font-medium">Computation Result:</h4>
+                    <div className="bg-gray-50 p-4 rounded-lg border">
+                      <pre className="text-sm whitespace-pre-wrap overflow-auto">
+                        {JSON.stringify(personalResult, null, 2)}
+                      </pre>
+                    </div>
                   </div>
                 )}
               </CardContent>

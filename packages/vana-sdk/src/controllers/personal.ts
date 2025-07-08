@@ -210,7 +210,7 @@ export class PersonalController {
       params.userAddress.length !== 42
     ) {
       throw new PersonalServerError(
-        "User address must be a valid Ethereum address",
+        "User address must be a valid Vana address",
       );
     }
   }

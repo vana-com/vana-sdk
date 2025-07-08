@@ -82,6 +82,7 @@ export class PermissionsController {
 
       // Step 2: Use provided grantUrl or store grant file in IPFS
       let grantUrl = params.grantUrl;
+      console.debug("🔍 Debug - Grant URL from params:", grantUrl);
       if (!grantUrl) {
         if (!this.context.relayerUrl && !this.context.storageManager) {
           throw new Error(
@@ -111,6 +112,10 @@ export class PermissionsController {
       const nonce = await this.getUserNonce();
 
       // Step 4: Create EIP-712 message with compatibility placeholders
+      console.debug(
+        "🔍 Debug - Final grant URL being passed to compose:",
+        grantUrl,
+      );
       const typedData = await this.composePermissionGrantMessage({
         to: params.to,
         operation: params.operation, // Placeholder - real data is in IPFS
@@ -162,6 +167,11 @@ export class PermissionsController {
     signature: Hash,
   ): Promise<Hash> {
     try {
+      console.debug(
+        "🔍 Debug - submitSignedGrant called with typed data:",
+        JSON.stringify(typedData, null, 2),
+      );
+
       // Use relayer if configured, otherwise direct transaction
       if (this.context.relayerUrl) {
         return await this.relaySignedTransaction(typedData, signature);
@@ -187,6 +197,47 @@ export class PermissionsController {
   }
 
   /**
+   * Submits an already-signed trust server transaction to the blockchain.
+   * This method extracts the trust server input from typed data and submits it directly.
+   *
+   * @param typedData - The EIP-712 typed data for TrustServer
+   * @param signature - The user's signature
+   * @returns Promise resolving to the transaction hash
+   */
+  async submitSignedTrustServer(
+    typedData: TrustServerTypedData,
+    signature: Hash,
+  ): Promise<Hash> {
+    try {
+      const trustServerInput: TrustServerInput = {
+        nonce: BigInt(typedData.message.nonce),
+        serverId: typedData.message.serverId,
+        serverUrl: typedData.message.serverUrl,
+      };
+
+      return await this.submitTrustServerTransaction(
+        trustServerInput,
+        signature,
+      );
+    } catch (error) {
+      // Re-throw known Vana errors directly to preserve error types
+      if (
+        error instanceof RelayerError ||
+        error instanceof NetworkError ||
+        error instanceof UserRejectedRequestError ||
+        error instanceof SignatureError ||
+        error instanceof NonceError
+      ) {
+        throw error;
+      }
+      throw new BlockchainError(
+        `Trust server submission failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
    * Submits a signed transaction directly to the blockchain.
    */
   private async submitDirectTransaction(
@@ -205,6 +256,16 @@ export class PermissionsController {
       nonce: BigInt(typedData.message.nonce),
       grant: typedData.message.grant,
     };
+
+    console.debug("🔍 Debug - Permission input being sent to contract:", {
+      nonce: permissionInput.nonce.toString(),
+      grant: permissionInput.grant,
+    });
+    console.debug("🔍 Debug - Grant field value:", typedData.message.grant);
+    console.debug(
+      "🔍 Debug - Grant field length:",
+      typedData.message.grant?.length || 0,
+    );
 
     // Submit directly to the contract using the provided wallet client
     const txHash = await this.context.walletClient.writeContract({
@@ -401,6 +462,11 @@ export class PermissionsController {
     nonce: bigint;
   }): Promise<PermissionGrantTypedData> {
     const domain = await this.getPermissionDomain();
+
+    console.debug(
+      "🔍 Debug - Composing permission message with grantUrl:",
+      params.grantUrl,
+    );
 
     return {
       domain,

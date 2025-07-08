@@ -302,14 +302,6 @@ export interface Server {
 }
 
 /**
- * Parameters for adding a server
- */
-export interface AddServerParams {
-  /** Server URL */
-  url: string;
-}
-
-/**
  * Parameters for trusting a server
  */
 export interface TrustServerParams {

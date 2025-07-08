@@ -492,26 +492,6 @@ export const PermissionRegistryABI = [
     type: "function",
   },
   {
-    inputs: [
-      {
-        components: [
-          {
-            internalType: "string",
-            name: "url",
-            type: "string",
-          },
-        ],
-        internalType: "struct IDataPermission.Server",
-        name: "serverInput",
-        type: "tuple",
-      },
-    ],
-    name: "addServer",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
     inputs: [],
     name: "eip712Domain",
     outputs: [

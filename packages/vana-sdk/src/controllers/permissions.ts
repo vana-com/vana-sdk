@@ -7,6 +7,13 @@ import {
   GenericTypedData,
   RelayerTransactionResponse,
   GrantedPermission,
+  TrustServerParams,
+  UntrustServerParams,
+  TrustServerInput,
+  UntrustServerInput,
+  TrustServerTypedData,
+  UntrustServerTypedData,
+  Server,
 } from "../types/index";
 import {
   RelayerError,
@@ -33,6 +40,7 @@ import { StorageManager } from "../storage";
 export interface ControllerContext {
   walletClient: WalletClient;
   publicClient: PublicClient;
+  applicationClient?: WalletClient;
   relayerUrl?: string;
   storageManager?: StorageManager;
 }
@@ -74,6 +82,7 @@ export class PermissionsController {
 
       // Step 2: Use provided grantUrl or store grant file in IPFS
       let grantUrl = params.grantUrl;
+      console.debug("🔍 Debug - Grant URL from params:", grantUrl);
       if (!grantUrl) {
         if (!this.context.relayerUrl && !this.context.storageManager) {
           throw new Error(
@@ -103,6 +112,10 @@ export class PermissionsController {
       const nonce = await this.getUserNonce();
 
       // Step 4: Create EIP-712 message with compatibility placeholders
+      console.debug(
+        "🔍 Debug - Final grant URL being passed to compose:",
+        grantUrl,
+      );
       const typedData = await this.composePermissionGrantMessage({
         to: params.to,
         operation: params.operation, // Placeholder - real data is in IPFS
@@ -154,6 +167,16 @@ export class PermissionsController {
     signature: Hash,
   ): Promise<Hash> {
     try {
+      console.debug(
+        "🔍 Debug - submitSignedGrant called with typed data:",
+        JSON.stringify(
+          typedData,
+          (key, value) =>
+            typeof value === "bigint" ? value.toString() : value,
+          2,
+        ),
+      );
+
       // Use relayer if configured, otherwise direct transaction
       if (this.context.relayerUrl) {
         return await this.relaySignedTransaction(typedData, signature);
@@ -179,6 +202,47 @@ export class PermissionsController {
   }
 
   /**
+   * Submits an already-signed trust server transaction to the blockchain.
+   * This method extracts the trust server input from typed data and submits it directly.
+   *
+   * @param typedData - The EIP-712 typed data for TrustServer
+   * @param signature - The user's signature
+   * @returns Promise resolving to the transaction hash
+   */
+  async submitSignedTrustServer(
+    typedData: TrustServerTypedData,
+    signature: Hash,
+  ): Promise<Hash> {
+    try {
+      const trustServerInput: TrustServerInput = {
+        nonce: BigInt(typedData.message.nonce),
+        serverId: typedData.message.serverId,
+        serverUrl: typedData.message.serverUrl,
+      };
+
+      return await this.submitTrustServerTransaction(
+        trustServerInput,
+        signature,
+      );
+    } catch (error) {
+      // Re-throw known Vana errors directly to preserve error types
+      if (
+        error instanceof RelayerError ||
+        error instanceof NetworkError ||
+        error instanceof UserRejectedRequestError ||
+        error instanceof SignatureError ||
+        error instanceof NonceError
+      ) {
+        throw error;
+      }
+      throw new BlockchainError(
+        `Trust server submission failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
    * Submits a signed transaction directly to the blockchain.
    */
   private async submitDirectTransaction(
@@ -197,6 +261,16 @@ export class PermissionsController {
       nonce: BigInt(typedData.message.nonce),
       grant: typedData.message.grant,
     };
+
+    console.debug("🔍 Debug - Permission input being sent to contract:", {
+      nonce: permissionInput.nonce.toString(),
+      grant: permissionInput.grant,
+    });
+    console.debug("🔍 Debug - Grant field value:", typedData.message.grant);
+    console.debug(
+      "🔍 Debug - Grant field length:",
+      typedData.message.grant?.length || 0,
+    );
 
     // Submit directly to the contract using the provided wallet client
     const txHash = await this.context.walletClient.writeContract({
@@ -393,6 +467,11 @@ export class PermissionsController {
     nonce: bigint;
   }): Promise<PermissionGrantTypedData> {
     const domain = await this.getPermissionDomain();
+
+    console.debug(
+      "🔍 Debug - Composing permission message with grantUrl:",
+      params.grantUrl,
+    );
 
     return {
       domain,
@@ -642,6 +721,479 @@ export class PermissionsController {
     } catch {
       throw new Error(
         `Invalid grant ID format: ${grantId}. Must be a permission ID (number/bigint/string) or a 32-byte hex hash.`,
+      );
+    }
+  }
+
+  /**
+   * Trusts a server for data processing.
+   *
+   * @param params - Parameters for trusting the server
+   * @returns Promise resolving to transaction hash
+   */
+  async trustServer(params: TrustServerParams): Promise<Hash> {
+    try {
+      const chainId = await this.context.walletClient.getChainId();
+      const permissionRegistryAddress = getContractAddress(
+        chainId,
+        "PermissionRegistry",
+      );
+      const permissionRegistryAbi = getAbi("PermissionRegistry");
+
+      // Submit directly to the contract
+      const txHash = await this.context.walletClient.writeContract({
+        address: permissionRegistryAddress,
+        abi: permissionRegistryAbi,
+        functionName: "trustServer",
+        args: [params.serverId, params.serverUrl],
+        account:
+          this.context.walletClient.account || (await this.getUserAddress()),
+        chain: this.context.walletClient.chain || null,
+      });
+
+      return txHash;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("rejected")) {
+        throw new UserRejectedRequestError();
+      }
+      throw new BlockchainError(
+        `Failed to trust server: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Trusts a server using a signature (gasless transaction).
+   *
+   * @param params - Parameters for trusting the server
+   * @returns Promise resolving to transaction hash
+   */
+  async trustServerWithSignature(params: TrustServerParams): Promise<Hash> {
+    try {
+      const nonce = await this.getUserNonce();
+
+      // Create trust server message
+      const trustServerInput: TrustServerInput = {
+        nonce,
+        serverId: params.serverId,
+        serverUrl: params.serverUrl,
+      };
+
+      // Create typed data
+      const typedData = await this.composeTrustServerMessage(trustServerInput);
+
+      // Sign the typed data
+      const signature = await this.signTypedData(
+        typedData as unknown as GenericTypedData,
+      );
+
+      // Submit via relayer or direct transaction
+      if (this.context.relayerUrl) {
+        return await this.relayTrustServerTransaction(typedData, signature);
+      } else {
+        return await this.submitTrustServerTransaction(
+          trustServerInput,
+          signature,
+        );
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        // Re-throw known Vana errors directly
+        if (
+          error instanceof RelayerError ||
+          error instanceof UserRejectedRequestError ||
+          error instanceof SerializationError ||
+          error instanceof SignatureError ||
+          error instanceof NetworkError ||
+          error instanceof NonceError
+        ) {
+          throw error;
+        }
+        throw new BlockchainError(
+          `Trust server failed: ${error.message}`,
+          error,
+        );
+      }
+      throw new BlockchainError("Trust server failed with unknown error");
+    }
+  }
+
+  /**
+   * Untrusts a server.
+   *
+   * @param params - Parameters for untrusting the server
+   * @returns Promise resolving to transaction hash
+   */
+  async untrustServer(params: UntrustServerParams): Promise<Hash> {
+    try {
+      const chainId = await this.context.walletClient.getChainId();
+      const permissionRegistryAddress = getContractAddress(
+        chainId,
+        "PermissionRegistry",
+      );
+      const permissionRegistryAbi = getAbi("PermissionRegistry");
+
+      // Submit directly to the contract
+      const txHash = await this.context.walletClient.writeContract({
+        address: permissionRegistryAddress,
+        abi: permissionRegistryAbi,
+        functionName: "untrustServer",
+        args: [params.serverId],
+        account:
+          this.context.walletClient.account || (await this.getUserAddress()),
+        chain: this.context.walletClient.chain || null,
+      });
+
+      return txHash;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("rejected")) {
+        throw new UserRejectedRequestError();
+      }
+      throw new BlockchainError(
+        `Failed to untrust server: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Untrusts a server using a signature (gasless transaction).
+   *
+   * @param params - Parameters for untrusting the server
+   * @returns Promise resolving to transaction hash
+   */
+  async untrustServerWithSignature(params: UntrustServerParams): Promise<Hash> {
+    try {
+      const nonce = await this.getUserNonce();
+
+      // Create untrust server message
+      const untrustServerInput: UntrustServerInput = {
+        nonce,
+        serverId: params.serverId,
+      };
+
+      // Create typed data
+      const typedData =
+        await this.composeUntrustServerMessage(untrustServerInput);
+
+      // Sign the typed data
+      const signature = await this.signTypedData(
+        typedData as unknown as GenericTypedData,
+      );
+
+      // Submit via relayer or direct transaction
+      if (this.context.relayerUrl) {
+        return await this.relayUntrustServerTransaction(typedData, signature);
+      } else {
+        return await this.submitUntrustServerTransaction(
+          untrustServerInput,
+          signature,
+        );
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        // Re-throw known Vana errors directly
+        if (
+          error instanceof RelayerError ||
+          error instanceof UserRejectedRequestError ||
+          error instanceof SerializationError ||
+          error instanceof SignatureError ||
+          error instanceof NetworkError ||
+          error instanceof NonceError
+        ) {
+          throw error;
+        }
+        throw new BlockchainError(
+          `Untrust server failed: ${error.message}`,
+          error,
+        );
+      }
+      throw new BlockchainError("Untrust server failed with unknown error");
+    }
+  }
+
+  /**
+   * Gets all servers trusted by a user.
+   *
+   * @param userAddress - Optional user address (defaults to current user)
+   * @returns Promise resolving to array of trusted server addresses
+   */
+  async getTrustedServers(userAddress?: Address): Promise<Address[]> {
+    try {
+      const user = userAddress || (await this.getUserAddress());
+      const chainId = await this.context.walletClient.getChainId();
+      const permissionRegistryAddress = getContractAddress(
+        chainId,
+        "PermissionRegistry",
+      );
+      const permissionRegistryAbi = getAbi("PermissionRegistry");
+
+      const serverIds = (await this.context.publicClient.readContract({
+        address: permissionRegistryAddress,
+        abi: permissionRegistryAbi,
+        functionName: "userServerIdsValues",
+        args: [user],
+      })) as Address[];
+
+      return serverIds;
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get trusted servers: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Gets server information by server ID.
+   *
+   * @param serverId - Server address
+   * @returns Promise resolving to server information
+   */
+  async getServerInfo(serverId: Address): Promise<Server> {
+    try {
+      const chainId = await this.context.walletClient.getChainId();
+      const permissionRegistryAddress = getContractAddress(
+        chainId,
+        "PermissionRegistry",
+      );
+      const permissionRegistryAbi = getAbi("PermissionRegistry");
+
+      const server = (await this.context.publicClient.readContract({
+        address: permissionRegistryAddress,
+        abi: permissionRegistryAbi,
+        functionName: "servers",
+        args: [serverId],
+      })) as Server;
+
+      return server;
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get server info: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Composes EIP-712 typed data for TrustServer.
+   */
+  private async composeTrustServerMessage(
+    input: TrustServerInput,
+  ): Promise<TrustServerTypedData> {
+    const domain = await this.getPermissionDomain();
+
+    return {
+      domain,
+      types: {
+        TrustServer: [
+          { name: "nonce", type: "uint256" },
+          { name: "serverId", type: "address" },
+          { name: "serverUrl", type: "string" },
+        ],
+      },
+      primaryType: "TrustServer",
+      message: input,
+    };
+  }
+
+  /**
+   * Composes EIP-712 typed data for UntrustServer.
+   */
+  private async composeUntrustServerMessage(
+    input: UntrustServerInput,
+  ): Promise<UntrustServerTypedData> {
+    const domain = await this.getPermissionDomain();
+
+    return {
+      domain,
+      types: {
+        UntrustServer: [
+          { name: "nonce", type: "uint256" },
+          { name: "serverId", type: "address" },
+        ],
+      },
+      primaryType: "UntrustServer",
+      message: input,
+    };
+  }
+
+  /**
+   * Submits a trust server transaction directly to the blockchain.
+   */
+  private async submitTrustServerTransaction(
+    trustServerInput: TrustServerInput,
+    signature: Hash,
+  ): Promise<Hash> {
+    const chainId = await this.context.walletClient.getChainId();
+    const permissionRegistryAddress = getContractAddress(
+      chainId,
+      "PermissionRegistry",
+    );
+    const permissionRegistryAbi = getAbi("PermissionRegistry");
+
+    const txHash = await this.context.walletClient.writeContract({
+      address: permissionRegistryAddress,
+      abi: permissionRegistryAbi,
+      functionName: "trustServerWithSignature",
+      args: [
+        {
+          nonce: trustServerInput.nonce,
+          serverId: trustServerInput.serverId,
+          serverUrl: trustServerInput.serverUrl,
+        },
+        signature,
+      ],
+      account:
+        this.context.walletClient.account || (await this.getUserAddress()),
+      chain: this.context.walletClient.chain || null,
+    });
+
+    return txHash;
+  }
+
+  /**
+   * Submits an untrust server transaction directly to the blockchain.
+   */
+  private async submitUntrustServerTransaction(
+    untrustServerInput: UntrustServerInput,
+    signature: Hash,
+  ): Promise<Hash> {
+    const chainId = await this.context.walletClient.getChainId();
+    const permissionRegistryAddress = getContractAddress(
+      chainId,
+      "PermissionRegistry",
+    );
+    const permissionRegistryAbi = getAbi("PermissionRegistry");
+
+    const txHash = await this.context.walletClient.writeContract({
+      address: permissionRegistryAddress,
+      abi: permissionRegistryAbi,
+      functionName: "untrustServerWithSignature",
+      args: [
+        {
+          nonce: untrustServerInput.nonce,
+          serverId: untrustServerInput.serverId,
+        },
+        signature,
+      ],
+      account:
+        this.context.walletClient.account || (await this.getUserAddress()),
+      chain: this.context.walletClient.chain || null,
+    });
+
+    return txHash;
+  }
+
+  /**
+   * Relays a trust server transaction via the relayer service.
+   */
+  private async relayTrustServerTransaction(
+    typedData: TrustServerTypedData,
+    signature: Hash,
+  ): Promise<Hash> {
+    try {
+      const relayerUrl = this.context.relayerUrl;
+      if (!relayerUrl) {
+        throw new RelayerError("Relayer URL is not configured", 500);
+      }
+
+      const response = await fetch(`${relayerUrl}/api/relay`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          typedData: {
+            ...typedData,
+            message: {
+              ...typedData.message,
+              nonce: Number(typedData.message.nonce),
+            },
+          },
+          signature,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new RelayerError(
+          `Failed to relay transaction: ${response.statusText}`,
+          response.status,
+          await response.text(),
+        );
+      }
+
+      const data: RelayerTransactionResponse = await response.json();
+
+      if (!data.success) {
+        throw new RelayerError(data.error || "Failed to relay transaction");
+      }
+
+      return data.transactionHash;
+    } catch (error) {
+      if (error instanceof RelayerError) {
+        throw error;
+      }
+      throw new NetworkError(
+        `Network error while relaying transaction: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Relays an untrust server transaction via the relayer service.
+   */
+  private async relayUntrustServerTransaction(
+    typedData: UntrustServerTypedData,
+    signature: Hash,
+  ): Promise<Hash> {
+    try {
+      const relayerUrl = this.context.relayerUrl;
+      if (!relayerUrl) {
+        throw new RelayerError("Relayer URL is not configured", 500);
+      }
+
+      const response = await fetch(`${relayerUrl}/api/relay`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          typedData: {
+            ...typedData,
+            message: {
+              ...typedData.message,
+              nonce: Number(typedData.message.nonce),
+            },
+          },
+          signature,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new RelayerError(
+          `Failed to relay transaction: ${response.statusText}`,
+          response.status,
+          await response.text(),
+        );
+      }
+
+      const data: RelayerTransactionResponse = await response.json();
+
+      if (!data.success) {
+        throw new RelayerError(data.error || "Failed to relay transaction");
+      }
+
+      return data.transactionHash;
+    } catch (error) {
+      if (error instanceof RelayerError) {
+        throw error;
+      }
+      throw new NetworkError(
+        `Network error while relaying transaction: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
       );
     }
   }

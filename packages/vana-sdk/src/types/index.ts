@@ -84,7 +84,22 @@ export type {
   PermissionQueryResult,
   PermissionAnalytics,
   PermissionEvent,
+  Server,
+  TrustServerParams,
+  UntrustServerParams,
+  TrustServerInput,
+  UntrustServerInput,
+  TrustServerTypedData,
+  UntrustServerTypedData,
 } from "./permissions";
+
+// Personal server types
+export type {
+  PostRequestParams,
+  InitPersonalServerParams,
+  ReplicatePredictionResponse,
+  PersonalServerResponse,
+} from "./personal";
 
 // Relayer types
 export type {

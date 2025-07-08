@@ -60,12 +60,12 @@ export async function POST(request: NextRequest) {
     // Route to appropriate method based on operation type
     if (typedData.primaryType === "Permission") {
       txHash = await vana.permissions.submitSignedGrant(
-        typedData as PermissionGrantTypedData,
+        typedData as unknown as PermissionGrantTypedData,
         signature,
       );
     } else if (typedData.primaryType === "TrustServer") {
       txHash = await vana.permissions.submitSignedTrustServer(
-        typedData as TrustServerTypedData,
+        typedData as unknown as TrustServerTypedData,
         signature,
       );
     } else {

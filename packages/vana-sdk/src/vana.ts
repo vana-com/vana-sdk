@@ -12,6 +12,7 @@ import {
   ControllerContext,
 } from "./controllers/permissions";
 import { DataController } from "./controllers/data";
+import { PersonalController } from "./controllers/personal";
 import { ProtocolController } from "./controllers/protocol";
 import { StorageManager, StorageProvider } from "./storage";
 import { createWalletClient, createPublicClient, http } from "viem";
@@ -65,6 +66,9 @@ export class Vana {
 
   /** Controller for managing user data assets */
   public readonly data: DataController;
+
+  /** Controller for managing personal server interactions */
+  public readonly personal: PersonalController;
 
   /** Controller providing low-level access to protocol contracts */
   public readonly protocol: ProtocolController;
@@ -208,6 +212,7 @@ export class Vana {
     const sharedContext: ControllerContext = {
       walletClient,
       publicClient,
+      applicationClient: walletClient, // Using same wallet for now
       relayerUrl: config.relayerUrl,
       storageManager: this.storageManager,
     };
@@ -215,6 +220,7 @@ export class Vana {
     // Initialize controllers
     this.permissions = new PermissionsController(sharedContext);
     this.data = new DataController(sharedContext);
+    this.personal = new PersonalController(sharedContext);
     this.protocol = new ProtocolController(sharedContext);
   }
 

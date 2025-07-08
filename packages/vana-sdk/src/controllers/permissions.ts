@@ -33,6 +33,7 @@ import { StorageManager } from "../storage";
 export interface ControllerContext {
   walletClient: WalletClient;
   publicClient: PublicClient;
+  applicationClient?: WalletClient;
   relayerUrl?: string;
   storageManager?: StorageManager;
 }

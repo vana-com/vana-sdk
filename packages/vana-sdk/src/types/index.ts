@@ -86,6 +86,12 @@ export type {
   PermissionEvent,
 } from "./permissions";
 
+// Personal server types
+export type {
+  PostRequestParams,
+  ReplicatePredictionResponse,
+} from "./personal";
+
 // Relayer types
 export type {
   RelayerStorageResponse,

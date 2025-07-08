@@ -10,7 +10,9 @@
         "CHAIN_RPC_URL",
         "CHAIN_ID",
         "PINATA_GATEWAY_URL",
-        "PINATA_JWT"
+        "PINATA_JWT",
+        "APPLICATION_PRIVATE_KEY",
+        "REPLICATE_API_TOKEN"
       ]
     },
     "dev": {

@@ -208,10 +208,13 @@ export class PersonalController {
    * Gets the Replicate API token from environment.
    */
   private getReplicateApiToken(): string {
-    const token = process.env.NEXT_PUBLIC_REPLICATE_API_TOKEN;
+    // Try server-side env var first, fallback to public for backwards compatibility
+    const token =
+      process.env.REPLICATE_API_TOKEN ||
+      process.env.NEXT_PUBLIC_REPLICATE_API_TOKEN;
     if (!token) {
       throw new PersonalServerError(
-        "NEXT_PUBLIC_REPLICATE_API_TOKEN environment variable is required",
+        "REPLICATE_API_TOKEN environment variable is required",
       );
     }
     return token;

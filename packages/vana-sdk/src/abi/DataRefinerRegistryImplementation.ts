@@ -76,6 +76,17 @@ export const DataRefinerRegistryABI = [
     type: "error",
   },
   {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "schemaId",
+        type: "uint256",
+      },
+    ],
+    name: "InvalidSchemaId",
+    type: "error",
+  },
+  {
     inputs: [],
     name: "NotDlpOwner",
     type: "error",
@@ -149,10 +160,10 @@ export const DataRefinerRegistryABI = [
         type: "string",
       },
       {
-        indexed: false,
-        internalType: "string",
-        name: "schemaDefinitionUrl",
-        type: "string",
+        indexed: true,
+        internalType: "uint256",
+        name: "schemaId",
+        type: "uint256",
       },
       {
         indexed: false,
@@ -237,6 +248,37 @@ export const DataRefinerRegistryABI = [
       },
     ],
     name: "RoleRevoked",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "schemaId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "string",
+        name: "name",
+        type: "string",
+      },
+      {
+        indexed: false,
+        internalType: "string",
+        name: "typ",
+        type: "string",
+      },
+      {
+        indexed: false,
+        internalType: "string",
+        name: "definitionUrl",
+        type: "string",
+      },
+    ],
+    name: "SchemaAdded",
     type: "event",
   },
   {
@@ -335,9 +377,9 @@ export const DataRefinerRegistryABI = [
         type: "string",
       },
       {
-        internalType: "string",
-        name: "schemaDefinitionUrl",
-        type: "string",
+        internalType: "uint256",
+        name: "schemaId",
+        type: "uint256",
       },
       {
         internalType: "string",
@@ -346,6 +388,35 @@ export const DataRefinerRegistryABI = [
       },
     ],
     name: "addRefiner",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "string",
+        name: "name",
+        type: "string",
+      },
+      {
+        internalType: "string",
+        name: "typ",
+        type: "string",
+      },
+      {
+        internalType: "string",
+        name: "definitionUrl",
+        type: "string",
+      },
+    ],
+    name: "addSchema",
     outputs: [
       {
         internalType: "uint256",
@@ -659,6 +730,55 @@ export const DataRefinerRegistryABI = [
   {
     inputs: [
       {
+        internalType: "uint256",
+        name: "schemaId",
+        type: "uint256",
+      },
+    ],
+    name: "schemas",
+    outputs: [
+      {
+        components: [
+          {
+            internalType: "string",
+            name: "name",
+            type: "string",
+          },
+          {
+            internalType: "string",
+            name: "typ",
+            type: "string",
+          },
+          {
+            internalType: "string",
+            name: "definitionUrl",
+            type: "string",
+          },
+        ],
+        internalType: "struct IDataRefinerRegistry.Schema",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "schemasCount",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
         internalType: "bytes4",
         name: "interfaceId",
         type: "bytes4",
@@ -717,6 +837,24 @@ export const DataRefinerRegistryABI = [
       },
     ],
     name: "updateRefinerOwner",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "refinerId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "newSchemaId",
+        type: "uint256",
+      },
+    ],
+    name: "updateSchemaId",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",

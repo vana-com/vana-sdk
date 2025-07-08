@@ -1,5 +1,16 @@
 import { Address, getContract, decodeEventLog } from "viem";
-import { UserFile, UploadEncryptedFileResult } from "../types/index";
+import {
+  UserFile,
+  UploadEncryptedFileResult,
+  Schema,
+  Refiner,
+  AddSchemaParams,
+  AddSchemaResult,
+  AddRefinerParams,
+  AddRefinerResult,
+  UpdateSchemaIdParams,
+  UpdateSchemaIdResult,
+} from "../types/index";
 import { ControllerContext } from "./permissions";
 import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../abi";
@@ -635,6 +646,350 @@ export class DataController {
       console.error("Failed to add file with permissions:", error);
       throw new Error(
         `Failed to add file with permissions: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Adds a new schema to the DataRefinerRegistry.
+   *
+   * @param params - Schema parameters including name, type, and definition URL
+   * @returns Promise resolving to the new schema ID and transaction hash
+   */
+  async addSchema(params: AddSchemaParams): Promise<AddSchemaResult> {
+    try {
+      const chainId = this.context.walletClient.chain?.id;
+      if (!chainId) {
+        throw new Error("Chain ID not available");
+      }
+
+      const dataRefinerRegistryAddress = getContractAddress(
+        chainId,
+        "DataRefinerRegistry",
+      );
+      const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
+
+      const txHash = await this.context.walletClient.writeContract({
+        address: dataRefinerRegistryAddress,
+        abi: dataRefinerRegistryAbi,
+        functionName: "addSchema",
+        args: [params.name, params.type, params.definitionUrl],
+        account:
+          this.context.walletClient.account || (await this.getUserAddress()),
+        chain: this.context.walletClient.chain || null,
+      });
+
+      const receipt = await this.context.publicClient.waitForTransactionReceipt(
+        {
+          hash: txHash,
+          timeout: 30_000,
+        },
+      );
+
+      let schemaId = 0;
+      for (const log of receipt.logs) {
+        try {
+          const decoded = decodeEventLog({
+            abi: dataRefinerRegistryAbi,
+            data: log.data,
+            topics: log.topics,
+          });
+
+          if (decoded.eventName === "SchemaAdded") {
+            schemaId = Number(decoded.args.schemaId);
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      return {
+        schemaId,
+        transactionHash: txHash,
+      };
+    } catch (error) {
+      console.error("Failed to add schema:", error);
+      throw new Error(
+        `Failed to add schema: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Retrieves a schema by its ID.
+   *
+   * @param schemaId - The schema ID to retrieve
+   * @returns Promise resolving to the schema information
+   */
+  async getSchema(schemaId: number): Promise<Schema> {
+    try {
+      const chainId = this.context.walletClient.chain?.id;
+      if (!chainId) {
+        throw new Error("Chain ID not available");
+      }
+
+      const dataRefinerRegistryAddress = getContractAddress(
+        chainId,
+        "DataRefinerRegistry",
+      );
+      const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
+
+      const dataRefinerRegistry = getContract({
+        address: dataRefinerRegistryAddress,
+        abi: dataRefinerRegistryAbi,
+        client: this.context.walletClient,
+      });
+
+      const schemaData = await dataRefinerRegistry.read.schemas([
+        BigInt(schemaId),
+      ]);
+
+      if (!schemaData) {
+        throw new Error("Schema not found");
+      }
+
+      return {
+        id: schemaId,
+        name: schemaData.name,
+        type: schemaData.typ,
+        definitionUrl: schemaData.definitionUrl,
+      };
+    } catch (error) {
+      console.error("Failed to get schema:", error);
+      throw new Error(
+        `Failed to get schema ${schemaId}: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Gets the total number of schemas in the registry.
+   *
+   * @returns Promise resolving to the total schema count
+   */
+  async getSchemasCount(): Promise<number> {
+    try {
+      const chainId = this.context.walletClient.chain?.id;
+      if (!chainId) {
+        throw new Error("Chain ID not available");
+      }
+
+      const dataRefinerRegistryAddress = getContractAddress(
+        chainId,
+        "DataRefinerRegistry",
+      );
+      const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
+
+      const dataRefinerRegistry = getContract({
+        address: dataRefinerRegistryAddress,
+        abi: dataRefinerRegistryAbi,
+        client: this.context.walletClient,
+      });
+
+      const count = await dataRefinerRegistry.read.schemasCount();
+      return Number(count);
+    } catch (error) {
+      console.error("Failed to get schemas count:", error);
+      return 0;
+    }
+  }
+
+  /**
+   * Adds a new refiner to the DataRefinerRegistry.
+   *
+   * @param params - Refiner parameters including DLP ID, name, schema ID, and instruction URL
+   * @returns Promise resolving to the new refiner ID and transaction hash
+   */
+  async addRefiner(params: AddRefinerParams): Promise<AddRefinerResult> {
+    try {
+      const chainId = this.context.walletClient.chain?.id;
+      if (!chainId) {
+        throw new Error("Chain ID not available");
+      }
+
+      const dataRefinerRegistryAddress = getContractAddress(
+        chainId,
+        "DataRefinerRegistry",
+      );
+      const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
+
+      const txHash = await this.context.walletClient.writeContract({
+        address: dataRefinerRegistryAddress,
+        abi: dataRefinerRegistryAbi,
+        functionName: "addRefiner",
+        args: [
+          BigInt(params.dlpId),
+          params.name,
+          BigInt(params.schemaId),
+          params.refinementInstructionUrl,
+        ],
+        account:
+          this.context.walletClient.account || (await this.getUserAddress()),
+        chain: this.context.walletClient.chain || null,
+      });
+
+      const receipt = await this.context.publicClient.waitForTransactionReceipt(
+        {
+          hash: txHash,
+          timeout: 30_000,
+        },
+      );
+
+      let refinerId = 0;
+      for (const log of receipt.logs) {
+        try {
+          const decoded = decodeEventLog({
+            abi: dataRefinerRegistryAbi,
+            data: log.data,
+            topics: log.topics,
+          });
+
+          if (decoded.eventName === "RefinerAdded") {
+            refinerId = Number(decoded.args.refinerId);
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      return {
+        refinerId,
+        transactionHash: txHash,
+      };
+    } catch (error) {
+      console.error("Failed to add refiner:", error);
+      throw new Error(
+        `Failed to add refiner: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Retrieves a refiner by its ID.
+   *
+   * @param refinerId - The refiner ID to retrieve
+   * @returns Promise resolving to the refiner information
+   */
+  async getRefiner(refinerId: number): Promise<Refiner> {
+    try {
+      const chainId = this.context.walletClient.chain?.id;
+      if (!chainId) {
+        throw new Error("Chain ID not available");
+      }
+
+      const dataRefinerRegistryAddress = getContractAddress(
+        chainId,
+        "DataRefinerRegistry",
+      );
+      const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
+
+      const dataRefinerRegistry = getContract({
+        address: dataRefinerRegistryAddress,
+        abi: dataRefinerRegistryAbi,
+        client: this.context.walletClient,
+      });
+
+      const refinerData = await dataRefinerRegistry.read.refiners([
+        BigInt(refinerId),
+      ]);
+
+      if (!refinerData) {
+        throw new Error("Refiner not found");
+      }
+
+      return {
+        id: refinerId,
+        dlpId: Number(refinerData.dlpId),
+        owner: refinerData.owner,
+        name: refinerData.name,
+        schemaId: 0, // Note: existing refiners may have empty schemaId
+        refinementInstructionUrl: refinerData.refinementInstructionUrl,
+      };
+    } catch (error) {
+      console.error("Failed to get refiner:", error);
+      throw new Error(
+        `Failed to get refiner ${refinerId}: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Gets the total number of refiners in the registry.
+   *
+   * @returns Promise resolving to the total refiner count
+   */
+  async getRefinersCount(): Promise<number> {
+    try {
+      const chainId = this.context.walletClient.chain?.id;
+      if (!chainId) {
+        throw new Error("Chain ID not available");
+      }
+
+      const dataRefinerRegistryAddress = getContractAddress(
+        chainId,
+        "DataRefinerRegistry",
+      );
+      const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
+
+      const dataRefinerRegistry = getContract({
+        address: dataRefinerRegistryAddress,
+        abi: dataRefinerRegistryAbi,
+        client: this.context.walletClient,
+      });
+
+      const count = await dataRefinerRegistry.read.refinersCount();
+      return Number(count);
+    } catch (error) {
+      console.error("Failed to get refiners count:", error);
+      return 0;
+    }
+  }
+
+  /**
+   * Updates the schema ID for an existing refiner.
+   *
+   * @param params - Parameters including refiner ID and new schema ID
+   * @returns Promise resolving to the transaction hash
+   */
+  async updateSchemaId(
+    params: UpdateSchemaIdParams,
+  ): Promise<UpdateSchemaIdResult> {
+    try {
+      const chainId = this.context.walletClient.chain?.id;
+      if (!chainId) {
+        throw new Error("Chain ID not available");
+      }
+
+      const dataRefinerRegistryAddress = getContractAddress(
+        chainId,
+        "DataRefinerRegistry",
+      );
+      const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
+
+      const txHash = await this.context.walletClient.writeContract({
+        address: dataRefinerRegistryAddress,
+        abi: dataRefinerRegistryAbi,
+        functionName: "updateSchemaId",
+        args: [BigInt(params.refinerId), BigInt(params.newSchemaId)],
+        account:
+          this.context.walletClient.account || (await this.getUserAddress()),
+        chain: this.context.walletClient.chain || null,
+      });
+
+      await this.context.publicClient.waitForTransactionReceipt({
+        hash: txHash,
+        timeout: 30_000,
+      });
+
+      return {
+        transactionHash: txHash,
+      };
+    } catch (error) {
+      console.error("Failed to update schema ID:", error);
+      throw new Error(
+        `Failed to update schema ID: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }

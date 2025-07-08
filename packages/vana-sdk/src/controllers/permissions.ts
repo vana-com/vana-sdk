@@ -169,7 +169,12 @@ export class PermissionsController {
     try {
       console.debug(
         "🔍 Debug - submitSignedGrant called with typed data:",
-        JSON.stringify(typedData, null, 2),
+        JSON.stringify(
+          typedData,
+          (key, value) =>
+            typeof value === "bigint" ? value.toString() : value,
+          2,
+        ),
       );
 
       // Use relayer if configured, otherwise direct transaction

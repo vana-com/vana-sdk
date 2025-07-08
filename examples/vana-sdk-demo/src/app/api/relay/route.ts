@@ -29,7 +29,11 @@ export async function POST(request: NextRequest) {
     console.info("🔄 Processing transaction relay...");
     console.debug(
       "🔍 Debug - Received typed data:",
-      JSON.stringify(typedData, null, 2),
+      JSON.stringify(
+        typedData,
+        (key, value) => (typeof value === "bigint" ? value.toString() : value),
+        2,
+      ),
     );
 
     // Verify signature

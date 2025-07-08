@@ -97,7 +97,9 @@ export type {
 // Personal server types
 export type {
   PostRequestParams,
+  InitPersonalServerParams,
   ReplicatePredictionResponse,
+  PersonalServerResponse,
 } from "./personal";
 
 // Relayer types

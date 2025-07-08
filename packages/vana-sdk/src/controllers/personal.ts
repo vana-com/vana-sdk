@@ -1,5 +1,10 @@
 import { Address } from "viem";
-import { PostRequestParams, ReplicatePredictionResponse } from "../types";
+import {
+  PostRequestParams,
+  ReplicatePredictionResponse,
+  InitPersonalServerParams,
+  PersonalServerResponse,
+} from "../types";
 import {
   NetworkError,
   SerializationError,
@@ -16,6 +21,8 @@ export class PersonalController {
     "https://api.replicate.com/v1/predictions";
   private readonly PERSONAL_SERVER_VERSION =
     "vana-com/personal-server:1ef2dbffd550699b73b1a4d43ec9407e129333bdb59cdb701caefa6c03a42155";
+  private readonly IDENTITY_SERVER_VERSION =
+    "vana-com/identity-server:367b7d1a75f948de18fd1868fd4d29fff55d8277c3cc68c75df0bd2cf5f1d359";
 
   constructor(private readonly context: ControllerContext) {}
 
@@ -72,6 +79,48 @@ export class PersonalController {
       }
       throw new PersonalServerError(
         "Personal server request failed with unknown error",
+      );
+    }
+  }
+
+  /**
+   * Initializes the personal server and fetches user identity.
+   *
+   * @param params - The request parameters containing user address
+   * @returns Promise resolving to the user's identity information
+   */
+  async initPersonalServer(
+    params: InitPersonalServerParams,
+  ): Promise<PersonalServerResponse> {
+    try {
+      // Step 1: Validate parameters
+      this.validateInitPersonalServerParams(params);
+
+      // Step 2: Make request to personal server
+      const response = await this.makePersonalServerRequest(params);
+
+      // Step 3: Poll for results until completion
+      const result = await this.pollPersonalServerResult(response);
+
+      return result;
+    } catch (error) {
+      if (error instanceof Error) {
+        // Re-throw known Vana errors directly
+        if (
+          error instanceof NetworkError ||
+          error instanceof SerializationError ||
+          error instanceof PersonalServerError
+        ) {
+          throw error;
+        }
+        // Wrap unknown errors
+        throw new PersonalServerError(
+          `Personal server initialization failed: ${error.message}`,
+          error,
+        );
+      }
+      throw new PersonalServerError(
+        "Personal server initialization failed with unknown error",
       );
     }
   }
@@ -139,6 +188,29 @@ export class PersonalController {
     if (typeof params.permissionId !== "number" || params.permissionId <= 0) {
       throw new PersonalServerError(
         "Permission ID is required and must be a valid positive number",
+      );
+    }
+  }
+
+  /**
+   * Validates the init personal server parameters.
+   */
+  private validateInitPersonalServerParams(
+    params: InitPersonalServerParams,
+  ): void {
+    if (!params.userAddress || typeof params.userAddress !== "string") {
+      throw new PersonalServerError(
+        "User address is required and must be a valid string",
+      );
+    }
+
+    // Basic address validation
+    if (
+      !params.userAddress.startsWith("0x") ||
+      params.userAddress.length !== 42
+    ) {
+      throw new PersonalServerError(
+        "User address must be a valid Vana address",
       );
     }
   }
@@ -287,6 +359,141 @@ export class PersonalController {
         `Failed to make Replicate API request: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
+  }
+
+  /**
+   * Makes the request to the personal server.
+   */
+  private async makePersonalServerRequest(
+    params: InitPersonalServerParams,
+  ): Promise<ReplicatePredictionResponse> {
+    try {
+      const requestBody = {
+        version: this.IDENTITY_SERVER_VERSION,
+        input: {
+          user_address: params.userAddress,
+        },
+      };
+
+      console.debug("Personal Server Request:", {
+        url: this.REPLICATE_API_URL,
+        method: "POST",
+        headers: {
+          Authorization: `Token ${this.getReplicateApiToken().substring(0, 10)}...`,
+          "Content-Type": "application/json",
+        },
+        body: requestBody,
+      });
+
+      const response = await fetch(this.REPLICATE_API_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Token ${this.getReplicateApiToken()}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.debug("Personal Server Error Response:", {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText,
+        });
+        throw new NetworkError(
+          `Personal Server API request failed: ${response.status} ${response.statusText} - ${errorText}`,
+        );
+      }
+
+      const data = await response.json();
+
+      console.debug("Personal Server Success Response:", data);
+
+      // Transform Replicate response to our expected format
+      return {
+        id: data.id,
+        status: data.status,
+        urls: {
+          get: data.urls?.get || "",
+          cancel: data.urls?.cancel || "",
+        },
+        input: data.input,
+        output: data.output,
+        error: data.error,
+      };
+    } catch (error) {
+      if (error instanceof NetworkError) {
+        throw error;
+      }
+      throw new NetworkError(
+        `Failed to make Personal Server API request: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Polls the personal server result until completion.
+   */
+  private async pollPersonalServerResult(
+    initialResponse: ReplicatePredictionResponse,
+  ): Promise<PersonalServerResponse> {
+    const maxAttempts = 60; // 60 seconds max
+    let attempts = 0;
+    let currentResponse = initialResponse;
+
+    while (attempts < maxAttempts) {
+      if (currentResponse.status === "succeeded") {
+        // Parse the output to extract identity information
+        const output = currentResponse.output as Record<string, unknown>;
+
+        // Parse the output string if it's a JSON string
+        let parsedOutput: Record<string, unknown>;
+        if (typeof output === "string") {
+          try {
+            parsedOutput = JSON.parse(output);
+          } catch {
+            parsedOutput = output as Record<string, unknown>;
+          }
+        } else {
+          parsedOutput = output;
+        }
+
+        return {
+          userAddress: parsedOutput.user_address as string,
+          identity: {
+            name: undefined,
+            email: undefined,
+            avatar: undefined,
+            metadata: {
+              derivedAddress: parsedOutput.derived_address as string,
+            },
+          },
+          timestamp: new Date().toISOString(),
+        };
+      } else if (currentResponse.status === "failed") {
+        throw new PersonalServerError(
+          `Personal server initialization failed: ${currentResponse.error || "Unknown error"}`,
+        );
+      } else if (currentResponse.status === "canceled") {
+        throw new PersonalServerError(
+          "Personal server initialization was canceled",
+        );
+      }
+
+      // Wait 1 second before next poll
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      attempts++;
+
+      // Poll for updated status
+      if (currentResponse.urls.get) {
+        currentResponse = await this.pollStatus(currentResponse.urls.get);
+      }
+    }
+
+    throw new PersonalServerError(
+      "Personal server initialization timed out after 60 seconds",
+    );
   }
 
   /**

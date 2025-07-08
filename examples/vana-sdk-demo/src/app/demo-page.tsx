@@ -194,6 +194,12 @@ export default function Home() {
   const [trustedServers, setTrustedServers] = useState<string[]>([]);
   const [isLoadingTrustedServers, setIsLoadingTrustedServers] = useState(false);
 
+  // Personal server setup state
+  const [isSettingUpPersonalServer, setIsSettingUpPersonalServer] =
+    useState(false);
+  const [personalServerError, setPersonalServerError] = useState<string>("");
+  const [personalServerResult, setPersonalServerResult] = useState<string>("");
+
   // Initialize Vana SDK when wallet is connected or user IPFS config changes
   useEffect(() => {
     if (isConnected && walletClient && walletClient.account) {
@@ -1051,6 +1057,59 @@ export default function Home() {
     }
   };
 
+  const handleSetupPersonalServer = async () => {
+    if (!address) return;
+
+    setIsSettingUpPersonalServer(true);
+    setPersonalServerError("");
+    setPersonalServerResult("");
+
+    try {
+      // Call our API route instead of using the SDK directly
+      const response = await fetch("/api/personal/setup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userAddress: address,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      const personalServerData = result.data;
+
+      // Check if derived address is present
+      const derivedAddress =
+        personalServerData.identity.metadata?.derivedAddress;
+      const userAddress = personalServerData.userAddress;
+
+      let resultMessage = `Personal server initialized successfully! User Address: ${userAddress}`;
+
+      if (derivedAddress) {
+        resultMessage = `Personal server initialized successfully!\n\nUser Address: ${userAddress}\nDerived Address: ${derivedAddress}`;
+      }
+
+      setPersonalServerResult(resultMessage);
+
+      // Refresh trusted servers list to show the new personal server
+      await loadTrustedServers();
+    } catch (error) {
+      setPersonalServerError(
+        error instanceof Error
+          ? error.message
+          : "Failed to setup personal server",
+      );
+    } finally {
+      setIsSettingUpPersonalServer(false);
+    }
+  };
+
   // Load trusted servers when vana is initialized
   useEffect(() => {
     if (vana && address) {
@@ -1685,6 +1744,23 @@ export default function Home() {
                   </div>
                 )}
 
+                {/* Personal Server Error/Success Messages */}
+                {personalServerError && (
+                  <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-red-700 text-sm">
+                      {personalServerError}
+                    </p>
+                  </div>
+                )}
+
+                {personalServerResult && (
+                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <p className="text-green-700 text-sm">
+                      {personalServerResult}
+                    </p>
+                  </div>
+                )}
+
                 {/* Trusted Servers List */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
@@ -1739,7 +1815,26 @@ export default function Home() {
                     </div>
                   ) : (
                     <div className="text-center p-4 text-gray-500">
-                      No trusted servers found. Add one above to get started.
+                      <p className="mb-4">
+                        No trusted servers found. Add one above to get started.
+                      </p>
+                      <Button
+                        onClick={handleSetupPersonalServer}
+                        disabled={isSettingUpPersonalServer || !isConnected}
+                        className="w-full max-w-xs"
+                      >
+                        {isSettingUpPersonalServer ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Setting up Personal Server...
+                          </>
+                        ) : (
+                          <>
+                            <Brain className="mr-2 h-4 w-4" />
+                            Setup Vana Personal Server
+                          </>
+                        )}
+                      </Button>
                     </div>
                   )}
                 </div>

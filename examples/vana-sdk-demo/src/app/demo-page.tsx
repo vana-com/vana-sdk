@@ -177,6 +177,10 @@ export default function Home() {
     "https://gateway.pinata.cloud",
   );
 
+  // Schema selection for file upload
+  const [selectedUploadSchemaId, setSelectedUploadSchemaId] =
+    useState<string>("");
+
   // File lookup state
   const [fileLookupId, setFileLookupId] = useState<string>("");
   const [isLookingUpFile, setIsLookingUpFile] = useState(false);
@@ -874,11 +878,19 @@ export default function Home() {
         ? `${originalFileName}.encrypted`
         : "encrypted-data.bin";
 
-      const result = await vana.data.uploadEncryptedFile(
-        encryptedData,
-        filename,
-        providerName,
-      );
+      // Use schema-aware upload if a schema is selected
+      const result = selectedUploadSchemaId
+        ? await vana.data.uploadEncryptedFileWithSchema(
+            encryptedData,
+            parseInt(selectedUploadSchemaId),
+            filename,
+            providerName,
+          )
+        : await vana.data.uploadEncryptedFile(
+            encryptedData,
+            filename,
+            providerName,
+          );
 
       console.info("✅ File uploaded and registered:", {
         fileId: result.fileId,
@@ -925,6 +937,7 @@ export default function Home() {
     setIsUploadingToChain(false);
     setUploadToChainStatus("");
     setNewFileId(null);
+    setSelectedUploadSchemaId("");
   };
 
   const getExplorerUrl = (txHash: string) => {
@@ -3092,6 +3105,32 @@ export default function Home() {
                           </div>
                         </div>
                       )}
+                    </div>
+
+                    {/* Schema Selection */}
+                    <div className="space-y-2">
+                      <Label htmlFor="upload-schema">Schema (Optional):</Label>
+                      <select
+                        id="upload-schema"
+                        value={selectedUploadSchemaId}
+                        onChange={(e) =>
+                          setSelectedUploadSchemaId(e.target.value)
+                        }
+                        disabled={isUploadingToChain || isLoadingSchemas}
+                        className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm"
+                      >
+                        <option value="">No schema (unstructured data)</option>
+                        {schemas.map((schema) => (
+                          <option key={schema.id} value={schema.id.toString()}>
+                            {schema.name} (ID: {schema.id})
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-muted-foreground">
+                        Select a schema to associate your encrypted data with a
+                        specific data structure. This helps refiners process
+                        your data according to the schema definition.
+                      </p>
                     </div>
 
                     <div className="flex items-center justify-between">

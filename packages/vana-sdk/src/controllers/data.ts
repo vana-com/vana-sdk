@@ -461,6 +461,110 @@ export class DataController {
   }
 
   /**
+   * Uploads an encrypted file to storage and registers it on the blockchain with a schema.
+   *
+   * @param encryptedFile - The encrypted file blob to upload
+   * @param schemaId - The schema ID to associate with the file
+   * @param filename - Optional filename for the upload
+   * @param providerName - Optional storage provider to use
+   * @returns Promise resolving to upload result with file ID and storage URL
+   *
+   * @description This method handles the complete flow of:
+   * 1. Uploading the encrypted file to the specified storage provider
+   * 2. Registering the file URL on the DataRegistry contract with a schema ID
+   * 3. Returning the assigned file ID and storage URL
+   */
+  async uploadEncryptedFileWithSchema(
+    encryptedFile: Blob,
+    schemaId: number,
+    filename?: string,
+    providerName?: string,
+  ): Promise<UploadEncryptedFileResult> {
+    try {
+      // Check if storage manager is available
+      if (!this.context.storageManager) {
+        throw new Error(
+          "Storage manager not configured. Please provide storage providers in VanaConfig.",
+        );
+      }
+
+      // Step 1: Upload encrypted file to storage
+      const uploadResult = await this.context.storageManager.upload(
+        encryptedFile,
+        filename,
+        providerName,
+      );
+
+      // Step 2: Register file on blockchain with schema
+      const userAddress = await this.getUserAddress();
+
+      if (this.context.relayerUrl) {
+        // Gasless registration via relayer - need to update relayer to support schema
+        throw new Error(
+          "Relayer does not yet support uploading files with schema. Please use direct transaction mode.",
+        );
+      } else {
+        // Direct transaction (user pays gas)
+        const chainId = this.context.walletClient.chain?.id;
+        if (!chainId) {
+          throw new Error("Chain ID not available");
+        }
+
+        const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
+        const dataRegistryAbi = getAbi("DataRegistry");
+
+        const txHash = await this.context.walletClient.writeContract({
+          address: dataRegistryAddress,
+          abi: dataRegistryAbi,
+          functionName: "addFileWithSchema",
+          args: [uploadResult.url, BigInt(schemaId)],
+          account: this.context.walletClient.account || userAddress,
+          chain: this.context.walletClient.chain || null,
+        });
+
+        // Wait for transaction receipt to parse the FileAdded event
+        const receipt =
+          await this.context.publicClient.waitForTransactionReceipt({
+            hash: txHash,
+            timeout: 30_000, // 30 seconds timeout
+          });
+
+        // Parse the FileAdded event to get the actual fileId
+        let fileId = 0;
+        for (const log of receipt.logs) {
+          try {
+            const decoded = decodeEventLog({
+              abi: dataRegistryAbi,
+              data: log.data,
+              topics: log.topics,
+            });
+
+            if (decoded.eventName === "FileAdded") {
+              fileId = Number(decoded.args.fileId);
+              break;
+            }
+          } catch {
+            // Ignore logs that don't match our ABI
+            continue;
+          }
+        }
+
+        return {
+          fileId: fileId,
+          url: uploadResult.url,
+          size: uploadResult.size,
+          transactionHash: txHash,
+        };
+      }
+    } catch (error) {
+      console.error("Failed to upload encrypted file with schema:", error);
+      throw new Error(
+        `Upload failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
    * Decrypts a file that was encrypted using the Vana protocol.
    *
    * @param file - The UserFile object containing the file URL and metadata
@@ -546,6 +650,78 @@ export class DataController {
       }
 
       throw error;
+    }
+  }
+
+  /**
+   * Registers a file URL directly on the blockchain with a schema ID.
+   *
+   * @param url - The URL of the file to register
+   * @param schemaId - The schema ID to associate with the file
+   * @returns Promise resolving to the file ID and transaction hash
+   *
+   * @description This method registers an existing file URL on the DataRegistry
+   * contract with a schema ID, without uploading any data.
+   */
+  async registerFileWithSchema(
+    url: string,
+    schemaId: number,
+  ): Promise<{ fileId: number; transactionHash: Address }> {
+    try {
+      const chainId = this.context.walletClient.chain?.id;
+      if (!chainId) {
+        throw new Error("Chain ID not available");
+      }
+
+      const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
+      const dataRegistryAbi = getAbi("DataRegistry");
+      const userAddress = await this.getUserAddress();
+
+      const txHash = await this.context.walletClient.writeContract({
+        address: dataRegistryAddress,
+        abi: dataRegistryAbi,
+        functionName: "addFileWithSchema",
+        args: [url, BigInt(schemaId)],
+        account: this.context.walletClient.account || userAddress,
+        chain: this.context.walletClient.chain || null,
+      });
+
+      // Wait for transaction receipt to parse the FileAdded event
+      const receipt = await this.context.publicClient.waitForTransactionReceipt(
+        {
+          hash: txHash,
+          timeout: 30_000,
+        },
+      );
+
+      // Parse the FileAdded event to get the actual fileId
+      let fileId = 0;
+      for (const log of receipt.logs) {
+        try {
+          const decoded = decodeEventLog({
+            abi: dataRegistryAbi,
+            data: log.data,
+            topics: log.topics,
+          });
+
+          if (decoded.eventName === "FileAdded") {
+            fileId = Number(decoded.args.fileId);
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      return {
+        fileId,
+        transactionHash: txHash,
+      };
+    } catch (error) {
+      console.error("Failed to register file with schema:", error);
+      throw new Error(
+        `Registration failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
     }
   }
 
@@ -904,7 +1080,7 @@ export class DataController {
         dlpId: Number(refinerData.dlpId),
         owner: refinerData.owner,
         name: refinerData.name,
-        schemaId: 0, // Note: existing refiners may have empty schemaId
+        schemaId: Number(refinerData.schemaId),
         refinementInstructionUrl: refinerData.refinementInstructionUrl,
       };
     } catch (error) {
@@ -912,6 +1088,41 @@ export class DataController {
       throw new Error(
         `Failed to get refiner ${refinerId}: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
+    }
+  }
+
+  /**
+   * Validates if a schema ID exists in the registry.
+   *
+   * @param schemaId - The schema ID to validate
+   * @returns Promise resolving to boolean indicating if the schema ID is valid
+   */
+  async isValidSchemaId(schemaId: number): Promise<boolean> {
+    try {
+      const chainId = this.context.walletClient.chain?.id;
+      if (!chainId) {
+        throw new Error("Chain ID not available");
+      }
+
+      const dataRefinerRegistryAddress = getContractAddress(
+        chainId,
+        "DataRefinerRegistry",
+      );
+      const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
+
+      const dataRefinerRegistry = getContract({
+        address: dataRefinerRegistryAddress,
+        abi: dataRefinerRegistryAbi,
+        client: this.context.walletClient,
+      });
+
+      const isValid = await dataRefinerRegistry.read.isValidSchemaId([
+        BigInt(schemaId),
+      ]);
+      return isValid;
+    } catch (error) {
+      console.error("Failed to validate schema ID:", error);
+      return false;
     }
   }
 

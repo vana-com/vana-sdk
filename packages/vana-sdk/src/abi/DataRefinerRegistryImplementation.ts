@@ -582,6 +582,25 @@ export const DataRefinerRegistryABI = [
     type: "function",
   },
   {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "schemaId",
+        type: "uint256",
+      },
+    ],
+    name: "isValidSchemaId",
+    outputs: [
+      {
+        internalType: "bool",
+        name: "",
+        type: "bool",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     inputs: [],
     name: "pause",
     outputs: [],
@@ -650,6 +669,11 @@ export const DataRefinerRegistryABI = [
             internalType: "string",
             name: "refinementInstructionUrl",
             type: "string",
+          },
+          {
+            internalType: "uint256",
+            name: "schemaId",
+            type: "uint256",
           },
         ],
         internalType: "struct IDataRefinerRegistry.RefinerInfo",

@@ -86,6 +86,17 @@ export const DataRegistryABI = [
     type: "error",
   },
   {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "schemaId",
+        type: "uint256",
+      },
+    ],
+    name: "InvalidSchemaId",
+    type: "error",
+  },
+  {
     inputs: [],
     name: "InvalidUrl",
     type: "error",
@@ -510,6 +521,76 @@ export const DataRegistryABI = [
       },
     ],
     name: "addFileWithPermissions",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "string",
+        name: "url",
+        type: "string",
+      },
+      {
+        internalType: "address",
+        name: "ownerAddress",
+        type: "address",
+      },
+      {
+        components: [
+          {
+            internalType: "address",
+            name: "account",
+            type: "address",
+          },
+          {
+            internalType: "string",
+            name: "key",
+            type: "string",
+          },
+        ],
+        internalType: "struct IDataRegistry.Permission[]",
+        name: "permissions",
+        type: "tuple[]",
+      },
+      {
+        internalType: "uint256",
+        name: "schemaId",
+        type: "uint256",
+      },
+    ],
+    name: "addFileWithPermissionsAndSchema",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "string",
+        name: "url",
+        type: "string",
+      },
+      {
+        internalType: "uint256",
+        name: "schemaId",
+        type: "uint256",
+      },
+    ],
+    name: "addFileWithSchema",
     outputs: [
       {
         internalType: "uint256",

@@ -85,7 +85,6 @@ export type {
   PermissionAnalytics,
   PermissionEvent,
   Server,
-  AddServerParams,
   TrustServerParams,
   UntrustServerParams,
   TrustServerInput,

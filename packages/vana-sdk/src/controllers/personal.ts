@@ -462,9 +462,6 @@ export class PersonalController {
         return {
           userAddress: parsedOutput.user_address as string,
           identity: {
-            name: undefined,
-            email: undefined,
-            avatar: undefined,
             metadata: {
               derivedAddress: parsedOutput.derived_address as string,
             },

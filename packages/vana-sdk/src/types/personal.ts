@@ -7,6 +7,14 @@ export interface PostRequestParams {
 }
 
 /**
+ * Parameters for the `vana.personal.initPersonalServer` method.
+ */
+export interface InitPersonalServerParams {
+  /** The user's wallet address */
+  userAddress: string;
+}
+
+/**
  * Response from the personal server containing a link to get results or cancel computation.
  */
 export interface ReplicatePredictionResponse {
@@ -25,4 +33,19 @@ export interface ReplicatePredictionResponse {
   output?: unknown;
   /** Optional error if computation failed */
   error?: string;
+}
+
+/**
+ * Response from the personal server containing user identity information.
+ */
+export interface PersonalServerResponse {
+  /** The user's wallet address */
+  userAddress: string;
+  /** The user's identity information */
+  identity: {
+    /** Additional identity metadata */
+    metadata?: Record<string, unknown>;
+  };
+  /** Timestamp when the identity was fetched */
+  timestamp: string;
 }

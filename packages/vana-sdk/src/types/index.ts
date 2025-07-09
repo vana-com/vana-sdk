@@ -60,6 +60,14 @@ export type {
   FileSharingConfig,
   BatchUploadParams,
   BatchUploadResult,
+  Schema,
+  Refiner,
+  AddSchemaParams,
+  AddSchemaResult,
+  AddRefinerParams,
+  AddRefinerResult,
+  UpdateSchemaIdParams,
+  UpdateSchemaIdResult,
 } from "./data";
 
 // Permission types

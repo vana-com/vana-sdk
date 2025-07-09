@@ -215,3 +215,99 @@ export interface BatchUploadResult {
   /** Any errors that occurred */
   errors?: string[];
 }
+
+/**
+ * Represents a data schema in the refiner registry
+ */
+export interface Schema {
+  /** Schema ID */
+  id: number;
+  /** Schema name */
+  name: string;
+  /** Schema type */
+  type: string;
+  /** URL containing the schema definition */
+  definitionUrl: string;
+}
+
+/**
+ * Represents a refiner with schema information
+ */
+export interface Refiner {
+  /** Refiner ID */
+  id: number;
+  /** DLP ID this refiner belongs to */
+  dlpId: number;
+  /** Owner address */
+  owner: Address;
+  /** Refiner name */
+  name: string;
+  /** Schema ID associated with this refiner */
+  schemaId: number;
+  /** URL containing refinement instructions */
+  refinementInstructionUrl: string;
+}
+
+/**
+ * Parameters for adding a new schema
+ */
+export interface AddSchemaParams {
+  /** Schema name */
+  name: string;
+  /** Schema type */
+  type: string;
+  /** URL containing the schema definition */
+  definitionUrl: string;
+}
+
+/**
+ * Result of adding a schema
+ */
+export interface AddSchemaResult {
+  /** The new schema ID assigned by the contract */
+  schemaId: number;
+  /** Transaction hash of the schema registration */
+  transactionHash: Hash;
+}
+
+/**
+ * Parameters for adding a refiner
+ */
+export interface AddRefinerParams {
+  /** DLP ID this refiner belongs to */
+  dlpId: number;
+  /** Refiner name */
+  name: string;
+  /** Schema ID to associate with this refiner */
+  schemaId: number;
+  /** URL containing refinement instructions */
+  refinementInstructionUrl: string;
+}
+
+/**
+ * Result of adding a refiner
+ */
+export interface AddRefinerResult {
+  /** The new refiner ID assigned by the contract */
+  refinerId: number;
+  /** Transaction hash of the refiner registration */
+  transactionHash: Hash;
+}
+
+/**
+ * Parameters for updating a refiner's schema ID
+ */
+export interface UpdateSchemaIdParams {
+  /** Refiner ID to update */
+  refinerId: number;
+  /** New schema ID to associate with the refiner */
+  newSchemaId: number;
+}
+
+/**
+ * Result of updating a refiner's schema ID
+ */
+export interface UpdateSchemaIdResult {
+  /** Transaction hash of the update */
+  transactionHash: Hash;
+}

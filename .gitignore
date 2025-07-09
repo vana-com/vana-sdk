@@ -15,6 +15,7 @@ jspm_packages/
 # Build output
 dist/
 build/
+docs/
 
 # Logs
 logs

@@ -27,7 +27,25 @@ export type MaybePromise<T> = T | Promise<T>;
 export type MaybeArray<T> = T | T[];
 
 /**
- * Pagination parameters
+ * Pagination parameters for controlling result set size and navigation.
+ *
+ * Used across SDK methods that return lists of items to control how many items
+ * are returned and to navigate through large result sets efficiently.
+ *
+ * @category Reference
+ * @example
+ * ```typescript
+ * const pagination: PaginationParams = {
+ *   limit: 20, // Return 20 items
+ *   offset: 40, // Skip first 40 items (page 3)
+ *   cursor: 'eyJpZCI6MTIzfQ==' // Or use cursor-based pagination
+ * };
+ * 
+ * const files = await vana.data.getUserFiles({ 
+ *   owner: userAddress, 
+ *   pagination 
+ * });
+ * ```
  */
 export interface PaginationParams {
   /** Maximum number of items to return */
@@ -239,7 +257,23 @@ export interface GasEstimate {
 }
 
 /**
- * Time range parameters
+ * Time range parameters for filtering operations by time period.
+ *
+ * Used in various SDK methods to specify date/time ranges for queries,
+ * analytics, and data filtering operations. Times are specified as Unix timestamps.
+ *
+ * @category Reference
+ * @example
+ * ```typescript
+ * const lastWeek: TimeRange = {
+ *   from: Date.now() - (7 * 24 * 60 * 60 * 1000), // 7 days ago
+ *   to: Date.now()
+ * };
+ * 
+ * const permissions = await vana.permissions.getUserPermissions({
+ *   timeRange: lastWeek
+ * });
+ * ```
  */
 export interface TimeRange {
   /** Start time (Unix timestamp) */

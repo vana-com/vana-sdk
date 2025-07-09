@@ -1,0 +1,47 @@
+{
+  "entryPoints": [
+    "packages/vana-sdk/src/vana.ts",
+    "packages/vana-sdk/src/controllers/data.ts",
+    "packages/vana-sdk/src/controllers/permissions.ts", 
+    "packages/vana-sdk/src/controllers/protocol.ts",
+    "packages/vana-sdk/src/storage/index.ts",
+    "packages/vana-sdk/src/config/chains.ts",
+    "packages/vana-sdk/src/types/index.ts"
+  ],
+  "out": "docs",
+  "name": "Vana SDK Developer Guide",
+  "readme": "packages/vana-sdk/README.md",
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "excludeProtected": true,
+  "excludeExternals": true,
+  "excludeNotDocumented": true,
+  "categorizeByGroup": true,
+  "defaultCategory": "Reference",
+  "categoryOrder": [
+    "Core SDK",
+    "Data Management", 
+    "Permissions",
+    "Storage",
+    "Configuration",
+    "Advanced",
+    "Reference",
+    "*"
+  ],
+  "sort": ["source-order"],
+  "kindSortOrder": [
+    "Class",
+    "Function",
+    "Variable",
+    "TypeAlias"
+  ],
+  "searchInComments": true,
+  "includeVersion": true,
+  "validation": {
+    "notExported": false,
+    "invalidLink": false,
+    "notDocumented": false
+  },
+  "treatWarningsAsErrors": false,
+  "skipErrorChecking": true
+}

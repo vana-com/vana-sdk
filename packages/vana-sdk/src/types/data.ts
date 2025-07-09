@@ -1,7 +1,13 @@
 import type { Address, Hash } from "viem";
 
 /**
- * Represents a user's registered data file
+ * Represents a user's registered data file in the Vana network.
+ *
+ * This interface describes a file that has been uploaded and registered on-chain,
+ * including its storage location, ownership, and metadata. Used when querying
+ * user files or working with file references.
+ *
+ * @category Data Management
  */
 export interface UserFile {
   /** Unique identifier for the file */
@@ -17,7 +23,12 @@ export interface UserFile {
 }
 
 /**
- * File metadata structure
+ * File metadata structure for uploaded files.
+ *
+ * Contains optional metadata that can be associated with uploaded files,
+ * including file properties and custom application-specific data.
+ *
+ * @category Data Management
  */
 export interface FileMetadata {
   /** Original filename */
@@ -35,7 +46,25 @@ export interface FileMetadata {
 }
 
 /**
- * Parameters for uploading a file
+ * Parameters for uploading a file to a storage provider.
+ *
+ * Used with `DataController.uploadEncryptedFile()` and storage operations.
+ * Files can be uploaded with optional metadata and encryption settings.
+ *
+ * @category Data Management
+ * @example
+ * ```typescript
+ * const uploadParams: UploadFileParams = {
+ *   content: new Uint8Array([1, 2, 3]), // File data
+ *   metadata: {
+ *     name: 'my-data.json',
+ *     mimeType: 'application/json',
+ *     size: 1024
+ *   },
+ *   storageProvider: 'ipfs',
+ *   encrypt: true
+ * };
+ * ```
  */
 export interface UploadFileParams {
   /** File content or buffer */
@@ -217,7 +246,23 @@ export interface BatchUploadResult {
 }
 
 /**
- * Represents a data schema in the refiner registry
+ * Represents a data schema in the refiner registry.
+ *
+ * Schemas define the structure and validation rules for user data processed by refiners.
+ * They ensure data quality and consistency across the Vana network by specifying how
+ * raw user data should be formatted, validated, and processed.
+ *
+ * @category Data Management
+ * @example
+ * ```typescript
+ * const socialMediaSchema: Schema = {
+ *   id: 5,
+ *   name: 'Social Media Profile',
+ *   type: 'JSON',
+ *   url: 'ipfs://QmSchema...', // Schema definition file
+ *   description: 'Schema for validating social media profile data'
+ * };
+ * ```
  */
 export interface Schema {
   /** Schema ID */
@@ -271,7 +316,22 @@ export interface AddSchemaResult {
 }
 
 /**
- * Parameters for adding a refiner
+ * Parameters for registering a new data refiner in the Vana network.
+ *
+ * Refiners are processors that transform and validate user data according to specific
+ * schemas and instructions. They enable applications to work with structured, verified
+ * user data while maintaining privacy and user control.
+ *
+ * @category Data Management
+ * @example
+ * ```typescript
+ * const refinerParams: AddRefinerParams = {
+ *   dlpId: 1, // Data Liquidity Pool ID
+ *   name: 'Social Media Refiner',
+ *   schemaId: 5, // Pre-defined schema for social media data
+ *   refinementInstructionUrl: 'ipfs://Qm...' // Instructions for data processing
+ * };
+ * ```
  */
 export interface AddRefinerParams {
   /** DLP ID this refiner belongs to */

@@ -1,10 +1,3 @@
-/**
- * Storage Manager for Vana SDK
- *
- * Manages multiple storage providers and provides a unified interface
- * for storage operations across different providers.
- */
-
 import {
   StorageProvider,
   StorageUploadResult,
@@ -13,6 +6,38 @@ import {
   StorageError,
 } from "./index";
 
+/**
+ * Unified interface for managing multiple storage providers (IPFS, Google Drive, Pinata, etc.).
+ *
+ * The StorageManager allows you to register different storage backends and provides
+ * a consistent API for uploading, downloading, and managing files across providers.
+ * Used internally by DataController but can also be used directly for custom storage workflows.
+ *
+ * **Common workflows:**
+ * - Register providers: `register()`
+ * - Upload files: `upload()`
+ * - Download files: `download()`
+ * - List files: `list()`
+ * - Switch between providers for different use cases
+ *
+ * @category Storage
+ * @example
+ * ```typescript
+ * import { StorageManager, IPFSStorage, PinataStorage } from 'vana-sdk/storage';
+ * 
+ * const storage = new StorageManager();
+ * 
+ * // Register multiple providers
+ * storage.register('ipfs', new IPFSStorage({ gateway: 'https://gateway.pinata.cloud' }), true);
+ * storage.register('pinata', new PinataStorage({ apiKey: 'your-key', secretKey: 'your-secret' }));
+ * 
+ * // Upload to default provider
+ * const result = await storage.upload(fileBlob, 'myfile.json');
+ * 
+ * // Upload to specific provider
+ * const result2 = await storage.upload(fileBlob, 'myfile.json', 'pinata');
+ * ```
+ */
 export class StorageManager {
   private providers: Map<string, StorageProvider> = new Map();
   private defaultProvider: string | null = null;

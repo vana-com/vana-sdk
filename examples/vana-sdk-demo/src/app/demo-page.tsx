@@ -19,6 +19,11 @@ import {
   PinataStorage,
   ServerIPFSStorage,
   WalletClient,
+  Schema,
+  Refiner,
+  AddSchemaParams,
+  AddRefinerParams,
+  UpdateSchemaIdParams,
 } from "vana-sdk";
 import { Button } from "@/components/ui/button";
 
@@ -172,6 +177,10 @@ export default function Home() {
     "https://gateway.pinata.cloud",
   );
 
+  // Schema selection for file upload
+  const [selectedUploadSchemaId, setSelectedUploadSchemaId] =
+    useState<string>("");
+
   // File lookup state
   const [fileLookupId, setFileLookupId] = useState<string>("");
   const [isLookingUpFile, setIsLookingUpFile] = useState(false);
@@ -200,6 +209,46 @@ export default function Home() {
     useState(false);
   const [personalServerError, setPersonalServerError] = useState<string>("");
   const [personalServerResult, setPersonalServerResult] = useState<string>("");
+
+  // Schema management state
+  const [schemas, setSchemas] = useState<
+    (Schema & { source?: "discovered" | "created" })[]
+  >([]);
+  const [refiners, setRefiners] = useState<
+    (Refiner & { source?: "discovered" | "created" })[]
+  >([]);
+  const [isLoadingSchemas, setIsLoadingSchemas] = useState(false);
+  const [isLoadingRefiners, setIsLoadingRefiners] = useState(false);
+  const [schemasCount, setSchemasCount] = useState(0);
+  const [refinersCount, setRefinersCount] = useState(0);
+
+  // Schema creation state
+  const [schemaName, setSchemaName] = useState<string>("");
+  const [schemaType, setSchemaType] = useState<string>("");
+  const [schemaDefinitionUrl, setSchemaDefinitionUrl] = useState<string>("");
+  const [isCreatingSchema, setIsCreatingSchema] = useState(false);
+  const [schemaStatus, setSchemaStatus] = useState<string>("");
+  const [lastCreatedSchemaId, setLastCreatedSchemaId] = useState<number | null>(
+    null,
+  );
+
+  // Refiner creation state
+  const [refinerName, setRefinerName] = useState<string>("");
+  const [refinerDlpId, setRefinerDlpId] = useState<string>("");
+  const [refinerSchemaId, setRefinerSchemaId] = useState<string>("");
+  const [refinerInstructionUrl, setRefinerInstructionUrl] =
+    useState<string>("");
+  const [isCreatingRefiner, setIsCreatingRefiner] = useState(false);
+  const [refinerStatus, setRefinerStatus] = useState<string>("");
+  const [lastCreatedRefinerId, setLastCreatedRefinerId] = useState<
+    number | null
+  >(null);
+
+  // Schema update state
+  const [updateRefinerId, setUpdateRefinerId] = useState<string>("");
+  const [updateSchemaId, setUpdateSchemaId] = useState<string>("");
+  const [isUpdatingSchema, setIsUpdatingSchema] = useState(false);
+  const [updateSchemaStatus, setUpdateSchemaStatus] = useState<string>("");
 
   // Initialize Vana SDK when wallet is connected or user IPFS config changes
   useEffect(() => {
@@ -829,11 +878,19 @@ export default function Home() {
         ? `${originalFileName}.encrypted`
         : "encrypted-data.bin";
 
-      const result = await vana.data.uploadEncryptedFile(
-        encryptedData,
-        filename,
-        providerName,
-      );
+      // Use schema-aware upload if a schema is selected
+      const result = selectedUploadSchemaId
+        ? await vana.data.uploadEncryptedFileWithSchema(
+            encryptedData,
+            parseInt(selectedUploadSchemaId),
+            filename,
+            providerName,
+          )
+        : await vana.data.uploadEncryptedFile(
+            encryptedData,
+            filename,
+            providerName,
+          );
 
       console.info("✅ File uploaded and registered:", {
         fileId: result.fileId,
@@ -880,6 +937,7 @@ export default function Home() {
     setIsUploadingToChain(false);
     setUploadToChainStatus("");
     setNewFileId(null);
+    setSelectedUploadSchemaId("");
   };
 
   const getExplorerUrl = (txHash: string) => {
@@ -1102,6 +1160,64 @@ export default function Home() {
     }
   };
 
+  const loadSchemas = useCallback(async () => {
+    if (!vana) return;
+
+    setIsLoadingSchemas(true);
+    try {
+      const count = await vana.data.getSchemasCount();
+      setSchemasCount(count);
+
+      // Load first 10 schemas for display
+      const schemaList: (Schema & { source?: "discovered" })[] = [];
+      const maxToLoad = Math.min(count, 10);
+
+      for (let i = 1; i <= maxToLoad; i++) {
+        try {
+          const schema = await vana.data.getSchema(i);
+          schemaList.push({ ...schema, source: "discovered" });
+        } catch (error) {
+          console.warn(`Failed to load schema ${i}:`, error);
+        }
+      }
+
+      setSchemas(schemaList);
+    } catch (error) {
+      console.error("Failed to load schemas:", error);
+    } finally {
+      setIsLoadingSchemas(false);
+    }
+  }, [vana]);
+
+  const loadRefiners = useCallback(async () => {
+    if (!vana) return;
+
+    setIsLoadingRefiners(true);
+    try {
+      const count = await vana.data.getRefinersCount();
+      setRefinersCount(count);
+
+      // Load first 10 refiners for display
+      const refinerList: (Refiner & { source?: "discovered" })[] = [];
+      const maxToLoad = Math.min(count, 10);
+
+      for (let i = 1; i <= maxToLoad; i++) {
+        try {
+          const refiner = await vana.data.getRefiner(i);
+          refinerList.push({ ...refiner, source: "discovered" });
+        } catch (error) {
+          console.warn(`Failed to load refiner ${i}:`, error);
+        }
+      }
+
+      setRefiners(refinerList);
+    } catch (error) {
+      console.error("Failed to load refiners:", error);
+    } finally {
+      setIsLoadingRefiners(false);
+    }
+  }, [vana]);
+
   const handleSetupPersonalServer = async () => {
     if (!address) return;
 
@@ -1157,8 +1273,178 @@ export default function Home() {
   useEffect(() => {
     if (vana && address) {
       loadTrustedServers();
+      loadSchemas();
+      loadRefiners();
     }
-  }, [vana, address]);
+  }, [vana, address, loadSchemas, loadRefiners]);
+
+  // Schema management handlers
+  const handleCreateSchema = async () => {
+    if (
+      !vana ||
+      !schemaName.trim() ||
+      !schemaType.trim() ||
+      !schemaDefinitionUrl.trim()
+    ) {
+      setSchemaStatus("❌ Please fill in all schema fields");
+      return;
+    }
+
+    setIsCreatingSchema(true);
+    setSchemaStatus("Creating schema...");
+
+    try {
+      const params: AddSchemaParams = {
+        name: schemaName,
+        type: schemaType,
+        definitionUrl: schemaDefinitionUrl,
+      };
+
+      const result = await vana.data.addSchema(params);
+      setLastCreatedSchemaId(result.schemaId);
+      setSchemaStatus("");
+
+      // Add to schemas list
+      const newSchema: Schema & { source: "created" } = {
+        id: result.schemaId,
+        name: schemaName,
+        type: schemaType,
+        definitionUrl: schemaDefinitionUrl,
+        source: "created",
+      };
+      setSchemas((prev) => [newSchema, ...prev]);
+
+      // Clear form
+      setSchemaName("");
+      setSchemaType("");
+      setSchemaDefinitionUrl("");
+
+      // Refresh counts
+      setTimeout(() => {
+        loadSchemas();
+      }, 2000);
+    } catch (error) {
+      console.error("Failed to create schema:", error);
+      setSchemaStatus(
+        `❌ Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    } finally {
+      setIsCreatingSchema(false);
+    }
+  };
+
+  const handleCreateRefiner = async () => {
+    if (
+      !vana ||
+      !refinerName.trim() ||
+      !refinerDlpId.trim() ||
+      !refinerSchemaId.trim() ||
+      !refinerInstructionUrl.trim()
+    ) {
+      setRefinerStatus("❌ Please fill in all refiner fields");
+      return;
+    }
+
+    const dlpId = parseInt(refinerDlpId);
+    const schemaId = parseInt(refinerSchemaId);
+
+    if (isNaN(dlpId) || isNaN(schemaId)) {
+      setRefinerStatus("❌ DLP ID and Schema ID must be valid numbers");
+      return;
+    }
+
+    setIsCreatingRefiner(true);
+    setRefinerStatus("Creating refiner...");
+
+    try {
+      const params: AddRefinerParams = {
+        dlpId,
+        name: refinerName,
+        schemaId,
+        refinementInstructionUrl: refinerInstructionUrl,
+      };
+
+      const result = await vana.data.addRefiner(params);
+      setLastCreatedRefinerId(result.refinerId);
+      setRefinerStatus("");
+
+      // Add to refiners list
+      const newRefiner: Refiner & { source: "created" } = {
+        id: result.refinerId,
+        dlpId,
+        owner: address || "0x0", // Current user is the owner
+        name: refinerName,
+        schemaId,
+        refinementInstructionUrl: refinerInstructionUrl,
+        source: "created",
+      };
+      setRefiners((prev) => [newRefiner, ...prev]);
+
+      // Clear form
+      setRefinerName("");
+      setRefinerDlpId("");
+      setRefinerSchemaId("");
+      setRefinerInstructionUrl("");
+
+      // Refresh counts
+      setTimeout(() => {
+        loadRefiners();
+      }, 2000);
+    } catch (error) {
+      console.error("Failed to create refiner:", error);
+      setRefinerStatus(
+        `❌ Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    } finally {
+      setIsCreatingRefiner(false);
+    }
+  };
+
+  const handleUpdateSchemaId = async () => {
+    if (!vana || !updateRefinerId.trim() || !updateSchemaId.trim()) {
+      setUpdateSchemaStatus(
+        "❌ Please provide both refiner ID and new schema ID",
+      );
+      return;
+    }
+
+    const refinerId = parseInt(updateRefinerId);
+    const newSchemaId = parseInt(updateSchemaId);
+
+    if (isNaN(refinerId) || isNaN(newSchemaId)) {
+      setUpdateSchemaStatus("❌ Both IDs must be valid numbers");
+      return;
+    }
+
+    setIsUpdatingSchema(true);
+    setUpdateSchemaStatus("Updating schema ID...");
+
+    try {
+      const params: UpdateSchemaIdParams = {
+        refinerId,
+        newSchemaId,
+      };
+
+      await vana.data.updateSchemaId(params);
+      setUpdateSchemaStatus("");
+
+      // Clear form
+      setUpdateRefinerId("");
+      setUpdateSchemaId("");
+
+      // Refresh refiners list
+      setTimeout(() => {
+        loadRefiners();
+      }, 2000);
+    } catch (error) {
+      console.error("Failed to update schema ID:", error);
+      setUpdateSchemaStatus(
+        `❌ Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    } finally {
+      setIsUpdatingSchema(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -1938,6 +2224,400 @@ export default function Home() {
               </CardContent>
             </Card>
 
+            {/* Schema Management */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Database className="h-5 w-5" />
+                  Schema Management
+                </CardTitle>
+                <CardDescription>
+                  Manage data schemas and refiners for the DataRefinerRegistry.
+                  Create schemas to define data structures, and add refiners
+                  that process data according to those schemas.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Schema Statistics */}
+                <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-primary">
+                      {schemasCount}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Total Schemas
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-primary">
+                      {refinersCount}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Total Refiners
+                    </div>
+                  </div>
+                </div>
+
+                {/* Create Schema */}
+                <div className="space-y-4 p-4 border rounded-lg">
+                  <h4 className="font-medium">Create New Schema</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <Label htmlFor="schema-name">Name</Label>
+                      <Input
+                        id="schema-name"
+                        value={schemaName}
+                        onChange={(e) => setSchemaName(e.target.value)}
+                        placeholder="e.g., User Profile Schema"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="schema-type">Type</Label>
+                      <Input
+                        id="schema-type"
+                        value={schemaType}
+                        onChange={(e) => setSchemaType(e.target.value)}
+                        placeholder="e.g., json-schema"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="schema-url">Definition URL</Label>
+                      <Input
+                        id="schema-url"
+                        value={schemaDefinitionUrl}
+                        onChange={(e) => setSchemaDefinitionUrl(e.target.value)}
+                        placeholder="https://example.com/schema.json"
+                        type="url"
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleCreateSchema}
+                    disabled={
+                      isCreatingSchema ||
+                      !schemaName ||
+                      !schemaType ||
+                      !schemaDefinitionUrl
+                    }
+                  >
+                    {isCreatingSchema ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Database className="h-4 w-4 mr-2" />
+                    )}
+                    Create Schema
+                  </Button>
+                  {schemaStatus && (
+                    <p
+                      className={`text-sm ${schemaStatus.includes("❌") ? "text-destructive" : "text-green-600"}`}
+                    >
+                      {schemaStatus}
+                    </p>
+                  )}
+                  {lastCreatedSchemaId && (
+                    <div className="p-3 bg-green-50 border border-green-200 rounded">
+                      <p className="text-green-700 text-sm">
+                        ✅ Schema created successfully with ID:{" "}
+                        <strong>{lastCreatedSchemaId}</strong>
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Create Refiner */}
+                <div className="space-y-4 p-4 border rounded-lg">
+                  <h4 className="font-medium">Create New Refiner</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="refiner-name">Name</Label>
+                      <Input
+                        id="refiner-name"
+                        value={refinerName}
+                        onChange={(e) => setRefinerName(e.target.value)}
+                        placeholder="e.g., Privacy-Preserving Analytics"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="refiner-dlp-id">DLP ID</Label>
+                      <Input
+                        id="refiner-dlp-id"
+                        value={refinerDlpId}
+                        onChange={(e) => setRefinerDlpId(e.target.value)}
+                        placeholder="e.g., 1"
+                        type="number"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="refiner-schema-id">Schema ID</Label>
+                      <Input
+                        id="refiner-schema-id"
+                        value={refinerSchemaId}
+                        onChange={(e) => setRefinerSchemaId(e.target.value)}
+                        placeholder="e.g., 1"
+                        type="number"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="refiner-instruction-url">
+                        Instruction URL
+                      </Label>
+                      <Input
+                        id="refiner-instruction-url"
+                        value={refinerInstructionUrl}
+                        onChange={(e) =>
+                          setRefinerInstructionUrl(e.target.value)
+                        }
+                        placeholder="https://example.com/instructions.md"
+                        type="url"
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleCreateRefiner}
+                    disabled={
+                      isCreatingRefiner ||
+                      !refinerName ||
+                      !refinerDlpId ||
+                      !refinerSchemaId ||
+                      !refinerInstructionUrl
+                    }
+                  >
+                    {isCreatingRefiner ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Brain className="h-4 w-4 mr-2" />
+                    )}
+                    Create Refiner
+                  </Button>
+                  {refinerStatus && (
+                    <p
+                      className={`text-sm ${refinerStatus.includes("❌") ? "text-destructive" : "text-green-600"}`}
+                    >
+                      {refinerStatus}
+                    </p>
+                  )}
+                  {lastCreatedRefinerId && (
+                    <div className="p-3 bg-green-50 border border-green-200 rounded">
+                      <p className="text-green-700 text-sm">
+                        ✅ Refiner created successfully with ID:{" "}
+                        <strong>{lastCreatedRefinerId}</strong>
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Update Schema ID */}
+                <div className="space-y-4 p-4 border rounded-lg">
+                  <h4 className="font-medium">Update Refiner Schema ID</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Update the schema ID for an existing refiner (useful for
+                    migrating existing refiners to new schema structure).
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="update-refiner-id">Refiner ID</Label>
+                      <Input
+                        id="update-refiner-id"
+                        value={updateRefinerId}
+                        onChange={(e) => setUpdateRefinerId(e.target.value)}
+                        placeholder="e.g., 1"
+                        type="number"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="update-schema-id">New Schema ID</Label>
+                      <Input
+                        id="update-schema-id"
+                        value={updateSchemaId}
+                        onChange={(e) => setUpdateSchemaId(e.target.value)}
+                        placeholder="e.g., 2"
+                        type="number"
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleUpdateSchemaId}
+                    disabled={
+                      isUpdatingSchema || !updateRefinerId || !updateSchemaId
+                    }
+                  >
+                    {isUpdatingSchema ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <RotateCcw className="h-4 w-4 mr-2" />
+                    )}
+                    Update Schema ID
+                  </Button>
+                  {updateSchemaStatus && (
+                    <p
+                      className={`text-sm ${updateSchemaStatus.includes("❌") ? "text-destructive" : "text-green-600"}`}
+                    >
+                      {updateSchemaStatus}
+                    </p>
+                  )}
+                </div>
+
+                {/* Schemas List */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium">
+                      Schemas ({schemas.length} shown)
+                    </h4>
+                    <Button
+                      onClick={loadSchemas}
+                      disabled={isLoadingSchemas}
+                      variant="outline"
+                      size="sm"
+                    >
+                      {isLoadingSchemas ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <RotateCcw className="h-4 w-4 mr-2" />
+                      )}
+                      Refresh
+                    </Button>
+                  </div>
+
+                  {isLoadingSchemas ? (
+                    <div className="text-center py-4">
+                      <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground">
+                        Loading schemas...
+                      </p>
+                    </div>
+                  ) : schemas.length > 0 ? (
+                    <div className="space-y-2">
+                      {schemas.map((schema) => (
+                        <div
+                          key={schema.id}
+                          className="p-3 border rounded bg-muted/30"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline">ID: {schema.id}</Badge>
+                                {schema.source === "created" && (
+                                  <Badge variant="secondary">
+                                    Created by You
+                                  </Badge>
+                                )}
+                              </div>
+                              <h5 className="font-medium mt-1">
+                                {schema.name}
+                              </h5>
+                              <p className="text-sm text-muted-foreground">
+                                Type: {schema.type}
+                              </p>
+                              <a
+                                href={schema.definitionUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm text-blue-600 hover:underline"
+                              >
+                                View Definition
+                              </a>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 text-muted-foreground">
+                      <Database className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p>No schemas found</p>
+                      <p className="text-sm">Create your first schema above</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Refiners List */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium">
+                      Refiners ({refiners.length} shown)
+                    </h4>
+                    <Button
+                      onClick={loadRefiners}
+                      disabled={isLoadingRefiners}
+                      variant="outline"
+                      size="sm"
+                    >
+                      {isLoadingRefiners ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <RotateCcw className="h-4 w-4 mr-2" />
+                      )}
+                      Refresh
+                    </Button>
+                  </div>
+
+                  {isLoadingRefiners ? (
+                    <div className="text-center py-4">
+                      <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground">
+                        Loading refiners...
+                      </p>
+                    </div>
+                  ) : refiners.length > 0 ? (
+                    <div className="space-y-2">
+                      {refiners.map((refiner) => (
+                        <div
+                          key={refiner.id}
+                          className="p-3 border rounded bg-muted/30"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline">
+                                  ID: {refiner.id}
+                                </Badge>
+                                <Badge variant="outline">
+                                  DLP: {refiner.dlpId}
+                                </Badge>
+                                <Badge variant="outline">
+                                  Schema: {refiner.schemaId}
+                                </Badge>
+                                {refiner.source === "created" && (
+                                  <Badge variant="secondary">
+                                    Created by You
+                                  </Badge>
+                                )}
+                              </div>
+                              <h5 className="font-medium mt-1">
+                                {refiner.name}
+                              </h5>
+                              <div className="text-sm text-muted-foreground">
+                                <AddressDisplay
+                                  address={refiner.owner}
+                                  showCopy={false}
+                                  showExternalLink={false}
+                                  className="inline"
+                                />
+                              </div>
+                              <a
+                                href={refiner.refinementInstructionUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm text-blue-600 hover:underline"
+                              >
+                                View Instructions
+                              </a>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 text-muted-foreground">
+                      <Brain className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p>No refiners found</p>
+                      <p className="text-sm">Create your first refiner above</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Personal Server */}
             <Card>
               <CardHeader>
@@ -2425,6 +3105,32 @@ export default function Home() {
                           </div>
                         </div>
                       )}
+                    </div>
+
+                    {/* Schema Selection */}
+                    <div className="space-y-2">
+                      <Label htmlFor="upload-schema">Schema (Optional):</Label>
+                      <select
+                        id="upload-schema"
+                        value={selectedUploadSchemaId}
+                        onChange={(e) =>
+                          setSelectedUploadSchemaId(e.target.value)
+                        }
+                        disabled={isUploadingToChain || isLoadingSchemas}
+                        className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm"
+                      >
+                        <option value="">No schema (unstructured data)</option>
+                        {schemas.map((schema) => (
+                          <option key={schema.id} value={schema.id.toString()}>
+                            {schema.name} (ID: {schema.id})
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-muted-foreground">
+                        Select a schema to associate your encrypted data with a
+                        specific data structure. This helps refiners process
+                        your data according to the schema definition.
+                      </p>
                     </div>
 
                     <div className="flex items-center justify-between">

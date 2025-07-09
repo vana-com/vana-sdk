@@ -40,6 +40,7 @@ vi.mock("viem", () => ({
   })),
   http: vi.fn(),
   createWalletClient: vi.fn(),
+  decodeEventLog: vi.fn(),
 }));
 
 vi.mock("viem/accounts", () => ({
@@ -1447,4 +1448,805 @@ describe("DataController", () => {
 
   // Note: Grant files non-Error exception tests are in utils-grantFiles.test.ts
   // as they require specific mocking to trigger the outer catch block
+
+  describe("Schema Management", () => {
+    const mockSchema = {
+      id: 1,
+      name: "Test Schema",
+      type: "json",
+      definitionUrl: "https://example.com/schema.json",
+    };
+
+    beforeEach(() => {
+      // Reset all mocks for schema tests
+      vi.clearAllMocks();
+    });
+
+    it("should add schema successfully", async () => {
+      // Mock decodeEventLog to simulate SchemaAdded event
+      const { decodeEventLog } = await import("viem");
+      vi.mocked(decodeEventLog).mockReturnValue({
+        eventName: "SchemaAdded",
+        args: { schemaId: BigInt(1) },
+      } as any);
+
+      // Mock the public client to return a receipt with logs
+      mockPublicClient.waitForTransactionReceipt = vi.fn().mockResolvedValue({
+        logs: [
+          {
+            data: "0x",
+            topics: ["0x1234567890abcdef"],
+          },
+        ],
+      });
+
+      const result = await controller.addSchema({
+        name: mockSchema.name,
+        type: mockSchema.type,
+        definitionUrl: mockSchema.definitionUrl,
+      });
+
+      expect(result.schemaId).toBe(1);
+      expect(result.transactionHash).toBe("0xtxhash");
+      expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          functionName: "addSchema",
+          args: [mockSchema.name, mockSchema.type, mockSchema.definitionUrl],
+        }),
+      );
+    });
+
+    it("should get schema by ID", async () => {
+      const { getContract } = await import("viem");
+      vi.mocked(getContract).mockReturnValueOnce({
+        read: {
+          schemas: vi.fn().mockResolvedValue({
+            name: mockSchema.name,
+            typ: mockSchema.type, // Note: contract uses 'typ' not 'type'
+            definitionUrl: mockSchema.definitionUrl,
+          }),
+        },
+      } as any);
+
+      const result = await controller.getSchema(mockSchema.id);
+
+      expect(result).toEqual(mockSchema);
+    });
+
+    it("should handle schema not found", async () => {
+      const { getContract } = await import("viem");
+      vi.mocked(getContract).mockReturnValueOnce({
+        read: {
+          schemas: vi.fn().mockResolvedValue(null), // null means not found
+        },
+      } as any);
+
+      await expect(controller.getSchema(999)).rejects.toThrow(
+        "Schema not found",
+      );
+    });
+
+    it("should get schemas count", async () => {
+      const { getContract } = await import("viem");
+      vi.mocked(getContract).mockReturnValueOnce({
+        read: {
+          schemasCount: vi.fn().mockResolvedValue(BigInt(5)),
+        },
+      } as any);
+
+      const result = await controller.getSchemasCount();
+
+      expect(result).toBe(5);
+    });
+
+    it("should add refiner with schema ID", async () => {
+      // Mock decodeEventLog to simulate RefinerAdded event
+      const { decodeEventLog } = await import("viem");
+      vi.mocked(decodeEventLog).mockReturnValue({
+        eventName: "RefinerAdded",
+        args: { refinerId: BigInt(1) },
+      } as any);
+
+      // Mock the public client to return a receipt with logs
+      mockPublicClient.waitForTransactionReceipt = vi.fn().mockResolvedValue({
+        logs: [
+          {
+            data: "0x",
+            topics: ["0x1234567890abcdef"],
+          },
+        ],
+      });
+
+      const result = await controller.addRefiner({
+        dlpId: 1,
+        name: "Test Refiner",
+        schemaId: 1,
+        refinementInstructionUrl: "https://example.com/instructions",
+      });
+
+      expect(result.refinerId).toBe(1);
+      expect(result.transactionHash).toBe("0xtxhash");
+      expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          functionName: "addRefiner",
+          args: [
+            BigInt(1),
+            "Test Refiner",
+            BigInt(1),
+            "https://example.com/instructions",
+          ],
+        }),
+      );
+    });
+
+    it("should update schema ID for existing refiner", async () => {
+      const result = await controller.updateSchemaId({
+        refinerId: 1,
+        newSchemaId: 2,
+      });
+
+      expect(result.transactionHash).toBe("0xtxhash");
+      expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          functionName: "updateSchemaId",
+          args: [BigInt(1), BigInt(2)],
+        }),
+      );
+    });
+
+    it("should get refiner with schema details", async () => {
+      const { getContract } = await import("viem");
+      vi.mocked(getContract).mockReturnValueOnce({
+        read: {
+          refiners: vi.fn().mockResolvedValue({
+            dlpId: BigInt(1),
+            owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+            name: "Test Refiner",
+            schemaId: BigInt(0),
+            refinementInstructionUrl: "https://example.com/instructions",
+          }),
+        },
+      } as any);
+
+      const result = await controller.getRefiner(1);
+
+      expect(result).toEqual({
+        id: 1,
+        dlpId: 1,
+        owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        name: "Test Refiner",
+        schemaId: 0, // Note: existing refiners may have empty schemaId
+        refinementInstructionUrl: "https://example.com/instructions",
+      });
+    });
+
+    it("should handle missing chainId for schema operations", async () => {
+      const contextWithoutChain = {
+        ...mockContext,
+        walletClient: {
+          ...mockWalletClient,
+          chain: undefined,
+        },
+      };
+
+      const controllerWithoutChain = new DataController(contextWithoutChain);
+
+      await expect(
+        controllerWithoutChain.addSchema({
+          name: "Test Schema",
+          type: "json",
+          definitionUrl: "https://example.com/schema.json",
+        }),
+      ).rejects.toThrow("Chain ID not available");
+
+      await expect(controllerWithoutChain.getSchema(1)).rejects.toThrow(
+        "Chain ID not available",
+      );
+
+      // getSchemasCount catches errors and returns 0, so test that behavior
+      const result = await controllerWithoutChain.getSchemasCount();
+      expect(result).toBe(0);
+    });
+
+    it("should validate schema ID", async () => {
+      const { getContract } = await import("viem");
+      vi.mocked(getContract).mockReturnValueOnce({
+        read: {
+          isValidSchemaId: vi.fn().mockResolvedValue(true),
+        },
+      } as any);
+
+      const result = await controller.isValidSchemaId(1);
+      expect(result).toBe(true);
+    });
+
+    it("should handle schema validation error gracefully", async () => {
+      const { getContract } = await import("viem");
+      vi.mocked(getContract).mockReturnValueOnce({
+        read: {
+          isValidSchemaId: vi
+            .fn()
+            .mockRejectedValue(new Error("Contract error")),
+        },
+      } as any);
+
+      const result = await controller.isValidSchemaId(1);
+      expect(result).toBe(false);
+    });
+
+    it("should upload encrypted file with schema", async () => {
+      // Mock storage manager
+      const mockStorageManager = {
+        upload: vi.fn().mockResolvedValue({
+          url: "https://ipfs.io/ipfs/test-hash",
+          size: 1024,
+        }),
+        providers: new Map(),
+        defaultProvider: "test",
+        register: vi.fn(),
+        getProvider: vi.fn(),
+        setDefaultProvider: vi.fn(),
+        listProviders: vi.fn(),
+        downloadByUrl: vi.fn(),
+        downloadByProvider: vi.fn(),
+        downloadFromUrl: vi.fn(),
+        uploadToProvider: vi.fn(),
+        uploadToDefaultProvider: vi.fn(),
+        uploadWithMetadata: vi.fn(),
+        uploadMultipleFiles: vi.fn(),
+      } as any;
+
+      const contextWithStorage = {
+        ...mockContext,
+        storageManager: mockStorageManager,
+        relayerUrl: undefined, // Ensure no relayer to test direct mode
+      };
+
+      const controllerWithStorage = new DataController(contextWithStorage);
+
+      const { decodeEventLog } = await import("viem");
+      vi.mocked(decodeEventLog).mockReturnValueOnce({
+        eventName: "FileAdded",
+        args: { fileId: BigInt(123) },
+      } as any);
+
+      vi.mocked(
+        mockContext.publicClient.waitForTransactionReceipt,
+      ).mockResolvedValueOnce({
+        logs: [
+          {
+            data: "0x123",
+            topics: ["0x456"],
+          },
+        ],
+      } as any);
+
+      const testFile = new Blob(["test data"], { type: "text/plain" });
+      const result = await controllerWithStorage.uploadEncryptedFileWithSchema(
+        testFile,
+        1,
+        "test.txt",
+      );
+
+      expect(result).toEqual({
+        fileId: 123,
+        url: "https://ipfs.io/ipfs/test-hash",
+        size: 1024,
+        transactionHash: "0xtxhash",
+      });
+
+      expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          functionName: "addFileWithSchema",
+          args: ["https://ipfs.io/ipfs/test-hash", BigInt(1)],
+        }),
+      );
+    });
+
+    it("should register file with schema", async () => {
+      const { decodeEventLog } = await import("viem");
+      vi.mocked(decodeEventLog).mockReturnValueOnce({
+        eventName: "FileAdded",
+        args: { fileId: BigInt(123) },
+      } as any);
+
+      vi.mocked(
+        mockContext.publicClient.waitForTransactionReceipt,
+      ).mockResolvedValueOnce({
+        logs: [
+          {
+            data: "0x123",
+            topics: ["0x456"],
+          },
+        ],
+      } as any);
+
+      const result = await controller.registerFileWithSchema(
+        "https://example.com/file.json",
+        2,
+      );
+
+      expect(result).toEqual({
+        fileId: 123,
+        transactionHash: "0xtxhash",
+      });
+
+      expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          functionName: "addFileWithSchema",
+          args: ["https://example.com/file.json", BigInt(2)],
+        }),
+      );
+    });
+
+    it("should handle missing storage manager for schema upload", async () => {
+      const contextWithoutStorage = {
+        ...mockContext,
+        storageManager: undefined,
+      };
+
+      const controllerWithoutStorage = new DataController(
+        contextWithoutStorage,
+      );
+      const testFile = new Blob(["test data"], { type: "text/plain" });
+
+      await expect(
+        controllerWithoutStorage.uploadEncryptedFileWithSchema(testFile, 1),
+      ).rejects.toThrow("Storage manager not configured");
+    });
+
+    it("should handle missing chainId for schema upload", async () => {
+      const mockStorageManager = {
+        upload: vi.fn().mockResolvedValue({
+          url: "https://ipfs.io/ipfs/test-hash",
+          size: 1024,
+        }),
+        providers: new Map(),
+        defaultProvider: "test",
+        register: vi.fn(),
+        getProvider: vi.fn(),
+        setDefaultProvider: vi.fn(),
+        listProviders: vi.fn(),
+        downloadByUrl: vi.fn(),
+        downloadByProvider: vi.fn(),
+        downloadFromUrl: vi.fn(),
+        uploadToProvider: vi.fn(),
+        uploadToDefaultProvider: vi.fn(),
+        uploadWithMetadata: vi.fn(),
+        uploadMultipleFiles: vi.fn(),
+      } as any;
+
+      const contextWithoutChain = {
+        ...mockContext,
+        storageManager: mockStorageManager,
+        relayerUrl: undefined, // Ensure no relayer to test chain ID check
+        walletClient: {
+          ...mockWalletClient,
+          chain: undefined,
+        },
+      };
+
+      const controllerWithoutChain = new DataController(contextWithoutChain);
+      const testFile = new Blob(["test data"], { type: "text/plain" });
+
+      await expect(
+        controllerWithoutChain.uploadEncryptedFileWithSchema(testFile, 1),
+      ).rejects.toThrow("Chain ID not available");
+    });
+
+    it("should handle missing chainId for registerFileWithSchema", async () => {
+      const contextWithoutChain = {
+        ...mockContext,
+        walletClient: {
+          ...mockWalletClient,
+          chain: undefined,
+        },
+      };
+
+      const controllerWithoutChain = new DataController(contextWithoutChain);
+
+      await expect(
+        controllerWithoutChain.registerFileWithSchema(
+          "https://example.com/file.json",
+          1,
+        ),
+      ).rejects.toThrow("Chain ID not available");
+    });
+
+    it("should handle writeContract failure for schema upload", async () => {
+      const mockStorageManager = {
+        upload: vi.fn().mockResolvedValue({
+          url: "https://ipfs.io/ipfs/test-hash",
+          size: 1024,
+        }),
+        providers: new Map(),
+        defaultProvider: "test",
+        register: vi.fn(),
+        getProvider: vi.fn(),
+        setDefaultProvider: vi.fn(),
+        listProviders: vi.fn(),
+        downloadByUrl: vi.fn(),
+        downloadByProvider: vi.fn(),
+        downloadFromUrl: vi.fn(),
+        uploadToProvider: vi.fn(),
+        uploadToDefaultProvider: vi.fn(),
+        uploadWithMetadata: vi.fn(),
+        uploadMultipleFiles: vi.fn(),
+      } as any;
+
+      const contextWithStorage = {
+        ...mockContext,
+        storageManager: mockStorageManager,
+        relayerUrl: undefined,
+      };
+
+      const controllerWithStorage = new DataController(contextWithStorage);
+
+      // Mock writeContract to fail
+      vi.mocked(mockWalletClient.writeContract).mockRejectedValueOnce(
+        new Error("Transaction failed"),
+      );
+
+      const testFile = new Blob(["test data"], { type: "text/plain" });
+
+      await expect(
+        controllerWithStorage.uploadEncryptedFileWithSchema(testFile, 1),
+      ).rejects.toThrow("Upload failed: Transaction failed");
+    });
+
+    it("should handle writeContract failure for registerFileWithSchema", async () => {
+      // Mock writeContract to fail
+      vi.mocked(mockWalletClient.writeContract).mockRejectedValueOnce(
+        new Error("Registration failed"),
+      );
+
+      await expect(
+        controller.registerFileWithSchema("https://example.com/file.json", 1),
+      ).rejects.toThrow("Registration failed: Registration failed");
+    });
+
+    it("should handle missing chainId for isValidSchemaId", async () => {
+      const contextWithoutChain = {
+        ...mockContext,
+        walletClient: {
+          ...mockWalletClient,
+          chain: undefined,
+        },
+      };
+
+      const controllerWithoutChain = new DataController(contextWithoutChain);
+
+      const result = await controllerWithoutChain.isValidSchemaId(1);
+      expect(result).toBe(false);
+    });
+
+    it("should handle event parsing failure in schema upload", async () => {
+      const mockStorageManager = {
+        upload: vi.fn().mockResolvedValue({
+          url: "https://ipfs.io/ipfs/test-hash",
+          size: 1024,
+        }),
+        providers: new Map(),
+        defaultProvider: "test",
+        register: vi.fn(),
+        getProvider: vi.fn(),
+        setDefaultProvider: vi.fn(),
+        listProviders: vi.fn(),
+        downloadByUrl: vi.fn(),
+        downloadByProvider: vi.fn(),
+        downloadFromUrl: vi.fn(),
+        uploadToProvider: vi.fn(),
+        uploadToDefaultProvider: vi.fn(),
+        uploadWithMetadata: vi.fn(),
+        uploadMultipleFiles: vi.fn(),
+      } as any;
+
+      const contextWithStorage = {
+        ...mockContext,
+        storageManager: mockStorageManager,
+        relayerUrl: undefined,
+      };
+
+      const controllerWithStorage = new DataController(contextWithStorage);
+
+      const { decodeEventLog } = await import("viem");
+
+      // Mock decodeEventLog to always throw (no valid events)
+      vi.mocked(decodeEventLog).mockImplementation(() => {
+        throw new Error("No matching event");
+      });
+
+      vi.mocked(
+        mockContext.publicClient.waitForTransactionReceipt,
+      ).mockResolvedValueOnce({
+        logs: [
+          {
+            data: "0x123",
+            topics: ["0x456"],
+          },
+        ],
+      } as any);
+
+      const testFile = new Blob(["test data"], { type: "text/plain" });
+      const result = await controllerWithStorage.uploadEncryptedFileWithSchema(
+        testFile,
+        1,
+        "test.txt",
+      );
+
+      // Should return with fileId 0 when no event can be parsed
+      expect(result).toEqual({
+        fileId: 0,
+        url: "https://ipfs.io/ipfs/test-hash",
+        size: 1024,
+        transactionHash: "0xtxhash",
+      });
+    });
+
+    it("should handle event parsing failure in registerFileWithSchema", async () => {
+      const { decodeEventLog } = await import("viem");
+
+      // Mock decodeEventLog to always throw (no valid events)
+      vi.mocked(decodeEventLog).mockImplementation(() => {
+        throw new Error("No matching event");
+      });
+
+      vi.mocked(
+        mockContext.publicClient.waitForTransactionReceipt,
+      ).mockResolvedValueOnce({
+        logs: [
+          {
+            data: "0x123",
+            topics: ["0x456"],
+          },
+        ],
+      } as any);
+
+      const result = await controller.registerFileWithSchema(
+        "https://example.com/file.json",
+        2,
+      );
+
+      // Should return with fileId 0 when no event can be parsed
+      expect(result).toEqual({
+        fileId: 0,
+        transactionHash: "0xtxhash",
+      });
+    });
+
+    it("should handle storage upload failure for schema upload", async () => {
+      const mockStorageManager = {
+        upload: vi.fn().mockRejectedValue(new Error("Storage upload failed")),
+        providers: new Map(),
+        defaultProvider: "test",
+        register: vi.fn(),
+        getProvider: vi.fn(),
+        setDefaultProvider: vi.fn(),
+        listProviders: vi.fn(),
+        downloadByUrl: vi.fn(),
+        downloadByProvider: vi.fn(),
+        downloadFromUrl: vi.fn(),
+        uploadToProvider: vi.fn(),
+        uploadToDefaultProvider: vi.fn(),
+        uploadWithMetadata: vi.fn(),
+        uploadMultipleFiles: vi.fn(),
+      } as any;
+
+      const contextWithStorage = {
+        ...mockContext,
+        storageManager: mockStorageManager,
+        relayerUrl: undefined,
+      };
+
+      const controllerWithStorage = new DataController(contextWithStorage);
+      const testFile = new Blob(["test data"], { type: "text/plain" });
+
+      await expect(
+        controllerWithStorage.uploadEncryptedFileWithSchema(testFile, 1),
+      ).rejects.toThrow("Upload failed: Storage upload failed");
+    });
+
+    it("should handle no logs in transaction receipt for schema upload", async () => {
+      const mockStorageManager = {
+        upload: vi.fn().mockResolvedValue({
+          url: "https://ipfs.io/ipfs/test-hash",
+          size: 1024,
+        }),
+        providers: new Map(),
+        defaultProvider: "test",
+        register: vi.fn(),
+        getProvider: vi.fn(),
+        setDefaultProvider: vi.fn(),
+        listProviders: vi.fn(),
+        downloadByUrl: vi.fn(),
+        downloadByProvider: vi.fn(),
+        downloadFromUrl: vi.fn(),
+        uploadToProvider: vi.fn(),
+        uploadToDefaultProvider: vi.fn(),
+        uploadWithMetadata: vi.fn(),
+        uploadMultipleFiles: vi.fn(),
+      } as any;
+
+      const contextWithStorage = {
+        ...mockContext,
+        storageManager: mockStorageManager,
+        relayerUrl: undefined,
+      };
+
+      const controllerWithStorage = new DataController(contextWithStorage);
+
+      vi.mocked(
+        mockContext.publicClient.waitForTransactionReceipt,
+      ).mockResolvedValueOnce({
+        logs: [], // No logs
+      } as any);
+
+      const testFile = new Blob(["test data"], { type: "text/plain" });
+      const result = await controllerWithStorage.uploadEncryptedFileWithSchema(
+        testFile,
+        1,
+        "test.txt",
+      );
+
+      // Should return with fileId 0 when no logs
+      expect(result).toEqual({
+        fileId: 0,
+        url: "https://ipfs.io/ipfs/test-hash",
+        size: 1024,
+        transactionHash: "0xtxhash",
+      });
+    });
+
+    it("should handle no logs in transaction receipt for registerFileWithSchema", async () => {
+      vi.mocked(
+        mockContext.publicClient.waitForTransactionReceipt,
+      ).mockResolvedValueOnce({
+        logs: [], // No logs
+      } as any);
+
+      const result = await controller.registerFileWithSchema(
+        "https://example.com/file.json",
+        2,
+      );
+
+      // Should return with fileId 0 when no logs
+      expect(result).toEqual({
+        fileId: 0,
+        transactionHash: "0xtxhash",
+      });
+    });
+
+    it("should handle non-FileAdded event in logs for schema upload", async () => {
+      const mockStorageManager = {
+        upload: vi.fn().mockResolvedValue({
+          url: "https://ipfs.io/ipfs/test-hash",
+          size: 1024,
+        }),
+        providers: new Map(),
+        defaultProvider: "test",
+        register: vi.fn(),
+        getProvider: vi.fn(),
+        setDefaultProvider: vi.fn(),
+        listProviders: vi.fn(),
+        downloadByUrl: vi.fn(),
+        downloadByProvider: vi.fn(),
+        downloadFromUrl: vi.fn(),
+        uploadToProvider: vi.fn(),
+        uploadToDefaultProvider: vi.fn(),
+        uploadWithMetadata: vi.fn(),
+        uploadMultipleFiles: vi.fn(),
+      } as any;
+
+      const contextWithStorage = {
+        ...mockContext,
+        storageManager: mockStorageManager,
+        relayerUrl: undefined,
+      };
+
+      const controllerWithStorage = new DataController(contextWithStorage);
+
+      const { decodeEventLog } = await import("viem");
+
+      // Mock decodeEventLog to return different event
+      vi.mocked(decodeEventLog).mockReturnValueOnce({
+        eventName: "DifferentEvent",
+        args: { someOtherField: BigInt(999) },
+      } as any);
+
+      vi.mocked(
+        mockContext.publicClient.waitForTransactionReceipt,
+      ).mockResolvedValueOnce({
+        logs: [
+          {
+            data: "0x123",
+            topics: ["0x456"],
+          },
+        ],
+      } as any);
+
+      const testFile = new Blob(["test data"], { type: "text/plain" });
+      const result = await controllerWithStorage.uploadEncryptedFileWithSchema(
+        testFile,
+        1,
+        "test.txt",
+      );
+
+      // Should return with fileId 0 when event is not FileAdded
+      expect(result).toEqual({
+        fileId: 0,
+        url: "https://ipfs.io/ipfs/test-hash",
+        size: 1024,
+        transactionHash: "0xtxhash",
+      });
+    });
+
+    it("should handle non-FileAdded event in logs for registerFileWithSchema", async () => {
+      const { decodeEventLog } = await import("viem");
+
+      // Mock decodeEventLog to return different event
+      vi.mocked(decodeEventLog).mockReturnValueOnce({
+        eventName: "DifferentEvent",
+        args: { someOtherField: BigInt(999) },
+      } as any);
+
+      vi.mocked(
+        mockContext.publicClient.waitForTransactionReceipt,
+      ).mockResolvedValueOnce({
+        logs: [
+          {
+            data: "0x123",
+            topics: ["0x456"],
+          },
+        ],
+      } as any);
+
+      const result = await controller.registerFileWithSchema(
+        "https://example.com/file.json",
+        2,
+      );
+
+      // Should return with fileId 0 when event is not FileAdded
+      expect(result).toEqual({
+        fileId: 0,
+        transactionHash: "0xtxhash",
+      });
+    });
+
+    it("should throw error when uploading with schema via relayer", async () => {
+      const mockStorageManager = {
+        upload: vi.fn().mockResolvedValue({
+          url: "https://ipfs.io/ipfs/test-hash",
+          size: 1024,
+        }),
+        providers: new Map(),
+        defaultProvider: "test",
+        register: vi.fn(),
+        getProvider: vi.fn(),
+        setDefaultProvider: vi.fn(),
+        listProviders: vi.fn(),
+        downloadByUrl: vi.fn(),
+        downloadByProvider: vi.fn(),
+        downloadFromUrl: vi.fn(),
+        uploadToProvider: vi.fn(),
+        uploadToDefaultProvider: vi.fn(),
+        uploadWithMetadata: vi.fn(),
+        uploadMultipleFiles: vi.fn(),
+      } as any;
+
+      const contextWithRelayer = {
+        ...mockContext,
+        storageManager: mockStorageManager,
+        relayerUrl: "https://relayer.example.com",
+      };
+
+      const controllerWithRelayer = new DataController(contextWithRelayer);
+      const testFile = new Blob(["test data"], { type: "text/plain" });
+
+      await expect(
+        controllerWithRelayer.uploadEncryptedFileWithSchema(testFile, 1),
+      ).rejects.toThrow(
+        "Relayer does not yet support uploading files with schema",
+      );
+    });
+  });
 });

@@ -18,6 +18,9 @@ import {
   generateEncryptionKey,
   decryptUserData,
   DEFAULT_ENCRYPTION_SEED,
+  encryptUserData,
+  encryptWithWalletPublicKey,
+  decryptWithWalletPrivateKey,
 } from "../utils/encryption";
 
 /**
@@ -1229,6 +1232,284 @@ export class DataController {
       console.error("Failed to update schema ID:", error);
       throw new Error(
         `Failed to update schema ID: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Uploads an encrypted file and grants permission to a party with a public key.
+   *
+   * This method handles the complete workflow:
+   * 1. Encrypts the file with the user's encryption key
+   * 2. Uploads the encrypted file to storage
+   * 3. Encrypts the user's encryption key with the provided public key
+   * 4. Registers the file with permissions
+   *
+   * @param data - The file data to encrypt and upload
+   * @param permissions - Array of permissions to grant, each with account address and public key
+   * @param filename - Optional filename for the upload
+   * @param providerName - Optional storage provider to use
+   * @returns Promise resolving to upload result with file ID and storage URL
+   */
+  async uploadFileWithPermissions(
+    data: Blob,
+    permissions: Array<{ account: Address; publicKey: string }>,
+    filename?: string,
+    providerName?: string,
+  ): Promise<UploadEncryptedFileResult> {
+    try {
+      // 1. Generate user's encryption key
+      const userEncryptionKey = await generateEncryptionKey(
+        this.context.walletClient,
+        DEFAULT_ENCRYPTION_SEED,
+      );
+
+      // 2. Encrypt data with user's key
+      const encryptedData = await encryptUserData(data, userEncryptionKey);
+
+      // 3. Upload the encrypted file
+      if (!this.context.storageManager) {
+        throw new Error(
+          "Storage manager not configured. Please provide storage providers in VanaConfig.",
+        );
+      }
+
+      const uploadResult = await this.context.storageManager.upload(
+        encryptedData,
+        filename,
+        providerName,
+      );
+
+      // 4. Get user address
+      const userAddress = await this.getUserAddress();
+
+      // 5. Encrypt user's encryption key for each permission
+      const encryptedPermissions = await Promise.all(
+        permissions.map(async (permission) => {
+          const encryptedKey = await encryptWithWalletPublicKey(
+            userEncryptionKey,
+            permission.publicKey,
+          );
+          return {
+            account: permission.account,
+            key: encryptedKey,
+          };
+        }),
+      );
+
+      // 6. Register file with permissions
+      const result = await this.addFileWithPermissions(
+        uploadResult.url,
+        userAddress,
+        encryptedPermissions,
+      );
+
+      return {
+        fileId: result.fileId,
+        url: uploadResult.url,
+        size: uploadResult.size,
+        transactionHash: result.transactionHash as `0x${string}`,
+      };
+    } catch (error) {
+      console.error("Failed to upload file with permissions:", error);
+      throw new Error(
+        `Failed to upload file with permissions: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Adds a permission for a party to access an existing file.
+   *
+   * This method handles the complete workflow:
+   * 1. Gets the user's encryption key
+   * 2. Encrypts the user's encryption key with the provided public key
+   * 3. Adds the permission to the file
+   *
+   * @param fileId - The ID of the file to add permissions for
+   * @param account - The address of the account to grant permission to
+   * @param publicKey - The public key to encrypt the user's encryption key with
+   * @returns Promise resolving to the transaction hash
+   */
+  async addPermissionToFile(
+    fileId: number,
+    account: Address,
+    publicKey: string,
+  ): Promise<string> {
+    try {
+      // 1. Generate user's encryption key
+      const userEncryptionKey = await generateEncryptionKey(
+        this.context.walletClient,
+        DEFAULT_ENCRYPTION_SEED,
+      );
+
+      // 2. Encrypt user's encryption key with provided public key
+      const encryptedKey = await encryptWithWalletPublicKey(
+        userEncryptionKey,
+        publicKey,
+      );
+
+      // 3. Add permission to the file
+      const chainId = this.context.walletClient.chain?.id;
+      if (!chainId) {
+        throw new Error("Chain ID not available");
+      }
+
+      const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
+      const dataRegistryAbi = getAbi("DataRegistry");
+
+      const txHash = await this.context.walletClient.writeContract({
+        address: dataRegistryAddress,
+        abi: dataRegistryAbi,
+        functionName: "addFilePermission",
+        args: [BigInt(fileId), account, encryptedKey],
+        account:
+          this.context.walletClient.account || (await this.getUserAddress()),
+        chain: this.context.walletClient.chain || null,
+      });
+
+      return txHash;
+    } catch (error) {
+      console.error("Failed to add permission to file:", error);
+      throw new Error(
+        `Failed to add permission to file: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Gets the encrypted key for a specific account's permission to access a file.
+   *
+   * @param fileId - The ID of the file
+   * @param account - The account address to get the permission for
+   * @returns Promise resolving to the encrypted key for that account
+   */
+  async getFilePermission(fileId: number, account: Address): Promise<string> {
+    try {
+      const chainId = this.context.walletClient.chain?.id;
+      if (!chainId) {
+        throw new Error("Chain ID not available");
+      }
+
+      const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
+      const dataRegistryAbi = getAbi("DataRegistry");
+
+      const dataRegistry = getContract({
+        address: dataRegistryAddress,
+        abi: dataRegistryAbi,
+        client: this.context.walletClient,
+      });
+
+      const encryptedKey = await dataRegistry.read.filePermissions([
+        BigInt(fileId),
+        account,
+      ]);
+
+      return encryptedKey as string;
+    } catch (error) {
+      console.error("Failed to get file permission:", error);
+      throw new Error(
+        `Failed to get file permission: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Gets the trusted server public key for a given server address.
+   * This method reads from the permissions contract to find servers and their public keys.
+   *
+   * @param serverAddress - The address of the trusted server
+   * @returns Promise resolving to the server's public key
+   */
+  async getTrustedServerPublicKey(_serverAddress: Address): Promise<string> {
+    try {
+      const chainId = this.context.walletClient.chain?.id;
+      if (!chainId) {
+        throw new Error("Chain ID not available");
+      }
+
+      // TODO: Replace with actual trusted server registry contract
+      // For now, this is a placeholder that would read from the permissions contract
+      // or trusted server registry to get the server's public key
+
+      console.warn(
+        "getTrustedServerPublicKey: Using mock implementation. Implement trusted server registry!",
+      );
+
+      if (process.env.NODE_ENV === "production") {
+        throw new Error(
+          "Production requires real trusted server registry with public keys",
+        );
+      }
+
+      // Mock public key for development
+      return "0x04a1b2c3d4e5f6789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    } catch (error) {
+      console.error("Failed to get trusted server public key:", error);
+      throw new Error(
+        `Failed to get trusted server public key: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Decrypts a file that the user has permission to access using their private key.
+   *
+   * This method handles the complete workflow for servers or other permitted parties:
+   * 1. Gets the encrypted encryption key from file permissions
+   * 2. Decrypts the encryption key using the provided private key
+   * 3. Downloads and decrypts the file data
+   *
+   * @param file - The file to decrypt
+   * @param privateKey - The private key to decrypt the user's encryption key
+   * @param account - The account address that has permission (defaults to current wallet account)
+   * @returns Promise resolving to the decrypted file data
+   */
+  async decryptFileWithPermission(
+    file: UserFile,
+    privateKey: string,
+    account?: Address,
+  ): Promise<Blob> {
+    try {
+      // Use provided account or get current wallet account
+      const permissionAccount = account || (await this.getUserAddress());
+
+      // 1. Get the encrypted encryption key from file permissions
+      const encryptedKey = await this.getFilePermission(
+        file.id,
+        permissionAccount,
+      );
+
+      if (!encryptedKey) {
+        throw new Error(
+          `No permission found for account ${permissionAccount} to access file ${file.id}`,
+        );
+      }
+
+      // 2. Decrypt the encryption key using the private key
+      const userEncryptionKey = await decryptWithWalletPrivateKey(
+        encryptedKey,
+        privateKey,
+      );
+
+      // 3. Download the encrypted file
+      const response = await fetch(this.convertIpfsUrl(file.url));
+      if (!response.ok) {
+        throw new Error(`Failed to download file: ${response.statusText}`);
+      }
+      const encryptedData = await response.blob();
+
+      // 4. Decrypt the file data using the user's encryption key
+      const decryptedData = await decryptUserData(
+        encryptedData,
+        userEncryptionKey,
+      );
+
+      return decryptedData;
+    } catch (error) {
+      console.error("Failed to decrypt file with permission:", error);
+      throw new Error(
+        `Failed to decrypt file with permission: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }

@@ -458,7 +458,7 @@ npm test
 
 ### 🏗️ Built With
 
-- **[viem](https://viem.sh)** - TypeScript interface for Ethereum
+- **[viem](https://viem.sh)** - TypeScript interface for EVM blockchains
 - **[TypeScript](https://www.typescriptlang.org/)** - Type-safe development
 - **[OpenPGP.js](https://openpgpjs.org/)** - Encryption protocol implementation
 - **[Vitest](https://vitest.dev/)** - Fast unit testing

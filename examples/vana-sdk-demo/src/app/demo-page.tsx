@@ -25,7 +25,6 @@ import {
   AddRefinerParams,
   UpdateSchemaIdParams,
 } from "vana-sdk";
-import { Button } from "@/components/ui/button";
 
 // Types for demo app state
 interface RelayerHealth {
@@ -65,22 +64,32 @@ interface GrantPreview {
 }
 import {
   Card,
-  CardContent,
-  CardDescription,
   CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+  CardBody,
+  Input,
+  Chip,
+  Divider,
+  Button,
+  useDisclosure,
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  Select,
+  SelectItem,
+  Textarea,
+  Spinner,
+} from "@heroui/react";
 import { AddressDisplay } from "@/components/AddressDisplay";
 import { PermissionDisplay } from "@/components/PermissionDisplay";
 import { FileCard } from "@/components/FileCard";
+import { ResourceList } from "@/components/ui/ResourceList";
+import { FormBuilder } from "@/components/ui/FormBuilder";
+import { StatusDisplay } from "@/components/ui/StatusDisplay";
+import { FileUpload } from "@/components/ui/FileUpload";
 import { getTxUrl, getAddressUrl } from "@/lib/explorer";
 import {
   ExternalLink,
-  Loader2,
   Wallet,
   Database,
   Shield,
@@ -115,7 +124,11 @@ export default function Home() {
 
   // Grant preview state
   const [grantPreview, setGrantPreview] = useState<GrantPreview | null>(null);
-  const [showGrantPreview, setShowGrantPreview] = useState<boolean>(false);
+  const {
+    isOpen: showGrantPreview,
+    onOpen: onOpenGrant,
+    onClose: onCloseGrant,
+  } = useDisclosure();
   const [relayerHealth, setRelayerHealth] = useState<RelayerHealth | null>(
     null,
   );
@@ -193,6 +206,13 @@ export default function Home() {
   const [isPersonalLoading, setIsPersonalLoading] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
 
+  // Server decryption demo state
+  const [serverFileId, setServerFileId] = useState<string>("");
+  const [serverPrivateKey, setServerPrivateKey] = useState<string>("");
+  const [serverDecryptedData, setServerDecryptedData] = useState<string>("");
+  const [serverDecryptError, setServerDecryptError] = useState<string>("");
+  const [isServerDecrypting, setIsServerDecrypting] = useState(false);
+
   // Trust server state
   const [serverId, setServerId] = useState<string>("");
   const [serverUrl, setServerUrl] = useState<string>("");
@@ -204,11 +224,22 @@ export default function Home() {
   const [isLoadingTrustedServers, setIsLoadingTrustedServers] = useState(false);
   const [useGaslessTransaction, setUseGaslessTransaction] = useState(false);
 
+  // Trusted server file upload state
+  const [selectedServerForUpload, setSelectedServerForUpload] =
+    useState<string>("");
+  const [serverFileToUpload, setServerFileToUpload] = useState<File | null>(
+    null,
+  );
+  const [isUploadingToServer, setIsUploadingToServer] = useState(false);
+  const [serverUploadStatus, setServerUploadStatus] = useState<string>("");
+  const [serverUploadResult, setServerUploadResult] = useState<{
+    fileId: number;
+    transactionHash: string;
+  } | null>(null);
+
   // Personal server setup state
-  const [isSettingUpPersonalServer, setIsSettingUpPersonalServer] =
-    useState(false);
-  const [personalServerError, setPersonalServerError] = useState<string>("");
-  const [personalServerResult, setPersonalServerResult] = useState<string>("");
+  const [personalServerError] = useState<string>("");
+  const [personalServerResult] = useState<string>("");
 
   // Schema management state
   const [schemas, setSchemas] = useState<
@@ -480,7 +511,7 @@ export default function Home() {
           grantUrl: storageResult.url, // Pass the pre-stored URL to avoid duplicate storage
         },
       });
-      setShowGrantPreview(true);
+      onOpenGrant();
       setGrantStatus("Review the grant file before signing...");
     } catch (error) {
       console.error("Failed to prepare grant:", error);
@@ -501,7 +532,7 @@ export default function Home() {
 
       setGrantStatus(""); // Clear status since permission will appear in list
       setGrantTxHash(txHash);
-      setShowGrantPreview(false);
+      onCloseGrant();
 
       // Refresh permissions to show the new grant
       setTimeout(() => {
@@ -519,7 +550,7 @@ export default function Home() {
   };
 
   const handleCancelGrant = () => {
-    setShowGrantPreview(false);
+    onCloseGrant();
     setGrantPreview(null);
     setIsGranting(false);
     setGrantStatus("");
@@ -647,14 +678,6 @@ export default function Home() {
       );
     } finally {
       setIsEncrypting(false);
-    }
-  };
-
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setUploadedFile(file);
-      setEncryptionStatus("");
     }
   };
 
@@ -1030,6 +1053,48 @@ export default function Home() {
     }
   };
 
+  // Server decryption demo handler
+  const handleServerDecryption = async () => {
+    if (!vana || !serverFileId.trim() || !serverPrivateKey.trim()) {
+      setServerDecryptError(
+        "Please provide both File ID and Server Private Key",
+      );
+      return;
+    }
+
+    setIsServerDecrypting(true);
+    setServerDecryptError("");
+    setServerDecryptedData("");
+
+    try {
+      const fileIdNum = parseInt(serverFileId.trim());
+      if (isNaN(fileIdNum) || fileIdNum <= 0) {
+        setServerDecryptError("File ID must be a valid positive number");
+        return;
+      }
+
+      // Get the file from the blockchain
+      const file = await vana.data.getFileById(fileIdNum);
+
+      // Decrypt the file using the server's private key
+      const decryptedBlob = await vana.data.decryptFileWithPermission(
+        file,
+        serverPrivateKey.trim(),
+        address, // Server account address
+      );
+
+      // Convert blob to text for display
+      const decryptedText = await decryptedBlob.text();
+      setServerDecryptedData(decryptedText);
+    } catch (error) {
+      setServerDecryptError(
+        error instanceof Error ? error.message : "Unknown error occurred",
+      );
+    } finally {
+      setIsServerDecrypting(false);
+    }
+  };
+
   // Trust server handlers
 
   const handleTrustServer = async () => {
@@ -1160,6 +1225,56 @@ export default function Home() {
     }
   };
 
+  const handleUploadToTrustedServer = async () => {
+    if (!vana || !address || !serverFileToUpload || !selectedServerForUpload) {
+      setServerUploadStatus("❌ Please select a server and file");
+      return;
+    }
+
+    setIsUploadingToServer(true);
+    setServerUploadStatus("");
+    setServerUploadResult(null);
+
+    try {
+      // Get the server's public key from the trusted server registry
+      const serverPublicKey = await vana.data.getTrustedServerPublicKey(
+        selectedServerForUpload as `0x${string}`,
+      );
+
+      // Upload file with permissions for the selected server
+      const result = await vana.data.uploadFileWithPermissions(
+        serverFileToUpload,
+        [
+          {
+            account: selectedServerForUpload as `0x${string}`,
+            publicKey: serverPublicKey,
+          },
+        ],
+        serverFileToUpload.name,
+        ipfsMode === "user-managed" ? "pinata" : undefined,
+      );
+
+      setServerUploadResult({
+        fileId: result.fileId,
+        transactionHash: result.transactionHash as string,
+      });
+      setServerUploadStatus("✅ File uploaded with server permissions!");
+
+      // Clear the form
+      setServerFileToUpload(null);
+      setSelectedServerForUpload("");
+
+      // Refresh user files
+      await loadUserFiles();
+    } catch (error) {
+      setServerUploadStatus(
+        `❌ Upload failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    } finally {
+      setIsUploadingToServer(false);
+    }
+  };
+
   const loadSchemas = useCallback(async () => {
     if (!vana) return;
 
@@ -1217,57 +1332,6 @@ export default function Home() {
       setIsLoadingRefiners(false);
     }
   }, [vana]);
-
-  const handleSetupPersonalServer = async () => {
-    if (!address) return;
-
-    setIsSettingUpPersonalServer(true);
-    setPersonalServerError("");
-    setPersonalServerResult("");
-
-    try {
-      // Call our API route instead of using the SDK directly
-      const response = await fetch("/api/personal/setup", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          userAddress: address,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP ${response.status}`);
-      }
-
-      const result = await response.json();
-      const personalServerData = result.data;
-
-      // Check if derived address is present
-      const derivedAddress =
-        personalServerData.identity.metadata?.derivedAddress;
-
-      if (derivedAddress) {
-        // Auto-populate the server ID field for easy trusting
-        setServerId(derivedAddress);
-      }
-
-      setPersonalServerResult("success");
-
-      // Refresh trusted servers list to show the new personal server
-      await loadTrustedServers();
-    } catch (error) {
-      setPersonalServerError(
-        error instanceof Error
-          ? error.message
-          : "Failed to setup personal server",
-      );
-    } finally {
-      setIsSettingUpPersonalServer(false);
-    }
-  };
 
   // Load trusted servers when vana is initialized
   useEffect(() => {
@@ -1448,7 +1512,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
+      <div className="container mx-auto px-4 py-8 max-w-7xl">
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold mb-4 text-foreground">
@@ -1460,14 +1524,14 @@ export default function Home() {
         </div>
 
         {/* Wallet Connection */}
-        <Card className="mb-6">
+        <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
               <Wallet className="h-5 w-5" />
               Wallet Connection
-            </CardTitle>
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardBody>
             <div className="flex justify-center mb-4">
               <ConnectButton />
             </div>
@@ -1478,55 +1542,55 @@ export default function Home() {
                 <strong>Chain:</strong> {relayerHealth.chain}
               </p>
             )}
-          </CardContent>
+          </CardBody>
         </Card>
 
         {!isConnected && (
           <Card>
             <CardHeader>
-              <CardTitle>Get Started</CardTitle>
+              <div>Get Started</div>
             </CardHeader>
-            <CardContent>
+            <CardBody>
               <p className="text-muted-foreground">
                 Connect your wallet above to begin exploring the Vana SDK
                 capabilities.
               </p>
-            </CardContent>
+            </CardBody>
           </Card>
         )}
 
         {isConnected && !vana && (
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Loader2 className="h-5 w-5 animate-spin" />
+              <div className="flex items-center gap-2">
+                <Spinner size="sm" />
                 Initializing...
-              </CardTitle>
+              </div>
             </CardHeader>
-            <CardContent>
+            <CardBody>
               <p className="text-muted-foreground">
                 Setting up the Vana SDK with your wallet...
               </p>
-            </CardContent>
+            </CardBody>
           </Card>
         )}
 
         {vana && (
-          <div className="space-y-6">
+          <div className="space-y-8">
             {/* SDK Status */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <div className="flex items-center gap-2">
                   <Settings className="h-5 w-5" />
                   SDK Status
-                </CardTitle>
+                </div>
               </CardHeader>
-              <CardContent>
+              <CardBody>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <div className="mb-2">
                       <strong>Status:</strong>{" "}
-                      <Badge variant="secondary">✅ Initialized</Badge>
+                      <Chip variant="flat">✅ Initialized</Chip>
                     </div>
                     <p className="mb-2">
                       <strong>Chain:</strong> {vana.chainName} (ID:{" "}
@@ -1575,55 +1639,54 @@ export default function Home() {
                     </p>
                   </div>
                 </div>
-              </CardContent>
+              </CardBody>
             </Card>
 
-            {/* Your Data */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Database className="h-5 w-5" />
-                  Your Data
-                </CardTitle>
-                <CardDescription>
-                  Manage your registered data files and grant permissions
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-4 mb-4">
-                  <Button onClick={loadUserFiles} variant="outline">
-                    Refresh Files
-                  </Button>
-                  <div className="flex items-center gap-2 ml-auto">
-                    <Label htmlFor="file-lookup">Lookup by ID:</Label>
-                    <input
-                      id="file-lookup"
+            {/* Data Management Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Your Data */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Database className="h-5 w-5" />
+                    Your Data
+                  </div>
+                  <p className="text-small text-default-500">
+                    Manage your registered data files and grant permissions
+                  </p>
+                </CardHeader>
+                <CardBody>
+                  <div className="flex items-center gap-2 mb-4 ml-auto">
+                    <Input
+                      placeholder="Enter file ID"
                       type="text"
                       value={fileLookupId}
                       onChange={(e) => setFileLookupId(e.target.value)}
-                      placeholder="Enter file ID"
-                      className="w-32 p-2 border rounded text-sm bg-background text-foreground border-input"
+                      className="w-32"
+                      size="sm"
                     />
                     <Button
-                      onClick={handleLookupFile}
+                      onPress={handleLookupFile}
                       disabled={isLookingUpFile || !fileLookupId.trim()}
                       size="sm"
                     >
                       {isLookingUpFile ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <Spinner size="sm" />
                       ) : (
                         <Search className="h-4 w-4" />
                       )}
                     </Button>
                   </div>
-                </div>
 
-                {userFiles.length > 0 ? (
-                  <div className="space-y-3">
-                    {userFiles.map((file) => {
+                  <ResourceList
+                    title="Your Data Files"
+                    description={`Manage your registered data files and grant permissions (${userFiles.length} files)`}
+                    items={userFiles}
+                    isLoading={isLoadingFiles}
+                    onRefresh={loadUserFiles}
+                    renderItem={(file) => {
                       const isDecrypting = decryptingFiles.has(file.id);
                       const decryptedContent = decryptedFiles.get(file.id);
-
                       return (
                         <FileCard
                           key={file.id}
@@ -1645,7 +1708,19 @@ export default function Home() {
                           }
                         />
                       );
-                    })}
+                    }}
+                    emptyState={
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                        <p className="font-medium mb-2">No data files found</p>
+                        <p className="text-sm">
+                          Upload and encrypt files to get started
+                        </p>
+                      </div>
+                    }
+                  />
+
+                  {userFiles.length > 0 && (
                     <div className="mt-4 p-3 bg-primary/10 rounded">
                       <p className="text-sm text-primary">
                         <strong>Selected files:</strong> {selectedFiles.length}{" "}
@@ -1653,183 +1728,160 @@ export default function Home() {
                         contents using your wallet signature.
                       </p>
                     </div>
-                  </div>
-                ) : isLoadingFiles ? (
-                  <div className="text-center py-8">
-                    <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-muted-foreground" />
-                    <p className="text-muted-foreground">
-                      Loading your data files...
-                    </p>
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p className="font-medium mb-2">No data files found</p>
-                    <p className="text-sm">
-                      Upload and encrypt files to get started
-                    </p>
-                  </div>
-                )}
+                  )}
 
-                {fileLookupStatus && (
-                  <p
-                    className={`text-sm mt-4 ${fileLookupStatus.includes("❌") ? "text-destructive" : "text-green-600"}`}
-                  >
-                    {fileLookupStatus}
-                  </p>
-                )}
+                  {fileLookupStatus && (
+                    <StatusDisplay status={fileLookupStatus} className="mt-4" />
+                  )}
 
-                {/* Grant Permission Section */}
-                {selectedFiles.length > 0 && (
-                  <div className="mt-6 p-4 bg-green-50/50 rounded">
-                    <h3 className="font-medium mb-3 text-green-700">
-                      Grant Permission ({selectedFiles.length} file
-                      {selectedFiles.length !== 1 ? "s" : ""} selected)
-                    </h3>
-                    <Button
-                      onClick={handleGrantPermission}
-                      disabled={selectedFiles.length === 0 || isGranting}
-                      className="mb-4"
-                    >
-                      {isGranting && (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {/* Grant Permission Section */}
+                  {selectedFiles.length > 0 && (
+                    <div className="mt-6 p-4 bg-green-50/50 rounded">
+                      <h3 className="font-medium mb-3 text-green-700">
+                        Grant Permission ({selectedFiles.length} file
+                        {selectedFiles.length !== 1 ? "s" : ""} selected)
+                      </h3>
+                      <Button
+                        onPress={handleGrantPermission}
+                        disabled={selectedFiles.length === 0 || isGranting}
+                        className="mb-4"
+                      >
+                        {isGranting && <Spinner size="sm" className="mr-2" />}
+                        Grant Permission to Selected Files
+                      </Button>
+
+                      {grantStatus && (
+                        <p
+                          className={`text-sm ${grantStatus.includes("Error") ? "text-destructive" : "text-green-600"} mt-2`}
+                        >
+                          {grantStatus}
+                        </p>
                       )}
-                      Grant Permission to Selected Files
-                    </Button>
 
-                    {grantStatus && (
-                      <p
-                        className={`text-sm ${grantStatus.includes("Error") ? "text-destructive" : "text-green-600"} mt-2`}
-                      >
-                        {grantStatus}
-                      </p>
-                    )}
+                      {grantTxHash && (
+                        <div className="mt-4 p-4 bg-muted rounded-lg">
+                          <p className="font-medium mb-2">Transaction Hash:</p>
+                          <AddressDisplay
+                            address={grantTxHash}
+                            explorerUrl={getExplorerUrl(grantTxHash)}
+                            truncate={true}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardBody>
+              </Card>
 
-                    {grantTxHash && (
-                      <div className="mt-4 p-4 bg-muted rounded-lg">
-                        <p className="font-medium mb-2">Transaction Hash:</p>
-                        <AddressDisplay
-                          address={grantTxHash}
-                          explorerUrl={getExplorerUrl(grantTxHash)}
-                          truncate={true}
-                        />
+              {/* Permissions Management */}
+
+              {/* Grant Preview Modal */}
+              <Modal
+                isOpen={showGrantPreview && !!grantPreview}
+                onClose={onCloseGrant}
+                size="2xl"
+                scrollBehavior="inside"
+              >
+                <ModalContent>
+                  <ModalHeader className="flex items-center gap-2">
+                    <Eye className="h-5 w-5" />
+                    Review Grant
+                  </ModalHeader>
+                  <ModalBody className="space-y-3">
+                    {grantPreview && (
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="font-medium">Operation:</span>
+                          <p className="text-muted-foreground">
+                            {grantPreview.grantFile.operation}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="font-medium">Files:</span>
+                          <p className="text-muted-foreground">
+                            [{grantPreview.grantFile.files.join(", ")}]
+                          </p>
+                        </div>
                       </div>
                     )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
 
-            {/* Permissions Management */}
+                    {grantPreview && (
+                      <>
+                        <div>
+                          <span className="text-sm font-medium">IPFS URL:</span>
+                          <a
+                            href={`https://ipfs.io/ipfs/${grantPreview.grantUrl.replace("ipfs://", "")}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-blue-600 hover:text-blue-800 underline font-mono break-all block mt-1"
+                          >
+                            {grantPreview.grantUrl}
+                          </a>
+                        </div>
 
-            {/* Grant Preview Modal */}
-            {showGrantPreview && grantPreview && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-                <Card className="w-full max-w-2xl max-h-[70vh] overflow-y-auto">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Eye className="h-5 w-5" />
-                      Review Grant
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <Label className="font-medium">Operation:</Label>
-                        <p className="text-muted-foreground">
-                          {grantPreview.grantFile.operation}
-                        </p>
-                      </div>
-                      <div>
-                        <Label className="font-medium">Files:</Label>
-                        <p className="text-muted-foreground">
-                          [{grantPreview.grantFile.files.join(", ")}]
-                        </p>
-                      </div>
-                    </div>
+                        <div>
+                          <span className="text-sm font-medium">
+                            Parameters:
+                          </span>
+                          <div className="mt-2 p-2 bg-muted rounded max-h-28 overflow-y-auto">
+                            <pre className="text-xs font-mono whitespace-pre-wrap">
+                              {JSON.stringify(
+                                grantPreview.grantFile.parameters,
+                                null,
+                                2,
+                              )}
+                            </pre>
+                          </div>
+                        </div>
 
-                    <div>
-                      <Label className="text-sm font-medium">IPFS URL:</Label>
-                      <a
-                        href={`https://ipfs.io/ipfs/${grantPreview.grantUrl.replace("ipfs://", "")}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-blue-600 hover:text-blue-800 underline font-mono break-all block mt-1"
-                      >
-                        {grantPreview.grantUrl}
-                      </a>
-                    </div>
-
-                    <div>
-                      <Label className="text-sm font-medium">Parameters:</Label>
-                      <div className="mt-2 p-2 bg-muted rounded max-h-28 overflow-y-auto">
-                        <pre className="text-xs font-mono whitespace-pre-wrap">
-                          {JSON.stringify(
-                            grantPreview.grantFile.parameters,
-                            null,
-                            2,
-                          )}
-                        </pre>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-3 justify-end pt-2">
-                      <Button variant="outline" onClick={handleCancelGrant}>
-                        Cancel
-                      </Button>
-                      <Button onClick={handleConfirmGrant}>
-                        Sign Transaction
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-
-            {/* Permissions Management */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Shield className="h-5 w-5" />
-                  Permissions Management
-                </CardTitle>
-                <CardDescription>
-                  View and manage data access permissions
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex justify-between items-center mb-4">
-                  <Button
-                    onClick={loadUserPermissions}
-                    disabled={isLoadingPermissions}
-                    variant="outline"
-                  >
-                    {isLoadingPermissions && (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        <div className="flex gap-3 justify-end pt-2">
+                          <Button
+                            variant="bordered"
+                            onPress={handleCancelGrant}
+                          >
+                            Cancel
+                          </Button>
+                          <Button onPress={handleConfirmGrant}>
+                            Sign Transaction
+                          </Button>
+                        </div>
+                      </>
                     )}
-                    Refresh Permissions
-                  </Button>
-                  <div className="text-sm text-muted-foreground">
-                    {userPermissions.length} permission
-                    {userPermissions.length !== 1 ? "s" : ""} found
-                  </div>
-                </div>
+                  </ModalBody>
+                </ModalContent>
+              </Modal>
 
-                {revokeStatus && (
-                  <div
-                    className={`text-sm p-3 rounded-md mb-4 ${
-                      revokeStatus.includes("Error")
-                        ? "bg-red-50 text-red-700 border border-red-200"
-                        : "bg-green-50 text-green-700 border border-green-200"
-                    }`}
-                  >
-                    {revokeStatus}
+              {/* Permissions Management */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-5 w-5" />
+                    Permissions Management
                   </div>
-                )}
+                  <p className="text-small text-default-500">
+                    View and manage data access permissions
+                  </p>
+                </CardHeader>
+                <CardBody>
+                  {revokeStatus && (
+                    <div
+                      className={`text-sm p-3 rounded-md mb-4 ${
+                        revokeStatus.includes("Error")
+                          ? "bg-red-50 text-red-700 border border-red-200"
+                          : "bg-green-50 text-green-700 border border-green-200"
+                      }`}
+                    >
+                      {revokeStatus}
+                    </div>
+                  )}
 
-                {userPermissions.length > 0 ? (
-                  <div className="space-y-3">
-                    {userPermissions.map((permission) => (
+                  <ResourceList
+                    title="Permissions Management"
+                    description={`View and manage data access permissions (${userPermissions.length} permissions)`}
+                    items={userPermissions}
+                    isLoading={isLoadingPermissions}
+                    onRefresh={loadUserPermissions}
+                    renderItem={(permission) => (
                       <div
                         key={permission.id.toString()}
                         className="p-4 border rounded-lg"
@@ -1901,8 +1953,8 @@ export default function Home() {
                           </div>
                           <Button
                             size="sm"
-                            variant="destructive"
-                            onClick={() =>
+                            color="danger"
+                            onPress={() =>
                               handleRevokePermissionById(
                                 permission.id.toString(),
                               )
@@ -1910,733 +1962,596 @@ export default function Home() {
                             disabled={isRevoking}
                             className="ml-4"
                           >
-                            {isRevoking ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              "Revoke"
-                            )}
+                            {isRevoking ? <Spinner size="sm" /> : "Revoke"}
                           </Button>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                ) : !isLoadingPermissions ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Shield className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>No permissions granted yet</p>
-                    <p className="text-sm">
-                      Grant your first permission above to see it here
-                    </p>
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-                    <p className="text-muted-foreground">
-                      Loading permissions...
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Trust Server */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Shield className="h-5 w-5" />
-                  Trusted Server Management
-                </CardTitle>
-                <CardDescription>
-                  Manage trusted servers for data processing. Trust a server to
-                  automatically register it and add it to your trust list, or
-                  remove servers you no longer trust.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Trust Server Form */}
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="server-id" className="text-sm font-medium">
-                      Server ID (Ethereum Address)
-                    </Label>
-                    <Input
-                      id="server-id"
-                      value={serverId}
-                      onChange={(e) => setServerId(e.target.value)}
-                      placeholder="0x1234567890abcdef..."
-                      className="font-mono bg-background border-input"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      The Ethereum address that identifies the server
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="server-url" className="text-sm font-medium">
-                      Server URL
-                    </Label>
-                    <Input
-                      id="server-url"
-                      value={serverUrl}
-                      onChange={(e) => setServerUrl(e.target.value)}
-                      placeholder="https://api.replicate.com/v1/predictions"
-                      type="url"
-                      className="bg-background border-input"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      The API endpoint where the server can be reached
-                    </p>
-                  </div>
-
-                  {/* Transaction Type Selection */}
-                  <div className="space-y-3 p-3 bg-muted/30 rounded-lg border">
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium">
-                        Transaction Type
-                      </Label>
-                      <div className="flex gap-3">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="radio"
-                            name="transaction-type"
-                            value="regular"
-                            checked={!useGaslessTransaction}
-                            onChange={() => setUseGaslessTransaction(false)}
-                            className="text-primary"
-                          />
-                          <span className="text-sm">Regular (Pay Gas)</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="radio"
-                            name="transaction-type"
-                            value="gasless"
-                            checked={useGaslessTransaction}
-                            onChange={() => setUseGaslessTransaction(true)}
-                            className="text-primary"
-                          />
-                          <span className="text-sm">Gasless (Signature)</span>
-                        </label>
+                    )}
+                    emptyState={
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Shield className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                        <p>No permissions granted yet</p>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        {useGaslessTransaction
-                          ? "Sign a message to trust the server without paying gas fees"
-                          : "Submit a blockchain transaction to trust the server"}
-                      </p>
-                    </div>
-                  </div>
+                    }
+                  />
+                </CardBody>
+              </Card>
+            </div>
 
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={
-                        useGaslessTransaction
-                          ? handleTrustServerGasless
-                          : handleTrustServer
-                      }
-                      disabled={
-                        isTrustingServer ||
-                        !serverId.trim() ||
-                        !serverUrl.trim()
-                      }
-                      className="flex-1"
-                    >
-                      {isTrustingServer ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <Shield className="h-4 w-4 mr-2" />
-                      )}
-                      {useGaslessTransaction
+            {/* Server Management Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Trust Server */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-5 w-5" />
+                    Trusted Server Management
+                  </div>
+                  <p className="text-small text-default-500">
+                    Manage trusted servers for data processing. Trust a server
+                    to automatically register it and add it to your trust list,
+                    or remove servers you no longer trust.
+                  </p>
+                </CardHeader>
+                <CardBody className="space-y-6">
+                  {/* Trust Server Form */}
+                  <FormBuilder
+                    title="Trust Server"
+                    fields={[
+                      {
+                        name: "serverId",
+                        label: "Server ID (EVM Address)",
+                        type: "text",
+                        placeholder: "0x1234567890abcdef...",
+                        value: serverId,
+                        onChange: setServerId,
+                        required: true,
+                      },
+                      {
+                        name: "serverUrl",
+                        label: "Server URL",
+                        type: "url",
+                        placeholder: "https://api.replicate.com/v1/predictions",
+                        value: serverUrl,
+                        onChange: setServerUrl,
+                        required: true,
+                      },
+                      {
+                        name: "transactionType",
+                        label: "Transaction Type",
+                        type: "select",
+                        value: useGaslessTransaction ? "gasless" : "regular",
+                        onChange: (value) =>
+                          setUseGaslessTransaction(value === "gasless"),
+                        options: [
+                          { value: "regular", label: "Regular (Pay Gas)" },
+                          { value: "gasless", label: "Gasless (Signature)" },
+                        ],
+                        required: true,
+                      },
+                    ]}
+                    onSubmit={
+                      useGaslessTransaction
+                        ? handleTrustServerGasless
+                        : handleTrustServer
+                    }
+                    isSubmitting={isTrustingServer}
+                    submitText={
+                      useGaslessTransaction
                         ? "Sign & Trust Server"
-                        : "Trust Server"}
-                    </Button>
-                  </div>
-                </div>
+                        : "Trust Server"
+                    }
+                    submitIcon={<Shield className="h-4 w-4" />}
+                    status={trustServerError}
+                    statusType="error"
+                  />
 
-                {/* Error Display */}
-                {trustServerError && (
-                  <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-                    <p className="text-destructive text-sm">
-                      {trustServerError}
-                    </p>
-                  </div>
-                )}
+                  {/* Success Result Display */}
+                  {trustServerResult && (
+                    <div className="p-4 bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 rounded-lg">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                        <p className="text-green-700 dark:text-green-300 font-medium">
+                          Server trusted successfully!
+                        </p>
+                      </div>
+                      <div className="bg-white dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-700">
+                        <AddressDisplay
+                          address={trustServerResult}
+                          showCopy={true}
+                          showExternalLink={true}
+                          explorerUrl={getTxUrl(chainId, trustServerResult)}
+                          label="Transaction Hash"
+                        />
+                      </div>
+                    </div>
+                  )}
 
-                {/* Success Result Display */}
-                {trustServerResult && (
-                  <div className="p-4 bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 rounded-lg">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                      <p className="text-green-700 dark:text-green-300 font-medium">
-                        Server trusted successfully!
-                      </p>
-                    </div>
-                    <div className="bg-white dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-700">
-                      <AddressDisplay
-                        address={trustServerResult}
-                        showCopy={true}
-                        showExternalLink={true}
-                        explorerUrl={getTxUrl(chainId, trustServerResult)}
-                        label="Transaction Hash"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Trusted Servers List */}
-                <div className="space-y-4 pt-2 border-t">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium text-base">
-                        Your Trusted Servers
-                      </h4>
-                      <p className="text-sm text-muted-foreground">
-                        Servers you've authorized for data processing
-                      </p>
-                    </div>
-                    <Button
-                      onClick={loadTrustedServers}
-                      disabled={isLoadingTrustedServers}
-                      variant="outline"
-                      size="sm"
-                    >
-                      {isLoadingTrustedServers ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <RotateCcw className="h-4 w-4 mr-2" />
-                      )}
-                      Refresh
-                    </Button>
-                  </div>
-
-                  {isLoadingTrustedServers ? (
-                    <div className="flex items-center justify-center p-4">
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      Loading trusted servers...
-                    </div>
-                  ) : trustedServers.length > 0 ? (
-                    <div className="space-y-3">
-                      {trustedServers.map((server, index) => (
+                  {/* Trusted Servers List */}
+                  <div className="space-y-4 pt-2 border-t">
+                    <ResourceList
+                      title="Your Trusted Servers"
+                      description={`Servers you've authorized for data processing (${trustedServers.length} servers)`}
+                      items={trustedServers}
+                      isLoading={isLoadingTrustedServers}
+                      onRefresh={loadTrustedServers}
+                      renderItem={(server, index) => (
                         <div
                           key={server}
-                          className="flex items-center justify-between p-4 bg-muted rounded-lg border hover:bg-muted/80 transition-colors"
+                          className="flex items-center justify-between p-4 bg-muted rounded-lg border"
                         >
                           <div className="flex items-center space-x-3">
-                            <Badge variant="secondary" className="text-xs">
-                              #{index + 1}
-                            </Badge>
-                            <div className="flex-1">
-                              <AddressDisplay
-                                address={server}
-                                showCopy={true}
-                                showExternalLink={true}
-                                explorerUrl={getAddressUrl(chainId, server)}
-                                className="text-sm"
-                              />
-                            </div>
+                            <Chip variant="flat">#{index + 1}</Chip>
+                            <AddressDisplay
+                              address={server}
+                              showCopy={true}
+                              showExternalLink={true}
+                              explorerUrl={getAddressUrl(chainId, server)}
+                            />
                           </div>
                           <Button
-                            onClick={() => handleUntrustServer(server)}
+                            onPress={() => handleUntrustServer(server)}
                             disabled={isUntrusting}
-                            variant="destructive"
+                            color="danger"
                             size="sm"
                           >
-                            {isUntrusting ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              "Untrust"
-                            )}
+                            {isUntrusting ? <Spinner size="sm" /> : "Untrust"}
                           </Button>
                         </div>
-                      ))}
+                      )}
+                      emptyState={
+                        <div className="text-center p-6 text-muted-foreground">
+                          <p>No trusted servers found.</p>
+                        </div>
+                      }
+                    />
+                  </div>
+
+                  {/* Personal Server Setup Result Display */}
+                  {personalServerError && (
+                    <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+                      <p className="text-destructive text-sm">
+                        {personalServerError}
+                      </p>
                     </div>
-                  ) : (
-                    <div className="text-center p-6 text-muted-foreground">
-                      <p className="mb-4">No trusted servers found.</p>
-                      {!serverId ? (
-                        <div className="space-y-2">
-                          <p className="text-sm">
-                            Set up your personal server first to get a server
-                            ID, then trust it above.
-                          </p>
-                          <Button
-                            onClick={handleSetupPersonalServer}
-                            disabled={isSettingUpPersonalServer || !isConnected}
-                            className="w-full max-w-xs"
-                          >
-                            {isSettingUpPersonalServer ? (
-                              <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Setting up Personal Server...
-                              </>
-                            ) : (
-                              <>
-                                <Brain className="mr-2 h-4 w-4" />
-                                Setup Vana Personal Server
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      ) : (
-                        <p className="text-sm">
-                          Use the form above to trust your personal server or
-                          other servers.
+                  )}
+
+                  {personalServerResult && (
+                    <div className="p-4 bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 rounded-lg">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                        <p className="text-green-700 dark:text-green-300 font-medium">
+                          Personal server initialized successfully!
                         </p>
+                      </div>
+                      {serverId && (
+                        <div className="space-y-2">
+                          <p className="text-green-600 dark:text-green-400 text-sm">
+                            Your server ID has been auto-populated above. You
+                            can now trust your server.
+                          </p>
+                          <div className="bg-white dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-700">
+                            <AddressDisplay
+                              address={serverId}
+                              showCopy={true}
+                              showExternalLink={true}
+                              explorerUrl={getAddressUrl(chainId, serverId)}
+                              label="Server ID (Derived Address)"
+                            />
+                          </div>
+                        </div>
                       )}
                     </div>
                   )}
-                </div>
+                </CardBody>
+              </Card>
 
-                {/* Personal Server Setup Result Display */}
-                {personalServerError && (
-                  <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-                    <p className="text-destructive text-sm">
-                      {personalServerError}
-                    </p>
+              {/* Schema Management */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Database className="h-5 w-5" />
+                    Schema Management
                   </div>
-                )}
-
-                {personalServerResult && (
-                  <div className="p-4 bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 rounded-lg">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                      <p className="text-green-700 dark:text-green-300 font-medium">
-                        Personal server initialized successfully!
-                      </p>
+                  <p className="text-small text-default-500">
+                    Manage data schemas and refiners for the
+                    DataRefinerRegistry. Create schemas to define data
+                    structures, and add refiners that process data according to
+                    those schemas.
+                  </p>
+                </CardHeader>
+                <CardBody className="space-y-6">
+                  {/* Schema Statistics */}
+                  <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-primary">
+                        {schemasCount}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        Total Schemas
+                      </div>
                     </div>
-                    {serverId && (
-                      <div className="space-y-2">
-                        <p className="text-green-600 dark:text-green-400 text-sm">
-                          Your server ID has been auto-populated above. You can
-                          now trust your server.
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-primary">
+                        {refinersCount}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        Total Refiners
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Create Schema */}
+                  <div className="p-4 border rounded-lg">
+                    <FormBuilder
+                      title="Create New Schema"
+                      fields={[
+                        {
+                          name: "name",
+                          label: "Name",
+                          type: "text",
+                          placeholder: "e.g., User Profile Schema",
+                          value: schemaName,
+                          onChange: setSchemaName,
+                          required: true,
+                        },
+                        {
+                          name: "type",
+                          label: "Type",
+                          type: "text",
+                          placeholder: "e.g., json-schema",
+                          value: schemaType,
+                          onChange: setSchemaType,
+                          required: true,
+                        },
+                        {
+                          name: "definitionUrl",
+                          label: "Definition URL",
+                          type: "url",
+                          placeholder: "https://example.com/schema.json",
+                          value: schemaDefinitionUrl,
+                          onChange: setSchemaDefinitionUrl,
+                          required: true,
+                        },
+                      ]}
+                      onSubmit={handleCreateSchema}
+                      isSubmitting={isCreatingSchema}
+                      submitText="Create Schema"
+                      submitIcon={<Database className="h-4 w-4" />}
+                      status={schemaStatus}
+                      statusType={
+                        schemaStatus?.includes("❌") ? "error" : "success"
+                      }
+                    />
+                    {lastCreatedSchemaId && (
+                      <div className="p-3 bg-green-50 border border-green-200 rounded mt-4">
+                        <p className="text-green-700 text-sm">
+                          ✅ Schema created successfully with ID:{" "}
+                          <strong>{lastCreatedSchemaId}</strong>
                         </p>
-                        <div className="bg-white dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-700">
-                          <AddressDisplay
-                            address={serverId}
-                            showCopy={true}
-                            showExternalLink={true}
-                            explorerUrl={getAddressUrl(chainId, serverId)}
-                            label="Server ID (Derived Address)"
-                          />
-                        </div>
                       </div>
                     )}
                   </div>
-                )}
-              </CardContent>
-            </Card>
 
-            {/* Schema Management */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Database className="h-5 w-5" />
-                  Schema Management
-                </CardTitle>
-                <CardDescription>
-                  Manage data schemas and refiners for the DataRefinerRegistry.
-                  Create schemas to define data structures, and add refiners
-                  that process data according to those schemas.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Schema Statistics */}
-                <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-primary">
-                      {schemasCount}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      Total Schemas
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-primary">
-                      {refinersCount}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      Total Refiners
-                    </div>
-                  </div>
-                </div>
-
-                {/* Create Schema */}
-                <div className="space-y-4 p-4 border rounded-lg">
-                  <h4 className="font-medium">Create New Schema</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <Label htmlFor="schema-name">Name</Label>
-                      <Input
-                        id="schema-name"
-                        value={schemaName}
-                        onChange={(e) => setSchemaName(e.target.value)}
-                        placeholder="e.g., User Profile Schema"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="schema-type">Type</Label>
-                      <Input
-                        id="schema-type"
-                        value={schemaType}
-                        onChange={(e) => setSchemaType(e.target.value)}
-                        placeholder="e.g., json-schema"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="schema-url">Definition URL</Label>
-                      <Input
-                        id="schema-url"
-                        value={schemaDefinitionUrl}
-                        onChange={(e) => setSchemaDefinitionUrl(e.target.value)}
-                        placeholder="https://example.com/schema.json"
-                        type="url"
-                      />
-                    </div>
-                  </div>
-                  <Button
-                    onClick={handleCreateSchema}
-                    disabled={
-                      isCreatingSchema ||
-                      !schemaName ||
-                      !schemaType ||
-                      !schemaDefinitionUrl
-                    }
-                  >
-                    {isCreatingSchema ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <Database className="h-4 w-4 mr-2" />
+                  {/* Create Refiner */}
+                  <div className="p-4 border rounded-lg">
+                    <FormBuilder
+                      title="Create New Refiner"
+                      fields={[
+                        {
+                          name: "name",
+                          label: "Name",
+                          type: "text",
+                          placeholder: "e.g., Privacy-Preserving Analytics",
+                          value: refinerName,
+                          onChange: setRefinerName,
+                          required: true,
+                        },
+                        {
+                          name: "dlpId",
+                          label: "DLP ID",
+                          type: "number",
+                          placeholder: "e.g., 1",
+                          value: refinerDlpId,
+                          onChange: setRefinerDlpId,
+                          required: true,
+                        },
+                        {
+                          name: "schemaId",
+                          label: "Schema ID",
+                          type: "number",
+                          placeholder: "e.g., 1",
+                          value: refinerSchemaId,
+                          onChange: setRefinerSchemaId,
+                          required: true,
+                        },
+                        {
+                          name: "instructionUrl",
+                          label: "Instruction URL",
+                          type: "url",
+                          placeholder: "https://example.com/instructions.md",
+                          value: refinerInstructionUrl,
+                          onChange: setRefinerInstructionUrl,
+                          required: true,
+                        },
+                      ]}
+                      onSubmit={handleCreateRefiner}
+                      isSubmitting={isCreatingRefiner}
+                      submitText="Create Refiner"
+                      submitIcon={<Brain className="h-4 w-4" />}
+                      status={refinerStatus}
+                      statusType={
+                        refinerStatus?.includes("❌") ? "error" : "success"
+                      }
+                    />
+                    {lastCreatedRefinerId && (
+                      <div className="p-3 bg-green-50 border border-green-200 rounded mt-4">
+                        <p className="text-green-700 text-sm">
+                          ✅ Refiner created successfully with ID:{" "}
+                          <strong>{lastCreatedRefinerId}</strong>
+                        </p>
+                      </div>
                     )}
-                    Create Schema
-                  </Button>
-                  {schemaStatus && (
-                    <p
-                      className={`text-sm ${schemaStatus.includes("❌") ? "text-destructive" : "text-green-600"}`}
-                    >
-                      {schemaStatus}
-                    </p>
-                  )}
-                  {lastCreatedSchemaId && (
-                    <div className="p-3 bg-green-50 border border-green-200 rounded">
-                      <p className="text-green-700 text-sm">
-                        ✅ Schema created successfully with ID:{" "}
-                        <strong>{lastCreatedSchemaId}</strong>
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Create Refiner */}
-                <div className="space-y-4 p-4 border rounded-lg">
-                  <h4 className="font-medium">Create New Refiner</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="refiner-name">Name</Label>
-                      <Input
-                        id="refiner-name"
-                        value={refinerName}
-                        onChange={(e) => setRefinerName(e.target.value)}
-                        placeholder="e.g., Privacy-Preserving Analytics"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="refiner-dlp-id">DLP ID</Label>
-                      <Input
-                        id="refiner-dlp-id"
-                        value={refinerDlpId}
-                        onChange={(e) => setRefinerDlpId(e.target.value)}
-                        placeholder="e.g., 1"
-                        type="number"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="refiner-schema-id">Schema ID</Label>
-                      <Input
-                        id="refiner-schema-id"
-                        value={refinerSchemaId}
-                        onChange={(e) => setRefinerSchemaId(e.target.value)}
-                        placeholder="e.g., 1"
-                        type="number"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="refiner-instruction-url">
-                        Instruction URL
-                      </Label>
-                      <Input
-                        id="refiner-instruction-url"
-                        value={refinerInstructionUrl}
-                        onChange={(e) =>
-                          setRefinerInstructionUrl(e.target.value)
-                        }
-                        placeholder="https://example.com/instructions.md"
-                        type="url"
-                      />
-                    </div>
-                  </div>
-                  <Button
-                    onClick={handleCreateRefiner}
-                    disabled={
-                      isCreatingRefiner ||
-                      !refinerName ||
-                      !refinerDlpId ||
-                      !refinerSchemaId ||
-                      !refinerInstructionUrl
-                    }
-                  >
-                    {isCreatingRefiner ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <Brain className="h-4 w-4 mr-2" />
-                    )}
-                    Create Refiner
-                  </Button>
-                  {refinerStatus && (
-                    <p
-                      className={`text-sm ${refinerStatus.includes("❌") ? "text-destructive" : "text-green-600"}`}
-                    >
-                      {refinerStatus}
-                    </p>
-                  )}
-                  {lastCreatedRefinerId && (
-                    <div className="p-3 bg-green-50 border border-green-200 rounded">
-                      <p className="text-green-700 text-sm">
-                        ✅ Refiner created successfully with ID:{" "}
-                        <strong>{lastCreatedRefinerId}</strong>
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Update Schema ID */}
-                <div className="space-y-4 p-4 border rounded-lg">
-                  <h4 className="font-medium">Update Refiner Schema ID</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Update the schema ID for an existing refiner (useful for
-                    migrating existing refiners to new schema structure).
-                  </p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="update-refiner-id">Refiner ID</Label>
-                      <Input
-                        id="update-refiner-id"
-                        value={updateRefinerId}
-                        onChange={(e) => setUpdateRefinerId(e.target.value)}
-                        placeholder="e.g., 1"
-                        type="number"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="update-schema-id">New Schema ID</Label>
-                      <Input
-                        id="update-schema-id"
-                        value={updateSchemaId}
-                        onChange={(e) => setUpdateSchemaId(e.target.value)}
-                        placeholder="e.g., 2"
-                        type="number"
-                      />
-                    </div>
-                  </div>
-                  <Button
-                    onClick={handleUpdateSchemaId}
-                    disabled={
-                      isUpdatingSchema || !updateRefinerId || !updateSchemaId
-                    }
-                  >
-                    {isUpdatingSchema ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <RotateCcw className="h-4 w-4 mr-2" />
-                    )}
-                    Update Schema ID
-                  </Button>
-                  {updateSchemaStatus && (
-                    <p
-                      className={`text-sm ${updateSchemaStatus.includes("❌") ? "text-destructive" : "text-green-600"}`}
-                    >
-                      {updateSchemaStatus}
-                    </p>
-                  )}
-                </div>
-
-                {/* Schemas List */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium">
-                      Schemas ({schemas.length} shown)
-                    </h4>
-                    <Button
-                      onClick={loadSchemas}
-                      disabled={isLoadingSchemas}
-                      variant="outline"
-                      size="sm"
-                    >
-                      {isLoadingSchemas ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <RotateCcw className="h-4 w-4 mr-2" />
-                      )}
-                      Refresh
-                    </Button>
                   </div>
 
-                  {isLoadingSchemas ? (
-                    <div className="text-center py-4">
-                      <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+                  {/* Update Schema ID */}
+                  <div className="p-4 border rounded-lg">
+                    <div className="mb-4">
                       <p className="text-sm text-muted-foreground">
-                        Loading schemas...
+                        Update the schema ID for an existing refiner (useful for
+                        migrating existing refiners to new schema structure).
                       </p>
                     </div>
-                  ) : schemas.length > 0 ? (
-                    <div className="space-y-2">
-                      {schemas.map((schema) => (
-                        <div
-                          key={schema.id}
-                          className="p-3 border rounded bg-muted/30"
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <Badge variant="outline">ID: {schema.id}</Badge>
-                                {schema.source === "created" && (
-                                  <Badge variant="secondary">
-                                    Created by You
-                                  </Badge>
-                                )}
-                              </div>
-                              <h5 className="font-medium mt-1">
-                                {schema.name}
-                              </h5>
-                              <p className="text-sm text-muted-foreground">
-                                Type: {schema.type}
-                              </p>
-                              <a
-                                href={schema.definitionUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm text-blue-600 hover:underline"
-                              >
-                                View Definition
-                              </a>
+                    <FormBuilder
+                      title="Update Refiner Schema ID"
+                      fields={[
+                        {
+                          name: "refinerId",
+                          label: "Refiner ID",
+                          type: "number",
+                          placeholder: "e.g., 1",
+                          value: updateRefinerId,
+                          onChange: setUpdateRefinerId,
+                          required: true,
+                        },
+                        {
+                          name: "schemaId",
+                          label: "New Schema ID",
+                          type: "number",
+                          placeholder: "e.g., 2",
+                          value: updateSchemaId,
+                          onChange: setUpdateSchemaId,
+                          required: true,
+                        },
+                      ]}
+                      onSubmit={handleUpdateSchemaId}
+                      isSubmitting={isUpdatingSchema}
+                      submitText="Update Schema ID"
+                      submitIcon={<RotateCcw className="h-4 w-4" />}
+                      status={updateSchemaStatus}
+                      statusType={
+                        updateSchemaStatus?.includes("❌") ? "error" : "success"
+                      }
+                    />
+                  </div>
+
+                  {/* Schemas List */}
+                  <ResourceList
+                    title="Schema Registry"
+                    description={`Browse and manage data schemas (${schemas.length} schemas)`}
+                    items={schemas}
+                    isLoading={isLoadingSchemas}
+                    onRefresh={loadSchemas}
+                    renderItem={(schema) => (
+                      <div
+                        key={schema.id}
+                        className="p-3 border rounded bg-muted/30"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <Chip variant="bordered">ID: {schema.id}</Chip>
+                              {schema.source === "created" && (
+                                <Chip variant="flat">Created by You</Chip>
+                              )}
                             </div>
+                            <h5 className="font-medium mt-1">{schema.name}</h5>
+                            <p className="text-sm text-muted-foreground">
+                              Type: {schema.type}
+                            </p>
+                            <a
+                              href={schema.definitionUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-blue-600 hover:underline"
+                            >
+                              View Definition
+                            </a>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-6 text-muted-foreground">
-                      <Database className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                      <p>No schemas found</p>
-                      <p className="text-sm">Create your first schema above</p>
-                    </div>
-                  )}
-                </div>
+                      </div>
+                    )}
+                    emptyState={
+                      <div className="text-center py-6 text-muted-foreground">
+                        <Database className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p>No schemas found</p>
+                      </div>
+                    }
+                  />
 
-                {/* Refiners List */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium">
-                      Refiners ({refiners.length} shown)
-                    </h4>
-                    <Button
-                      onClick={loadRefiners}
-                      disabled={isLoadingRefiners}
-                      variant="outline"
-                      size="sm"
-                    >
-                      {isLoadingRefiners ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <RotateCcw className="h-4 w-4 mr-2" />
-                      )}
-                      Refresh
-                    </Button>
-                  </div>
-
-                  {isLoadingRefiners ? (
-                    <div className="text-center py-4">
-                      <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
-                      <p className="text-sm text-muted-foreground">
-                        Loading refiners...
-                      </p>
-                    </div>
-                  ) : refiners.length > 0 ? (
-                    <div className="space-y-2">
-                      {refiners.map((refiner) => (
-                        <div
-                          key={refiner.id}
-                          className="p-3 border rounded bg-muted/30"
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <Badge variant="outline">
-                                  ID: {refiner.id}
-                                </Badge>
-                                <Badge variant="outline">
-                                  DLP: {refiner.dlpId}
-                                </Badge>
-                                <Badge variant="outline">
-                                  Schema: {refiner.schemaId}
-                                </Badge>
-                                {refiner.source === "created" && (
-                                  <Badge variant="secondary">
-                                    Created by You
-                                  </Badge>
-                                )}
-                              </div>
-                              <h5 className="font-medium mt-1">
-                                {refiner.name}
-                              </h5>
-                              <div className="text-sm text-muted-foreground">
-                                <AddressDisplay
-                                  address={refiner.owner}
-                                  showCopy={false}
-                                  showExternalLink={false}
-                                  className="inline"
-                                />
-                              </div>
-                              <a
-                                href={refiner.refinementInstructionUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm text-blue-600 hover:underline"
-                              >
-                                View Instructions
-                              </a>
+                  {/* Refiners List */}
+                  <ResourceList
+                    title="Refiner Registry"
+                    description={`Browse and manage data refiners (${refiners.length} refiners)`}
+                    items={refiners}
+                    isLoading={isLoadingRefiners}
+                    onRefresh={loadRefiners}
+                    renderItem={(refiner) => (
+                      <div
+                        key={refiner.id}
+                        className="p-3 border rounded bg-muted/30"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <Chip variant="bordered">ID: {refiner.id}</Chip>
+                              <Chip variant="bordered">
+                                DLP: {refiner.dlpId}
+                              </Chip>
+                              <Chip variant="bordered">
+                                Schema: {refiner.schemaId}
+                              </Chip>
+                              {refiner.source === "created" && (
+                                <Chip variant="flat">Created by You</Chip>
+                              )}
                             </div>
+                            <h5 className="font-medium mt-1">{refiner.name}</h5>
+                            <div className="text-sm text-muted-foreground">
+                              <AddressDisplay
+                                address={refiner.owner}
+                                showCopy={false}
+                                showExternalLink={false}
+                                className="inline"
+                              />
+                            </div>
+                            <a
+                              href={refiner.refinementInstructionUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-blue-600 hover:underline"
+                            >
+                              View Instructions
+                            </a>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-6 text-muted-foreground">
-                      <Brain className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                      <p>No refiners found</p>
-                      <p className="text-sm">Create your first refiner above</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                      </div>
+                    )}
+                    emptyState={
+                      <div className="text-center py-6 text-muted-foreground">
+                        <Brain className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p>No refiners found</p>
+                      </div>
+                    }
+                  />
+                </CardBody>
+              </Card>
+            </div>
 
             {/* Personal Server */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <div className="flex items-center gap-2">
                   <Brain className="h-5 w-5" />
                   Personal Server Integration
-                </CardTitle>
-                <CardDescription>
-                  Interact with the Vana Personal Server to run computations on
-                  granted data permissions. Submit a computation request using a
-                  permission ID.
-                </CardDescription>
+                </div>
+                <p className="text-small text-default-500">
+                  Demonstrates the complete server permission workflow: servers
+                  decrypt files with permissions using their private keys, then
+                  interact with personal server APIs. Shows both the low-level
+                  decryption and high-level API integration.
+                </p>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardBody className="space-y-6">
+                {/* Server Decryption Demo */}
                 <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Key className="h-4 w-4" />
+                    <span className="font-medium">Server Decryption Demo</span>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Input
+                        label="File ID"
+                        value={serverFileId}
+                        onChange={(e) => setServerFileId(e.target.value)}
+                        placeholder="Enter file ID (e.g., 123)"
+                        type="number"
+                      />
+                      <Input
+                        label="Server Private Key"
+                        value={serverPrivateKey}
+                        onChange={(e) => setServerPrivateKey(e.target.value)}
+                        placeholder="Enter server private key (hex)"
+                        type="password"
+                      />
+                    </div>
+
+                    <Button
+                      onPress={handleServerDecryption}
+                      disabled={
+                        isServerDecrypting ||
+                        !serverFileId.trim() ||
+                        !serverPrivateKey.trim()
+                      }
+                      className="w-full"
+                    >
+                      {isServerDecrypting ? (
+                        <Spinner size="sm" className="mr-2" />
+                      ) : (
+                        <Lock className="h-4 w-4 mr-2" />
+                      )}
+                      Decrypt File with Server Key
+                    </Button>
+
+                    {serverDecryptError && (
+                      <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+                        <p className="text-destructive text-sm">
+                          {serverDecryptError}
+                        </p>
+                      </div>
+                    )}
+
+                    {serverDecryptedData && (
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-medium">
+                            Decrypted File Content:
+                          </h4>
+                          <Button
+                            size="sm"
+                            variant="bordered"
+                            onPress={() =>
+                              copyToClipboard(
+                                serverDecryptedData,
+                                "Decrypted content",
+                              )
+                            }
+                          >
+                            <Copy className="mr-2 h-3 w-3" />
+                            Copy
+                          </Button>
+                        </div>
+                        <div className="bg-muted p-4 rounded-lg border">
+                          <pre className="text-sm whitespace-pre-wrap overflow-auto max-h-48">
+                            {serverDecryptedData}
+                          </pre>
+                        </div>
+                        <div className="p-3 bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 rounded-lg">
+                          <p className="text-green-600 text-sm">
+                            ✅ Successfully decrypted file using server's
+                            private key!
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <Divider />
+
+                {/* Personal Server API Integration */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Brain className="h-4 w-4" />
+                    <span className="font-medium">
+                      Personal Server API Integration
+                    </span>
+                  </div>
+
                   <div>
-                    <Label htmlFor="permission-id">Permission ID</Label>
                     <Input
-                      id="permission-id"
+                      label="Permission ID"
                       value={personalPermissionId}
                       onChange={(e) => setPersonalPermissionId(e.target.value)}
                       placeholder="Enter permission ID (e.g., 123)"
@@ -2645,13 +2560,13 @@ export default function Home() {
                   </div>
                   <div className="flex gap-2">
                     <Button
-                      onClick={handlePersonalServerCall}
+                      onPress={handlePersonalServerCall}
                       disabled={
                         isPersonalLoading || !personalPermissionId.trim()
                       }
                     >
                       {isPersonalLoading ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        <Spinner size="sm" className="mr-2" />
                       ) : (
                         <Brain className="h-4 w-4 mr-2" />
                       )}
@@ -2663,12 +2578,12 @@ export default function Home() {
                           ?.get,
                     ) && (
                       <Button
-                        onClick={handlePollStatus}
+                        onPress={handlePollStatus}
                         disabled={isPolling}
-                        variant="outline"
+                        variant="bordered"
                       >
                         {isPolling ? (
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          <Spinner size="sm" className="mr-2" />
                         ) : (
                           <RotateCcw className="h-4 w-4 mr-2" />
                         )}
@@ -2694,34 +2609,60 @@ export default function Home() {
                     </div>
                   </div>
                 )}
-              </CardContent>
+
+                {/* How it works explanation */}
+                <div className="p-4 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <Brain className="h-4 w-4 text-blue-600 mt-0.5" />
+                    <div className="text-sm text-blue-800 dark:text-blue-200">
+                      <p className="font-medium mb-1">
+                        Server Permission Workflow:
+                      </p>
+                      <ul className="text-xs space-y-1 text-blue-700 dark:text-blue-300">
+                        <li>
+                          • Files are encrypted with user's wallet signature key
+                        </li>
+                        <li>
+                          • User's encryption key is encrypted with server's
+                          real public key
+                        </li>
+                        <li>
+                          • Server uses its private key to decrypt the user's
+                          encryption key
+                        </li>
+                        <li>
+                          • Server then uses user's key to decrypt the file data
+                        </li>
+                        <li>
+                          • Personal server APIs work with decrypted data for
+                          computation
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </CardBody>
             </Card>
 
             {/* Encryption Testing */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <div className="flex items-center gap-2">
                   <Lock className="h-5 w-5" />
                   Canonical Encryption Testing
-                </CardTitle>
-                <CardDescription>
+                </div>
+                <p className="text-small text-default-500">
                   Test the Vana canonical encryption protocol functions
                   interactively. Exercise generateEncryptionKey(),
                   encryptUserData(), and decryptUserData().
-                </CardDescription>
+                </p>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardBody className="space-y-6">
                 {/* Step 1: Configure Encryption Seed */}
                 <div className="space-y-3">
-                  <Label
-                    htmlFor="encryption-seed"
-                    className="flex items-center gap-2"
-                  >
-                    <Key className="h-4 w-4" />
-                    Step 1: Encryption Seed (overrideable)
-                  </Label>
                   <Input
-                    id="encryption-seed"
+                    label="Step 1: Encryption Seed (overrideable)"
+                    startContent={<Key className="h-4 w-4" />}
                     value={encryptionSeed}
                     onChange={(e) => setEncryptionSeed(e.target.value)}
                     placeholder="Enter encryption seed message"
@@ -2732,21 +2673,21 @@ export default function Home() {
                   </p>
                 </div>
 
-                <Separator />
+                <Divider />
 
                 {/* Step 2: Generate Encryption Key */}
                 <div className="space-y-3">
-                  <Label className="flex items-center gap-2">
+                  <span className="flex items-center gap-2">
                     <Key className="h-4 w-4" />
                     Step 2: Generate Encryption Key
-                  </Label>
+                  </span>
                   <Button
-                    onClick={handleGenerateKey}
+                    onPress={handleGenerateKey}
                     disabled={isEncrypting || !encryptionSeed}
                     className="w-full"
                   >
                     {isEncrypting ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <Spinner size="sm" className="mr-2" />
                     ) : (
                       <Key className="mr-2 h-4 w-4" />
                     )}
@@ -2760,8 +2701,8 @@ export default function Home() {
                         </p>
                         <Button
                           size="sm"
-                          variant="outline"
-                          onClick={() =>
+                          variant="bordered"
+                          onPress={() =>
                             copyToClipboard(generatedKey, "Encryption key")
                           }
                         >
@@ -2778,28 +2719,28 @@ export default function Home() {
                   )}
                 </div>
 
-                <Separator />
+                <Divider />
 
                 {/* Step 3: Data Input (Text or File) */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <Label className="flex items-center gap-2">
+                    <span className="flex items-center gap-2">
                       <FileText className="h-4 w-4" />
                       Step 3: Choose Data Input Mode
-                    </Label>
+                    </span>
                     <div className="flex items-center gap-2">
                       <Button
-                        variant={inputMode === "text" ? "default" : "outline"}
+                        variant={inputMode === "text" ? "solid" : "bordered"}
                         size="sm"
-                        onClick={() => setInputMode("text")}
+                        onPress={() => setInputMode("text")}
                       >
                         <FileText className="mr-2 h-4 w-4" />
                         Text
                       </Button>
                       <Button
-                        variant={inputMode === "file" ? "default" : "outline"}
+                        variant={inputMode === "file" ? "solid" : "bordered"}
                         size="sm"
-                        onClick={() => setInputMode("file")}
+                        onPress={() => setInputMode("file")}
                       >
                         <Upload className="mr-2 h-4 w-4" />
                         File
@@ -2809,90 +2750,71 @@ export default function Home() {
 
                   {inputMode === "text" && (
                     <div className="space-y-3">
-                      <Label htmlFor="test-data">
+                      <label htmlFor="test-data">
                         Enter text data to encrypt:
-                      </Label>
-                      <textarea
+                      </label>
+                      <Textarea
                         id="test-data"
                         value={testData}
                         onChange={(e) => setTestData(e.target.value)}
                         placeholder="Enter data to encrypt (JSON, text, etc.)"
-                        className="w-full p-3 border rounded-md font-mono text-sm min-h-[100px] resize-y bg-background text-foreground border-input"
+                        className="font-mono"
+                        minRows={4}
                       />
                     </div>
                   )}
 
                   {inputMode === "file" && (
-                    <div className="space-y-3">
-                      <Label htmlFor="file-upload">
-                        Upload a file to encrypt:
-                      </Label>
-                      <div className="border-2 border-dashed border-input rounded-lg p-6">
-                        <input
-                          id="file-upload"
-                          type="file"
-                          onChange={handleFileUpload}
-                          className="hidden"
-                        />
-                        <Label
-                          htmlFor="file-upload"
-                          className="cursor-pointer flex flex-col items-center gap-2 text-center"
-                        >
-                          <Upload className="h-8 w-8 text-muted-foreground" />
-                          <span className="text-sm font-medium">
-                            {uploadedFile
-                              ? uploadedFile.name
-                              : "Click to upload file"}
-                          </span>
-                          {uploadedFile && (
-                            <span className="text-xs text-muted-foreground">
-                              Size: {(uploadedFile.size / 1024).toFixed(1)} KB |
-                              Type: {uploadedFile.type || "unknown"}
-                            </span>
-                          )}
-                        </Label>
-                      </div>
-                    </div>
+                    <FileUpload
+                      id="file-upload"
+                      label="Upload a file to encrypt:"
+                      file={uploadedFile}
+                      onFileChange={(file) => {
+                        setUploadedFile(file);
+                        setEncryptionStatus("");
+                      }}
+                      placeholder="Click to upload file"
+                    />
                   )}
                 </div>
 
-                <Separator />
+                <Divider />
 
                 {/* Step 4: Encrypt/Decrypt Actions */}
                 <div className="space-y-3">
-                  <Label className="flex items-center gap-2">
+                  <span className="flex items-center gap-2">
                     <Lock className="h-4 w-4" />
                     Step 4: Encryption Operations
-                  </Label>
+                  </span>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <Button
-                      onClick={handleEncryptData}
+                      onPress={handleEncryptData}
                       disabled={isEncrypting || !generatedKey || !testData}
-                      variant="default"
+                      variant="solid"
                     >
                       {isEncrypting ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        <Spinner size="sm" className="mr-2" />
                       ) : (
                         <Lock className="mr-2 h-4 w-4" />
                       )}
                       Encrypt Data
                     </Button>
                     <Button
-                      onClick={handleDecryptData}
+                      onPress={handleDecryptData}
                       disabled={isEncrypting || !encryptedData}
-                      variant="outline"
+                      variant="bordered"
                     >
                       {isEncrypting ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        <Spinner size="sm" className="mr-2" />
                       ) : (
                         <Shield className="mr-2 h-4 w-4" />
                       )}
                       Decrypt Data
                     </Button>
                     <Button
-                      onClick={handleResetEncryption}
+                      onPress={handleResetEncryption}
                       disabled={isEncrypting}
-                      variant="destructive"
+                      color="danger"
                     >
                       <RotateCcw className="mr-2 h-4 w-4" />
                       Reset All
@@ -2902,22 +2824,18 @@ export default function Home() {
 
                 {/* Results */}
                 {encryptionStatus && (
-                  <p
-                    className={`text-sm ${encryptionStatus.includes("❌") ? "text-destructive" : "text-green-600"} mt-2`}
-                  >
-                    {encryptionStatus}
-                  </p>
+                  <StatusDisplay status={encryptionStatus} className="mt-2" />
                 )}
 
                 {encryptedData && (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <Label>Encrypted Data (Blob):</Label>
+                      <span>Encrypted Data (Blob):</span>
                       <div className="flex gap-2">
                         <Button
                           size="sm"
-                          variant="outline"
-                          onClick={() =>
+                          variant="bordered"
+                          onPress={() =>
                             setShowEncryptedContent(!showEncryptedContent)
                           }
                         >
@@ -2930,8 +2848,8 @@ export default function Home() {
                         </Button>
                         <Button
                           size="sm"
-                          variant="outline"
-                          onClick={handleDownloadEncrypted}
+                          variant="bordered"
+                          onPress={handleDownloadEncrypted}
                         >
                           <Download className="mr-2 h-4 w-4" />
                           Download
@@ -2945,17 +2863,17 @@ export default function Home() {
                           Size: {encryptedData.size} bytes | Type:{" "}
                           {encryptedData.type}
                         </p>
-                        <Badge variant="secondary">OpenPGP Encrypted</Badge>
+                        <Chip variant="flat">OpenPGP Encrypted</Chip>
                       </div>
 
                       {showEncryptedContent && (
                         <div className="mt-3">
                           <div className="flex items-center justify-between mb-2">
-                            <Label className="text-xs">Hex Content:</Label>
+                            <span className="text-xs">Hex Content:</span>
                             <Button
                               size="sm"
-                              variant="outline"
-                              onClick={() =>
+                              variant="bordered"
+                              onPress={() =>
                                 copyToClipboard(
                                   encryptedPreview,
                                   "Encrypted hex",
@@ -2986,16 +2904,16 @@ export default function Home() {
                   <div className="space-y-4">
                     {/* Storage Provider Selection */}
                     <div className="space-y-3">
-                      <Label>Storage Provider:</Label>
+                      <span>Storage Provider:</span>
                       <div className="flex gap-2">
                         <Button
                           size="sm"
                           variant={
                             selectedStorageProvider === "ipfs"
-                              ? "default"
-                              : "outline"
+                              ? "solid"
+                              : "bordered"
                           }
-                          onClick={() => setSelectedStorageProvider("ipfs")}
+                          onPress={() => setSelectedStorageProvider("ipfs")}
                           disabled={isUploadingToChain}
                         >
                           IPFS (Recommended)
@@ -3004,10 +2922,10 @@ export default function Home() {
                           size="sm"
                           variant={
                             selectedStorageProvider === "google-drive"
-                              ? "default"
-                              : "outline"
+                              ? "solid"
+                              : "bordered"
                           }
-                          onClick={() =>
+                          onPress={() =>
                             setSelectedStorageProvider("google-drive")
                           }
                           disabled={isUploadingToChain}
@@ -3019,16 +2937,16 @@ export default function Home() {
                       {/* IPFS Mode Selection */}
                       {selectedStorageProvider === "ipfs" && (
                         <div className="space-y-2 pl-4 border-l-2 border-muted">
-                          <Label className="text-sm">IPFS Configuration:</Label>
+                          <span className="text-sm">IPFS Configuration:</span>
                           <div className="flex gap-2">
                             <Button
                               size="sm"
                               variant={
                                 ipfsMode === "app-managed"
-                                  ? "default"
-                                  : "outline"
+                                  ? "solid"
+                                  : "bordered"
                               }
-                              onClick={() => setIpfsMode("app-managed")}
+                              onPress={() => setIpfsMode("app-managed")}
                               disabled={isUploadingToChain}
                             >
                               🏢 App&apos;s IPFS
@@ -3037,10 +2955,10 @@ export default function Home() {
                               size="sm"
                               variant={
                                 ipfsMode === "user-managed"
-                                  ? "default"
-                                  : "outline"
+                                  ? "solid"
+                                  : "bordered"
                               }
-                              onClick={() => setIpfsMode("user-managed")}
+                              onPress={() => setIpfsMode("user-managed")}
                               disabled={isUploadingToChain}
                             >
                               👤 My IPFS
@@ -3060,11 +2978,9 @@ export default function Home() {
                                 </p>
                                 <div className="space-y-2">
                                   <div>
-                                    <Label className="text-xs">
-                                      Pinata JWT Token:
-                                    </Label>
                                     <Input
                                       type="password"
+                                      label="Pinata JWT Token:"
                                       placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                                       value={userIpfsJwt}
                                       onChange={(e) =>
@@ -3075,11 +2991,9 @@ export default function Home() {
                                     />
                                   </div>
                                   <div>
-                                    <Label className="text-xs">
-                                      Gateway URL (optional):
-                                    </Label>
                                     <Input
                                       type="url"
+                                      label="Gateway URL (optional):"
                                       placeholder="https://gateway.pinata.cloud"
                                       value={userIpfsGateway}
                                       onChange={(e) =>
@@ -3109,23 +3023,28 @@ export default function Home() {
 
                     {/* Schema Selection */}
                     <div className="space-y-2">
-                      <Label htmlFor="upload-schema">Schema (Optional):</Label>
-                      <select
+                      <label htmlFor="upload-schema">Schema (Optional):</label>
+                      <Select
                         id="upload-schema"
-                        value={selectedUploadSchemaId}
-                        onChange={(e) =>
-                          setSelectedUploadSchemaId(e.target.value)
+                        aria-label="Schema selection for data upload"
+                        selectedKeys={
+                          selectedUploadSchemaId ? [selectedUploadSchemaId] : []
                         }
-                        disabled={isUploadingToChain || isLoadingSchemas}
-                        className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm"
+                        onSelectionChange={(keys) => {
+                          const selectedKey = Array.from(keys)[0];
+                          setSelectedUploadSchemaId(
+                            selectedKey ? selectedKey.toString() : "",
+                          );
+                        }}
+                        placeholder="No schema (unstructured data)"
+                        isDisabled={isUploadingToChain || isLoadingSchemas}
                       >
-                        <option value="">No schema (unstructured data)</option>
                         {schemas.map((schema) => (
-                          <option key={schema.id} value={schema.id.toString()}>
+                          <SelectItem key={schema.id.toString()}>
                             {schema.name} (ID: {schema.id})
-                          </option>
+                          </SelectItem>
                         ))}
-                      </select>
+                      </Select>
                       <p className="text-xs text-muted-foreground">
                         Select a schema to associate your encrypted data with a
                         specific data structure. This helps refiners process
@@ -3134,14 +3053,14 @@ export default function Home() {
                     </div>
 
                     <div className="flex items-center justify-between">
-                      <Label>Upload to Vana Blockchain:</Label>
+                      <span>Upload to Vana Blockchain:</span>
                       <Button
-                        onClick={handleUploadToBlockchain}
+                        onPress={handleUploadToBlockchain}
                         disabled={isUploadingToChain}
-                        variant="default"
+                        variant="solid"
                       >
                         {isUploadingToChain ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          <Spinner size="sm" className="mr-2" />
                         ) : (
                           <Database className="mr-2 h-4 w-4" />
                         )}
@@ -3162,11 +3081,10 @@ export default function Home() {
                       </p>
 
                       {uploadToChainStatus && (
-                        <p
-                          className={`text-sm ${uploadToChainStatus.includes("❌") ? "text-destructive" : "text-green-600"} mt-3`}
-                        >
-                          {uploadToChainStatus}
-                        </p>
+                        <StatusDisplay
+                          status={uploadToChainStatus}
+                          className="mt-3"
+                        />
                       )}
 
                       {newFileId && (
@@ -3188,12 +3106,12 @@ export default function Home() {
                 {decryptedData && (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <Label>Decrypted Data (Verification):</Label>
+                      <span>Decrypted Data (Verification):</span>
                       <div className="flex gap-2">
                         <Button
                           size="sm"
-                          variant="outline"
-                          onClick={() =>
+                          variant="bordered"
+                          onPress={() =>
                             copyToClipboard(decryptedData, "Decrypted data")
                           }
                         >
@@ -3202,8 +3120,8 @@ export default function Home() {
                         </Button>
                         <Button
                           size="sm"
-                          variant="outline"
-                          onClick={handleDownloadDecrypted}
+                          variant="bordered"
+                          onPress={handleDownloadDecrypted}
                         >
                           <Download className="mr-2 h-4 w-4" />
                           Download
@@ -3236,21 +3154,203 @@ export default function Home() {
                     </p>
                   </div>
                 )}
-              </CardContent>
+              </CardBody>
+            </Card>
+
+            {/* Trusted Server File Upload */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Shield className="h-5 w-5" />
+                  Upload File to Trusted Server
+                </div>
+                <p className="text-small text-default-500">
+                  Upload and encrypt a file with permissions for a specific
+                  trusted server. The file will be encrypted with your wallet
+                  key, and the encryption key will be encrypted with the
+                  server's public key, allowing only that server to decrypt it.
+                </p>
+              </CardHeader>
+              <CardBody className="space-y-6">
+                {/* Server Selection */}
+                <div className="space-y-2">
+                  <label htmlFor="server-select">Select Trusted Server:</label>
+                  <Select
+                    id="server-select"
+                    aria-label="Select trusted server for file upload"
+                    selectedKeys={
+                      selectedServerForUpload ? [selectedServerForUpload] : []
+                    }
+                    onSelectionChange={(keys) => {
+                      const selectedKey = Array.from(keys)[0];
+                      setSelectedServerForUpload(
+                        selectedKey ? selectedKey.toString() : "",
+                      );
+                    }}
+                    placeholder={
+                      trustedServers.length === 0
+                        ? "No trusted servers"
+                        : "Select a server..."
+                    }
+                    isDisabled={
+                      isUploadingToServer || trustedServers.length === 0
+                    }
+                  >
+                    {trustedServers.map((serverId) => (
+                      <SelectItem key={serverId}>{serverId}</SelectItem>
+                    ))}
+                  </Select>
+                  {trustedServers.length === 0 && (
+                    <p className="text-xs text-orange-600">
+                      ⚠️ No trusted servers found. Please trust a server first
+                      in the section above.
+                    </p>
+                  )}
+                </div>
+
+                {/* File Selection */}
+                <FileUpload
+                  id="server-file-upload"
+                  label="Select File to Upload:"
+                  file={serverFileToUpload}
+                  onFileChange={(file) => {
+                    setServerFileToUpload(file);
+                    setServerUploadStatus("");
+                    setServerUploadResult(null);
+                  }}
+                  disabled={isUploadingToServer}
+                  placeholder="Click to select file"
+                />
+
+                {/* Upload Button */}
+                <Button
+                  onPress={handleUploadToTrustedServer}
+                  disabled={
+                    isUploadingToServer ||
+                    !selectedServerForUpload ||
+                    !serverFileToUpload
+                  }
+                  variant="solid"
+                  className="w-full"
+                >
+                  {isUploadingToServer ? (
+                    <Spinner size="sm" className="mr-2" />
+                  ) : (
+                    <Upload className="h-4 w-4 mr-2" />
+                  )}
+                  {isUploadingToServer
+                    ? "Uploading..."
+                    : "Upload to Trusted Server"}
+                </Button>
+
+                {/* Status Messages */}
+                {serverUploadStatus && (
+                  <div
+                    className={`p-4 rounded-lg ${
+                      serverUploadStatus.includes("❌")
+                        ? "bg-destructive/10 border border-destructive/20"
+                        : "bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800"
+                    }`}
+                  >
+                    <p
+                      className={`text-sm ${
+                        serverUploadStatus.includes("❌")
+                          ? "text-destructive"
+                          : "text-green-600"
+                      }`}
+                    >
+                      {serverUploadStatus}
+                    </p>
+                  </div>
+                )}
+
+                {/* Success Result */}
+                {serverUploadResult && (
+                  <div className="p-4 bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 rounded-lg">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span className="text-sm font-medium text-green-800 dark:text-green-200">
+                          File uploaded successfully!
+                        </span>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="bg-white dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-700">
+                          <p className="text-xs text-muted-foreground mb-1">
+                            File ID:
+                          </p>
+                          <p className="font-mono text-sm">
+                            {serverUploadResult.fileId}
+                          </p>
+                        </div>
+                        <div className="bg-white dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-700">
+                          <AddressDisplay
+                            address={serverUploadResult.transactionHash}
+                            showCopy={true}
+                            showExternalLink={true}
+                            explorerUrl={getTxUrl(
+                              chainId,
+                              serverUploadResult.transactionHash,
+                            )}
+                            label="Transaction Hash"
+                          />
+                        </div>
+                      </div>
+                      <p className="text-xs text-green-600">
+                        ✅ The file has been encrypted with your wallet
+                        signature and permissions granted to the trusted server
+                        via encrypted key sharing.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Information */}
+                <div className="p-4 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <Brain className="h-4 w-4 text-blue-600 mt-0.5" />
+                    <div className="text-sm text-blue-800 dark:text-blue-200">
+                      <p className="font-medium mb-1">How it works:</p>
+                      <ul className="text-xs space-y-1 text-blue-700 dark:text-blue-300">
+                        <li>
+                          • Your file is encrypted with your wallet signature
+                          key
+                        </li>
+                        <li>
+                          • Your encryption key is encrypted with the server's
+                          real public key
+                        </li>
+                        <li>
+                          • Only the selected trusted server can decrypt your
+                          encryption key
+                        </li>
+                        <li>
+                          • The file is stored on IPFS and registered on the
+                          Vana blockchain with permissions
+                        </li>
+                        <li>
+                          • You maintain full control over which servers can
+                          access your data
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </CardBody>
             </Card>
 
             {/* Canonical Contracts */}
             <Card>
               <CardHeader>
-                <CardTitle>Canonical Contracts</CardTitle>
-                <CardDescription>
+                <div>Canonical Contracts</div>
+                <p className="text-small text-default-500">
                   All {vana.protocol.getAvailableContracts().length} Vana
                   protocol contracts deployed on{" "}
                   {vana?.protocol?.getChainName?.() || "this network"}. Click to
                   view on block explorer.
-                </CardDescription>
+                </p>
               </CardHeader>
-              <CardContent>
+              <CardBody>
                 <div className="space-y-2 max-h-96 overflow-y-auto">
                   {vana.protocol.getAvailableContracts().map((contractName) => {
                     try {
@@ -3273,15 +3373,16 @@ export default function Home() {
                               className="text-xs"
                             />
                           </div>
-                          <Button size="sm" variant="outline" asChild>
-                            <a
-                              href={explorerUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              <ExternalLink className="mr-2 h-4 w-4" />
-                              View
-                            </a>
+                          <Button
+                            size="sm"
+                            variant="bordered"
+                            as="a"
+                            href={explorerUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <ExternalLink className="mr-2 h-4 w-4" />
+                            View
                           </Button>
                         </div>
                       );
@@ -3299,7 +3400,7 @@ export default function Home() {
                               Not deployed on this network
                             </p>
                           </div>
-                          <Button size="sm" variant="outline" disabled>
+                          <Button size="sm" variant="bordered" disabled>
                             <ExternalLink className="mr-2 h-4 w-4" />
                             N/A
                           </Button>
@@ -3326,7 +3427,7 @@ export default function Home() {
                     </div>
                   </div>
                 </div>
-              </CardContent>
+              </CardBody>
             </Card>
           </div>
         )}

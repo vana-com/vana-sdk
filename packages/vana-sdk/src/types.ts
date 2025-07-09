@@ -32,7 +32,7 @@ export interface UserFile {
   id: number;
   /** URL where the file is stored */
   url: string;
-  /** Ethereum address of the file owner */
+  /** EVM address of the file owner */
   ownerAddress: Address;
   /** Block number when the file was added to the registry */
   addedAtBlock: bigint;

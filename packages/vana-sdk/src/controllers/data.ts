@@ -1245,7 +1245,13 @@ export class DataController {
       );
 
       // Add file permission for the server
-      await this.addFilePermissionForServer(uploadResult.fileId, serverId);
+      const fileOwner = await this.getUserAddress();
+
+      await this.addFilePermissionForServer(
+        fileOwner,
+        uploadResult.url,
+        serverId,
+      );
 
       return uploadResult;
     } catch (error) {
@@ -1289,7 +1295,8 @@ export class DataController {
    * @returns Promise resolving to the transaction hash
    */
   async addFilePermissionForServer(
-    fileId: number,
+    fileOwner: Address,
+    url: string,
     serverId: Address,
   ): Promise<string> {
     try {
@@ -1306,18 +1313,9 @@ export class DataController {
       );
 
       // Store the server key as a permission
-      const result = await this.addFileWithPermissions({
-        data: new Blob([serverEncryptionKey], { type: "text/plain" }),
-        filename: `server_key_${serverId}.txt`,
-        files: [fileId],
-        operation: "server_access",
-        to: serverId,
-        parameters: {
-          serverKey: serverEncryptionKey,
-          fileId: fileId,
-          serverId: serverId,
-        },
-      });
+      const result = await this.addFileWithPermissions(url, fileOwner, [
+        { account: serverId, key: serverEncryptionKey },
+      ]);
 
       return result.transactionHash as string;
     } catch (error) {

@@ -206,10 +206,14 @@ export default function Home() {
 
   // Trusted server file upload state
   const [trustedServerFile, setTrustedServerFile] = useState<File | null>(null);
-  const [selectedTrustedServerId, setSelectedTrustedServerId] = useState<string>("");
-  const [isUploadingToTrustedServer, setIsUploadingToTrustedServer] = useState(false);
-  const [trustedServerUploadStatus, setTrustedServerUploadStatus] = useState<string>("");
-  const [trustedServerUploadResult, setTrustedServerUploadResult] = useState<string>("");
+  const [selectedTrustedServerId, setSelectedTrustedServerId] =
+    useState<string>("");
+  const [isUploadingToTrustedServer, setIsUploadingToTrustedServer] =
+    useState(false);
+  const [trustedServerUploadStatus, setTrustedServerUploadStatus] =
+    useState<string>("");
+  const [trustedServerUploadResult, setTrustedServerUploadResult] =
+    useState<string>("");
 
   // Personal server setup state
   const [isSettingUpPersonalServer, setIsSettingUpPersonalServer] =
@@ -1168,7 +1172,8 @@ export default function Home() {
   };
 
   const handleTrustedServerFileUpload = async () => {
-    if (!vana || !address || !trustedServerFile || !selectedTrustedServerId) return;
+    if (!vana || !address || !trustedServerFile || !selectedTrustedServerId)
+      return;
 
     setIsUploadingToTrustedServer(true);
     setTrustedServerUploadStatus("");
@@ -1176,22 +1181,26 @@ export default function Home() {
 
     try {
       // Upload encrypted file for the trusted server
+
+      // TODO Workaround for not displaying selecting providers here which results in "ipfs"
+      const providerName = "app-ipfs";
+
       const result = await vana.data.uploadEncryptedFileForServer(
         trustedServerFile,
         selectedTrustedServerId as `0x${string}`,
         trustedServerFile.name,
-        selectedStorageProvider,
+        providerName,
       );
 
       setTrustedServerUploadResult(
         `File uploaded successfully! File ID: ${result.fileId}, Transaction: ${result.transactionHash}`,
       );
       setTrustedServerUploadStatus("File uploaded and permissions granted!");
-      
+
       // Clear form
       setTrustedServerFile(null);
       setSelectedTrustedServerId("");
-      
+
       // Refresh files list
       await loadUserFiles();
     } catch (error) {
@@ -2275,8 +2284,9 @@ export default function Home() {
                   Trusted Server File Upload
                 </CardTitle>
                 <CardDescription>
-                  Upload files encrypted for specific trusted servers. Files will be encrypted with 
-                  server-specific keys and permissions will be automatically granted.
+                  Upload files encrypted for specific trusted servers. Files
+                  will be encrypted with server-specific keys and permissions
+                  will be automatically granted.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -2286,22 +2296,33 @@ export default function Home() {
                     <Input
                       id="trustedServerFile"
                       type="file"
-                      onChange={(e) => setTrustedServerFile(e.target.files?.[0] || null)}
+                      onChange={(e) =>
+                        setTrustedServerFile(e.target.files?.[0] || null)
+                      }
                       disabled={isUploadingToTrustedServer}
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="trustedServerId">Select Trusted Server</Label>
+                    <Label htmlFor="trustedServerId">
+                      Select Trusted Server
+                    </Label>
                     <select
                       id="trustedServerId"
                       value={selectedTrustedServerId}
-                      onChange={(e) => setSelectedTrustedServerId(e.target.value)}
+                      onChange={(e) =>
+                        setSelectedTrustedServerId(e.target.value)
+                      }
                       className="w-full p-2 border rounded-md"
-                      disabled={isUploadingToTrustedServer || trustedServers.length === 0}
+                      disabled={
+                        isUploadingToTrustedServer ||
+                        trustedServers.length === 0
+                      }
                     >
                       <option value="">
-                        {trustedServers.length === 0 ? "No trusted servers available" : "Select a trusted server"}
+                        {trustedServers.length === 0
+                          ? "No trusted servers available"
+                          : "Select a trusted server"}
                       </option>
                       {trustedServers.map((server, index) => (
                         <option key={server} value={server}>
@@ -2314,8 +2335,8 @@ export default function Home() {
                   <Button
                     onClick={handleTrustedServerFileUpload}
                     disabled={
-                      isUploadingToTrustedServer || 
-                      !trustedServerFile || 
+                      isUploadingToTrustedServer ||
+                      !trustedServerFile ||
                       !selectedTrustedServerId ||
                       !isConnected
                     }
@@ -2336,12 +2357,16 @@ export default function Home() {
                 </div>
 
                 {trustedServerUploadStatus && (
-                  <div className={`p-4 rounded-lg border ${
-                    trustedServerUploadStatus.includes('Error') 
-                      ? 'bg-destructive/10 border-destructive/20 text-destructive' 
-                      : 'bg-green-50 dark:bg-green-950/50 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300'
-                  }`}>
-                    <p className="text-sm font-medium">{trustedServerUploadStatus}</p>
+                  <div
+                    className={`p-4 rounded-lg border ${
+                      trustedServerUploadStatus.includes("Error")
+                        ? "bg-destructive/10 border-destructive/20 text-destructive"
+                        : "bg-green-50 dark:bg-green-950/50 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300"
+                    }`}
+                  >
+                    <p className="text-sm font-medium">
+                      {trustedServerUploadStatus}
+                    </p>
                   </div>
                 )}
 

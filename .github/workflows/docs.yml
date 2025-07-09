@@ -2,7 +2,7 @@ name: Generate and Deploy Documentation
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, typedoc ]
   pull_request:
     branches: [ main ]
 
@@ -30,7 +30,7 @@ jobs:
       run: npm run docs
       
     - name: Deploy to GitHub Pages
-      if: github.ref == 'refs/heads/main'
+      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/typedoc'
       uses: peaceiris/actions-gh-pages@v3
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}

@@ -3,7 +3,22 @@ import type { VanaChainId, VanaChain } from "./chains";
 import type { StorageProvider } from "./storage";
 
 /**
- * Configuration for storage providers
+ * Configuration for storage providers used by the SDK.
+ *
+ * Allows you to configure multiple storage backends (IPFS, Pinata, Google Drive, etc.)
+ * and specify which one to use by default for file operations.
+ *
+ * @category Configuration
+ * @example
+ * ```typescript
+ * const storage: StorageConfig = {
+ *   providers: {
+ *     ipfs: new IPFSStorage({ gateway: 'https://gateway.pinata.cloud' }),
+ *     pinata: new PinataStorage({ apiKey: 'your-key', secretKey: 'your-secret' })
+ *   },
+ *   defaultProvider: 'ipfs'
+ * };
+ * ```
  */
 export interface StorageConfig {
   /** Map of provider name to storage provider instance */
@@ -45,7 +60,32 @@ export interface ChainConfig extends BaseConfig {
 }
 
 /**
- * Union type for all valid SDK configurations
+ * Main configuration interface for initializing the Vana SDK.
+ *
+ * You can configure the SDK using either a pre-configured wallet client
+ * (WalletConfig) or by providing chain and account details (ChainConfig).
+ * Both approaches support optional storage providers and relayer configuration.
+ *
+ * @category Configuration
+ * @example
+ * ```typescript
+ * // Using WalletConfig with pre-configured client
+ * const config: VanaConfig = {
+ *   walletClient: createWalletClient({
+ *     account: privateKeyToAccount('0x...'),
+ *     chain: moksha,
+ *     transport: http()
+ *   }),
+ *   relayerUrl: 'https://relayer.vana.org'
+ * };
+ * 
+ * // Using ChainConfig with chain ID and account
+ * const config: VanaConfig = {
+ *   chainId: 14800,
+ *   account: privateKeyToAccount('0x...'),
+ *   relayerUrl: 'https://relayer.vana.org'
+ * };
+ * ```
  */
 export type VanaConfig = WalletConfig | ChainConfig;
 

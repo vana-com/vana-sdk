@@ -28,6 +28,7 @@ import type { GetContractReturnType } from "viem";
  * - `vana.permissions.*` for access control
  *
  * @category Advanced
+ * @internal
  * @example
  * ```typescript
  * // Get contract info for direct interaction

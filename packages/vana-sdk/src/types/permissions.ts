@@ -1,7 +1,13 @@
 import type { Address, Hash } from "viem";
 
 /**
- * Represents a granted permission from the PermissionRegistry
+ * Represents a granted permission from the PermissionRegistry.
+ *
+ * This interface describes the structure of permissions that have been granted
+ * on-chain, including all the metadata and parameters associated with the permission.
+ * Used when querying user permissions or checking access rights.
+ *
+ * @category Permissions
  */
 export interface GrantedPermission {
   /** Unique identifier for the permission */
@@ -29,7 +35,26 @@ export interface GrantedPermission {
 }
 
 /**
- * Parameters for granting a permission
+ * Parameters for granting data access permission to an application.
+ *
+ * This interface defines the required and optional parameters when granting
+ * an application permission to access specific files for a particular operation.
+ * Used with `vana.permissions.grant()`.
+ *
+ * @category Permissions
+ * @example
+ * ```typescript
+ * const params: GrantPermissionParams = {
+ *   to: '0x1234...', // Application address
+ *   operation: 'llm_inference',
+ *   files: [1, 2, 3], // File IDs to grant access to
+ *   parameters: {
+ *     model: 'gpt-4',
+ *     maxTokens: 1000,
+ *     prompt: 'Analyze my data'
+ *   }
+ * };
+ * ```
  */
 export interface GrantPermissionParams {
   /** The on-chain identity of the application */

@@ -1,7 +1,13 @@
 import type { Address, Hash } from "viem";
 
 /**
- * Represents a user's registered data file
+ * Represents a user's registered data file in the Vana network.
+ *
+ * This interface describes a file that has been uploaded and registered on-chain,
+ * including its storage location, ownership, and metadata. Used when querying
+ * user files or working with file references.
+ *
+ * @category Data Management
  */
 export interface UserFile {
   /** Unique identifier for the file */
@@ -17,7 +23,12 @@ export interface UserFile {
 }
 
 /**
- * File metadata structure
+ * File metadata structure for uploaded files.
+ *
+ * Contains optional metadata that can be associated with uploaded files,
+ * including file properties and custom application-specific data.
+ *
+ * @category Data Management
  */
 export interface FileMetadata {
   /** Original filename */

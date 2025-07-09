@@ -35,13 +35,37 @@ import {
 import { StorageManager } from "../storage";
 
 /**
- * Shared context passed to all controllers.
+ * Shared configuration and services passed to all SDK controllers.
+ *
+ * This interface provides the foundational blockchain and storage services that all
+ * controllers need to operate. It's automatically created by the main Vana SDK class
+ * and passed to each controller during initialization.
+ *
+ * @category Configuration
+ * @example
+ * ```typescript
+ * // Context is automatically created when initializing the SDK
+ * const vana = new Vana({
+ *   account: privateKeyToAccount('0x...'), // Creates walletClient
+ *   network: 'moksha', // Creates publicClient for network
+ *   relayerUrl: 'https://relayer.vana.org', // Optional gasless transactions
+ *   storage: { // Optional custom storage
+ *     defaultProvider: 'ipfs',
+ *     providers: { ipfs: new IPFSStorage() }
+ *   }
+ * });
+ * ```
  */
 export interface ControllerContext {
+  /** Primary wallet client for signing transactions and messages */
   walletClient: WalletClient;
+  /** Read-only client for querying blockchain state and contracts */
   publicClient: PublicClient;
+  /** Optional separate wallet for application-specific operations */
   applicationClient?: WalletClient;
+  /** Optional relayer service URL for gasless transactions */
   relayerUrl?: string;
+  /** Optional storage manager for file upload/download operations */
   storageManager?: StorageManager;
 }
 

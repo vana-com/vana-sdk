@@ -74,7 +74,21 @@ export interface GrantPermissionParams {
 }
 
 /**
- * Parameters for revoking a permission
+ * Parameters for revoking a previously granted data access permission.
+ *
+ * Used with `PermissionsController.revoke()` to remove an application's access
+ * to user data. Once revoked, the application can no longer use the permission
+ * to access the specified files.
+ *
+ * @category Permissions
+ * @example
+ * ```typescript
+ * const revokeParams: RevokePermissionParams = {
+ *   grantId: '0x1234567890abcdef...' // Hash from the original grant transaction
+ * };
+ * 
+ * await vana.permissions.revoke(revokeParams);
+ * ```
  */
 export interface RevokePermissionParams {
   /** The keccak256 hash of the original PermissionGrant struct to revoke */
@@ -82,7 +96,24 @@ export interface RevokePermissionParams {
 }
 
 /**
- * Parameters for checking if a permission exists
+ * Parameters for checking if a specific permission exists and is valid.
+ *
+ * Used to verify whether an application has active permission to access
+ * specific user files for a particular operation before attempting to use the data.
+ *
+ * @category Permissions
+ * @example
+ * ```typescript
+ * const checkParams: CheckPermissionParams = {
+ *   application: '0x1234...', // App address
+ *   operation: 'llm_inference',
+ *   files: [1, 2, 3], // File IDs to check
+ *   parameters: { model: 'gpt-4' }, // Operation parameters
+ *   user: '0xabcd...' // Optional specific user
+ * };
+ * 
+ * const hasPermission = await vana.permissions.check(checkParams);
+ * ```
  */
 export interface CheckPermissionParams {
   /** The application address */
@@ -164,7 +195,29 @@ export interface SimplifiedPermissionMessage {
 }
 
 /**
- * Grant file structure stored in IPFS
+ * Grant file structure stored in IPFS containing permission details.
+ *
+ * Grant files contain the complete specification of what an application is permitted
+ * to do with user data, including operation parameters and file access rights.
+ * These files are stored on IPFS for transparency and immutability.
+ *
+ * @category Permissions
+ * @example
+ * ```typescript
+ * const grantFile: GrantFile = {
+ *   operation: 'llm_inference',
+ *   files: [1, 2, 3],
+ *   parameters: {
+ *     model: 'gpt-4',
+ *     maxTokens: 1000,
+ *     temperature: 0.7
+ *   },
+ *   metadata: {
+ *     timestamp: '2024-01-01T00:00:00Z',
+ *     version: '1.0'
+ *   }
+ * };
+ * ```
  */
 export interface GrantFile {
   /** Operation type */

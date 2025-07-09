@@ -7,6 +7,7 @@
  */
 
 import * as openpgp from "openpgp";
+import * as eccrypto from "eccrypto";
 import { type WalletClient } from "viem";
 
 /**
@@ -127,124 +128,152 @@ export async function decryptUserData(
 }
 
 /**
- * Derive server identity from user's encryption key
+ * Encrypt data with a wallet public key using ECIES
  *
- * This function creates a deterministic server identity by combining the user's
- * encryption key with the server URL. This ensures that each user-server pair
- * has a unique, derived identity for file access control.
+ * This function encrypts data using a wallet's public key, allowing only the holder
+ * of the corresponding private key to decrypt it. Used for granting file permissions
+ * by encrypting the user's encryption key with a server's public key.
  *
- * @param userEncryptionKey The user's encryption key (signature)
- * @param serverUrl The server URL
- * @returns A derived server identity address
+ * @param data The data to encrypt (string)
+ * @param publicKey The wallet public key (hex string, with or without 0x prefix)
+ * @returns The encrypted data as a hex string
  */
-export function deriveServerIdentity(
-  userEncryptionKey: string,
-  serverUrl: string,
-): string {
-  // Create deterministic server identity by hashing user key + server URL
-  const combinedData = `${userEncryptionKey}${serverUrl}`;
-
-  // Simple hash function - in production, use a proper crypto hash
-  let hash = 0;
-  for (let i = 0; i < combinedData.length; i++) {
-    const char = combinedData.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash = hash & hash; // Convert to 32-bit integer
-  }
-
-  // Convert hash to hex address format
-  const hashHex = (hash >>> 0).toString(16).padStart(8, "0");
-  return `0x${hashHex}${"0".repeat(32)}`;
-}
-
-/**
- * Generate server-specific encryption key for file access
- *
- * This function creates a server-specific key that can be used to encrypt
- * files for a particular trusted server. The key is derived from the user's
- * encryption key and the server's identity.
- *
- * @param userEncryptionKey The user's encryption key (signature)
- * @param serverId The server's address/identity
- * @returns A server-specific encryption key
- */
-export function generateServerEncryptionKey(
-  userEncryptionKey: string,
-  serverId: string,
-): string {
-  // Derive server-specific key by combining user key with server ID
-  const combinedData = `${userEncryptionKey}${serverId}`;
-
-  // Create a deterministic key for this user-server pair
-  let hash = 0;
-  for (let i = 0; i < combinedData.length; i++) {
-    const char = combinedData.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash = hash & hash;
-  }
-
-  // Return as hex string that can be used as encryption key
-  return `server_key_${hash.toString(16)}`;
-}
-
-/**
- * Encrypt file data for a specific trusted server
- *
- * This function encrypts user data with a server-specific key, allowing
- * only the specified server to decrypt the data while maintaining user
- * control over the encryption process.
- *
- * @param data The data to encrypt (as a Blob)
- * @param userEncryptionKey The user's encryption key (signature)
- * @param serverId The server's address/identity
- * @returns The encrypted data as a Blob
- */
-export async function encryptForServer(
-  data: Blob,
-  userEncryptionKey: string,
-  serverId: string,
-): Promise<Blob> {
+export async function encryptWithWalletPublicKey(
+  data: string,
+  publicKey: string,
+): Promise<string> {
   try {
-    // Generate server-specific encryption key
-    const serverKey = generateServerEncryptionKey(userEncryptionKey, serverId);
+    // Remove 0x prefix if present
+    const cleanPublicKey = publicKey.startsWith("0x")
+      ? publicKey.slice(2)
+      : publicKey;
 
-    // Use standard encryption with server-specific key
-    return await encryptUserData(data, serverKey);
+    // Convert hex string to bytes
+    const publicKeyBytes = Buffer.from(cleanPublicKey, "hex");
+
+    // Handle compressed vs uncompressed keys
+    const uncompressedKey =
+      publicKeyBytes.length === 64
+        ? Buffer.concat([Buffer.from([4]), publicKeyBytes])
+        : publicKeyBytes;
+
+    // Encrypt with ECIES
+    const encryptedBuffer = await eccrypto.encrypt(
+      uncompressedKey,
+      Buffer.from(data),
+    );
+
+    // Combine all parts into a single buffer
+    const combined = Buffer.concat([
+      encryptedBuffer.iv,
+      encryptedBuffer.ephemPublicKey,
+      encryptedBuffer.ciphertext,
+      encryptedBuffer.mac,
+    ]);
+
+    return combined.toString("hex");
   } catch (error) {
     throw new Error(
-      `Failed to encrypt data for server: ${error instanceof Error ? error.message : "Unknown error"}`,
+      `Failed to encrypt with wallet public key: ${error instanceof Error ? error.message : "Unknown error"}`,
     );
   }
 }
 
 /**
- * Decrypt file data that was encrypted for a specific server
+ * Example usage for demo app integration:
  *
- * This function decrypts server-encrypted data using the same derivation
- * process as the encryption, allowing users to decrypt data that was
- * encrypted for their trusted servers.
+ * // 1. User encrypts their data with their own key
+ * const encryptionKey = await generateEncryptionKey(wallet);
+ * const encryptedData = await encryptUserData(data, encryptionKey);
  *
- * @param encryptedData The encrypted data (as a Blob)
- * @param userEncryptionKey The user's encryption key (signature)
- * @param serverId The server's address/identity
- * @returns The decrypted data as a Blob
+ * // 2. To grant server permission, encrypt user's key with server's public key
+ * const serverPublicKey = getTrustedServerPublicKey(serverAddress); // TODO: Implement
+ * const encryptedKey = await encryptWithWalletPublicKey(encryptionKey, serverPublicKey);
+ *
+ * // 3. Store permission via data registry
+ * await addFileWithPermissions(fileId, [{
+ *   address: serverAddress,
+ *   encryptedKey: encryptedKey
+ * }]);
  */
-export async function decryptFromServer(
-  encryptedData: Blob,
-  userEncryptionKey: string,
-  serverId: string,
-): Promise<Blob> {
-  try {
-    // Generate the same server-specific encryption key
-    const serverKey = generateServerEncryptionKey(userEncryptionKey, serverId);
 
-    // Use standard decryption with server-specific key
-    return await decryptUserData(encryptedData, serverKey);
+/**
+ * Decrypt data with a wallet private key using ECIES
+ *
+ * This function decrypts data that was encrypted with the corresponding public key.
+ * Used by servers or other permitted parties to decrypt the user's encryption key
+ * so they can then decrypt the user's data.
+ *
+ * @param encryptedData The encrypted data (hex string)
+ * @param privateKey The wallet private key (hex string, with or without 0x prefix)
+ * @returns The decrypted data as a string
+ */
+export async function decryptWithWalletPrivateKey(
+  encryptedData: string,
+  privateKey: string,
+): Promise<string> {
+  try {
+    // Remove 0x prefix if present
+    const cleanPrivateKey = privateKey.startsWith("0x")
+      ? privateKey.slice(2)
+      : privateKey;
+    const cleanEncryptedData = encryptedData.startsWith("0x")
+      ? encryptedData.slice(2)
+      : encryptedData;
+
+    // Convert hex strings to bytes
+    const privateKeyBytes = Buffer.from(cleanPrivateKey, "hex");
+    const encryptedDataBytes = Buffer.from(cleanEncryptedData, "hex");
+
+    // Parse the encrypted data (iv + ephemPublicKey + ciphertext + mac)
+    const iv = encryptedDataBytes.subarray(0, 16);
+    const ephemPublicKey = encryptedDataBytes.subarray(16, 81); // 65 bytes for uncompressed public key
+    const ciphertext = encryptedDataBytes.subarray(81, -32);
+    const mac = encryptedDataBytes.subarray(-32);
+
+    // Reconstruct the encrypted object
+    const encryptedObject = {
+      iv,
+      ephemPublicKey,
+      ciphertext,
+      mac,
+    };
+
+    // Decrypt with ECIES
+    const decryptedBuffer = await eccrypto.decrypt(
+      privateKeyBytes,
+      encryptedObject,
+    );
+
+    return decryptedBuffer.toString("utf8");
   } catch (error) {
     throw new Error(
-      `Failed to decrypt data from server: ${error instanceof Error ? error.message : "Unknown error"}`,
+      `Failed to decrypt with wallet private key: ${error instanceof Error ? error.message : "Unknown error"}`,
     );
   }
+}
+
+/**
+ * Stub function for demo app - gets server public key from trusted server registry
+ *
+ * TODO: Replace with actual trusted server registry implementation
+ *
+ * @param serverAddress The server's wallet address
+ * @returns The server's public key (hex string)
+ */
+export function getTrustedServerPublicKey(_serverAddress: string): string {
+  console.warn(
+    "STUB: Using mock server public key. Implement trusted server registry!",
+  );
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Production requires real trusted server registry with public keys",
+    );
+  }
+
+  // Mock public key for development - this would be the server's actual public key
+  return "0x04a1b2c3d4e5f6789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 }
 
 // Note: Key sharing functions for DLP access (ECIES/eccrypto) will be added later

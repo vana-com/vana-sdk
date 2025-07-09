@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     // Basic address validation
     if (!userAddress.startsWith("0x") || userAddress.length !== 42) {
       return NextResponse.json(
-        { success: false, error: "Invalid Ethereum address format" },
+        { success: false, error: "Invalid EVM address format" },
         { status: 400 },
       );
     }

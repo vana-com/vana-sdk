@@ -18,6 +18,9 @@ import {
   generateEncryptionKey,
   decryptUserData,
   DEFAULT_ENCRYPTION_SEED,
+  encryptForServer,
+  deriveServerIdentity,
+  generateServerEncryptionKey,
 } from "../utils/encryption";
 
 /**
@@ -1229,6 +1232,173 @@ export class DataController {
       console.error("Failed to update schema ID:", error);
       throw new Error(
         `Failed to update schema ID: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Uploads an encrypted file for a specific trusted server.
+   *
+   * This method encrypts the file with a server-specific key and uploads it
+   * with permissions allowing only the specified server to decrypt the data.
+   *
+   * @param data - The file data to encrypt and upload
+   * @param serverId - The address of the trusted server
+   * @param filename - Optional filename for the upload
+   * @param providerName - Optional storage provider to use
+   * @returns Promise resolving to upload result with file ID and storage URL
+   */
+  async uploadEncryptedFileForServer(
+    data: Blob,
+    serverId: Address,
+    filename?: string,
+    providerName?: string,
+  ): Promise<UploadEncryptedFileResult> {
+    try {
+      // Generate user's encryption key
+      const userEncryptionKey = await generateEncryptionKey(
+        this.context.walletClient,
+        DEFAULT_ENCRYPTION_SEED,
+      );
+
+      // Encrypt data for the specific server
+      const encryptedData = await encryptForServer(
+        data,
+        userEncryptionKey,
+        serverId,
+      );
+
+      // Generate server-specific encryption key for permissions
+      const serverKey = generateServerEncryptionKey(
+        userEncryptionKey,
+        serverId,
+      );
+
+      // Upload the encrypted file
+      if (!this.context.storageManager) {
+        throw new Error(
+          "Storage manager not configured. Please provide storage providers in VanaConfig.",
+        );
+      }
+
+      const uploadResult = await this.context.storageManager.upload(
+        encryptedData,
+        filename,
+        providerName,
+      );
+
+      // Get user address
+      const userAddress = await this.getUserAddress();
+
+      // Create permissions for the server
+      const permissions = [
+        {
+          account: serverId,
+          key: serverKey,
+        },
+      ];
+
+      // Register file with permissions
+      const result = await this.addFileWithPermissions(
+        uploadResult.url,
+        userAddress,
+        permissions,
+      );
+
+      return {
+        fileId: result.fileId,
+        url: uploadResult.url,
+        size: uploadResult.size,
+        transactionHash: result.transactionHash as `0x${string}`,
+      };
+    } catch (error) {
+      console.error("Failed to upload encrypted file for server:", error);
+      throw new Error(
+        `Failed to upload file for server: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Derives a server identity from user's encryption key and server URL.
+   *
+   * This method creates a deterministic server identity that can be used
+   * for file access control and permission management.
+   *
+   * @param serverUrl - The server URL to derive identity for
+   * @returns Promise resolving to the derived server identity address
+   */
+  async deriveServerIdentityFromUserKey(serverUrl: string): Promise<Address> {
+    try {
+      // Generate user's encryption key
+      const userEncryptionKey = await generateEncryptionKey(
+        this.context.walletClient,
+        DEFAULT_ENCRYPTION_SEED,
+      );
+
+      // Derive server identity
+      const serverId = deriveServerIdentity(userEncryptionKey, serverUrl);
+
+      return serverId as Address;
+    } catch (error) {
+      console.error("Failed to derive server identity:", error);
+      throw new Error(
+        `Failed to derive server identity: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Adds a file permission for a specific server.
+   *
+   * This method allows adding permissions to an existing file so that
+   * a trusted server can access the file data.
+   *
+   * @param fileId - The ID of the file to add permissions for
+   * @param serverId - The address of the trusted server
+   * @returns Promise resolving to the transaction hash
+   */
+  async addFilePermissionForServer(
+    fileId: number,
+    serverId: Address,
+  ): Promise<string> {
+    try {
+      // Generate user's encryption key
+      const userEncryptionKey = await generateEncryptionKey(
+        this.context.walletClient,
+        DEFAULT_ENCRYPTION_SEED,
+      );
+
+      // Generate server-specific encryption key
+      const serverKey = generateServerEncryptionKey(
+        userEncryptionKey,
+        serverId,
+      );
+
+      const chainId = this.context.walletClient.chain?.id;
+      if (!chainId) {
+        throw new Error("Chain ID not available");
+      }
+
+      const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
+      const dataRegistryAbi = getAbi("DataRegistry");
+
+      // Add permission for the server
+      const txHash = await this.context.walletClient.writeContract({
+        address: dataRegistryAddress,
+        abi: dataRegistryAbi,
+        functionName: "addFilePermission",
+        args: [BigInt(fileId), serverId, serverKey],
+        account:
+          this.context.walletClient.account || (await this.getUserAddress()),
+        chain: this.context.walletClient.chain || null,
+      });
+
+      return txHash;
+    } catch (error) {
+      console.error("Failed to add file permission for server:", error);
+      throw new Error(
+        `Failed to add file permission for server: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }

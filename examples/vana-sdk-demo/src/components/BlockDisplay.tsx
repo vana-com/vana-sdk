@@ -1,4 +1,4 @@
-import { Button } from "@/components/ui/button";
+import { Button } from "@heroui/react";
 import { ExternalLink } from "lucide-react";
 import { getBlockUrl } from "@/lib/explorer";
 import { useChainId } from "wagmi";
@@ -29,10 +29,16 @@ export function BlockDisplay({
     <div className={`flex items-center gap-2 ${className}`}>
       <span className="font-mono text-sm">#{blockNum}</span>
       {showExternalLink && (
-        <Button size="sm" variant="ghost" asChild className="h-6 w-6 p-0">
-          <a href={blockUrl} target="_blank" rel="noopener noreferrer">
-            <ExternalLink className="h-3 w-3" />
-          </a>
+        <Button
+          size="sm"
+          variant="light"
+          as="a"
+          href={blockUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          isIconOnly
+        >
+          <ExternalLink className="h-3 w-3" />
         </Button>
       )}
     </div>

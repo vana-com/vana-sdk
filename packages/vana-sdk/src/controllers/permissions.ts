@@ -35,18 +35,72 @@ import {
 import { StorageManager } from "../storage";
 
 /**
- * Shared context passed to all controllers.
+ * Shared configuration and services passed to all SDK controllers.
+ *
+ * This interface provides the foundational blockchain and storage services that all
+ * controllers need to operate. It's automatically created by the main Vana SDK class
+ * and passed to each controller during initialization.
+ *
+ * @category Configuration
+ * @example
+ * ```typescript
+ * // Context is automatically created when initializing the SDK
+ * const vana = new Vana({
+ *   account: privateKeyToAccount('0x...'), // Creates walletClient
+ *   network: 'moksha', // Creates publicClient for network
+ *   relayerUrl: 'https://relayer.vana.org', // Optional gasless transactions
+ *   storage: { // Optional custom storage
+ *     defaultProvider: 'ipfs',
+ *     providers: { ipfs: new IPFSStorage() }
+ *   }
+ * });
+ * ```
  */
 export interface ControllerContext {
+  /** Primary wallet client for signing transactions and messages */
   walletClient: WalletClient;
+  /** Read-only client for querying blockchain state and contracts */
   publicClient: PublicClient;
+  /** Optional separate wallet for application-specific operations */
   applicationClient?: WalletClient;
+  /** Optional relayer service URL for gasless transactions */
   relayerUrl?: string;
+  /** Optional storage manager for file upload/download operations */
   storageManager?: StorageManager;
 }
 
 /**
- * Controller for managing data access permissions.
+ * Controller for granting, revoking, and managing gasless data access permissions.
+ *
+ * The PermissionsController enables users to grant applications access to their data
+ * without paying gas fees. It handles the complete EIP-712 permission flow including
+ * signature creation, IPFS storage of permission details, and relayer submission.
+ *
+ * **Common workflows:**
+ * - Grant data access: `grant()` (complete end-to-end flow)
+ * - Revoke permissions: `revoke()`
+ * - Query permissions: `getUserPermissions()`
+ * - Trust/untrust servers: `trustServer()`, `untrustServer()`
+ *
+ * @category Permissions
+ * @example
+ * ```typescript
+ * // Grant permission for an app to access your data
+ * const txHash = await vana.permissions.grant({
+ *   to: '0x...', // Application address
+ *   operation: 'llm_inference',
+ *   parameters: { model: 'gpt-4', maxTokens: 1000 }
+ * });
+ * 
+ * // Revoke a permission
+ * await vana.permissions.revoke({
+ *   to: '0x...', // Application address  
+ *   operation: 'llm_inference'
+ * });
+ * 
+ * // Check current permissions
+ * const permissions = await vana.permissions.getUserPermissions();
+ * ```
  */
 export class PermissionsController {
   constructor(private readonly context: ControllerContext) {}
@@ -595,7 +649,7 @@ export class PermissionsController {
    * @param params - Optional parameters to limit results
    * @returns Promise resolving to an array of GrantedPermission objects
    *
-   * @description This method queries the PermissionRegistry contract to find
+ * This method queries the PermissionRegistry contract to find
    * all permissions where the current user is the grantor. It iterates through
    * the permissions registry and filters for user-granted permissions.
    */

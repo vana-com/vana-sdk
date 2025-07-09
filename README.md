@@ -396,7 +396,7 @@ try {
 ## Documentation
 
 📚 **[Complete Documentation](https://docs.vana.org/vana-sdk)**
-🎯 **[API Reference](https://docs.vana.org/vana-sdk/api)**
+🎯 **[API Reference](https://vana-com.github.io/vana-sdk)**
 🔧 **[Integration Guides](https://docs.vana.org/vana-sdk/guides)**
 💡 **[Examples Repository](./examples/)**
 

@@ -46,7 +46,37 @@ export interface ControllerContext {
 }
 
 /**
- * Controller for managing data access permissions.
+ * Controller for granting, revoking, and managing gasless data access permissions.
+ *
+ * The PermissionsController enables users to grant applications access to their data
+ * without paying gas fees. It handles the complete EIP-712 permission flow including
+ * signature creation, IPFS storage of permission details, and relayer submission.
+ *
+ * **Common workflows:**
+ * - Grant data access: `grant()` (complete end-to-end flow)
+ * - Revoke permissions: `revoke()`
+ * - Query permissions: `getUserPermissions()`
+ * - Trust/untrust servers: `trustServer()`, `untrustServer()`
+ *
+ * @category Permissions
+ * @example
+ * ```typescript
+ * // Grant permission for an app to access your data
+ * const txHash = await vana.permissions.grant({
+ *   to: '0x...', // Application address
+ *   operation: 'llm_inference',
+ *   parameters: { model: 'gpt-4', maxTokens: 1000 }
+ * });
+ * 
+ * // Revoke a permission
+ * await vana.permissions.revoke({
+ *   to: '0x...', // Application address  
+ *   operation: 'llm_inference'
+ * });
+ * 
+ * // Check current permissions
+ * const permissions = await vana.permissions.getUserPermissions();
+ * ```
  */
 export class PermissionsController {
   constructor(private readonly context: ControllerContext) {}
@@ -595,7 +625,7 @@ export class PermissionsController {
    * @param params - Optional parameters to limit results
    * @returns Promise resolving to an array of GrantedPermission objects
    *
-   * @description This method queries the PermissionRegistry contract to find
+ * This method queries the PermissionRegistry contract to find
    * all permissions where the current user is the grantor. It iterates through
    * the permissions registry and filters for user-granted permissions.
    */

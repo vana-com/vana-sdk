@@ -19,13 +19,12 @@
   "categorizeByGroup": true,
   "defaultCategory": "Reference",
   "categoryOrder": [
-    "Getting Started",
     "Core SDK",
     "Data Management", 
     "Permissions",
-    "Protocol",
     "Storage",
     "Configuration",
+    "Advanced",
     "Reference",
     "*"
   ],

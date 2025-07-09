@@ -41,7 +41,35 @@ interface SubgraphResponse {
 }
 
 /**
- * Controller for managing user data assets.
+ * Controller for uploading, registering, and managing encrypted files on the Vana network.
+ *
+ * The DataController handles the complete file lifecycle from encrypted upload to blockchain 
+ * registration and decryption. It provides methods for querying user files, uploading new 
+ * encrypted content, and managing file permissions.
+ *
+ * **Common workflows:**
+ * - Upload encrypted files: `uploadEncryptedFile()`
+ * - Query user's files: `getUserFiles()`  
+ * - Decrypt accessible files: `decryptFile()`
+ * - Register external file URLs: `registerFileWithSchema()`
+ *
+ * @category Data Management
+ * @example
+ * ```typescript
+ * // Upload an encrypted file
+ * const result = await vana.data.uploadEncryptedFile(
+ *   encryptedBlob, 
+ *   'mydata.json'
+ * );
+ * 
+ * // Get files associated with user
+ * const files = await vana.data.getUserFiles({ 
+ *   owner: userAddress 
+ * });
+ * 
+ * // Decrypt a file you have access to
+ * const decrypted = await vana.data.decryptFile(files[0]);
+ * ```
  */
 export class DataController {
   constructor(private readonly context: ControllerContext) {}
@@ -49,18 +77,18 @@ export class DataController {
   /**
    * Retrieves a list of data files for which a user has contributed proofs.
    *
-   * @param params - Object containing the owner address and optional subgraph URL
-   * @returns Promise resolving to an array of UserFile objects
-   *
-   * @description This method queries the Vana subgraph to find files where the user
+   * This method queries the Vana subgraph to find files where the user
    * has submitted proof contributions. It efficiently handles millions of files by:
    * 1. Querying the subgraph for user's file contributions (proof submissions)
    * 2. Deduplicating file IDs (user may have multiple proofs per file)
    * 3. Fetching file details from the DataRegistry contract
    * 4. Falling back to mock data if subgraph is unavailable
    *
-   * @note The subgraph tracks proof contributions, not direct file ownership.
+   * @remarks The subgraph tracks proof contributions, not direct file ownership.
    * Files are associated with users through their proof submissions.
+   *
+   * @param params - Object containing the owner address and optional subgraph URL
+   * @returns Promise resolving to an array of UserFile objects
    */
   async getUserFiles(params: {
     owner: Address;
@@ -267,7 +295,7 @@ export class DataController {
    * @param fileId - The file ID to look up
    * @returns Promise resolving to UserFile object
    *
-   * @description This method queries the DataRegistry contract directly
+ * This method queries the DataRegistry contract directly
    * to get file details for any file ID, regardless of user ownership.
    * This is useful for file lookup functionality where users can search
    * for specific files by ID.
@@ -335,7 +363,7 @@ export class DataController {
    * @param providerName - Optional storage provider to use
    * @returns Promise resolving to upload result with file ID and storage URL
    *
-   * @description This method handles the complete flow of:
+ * This method handles the complete flow of:
    * 1. Uploading the encrypted file to the specified storage provider
    * 2. Registering the file URL on the DataRegistry contract via relayer
    * 3. Returning the assigned file ID and storage URL
@@ -469,7 +497,7 @@ export class DataController {
    * @param providerName - Optional storage provider to use
    * @returns Promise resolving to upload result with file ID and storage URL
    *
-   * @description This method handles the complete flow of:
+ * This method handles the complete flow of:
    * 1. Uploading the encrypted file to the specified storage provider
    * 2. Registering the file URL on the DataRegistry contract with a schema ID
    * 3. Returning the assigned file ID and storage URL
@@ -571,7 +599,7 @@ export class DataController {
    * @param encryptionSeed - Optional custom encryption seed (defaults to Vana standard)
    * @returns Promise resolving to the decrypted file as a Blob
    *
-   * @description This method handles the complete flow of:
+ * This method handles the complete flow of:
    * 1. Generating the encryption key from the user's wallet signature
    * 2. Fetching the encrypted file from the stored URL
    * 3. Decrypting the file using the canonical Vana decryption method
@@ -660,7 +688,7 @@ export class DataController {
    * @param schemaId - The schema ID to associate with the file
    * @returns Promise resolving to the file ID and transaction hash
    *
-   * @description This method registers an existing file URL on the DataRegistry
+ * This method registers an existing file URL on the DataRegistry
    * contract with a schema ID, without uploading any data.
    */
   async registerFileWithSchema(
@@ -755,7 +783,7 @@ export class DataController {
    * @param permissions - Array of permissions to set for the file
    * @returns Promise resolving to file ID and transaction hash
    *
-   * @description This method handles the core logic of registering a file
+ * This method handles the core logic of registering a file
    * with specific permissions on the DataRegistry contract. It can be used
    * by both direct transactions and relayer services.
    */

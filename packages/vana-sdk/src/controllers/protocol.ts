@@ -11,9 +11,39 @@ import { ControllerContext } from "./permissions";
 import type { GetContractReturnType } from "viem";
 
 /**
- * Controller providing low-level access to Vana protocol contracts.
- * This serves as the designated "escape hatch" for advanced developers
- * with full type safety and contract interaction capabilities.
+ * **⚠️ ADVANCED API - Most developers should use DataController and PermissionsController instead**
+ * 
+ * Controller providing direct, low-level access to all Vana protocol smart contracts.
+ * This serves as the designated "escape hatch" for advanced developers who need to
+ * interact directly with the underlying blockchain contracts.
+ *
+ * **Use this controller when:**
+ * - The high-level controllers don't provide needed functionality
+ * - You need direct contract method calls
+ * - You're building custom integrations or tooling
+ * - You need access to contract events or advanced querying
+ *
+ * **Most developers should use instead:**
+ * - `vana.data.*` for file management
+ * - `vana.permissions.*` for access control
+ *
+ * @category Advanced
+ * @example
+ * ```typescript
+ * // Get contract info for direct interaction
+ * const registry = vana.protocol.getContract('DataRegistry');
+ * 
+ * // Access contract address and ABI
+ * console.log(registry.address); // Contract address on current chain
+ * console.log(registry.abi);     // Fully typed contract ABI
+ * 
+ * // Use with viem for direct contract calls
+ * const contract = getContract({
+ *   address: registry.address,
+ *   abi: registry.abi,
+ *   publicClient: myPublicClient
+ * });
+ * ```
  */
 export class ProtocolController {
   private readonly contractFactory: ContractFactory;

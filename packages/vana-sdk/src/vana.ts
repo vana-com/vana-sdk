@@ -25,6 +25,7 @@ import { chains } from "./config/chains";
  * It is an orchestrator that provides access to all protocol functionality
  * through namespaced resource controllers.
  *
+ * @category Core SDK
  * @example
  * ```typescript
  * import { Vana } from 'vana-sdk';

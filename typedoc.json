@@ -1,29 +1,48 @@
 {
-  "entryPoints": ["packages/vana-sdk/src/index.ts"],
+  "entryPoints": [
+    "packages/vana-sdk/src/vana.ts",
+    "packages/vana-sdk/src/controllers/data.ts",
+    "packages/vana-sdk/src/controllers/permissions.ts", 
+    "packages/vana-sdk/src/controllers/protocol.ts",
+    "packages/vana-sdk/src/storage/index.ts",
+    "packages/vana-sdk/src/config/chains.ts",
+    "packages/vana-sdk/src/types/index.ts"
+  ],
   "out": "docs",
-  "name": "Vana SDK API Reference",
+  "name": "Vana SDK Developer Guide",
+  "readme": "packages/vana-sdk/README.md",
   "excludePrivate": true,
   "excludeInternal": true,
-  "readme": "packages/vana-sdk/README.md",
-  "theme": "default",
+  "excludeProtected": true,
+  "excludeExternals": true,
+  "excludeNotDocumented": true,
+  "categorizeByGroup": true,
+  "defaultCategory": "Reference",
+  "categoryOrder": [
+    "Getting Started",
+    "Core SDK",
+    "Data Management", 
+    "Permissions",
+    "Protocol",
+    "Storage",
+    "Configuration",
+    "Reference",
+    "*"
+  ],
   "sort": ["source-order"],
+  "kindSortOrder": [
+    "Class",
+    "Function",
+    "Variable",
+    "TypeAlias"
+  ],
   "searchInComments": true,
-  "searchInDocuments": true,
   "includeVersion": true,
-  "hideGenerator": false,
-  "customCss": "./docs-custom.css",
-  "navigationLinks": {
-    "GitHub": "https://github.com/vana-com/vana-sdk",
-    "NPM": "https://www.npmjs.com/package/vana-sdk"
+  "validation": {
+    "notExported": false,
+    "invalidLink": false,
+    "notDocumented": false
   },
-  "sidebarLinks": {
-    "Documentation": "https://github.com/vana-com/vana-sdk#readme",
-    "Issues": "https://github.com/vana-com/vana-sdk/issues"
-  },
-  "visibilityFilters": {
-    "protected": false,
-    "private": false,
-    "inherited": true,
-    "external": false
-  }
+  "treatWarningsAsErrors": false,
+  "skipErrorChecking": true
 }

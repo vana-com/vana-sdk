@@ -204,6 +204,13 @@ export default function Home() {
   const [isLoadingTrustedServers, setIsLoadingTrustedServers] = useState(false);
   const [useGaslessTransaction, setUseGaslessTransaction] = useState(false);
 
+  // Trusted server file upload state
+  const [trustedServerFile, setTrustedServerFile] = useState<File | null>(null);
+  const [selectedTrustedServerId, setSelectedTrustedServerId] = useState<string>("");
+  const [isUploadingToTrustedServer, setIsUploadingToTrustedServer] = useState(false);
+  const [trustedServerUploadStatus, setTrustedServerUploadStatus] = useState<string>("");
+  const [trustedServerUploadResult, setTrustedServerUploadResult] = useState<string>("");
+
   // Personal server setup state
   const [isSettingUpPersonalServer, setIsSettingUpPersonalServer] =
     useState(false);
@@ -1157,6 +1164,42 @@ export default function Home() {
       console.error("Failed to load trusted servers:", error);
     } finally {
       setIsLoadingTrustedServers(false);
+    }
+  };
+
+  const handleTrustedServerFileUpload = async () => {
+    if (!vana || !address || !trustedServerFile || !selectedTrustedServerId) return;
+
+    setIsUploadingToTrustedServer(true);
+    setTrustedServerUploadStatus("");
+    setTrustedServerUploadResult("");
+
+    try {
+      // Upload encrypted file for the trusted server
+      const result = await vana.data.uploadEncryptedFileForServer(
+        trustedServerFile,
+        selectedTrustedServerId as `0x${string}`,
+        trustedServerFile.name,
+        selectedStorageProvider,
+      );
+
+      setTrustedServerUploadResult(
+        `File uploaded successfully! File ID: ${result.fileId}, Transaction: ${result.transactionHash}`,
+      );
+      setTrustedServerUploadStatus("File uploaded and permissions granted!");
+      
+      // Clear form
+      setTrustedServerFile(null);
+      setSelectedTrustedServerId("");
+      
+      // Refresh files list
+      await loadUserFiles();
+    } catch (error) {
+      setTrustedServerUploadStatus(
+        `Error: ${error instanceof Error ? error.message : "Upload failed"}`,
+      );
+    } finally {
+      setIsUploadingToTrustedServer(false);
     }
   };
 
@@ -2219,6 +2262,94 @@ export default function Home() {
                         </div>
                       </div>
                     )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Trusted Server File Upload */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Upload className="h-5 w-5" />
+                  Trusted Server File Upload
+                </CardTitle>
+                <CardDescription>
+                  Upload files encrypted for specific trusted servers. Files will be encrypted with 
+                  server-specific keys and permissions will be automatically granted.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="trustedServerFile">Select File</Label>
+                    <Input
+                      id="trustedServerFile"
+                      type="file"
+                      onChange={(e) => setTrustedServerFile(e.target.files?.[0] || null)}
+                      disabled={isUploadingToTrustedServer}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="trustedServerId">Select Trusted Server</Label>
+                    <select
+                      id="trustedServerId"
+                      value={selectedTrustedServerId}
+                      onChange={(e) => setSelectedTrustedServerId(e.target.value)}
+                      className="w-full p-2 border rounded-md"
+                      disabled={isUploadingToTrustedServer || trustedServers.length === 0}
+                    >
+                      <option value="">
+                        {trustedServers.length === 0 ? "No trusted servers available" : "Select a trusted server"}
+                      </option>
+                      {trustedServers.map((server, index) => (
+                        <option key={server} value={server}>
+                          Server #{index + 1}: {server}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <Button
+                    onClick={handleTrustedServerFileUpload}
+                    disabled={
+                      isUploadingToTrustedServer || 
+                      !trustedServerFile || 
+                      !selectedTrustedServerId ||
+                      !isConnected
+                    }
+                    className="w-full"
+                  >
+                    {isUploadingToTrustedServer ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="mr-2 h-4 w-4" />
+                        Upload File for Trusted Server
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                {trustedServerUploadStatus && (
+                  <div className={`p-4 rounded-lg border ${
+                    trustedServerUploadStatus.includes('Error') 
+                      ? 'bg-destructive/10 border-destructive/20 text-destructive' 
+                      : 'bg-green-50 dark:bg-green-950/50 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300'
+                  }`}>
+                    <p className="text-sm font-medium">{trustedServerUploadStatus}</p>
+                  </div>
+                )}
+
+                {trustedServerUploadResult && (
+                  <div className="p-4 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    <p className="text-blue-700 dark:text-blue-300 text-sm">
+                      {trustedServerUploadResult}
+                    </p>
                   </div>
                 )}
               </CardContent>

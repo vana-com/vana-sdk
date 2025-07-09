@@ -18,6 +18,9 @@ import {
   generateEncryptionKey,
   decryptUserData,
   DEFAULT_ENCRYPTION_SEED,
+  encryptForServer,
+  deriveServerIdentity,
+  generateServerEncryptionKey,
 } from "../utils/encryption";
 
 /**
@@ -1201,6 +1204,126 @@ export class DataController {
       console.error("Failed to update schema ID:", error);
       throw new Error(
         `Failed to update schema ID: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Uploads an encrypted file for a specific trusted server.
+   *
+   * @param data - The file data to encrypt and upload
+   * @param serverId - The server's address/identity
+   * @param filename - Optional filename for the uploaded file
+   * @param providerName - Optional storage provider name
+   * @returns Promise resolving to upload result with file details
+   */
+  async uploadEncryptedFileForServer(
+    data: Blob,
+    serverId: Address,
+    filename?: string,
+    providerName?: string,
+  ): Promise<UploadEncryptedFileResult> {
+    try {
+      // Generate user's encryption key
+      const userEncryptionKey = await generateEncryptionKey(
+        this.context.walletClient,
+        DEFAULT_ENCRYPTION_SEED,
+      );
+
+      // Encrypt data for the specific server
+      const encryptedData = await encryptForServer(
+        data,
+        userEncryptionKey,
+        serverId,
+      );
+
+      // Upload the encrypted data
+      const uploadResult = await this.uploadEncryptedFile({
+        data: encryptedData,
+        filename,
+        providerName,
+      });
+
+      // Add file permission for the server
+      await this.addFilePermissionForServer(uploadResult.fileId, serverId);
+
+      return uploadResult;
+    } catch (error) {
+      console.error("Failed to upload encrypted file for server:", error);
+      throw new Error(
+        `Failed to upload encrypted file for server: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Derives server identity from user's encryption key.
+   *
+   * @param serverUrl - The server URL
+   * @returns Promise resolving to the derived server identity
+   */
+  async deriveServerIdentityFromUserKey(serverUrl: string): Promise<Address> {
+    try {
+      // Generate user's encryption key
+      const userEncryptionKey = await generateEncryptionKey(
+        this.context.walletClient,
+        DEFAULT_ENCRYPTION_SEED,
+      );
+
+      // Derive server identity
+      const serverId = deriveServerIdentity(userEncryptionKey, serverUrl);
+      return serverId as Address;
+    } catch (error) {
+      console.error("Failed to derive server identity:", error);
+      throw new Error(
+        `Failed to derive server identity: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Adds file permission for a specific server by storing the server's encryption key.
+   *
+   * @param fileId - The file ID to grant permission for
+   * @param serverId - The server's address/identity
+   * @returns Promise resolving to the transaction hash
+   */
+  async addFilePermissionForServer(
+    fileId: number,
+    serverId: Address,
+  ): Promise<string> {
+    try {
+      // Generate user's encryption key
+      const userEncryptionKey = await generateEncryptionKey(
+        this.context.walletClient,
+        DEFAULT_ENCRYPTION_SEED,
+      );
+
+      // Generate server-specific encryption key
+      const serverEncryptionKey = generateServerEncryptionKey(
+        userEncryptionKey,
+        serverId,
+      );
+
+      // Store the server key as a permission
+      const result = await this.addFileWithPermissions({
+        data: new Blob([serverEncryptionKey], { type: "text/plain" }),
+        filename: `server_key_${serverId}.txt`,
+        files: [fileId],
+        operation: "server_access",
+        to: serverId,
+        parameters: {
+          serverKey: serverEncryptionKey,
+          fileId: fileId,
+          serverId: serverId,
+        },
+      });
+
+      return result.transactionHash as string;
+    } catch (error) {
+      console.error("Failed to add file permission for server:", error);
+      throw new Error(
+        `Failed to add file permission for server: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }

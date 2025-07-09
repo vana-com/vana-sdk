@@ -2,7 +2,7 @@ name: Generate and Deploy Documentation
 
 on:
   push:
-    branches: [ main, typedoc ]
+    branches: [ main, feature/data-portability-sdk-v1 ]
   pull_request:
     branches: [ main ]
 
@@ -42,16 +42,16 @@ jobs:
       run: npm run docs
       
     - name: Setup Pages
-      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/typedoc'
+      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/data-portability-sdk-v1'
       uses: actions/configure-pages@v5
       
     - name: Upload artifact
-      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/typedoc'
+      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/data-portability-sdk-v1'
       uses: actions/upload-pages-artifact@v3
       with:
         path: './docs'
         
     - name: Deploy to GitHub Pages
-      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/typedoc'
+      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/data-portability-sdk-v1'
       id: deployment
       uses: actions/deploy-pages@v4

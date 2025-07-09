@@ -53,5 +53,8 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/vana-com/vana-sdk.git"
+  },
+  "dependencies": {
+    "next-themes": "^0.4.6"
   }
 }

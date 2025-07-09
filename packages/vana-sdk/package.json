@@ -50,10 +50,12 @@
   "license": "ISC",
   "dependencies": {
     "abitype": "^1.0.8",
+    "eccrypto": "^1.1.6",
     "openpgp": "^6.1.1",
     "viem": "^2.31.7"
   },
   "devDependencies": {
+    "@types/eccrypto": "^1.1.6",
     "@types/node": "^24.0.10",
     "@typescript-eslint/eslint-plugin": "^8.32.1",
     "@typescript-eslint/parser": "^8.32.1",

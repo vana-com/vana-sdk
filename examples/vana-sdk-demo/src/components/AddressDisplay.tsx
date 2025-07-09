@@ -1,4 +1,4 @@
-import { Button } from "@/components/ui/button";
+import { Button } from "@heroui/react";
 import { Copy, ExternalLink } from "lucide-react";
 
 interface AddressDisplayProps {
@@ -39,20 +39,21 @@ export function AddressDisplay({
         {displayAddress}
       </span>
       {showCopy && (
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={copyToClipboard}
-          className="h-6 w-6 p-0"
-        >
+        <Button size="sm" variant="light" onPress={copyToClipboard} isIconOnly>
           <Copy className="h-3 w-3" />
         </Button>
       )}
       {showExternalLink && explorerUrl && (
-        <Button size="sm" variant="ghost" asChild className="h-6 w-6 p-0">
-          <a href={explorerUrl} target="_blank" rel="noopener noreferrer">
-            <ExternalLink className="h-3 w-3" />
-          </a>
+        <Button
+          size="sm"
+          variant="light"
+          isIconOnly
+          as="a"
+          href={explorerUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <ExternalLink className="h-3 w-3" />
         </Button>
       )}
     </div>

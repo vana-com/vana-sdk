@@ -43,7 +43,7 @@ export function formatToken(
 
 /**
  * Format an address for display (showing first 6 and last 4 characters)
- * @param address Ethereum address
+ * @param address EVM address
  * @returns Shortened address string
  */
 export function shortenAddress(address: string): string {

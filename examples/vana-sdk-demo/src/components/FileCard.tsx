@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Button, Badge } from "@heroui/react";
 import { AddressDisplay } from "./AddressDisplay";
 import { BlockDisplay } from "./BlockDisplay";
 import { getAddressUrl } from "@/lib/explorer";
@@ -62,12 +61,12 @@ export function FileCard({
   const getSourceBadge = () => {
     switch (file.source) {
       case "looked-up":
-        return <Badge variant="outline">Looked Up</Badge>;
+        return <Badge variant="faded">Looked Up</Badge>;
       case "uploaded":
-        return <Badge variant="default">Just Uploaded</Badge>;
+        return <Badge variant="solid">Just Uploaded</Badge>;
       case "discovered":
       default:
-        return <Badge variant="secondary">Discovered</Badge>;
+        return <Badge variant="flat">Discovered</Badge>;
     }
   };
 
@@ -97,8 +96,8 @@ export function FileCard({
           {onSelect && (
             <Button
               size="sm"
-              variant={isSelected ? "default" : "outline"}
-              onClick={onSelect}
+              variant={isSelected ? "solid" : "bordered"}
+              onPress={onSelect}
             >
               <Shield className="mr-2 h-4 w-4" />
               {isSelected ? "Selected ✓" : "Select"}
@@ -107,8 +106,8 @@ export function FileCard({
 
           <Button
             size="sm"
-            variant="ghost"
-            onClick={() => setIsExpanded(!isExpanded)}
+            variant="light"
+            onPress={() => setIsExpanded(!isExpanded)}
           >
             {isExpanded ? (
               <ChevronDown className="h-4 w-4" />
@@ -135,12 +134,7 @@ export function FileCard({
               <span className="font-mono text-xs truncate flex-1">
                 {file.url}
               </span>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={copyUrl}
-                className="h-6 w-6 p-0"
-              >
+              <Button size="sm" variant="light" onPress={copyUrl} isIconOnly>
                 <Copy className="h-3 w-3" />
               </Button>
             </div>
@@ -151,8 +145,8 @@ export function FileCard({
             {isOwner && onDecrypt && (
               <Button
                 size="sm"
-                variant="outline"
-                onClick={onDecrypt}
+                variant="bordered"
+                onPress={onDecrypt}
                 disabled={isDecrypting}
               >
                 {isDecrypting ? (
@@ -175,8 +169,8 @@ export function FileCard({
                 {onDownloadDecrypted && (
                   <Button
                     size="sm"
-                    variant="outline"
-                    onClick={onDownloadDecrypted}
+                    variant="bordered"
+                    onPress={onDownloadDecrypted}
                   >
                     <Download className="mr-2 h-4 w-4" />
                     Download

@@ -1,4 +1,5 @@
 import "@testing-library/jest-dom";
+import { vi } from "vitest";
 
 // Mock Next.js router
 vi.mock("next/navigation", () => ({
@@ -18,7 +19,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("next/dynamic", () => ({
   __esModule: true,
   default: () => {
-    const Component = vi.fn().mockImplementation(() => null);
+    const Component = vi.fn().mockImplementation(() => null) as any;
     Component.displayName = "DynamicComponent";
     return Component;
   },
@@ -54,7 +55,7 @@ vi.mock("@tanstack/react-query", () => ({
 // Mock Web APIs
 Object.defineProperty(window, "matchMedia", {
   writable: true,
-  value: vi.fn().mockImplementation((query) => ({
+  value: vi.fn().mockImplementation((query: string) => ({
     matches: false,
     media: query,
     onchange: null,

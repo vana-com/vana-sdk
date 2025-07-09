@@ -1,8 +1,8 @@
 {
-  "entryPointStrategy": "packages",
-  "entryPoints": ["packages/*"],
+  "entryPoints": ["packages/vana-sdk/src/index.ts"],
   "out": "docs",
   "name": "Vana SDK API Reference",
   "excludePrivate": true,
-  "excludeInternal": true
+  "excludeInternal": true,
+  "readme": "packages/vana-sdk/README.md"
 }

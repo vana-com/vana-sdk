@@ -1238,11 +1238,11 @@ export class DataController {
       );
 
       // Upload the encrypted data
-      const uploadResult = await this.uploadEncryptedFile({
-        data: encryptedData,
+      const uploadResult = await this.uploadEncryptedFile(
+        encryptedData,
         filename,
         providerName,
-      });
+      );
 
       // Add file permission for the server
       await this.addFilePermissionForServer(uploadResult.fileId, serverId);

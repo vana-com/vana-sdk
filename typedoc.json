@@ -4,5 +4,26 @@
   "name": "Vana SDK API Reference",
   "excludePrivate": true,
   "excludeInternal": true,
-  "readme": "packages/vana-sdk/README.md"
+  "readme": "packages/vana-sdk/README.md",
+  "theme": "default",
+  "sort": ["source-order"],
+  "searchInComments": true,
+  "searchInDocuments": true,
+  "includeVersion": true,
+  "hideGenerator": false,
+  "customCss": "./docs-custom.css",
+  "navigationLinks": {
+    "GitHub": "https://github.com/vana-com/vana-sdk",
+    "NPM": "https://www.npmjs.com/package/vana-sdk"
+  },
+  "sidebarLinks": {
+    "Documentation": "https://github.com/vana-com/vana-sdk#readme",
+    "Issues": "https://github.com/vana-com/vana-sdk/issues"
+  },
+  "visibilityFilters": {
+    "protected": false,
+    "private": false,
+    "inherited": true,
+    "external": false
+  }
 }

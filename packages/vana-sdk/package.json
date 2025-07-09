@@ -1,6 +1,6 @@
 {
   "name": "vana-sdk",
-  "version": "1.0.10",
+  "version": "1.0.9",
   "description": "A TypeScript library for interacting with Vana Network smart contracts.",
   "type": "module",
   "main": "dist/index.js",

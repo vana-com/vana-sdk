@@ -8,6 +8,7 @@
 [![Downloads](https://img.shields.io/npm/dm/vana-sdk)](https://www.npmjs.com/package/vana-sdk)
 [![License](https://img.shields.io/npm/l/vana-sdk)](./LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
+[![semantic-release: conventionalcommits](https://img.shields.io/badge/semantic--release-conventionalcommits-e10079?logo=semantic-release)](https://github.com/semantic-release/semantic-release)
 
 </div>
 

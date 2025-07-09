@@ -1,0 +1,8 @@
+{
+  "entryPointStrategy": "packages",
+  "entryPoints": ["packages/*"],
+  "out": "docs",
+  "name": "Vana SDK API Reference",
+  "excludePrivate": true,
+  "excludeInternal": true
+}

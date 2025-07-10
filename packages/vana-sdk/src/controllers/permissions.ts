@@ -23,6 +23,7 @@ import {
   NetworkError,
   NonceError,
   BlockchainError,
+  ServerUrlMismatchError,
 } from "../errors";
 import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../abi";
@@ -67,6 +68,8 @@ export interface ControllerContext {
   relayerUrl?: string;
   /** Optional storage manager for file upload/download operations */
   storageManager?: StorageManager;
+  /** Optional subgraph URL for querying user files and permissions */
+  subgraphUrl?: string;
 }
 
 /**
@@ -91,13 +94,13 @@ export interface ControllerContext {
  *   operation: 'llm_inference',
  *   parameters: { model: 'gpt-4', maxTokens: 1000 }
  * });
- * 
+ *
  * // Revoke a permission
  * await vana.permissions.revoke({
- *   to: '0x...', // Application address  
+ *   to: '0x...', // Application address
  *   operation: 'llm_inference'
  * });
- * 
+ *
  * // Check current permissions
  * const permissions = await vana.permissions.getUserPermissions();
  * ```
@@ -289,6 +292,26 @@ export class PermissionsController {
       ) {
         throw error;
       }
+
+      // Check for specific contract errors
+      if (
+        error instanceof Error &&
+        error.message.includes("ServerUrlMismatch")
+      ) {
+        const match = error.message.match(
+          /ServerUrlMismatch\(string existingUrl, string providedUrl\)\s+\(([^,]+),\s*([^)]+)\)/,
+        );
+        if (match) {
+          const existingUrl = match[1].trim();
+          const providedUrl = match[2].trim();
+          throw new ServerUrlMismatchError(
+            existingUrl,
+            providedUrl,
+            typedData.message.serverId,
+          );
+        }
+      }
+
       throw new BlockchainError(
         `Trust server submission failed: ${error instanceof Error ? error.message : "Unknown error"}`,
         error as Error,
@@ -649,7 +672,7 @@ export class PermissionsController {
    * @param params - Optional parameters to limit results
    * @returns Promise resolving to an array of GrantedPermission objects
    *
- * This method queries the PermissionRegistry contract to find
+   * This method queries the PermissionRegistry contract to find
    * all permissions where the current user is the grantor. It iterates through
    * the permissions registry and filters for user-granted permissions.
    */

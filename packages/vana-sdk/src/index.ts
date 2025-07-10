@@ -14,6 +14,7 @@ export * from "./errors";
 // Controllers
 export { PermissionsController } from "./controllers/permissions";
 export { DataController } from "./controllers/data";
+export { ServerController } from "./controllers/server";
 export { ProtocolController } from "./controllers/protocol";
 
 // Base contract class
@@ -31,6 +32,9 @@ export * from "./storage";
 // Configuration
 export { getContractAddress } from "./config/addresses";
 export { chains, mokshaTestnet, vanaMainnet } from "./config/chains";
+
+// Chain configurations with subgraph URLs
+export * from "./chains";
 
 // ABIs
 export { getAbi } from "./abi";

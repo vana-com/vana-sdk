@@ -17,6 +17,8 @@ const nextConfig = {
     config.resolve.alias = {
       ...config.resolve.alias,
       "@": path.resolve(__dirname, "src"),
+      // TODO: Refactor vana-sdk to use conditional exports for eccrypto to properly support SSR and remove the build hack from the demo app.
+      eccrypto: "eccrypto-js", // CJS → ESM shim
     };
 
     // These fallbacks are still needed for dependencies that use Node.js APIs
@@ -41,6 +43,14 @@ const nextConfig = {
         }),
       );
     }
+
+    // Ignore the native eccrypto module that causes issues
+    config.plugins.push(
+      new (require("webpack").IgnorePlugin)({
+        resourceRegExp: /^\.\/build\/Release\/ecdh$/,
+        contextRegExp: /eccrypto/,
+      }),
+    );
 
     // This is needed for certain dependencies that are not fully ESM-compatible.
     config.externals.push("pino-pretty", "lokijs", "encoding");

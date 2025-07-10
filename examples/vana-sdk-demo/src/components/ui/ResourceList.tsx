@@ -2,7 +2,7 @@
 
 "use client";
 
-import React from "react";
+import React, { useState, useMemo } from "react";
 import {
   Button,
   Card,
@@ -10,6 +10,7 @@ import {
   CardBody,
   Progress,
   Spinner,
+  Pagination,
 } from "@heroui/react";
 import { RotateCcw } from "lucide-react";
 
@@ -22,6 +23,7 @@ interface ResourceListProps<T> {
   renderItem: (item: T, index: number) => React.ReactNode;
   emptyState: React.ReactNode;
   className?: string;
+  itemsPerPage?: number;
 }
 
 export function ResourceList<T>({
@@ -33,7 +35,24 @@ export function ResourceList<T>({
   renderItem,
   emptyState,
   className = "",
+  itemsPerPage = 3,
 }: ResourceListProps<T>) {
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const totalPages = Math.ceil(items.length / itemsPerPage);
+
+  const paginatedItems = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return items.slice(startIndex, startIndex + itemsPerPage);
+  }, [items, currentPage, itemsPerPage]);
+
+  // Reset to first page when items change
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [items.length]);
+
+  const showPagination = !isLoading && items.length > itemsPerPage;
+
   return (
     <Card className={className}>
       <CardHeader>
@@ -70,8 +89,24 @@ export function ResourceList<T>({
         ) : items.length === 0 ? (
           emptyState
         ) : (
-          <div className="space-y-3">
-            {items.map((item, index) => renderItem(item, index))}
+          <div className="space-y-4">
+            <div className="space-y-3">
+              {paginatedItems.map((item, index) =>
+                renderItem(item, (currentPage - 1) * itemsPerPage + index),
+              )}
+            </div>
+
+            {showPagination && (
+              <div className="flex justify-center pt-4">
+                <Pagination
+                  total={totalPages}
+                  page={currentPage}
+                  onChange={setCurrentPage}
+                  showControls
+                  size="sm"
+                />
+              </div>
+            )}
           </div>
         )}
       </CardBody>

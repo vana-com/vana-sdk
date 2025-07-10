@@ -61,6 +61,7 @@ import {
   NavbarItem,
 } from "@heroui/react";
 import { AddressDisplay } from "@/components/AddressDisplay";
+import { IpfsAddressDisplay } from "@/components/IpfsAddressDisplay";
 import { PermissionDisplay } from "@/components/PermissionDisplay";
 import { FileCard } from "@/components/FileCard";
 import { ResourceList } from "@/components/ui/ResourceList";
@@ -1903,17 +1904,11 @@ export default function Home() {
                         {grantPreview && (
                           <>
                             <div>
-                              <span className="text-sm font-medium">
-                                IPFS URL:
-                              </span>
-                              <a
-                                href={`https://ipfs.io/ipfs/${grantPreview.grantUrl.replace("ipfs://", "")}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm text-blue-600 hover:text-blue-800 underline font-mono break-all block mt-1"
-                              >
-                                {grantPreview.grantUrl}
-                              </a>
+                              <IpfsAddressDisplay
+                                ipfsUrl={grantPreview.grantUrl}
+                                label="IPFS URL"
+                                truncate={false}
+                              />
                             </div>
 
                             <div>
@@ -3526,11 +3521,10 @@ export default function Home() {
                               />
                             </div>
                             <div className="bg-white dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-700">
-                              <AddressDisplay
-                                address={serverUploadResult.url}
+                              <IpfsAddressDisplay
+                                ipfsUrl={serverUploadResult.url}
                                 showCopy={true}
                                 showExternalLink={true}
-                                explorerUrl={`https://ipfs.io/ipfs/${serverUploadResult.url.replace("ipfs://", "")}`}
                                 label="IPFS URL"
                               />
                             </div>

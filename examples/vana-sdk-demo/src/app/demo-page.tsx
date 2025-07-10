@@ -1805,6 +1805,44 @@ export default function Home() {
                   </Card>
                 </div>
 
+                {/* Encryption Testing */}
+                <EncryptionTestCard
+                  encryptionSeed={encryptionSeed}
+                  onEncryptionSeedChange={setEncryptionSeed}
+                  encryptionKey={generatedKey}
+                  isGeneratingKey={isGeneratingKey}
+                  onGenerateKey={handleGenerateKey}
+                  inputMode={inputMode}
+                  onInputModeChange={setInputMode}
+                  testData={testData}
+                  onTestDataChange={setTestData}
+                  uploadedFile={uploadedFile}
+                  onFileUpload={setUploadedFile}
+                  isEncrypting={isEncrypting}
+                  onEncryptData={handleEncryptData}
+                  onDecryptData={handleDecryptData}
+                  onResetAll={handleResetEncryption}
+                  encryptionStatus={encryptionStatus}
+                  encryptedData={encryptedData}
+                  decryptedData={decryptedData}
+                  showEncryptedContent={showEncryptedContent}
+                  onToggleEncryptedContent={() =>
+                    setShowEncryptedContent(!showEncryptedContent)
+                  }
+                  schemas={schemas}
+                  selectedSchemaId={selectedUploadSchemaId}
+                  onSchemaSelectionChange={setSelectedUploadSchemaId}
+                  isUploadingToChain={isUploadingToChain}
+                  onUploadToChain={handleUploadToBlockchain}
+                  newFileId={newFileId}
+                  storageConfig={{
+                    provider: sdkConfig.defaultStorageProvider || "app-ipfs",
+                    ipfsMode: ipfsMode,
+                  }}
+                  onCopyToClipboard={handleCopyToClipboard}
+                  onDownloadDecrypted={handleDownloadDecrypted}
+                />
+
                 {/* Part 2: Applied Workflows */}
                 <SectionDivider text="Part 2: Applied Workflows" />
 
@@ -1897,44 +1935,6 @@ export default function Home() {
                   personalError={personalError}
                   personalResult={personalResult}
                   onCopyToClipboard={copyToClipboard}
-                />
-
-                {/* Encryption Testing */}
-                <EncryptionTestCard
-                  encryptionSeed={encryptionSeed}
-                  onEncryptionSeedChange={setEncryptionSeed}
-                  encryptionKey={generatedKey}
-                  isGeneratingKey={isGeneratingKey}
-                  onGenerateKey={handleGenerateKey}
-                  inputMode={inputMode}
-                  onInputModeChange={setInputMode}
-                  testData={testData}
-                  onTestDataChange={setTestData}
-                  uploadedFile={uploadedFile}
-                  onFileUpload={setUploadedFile}
-                  isEncrypting={isEncrypting}
-                  onEncryptData={handleEncryptData}
-                  onDecryptData={handleDecryptData}
-                  onResetAll={handleResetEncryption}
-                  encryptionStatus={encryptionStatus}
-                  encryptedData={encryptedData}
-                  decryptedData={decryptedData}
-                  showEncryptedContent={showEncryptedContent}
-                  onToggleEncryptedContent={() =>
-                    setShowEncryptedContent(!showEncryptedContent)
-                  }
-                  schemas={schemas}
-                  selectedSchemaId={selectedUploadSchemaId}
-                  onSchemaSelectionChange={setSelectedUploadSchemaId}
-                  isUploadingToChain={isUploadingToChain}
-                  onUploadToChain={handleUploadToBlockchain}
-                  newFileId={newFileId}
-                  storageConfig={{
-                    provider: sdkConfig.defaultStorageProvider || "app-ipfs",
-                    ipfsMode: ipfsMode,
-                  }}
-                  onCopyToClipboard={handleCopyToClipboard}
-                  onDownloadDecrypted={handleDownloadDecrypted}
                 />
 
                 {/* Trusted Server File Upload */}

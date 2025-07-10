@@ -33,6 +33,7 @@ import {
   getGrantFileHash,
   retrieveGrantFile,
 } from "../utils/grantFiles";
+import { validateGrant } from "../utils/grantValidation";
 import { StorageManager } from "../storage";
 
 /**
@@ -132,10 +133,11 @@ export class PermissionsController {
     signature: Hash;
   }> {
     try {
-      const userAddress = await this.getUserAddress();
-
       // Step 1: Create grant file with all the real data
-      const grantFile = createGrantFile(params, userAddress);
+      const grantFile = createGrantFile(params);
+
+      // Step 1.5: Validate the grant file against our JSON schema
+      validateGrant(grantFile);
 
       // Step 2: Use provided grantUrl or store grant file in IPFS
       let grantUrl = params.grantUrl;

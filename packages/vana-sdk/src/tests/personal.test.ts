@@ -526,7 +526,7 @@ describe("ServerController", () => {
         serverController.getTrustedServerPublicKey(
           "invalid-address" as Address,
         ),
-      ).rejects.toThrow("User address must be a valid Ethereum address");
+      ).rejects.toThrow("User address must be a valid EVM address");
     });
 
     it("should throw error for empty user address", async () => {

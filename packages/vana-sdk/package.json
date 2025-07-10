@@ -50,6 +50,8 @@
   "license": "ISC",
   "dependencies": {
     "abitype": "^1.0.8",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
     "eccrypto": "^1.1.6",
     "openpgp": "^6.1.1",
     "viem": "^2.31.7"

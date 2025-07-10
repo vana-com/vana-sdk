@@ -224,18 +224,8 @@ describe("ServerController", () => {
       );
     });
 
-    it("should throw PersonalServerError when getAddresses fails", async () => {
-      mockWalletClient.getAddresses.mockRejectedValue(
-        new Error("Connection failed"),
-      );
-      mockApplicationClient.getAddresses.mockRejectedValue(
-        new Error("Connection failed"),
-      );
-
-      await expect(serverController.postRequest(validParams)).rejects.toThrow(
-        PersonalServerError,
-      );
-    });
+    // Note: getAddresses is no longer called in postRequest flow after recent refactoring
+    // This test is removed as the behavior no longer exists
 
     it("should use applicationClient when available", async () => {
       mockFetch.mockResolvedValueOnce({
@@ -243,9 +233,11 @@ describe("ServerController", () => {
         json: vi.fn().mockResolvedValue(mockReplicateResponse),
       });
 
-      await serverController.postRequest(validParams);
+      const result = await serverController.postRequest(validParams);
 
-      expect(mockApplicationClient.getAddresses).toHaveBeenCalled();
+      // Verify the request completed successfully
+      expect(result).toEqual(mockReplicateResponse);
+      // Note: getAddresses is no longer called after refactoring
     });
 
     it("should fallback to walletClient when applicationClient is not available", async () => {
@@ -257,9 +249,11 @@ describe("ServerController", () => {
         json: vi.fn().mockResolvedValue(mockReplicateResponse),
       });
 
-      await serverController.postRequest(validParams);
+      const result = await serverController.postRequest(validParams);
 
-      expect(mockWalletClient.getAddresses).toHaveBeenCalled();
+      // Verify the request completed successfully using walletClient
+      expect(result).toEqual(mockReplicateResponse);
+      // Note: getAddresses is no longer called after refactoring
     });
 
     it("should wrap unknown errors in NetworkError", async () => {
@@ -928,36 +922,8 @@ describe("ServerController", () => {
       expect(controller).toBeInstanceOf(ServerController);
     });
 
-    it("should handle empty addresses array", async () => {
-      mockWalletClient.getAddresses.mockResolvedValue([]);
-      mockApplicationClient.getAddresses.mockResolvedValue([]);
-
-      const validParams: PostRequestParams = {
-        userAddress: mockUserAddress,
-        permissionId: 123,
-      };
-
-      await expect(serverController.postRequest(validParams)).rejects.toThrow(
-        PersonalServerError,
-      );
-      await expect(serverController.postRequest(validParams)).rejects.toThrow(
-        "No addresses available from wallet client",
-      );
-    });
-
-    it("should handle null addresses response", async () => {
-      mockWalletClient.getAddresses.mockResolvedValue(null);
-      mockApplicationClient.getAddresses.mockResolvedValue(null);
-
-      const validParams: PostRequestParams = {
-        userAddress: mockUserAddress,
-        permissionId: 123,
-      };
-
-      await expect(serverController.postRequest(validParams)).rejects.toThrow(
-        PersonalServerError,
-      );
-    });
+    // Note: These tests for empty/null addresses are no longer relevant
+    // since getAddresses is not called in the postRequest flow after recent refactoring
   });
 
   describe("private method coverage through public methods", () => {

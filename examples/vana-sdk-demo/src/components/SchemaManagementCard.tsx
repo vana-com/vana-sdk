@@ -1,0 +1,330 @@
+import React from "react";
+import { Card, CardHeader, CardBody } from "@heroui/react";
+import { Database, Brain, RotateCcw } from "lucide-react";
+import { SectionHeader } from "./ui/SectionHeader";
+import { FormBuilder } from "./ui/FormBuilder";
+import { ResourceList } from "./ui/ResourceList";
+import { SchemaListItem } from "./SchemaListItem";
+import { RefinerListItem } from "./RefinerListItem";
+import { EmptyState } from "./ui/EmptyState";
+import { Schema, Refiner } from "vana-sdk";
+
+interface SchemaManagementCardProps {
+  // Statistics
+  schemasCount: number;
+  refinersCount: number;
+
+  // Schema creation
+  schemaName: string;
+  onSchemaNameChange: (name: string) => void;
+  schemaType: string;
+  onSchemaTypeChange: (type: string) => void;
+  schemaDefinitionUrl: string;
+  onSchemaDefinitionUrlChange: (url: string) => void;
+  onCreateSchema: () => void;
+  isCreatingSchema: boolean;
+  schemaStatus: string;
+  lastCreatedSchemaId: number | null;
+
+  // Refiner creation
+  refinerName: string;
+  onRefinerNameChange: (name: string) => void;
+  refinerDlpId: string;
+  onRefinerDlpIdChange: (dlpId: string) => void;
+  refinerSchemaId: string;
+  onRefinerSchemaIdChange: (schemaId: string) => void;
+  refinerInstructionUrl: string;
+  onRefinerInstructionUrlChange: (url: string) => void;
+  onCreateRefiner: () => void;
+  isCreatingRefiner: boolean;
+  refinerStatus: string;
+  lastCreatedRefinerId: number | null;
+
+  // Schema ID update
+  updateRefinerId: string;
+  onUpdateRefinerIdChange: (refinerId: string) => void;
+  updateSchemaId: string;
+  onUpdateSchemaIdChange: (schemaId: string) => void;
+  onUpdateSchemaId: () => void;
+  isUpdatingSchema: boolean;
+  updateSchemaStatus: string;
+
+  // Lists
+  schemas: (Schema & { source?: "discovered" | "created" })[];
+  isLoadingSchemas: boolean;
+  onRefreshSchemas: () => void;
+  refiners: (Refiner & { source?: "discovered" | "created" })[];
+  isLoadingRefiners: boolean;
+  onRefreshRefiners: () => void;
+}
+
+/**
+ * SchemaManagementCard component - Complete schema and refiner management workflow
+ * Demonstrates addSchema(), addRefiner(), getSchemas(), getRefiners()
+ */
+export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
+  schemasCount,
+  refinersCount,
+  schemaName,
+  onSchemaNameChange,
+  schemaType,
+  onSchemaTypeChange,
+  schemaDefinitionUrl,
+  onSchemaDefinitionUrlChange,
+  onCreateSchema,
+  isCreatingSchema,
+  schemaStatus,
+  lastCreatedSchemaId,
+  refinerName,
+  onRefinerNameChange,
+  refinerDlpId,
+  onRefinerDlpIdChange,
+  refinerSchemaId,
+  onRefinerSchemaIdChange,
+  refinerInstructionUrl,
+  onRefinerInstructionUrlChange,
+  onCreateRefiner,
+  isCreatingRefiner,
+  refinerStatus,
+  lastCreatedRefinerId,
+  updateRefinerId,
+  onUpdateRefinerIdChange,
+  updateSchemaId,
+  onUpdateSchemaIdChange,
+  onUpdateSchemaId,
+  isUpdatingSchema,
+  updateSchemaStatus,
+  schemas,
+  isLoadingSchemas,
+  onRefreshSchemas,
+  refiners,
+  isLoadingRefiners,
+  onRefreshRefiners,
+}) => {
+  return (
+    <Card>
+      <CardHeader>
+        <SectionHeader
+          icon={<Database className="h-5 w-5" />}
+          title="Schema Management"
+          description={
+            <>
+              <em>
+                Demonstrates: `addSchema()`, `addRefiner()`, `getSchemas()`,
+                `getRefiners()`
+              </em>
+              <br />
+              Manage data schemas and refiners for structured data processing
+              workflows.
+            </>
+          }
+        />
+      </CardHeader>
+      <CardBody className="space-y-6">
+        {/* Schema Statistics */}
+        <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
+          <div className="text-center">
+            <div className="text-2xl font-bold text-primary">
+              {schemasCount}
+            </div>
+            <div className="text-sm text-muted-foreground">Total Schemas</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-primary">
+              {refinersCount}
+            </div>
+            <div className="text-sm text-muted-foreground">Total Refiners</div>
+          </div>
+        </div>
+
+        {/* Create Schema */}
+        <div className="p-4 border rounded-lg">
+          <FormBuilder
+            title="Create New Schema"
+            fields={[
+              {
+                name: "name",
+                label: "Name",
+                type: "text",
+                placeholder: "e.g., User Profile Schema",
+                value: schemaName,
+                onChange: onSchemaNameChange,
+                required: true,
+              },
+              {
+                name: "type",
+                label: "Type",
+                type: "text",
+                placeholder: "e.g., json-schema",
+                value: schemaType,
+                onChange: onSchemaTypeChange,
+                required: true,
+              },
+              {
+                name: "definitionUrl",
+                label: "Definition URL",
+                type: "url",
+                placeholder: "https://example.com/schema.json",
+                value: schemaDefinitionUrl,
+                onChange: onSchemaDefinitionUrlChange,
+                required: true,
+              },
+            ]}
+            onSubmit={onCreateSchema}
+            isSubmitting={isCreatingSchema}
+            submitText="Create Schema"
+            submitIcon={<Database className="h-4 w-4" />}
+            status={schemaStatus}
+            statusType={schemaStatus?.includes("❌") ? "error" : "success"}
+          />
+          {lastCreatedSchemaId && (
+            <div className="p-3 bg-green-50 border border-green-200 rounded mt-4">
+              <p className="text-green-700 text-sm">
+                ✅ Schema created successfully with ID:{" "}
+                <strong>{lastCreatedSchemaId}</strong>
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Create Refiner */}
+        <div className="p-4 border rounded-lg">
+          <FormBuilder
+            title="Create New Refiner"
+            fields={[
+              {
+                name: "name",
+                label: "Name",
+                type: "text",
+                placeholder: "e.g., Privacy-Preserving Analytics",
+                value: refinerName,
+                onChange: onRefinerNameChange,
+                required: true,
+              },
+              {
+                name: "dlpId",
+                label: "DLP ID",
+                type: "number",
+                placeholder: "e.g., 1",
+                value: refinerDlpId,
+                onChange: onRefinerDlpIdChange,
+                required: true,
+              },
+              {
+                name: "schemaId",
+                label: "Schema ID",
+                type: "number",
+                placeholder: "e.g., 1",
+                value: refinerSchemaId,
+                onChange: onRefinerSchemaIdChange,
+                required: true,
+              },
+              {
+                name: "instructionUrl",
+                label: "Instruction URL",
+                type: "url",
+                placeholder: "https://example.com/instructions.md",
+                value: refinerInstructionUrl,
+                onChange: onRefinerInstructionUrlChange,
+                required: true,
+              },
+            ]}
+            onSubmit={onCreateRefiner}
+            isSubmitting={isCreatingRefiner}
+            submitText="Create Refiner"
+            submitIcon={<Brain className="h-4 w-4" />}
+            status={refinerStatus}
+            statusType={refinerStatus?.includes("❌") ? "error" : "success"}
+          />
+          {lastCreatedRefinerId && (
+            <div className="p-3 bg-green-50 border border-green-200 rounded mt-4">
+              <p className="text-green-700 text-sm">
+                ✅ Refiner created successfully with ID:{" "}
+                <strong>{lastCreatedRefinerId}</strong>
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Update Schema ID */}
+        <div className="p-4 border rounded-lg">
+          <div className="mb-4">
+            <p className="text-sm text-muted-foreground">
+              Update the schema ID for an existing refiner (useful for migrating
+              existing refiners to new schema structure).
+            </p>
+          </div>
+          <FormBuilder
+            title="Update Refiner Schema ID"
+            fields={[
+              {
+                name: "refinerId",
+                label: "Refiner ID",
+                type: "number",
+                placeholder: "e.g., 1",
+                value: updateRefinerId,
+                onChange: onUpdateRefinerIdChange,
+                required: true,
+              },
+              {
+                name: "schemaId",
+                label: "New Schema ID",
+                type: "number",
+                placeholder: "e.g., 2",
+                value: updateSchemaId,
+                onChange: onUpdateSchemaIdChange,
+                required: true,
+              },
+            ]}
+            onSubmit={onUpdateSchemaId}
+            isSubmitting={isUpdatingSchema}
+            submitText="Update Schema ID"
+            submitIcon={<RotateCcw className="h-4 w-4" />}
+            status={updateSchemaStatus}
+            statusType={
+              updateSchemaStatus?.includes("❌") ? "error" : "success"
+            }
+          />
+        </div>
+
+        {/* Schemas List */}
+        <ResourceList
+          title="Schema Registry"
+          description={`Browse and manage data schemas (${schemas.length} schemas)`}
+          items={schemas}
+          isLoading={isLoadingSchemas}
+          onRefresh={onRefreshSchemas}
+          renderItem={(schema) => (
+            <SchemaListItem key={schema.id} schema={schema} />
+          )}
+          emptyState={
+            <EmptyState
+              icon={<Database className="h-8 w-8" />}
+              title="No schemas found"
+              size="compact"
+            />
+          }
+        />
+
+        {/* Refiners List */}
+        <ResourceList
+          title="Refiner Registry"
+          description={`Browse and manage data refiners (${refiners.length} refiners)`}
+          items={refiners}
+          isLoading={isLoadingRefiners}
+          onRefresh={onRefreshRefiners}
+          renderItem={(refiner) => (
+            <RefinerListItem key={refiner.id} refiner={refiner} />
+          )}
+          emptyState={
+            <EmptyState
+              icon={<Brain className="h-8 w-8" />}
+              title="No refiners found"
+              size="compact"
+            />
+          }
+        />
+      </CardBody>
+    </Card>
+  );
+};

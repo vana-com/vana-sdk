@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button, Badge, Checkbox } from "@heroui/react";
-import { AddressDisplay } from "./AddressDisplay";
-import { BlockDisplay } from "./BlockDisplay";
+import { AddressDisplay } from "./ui/AddressDisplay";
+import { BlockDisplay } from "./ui/BlockDisplay";
 import { getAddressUrl } from "@/lib/explorer";
 import { useChainId } from "wagmi";
 import {

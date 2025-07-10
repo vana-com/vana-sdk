@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Address } from "viem";
-import { PersonalController } from "../controllers/personal";
+import { ServerController } from "../controllers/server";
 import { ControllerContext } from "../controllers/permissions";
 import { NetworkError, SignatureError, PersonalServerError } from "../errors";
 import { PostRequestParams, InitPersonalServerParams } from "../types";
@@ -20,8 +20,8 @@ vi.mock("console", () => ({
 // Mock process.env
 const originalEnv = process.env;
 
-describe("PersonalController", () => {
-  let personalController: PersonalController;
+describe("ServerController", () => {
+  let serverController: ServerController;
   let mockContext: ControllerContext;
   let mockWalletClient: any;
   let mockApplicationClient: any;
@@ -58,7 +58,7 @@ describe("PersonalController", () => {
       publicClient: {} as any,
     };
 
-    personalController = new PersonalController(mockContext);
+    serverController = new ServerController(mockContext);
 
     // Reset fetch mock
     mockFetch.mockReset();
@@ -70,12 +70,12 @@ describe("PersonalController", () => {
   });
 
   describe("constructor", () => {
-    it("should create a PersonalController instance", () => {
-      expect(personalController).toBeInstanceOf(PersonalController);
+    it("should create a ServerController instance", () => {
+      expect(serverController).toBeInstanceOf(ServerController);
     });
 
     it("should set the context correctly", () => {
-      expect((personalController as any).context).toBe(mockContext);
+      expect((serverController as any).context).toBe(mockContext);
     });
   });
 
@@ -103,7 +103,7 @@ describe("PersonalController", () => {
         json: vi.fn().mockResolvedValue(mockReplicateResponse),
       });
 
-      const result = await personalController.postRequest(validParams);
+      const result = await serverController.postRequest(validParams);
 
       expect(result).toEqual(mockReplicateResponse);
       expect(mockAccount.signMessage).toHaveBeenCalled();
@@ -122,12 +122,10 @@ describe("PersonalController", () => {
     it("should throw PersonalServerError for invalid permission ID", async () => {
       const invalidParams = { permissionId: 0 };
 
-      await expect(
-        personalController.postRequest(invalidParams),
-      ).rejects.toThrow(PersonalServerError);
-      await expect(
-        personalController.postRequest(invalidParams),
-      ).rejects.toThrow(
+      await expect(serverController.postRequest(invalidParams)).rejects.toThrow(
+        PersonalServerError,
+      );
+      await expect(serverController.postRequest(invalidParams)).rejects.toThrow(
         "Permission ID is required and must be a valid positive number",
       );
     });
@@ -135,19 +133,19 @@ describe("PersonalController", () => {
     it("should throw PersonalServerError for negative permission ID", async () => {
       const invalidParams = { permissionId: -1 };
 
-      await expect(
-        personalController.postRequest(invalidParams),
-      ).rejects.toThrow(PersonalServerError);
+      await expect(serverController.postRequest(invalidParams)).rejects.toThrow(
+        PersonalServerError,
+      );
     });
 
     it("should throw PersonalServerError when REPLICATE_API_TOKEN is missing", async () => {
       delete process.env.REPLICATE_API_TOKEN;
       delete process.env.NEXT_PUBLIC_REPLICATE_API_TOKEN;
 
-      await expect(personalController.postRequest(validParams)).rejects.toThrow(
+      await expect(serverController.postRequest(validParams)).rejects.toThrow(
         PersonalServerError,
       );
-      await expect(personalController.postRequest(validParams)).rejects.toThrow(
+      await expect(serverController.postRequest(validParams)).rejects.toThrow(
         "REPLICATE_API_TOKEN environment variable is required",
       );
     });
@@ -161,7 +159,7 @@ describe("PersonalController", () => {
         json: vi.fn().mockResolvedValue(mockReplicateResponse),
       });
 
-      await personalController.postRequest(validParams);
+      await serverController.postRequest(validParams);
 
       expect(mockFetch).toHaveBeenCalledWith(
         expect.any(String),
@@ -181,7 +179,7 @@ describe("PersonalController", () => {
         text: vi.fn().mockResolvedValue("Invalid token"),
       });
 
-      await expect(personalController.postRequest(validParams)).rejects.toThrow(
+      await expect(serverController.postRequest(validParams)).rejects.toThrow(
         NetworkError,
       );
     });
@@ -189,10 +187,10 @@ describe("PersonalController", () => {
     it("should throw SignatureError when account is not local", async () => {
       mockAccount.type = "json-rpc";
 
-      await expect(personalController.postRequest(validParams)).rejects.toThrow(
+      await expect(serverController.postRequest(validParams)).rejects.toThrow(
         SignatureError,
       );
-      await expect(personalController.postRequest(validParams)).rejects.toThrow(
+      await expect(serverController.postRequest(validParams)).rejects.toThrow(
         "Only local accounts are supported for signing",
       );
     });
@@ -201,10 +199,10 @@ describe("PersonalController", () => {
       mockWalletClient.account = null;
       mockApplicationClient.account = null;
 
-      await expect(personalController.postRequest(validParams)).rejects.toThrow(
+      await expect(serverController.postRequest(validParams)).rejects.toThrow(
         SignatureError,
       );
-      await expect(personalController.postRequest(validParams)).rejects.toThrow(
+      await expect(serverController.postRequest(validParams)).rejects.toThrow(
         "No account available for signing",
       );
     });
@@ -212,7 +210,7 @@ describe("PersonalController", () => {
     it("should throw SignatureError when user rejects signature", async () => {
       mockAccount.signMessage.mockRejectedValue(new Error("User rejected"));
 
-      await expect(personalController.postRequest(validParams)).rejects.toThrow(
+      await expect(serverController.postRequest(validParams)).rejects.toThrow(
         SignatureError,
       );
     });
@@ -225,7 +223,7 @@ describe("PersonalController", () => {
         new Error("Connection failed"),
       );
 
-      await expect(personalController.postRequest(validParams)).rejects.toThrow(
+      await expect(serverController.postRequest(validParams)).rejects.toThrow(
         PersonalServerError,
       );
     });
@@ -236,21 +234,21 @@ describe("PersonalController", () => {
         json: vi.fn().mockResolvedValue(mockReplicateResponse),
       });
 
-      await personalController.postRequest(validParams);
+      await serverController.postRequest(validParams);
 
       expect(mockApplicationClient.getAddresses).toHaveBeenCalled();
     });
 
     it("should fallback to walletClient when applicationClient is not available", async () => {
       mockContext.applicationClient = undefined;
-      personalController = new PersonalController(mockContext);
+      serverController = new ServerController(mockContext);
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: vi.fn().mockResolvedValue(mockReplicateResponse),
       });
 
-      await personalController.postRequest(validParams);
+      await serverController.postRequest(validParams);
 
       expect(mockWalletClient.getAddresses).toHaveBeenCalled();
     });
@@ -258,10 +256,10 @@ describe("PersonalController", () => {
     it("should wrap unknown errors in NetworkError", async () => {
       mockFetch.mockRejectedValue(new Error("Network connection failed"));
 
-      await expect(personalController.postRequest(validParams)).rejects.toThrow(
+      await expect(serverController.postRequest(validParams)).rejects.toThrow(
         NetworkError,
       );
-      await expect(personalController.postRequest(validParams)).rejects.toThrow(
+      await expect(serverController.postRequest(validParams)).rejects.toThrow(
         "Failed to make Replicate API request: Network connection failed",
       );
     });
@@ -292,7 +290,7 @@ describe("PersonalController", () => {
         json: vi.fn().mockResolvedValue(mockPersonalServerResponse),
       });
 
-      const result = await personalController.initPersonalServer(validParams);
+      const result = await serverController.initPersonalServer(validParams);
 
       expect(result).toMatchObject({
         userAddress: mockPersonalServerResponse.output.user_address,
@@ -320,10 +318,10 @@ describe("PersonalController", () => {
       const invalidParams = { userAddress: "" };
 
       await expect(
-        personalController.initPersonalServer(invalidParams),
+        serverController.initPersonalServer(invalidParams),
       ).rejects.toThrow(PersonalServerError);
       await expect(
-        personalController.initPersonalServer(invalidParams),
+        serverController.initPersonalServer(invalidParams),
       ).rejects.toThrow("User address is required and must be a valid string");
     });
 
@@ -331,7 +329,7 @@ describe("PersonalController", () => {
       const invalidParams = { userAddress: 123 as any };
 
       await expect(
-        personalController.initPersonalServer(invalidParams),
+        serverController.initPersonalServer(invalidParams),
       ).rejects.toThrow(PersonalServerError);
     });
 
@@ -339,10 +337,10 @@ describe("PersonalController", () => {
       const invalidParams = { userAddress: "invalid-address" };
 
       await expect(
-        personalController.initPersonalServer(invalidParams),
+        serverController.initPersonalServer(invalidParams),
       ).rejects.toThrow(PersonalServerError);
       await expect(
-        personalController.initPersonalServer(invalidParams),
+        serverController.initPersonalServer(invalidParams),
       ).rejects.toThrow("User address must be a valid Vana address");
     });
 
@@ -350,7 +348,7 @@ describe("PersonalController", () => {
       const invalidParams = { userAddress: "0x123" };
 
       await expect(
-        personalController.initPersonalServer(invalidParams),
+        serverController.initPersonalServer(invalidParams),
       ).rejects.toThrow(PersonalServerError);
     });
 
@@ -370,10 +368,10 @@ describe("PersonalController", () => {
       );
 
       await expect(
-        personalController.initPersonalServer(validParams),
+        serverController.initPersonalServer(validParams),
       ).rejects.toThrow(PersonalServerError);
       await expect(
-        personalController.initPersonalServer(validParams),
+        serverController.initPersonalServer(validParams),
       ).rejects.toThrow(
         "Personal server initialization failed: Computation failed",
       );
@@ -394,10 +392,10 @@ describe("PersonalController", () => {
       );
 
       await expect(
-        personalController.initPersonalServer(validParams),
+        serverController.initPersonalServer(validParams),
       ).rejects.toThrow(PersonalServerError);
       await expect(
-        personalController.initPersonalServer(validParams),
+        serverController.initPersonalServer(validParams),
       ).rejects.toThrow("Personal server initialization was canceled");
     });
 
@@ -412,7 +410,7 @@ describe("PersonalController", () => {
         json: vi.fn().mockResolvedValue(responseWithStringOutput),
       });
 
-      const result = await personalController.initPersonalServer(validParams);
+      const result = await serverController.initPersonalServer(validParams);
 
       expect(result.userAddress).toBe(validParams.userAddress);
     });
@@ -428,7 +426,7 @@ describe("PersonalController", () => {
         json: vi.fn().mockResolvedValue(responseWithInvalidJSON),
       });
 
-      const result = await personalController.initPersonalServer(validParams);
+      const result = await serverController.initPersonalServer(validParams);
 
       expect(result).toBeDefined();
     });
@@ -450,16 +448,373 @@ describe("PersonalController", () => {
 
       try {
         await expect(
-          personalController.initPersonalServer(validParams),
+          serverController.initPersonalServer(validParams),
         ).rejects.toThrow(PersonalServerError);
         await expect(
-          personalController.initPersonalServer(validParams),
+          serverController.initPersonalServer(validParams),
         ).rejects.toThrow(
           "Personal server initialization timed out after 60 seconds",
         );
       } finally {
         global.setTimeout = originalSetTimeout;
       }
+    });
+  });
+
+  describe("getTrustedServerPublicKey", () => {
+    const testUserAddress = "0xd7Ae9319049f0B6cA9AD044b165c5B4F143EF451";
+    const mockPublicKey =
+      "0x04a1b2c3d4e5f6789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+    beforeEach(() => {
+      process.env.REPLICATE_API_TOKEN = "test-token-123";
+    });
+
+    it("should get trusted server public key successfully", async () => {
+      // Mock the initial request
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          id: "test-prediction-123",
+          status: "starting",
+          urls: {
+            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
+            cancel:
+              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
+          },
+          input: { user_address: testUserAddress },
+          output: null,
+          error: null,
+        }),
+      });
+
+      // Mock the polling request with successful response
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          id: "test-prediction-123",
+          status: "succeeded",
+          urls: {
+            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
+            cancel:
+              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
+          },
+          input: { user_address: testUserAddress },
+          output: JSON.stringify({
+            user_address: testUserAddress,
+            personal_server: {
+              address: "0x123...",
+              public_key: mockPublicKey,
+            },
+          }),
+          error: null,
+        }),
+      });
+
+      const result =
+        await serverController.getTrustedServerPublicKey(testUserAddress);
+
+      expect(result).toBe(mockPublicKey);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("should throw error for invalid user address", async () => {
+      await expect(
+        serverController.getTrustedServerPublicKey(
+          "invalid-address" as Address,
+        ),
+      ).rejects.toThrow("User address must be a valid Ethereum address");
+    });
+
+    it("should throw error for empty user address", async () => {
+      await expect(
+        serverController.getTrustedServerPublicKey("" as Address),
+      ).rejects.toThrow("User address is required and must be a valid string");
+    });
+
+    it("should handle Identity Server API failures", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: "Internal Server Error",
+        text: vi.fn().mockResolvedValue("Server error"),
+      });
+
+      await expect(
+        serverController.getTrustedServerPublicKey(testUserAddress),
+      ).rejects.toThrow(
+        "Identity Server API request failed: 500 Internal Server Error",
+      );
+    });
+
+    it("should handle missing public key in response", async () => {
+      // Mock the initial request
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          id: "test-prediction-123",
+          status: "starting",
+          urls: {
+            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
+            cancel:
+              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
+          },
+          input: { user_address: testUserAddress },
+          output: null,
+          error: null,
+        }),
+      });
+
+      // Mock the polling request with response missing public key
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          id: "test-prediction-123",
+          status: "succeeded",
+          urls: {
+            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
+            cancel:
+              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
+          },
+          input: { user_address: testUserAddress },
+          output: JSON.stringify({
+            user_address: testUserAddress,
+            personal_server: {
+              address: "0x123...",
+              // Missing public_key
+            },
+          }),
+          error: null,
+        }),
+      });
+
+      await expect(
+        serverController.getTrustedServerPublicKey(testUserAddress),
+      ).rejects.toThrow(
+        "Identity Server response missing personal_server.public_key",
+      );
+    });
+
+    it("should handle failed Identity Server request", async () => {
+      // Mock the initial request
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          id: "test-prediction-123",
+          status: "starting",
+          urls: {
+            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
+            cancel:
+              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
+          },
+          input: { user_address: testUserAddress },
+          output: null,
+          error: null,
+        }),
+      });
+
+      // Mock the polling request with failed response
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          id: "test-prediction-123",
+          status: "failed",
+          urls: {
+            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
+            cancel:
+              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
+          },
+          input: { user_address: testUserAddress },
+          output: null,
+          error: "Identity server error",
+        }),
+      });
+
+      await expect(
+        serverController.getTrustedServerPublicKey(testUserAddress),
+      ).rejects.toThrow(
+        "Identity Server request failed: Identity server error",
+      );
+    });
+
+    it("should handle timeout in Identity Server request", async () => {
+      // Mock the initial request
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          id: "test-prediction-123",
+          status: "starting",
+          urls: {
+            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
+            cancel:
+              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
+          },
+          input: { user_address: testUserAddress },
+          output: null,
+          error: null,
+        }),
+      });
+
+      // Mock setTimeout to run immediately and reset poll attempts
+      const originalSetTimeout = global.setTimeout;
+      global.setTimeout = vi.fn((callback, _ms) => {
+        callback();
+        return { __promisify__: vi.fn() } as any;
+      }) as any;
+
+      try {
+        // Mock all polling requests to stay in processing state
+        mockFetch.mockImplementation(() =>
+          Promise.resolve({
+            ok: true,
+            json: vi.fn().mockResolvedValue({
+              id: "test-prediction-123",
+              status: "processing", // Always processing, never succeeds
+              urls: {
+                get: "https://api.replicate.com/v1/predictions/test-prediction-123",
+                cancel:
+                  "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
+              },
+              input: { user_address: testUserAddress },
+              output: null,
+              error: null,
+            }),
+          }),
+        );
+
+        await expect(
+          serverController.getTrustedServerPublicKey(testUserAddress),
+        ).rejects.toThrow("Identity Server request timed out after 60 seconds");
+      } finally {
+        global.setTimeout = originalSetTimeout;
+      }
+    });
+
+    it("should handle canceled Identity Server request", async () => {
+      // Mock the initial request
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          id: "test-prediction-123",
+          status: "starting",
+          urls: {
+            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
+            cancel:
+              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
+          },
+          input: { user_address: testUserAddress },
+          output: null,
+          error: null,
+        }),
+      });
+
+      // Mock the polling request with canceled response
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          id: "test-prediction-123",
+          status: "canceled",
+          urls: {
+            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
+            cancel:
+              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
+          },
+          input: { user_address: testUserAddress },
+          output: null,
+          error: null,
+        }),
+      });
+
+      await expect(
+        serverController.getTrustedServerPublicKey(testUserAddress),
+      ).rejects.toThrow("Identity Server request was canceled");
+    });
+
+    it("should handle object format response", async () => {
+      // Mock the initial request
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          id: "test-prediction-123",
+          status: "starting",
+          urls: {
+            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
+            cancel:
+              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
+          },
+          input: { user_address: testUserAddress },
+          output: null,
+          error: null,
+        }),
+      });
+
+      // Mock the polling request with object format response (not JSON string)
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          id: "test-prediction-123",
+          status: "succeeded",
+          urls: {
+            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
+            cancel:
+              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
+          },
+          input: { user_address: testUserAddress },
+          output: {
+            user_address: testUserAddress,
+            personal_server: {
+              address: "0x123...",
+              public_key: mockPublicKey,
+            },
+          },
+          error: null,
+        }),
+      });
+
+      const result =
+        await serverController.getTrustedServerPublicKey(testUserAddress);
+
+      expect(result).toBe(mockPublicKey);
+    });
+
+    it("should handle invalid JSON in response", async () => {
+      // Mock the initial request
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          id: "test-prediction-123",
+          status: "starting",
+          urls: {
+            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
+            cancel:
+              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
+          },
+          input: { user_address: testUserAddress },
+          output: null,
+          error: null,
+        }),
+      });
+
+      // Mock the polling request with invalid JSON string
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          id: "test-prediction-123",
+          status: "succeeded",
+          urls: {
+            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
+            cancel:
+              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
+          },
+          input: { user_address: testUserAddress },
+          output: "invalid json {",
+          error: null,
+        }),
+      });
+
+      await expect(
+        serverController.getTrustedServerPublicKey(testUserAddress),
+      ).rejects.toThrow("Failed to parse Identity Server response as JSON");
     });
   });
 
@@ -483,7 +838,7 @@ describe("PersonalController", () => {
         json: vi.fn().mockResolvedValue(mockStatusResponse),
       });
 
-      const result = await personalController.pollStatus(getUrl);
+      const result = await serverController.pollStatus(getUrl);
 
       expect(result).toEqual(mockStatusResponse);
       expect(mockFetch).toHaveBeenCalledWith(getUrl, {
@@ -505,10 +860,10 @@ describe("PersonalController", () => {
         }),
       );
 
-      await expect(personalController.pollStatus(getUrl)).rejects.toThrow(
+      await expect(serverController.pollStatus(getUrl)).rejects.toThrow(
         NetworkError,
       );
-      await expect(personalController.pollStatus(getUrl)).rejects.toThrow(
+      await expect(serverController.pollStatus(getUrl)).rejects.toThrow(
         "Status polling failed: 404 Not Found - Prediction not found",
       );
     });
@@ -524,7 +879,7 @@ describe("PersonalController", () => {
         json: vi.fn().mockResolvedValue(responseWithoutUrls),
       });
 
-      const result = await personalController.pollStatus(getUrl);
+      const result = await serverController.pollStatus(getUrl);
 
       expect(result.urls.get).toBe(getUrl);
       expect(result.urls.cancel).toBe("");
@@ -533,10 +888,10 @@ describe("PersonalController", () => {
     it("should wrap unknown errors in NetworkError", async () => {
       mockFetch.mockRejectedValue(new Error("Unknown network error"));
 
-      await expect(personalController.pollStatus(getUrl)).rejects.toThrow(
+      await expect(serverController.pollStatus(getUrl)).rejects.toThrow(
         NetworkError,
       );
-      await expect(personalController.pollStatus(getUrl)).rejects.toThrow(
+      await expect(serverController.pollStatus(getUrl)).rejects.toThrow(
         "Failed to poll status: Unknown network error",
       );
     });
@@ -544,10 +899,10 @@ describe("PersonalController", () => {
     it("should handle non-Error exceptions", async () => {
       mockFetch.mockRejectedValue("String error");
 
-      await expect(personalController.pollStatus(getUrl)).rejects.toThrow(
+      await expect(serverController.pollStatus(getUrl)).rejects.toThrow(
         NetworkError,
       );
-      await expect(personalController.pollStatus(getUrl)).rejects.toThrow(
+      await expect(serverController.pollStatus(getUrl)).rejects.toThrow(
         "Failed to poll status: Unknown error",
       );
     });
@@ -560,8 +915,8 @@ describe("PersonalController", () => {
         applicationClient: undefined,
       };
 
-      const controller = new PersonalController(contextWithoutAppClient);
-      expect(controller).toBeInstanceOf(PersonalController);
+      const controller = new ServerController(contextWithoutAppClient);
+      expect(controller).toBeInstanceOf(ServerController);
     });
 
     it("should handle empty addresses array", async () => {
@@ -570,10 +925,10 @@ describe("PersonalController", () => {
 
       const validParams: PostRequestParams = { permissionId: 123 };
 
-      await expect(personalController.postRequest(validParams)).rejects.toThrow(
+      await expect(serverController.postRequest(validParams)).rejects.toThrow(
         PersonalServerError,
       );
-      await expect(personalController.postRequest(validParams)).rejects.toThrow(
+      await expect(serverController.postRequest(validParams)).rejects.toThrow(
         "No addresses available from wallet client",
       );
     });
@@ -584,7 +939,7 @@ describe("PersonalController", () => {
 
       const validParams: PostRequestParams = { permissionId: 123 };
 
-      await expect(personalController.postRequest(validParams)).rejects.toThrow(
+      await expect(serverController.postRequest(validParams)).rejects.toThrow(
         PersonalServerError,
       );
     });
@@ -604,7 +959,7 @@ describe("PersonalController", () => {
         }),
       });
 
-      await personalController.postRequest(validParams);
+      await serverController.postRequest(validParams);
 
       // Verify the request was made with correct JSON structure
       const fetchCall = mockFetch.mock.calls[0];
@@ -645,8 +1000,8 @@ describe("PersonalController", () => {
           }),
         });
 
-      await personalController.postRequest(postParams);
-      await personalController.initPersonalServer(initParams);
+      await serverController.postRequest(postParams);
+      await serverController.initPersonalServer(initParams);
 
       const postRequestBody = JSON.parse(mockFetch.mock.calls[0][1].body);
       const initRequestBody = JSON.parse(mockFetch.mock.calls[1][1].body);

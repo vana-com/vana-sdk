@@ -122,21 +122,34 @@ describe("DataController", () => {
       walletClient: mockWalletClient,
       publicClient: mockPublicClient,
       relayerUrl: "https://test-relayer.com",
+      subgraphUrl:
+        "https://api.goldsky.com/api/public/project_cm168cz887zva010j39il7a6p/subgraphs/moksha/7.0.1/gn",
     };
 
     controller = new DataController(mockContext);
   });
 
   describe("getUserFiles", () => {
-    it("should return no data when no subgraph URL configured", async () => {
+    it("should throw error when no subgraph URL configured", async () => {
       // Don't set NEXT_PUBLIC_SUBGRAPH_URL
       delete process.env.NEXT_PUBLIC_SUBGRAPH_URL;
 
-      const result = await controller.getUserFiles({
-        owner: mockWalletClient.account.address as `0x${string}`,
-      });
+      // Create controller without subgraph URL
+      const contextWithoutSubgraph = {
+        ...mockContext,
+        subgraphUrl: undefined,
+      };
+      const controllerWithoutSubgraph = new DataController(
+        contextWithoutSubgraph,
+      );
 
-      expect(result).toHaveLength(0);
+      await expect(
+        controllerWithoutSubgraph.getUserFiles({
+          owner: mockWalletClient.account.address as `0x${string}`,
+        }),
+      ).rejects.toThrow(
+        "subgraphUrl is required. Please provide a valid subgraph endpoint or configure it in Vana constructor.",
+      );
     });
 
     it("should query subgraph when URL provided", async () => {
@@ -199,13 +212,14 @@ describe("DataController", () => {
 
       mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
-      const result = await controller.getUserFiles({
-        owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
-        subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
-      });
-
-      // Should fallback to mock data
-      expect(result).toHaveLength(3);
+      await expect(
+        controller.getUserFiles({
+          owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+          subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+        }),
+      ).rejects.toThrow(
+        "Failed to fetch user files from subgraph: Network error",
+      );
     });
   });
 
@@ -607,13 +621,14 @@ describe("DataController", () => {
           }),
       });
 
-      const result = await controller.getUserFiles({
-        owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
-        subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
-      });
-
-      // Should fallback to mock data
-      expect(result).toHaveLength(3);
+      await expect(
+        controller.getUserFiles({
+          owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+          subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+        }),
+      ).rejects.toThrow(
+        "Failed to fetch user files from subgraph: Subgraph errors: GraphQL error occurred",
+      );
     });
 
     it("should handle missing user in subgraph response", async () => {
@@ -1172,16 +1187,14 @@ describe("DataController", () => {
 
       const controller = new DataController(mockContext);
 
-      const result = await controller.getUserFiles({
-        owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        subgraphUrl: "https://subgraph.test.com",
-      });
-
-      // Should fall back to mock data due to error
-      expect(result).toHaveLength(3);
-      expect(result[0].id).toBe(12);
-      expect(result[1].id).toBe(15);
-      expect(result[2].id).toBe(28);
+      await expect(
+        controller.getUserFiles({
+          owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          subgraphUrl: "https://subgraph.test.com",
+        }),
+      ).rejects.toThrow(
+        "Failed to fetch user files from subgraph: Subgraph request failed: 500 Internal Server Error",
+      );
     });
 
     it("should handle duplicate file IDs in subgraph response", async () => {

@@ -124,3 +124,22 @@ export class PersonalServerError extends VanaError {
     super(message, "PERSONAL_SERVER_ERROR");
   }
 }
+
+/**
+ * Error thrown when trying to register a server with a URL that doesn't match the existing registration.
+ */
+export class ServerUrlMismatchError extends VanaError {
+  constructor(existingUrl: string, providedUrl: string, serverId: string) {
+    super(
+      `Server ${serverId} is already registered with URL "${existingUrl}". Cannot change to "${providedUrl}".`,
+      "SERVER_URL_MISMATCH",
+    );
+    this.existingUrl = existingUrl;
+    this.providedUrl = providedUrl;
+    this.serverId = serverId;
+  }
+
+  public readonly existingUrl: string;
+  public readonly providedUrl: string;
+  public readonly serverId: string;
+}

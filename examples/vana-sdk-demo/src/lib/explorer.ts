@@ -22,7 +22,11 @@ function getChain(chainId: number): Chain {
  */
 export function getExplorerUrl(chainId: number): string {
   const chain = getChain(chainId);
-  return chain.blockExplorers?.default?.url || "https://vanascan.io";
+  return (
+    chain.blockExplorers?.default?.url ||
+    vanaMainnet.blockExplorers?.default?.url ||
+    ""
+  );
 }
 
 /**
@@ -31,7 +35,10 @@ export function getExplorerUrl(chainId: number): string {
  */
 export function getTxUrl(chainId: number, txHash: string): string {
   const chain = getChain(chainId);
-  const baseUrl = chain.blockExplorers?.default?.url || "https://vanascan.io";
+  const baseUrl =
+    chain.blockExplorers?.default?.url ||
+    vanaMainnet.blockExplorers?.default?.url ||
+    "";
   return `${baseUrl}/tx/${txHash}`;
 }
 
@@ -44,7 +51,10 @@ export function getBlockUrl(
   blockNumber: string | number | bigint,
 ): string {
   const chain = getChain(chainId);
-  const baseUrl = chain.blockExplorers?.default?.url || "https://vanascan.io";
+  const baseUrl =
+    chain.blockExplorers?.default?.url ||
+    vanaMainnet.blockExplorers?.default?.url ||
+    "";
   const blockNum =
     typeof blockNumber === "bigint"
       ? blockNumber.toString()
@@ -58,7 +68,10 @@ export function getBlockUrl(
  */
 export function getAddressUrl(chainId: number, address: string): string {
   const chain = getChain(chainId);
-  const baseUrl = chain.blockExplorers?.default?.url || "https://vanascan.io";
+  const baseUrl =
+    chain.blockExplorers?.default?.url ||
+    vanaMainnet.blockExplorers?.default?.url ||
+    "";
   return `${baseUrl}/address/${address}`;
 }
 
@@ -76,7 +89,10 @@ export function getContractUrl(
   },
 ): string {
   const chain = getChain(chainId);
-  const baseUrl = chain.blockExplorers?.default?.url || "https://vanascan.io";
+  const baseUrl =
+    chain.blockExplorers?.default?.url ||
+    vanaMainnet.blockExplorers?.default?.url ||
+    "";
   let url = `${baseUrl}/address/${address}`;
 
   const params = new URLSearchParams();

@@ -14,15 +14,15 @@ import {
 import { ControllerContext } from "./permissions";
 
 /**
- * Controller for managing personal server interactions.
+ * Controller for managing server interactions including personal servers and trusted server registry.
  */
-export class PersonalController {
+export class ServerController {
   private readonly REPLICATE_API_URL =
     "https://api.replicate.com/v1/predictions";
   private readonly PERSONAL_SERVER_VERSION =
-    "vana-com/personal-server:1ef2dbffd550699b73b1a4d43ec9407e129333bdb59cdb701caefa6c03a42155";
+    "vana-com/personal-server:6bedbf7541a30ce8f5411554259067d1ad2a6e7bb5b5de93830b8daba1fc6d10";
   private readonly IDENTITY_SERVER_VERSION =
-    "vana-com/identity-server:367b7d1a75f948de18fd1868fd4d29fff55d8277c3cc68c75df0bd2cf5f1d359";
+    "vana-com/identity-server:5d649e9adb8e5b551acd4edb4b7d18d9af52ecf2f3afd037b86b4251a211ff46";
 
   constructor(private readonly context: ControllerContext) {}
 
@@ -121,6 +121,105 @@ export class PersonalController {
       }
       throw new PersonalServerError(
         "Personal server initialization failed with unknown error",
+      );
+    }
+  }
+
+  /**
+   * Gets the trusted server's public key for a given user address.
+   *
+   * Uses the Identity Server to deterministically derive the personal server's
+   * public key from the user's Ethereum address. This allows anyone to encrypt
+   * data for a specific user's server without that server needing to be online.
+   *
+   * @param userAddress - The user's Ethereum address
+   * @returns Promise resolving to the server's public key (hex string)
+   */
+  async getTrustedServerPublicKey(userAddress: Address): Promise<string> {
+    try {
+      // Step 1: Validate the user address
+      if (!userAddress || typeof userAddress !== "string") {
+        throw new PersonalServerError(
+          "User address is required and must be a valid string",
+        );
+      }
+
+      // Basic address validation
+      if (!userAddress.startsWith("0x") || userAddress.length !== 42) {
+        throw new PersonalServerError(
+          "User address must be a valid Ethereum address",
+        );
+      }
+
+      // Step 2: Make request to Identity Server to get public key
+      const requestBody = {
+        version: this.IDENTITY_SERVER_VERSION,
+        input: {
+          user_address: userAddress,
+        },
+      };
+
+      console.debug("Identity Server Request for Public Key:", {
+        url: this.REPLICATE_API_URL,
+        method: "POST",
+        body: requestBody,
+      });
+
+      const response = await fetch(this.REPLICATE_API_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Token ${this.getReplicateApiToken()}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.debug("Identity Server Error Response:", {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText,
+        });
+        throw new NetworkError(
+          `Identity Server API request failed: ${response.status} ${response.statusText} - ${errorText}`,
+        );
+      }
+
+      const data = await response.json();
+      console.debug("Identity Server Success Response:", data);
+
+      // Step 3: Poll for results until completion
+      const result = await this.pollIdentityServerResult({
+        id: data.id,
+        status: data.status,
+        urls: {
+          get: data.urls?.get || "",
+          cancel: data.urls?.cancel || "",
+        },
+        input: data.input,
+        output: data.output,
+        error: data.error,
+      });
+
+      return result;
+    } catch (error) {
+      if (error instanceof Error) {
+        // Re-throw known Vana errors directly
+        if (
+          error instanceof NetworkError ||
+          error instanceof PersonalServerError
+        ) {
+          throw error;
+        }
+        // Wrap unknown errors
+        throw new PersonalServerError(
+          `Failed to get trusted server public key: ${error.message}`,
+          error,
+        );
+      }
+      throw new PersonalServerError(
+        "Failed to get trusted server public key with unknown error",
       );
     }
   }
@@ -430,6 +529,70 @@ export class PersonalController {
         `Failed to make Personal Server API request: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
+  }
+
+  /**
+   * Polls the identity server result until completion and extracts the public key.
+   */
+  private async pollIdentityServerResult(
+    initialResponse: ReplicatePredictionResponse,
+  ): Promise<string> {
+    const maxAttempts = 60; // 60 seconds max
+    let attempts = 0;
+    let currentResponse = initialResponse;
+
+    while (attempts < maxAttempts) {
+      if (currentResponse.status === "succeeded") {
+        // Parse the output to extract public key information
+        const output = currentResponse.output;
+
+        // Parse the output string if it's a JSON string
+        let parsedOutput: Record<string, unknown>;
+        if (typeof output === "string") {
+          try {
+            parsedOutput = JSON.parse(output);
+          } catch {
+            throw new PersonalServerError(
+              "Failed to parse Identity Server response as JSON",
+            );
+          }
+        } else {
+          parsedOutput = output as Record<string, unknown>;
+        }
+
+        // Extract the personal server's public key
+        const personalServer = parsedOutput.personal_server as Record<
+          string,
+          unknown
+        >;
+        if (!personalServer || !personalServer.public_key) {
+          throw new PersonalServerError(
+            "Identity Server response missing personal_server.public_key",
+          );
+        }
+
+        return personalServer.public_key as string;
+      } else if (currentResponse.status === "failed") {
+        throw new PersonalServerError(
+          `Identity Server request failed: ${currentResponse.error || "Unknown error"}`,
+        );
+      } else if (currentResponse.status === "canceled") {
+        throw new PersonalServerError("Identity Server request was canceled");
+      }
+
+      // Wait 1 second before next poll
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      attempts++;
+
+      // Poll for updated status
+      if (currentResponse.urls.get) {
+        currentResponse = await this.pollStatus(currentResponse.urls.get);
+      }
+    }
+
+    throw new PersonalServerError(
+      "Identity Server request timed out after 60 seconds",
+    );
   }
 
   /**

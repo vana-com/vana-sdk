@@ -1,27 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { mokshaTestnet, Vana } from "vana-sdk";
+import { Vana } from "vana-sdk";
 
 export async function POST(request: NextRequest) {
-  console.debug("🔍 Debug - POST /api/personal/setup");
+  console.debug("🔍 Debug - POST /api/trusted-server");
   try {
     const body = await request.json();
-    const { userAddress } = body;
+    const { permissionId, chainId } = body;
 
     // Validate required fields
-    if (!userAddress) {
+    if (!permissionId || !chainId) {
       console.debug("🔍 Debug - Missing required fields");
       return NextResponse.json(
-        { success: false, error: "Missing userAddress field" },
-        { status: 400 },
-      );
-    }
-
-    // Basic address validation
-    if (!userAddress.startsWith("0x") || userAddress.length !== 42) {
-      return NextResponse.json(
-        { success: false, error: "Invalid EVM address format" },
+        { success: false, error: "Missing permissionId or chainId field" },
         { status: 400 },
       );
     }
@@ -41,22 +32,17 @@ export async function POST(request: NextRequest) {
       applicationPrivateKey as `0x${string}`,
     );
 
-    const walletClient = createWalletClient({
+    // Use the SDK's chain configuration approach
+    const vana = Vana.fromChain({
+      chainId,
       account: applicationAccount,
-      chain: mokshaTestnet,
-      transport: http("https://rpc.vana.org"),
-    });
-
-    // Create Vana instance
-    const vana = new Vana({
-      walletClient,
     });
 
     console.debug("🔍 Debug - vana", vana);
 
-    // Initialize personal server
-    const response = await vana.personal.initPersonalServer({
-      userAddress,
+    // Make trusted server request
+    const response = await vana.server.postRequest({
+      permissionId,
     });
 
     return NextResponse.json({
@@ -64,7 +50,7 @@ export async function POST(request: NextRequest) {
       data: response,
     });
   } catch (error) {
-    console.error("Personal server setup failed:", error);
+    console.error("Trusted server request failed:", error);
     return NextResponse.json(
       {
         success: false,

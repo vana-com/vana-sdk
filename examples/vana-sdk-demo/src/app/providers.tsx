@@ -8,7 +8,7 @@ import {
   getDefaultConfig,
   darkTheme,
 } from "@rainbow-me/rainbowkit";
-import { mokshaTestnet } from "vana-sdk";
+import { mokshaTestnet, vanaMainnet } from "vana-sdk";
 import "@rainbow-me/rainbowkit/styles.css";
 import { HeroUIProvider } from "@heroui/react";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
@@ -18,7 +18,7 @@ const config = getDefaultConfig({
   appName: "Vana SDK Next.js Demo with shadcn/ui",
   projectId:
     process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || "demo-project-id",
-  chains: [mokshaTestnet],
+  chains: [mokshaTestnet, vanaMainnet],
 });
 
 const queryClient = new QueryClient();

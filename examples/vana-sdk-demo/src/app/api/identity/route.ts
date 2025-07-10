@@ -1,19 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { mokshaTestnet, Vana } from "vana-sdk";
+import { Vana } from "vana-sdk";
 
 export async function POST(request: NextRequest) {
-  console.debug("🔍 Debug - POST /api/personal");
   try {
     const body = await request.json();
-    const { permissionId } = body;
+    const { userAddress, chainId } = body;
 
-    // Validate required fields
-    if (!permissionId) {
-      console.debug("🔍 Debug - Missing required fields");
+    if (!userAddress || !chainId) {
       return NextResponse.json(
-        { success: false, error: "Missing permissionId field" },
+        { success: false, error: "Missing userAddress or chainId parameter" },
         { status: 400 },
       );
     }
@@ -27,36 +23,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.debug("🔍 Debug - applicationPrivateKey", applicationPrivateKey);
     // Create wallet client with private key (server-side only)
     const applicationAccount = privateKeyToAccount(
       applicationPrivateKey as `0x${string}`,
     );
 
-    const walletClient = createWalletClient({
+    // Use the SDK's chain configuration approach
+    const vana = Vana.fromChain({
+      chainId,
       account: applicationAccount,
-      chain: mokshaTestnet,
-      transport: http("https://rpc.vana.org"),
     });
 
-    // Create Vana instance
-    const vana = new Vana({
-      walletClient,
-    });
-
-    console.debug("🔍 Debug - vana", vana);
-
-    // Make personal server request
-    const response = await vana.personal.postRequest({
-      permissionId,
-    });
+    // Get the trusted server public key using server-side REPLICATE_API_TOKEN
+    const publicKey = await vana.server.getTrustedServerPublicKey(userAddress);
 
     return NextResponse.json({
       success: true,
-      data: response,
+      data: {
+        userAddress,
+        publicKey,
+      },
     });
   } catch (error) {
-    console.error("Personal server request failed:", error);
+    console.error("Identity server request failed:", error);
     return NextResponse.json(
       {
         success: false,

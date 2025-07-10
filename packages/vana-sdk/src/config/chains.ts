@@ -5,7 +5,7 @@ export const mokshaTestnet = defineChain({
   id: 14800,
   caipNetworkId: "eip155:14800",
   chainNamespace: "eip155",
-  name: "Vana Moksha Testnet",
+  name: "Moksha Testnet",
   nativeCurrency: {
     name: "VANA",
     symbol: "VANA",

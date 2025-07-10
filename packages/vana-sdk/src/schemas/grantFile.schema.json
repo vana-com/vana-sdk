@@ -1,5 +1,5 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Vana Data Permission Grant",
   "description": "User-signed permission that authorizes a specific application to access selected files via a personal server",
   "type": "object",

@@ -21,7 +21,7 @@
     "noImplicitOverride": true,
     "skipLibCheck": true,
     "types": ["node"],
-    "rootDir": "./",
+    "rootDir": "./src",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": false,
@@ -30,6 +30,6 @@
     "incremental": true,
     "tsBuildInfoFile": ".tsbuildinfo"
   },
-  "include": ["src/**/*", "scripts/**/*", "tests/**/*", "vitest.config.ts"],
+  "include": ["src/**/*.ts", "src/**/*.json"],
   "exclude": ["node_modules", "dist", "examples/**/*", "coverage/**/*"]
 }

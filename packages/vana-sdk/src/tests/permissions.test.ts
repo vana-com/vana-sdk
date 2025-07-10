@@ -78,6 +78,9 @@ vi.mock("../utils/grantFiles", () => ({
   getGrantFileHash: vi.fn().mockReturnValue("0xgrantfilehash"),
 }));
 
+// Import the mocked functions for configuration
+import { createGrantFile } from "../utils/grantFiles";
+
 describe("PermissionsController", () => {
   let controller: PermissionsController;
   let mockContext: ControllerContext;
@@ -86,6 +89,16 @@ describe("PermissionsController", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+
+    // Set up default mock for createGrantFile to return valid grant files
+    const mockCreateGrantFile = createGrantFile as Mock;
+    mockCreateGrantFile.mockImplementation((params: any) => ({
+      grantee: params.to,
+      operation: params.operation,
+      files: params.files,
+      parameters: params.parameters,
+      expires: params.expiresAt || Math.floor(Date.now() / 1000) + 3600,
+    }));
 
     // Reset fetch mock to a working state
     const mockFetch = fetch as Mock;
@@ -462,14 +475,11 @@ describe("PermissionsController", () => {
       const mockStoreGrantFile = storeGrantFile as Mock;
 
       mockCreateGrantFile.mockReturnValue({
+        grantee: mockParams.to,
         operation: mockParams.operation,
         files: mockParams.files,
         parameters: mockParams.parameters,
-        metadata: {
-          timestamp: "2023-01-01T00:00:00.000Z",
-          version: "1.0",
-          userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        },
+        expires: Math.floor(Date.now() / 1000) + 3600,
       });
 
       mockStoreGrantFile.mockResolvedValue("https://ipfs.io/ipfs/QmGrantFile");
@@ -492,10 +502,7 @@ describe("PermissionsController", () => {
 
       const result = await controller.grant(mockParams);
 
-      expect(mockCreateGrantFile).toHaveBeenCalledWith(
-        mockParams,
-        "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-      );
+      expect(mockCreateGrantFile).toHaveBeenCalledWith(mockParams);
       expect(mockStoreGrantFile).toHaveBeenCalledWith(
         expect.objectContaining({
           operation: mockParams.operation,

@@ -102,7 +102,7 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
   onRefreshRefiners,
 }) => {
   return (
-    <Card>
+    <Card id="schemas">
       <CardHeader>
         <SectionHeader
           icon={<Database className="h-5 w-5" />}

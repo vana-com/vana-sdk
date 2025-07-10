@@ -73,16 +73,12 @@ import { TrustedServerIntegrationCard } from "@/components/TrustedServerIntegrat
 import { ContractListCard } from "@/components/ContractListCard";
 import { SDKConfigurationSidebar } from "@/components/SDKConfigurationSidebar";
 import { GrantPreviewModalContent } from "@/components/GrantPreviewModalContent";
-import {
-  ExternalLink,
-  Database,
-  Shield,
-  Settings,
-  Lock,
-  Upload,
-  Eye,
-  Brain,
-} from "lucide-react";
+import { Shield, Eye } from "lucide-react";
+import type {
+  TrustedServerSetupAPIResponse,
+  DiscoveredServerInfo,
+} from "@/types/api";
+import { navigationConfig } from "@/config/navigation";
 
 export default function Home() {
   const { address, isConnected } = useAccount();
@@ -150,9 +146,7 @@ export default function Home() {
   const [_storageManager, setStorageManager] = useState<StorageManager | null>(
     null,
   );
-  const [ipfsMode, setIpfsMode] = useState<"app-managed" | "user-managed">(
-    "app-managed",
-  );
+  const [ipfsMode] = useState<"app-managed" | "user-managed">("app-managed");
 
   // Schema selection for file upload
   const [selectedUploadSchemaId, setSelectedUploadSchemaId] =
@@ -186,7 +180,12 @@ export default function Home() {
   const [isUntrusting, setIsUntrusting] = useState(false);
   const [trustedServers, setTrustedServers] = useState<string[]>([]);
   const [isLoadingTrustedServers, setIsLoadingTrustedServers] = useState(false);
-  const [useGaslessTransaction, setUseGaslessTransaction] = useState(false);
+  const [useGaslessTransaction, setUseGaslessTransaction] = useState(true);
+
+  // Server discovery state
+  const [isDiscoveringServer, setIsDiscoveringServer] = useState(false);
+  const [discoveredServerInfo, setDiscoveredServerInfo] =
+    useState<DiscoveredServerInfo | null>(null);
 
   // Trusted server file upload state
   const [selectedServerForUpload, setSelectedServerForUpload] =
@@ -1108,6 +1107,73 @@ export default function Home() {
 
   // Trust server handlers
 
+  const handleDiscoverReplicateServer = async () => {
+    if (!address) return;
+
+    setIsDiscoveringServer(true);
+    setTrustServerError("");
+    setDiscoveredServerInfo(null);
+
+    try {
+      // Call the trusted server setup API to discover/initialize the server identity
+      const response = await fetch("/api/trusted-server/setup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userAddress: address,
+          chainId: chainId,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const result: TrustedServerSetupAPIResponse = await response.json();
+
+      // Debug: Log the full response structure
+      console.debug("🔍 Full API Response:", JSON.stringify(result, null, 2));
+      console.debug("🔍 Response data:", result.data);
+
+      // Extract server information from the SDK response
+      // The SDK now returns: { userAddress, identity: { metadata: { derivedAddress, publicKey } }, timestamp }
+      const derivedAddress = result.data?.identity?.metadata?.derivedAddress;
+      const publicKey = result.data?.identity?.metadata?.publicKey;
+
+      // Debug: Log extraction results
+      console.debug("🔍 SDK Response data:", result.data);
+      console.debug("🔍 Identity metadata:", result.data?.identity?.metadata);
+      console.debug("🔍 Derived address:", derivedAddress);
+      console.debug("🔍 Public key:", publicKey);
+
+      if (!derivedAddress) {
+        throw new Error("Could not determine server identity from response");
+      }
+
+      const serverInfo: DiscoveredServerInfo = {
+        serverId: derivedAddress,
+        serverUrl: "https://api.replicate.com/v1/predictions",
+        name: "Replicate",
+        publicKey: publicKey,
+      };
+
+      setDiscoveredServerInfo(serverInfo);
+
+      // Auto-populate the form fields
+      setServerId(serverInfo.serverId);
+      setServerUrl(serverInfo.serverUrl);
+    } catch (error) {
+      setTrustServerError(
+        error instanceof Error ? error.message : "Failed to discover server",
+      );
+    } finally {
+      setIsDiscoveringServer(false);
+    }
+  };
+
   const handleTrustServer = async () => {
     if (!vana || !address) return;
 
@@ -1579,61 +1645,23 @@ export default function Home() {
           <div className="p-4">
             <h2 className="text-lg font-semibold mb-4">SDK Demo</h2>
             <nav className="space-y-1">
-              <NavigationButton
-                icon={<Settings className="h-4 w-4" />}
-                label="Configuration"
-                targetId="configuration"
-              />
-              <div className="mt-4 mb-2">
-                <div className="px-3 py-1 text-xs font-medium text-default-500 uppercase tracking-wider">
-                  Core Concepts
+              {navigationConfig.sections.map((section, sectionIndex) => (
+                <div key={section.title}>
+                  <div className={`${sectionIndex > 0 ? "mt-4" : ""} mb-2`}>
+                    <div className="px-3 py-1 text-xs font-medium text-default-500 uppercase tracking-wider">
+                      {section.title}
+                    </div>
+                  </div>
+                  {section.items.map((item) => (
+                    <NavigationButton
+                      key={item.id}
+                      icon={item.icon}
+                      label={item.label}
+                      targetId={item.targetId}
+                    />
+                  ))}
                 </div>
-              </div>
-              <NavigationButton
-                icon={<Lock className="h-4 w-4" />}
-                label="Encryption Testing"
-                targetId="encryption"
-              />
-              <NavigationButton
-                icon={<Database className="h-4 w-4" />}
-                label="Your Data"
-                targetId="data"
-              />
-              <NavigationButton
-                icon={<Shield className="h-4 w-4" />}
-                label="Permissions"
-                targetId="permissions"
-              />
-              <div className="mt-4 mb-2">
-                <div className="px-3 py-1 text-xs font-medium text-default-500 uppercase tracking-wider">
-                  Applied Workflows
-                </div>
-              </div>
-              <NavigationButton
-                icon={<Shield className="h-4 w-4" />}
-                label="Trusted Servers"
-                targetId="trusted-servers"
-              />
-              <NavigationButton
-                icon={<Upload className="h-4 w-4" />}
-                label="Server Upload"
-                targetId="server-upload"
-              />
-              <NavigationButton
-                icon={<Brain className="h-4 w-4" />}
-                label="Trusted Server"
-                targetId="personal-server"
-              />
-              <NavigationButton
-                icon={<Database className="h-4 w-4" />}
-                label="Schema Management"
-                targetId="schemas"
-              />
-              <NavigationButton
-                icon={<ExternalLink className="h-4 w-4" />}
-                label="Contracts"
-                targetId="contracts"
-              />
+              ))}
             </nav>
           </div>
         </div>
@@ -1677,7 +1705,7 @@ export default function Home() {
                 <SectionDivider text="Part 1: Core Concepts" />
 
                 {/* Data Management Section */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 gap-6">
                   {/* Your Data */}
                   <YourDataCard
                     fileLookupId={fileLookupId}
@@ -1775,97 +1803,6 @@ export default function Home() {
                   </Card>
                 </div>
 
-                {/* Part 2: Applied Workflows */}
-                <SectionDivider text="Part 2: Applied Workflows" />
-
-                {/* Server Management Section */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Trusted Server Management */}
-                  <TrustedServerManagementCard
-                    serverId={serverId}
-                    onServerIdChange={setServerId}
-                    serverUrl={serverUrl}
-                    onServerUrlChange={setServerUrl}
-                    useGaslessTransaction={useGaslessTransaction}
-                    onUseGaslessTransactionChange={setUseGaslessTransaction}
-                    onTrustServer={handleTrustServer}
-                    onTrustServerGasless={handleTrustServerGasless}
-                    isTrustingServer={isTrustingServer}
-                    trustServerError={trustServerError}
-                    trustServerResult={trustServerResult}
-                    personalServerError={personalServerError}
-                    personalServerResult={personalServerResult}
-                    trustedServers={trustedServers}
-                    isLoadingTrustedServers={isLoadingTrustedServers}
-                    onRefreshTrustedServers={loadTrustedServers}
-                    onUntrustServer={handleUntrustServer}
-                    isUntrusting={isUntrusting}
-                    chainId={chainId}
-                  />
-
-                  {/* Schema Management */}
-                  <SchemaManagementCard
-                    schemasCount={schemasCount}
-                    refinersCount={refinersCount}
-                    schemaName={schemaName}
-                    onSchemaNameChange={setSchemaName}
-                    schemaType={schemaType}
-                    onSchemaTypeChange={setSchemaType}
-                    schemaDefinitionUrl={schemaDefinitionUrl}
-                    onSchemaDefinitionUrlChange={setSchemaDefinitionUrl}
-                    onCreateSchema={handleCreateSchema}
-                    isCreatingSchema={isCreatingSchema}
-                    schemaStatus={schemaStatus}
-                    lastCreatedSchemaId={lastCreatedSchemaId}
-                    refinerName={refinerName}
-                    onRefinerNameChange={setRefinerName}
-                    refinerDlpId={refinerDlpId}
-                    onRefinerDlpIdChange={setRefinerDlpId}
-                    refinerSchemaId={refinerSchemaId}
-                    onRefinerSchemaIdChange={setRefinerSchemaId}
-                    refinerInstructionUrl={refinerInstructionUrl}
-                    onRefinerInstructionUrlChange={setRefinerInstructionUrl}
-                    onCreateRefiner={handleCreateRefiner}
-                    isCreatingRefiner={isCreatingRefiner}
-                    refinerStatus={refinerStatus}
-                    lastCreatedRefinerId={lastCreatedRefinerId}
-                    updateRefinerId={updateRefinerId}
-                    onUpdateRefinerIdChange={setUpdateRefinerId}
-                    updateSchemaId={updateSchemaId}
-                    onUpdateSchemaIdChange={setUpdateSchemaId}
-                    onUpdateSchemaId={handleUpdateSchemaId}
-                    isUpdatingSchema={isUpdatingSchema}
-                    updateSchemaStatus={updateSchemaStatus}
-                    schemas={schemas}
-                    isLoadingSchemas={isLoadingSchemas}
-                    onRefreshSchemas={loadSchemas}
-                    refiners={refiners}
-                    isLoadingRefiners={isLoadingRefiners}
-                    onRefreshRefiners={loadRefiners}
-                  />
-                </div>
-
-                {/* Trusted Server */}
-                <TrustedServerIntegrationCard
-                  serverFileId={serverFileId}
-                  onServerFileIdChange={setServerFileId}
-                  serverPrivateKey={serverPrivateKey}
-                  onServerPrivateKeyChange={setServerPrivateKey}
-                  onServerDecryption={handleServerDecryption}
-                  isServerDecrypting={isServerDecrypting}
-                  serverDecryptError={serverDecryptError}
-                  serverDecryptedData={serverDecryptedData}
-                  personalPermissionId={personalPermissionId}
-                  onPersonalPermissionIdChange={setPersonalPermissionId}
-                  onPersonalServerCall={handlePersonalServerCall}
-                  isPersonalLoading={isPersonalLoading}
-                  onPollStatus={handlePollStatus}
-                  isPolling={isPolling}
-                  personalError={personalError}
-                  personalResult={personalResult}
-                  onCopyToClipboard={copyToClipboard}
-                />
-
                 {/* Encryption Testing */}
                 <EncryptionTestCard
                   encryptionSeed={encryptionSeed}
@@ -1900,20 +1837,64 @@ export default function Home() {
                     provider: sdkConfig.defaultStorageProvider || "app-ipfs",
                     ipfsMode: ipfsMode,
                   }}
-                  ipfsModeOverride={ipfsMode}
-                  onIpfsModeOverrideChange={(mode) =>
-                    setIpfsMode(mode as "app-managed" | "user-managed")
-                  }
-                  useIpfsModeOverride={
-                    sdkConfig.defaultStorageProvider === "app-ipfs" ||
-                    sdkConfig.defaultStorageProvider === "user-ipfs"
-                  }
-                  onUseIpfsModeOverrideToggle={() => {}}
                   onCopyToClipboard={handleCopyToClipboard}
                   onDownloadDecrypted={handleDownloadDecrypted}
                 />
 
-                {/* Trusted Server File Upload */}
+                {/* Part 2: Applied Workflows */}
+                <SectionDivider text="Part 2: Applied Workflows" />
+
+                {/* Server Management Section */}
+                <div className="grid grid-cols-1 gap-6">
+                  {/* Trusted Server Management */}
+                  <TrustedServerManagementCard
+                    serverId={serverId}
+                    onServerIdChange={setServerId}
+                    serverUrl={serverUrl}
+                    onServerUrlChange={setServerUrl}
+                    useGaslessTransaction={useGaslessTransaction}
+                    onUseGaslessTransactionChange={setUseGaslessTransaction}
+                    onTrustServer={handleTrustServer}
+                    onTrustServerGasless={handleTrustServerGasless}
+                    isTrustingServer={isTrustingServer}
+                    onDiscoverReplicateServer={handleDiscoverReplicateServer}
+                    isDiscoveringServer={isDiscoveringServer}
+                    discoveredServerInfo={discoveredServerInfo}
+                    trustServerError={trustServerError}
+                    trustServerResult={trustServerResult}
+                    personalServerError={personalServerError}
+                    personalServerResult={personalServerResult}
+                    trustedServers={trustedServers}
+                    isLoadingTrustedServers={isLoadingTrustedServers}
+                    onRefreshTrustedServers={loadTrustedServers}
+                    onUntrustServer={handleUntrustServer}
+                    isUntrusting={isUntrusting}
+                    chainId={chainId}
+                  />
+                </div>
+
+                {/* Trusted Server Integration */}
+                <TrustedServerIntegrationCard
+                  serverFileId={serverFileId}
+                  onServerFileIdChange={setServerFileId}
+                  serverPrivateKey={serverPrivateKey}
+                  onServerPrivateKeyChange={setServerPrivateKey}
+                  onServerDecryption={handleServerDecryption}
+                  isServerDecrypting={isServerDecrypting}
+                  serverDecryptError={serverDecryptError}
+                  serverDecryptedData={serverDecryptedData}
+                  personalPermissionId={personalPermissionId}
+                  onPersonalPermissionIdChange={setPersonalPermissionId}
+                  onPersonalServerCall={handlePersonalServerCall}
+                  isPersonalLoading={isPersonalLoading}
+                  onPollStatus={handlePollStatus}
+                  isPolling={isPolling}
+                  personalError={personalError}
+                  personalResult={personalResult}
+                  onCopyToClipboard={copyToClipboard}
+                />
+
+                {/* Server Upload */}
                 <ServerUploadCard
                   trustedServers={trustedServers}
                   selectedServerForUpload={selectedServerForUpload}
@@ -1933,6 +1914,47 @@ export default function Home() {
                   serverUploadStatus={serverUploadStatus}
                   serverUploadResult={serverUploadResult}
                   chainId={chainId}
+                />
+
+                {/* Schema Management */}
+                <SchemaManagementCard
+                  schemasCount={schemasCount}
+                  refinersCount={refinersCount}
+                  schemaName={schemaName}
+                  onSchemaNameChange={setSchemaName}
+                  schemaType={schemaType}
+                  onSchemaTypeChange={setSchemaType}
+                  schemaDefinitionUrl={schemaDefinitionUrl}
+                  onSchemaDefinitionUrlChange={setSchemaDefinitionUrl}
+                  onCreateSchema={handleCreateSchema}
+                  isCreatingSchema={isCreatingSchema}
+                  schemaStatus={schemaStatus}
+                  lastCreatedSchemaId={lastCreatedSchemaId}
+                  refinerName={refinerName}
+                  onRefinerNameChange={setRefinerName}
+                  refinerDlpId={refinerDlpId}
+                  onRefinerDlpIdChange={setRefinerDlpId}
+                  refinerSchemaId={refinerSchemaId}
+                  onRefinerSchemaIdChange={setRefinerSchemaId}
+                  refinerInstructionUrl={refinerInstructionUrl}
+                  onRefinerInstructionUrlChange={setRefinerInstructionUrl}
+                  onCreateRefiner={handleCreateRefiner}
+                  isCreatingRefiner={isCreatingRefiner}
+                  refinerStatus={refinerStatus}
+                  lastCreatedRefinerId={lastCreatedRefinerId}
+                  updateRefinerId={updateRefinerId}
+                  onUpdateRefinerIdChange={setUpdateRefinerId}
+                  updateSchemaId={updateSchemaId}
+                  onUpdateSchemaIdChange={setUpdateSchemaId}
+                  onUpdateSchemaId={handleUpdateSchemaId}
+                  isUpdatingSchema={isUpdatingSchema}
+                  updateSchemaStatus={updateSchemaStatus}
+                  schemas={schemas}
+                  isLoadingSchemas={isLoadingSchemas}
+                  onRefreshSchemas={loadSchemas}
+                  refiners={refiners}
+                  isLoadingRefiners={isLoadingRefiners}
+                  onRefreshRefiners={loadRefiners}
                 />
 
                 {/* Canonical Contracts */}
@@ -1961,19 +1983,21 @@ export default function Home() {
 
         {/* Right Sidebar - SDK Configuration */}
         {vana && (
-          <SDKConfigurationSidebar
-            sdkConfig={sdkConfig}
-            onConfigChange={(config) =>
-              setSdkConfig((prev) => ({ ...prev, ...config }))
-            }
-            configStatus={configStatus}
-            onApplyConfiguration={() => {
-              setConfigStatus(
-                "✅ Configuration will be applied on next SDK initialization",
-              );
-              setTimeout(() => setConfigStatus(""), 3000);
-            }}
-          />
+          <div id="configuration">
+            <SDKConfigurationSidebar
+              sdkConfig={sdkConfig}
+              onConfigChange={(config) =>
+                setSdkConfig((prev) => ({ ...prev, ...config }))
+              }
+              configStatus={configStatus}
+              onApplyConfiguration={() => {
+                setConfigStatus(
+                  "✅ Configuration will be applied on next SDK initialization",
+                );
+                setTimeout(() => setConfigStatus(""), 3000);
+              }}
+            />
+          </div>
         )}
       </div>
     </div>

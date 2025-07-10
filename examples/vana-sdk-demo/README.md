@@ -240,7 +240,7 @@ const storageProviders = {
 
 </details>
 
-### 4. **Encryption Testing Playground**
+### 4. **Encryption & Upload**
 
 <details>
 <summary>Click to expand</summary>

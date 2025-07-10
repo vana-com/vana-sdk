@@ -283,7 +283,11 @@ describe("ServerController", () => {
       input: { user_address: validParams.userAddress },
       output: {
         user_address: validParams.userAddress,
-        derived_address: "0x1234567890123456789012345678901234567890",
+        personal_server: {
+          address: "0x1234567890123456789012345678901234567890",
+          public_key:
+            "0x04abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        },
       },
     };
 
@@ -299,7 +303,10 @@ describe("ServerController", () => {
         userAddress: mockPersonalServerResponse.output.user_address,
         identity: {
           metadata: {
-            derivedAddress: mockPersonalServerResponse.output.derived_address,
+            derivedAddress:
+              mockPersonalServerResponse.output.personal_server.address,
+            publicKey:
+              mockPersonalServerResponse.output.personal_server.public_key,
           },
         },
         timestamp: expect.any(String),

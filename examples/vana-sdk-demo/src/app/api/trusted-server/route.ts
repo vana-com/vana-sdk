@@ -3,7 +3,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { Vana } from "vana-sdk";
 
 export async function POST(request: NextRequest) {
-  console.debug("🔍 Debug - POST /api/personal");
+  console.debug("🔍 Debug - POST /api/trusted-server");
   try {
     const body = await request.json();
     const { permissionId, chainId } = body;
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
 
     console.debug("🔍 Debug - vana", vana);
 
-    // Make personal server request
+    // Make trusted server request
     const response = await vana.server.postRequest({
       permissionId,
     });
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
       data: response,
     });
   } catch (error) {
-    console.error("Personal server request failed:", error);
+    console.error("Trusted server request failed:", error);
     return NextResponse.json(
       {
         success: false,

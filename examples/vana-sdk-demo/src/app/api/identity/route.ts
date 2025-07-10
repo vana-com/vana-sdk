@@ -5,11 +5,11 @@ import { Vana } from "vana-sdk";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { getUrl, chainId } = body;
+    const { userAddress, chainId } = body;
 
-    if (!getUrl || !chainId) {
+    if (!userAddress || !chainId) {
       return NextResponse.json(
-        { success: false, error: "Missing getUrl or chainId parameter" },
+        { success: false, error: "Missing userAddress or chainId parameter" },
         { status: 400 },
       );
     }
@@ -34,15 +34,18 @@ export async function POST(request: NextRequest) {
       account: applicationAccount,
     });
 
-    // Poll the status
-    const response = await vana.server.pollStatus(getUrl);
+    // Get the trusted server public key using server-side REPLICATE_API_TOKEN
+    const publicKey = await vana.server.getTrustedServerPublicKey(userAddress);
 
     return NextResponse.json({
       success: true,
-      data: response,
+      data: {
+        userAddress,
+        publicKey,
+      },
     });
   } catch (error) {
-    console.error("Personal server polling failed:", error);
+    console.error("Identity server request failed:", error);
     return NextResponse.json(
       {
         success: false,

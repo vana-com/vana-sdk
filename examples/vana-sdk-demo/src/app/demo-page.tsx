@@ -198,7 +198,7 @@ export default function Home() {
     null,
   );
   const [serverInputMode, setServerInputMode] = useState<"text" | "file">(
-    "file",
+    "text",
   );
   const [serverTextData, setServerTextData] = useState<string>(
     `{"message": "Hello from trusted server!", "timestamp": "${new Date().toISOString()}"}`,
@@ -208,6 +208,7 @@ export default function Home() {
   const [serverUploadResult, setServerUploadResult] = useState<{
     fileId: number;
     transactionHash: string;
+    url: string;
   } | null>(null);
 
   // Personal server setup state
@@ -1239,10 +1240,23 @@ export default function Home() {
     setServerUploadResult(null);
 
     try {
-      // Get the server's public key from the trusted server registry
-      const serverPublicKey = await vana.data.getTrustedServerPublicKey(
-        selectedServerForUpload as `0x${string}`,
-      );
+      // Get the server's public key from the trusted server registry via API
+      const identityResponse = await fetch("/api/identity", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userAddress: selectedServerForUpload,
+          chainId: chainId,
+        }),
+      });
+
+      if (!identityResponse.ok) {
+        const errorData = await identityResponse.json();
+        throw new Error(errorData.error || "Failed to get server public key");
+      }
+
+      const identityData = await identityResponse.json();
+      const serverPublicKey = identityData.data.publicKey;
 
       // Create file or blob from input
       let fileToUpload: File;
@@ -1272,6 +1286,7 @@ export default function Home() {
       setServerUploadResult({
         fileId: result.fileId,
         transactionHash: result.transactionHash as string,
+        url: result.url,
       });
       setServerUploadStatus("✅ File uploaded with server permissions!");
 
@@ -1632,7 +1647,7 @@ export default function Home() {
                 className="flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-default-100 transition-colors w-full text-left"
               >
                 <Brain className="h-4 w-4" />
-                Personal Server
+                Trusted Server
               </button>
               <button
                 onClick={() =>
@@ -2220,7 +2235,7 @@ export default function Home() {
                         />
                       </div>
 
-                      {/* Personal Server Setup Result Display */}
+                      {/* Trusted Server Setup Result Display */}
                       {personalServerError && (
                         <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
                           <p className="text-destructive text-sm">
@@ -2565,16 +2580,16 @@ export default function Home() {
                   </Card>
                 </div>
 
-                {/* Personal Server */}
+                {/* Trusted Server */}
                 <Card>
                   <CardHeader className="flex-col items-start">
                     <div className="flex items-center gap-2">
                       <Brain className="h-5 w-5" />
-                      Personal Server Integration
+                      Trusted Server Integration
                     </div>
                     <p className="text-small text-default-500 mt-1">
                       <em>
-                        Demonstrates: `grantPermission()`, personal server API
+                        Demonstrates: `grantPermission()`, trusted server API
                         workflow
                       </em>
                       <br />
@@ -2675,12 +2690,12 @@ export default function Home() {
 
                     <Divider />
 
-                    {/* Personal Server API Integration */}
+                    {/* Trusted Server API Integration */}
                     <div className="space-y-4">
                       <div className="flex items-center gap-2">
                         <Brain className="h-4 w-4" />
                         <span className="font-medium">
-                          Personal Server API Integration
+                          Trusted Server API Integration
                         </span>
                       </div>
 
@@ -3503,12 +3518,21 @@ export default function Home() {
                           </div>
                           <div className="space-y-2">
                             <div className="bg-white dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-700">
-                              <p className="text-xs text-muted-foreground mb-1">
-                                File ID:
-                              </p>
-                              <p className="font-mono text-sm">
-                                {serverUploadResult.fileId}
-                              </p>
+                              <AddressDisplay
+                                address={serverUploadResult.fileId.toString()}
+                                showCopy={true}
+                                showExternalLink={false}
+                                label="File ID"
+                              />
+                            </div>
+                            <div className="bg-white dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-700">
+                              <AddressDisplay
+                                address={serverUploadResult.url}
+                                showCopy={true}
+                                showExternalLink={true}
+                                explorerUrl={`https://ipfs.io/ipfs/${serverUploadResult.url.replace("ipfs://", "")}`}
+                                label="IPFS URL"
+                              />
                             </div>
                             <div className="bg-white dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-700">
                               <AddressDisplay

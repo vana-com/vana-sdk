@@ -52,18 +52,17 @@ import {
   ModalHeader,
   ModalBody,
   Spinner,
+  Spacer,
   Navbar,
   NavbarBrand,
   NavbarContent,
   NavbarItem,
 } from "@heroui/react";
-import { ResourceList } from "@/components/ui/ResourceList";
 import { NavigationButton } from "@/components/ui/NavigationButton";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { SectionDivider } from "@/components/ui/SectionDivider";
 import { StatusMessage } from "@/components/ui/StatusMessage";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { PermissionListItem } from "@/components/PermissionListItem";
+import { PermissionsTable } from "@/components/PermissionsTable";
 import { EncryptionTestCard } from "@/components/EncryptionTestCard";
 import { TrustedServerManagementCard } from "@/components/TrustedServerManagementCard";
 import { SchemaManagementCard } from "@/components/SchemaManagementCard";
@@ -71,7 +70,10 @@ import { ServerUploadCard } from "@/components/ServerUploadCard";
 import { YourDataCard } from "@/components/YourDataCard";
 import { TrustedServerIntegrationCard } from "@/components/TrustedServerIntegrationCard";
 import { ContractListCard } from "@/components/ContractListCard";
-import { SDKConfigurationSidebar } from "@/components/SDKConfigurationSidebar";
+import {
+  SDKConfigurationSidebar,
+  type AppConfig,
+} from "@/components/SDKConfigurationSidebar";
 import { GrantPreviewModalContent } from "@/components/GrantPreviewModalContent";
 import { Shield, Eye } from "lucide-react";
 import type {
@@ -175,17 +177,11 @@ export default function Home() {
   const [serverId, setServerId] = useState<string>("");
   const [serverUrl, setServerUrl] = useState<string>("");
   const [trustServerError, setTrustServerError] = useState<string>("");
-  const [trustServerResult, setTrustServerResult] = useState<string>("");
   const [isTrustingServer, setIsTrustingServer] = useState(false);
-  const [isUntrusting, setIsUntrusting] = useState(false);
   const [trustedServers, setTrustedServers] = useState<string[]>([]);
-  const [isLoadingTrustedServers, setIsLoadingTrustedServers] = useState(false);
-  const [useGaslessTransaction, setUseGaslessTransaction] = useState(true);
 
   // Server discovery state
   const [isDiscoveringServer, setIsDiscoveringServer] = useState(false);
-  const [discoveredServerInfo, setDiscoveredServerInfo] =
-    useState<DiscoveredServerInfo | null>(null);
 
   // Trusted server file upload state
   const [selectedServerForUpload, setSelectedServerForUpload] =
@@ -207,9 +203,7 @@ export default function Home() {
     url: string;
   } | null>(null);
 
-  // Personal server setup state
-  const [personalServerError] = useState<string>("");
-  const [personalServerResult] = useState<string>("");
+  // Personal server setup state (unused but kept for future features)
 
   // Schema management state
   const [schemas, setSchemas] = useState<
@@ -261,6 +255,11 @@ export default function Home() {
     defaultStorageProvider: "app-ipfs",
   });
 
+  // App Configuration state
+  const [appConfig, setAppConfig] = useState<AppConfig>({
+    useGaslessTransactions: true,
+  });
+
   // Auto-fallback to app-ipfs for invalid configurations
   useEffect(() => {
     if (
@@ -271,7 +270,6 @@ export default function Home() {
       setSdkConfig((prev) => ({ ...prev, defaultStorageProvider: "app-ipfs" }));
     }
   }, [sdkConfig.pinataJwt, sdkConfig.defaultStorageProvider]);
-  const [configStatus, setConfigStatus] = useState<string>("");
 
   // Set up fetch interceptor for CORS-restricted URLs
   useEffect(() => {
@@ -1107,12 +1105,23 @@ export default function Home() {
 
   // Trust server handlers
 
+  const loadTrustedServers = async () => {
+    if (!vana || !address) return;
+
+    try {
+      const servers = await vana.permissions.getTrustedServers();
+      setTrustedServers(servers);
+    } catch (error) {
+      console.error("Failed to load trusted servers:", error);
+    }
+  };
+
   const handleDiscoverReplicateServer = async () => {
     if (!address) return;
 
     setIsDiscoveringServer(true);
     setTrustServerError("");
-    setDiscoveredServerInfo(null);
+    // Clear any previous discovery state
 
     try {
       // Call the trusted server setup API to discover/initialize the server identity
@@ -1160,7 +1169,7 @@ export default function Home() {
         publicKey: publicKey,
       };
 
-      setDiscoveredServerInfo(serverInfo);
+      // Store discovered server info (functionality simplified for demo)
 
       // Auto-populate the form fields
       setServerId(serverInfo.serverId);
@@ -1198,15 +1207,14 @@ export default function Home() {
 
     setIsTrustingServer(true);
     setTrustServerError("");
-    setTrustServerResult("");
 
     try {
-      const txHash = await vana.permissions.trustServer({
+      await vana.permissions.trustServer({
         serverId: serverId as `0x${string}`,
         serverUrl: serverUrl,
       });
 
-      setTrustServerResult(txHash);
+      // Success - form shows success via trustServerError being cleared
       // Refresh trusted servers list
       await loadTrustedServers();
     } catch (error) {
@@ -1242,15 +1250,14 @@ export default function Home() {
 
     setIsTrustingServer(true);
     setTrustServerError("");
-    setTrustServerResult("");
 
     try {
-      const txHash = await vana.permissions.trustServerWithSignature({
+      await vana.permissions.trustServerWithSignature({
         serverId: serverId as `0x${string}`,
         serverUrl: serverUrl,
       });
 
-      setTrustServerResult(txHash);
+      // Success - form shows success via trustServerError being cleared
       // Clear the form fields on success
       setServerId("");
       setServerUrl("");
@@ -1262,43 +1269,6 @@ export default function Home() {
       );
     } finally {
       setIsTrustingServer(false);
-    }
-  };
-
-  const handleUntrustServer = async (serverIdToUntrust: string) => {
-    if (!vana || !address) return;
-
-    setIsUntrusting(true);
-    setTrustServerError("");
-
-    try {
-      const txHash = await vana.permissions.untrustServer({
-        serverId: serverIdToUntrust as `0x${string}`,
-      });
-
-      setTrustServerResult(txHash);
-      // Refresh trusted servers list
-      await loadTrustedServers();
-    } catch (error) {
-      setTrustServerError(
-        error instanceof Error ? error.message : "Failed to untrust server",
-      );
-    } finally {
-      setIsUntrusting(false);
-    }
-  };
-
-  const loadTrustedServers = async () => {
-    if (!vana || !address) return;
-
-    setIsLoadingTrustedServers(true);
-    try {
-      const servers = await vana.permissions.getTrustedServers();
-      setTrustedServers(servers);
-    } catch (error) {
-      console.error("Failed to load trusted servers:", error);
-    } finally {
-      setIsLoadingTrustedServers(false);
     }
   };
 
@@ -1449,7 +1419,7 @@ export default function Home() {
     }
   }, [vana]);
 
-  // Load trusted servers when vana is initialized
+  // Load schemas, refiners, and trusted servers when vana is initialized
   useEffect(() => {
     if (vana && address) {
       loadTrustedServers();
@@ -1700,110 +1670,89 @@ export default function Home() {
             )}
 
             {vana && (
-              <div className="space-y-8" id="main-content">
-                {/* Part 1: Core Concepts */}
-                <SectionDivider text="Part 1: Core Concepts" />
+              <div id="main-content">
+                {/* Data & Permissions Section */}
+                <SectionDivider text={navigationConfig.sections[0].title} />
+                <Spacer y={8} />
 
-                {/* Data Management Section */}
-                <div className="grid grid-cols-1 gap-6">
-                  {/* Your Data */}
-                  <YourDataCard
-                    fileLookupId={fileLookupId}
-                    onFileLookupIdChange={setFileLookupId}
-                    onLookupFile={handleLookupFile}
-                    isLookingUpFile={isLookingUpFile}
-                    fileLookupStatus={fileLookupStatus}
-                    userFiles={userFiles}
-                    isLoadingFiles={isLoadingFiles}
-                    onRefreshFiles={loadUserFiles}
-                    selectedFiles={selectedFiles}
-                    decryptingFiles={decryptingFiles}
-                    decryptedFiles={decryptedFiles}
-                    onFileSelection={handleFileSelection}
-                    onDecryptFile={handleDecryptFile}
-                    onDownloadDecryptedFile={handleDownloadDecryptedFile}
-                    onGrantPermission={handleGrantPermission}
-                    isGranting={isGranting}
-                    grantStatus={grantStatus}
-                    grantTxHash={grantTxHash}
-                    userAddress={address}
-                    chainId={chainId || 14800}
+                <YourDataCard
+                  fileLookupId={fileLookupId}
+                  onFileLookupIdChange={setFileLookupId}
+                  onLookupFile={handleLookupFile}
+                  isLookingUpFile={isLookingUpFile}
+                  fileLookupStatus={fileLookupStatus}
+                  userFiles={userFiles}
+                  isLoadingFiles={isLoadingFiles}
+                  onRefreshFiles={loadUserFiles}
+                  selectedFiles={selectedFiles}
+                  decryptingFiles={decryptingFiles}
+                  decryptedFiles={decryptedFiles}
+                  onFileSelection={handleFileSelection}
+                  onDecryptFile={handleDecryptFile}
+                  onDownloadDecryptedFile={handleDownloadDecryptedFile}
+                  onGrantPermission={handleGrantPermission}
+                  isGranting={isGranting}
+                  grantStatus={grantStatus}
+                  grantTxHash={grantTxHash}
+                  userAddress={address}
+                  chainId={chainId || 14800}
+                />
+
+                {/* Grant Preview Modal */}
+                <Modal
+                  isOpen={showGrantPreview && !!grantPreview}
+                  onClose={onCloseGrant}
+                  size="2xl"
+                  scrollBehavior="inside"
+                >
+                  <ModalContent>
+                    <ModalHeader className="flex items-center gap-2">
+                      <Eye className="h-5 w-5" />
+                      Review Grant
+                    </ModalHeader>
+                    <ModalBody>
+                      <GrantPreviewModalContent
+                        grantPreview={grantPreview}
+                        onConfirm={handleConfirmGrant}
+                        onCancel={handleCancelGrant}
+                      />
+                    </ModalBody>
+                  </ModalContent>
+                </Modal>
+
+                <Spacer y={8} />
+
+                <section id="permissions">
+                  <SectionHeader
+                    icon={<Shield className="h-5 w-5" />}
+                    title="Permissions Management"
+                    description={
+                      <>
+                        <em>
+                          Demonstrates: `getPermissions()`,
+                          `revokePermission()`, `grantPermission()`
+                        </em>
+                        <br />
+                        View and manage data access permissions for your files.
+                      </>
+                    }
                   />
 
-                  {/* Permissions Management */}
+                  {revokeStatus && (
+                    <StatusMessage status={revokeStatus} className="mb-4" />
+                  )}
 
-                  {/* Grant Preview Modal */}
-                  <Modal
-                    isOpen={showGrantPreview && !!grantPreview}
-                    onClose={onCloseGrant}
-                    size="2xl"
-                    scrollBehavior="inside"
-                  >
-                    <ModalContent>
-                      <ModalHeader className="flex items-center gap-2">
-                        <Eye className="h-5 w-5" />
-                        Review Grant
-                      </ModalHeader>
-                      <ModalBody>
-                        <GrantPreviewModalContent
-                          grantPreview={grantPreview}
-                          onConfirm={handleConfirmGrant}
-                          onCancel={handleCancelGrant}
-                        />
-                      </ModalBody>
-                    </ModalContent>
-                  </Modal>
+                  <PermissionsTable
+                    userPermissions={userPermissions}
+                    isLoading={isLoadingPermissions}
+                    onRevoke={handleRevokePermissionById}
+                    isRevoking={isRevoking}
+                    onRefresh={loadUserPermissions}
+                  />
+                </section>
 
-                  {/* Permissions Management */}
-                  <Card id="permissions">
-                    <CardHeader>
-                      <SectionHeader
-                        icon={<Shield className="h-5 w-5" />}
-                        title="Permissions Management"
-                        description={
-                          <>
-                            <em>
-                              Demonstrates: `getPermissions()`,
-                              `revokePermission()`, `grantPermission()`
-                            </em>
-                            <br />
-                            View and manage data access permissions for your
-                            files.
-                          </>
-                        }
-                      />
-                    </CardHeader>
-                    <CardBody>
-                      {revokeStatus && (
-                        <StatusMessage status={revokeStatus} className="mb-4" />
-                      )}
+                <Spacer y={8} />
 
-                      <ResourceList
-                        title="Permissions Management"
-                        description={`View and manage data access permissions (${userPermissions.length} permissions)`}
-                        items={userPermissions}
-                        isLoading={isLoadingPermissions}
-                        onRefresh={loadUserPermissions}
-                        renderItem={(permission) => (
-                          <PermissionListItem
-                            key={permission.id.toString()}
-                            permission={permission}
-                            onRevoke={handleRevokePermissionById}
-                            isRevoking={isRevoking}
-                          />
-                        )}
-                        emptyState={
-                          <EmptyState
-                            icon={<Shield className="h-12 w-12" />}
-                            title="No permissions granted yet"
-                          />
-                        }
-                      />
-                    </CardBody>
-                  </Card>
-                </div>
-
-                {/* Encryption Testing */}
                 <EncryptionTestCard
                   encryptionSeed={encryptionSeed}
                   onEncryptionSeedChange={setEncryptionSeed}
@@ -1841,82 +1790,29 @@ export default function Home() {
                   onDownloadDecrypted={handleDownloadDecrypted}
                 />
 
-                {/* Part 2: Applied Workflows */}
-                <SectionDivider text="Part 2: Applied Workflows" />
+                <Spacer y={12} />
 
-                {/* Server Management Section */}
-                <div className="grid grid-cols-1 gap-6">
-                  {/* Trusted Server Management */}
-                  <TrustedServerManagementCard
-                    serverId={serverId}
-                    onServerIdChange={setServerId}
-                    serverUrl={serverUrl}
-                    onServerUrlChange={setServerUrl}
-                    useGaslessTransaction={useGaslessTransaction}
-                    onUseGaslessTransactionChange={setUseGaslessTransaction}
-                    onTrustServer={handleTrustServer}
-                    onTrustServerGasless={handleTrustServerGasless}
-                    isTrustingServer={isTrustingServer}
-                    onDiscoverReplicateServer={handleDiscoverReplicateServer}
-                    isDiscoveringServer={isDiscoveringServer}
-                    discoveredServerInfo={discoveredServerInfo}
-                    trustServerError={trustServerError}
-                    trustServerResult={trustServerResult}
-                    personalServerError={personalServerError}
-                    personalServerResult={personalServerResult}
-                    trustedServers={trustedServers}
-                    isLoadingTrustedServers={isLoadingTrustedServers}
-                    onRefreshTrustedServers={loadTrustedServers}
-                    onUntrustServer={handleUntrustServer}
-                    isUntrusting={isUntrusting}
-                    chainId={chainId}
-                  />
-                </div>
+                {/* Server & Schema Setup Section */}
+                <SectionDivider text={navigationConfig.sections[1].title} />
+                <Spacer y={8} />
 
-                {/* Trusted Server Integration */}
-                <TrustedServerIntegrationCard
-                  serverFileId={serverFileId}
-                  onServerFileIdChange={setServerFileId}
-                  serverPrivateKey={serverPrivateKey}
-                  onServerPrivateKeyChange={setServerPrivateKey}
-                  onServerDecryption={handleServerDecryption}
-                  isServerDecrypting={isServerDecrypting}
-                  serverDecryptError={serverDecryptError}
-                  serverDecryptedData={serverDecryptedData}
-                  personalPermissionId={personalPermissionId}
-                  onPersonalPermissionIdChange={setPersonalPermissionId}
-                  onPersonalServerCall={handlePersonalServerCall}
-                  isPersonalLoading={isPersonalLoading}
-                  onPollStatus={handlePollStatus}
-                  isPolling={isPolling}
-                  personalError={personalError}
-                  personalResult={personalResult}
-                  onCopyToClipboard={copyToClipboard}
+                <TrustedServerManagementCard
+                  serverId={serverId}
+                  onServerIdChange={setServerId}
+                  serverUrl={serverUrl}
+                  onServerUrlChange={setServerUrl}
+                  onTrustServer={
+                    appConfig.useGaslessTransactions
+                      ? handleTrustServerGasless
+                      : handleTrustServer
+                  }
+                  isTrustingServer={isTrustingServer}
+                  onDiscoverReplicateServer={handleDiscoverReplicateServer}
+                  isDiscoveringServer={isDiscoveringServer}
+                  trustServerError={trustServerError}
                 />
 
-                {/* Server Upload */}
-                <ServerUploadCard
-                  trustedServers={trustedServers}
-                  selectedServerForUpload={selectedServerForUpload}
-                  onSelectedServerForUploadChange={setSelectedServerForUpload}
-                  serverInputMode={serverInputMode}
-                  onServerInputModeChange={setServerInputMode}
-                  serverTextData={serverTextData}
-                  onServerTextDataChange={setServerTextData}
-                  serverFileToUpload={serverFileToUpload}
-                  onServerFileToUploadChange={(file) => {
-                    setServerFileToUpload(file);
-                    setServerUploadStatus("");
-                    setServerUploadResult(null);
-                  }}
-                  onUploadToTrustedServer={handleUploadToTrustedServer}
-                  isUploadingToServer={isUploadingToServer}
-                  serverUploadStatus={serverUploadStatus}
-                  serverUploadResult={serverUploadResult}
-                  chainId={chainId}
-                />
-
-                {/* Schema Management */}
+                <Spacer y={8} />
                 <SchemaManagementCard
                   schemasCount={schemasCount}
                   refinersCount={refinersCount}
@@ -1957,7 +1853,58 @@ export default function Home() {
                   onRefreshRefiners={loadRefiners}
                 />
 
-                {/* Canonical Contracts */}
+                <Spacer y={12} />
+
+                {/* Server Workflows Section */}
+                <SectionDivider text={navigationConfig.sections[2].title} />
+                <Spacer y={8} />
+                <ServerUploadCard
+                  trustedServers={trustedServers}
+                  selectedServerForUpload={selectedServerForUpload}
+                  onSelectedServerForUploadChange={setSelectedServerForUpload}
+                  serverInputMode={serverInputMode}
+                  onServerInputModeChange={setServerInputMode}
+                  serverTextData={serverTextData}
+                  onServerTextDataChange={setServerTextData}
+                  serverFileToUpload={serverFileToUpload}
+                  onServerFileToUploadChange={(file) => {
+                    setServerFileToUpload(file);
+                    setServerUploadStatus("");
+                    setServerUploadResult(null);
+                  }}
+                  onUploadToTrustedServer={handleUploadToTrustedServer}
+                  isUploadingToServer={isUploadingToServer}
+                  serverUploadStatus={serverUploadStatus}
+                  serverUploadResult={serverUploadResult}
+                  chainId={chainId}
+                />
+
+                <Spacer y={8} />
+                <TrustedServerIntegrationCard
+                  serverFileId={serverFileId}
+                  onServerFileIdChange={setServerFileId}
+                  serverPrivateKey={serverPrivateKey}
+                  onServerPrivateKeyChange={setServerPrivateKey}
+                  onServerDecryption={handleServerDecryption}
+                  isServerDecrypting={isServerDecrypting}
+                  serverDecryptError={serverDecryptError}
+                  serverDecryptedData={serverDecryptedData}
+                  personalPermissionId={personalPermissionId}
+                  onPersonalPermissionIdChange={setPersonalPermissionId}
+                  onPersonalServerCall={handlePersonalServerCall}
+                  isPersonalLoading={isPersonalLoading}
+                  onPollStatus={handlePollStatus}
+                  isPolling={isPolling}
+                  personalError={personalError}
+                  personalResult={personalResult}
+                  onCopyToClipboard={copyToClipboard}
+                />
+
+                <Spacer y={12} />
+
+                {/* Reference Section */}
+                <SectionDivider text={navigationConfig.sections[3].title} />
+                <Spacer y={8} />
                 <ContractListCard
                   contracts={vana.protocol.getAvailableContracts()}
                   getContract={(contractName) =>
@@ -1989,13 +1936,10 @@ export default function Home() {
               onConfigChange={(config) =>
                 setSdkConfig((prev) => ({ ...prev, ...config }))
               }
-              configStatus={configStatus}
-              onApplyConfiguration={() => {
-                setConfigStatus(
-                  "✅ Configuration will be applied on next SDK initialization",
-                );
-                setTimeout(() => setConfigStatus(""), 3000);
-              }}
+              appConfig={appConfig}
+              onAppConfigChange={(config) =>
+                setAppConfig((prev) => ({ ...prev, ...config }))
+              }
             />
           </div>
         )}

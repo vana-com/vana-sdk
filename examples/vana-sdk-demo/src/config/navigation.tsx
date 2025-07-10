@@ -35,7 +35,7 @@ export const navigationConfig: NavigationConfig = {
       ],
     },
     {
-      title: "Server Operations",
+      title: "Server & Schema Setup",
       items: [
         {
           id: "trusted-servers",
@@ -44,28 +44,33 @@ export const navigationConfig: NavigationConfig = {
           targetId: "trusted-servers",
         },
         {
-          id: "personal-server",
-          label: "Trusted Server Integration",
-          icon: <Brain className="h-4 w-4" />,
-          targetId: "personal-server",
+          id: "schemas",
+          label: "Schema Management",
+          icon: <Database className="h-4 w-4" />,
+          targetId: "schemas",
         },
+      ],
+    },
+    {
+      title: "Server Workflows",
+      items: [
         {
           id: "server-upload",
           label: "Server Upload",
           icon: <Upload className="h-4 w-4" />,
           targetId: "server-upload",
         },
+        {
+          id: "personal-server",
+          label: "Trusted Server Integration",
+          icon: <Brain className="h-4 w-4" />,
+          targetId: "personal-server",
+        },
       ],
     },
     {
-      title: "Schema & Contracts",
+      title: "Reference",
       items: [
-        {
-          id: "schemas",
-          label: "Schema Management",
-          icon: <Database className="h-4 w-4" />,
-          targetId: "schemas",
-        },
         {
           id: "contracts",
           label: "Contracts",

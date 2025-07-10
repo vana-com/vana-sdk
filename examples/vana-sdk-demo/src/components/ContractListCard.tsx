@@ -1,5 +1,4 @@
 import React from "react";
-import { Card, CardHeader, CardBody } from "@heroui/react";
 import { ExternalLink } from "lucide-react";
 import { SectionHeader } from "./ui/SectionHeader";
 import { ResourceList } from "./ui/ResourceList";
@@ -24,25 +23,23 @@ export const ContractListCard: React.FC<ContractListCardProps> = ({
   chainName,
 }) => {
   return (
-    <Card id="contracts">
-      <CardHeader>
-        <SectionHeader
-          icon={<ExternalLink className="h-5 w-5" />}
-          title="Canonical Contracts"
-          description={
-            <>
-              <em>
-                Reference: `protocol.getAvailableContracts()`, blockchain
-                explorer links
-              </em>
-              <br />
-              All {contracts.length} Vana protocol contracts deployed on{" "}
-              {chainName || "this network"}. Click to view on block explorer.
-            </>
-          }
-        />
-      </CardHeader>
-      <CardBody>
+    <section id="contracts">
+      <SectionHeader
+        icon={<ExternalLink className="h-5 w-5" />}
+        title="Canonical Contracts"
+        description={
+          <>
+            <em>
+              Reference: `protocol.getAvailableContracts()`, blockchain explorer
+              links
+            </em>
+            <br />
+            All {contracts.length} Vana protocol contracts deployed on{" "}
+            {chainName || "this network"}. Click to view on block explorer.
+          </>
+        }
+      />
+      <div className="mt-6">
         <ResourceList
           title=""
           description=""
@@ -75,7 +72,7 @@ export const ContractListCard: React.FC<ContractListCardProps> = ({
           }}
           emptyState={<EmptyState title="No contracts found" />}
         />
-      </CardBody>
-    </Card>
+      </div>
+    </section>
   );
 };

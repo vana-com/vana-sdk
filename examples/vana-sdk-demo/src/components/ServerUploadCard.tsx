@@ -1,14 +1,5 @@
 import React from "react";
-import {
-  Card,
-  CardHeader,
-  CardBody,
-  Select,
-  SelectItem,
-  Textarea,
-  Button,
-  Spinner,
-} from "@heroui/react";
+import { Select, SelectItem, Textarea, Button, Spinner } from "@heroui/react";
 import { Shield, FileText, Upload, Brain } from "lucide-react";
 import { SectionHeader } from "./ui/SectionHeader";
 import { InputModeToggle, InputMode } from "./ui/InputModeToggle";
@@ -70,25 +61,23 @@ export const ServerUploadCard: React.FC<ServerUploadCardProps> = ({
   chainId,
 }) => {
   return (
-    <Card id="server-upload">
-      <CardHeader>
-        <SectionHeader
-          icon={<Shield className="h-5 w-5" />}
-          title="Upload File to Trusted Server"
-          description={
-            <>
-              <em>
-                Demonstrates: `uploadFileWithPermissions()`,
-                `getTrustedServerPublicKey()`
-              </em>
-              <br />
-              Complete workflow for securely sharing a file with a designated
-              server using dual encryption.
-            </>
-          }
-        />
-      </CardHeader>
-      <CardBody className="space-y-6">
+    <section id="server-upload">
+      <SectionHeader
+        icon={<Shield className="h-5 w-5" />}
+        title="Upload File to Trusted Server"
+        description={
+          <>
+            <em>
+              Demonstrates: `uploadFileWithPermissions()`,
+              `getTrustedServerPublicKey()`
+            </em>
+            <br />
+            Complete workflow for securely sharing a file with a designated
+            server using dual encryption.
+          </>
+        }
+      />
+      <div className="mt-6 space-y-6">
         {/* Server Selection */}
         <div className="space-y-2">
           <label htmlFor="server-select">Select Trusted Server:</label>
@@ -245,7 +234,7 @@ export const ServerUploadCard: React.FC<ServerUploadCardProps> = ({
             "You maintain full control over which servers can access your data",
           ]}
         />
-      </CardBody>
-    </Card>
+      </div>
+    </section>
   );
 };

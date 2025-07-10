@@ -1,8 +1,5 @@
 import React from "react";
 import {
-  Card,
-  CardHeader,
-  CardBody,
   Input,
   Divider,
   Select,
@@ -129,25 +126,23 @@ export const EncryptionTestCard: React.FC<EncryptionTestCardProps> = ({
   }, [encryptedData, showEncryptedContent]);
 
   return (
-    <Card id="encryption">
-      <CardHeader>
-        <SectionHeader
-          icon={<Lock className="h-5 w-5" />}
-          title="Encryption & Upload"
-          description={
-            <>
-              <em>
-                Demonstrates: `generateEncryptionKey()`, `encryptUserData()`,
-                `decryptUserData()`, `uploadFile()`
-              </em>
-              <br />
-              Encrypt your data and upload it to the Vana blockchain for secure
-              storage and processing.
-            </>
-          }
-        />
-      </CardHeader>
-      <CardBody className="space-y-6">
+    <section id="encryption">
+      <SectionHeader
+        icon={<Lock className="h-5 w-5" />}
+        title="Encryption & Upload"
+        description={
+          <>
+            <em>
+              Demonstrates: `generateEncryptionKey()`, `encryptUserData()`,
+              `decryptUserData()`, `uploadFile()`
+            </em>
+            <br />
+            Encrypt your data and upload it to the Vana blockchain for secure
+            storage and processing.
+          </>
+        }
+      />
+      <div className="space-y-6 mt-6">
         {/* Step 1: Configure Encryption Seed */}
         <div className="space-y-4">
           <div className="flex items-center gap-2">
@@ -466,7 +461,7 @@ export const EncryptionTestCard: React.FC<EncryptionTestCardProps> = ({
             </div>
           </>
         )}
-      </CardBody>
-    </Card>
+      </div>
+    </section>
   );
 };

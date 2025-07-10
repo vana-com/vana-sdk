@@ -1,12 +1,5 @@
 import React from "react";
-import {
-  Card,
-  CardHeader,
-  CardBody,
-  Input,
-  Button,
-  Divider,
-} from "@heroui/react";
+import { Input, Button, Divider } from "@heroui/react";
 import { Brain, Key, Lock, RotateCcw, Copy } from "lucide-react";
 import { SectionHeader } from "./ui/SectionHeader";
 import { ActionButton } from "./ui/ActionButton";
@@ -65,24 +58,22 @@ export const TrustedServerIntegrationCard: React.FC<
   onCopyToClipboard,
 }) => {
   return (
-    <Card id="personal-server">
-      <CardHeader>
-        <SectionHeader
-          icon={<Brain className="h-5 w-5" />}
-          title="Trusted Server Integration"
-          description={
-            <>
-              <em>
-                Demonstrates: `grantPermission()`, trusted server API workflow
-              </em>
-              <br />
-              Advanced pattern showing server-side logic for processing files
-              with granted permissions.
-            </>
-          }
-        />
-      </CardHeader>
-      <CardBody className="space-y-6">
+    <section id="personal-server">
+      <SectionHeader
+        icon={<Brain className="h-5 w-5" />}
+        title="Trusted Server Integration"
+        description={
+          <>
+            <em>
+              Demonstrates: `grantPermission()`, trusted server API workflow
+            </em>
+            <br />
+            Advanced pattern showing server-side logic for processing files with
+            granted permissions.
+          </>
+        }
+      />
+      <div className="mt-6 space-y-6">
         {/* Server Decryption Demo */}
         <div className="space-y-4">
           <div className="flex items-center gap-2">
@@ -231,7 +222,7 @@ export const TrustedServerIntegrationCard: React.FC<
             "Personal server APIs work with decrypted data for computation",
           ]}
         />
-      </CardBody>
-    </Card>
+      </div>
+    </section>
   );
 };

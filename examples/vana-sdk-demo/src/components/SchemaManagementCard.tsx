@@ -1,5 +1,4 @@
 import React from "react";
-import { Card, CardHeader, CardBody } from "@heroui/react";
 import { Database, Brain, RotateCcw } from "lucide-react";
 import { SectionHeader } from "./ui/SectionHeader";
 import { FormBuilder } from "./ui/FormBuilder";
@@ -102,25 +101,23 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
   onRefreshRefiners,
 }) => {
   return (
-    <Card id="schemas">
-      <CardHeader>
-        <SectionHeader
-          icon={<Database className="h-5 w-5" />}
-          title="Schema Management"
-          description={
-            <>
-              <em>
-                Demonstrates: `addSchema()`, `addRefiner()`, `getSchemas()`,
-                `getRefiners()`
-              </em>
-              <br />
-              Manage data schemas and refiners for structured data processing
-              workflows.
-            </>
-          }
-        />
-      </CardHeader>
-      <CardBody className="space-y-6">
+    <section id="schemas">
+      <SectionHeader
+        icon={<Database className="h-5 w-5" />}
+        title="Schema Management"
+        description={
+          <>
+            <em>
+              Demonstrates: `addSchema()`, `addRefiner()`, `getSchemas()`,
+              `getRefiners()`
+            </em>
+            <br />
+            Manage data schemas and refiners for structured data processing
+            workflows.
+          </>
+        }
+      />
+      <div className="mt-6 space-y-6">
         {/* Schema Statistics */}
         <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
           <div className="text-center">
@@ -324,7 +321,7 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
             />
           }
         />
-      </CardBody>
-    </Card>
+      </div>
+    </section>
   );
 };

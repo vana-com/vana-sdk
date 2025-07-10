@@ -134,7 +134,8 @@ export const TrustedServerManagementCard: React.FC<
               isLoading={isDiscoveringServer}
               variant="bordered"
             >
-              Get Hosted Server Details
+              <Shield className="h-4 w-4 mr-2" />
+              Get Hosted Server
             </Button>
           }
         />

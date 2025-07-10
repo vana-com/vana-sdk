@@ -520,13 +520,15 @@ describe("ServerController", () => {
 
     it("should throw error for invalid user address", async () => {
       await expect(
-        serverController.getTrustedServerPublicKey("invalid-address"),
+        serverController.getTrustedServerPublicKey(
+          "invalid-address" as Address,
+        ),
       ).rejects.toThrow("User address must be a valid Ethereum address");
     });
 
     it("should throw error for empty user address", async () => {
       await expect(
-        serverController.getTrustedServerPublicKey(""),
+        serverController.getTrustedServerPublicKey("" as Address),
       ).rejects.toThrow("User address is required and must be a valid string");
     });
 
@@ -657,8 +659,8 @@ describe("ServerController", () => {
       const originalSetTimeout = global.setTimeout;
       global.setTimeout = vi.fn((callback, _ms) => {
         callback();
-        return {} as any;
-      });
+        return { __promisify__: vi.fn() } as any;
+      }) as any;
 
       try {
         // Mock all polling requests to stay in processing state

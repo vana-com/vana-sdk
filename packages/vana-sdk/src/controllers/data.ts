@@ -1301,12 +1301,51 @@ export class DataController {
         }),
       );
 
-      // 6. Register file with permissions
-      const result = await this.addFileWithPermissions(
-        uploadResult.url,
-        userAddress,
-        encryptedPermissions,
-      );
+      // 6. Register file with permissions (either via relayer or direct)
+      let result;
+      if (this.context.relayerUrl) {
+        // Gasless registration via relayer
+        const addFileResponse = await fetch(
+          `${this.context.relayerUrl}/api/relay/addFileWithPermissions`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              url: uploadResult.url,
+              userAddress: userAddress,
+              permissions: encryptedPermissions,
+            }),
+          },
+        );
+
+        if (!addFileResponse.ok) {
+          throw new Error(
+            `Failed to register file on blockchain: ${addFileResponse.statusText}`,
+          );
+        }
+
+        const addFileData = await addFileResponse.json();
+
+        if (!addFileData.success) {
+          throw new Error(
+            addFileData.error || "Failed to register file on blockchain",
+          );
+        }
+
+        result = {
+          fileId: addFileData.fileId,
+          transactionHash: addFileData.transactionHash,
+        };
+      } else {
+        // Direct transaction
+        result = await this.addFileWithPermissions(
+          uploadResult.url,
+          userAddress,
+          encryptedPermissions,
+        );
+      }
 
       return {
         fileId: result.fileId,

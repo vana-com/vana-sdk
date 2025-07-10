@@ -1,19 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { mokshaTestnet, Vana } from "vana-sdk";
+import { Vana } from "vana-sdk";
 
 export async function POST(request: NextRequest) {
   console.debug("🔍 Debug - POST /api/personal");
   try {
     const body = await request.json();
-    const { permissionId } = body;
+    const { permissionId, chainId } = body;
 
     // Validate required fields
-    if (!permissionId) {
+    if (!permissionId || !chainId) {
       console.debug("🔍 Debug - Missing required fields");
       return NextResponse.json(
-        { success: false, error: "Missing permissionId field" },
+        { success: false, error: "Missing permissionId or chainId field" },
         { status: 400 },
       );
     }
@@ -33,21 +32,16 @@ export async function POST(request: NextRequest) {
       applicationPrivateKey as `0x${string}`,
     );
 
-    const walletClient = createWalletClient({
+    // Use the SDK's chain configuration approach
+    const vana = Vana.fromChain({
+      chainId,
       account: applicationAccount,
-      chain: mokshaTestnet,
-      transport: http("https://rpc.vana.org"),
-    });
-
-    // Create Vana instance
-    const vana = new Vana({
-      walletClient,
     });
 
     console.debug("🔍 Debug - vana", vana);
 
     // Make personal server request
-    const response = await vana.personal.postRequest({
+    const response = await vana.server.postRequest({
       permissionId,
     });
 

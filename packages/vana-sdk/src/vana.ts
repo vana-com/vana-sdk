@@ -12,11 +12,12 @@ import {
   ControllerContext,
 } from "./controllers/permissions";
 import { DataController } from "./controllers/data";
-import { PersonalController } from "./controllers/personal";
+import { ServerController } from "./controllers/server";
 import { ProtocolController } from "./controllers/protocol";
 import { StorageManager, StorageProvider } from "./storage";
 import { createWalletClient, createPublicClient, http } from "viem";
 import { chains } from "./config/chains";
+import { getChainConfig } from "./chains";
 
 /**
  * The main Vana SDK client class.
@@ -25,24 +26,38 @@ import { chains } from "./config/chains";
  * It is an orchestrator that provides access to all protocol functionality
  * through namespaced resource controllers.
  *
+ * ## Configuration Cascade
+ *
+ * The SDK uses a configuration cascade for optional parameters like `subgraphUrl`:
+ * 1. **Method-level**: Override per method call (highest priority)
+ * 2. **Instance-level**: Configure in Vana constructor
+ * 3. **Chain defaults**: Built-in defaults for known chains (lowest priority)
+ *
  * @category Core SDK
  * @example
  * ```typescript
- * import { Vana } from 'vana-sdk';
+ * import { Vana, moksha } from 'vana-sdk';
  * import { createWalletClient, http } from 'viem';
  * import { privateKeyToAccount } from 'viem/accounts';
- * import { mokshaTestnet } from 'vana-sdk/chains';
  *
  * const account = privateKeyToAccount('0x...');
  * const walletClient = createWalletClient({
  *   account,
- *   chain: mokshaTestnet,
+ *   chain: moksha,
  *   transport: http()
  * });
  *
+ * // Basic configuration - uses chain defaults
  * const vana = new Vana({
  *   walletClient,
  *   relayerUrl: 'https://relayer.vana.org' // optional
+ * });
+ *
+ * // Advanced configuration - override subgraph URL
+ * const vana = new Vana({
+ *   walletClient,
+ *   subgraphUrl: 'https://api.goldsky.com/api/public/...',
+ *   relayerUrl: 'https://relayer.vana.org'
  * });
  *
  * // Grant permission
@@ -52,13 +67,16 @@ import { chains } from "./config/chains";
  *   parameters: { prompt: 'Hello world' }
  * });
  *
- * // Get user files
+ * // Get user files (uses configured subgraph URL)
  * const files = await vana.data.getUserFiles({
  *   owner: '0x...'
  * });
  *
- * // Get contract info
- * const contract = vana.protocol.getContract('DataRegistry');
+ * // Get user files with override
+ * const files = await vana.data.getUserFiles({
+ *   owner: '0x...',
+ *   subgraphUrl: 'https://different-subgraph.com'
+ * });
  * ```
  */
 export class Vana {
@@ -68,8 +86,8 @@ export class Vana {
   /** Controller for managing user data assets */
   public readonly data: DataController;
 
-  /** Controller for managing personal server interactions */
-  public readonly personal: PersonalController;
+  /** Controller for managing server interactions including personal servers and trusted server registry */
+  public readonly server: ServerController;
 
   /** Controller providing low-level access to protocol contracts */
   public readonly protocol: ProtocolController;
@@ -194,7 +212,7 @@ export class Vana {
 
       walletClient = createWalletClient({
         chain,
-        transport: http(config.rpcUrl),
+        transport: http(config.rpcUrl || chain.rpcUrls.default.http[0]),
         account: config.account,
       });
     } else {
@@ -209,6 +227,10 @@ export class Vana {
       transport: http(),
     });
 
+    // Get default subgraph URL if not provided in config
+    const chainConfig = getChainConfig(walletClient.chain.id);
+    const subgraphUrl = config.subgraphUrl || chainConfig?.subgraphUrl;
+
     // Create shared context for all controllers
     const sharedContext: ControllerContext = {
       walletClient,
@@ -216,12 +238,13 @@ export class Vana {
       applicationClient: walletClient, // Using same wallet for now
       relayerUrl: config.relayerUrl,
       storageManager: this.storageManager,
+      subgraphUrl,
     };
 
     // Initialize controllers
     this.permissions = new PermissionsController(sharedContext);
     this.data = new DataController(sharedContext);
-    this.personal = new PersonalController(sharedContext);
+    this.server = new ServerController(sharedContext);
     this.protocol = new ProtocolController(sharedContext);
   }
 
@@ -318,21 +341,22 @@ export class Vana {
         );
       }
 
-      if (!config.rpcUrl || typeof config.rpcUrl !== "string") {
-        throw new InvalidConfigurationError(
-          "rpcUrl is required and must be a string",
-        );
-      }
+      // Validate rpcUrl if provided
+      if (config.rpcUrl) {
+        if (typeof config.rpcUrl !== "string") {
+          throw new InvalidConfigurationError("rpcUrl must be a string");
+        }
 
-      if (config.rpcUrl.trim() === "") {
-        throw new InvalidConfigurationError("rpcUrl cannot be empty");
-      }
+        if (config.rpcUrl.trim() === "") {
+          throw new InvalidConfigurationError("rpcUrl cannot be empty");
+        }
 
-      // Basic URL validation for RPC URL
-      try {
-        new URL(config.rpcUrl);
-      } catch {
-        throw new InvalidConfigurationError("rpcUrl must be a valid URL");
+        // Basic URL validation for RPC URL
+        try {
+          new URL(config.rpcUrl);
+        } catch {
+          throw new InvalidConfigurationError("rpcUrl must be a valid URL");
+        }
       }
 
       // Account is optional for ChainConfig, but if provided, validate it

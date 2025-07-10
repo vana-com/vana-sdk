@@ -12,6 +12,7 @@ import {
   UpdateSchemaIdResult,
 } from "../types/index";
 import { ControllerContext } from "./permissions";
+import { ServerController } from "./server";
 import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../abi";
 import {
@@ -46,13 +47,13 @@ interface SubgraphResponse {
 /**
  * Controller for uploading, registering, and managing encrypted files on the Vana network.
  *
- * The DataController handles the complete file lifecycle from encrypted upload to blockchain 
- * registration and decryption. It provides methods for querying user files, uploading new 
+ * The DataController handles the complete file lifecycle from encrypted upload to blockchain
+ * registration and decryption. It provides methods for querying user files, uploading new
  * encrypted content, and managing file permissions.
  *
  * **Common workflows:**
  * - Upload encrypted files: `uploadEncryptedFile()`
- * - Query user's files: `getUserFiles()`  
+ * - Query user's files: `getUserFiles()`
  * - Decrypt accessible files: `decryptFile()`
  * - Register external file URLs: `registerFileWithSchema()`
  *
@@ -61,21 +62,25 @@ interface SubgraphResponse {
  * ```typescript
  * // Upload an encrypted file
  * const result = await vana.data.uploadEncryptedFile(
- *   encryptedBlob, 
+ *   encryptedBlob,
  *   'mydata.json'
  * );
- * 
+ *
  * // Get files associated with user
- * const files = await vana.data.getUserFiles({ 
- *   owner: userAddress 
+ * const files = await vana.data.getUserFiles({
+ *   owner: userAddress
  * });
- * 
+ *
  * // Decrypt a file you have access to
  * const decrypted = await vana.data.decryptFile(files[0]);
  * ```
  */
 export class DataController {
-  constructor(private readonly context: ControllerContext) {}
+  private readonly serverController: ServerController;
+
+  constructor(private readonly context: ControllerContext) {
+    this.serverController = new ServerController(context);
+  }
 
   /**
    * Retrieves a list of data files for which a user has contributed proofs.
@@ -85,13 +90,29 @@ export class DataController {
    * 1. Querying the subgraph for user's file contributions (proof submissions)
    * 2. Deduplicating file IDs (user may have multiple proofs per file)
    * 3. Fetching file details from the DataRegistry contract
-   * 4. Falling back to mock data if subgraph is unavailable
    *
    * @remarks The subgraph tracks proof contributions, not direct file ownership.
    * Files are associated with users through their proof submissions.
    *
    * @param params - Object containing the owner address and optional subgraph URL
+   * @param params.owner - The wallet address of the user to query files for
+   * @param params.subgraphUrl - Optional subgraph URL to override the default configured in Vana constructor. If not provided, uses the subgraphUrl from the Vana instance configuration or the default for the current chain.
    * @returns Promise resolving to an array of UserFile objects
+   * @throws Error if subgraph is unavailable or returns invalid data
+   *
+   * @example
+   * ```typescript
+   * // Using default subgraph URL configured in Vana constructor
+   * const files = await vana.data.getUserFiles({
+   *   owner: "0x123..."
+   * });
+   *
+   * // Overriding subgraph URL for this call
+   * const files = await vana.data.getUserFiles({
+   *   owner: "0x123...",
+   *   subgraphUrl: "https://api.goldsky.com/api/public/..."
+   * });
+   * ```
    */
   async getUserFiles(params: {
     owner: Address;
@@ -99,12 +120,13 @@ export class DataController {
   }): Promise<UserFile[]> {
     const { owner, subgraphUrl } = params;
 
-    // Use provided subgraph URL or default from environment
-    const graphqlEndpoint = subgraphUrl || process.env.NEXT_PUBLIC_SUBGRAPH_URL;
+    // Use provided subgraph URL or default from context
+    const graphqlEndpoint = subgraphUrl || this.context.subgraphUrl;
 
     if (!graphqlEndpoint) {
-      console.warn("No subgraph URL configured.");
-      return [];
+      throw new Error(
+        "subgraphUrl is required. Please provide a valid subgraph endpoint or configure it in Vana constructor.",
+      );
     }
 
     try {
@@ -229,28 +251,10 @@ export class DataController {
       );
       return userFiles;
     } catch (error) {
-      console.warn("Failed to fetch user files from subgraph:", error);
-      // Fallback to mock data on error as specified in tests
-      return [
-        {
-          id: 12,
-          url: "ipfs://Qm...",
-          ownerAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-          addedAtBlock: BigInt(123456),
-        },
-        {
-          id: 15,
-          url: "googledrive://file_id/12345",
-          ownerAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-          addedAtBlock: BigInt(123490),
-        },
-        {
-          id: 28,
-          url: "https://user-data.com/gmail_export.json",
-          ownerAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-          addedAtBlock: BigInt(123900),
-        },
-      ];
+      console.error("Failed to fetch user files from subgraph:", error);
+      throw new Error(
+        `Failed to fetch user files from subgraph: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
     }
   }
 
@@ -298,7 +302,7 @@ export class DataController {
    * @param fileId - The file ID to look up
    * @returns Promise resolving to UserFile object
    *
- * This method queries the DataRegistry contract directly
+   * This method queries the DataRegistry contract directly
    * to get file details for any file ID, regardless of user ownership.
    * This is useful for file lookup functionality where users can search
    * for specific files by ID.
@@ -366,7 +370,7 @@ export class DataController {
    * @param providerName - Optional storage provider to use
    * @returns Promise resolving to upload result with file ID and storage URL
    *
- * This method handles the complete flow of:
+   * This method handles the complete flow of:
    * 1. Uploading the encrypted file to the specified storage provider
    * 2. Registering the file URL on the DataRegistry contract via relayer
    * 3. Returning the assigned file ID and storage URL
@@ -500,7 +504,7 @@ export class DataController {
    * @param providerName - Optional storage provider to use
    * @returns Promise resolving to upload result with file ID and storage URL
    *
- * This method handles the complete flow of:
+   * This method handles the complete flow of:
    * 1. Uploading the encrypted file to the specified storage provider
    * 2. Registering the file URL on the DataRegistry contract with a schema ID
    * 3. Returning the assigned file ID and storage URL
@@ -602,7 +606,7 @@ export class DataController {
    * @param encryptionSeed - Optional custom encryption seed (defaults to Vana standard)
    * @returns Promise resolving to the decrypted file as a Blob
    *
- * This method handles the complete flow of:
+   * This method handles the complete flow of:
    * 1. Generating the encryption key from the user's wallet signature
    * 2. Fetching the encrypted file from the stored URL
    * 3. Decrypting the file using the canonical Vana decryption method
@@ -691,7 +695,7 @@ export class DataController {
    * @param schemaId - The schema ID to associate with the file
    * @returns Promise resolving to the file ID and transaction hash
    *
- * This method registers an existing file URL on the DataRegistry
+   * This method registers an existing file URL on the DataRegistry
    * contract with a schema ID, without uploading any data.
    */
   async registerFileWithSchema(
@@ -786,7 +790,7 @@ export class DataController {
    * @param permissions - Array of permissions to set for the file
    * @returns Promise resolving to file ID and transaction hash
    *
- * This method handles the core logic of registering a file
+   * This method handles the core logic of registering a file
    * with specific permissions on the DataRegistry contract. It can be used
    * by both direct transactions and relayer services.
    */
@@ -1421,29 +1425,14 @@ export class DataController {
    * @param serverAddress - The address of the trusted server
    * @returns Promise resolving to the server's public key
    */
-  async getTrustedServerPublicKey(_serverAddress: Address): Promise<string> {
+  async getTrustedServerPublicKey(serverAddress: Address): Promise<string> {
     try {
-      const chainId = this.context.walletClient.chain?.id;
-      if (!chainId) {
-        throw new Error("Chain ID not available");
-      }
-
-      // TODO: Replace with actual trusted server registry contract
-      // For now, this is a placeholder that would read from the permissions contract
-      // or trusted server registry to get the server's public key
-
-      console.warn(
-        "getTrustedServerPublicKey: Using mock implementation. Implement trusted server registry!",
+      // Use the ServerController to get the trusted server's public key
+      // via the Identity Server. The serverAddress represents the user's address
+      // whose personal server we want to encrypt data for.
+      return await this.serverController.getTrustedServerPublicKey(
+        serverAddress,
       );
-
-      if (process.env.NODE_ENV === "production") {
-        throw new Error(
-          "Production requires real trusted server registry with public keys",
-        );
-      }
-
-      // Mock public key for development
-      return "0x04a1b2c3d4e5f6789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     } catch (error) {
       console.error("Failed to get trusted server public key:", error);
       throw new Error(

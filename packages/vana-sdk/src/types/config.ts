@@ -35,6 +35,12 @@ export interface BaseConfig {
   relayerUrl?: string;
   /** Optional storage providers configuration for file upload/download */
   storage?: StorageConfig;
+  /**
+   * Optional subgraph URL for querying user files and permissions.
+   * If not provided, defaults to the built-in subgraph URL for the current chain.
+   * Can be overridden per method call if needed.
+   */
+  subgraphUrl?: string;
 }
 
 /**
@@ -78,7 +84,7 @@ export interface ChainConfig extends BaseConfig {
  *   }),
  *   relayerUrl: 'https://relayer.vana.org'
  * };
- * 
+ *
  * // Using ChainConfig with chain ID and account
  * const config: VanaConfig = {
  *   chainId: 14800,

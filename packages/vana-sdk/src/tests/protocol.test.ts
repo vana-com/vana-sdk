@@ -261,7 +261,7 @@ describe("ProtocolController", () => {
   describe("getChainName", () => {
     it("should return chain name from wallet client", () => {
       const chainName = controller.getChainName();
-      expect(chainName).toBe("Vana Moksha Testnet");
+      expect(chainName).toBe("Moksha Testnet");
     });
 
     it("should throw error when chain name is not available", () => {

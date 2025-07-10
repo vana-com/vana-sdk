@@ -7,8 +7,6 @@
       "outputs": ["dist/**", ".next/**", "!.next/cache/**", ".tsbuildinfo"],
       "env": [
         "RELAYER_PRIVATE_KEY",
-        "CHAIN_RPC_URL",
-        "CHAIN_ID",
         "PINATA_GATEWAY_URL",
         "PINATA_JWT",
         "APPLICATION_PRIVATE_KEY",

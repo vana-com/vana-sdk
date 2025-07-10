@@ -187,7 +187,7 @@ export async function encryptWithWalletPublicKey(
  * const encryptedData = await encryptUserData(data, encryptionKey);
  *
  * // 2. To grant server permission, encrypt user's key with server's public key
- * const serverPublicKey = getTrustedServerPublicKey(serverAddress); // TODO: Implement
+ * const serverPublicKey = await vana.server.getTrustedServerPublicKey(serverAddress);
  * const encryptedKey = await encryptWithWalletPublicKey(encryptionKey, serverPublicKey);
  *
  * // 3. Store permission via data registry
@@ -251,29 +251,6 @@ export async function decryptWithWalletPrivateKey(
       `Failed to decrypt with wallet private key: ${error instanceof Error ? error.message : "Unknown error"}`,
     );
   }
-}
-
-/**
- * Stub function for demo app - gets server public key from trusted server registry
- *
- * TODO: Replace with actual trusted server registry implementation
- *
- * @param serverAddress The server's wallet address
- * @returns The server's public key (hex string)
- */
-export function getTrustedServerPublicKey(_serverAddress: string): string {
-  console.warn(
-    "STUB: Using mock server public key. Implement trusted server registry!",
-  );
-
-  if (process.env.NODE_ENV === "production") {
-    throw new Error(
-      "Production requires real trusted server registry with public keys",
-    );
-  }
-
-  // Mock public key for development - this would be the server's actual public key
-  return "0x04a1b2c3d4e5f6789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 }
 
 // Note: Key sharing functions for DLP access (ECIES/eccrypto) will be added later

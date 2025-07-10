@@ -17,6 +17,7 @@ const nextConfig = {
     config.resolve.alias = {
       ...config.resolve.alias,
       "@": path.resolve(__dirname, "src"),
+      // TODO: Refactor vana-sdk to use conditional exports for eccrypto to properly support SSR and remove the build hack from the demo app.
       eccrypto: "eccrypto-js", // CJS → ESM shim
     };
 

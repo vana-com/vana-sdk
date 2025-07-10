@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Badge } from "@heroui/react";
+import { Button, Badge, Checkbox } from "@heroui/react";
 import { AddressDisplay } from "./AddressDisplay";
 import { BlockDisplay } from "./BlockDisplay";
 import { getAddressUrl } from "@/lib/explorer";
@@ -7,7 +7,6 @@ import { useChainId } from "wagmi";
 import {
   FileText,
   Key,
-  Shield,
   Copy,
   Download,
   ChevronDown,
@@ -94,14 +93,11 @@ export function FileCard({
 
         <div className="flex items-center gap-2">
           {onSelect && (
-            <Button
+            <Checkbox
+              isSelected={isSelected}
+              onValueChange={() => onSelect()}
               size="sm"
-              variant={isSelected ? "solid" : "bordered"}
-              onPress={onSelect}
-            >
-              <Shield className="mr-2 h-4 w-4" />
-              {isSelected ? "Selected ✓" : "Select"}
-            </Button>
+            />
           )}
 
           <Button

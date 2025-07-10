@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { mokshaTestnet, Vana } from "vana-sdk";
+import { Vana } from "vana-sdk";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { getUrl } = body;
+    const { getUrl, chainId } = body;
 
-    if (!getUrl) {
+    if (!getUrl || !chainId) {
       return NextResponse.json(
-        { success: false, error: "Missing getUrl parameter" },
+        { success: false, error: "Missing getUrl or chainId parameter" },
         { status: 400 },
       );
     }
@@ -29,19 +28,14 @@ export async function POST(request: NextRequest) {
       applicationPrivateKey as `0x${string}`,
     );
 
-    const walletClient = createWalletClient({
+    // Use the SDK's chain configuration approach
+    const vana = Vana.fromChain({
+      chainId,
       account: applicationAccount,
-      chain: mokshaTestnet,
-      transport: http("https://rpc.moksha.vana.org"),
-    });
-
-    // Create Vana instance
-    const vana = new Vana({
-      walletClient,
     });
 
     // Poll the status
-    const response = await vana.personal.pollStatus(getUrl);
+    const response = await vana.server.pollStatus(getUrl);
 
     return NextResponse.json({
       success: true,

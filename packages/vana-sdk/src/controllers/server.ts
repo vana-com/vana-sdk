@@ -50,7 +50,7 @@ export class ServerController {
 
       // Step 5: Prepare input for Replicate API
       const replicateInput = {
-        replicate_auth_token: this.getReplicateApiToken(),
+        replicate_api_token: this.getReplicateApiToken(),
         signature,
         request_json: requestJson,
       };

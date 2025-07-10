@@ -1020,18 +1020,28 @@ export default function Home() {
     const result = personalResult as { urls?: { get?: string } };
     if (!result?.urls?.get) return;
 
+    if (!chainId) {
+      setPersonalError(
+        "Chain ID not available. Please ensure wallet is connected.",
+      );
+      return;
+    }
+
     setIsPolling(true);
     setPersonalError("");
     try {
+      const requestBody = {
+        getUrl: result.urls.get,
+        chainId,
+      };
+
       // Call our API route for polling
-      const response = await fetch("/api/personal/poll", {
+      const response = await fetch("/api/trusted-server/poll", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          getUrl: result.urls.get,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {

@@ -1649,13 +1649,11 @@ export default function Home() {
             <nav className="space-y-1">
               {navigationConfig.sections.map((section, sectionIndex) => (
                 <div key={section.title}>
-                  {sectionIndex > 0 && (
-                    <div className="mt-4 mb-2">
-                      <div className="px-3 py-1 text-xs font-medium text-default-500 uppercase tracking-wider">
-                        {section.title}
-                      </div>
+                  <div className={`${sectionIndex > 0 ? "mt-4" : ""} mb-2`}>
+                    <div className="px-3 py-1 text-xs font-medium text-default-500 uppercase tracking-wider">
+                      {section.title}
                     </div>
-                  )}
+                  </div>
                   {section.items.map((item) => (
                     <NavigationButton
                       key={item.id}

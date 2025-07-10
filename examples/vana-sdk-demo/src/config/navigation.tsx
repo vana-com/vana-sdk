@@ -12,7 +12,7 @@ import type { NavigationConfig } from "@/types/navigation";
 export const navigationConfig: NavigationConfig = {
   sections: [
     {
-      title: "Core Concepts",
+      title: "Data Management",
       items: [
         {
           id: "data",
@@ -29,7 +29,7 @@ export const navigationConfig: NavigationConfig = {
       ],
     },
     {
-      title: "Applied Workflows",
+      title: "Server Integration",
       items: [
         {
           id: "trusted-servers",
@@ -49,6 +49,11 @@ export const navigationConfig: NavigationConfig = {
           icon: <Brain className="h-4 w-4" />,
           targetId: "personal-server",
         },
+      ],
+    },
+    {
+      title: "Development Tools",
+      items: [
         {
           id: "encryption",
           label: "Encryption Testing",

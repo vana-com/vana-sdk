@@ -88,6 +88,7 @@ export const TrustedServerManagementCard: React.FC<
       <CardBody className="space-y-6">
         <FormBuilder
           title=""
+          singleColumn={true}
           fields={[
             {
               name: "serverId",
@@ -134,11 +135,12 @@ export const TrustedServerManagementCard: React.FC<
         <div className="flex gap-2">
           <Button
             size="sm"
-            variant="bordered"
+            color="secondary"
+            variant="solid"
             onPress={onDiscoverReplicateServer}
             isLoading={isDiscoveringServer}
           >
-            Discover Replicate
+            Use Vana Server
           </Button>
         </div>
 

@@ -33,6 +33,7 @@ interface FormBuilderProps {
   status?: string;
   statusType?: "success" | "error" | "info";
   className?: string;
+  singleColumn?: boolean;
 }
 
 export function FormBuilder({
@@ -45,6 +46,7 @@ export function FormBuilder({
   status,
   statusType = "info",
   className = "",
+  singleColumn = false,
 }: FormBuilderProps) {
   const requiredFields = fields.filter((field) => field.required);
   const isFormValid = requiredFields.every(
@@ -103,7 +105,9 @@ export function FormBuilder({
     <div className={`space-y-6 ${className}`}>
       <div>
         <h3 className="text-lg font-semibold mb-4">{title}</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div
+          className={`grid gap-4 ${singleColumn ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2"}`}
+        >
           {fields.map(renderField)}
         </div>
       </div>

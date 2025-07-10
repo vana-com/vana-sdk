@@ -132,15 +132,15 @@ export const TrustedServerManagementCard: React.FC<
           status={trustServerError}
         />
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 -mt-4">
           <Button
             size="sm"
-            color="secondary"
-            variant="solid"
+            color="default"
+            variant="bordered"
             onPress={onDiscoverReplicateServer}
             isLoading={isDiscoveringServer}
           >
-            Use Hosted Personal Server
+            Get Hosted Server Details
           </Button>
         </div>
 

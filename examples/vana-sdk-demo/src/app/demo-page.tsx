@@ -184,7 +184,7 @@ export default function Home() {
   const [isUntrusting, setIsUntrusting] = useState(false);
   const [trustedServers, setTrustedServers] = useState<string[]>([]);
   const [isLoadingTrustedServers, setIsLoadingTrustedServers] = useState(false);
-  const [useGaslessTransaction, setUseGaslessTransaction] = useState(false);
+  const [useGaslessTransaction, setUseGaslessTransaction] = useState(true);
 
   // Server discovery state
   const [isDiscoveringServer, setIsDiscoveringServer] = useState(false);

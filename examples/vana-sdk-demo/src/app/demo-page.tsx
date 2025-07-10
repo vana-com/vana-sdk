@@ -988,13 +988,15 @@ export default function Home() {
     setPersonalResult(null);
     try {
       // Call our API route instead of using the SDK directly
-      const response = await fetch("/api/personal", {
+      const response = await fetch("/api/trusted-server", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          userAddress: address,
           permissionId,
+          chainId,
         }),
       });
 
@@ -1246,7 +1248,7 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userAddress: selectedServerForUpload,
+          userAddress: address,
           chainId: chainId,
         }),
       });

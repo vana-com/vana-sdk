@@ -1148,7 +1148,20 @@ export default function Home() {
       // Extract server information from the personal server response
       // The API returns the user's personal server identity with address field
       const personalServerData = result.data;
-      const serverAddress = personalServerData?.personal_server?.address;
+
+      // The output field contains a JSON string that needs to be parsed
+      let parsedOutput;
+      if (typeof personalServerData?.output === "string") {
+        try {
+          parsedOutput = JSON.parse(personalServerData.output);
+        } catch {
+          throw new Error("Failed to parse server response output");
+        }
+      } else {
+        parsedOutput = personalServerData?.output;
+      }
+
+      const serverAddress = parsedOutput?.personal_server?.address;
 
       if (!serverAddress) {
         throw new Error("Could not determine server identity from response");

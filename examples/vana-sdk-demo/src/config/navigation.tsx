@@ -26,6 +26,12 @@ export const navigationConfig: NavigationConfig = {
           icon: <Shield className="h-4 w-4" />,
           targetId: "permissions",
         },
+        {
+          id: "encryption",
+          label: "Encryption Testing",
+          icon: <Lock className="h-4 w-4" />,
+          targetId: "encryption",
+        },
       ],
     },
     {
@@ -36,6 +42,12 @@ export const navigationConfig: NavigationConfig = {
           label: "Trusted Servers",
           icon: <Shield className="h-4 w-4" />,
           targetId: "trusted-servers",
+        },
+        {
+          id: "schemas",
+          label: "Schema Management",
+          icon: <Database className="h-4 w-4" />,
+          targetId: "schemas",
         },
         {
           id: "personal-server",
@@ -52,20 +64,8 @@ export const navigationConfig: NavigationConfig = {
       ],
     },
     {
-      title: "Testing & Reference",
+      title: "Reference",
       items: [
-        {
-          id: "schemas",
-          label: "Schema Management",
-          icon: <Database className="h-4 w-4" />,
-          targetId: "schemas",
-        },
-        {
-          id: "encryption",
-          label: "Encryption Testing",
-          icon: <Lock className="h-4 w-4" />,
-          targetId: "encryption",
-        },
         {
           id: "contracts",
           label: "Contracts",

@@ -192,15 +192,55 @@ export function isReplicateAPIResponse(
 export function isIdentityServerOutput(
   value: unknown,
 ): value is IdentityServerOutput {
-  if (typeof value !== "object" || value === null) return false;
+  console.debug("🔍 Type Guard: Checking value:", value);
+  console.debug("🔍 Type Guard: Value type:", typeof value);
+
+  if (typeof value !== "object" || value === null) {
+    console.debug("🔍 Type Guard: Failed - not object or null");
+    return false;
+  }
 
   const obj = value as Record<string, unknown>;
-  if (typeof obj.user_address !== "string") return false;
-  if (typeof obj.personal_server !== "object" || obj.personal_server === null)
+  console.debug("🔍 Type Guard: Object keys:", Object.keys(obj));
+  console.debug(
+    "🔍 Type Guard: user_address:",
+    obj.user_address,
+    typeof obj.user_address,
+  );
+
+  if (typeof obj.user_address !== "string") {
+    console.debug("🔍 Type Guard: Failed - user_address not string");
     return false;
+  }
+
+  console.debug(
+    "🔍 Type Guard: personal_server:",
+    obj.personal_server,
+    typeof obj.personal_server,
+  );
+  if (typeof obj.personal_server !== "object" || obj.personal_server === null) {
+    console.debug("🔍 Type Guard: Failed - personal_server not object or null");
+    return false;
+  }
 
   const personalServer = obj.personal_server as Record<string, unknown>;
-  return "address" in personalServer && "public_key" in personalServer;
+  console.debug(
+    "🔍 Type Guard: Personal server keys:",
+    Object.keys(personalServer),
+  );
+  console.debug("🔍 Type Guard: address:", personalServer.address);
+  console.debug("🔍 Type Guard: public_key:", personalServer.public_key);
+
+  const hasAddress = "address" in personalServer;
+  const hasPublicKey = "public_key" in personalServer;
+  console.debug(
+    "🔍 Type Guard: Has address:",
+    hasAddress,
+    "Has public_key:",
+    hasPublicKey,
+  );
+
+  return hasAddress && hasPublicKey;
 }
 
 /** Type guard to check if output is PersonalServerOutput */

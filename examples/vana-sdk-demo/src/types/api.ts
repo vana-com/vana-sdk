@@ -8,6 +8,7 @@ import type {
   ReplicateAPIResponse,
   IdentityServerOutput,
   PersonalServerOutput,
+  PersonalServerResponse,
 } from "vana-sdk";
 
 /**
@@ -18,7 +19,7 @@ import type {
 export type TrustedServerAPIResponse = APIResponse<ReplicateAPIResponse>;
 
 /** Response from /api/trusted-server/setup */
-export type TrustedServerSetupAPIResponse = APIResponse<ReplicateAPIResponse>;
+export type TrustedServerSetupAPIResponse = APIResponse<PersonalServerResponse>;
 
 /** Response from /api/trusted-server/poll */
 export type TrustedServerPollAPIResponse = APIResponse<ReplicateAPIResponse>;

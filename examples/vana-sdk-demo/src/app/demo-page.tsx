@@ -1149,8 +1149,6 @@ export default function Home() {
       // Debug: Log the full response structure
       console.debug("🔍 Full API Response:", JSON.stringify(result, null, 2));
       console.debug("🔍 Response data:", result.data);
-      console.debug("🔍 Output type:", typeof result.data?.output);
-      console.debug("🔍 Output content:", result.data?.output);
 
       // Extract server information from the SDK response
       // The SDK now returns: { userAddress, identity: { metadata: { derivedAddress } }, timestamp }

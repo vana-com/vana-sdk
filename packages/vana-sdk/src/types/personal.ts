@@ -47,7 +47,10 @@ export interface PersonalServerResponse {
   /** The user's identity information */
   identity: {
     /** Additional identity metadata */
-    metadata?: Record<string, unknown>;
+    metadata?: {
+      /** Derived address for the personal server */
+      derivedAddress?: string;
+    } & Record<string, unknown>;
   };
   /** Timestamp when the identity was fetched */
   timestamp: string;

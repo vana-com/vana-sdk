@@ -58,9 +58,9 @@ export async function POST(request: NextRequest) {
       JSON.stringify(response, null, 2),
     );
     console.debug("🔍 Debug - Response structure:", {
-      hasOutput: "output" in response,
-      outputType: typeof response.output,
       keys: Object.keys(response),
+      hasIdentity: "identity" in response,
+      hasUserAddress: "userAddress" in response,
     });
 
     return NextResponse.json({

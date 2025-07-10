@@ -994,6 +994,7 @@ export default function Home() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          userAddress: address,
           permissionId,
           chainId,
         }),

@@ -77,6 +77,7 @@ export const TrustedServerManagementCard: React.FC<
   chainId,
 }) => {
   const [showAdvancedDetails, setShowAdvancedDetails] = useState(false);
+  const [showManualForm, setShowManualForm] = useState(false);
 
   return (
     <Card>
@@ -217,58 +218,87 @@ export const TrustedServerManagementCard: React.FC<
           </div>
         )}
 
-        {/* Trust Server Form */}
-        <div className="space-y-4 pt-4 border-t">
-          <div className="flex items-center justify-between">
-            <h4 className="text-lg font-medium">Trust Server</h4>
-            <span className="text-sm text-gray-500">Required Step</span>
+        {/* Manual Form Toggle */}
+        {!discoveredServerInfo && (
+          <div className="pt-4 border-t">
+            <Button
+              variant="light"
+              size="sm"
+              className="text-gray-600 dark:text-gray-400"
+              onPress={() => setShowManualForm(!showManualForm)}
+            >
+              <div className="flex items-center gap-2">
+                <span>Manual server entry</span>
+                {showManualForm ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </div>
+            </Button>
           </div>
+        )}
 
-          <FormBuilder
-            title=""
-            fields={[
-              {
-                name: "serverId",
-                label: "Server ID (Address)",
-                type: "text",
-                value: serverId,
-                onChange: onServerIdChange,
-                placeholder: "0x... or use Quick Setup above",
-                required: true,
-              },
-              {
-                name: "serverUrl",
-                label: "Server URL",
-                type: "text",
-                value: serverUrl,
-                onChange: onServerUrlChange,
-                placeholder: "https://example.com or use Quick Setup above",
-                required: true,
-              },
-              {
-                name: "transactionType",
-                label: "Transaction Type",
-                type: "select",
-                value: useGaslessTransaction ? "gasless" : "gas",
-                onChange: (value) =>
-                  onUseGaslessTransactionChange(value === "gasless"),
-                options: [
-                  { value: "gas", label: "Gas Transaction" },
-                  { value: "gasless", label: "Gasless (Signature)" },
-                ],
-              },
-            ]}
-            onSubmit={
-              useGaslessTransaction ? onTrustServerGasless : onTrustServer
-            }
-            isSubmitting={isTrustingServer}
-            submitText={
-              useGaslessTransaction ? "Sign & Trust Server" : "Trust Server"
-            }
-            submitIcon={<Shield className="h-4 w-4" />}
-            status={trustServerError}
-          />
-        </div>
+        {/* Manual Trust Server Form */}
+        {(showManualForm || discoveredServerInfo) && (
+          <div className="space-y-4 pt-4 border-t">
+            {discoveredServerInfo && (
+              <div className="flex items-center justify-between">
+                <h4 className="text-lg font-medium">Trust Server</h4>
+                <span className="text-sm text-gray-500">Required Step</span>
+              </div>
+            )}
+
+            <FormBuilder
+              title=""
+              fields={[
+                {
+                  name: "serverId",
+                  label: "Server ID (Address)",
+                  type: "text",
+                  value: serverId,
+                  onChange: onServerIdChange,
+                  placeholder: discoveredServerInfo
+                    ? "Auto-populated from discovery"
+                    : "0x...",
+                  required: true,
+                },
+                {
+                  name: "serverUrl",
+                  label: "Server URL",
+                  type: "text",
+                  value: serverUrl,
+                  onChange: onServerUrlChange,
+                  placeholder: discoveredServerInfo
+                    ? "Auto-populated from discovery"
+                    : "https://example.com",
+                  required: true,
+                },
+                {
+                  name: "transactionType",
+                  label: "Transaction Type",
+                  type: "select",
+                  value: useGaslessTransaction ? "gasless" : "gas",
+                  onChange: (value) =>
+                    onUseGaslessTransactionChange(value === "gasless"),
+                  options: [
+                    { value: "gas", label: "Gas Transaction" },
+                    { value: "gasless", label: "Gasless (Signature)" },
+                  ],
+                },
+              ]}
+              onSubmit={
+                useGaslessTransaction ? onTrustServerGasless : onTrustServer
+              }
+              isSubmitting={isTrustingServer}
+              submitText={
+                useGaslessTransaction ? "Sign & Trust Server" : "Trust Server"
+              }
+              submitIcon={<Shield className="h-4 w-4" />}
+              status={trustServerError}
+            />
+          </div>
+        )}
 
         {/* Trust Server Success Result */}
         {trustServerResult && (

@@ -85,7 +85,7 @@ describe("IPFS Utilities", () => {
       expect(urls).toHaveLength(3);
       expect(urls).toContain("https://gateway.pinata.cloud/ipfs/QmTestHash123");
       expect(urls).toContain("https://ipfs.io/ipfs/QmTestHash123");
-      expect(urls).toContain("https://cloudflare-ipfs.com/ipfs/QmTestHash123");
+      expect(urls).toContain("https://dweb.link/ipfs/QmTestHash123");
     });
   });
 
@@ -97,7 +97,7 @@ describe("IPFS Utilities", () => {
       expect(urls).toHaveLength(3);
       expect(urls).toContain("https://gateway.pinata.cloud/ipfs/QmTestHash123");
       expect(urls).toContain("https://ipfs.io/ipfs/QmTestHash123");
-      expect(urls).toContain("https://cloudflare-ipfs.com/ipfs/QmTestHash123");
+      expect(urls).toContain("https://dweb.link/ipfs/QmTestHash123");
     });
 
     it("should return original URL for non-IPFS URLs", () => {

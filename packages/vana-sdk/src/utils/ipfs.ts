@@ -14,9 +14,9 @@ export const DEFAULT_IPFS_GATEWAY = "https://ipfs.io/ipfs/";
  * Alternative IPFS gateways for fallback
  */
 export const IPFS_GATEWAYS = [
-  "https://gateway.pinata.cloud/ipfs/",
   "https://ipfs.io/ipfs/",
-  "https://cloudflare-ipfs.com/ipfs/",
+  "https://gateway.pinata.cloud/ipfs/",
+  "https://dweb.link/ipfs/",
 ] as const;
 
 /**

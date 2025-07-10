@@ -12,7 +12,7 @@ import type { NavigationConfig } from "@/types/navigation";
 export const navigationConfig: NavigationConfig = {
   sections: [
     {
-      title: "Data Management",
+      title: "Data & Permissions",
       items: [
         {
           id: "data",
@@ -29,7 +29,7 @@ export const navigationConfig: NavigationConfig = {
       ],
     },
     {
-      title: "Server Integration",
+      title: "Server Operations",
       items: [
         {
           id: "trusted-servers",
@@ -38,33 +38,33 @@ export const navigationConfig: NavigationConfig = {
           targetId: "trusted-servers",
         },
         {
-          id: "schemas",
-          label: "Schema Management",
-          icon: <Database className="h-4 w-4" />,
-          targetId: "schemas",
-        },
-        {
           id: "personal-server",
           label: "Trusted Server Integration",
           icon: <Brain className="h-4 w-4" />,
           targetId: "personal-server",
-        },
-      ],
-    },
-    {
-      title: "Development Tools",
-      items: [
-        {
-          id: "encryption",
-          label: "Encryption Testing",
-          icon: <Lock className="h-4 w-4" />,
-          targetId: "encryption",
         },
         {
           id: "server-upload",
           label: "Server Upload",
           icon: <Upload className="h-4 w-4" />,
           targetId: "server-upload",
+        },
+      ],
+    },
+    {
+      title: "Testing & Reference",
+      items: [
+        {
+          id: "schemas",
+          label: "Schema Management",
+          icon: <Database className="h-4 w-4" />,
+          targetId: "schemas",
+        },
+        {
+          id: "encryption",
+          label: "Encryption Testing",
+          icon: <Lock className="h-4 w-4" />,
+          targetId: "encryption",
         },
         {
           id: "contracts",

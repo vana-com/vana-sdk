@@ -83,8 +83,6 @@ import type {
   TrustedServerSetupAPIResponse,
   DiscoveredServerInfo,
 } from "@/types/api";
-import { extractReplicateOutput } from "@/types/api";
-import { isIdentityServerOutput } from "vana-sdk";
 
 export default function Home() {
   const { address, isConnected } = useAccount();
@@ -1148,18 +1146,27 @@ export default function Home() {
 
       const result: TrustedServerSetupAPIResponse = await response.json();
 
-      // Extract server information using typed extraction
-      const parsedOutput = extractReplicateOutput(
-        result,
-        isIdentityServerOutput,
-      );
+      // Debug: Log the full response structure
+      console.debug("🔍 Full API Response:", JSON.stringify(result, null, 2));
+      console.debug("🔍 Response data:", result.data);
+      console.debug("🔍 Output type:", typeof result.data?.output);
+      console.debug("🔍 Output content:", result.data?.output);
 
-      if (!parsedOutput?.personal_server?.address) {
+      // Extract server information from the SDK response
+      // The SDK now returns: { userAddress, identity: { metadata: { derivedAddress } }, timestamp }
+      const derivedAddress = result.data?.identity?.metadata?.derivedAddress;
+
+      // Debug: Log extraction results
+      console.debug("🔍 SDK Response data:", result.data);
+      console.debug("🔍 Identity metadata:", result.data?.identity?.metadata);
+      console.debug("🔍 Derived address:", derivedAddress);
+
+      if (!derivedAddress) {
         throw new Error("Could not determine server identity from response");
       }
 
       const serverInfo: DiscoveredServerInfo = {
-        serverId: parsedOutput.personal_server.address,
+        serverId: derivedAddress,
         serverUrl: "https://api.replicate.com/v1/predictions",
         name: "Replicate",
       };

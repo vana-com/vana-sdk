@@ -164,22 +164,37 @@ export function extractReplicateOutput<T>(
   apiResponse: TrustedServerAPIResponse,
   typeGuard: (value: unknown) => value is T,
 ): T | null {
+  console.debug("🔍 Extract: API response success:", apiResponse.success);
+  console.debug("🔍 Extract: Has data:", !!apiResponse.data);
+  console.debug("🔍 Extract: Has output:", !!apiResponse.data?.output);
+
   if (!apiResponse.success || !apiResponse.data?.output) {
+    console.debug("🔍 Extract: Early return - missing success/data/output");
     return null;
   }
 
   const output = apiResponse.data.output;
+  console.debug("🔍 Extract: Output type:", typeof output);
+  console.debug("🔍 Extract: Output content:", output);
 
   // Handle JSON string output
   if (typeof output === "string") {
+    console.debug("🔍 Extract: Parsing JSON string...");
     try {
       const parsed = JSON.parse(output);
-      return typeGuard(parsed) ? parsed : null;
-    } catch {
+      console.debug("🔍 Extract: Parsed JSON:", parsed);
+      const isValid = typeGuard(parsed);
+      console.debug("🔍 Extract: Type guard result:", isValid);
+      return isValid ? parsed : null;
+    } catch (error) {
+      console.debug("🔍 Extract: JSON parse error:", error);
       return null;
     }
   }
 
   // Handle already parsed output
-  return typeGuard(output) ? output : null;
+  console.debug("🔍 Extract: Checking already parsed output...");
+  const isValid = typeGuard(output);
+  console.debug("🔍 Extract: Type guard result for parsed:", isValid);
+  return isValid ? output : null;
 }

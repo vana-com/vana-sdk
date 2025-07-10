@@ -632,11 +632,18 @@ export class ServerController {
           parsedOutput = output;
         }
 
+        // Extract personal server information from the response
+        const personalServer = parsedOutput.personal_server as Record<
+          string,
+          unknown
+        >;
+        const derivedAddress = personalServer?.address as string;
+
         return {
           userAddress: parsedOutput.user_address as string,
           identity: {
             metadata: {
-              derivedAddress: parsedOutput.derived_address as string,
+              derivedAddress: derivedAddress,
             },
           },
           timestamp: new Date().toISOString(),

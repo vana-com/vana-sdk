@@ -69,20 +69,12 @@ import { TrustedServerIntegrationCard } from "@/components/TrustedServerIntegrat
 import { ContractListCard } from "@/components/ContractListCard";
 import { SDKConfigurationSidebar } from "@/components/SDKConfigurationSidebar";
 import { GrantPreviewModalContent } from "@/components/GrantPreviewModalContent";
-import {
-  ExternalLink,
-  Database,
-  Shield,
-  Settings,
-  Lock,
-  Upload,
-  Eye,
-  Brain,
-} from "lucide-react";
+import { Shield, Eye } from "lucide-react";
 import type {
   TrustedServerSetupAPIResponse,
   DiscoveredServerInfo,
 } from "@/types/api";
+import { navigationConfig } from "@/config/navigation";
 
 export default function Home() {
   const { address, isConnected } = useAccount();
@@ -1655,61 +1647,25 @@ export default function Home() {
           <div className="p-4">
             <h2 className="text-lg font-semibold mb-4">SDK Demo</h2>
             <nav className="space-y-1">
-              <NavigationButton
-                icon={<Settings className="h-4 w-4" />}
-                label="Configuration"
-                targetId="configuration"
-              />
-              <div className="mt-4 mb-2">
-                <div className="px-3 py-1 text-xs font-medium text-default-500 uppercase tracking-wider">
-                  Core Concepts
+              {navigationConfig.sections.map((section, sectionIndex) => (
+                <div key={section.title}>
+                  {sectionIndex > 0 && (
+                    <div className="mt-4 mb-2">
+                      <div className="px-3 py-1 text-xs font-medium text-default-500 uppercase tracking-wider">
+                        {section.title}
+                      </div>
+                    </div>
+                  )}
+                  {section.items.map((item) => (
+                    <NavigationButton
+                      key={item.id}
+                      icon={item.icon}
+                      label={item.label}
+                      targetId={item.targetId}
+                    />
+                  ))}
                 </div>
-              </div>
-              <NavigationButton
-                icon={<Lock className="h-4 w-4" />}
-                label="Encryption Testing"
-                targetId="encryption"
-              />
-              <NavigationButton
-                icon={<Database className="h-4 w-4" />}
-                label="Your Data"
-                targetId="data"
-              />
-              <NavigationButton
-                icon={<Shield className="h-4 w-4" />}
-                label="Permissions"
-                targetId="permissions"
-              />
-              <div className="mt-4 mb-2">
-                <div className="px-3 py-1 text-xs font-medium text-default-500 uppercase tracking-wider">
-                  Applied Workflows
-                </div>
-              </div>
-              <NavigationButton
-                icon={<Shield className="h-4 w-4" />}
-                label="Trusted Servers"
-                targetId="trusted-servers"
-              />
-              <NavigationButton
-                icon={<Upload className="h-4 w-4" />}
-                label="Server Upload"
-                targetId="server-upload"
-              />
-              <NavigationButton
-                icon={<Brain className="h-4 w-4" />}
-                label="Trusted Server"
-                targetId="personal-server"
-              />
-              <NavigationButton
-                icon={<Database className="h-4 w-4" />}
-                label="Schema Management"
-                targetId="schemas"
-              />
-              <NavigationButton
-                icon={<ExternalLink className="h-4 w-4" />}
-                label="Contracts"
-                targetId="contracts"
-              />
+              ))}
             </nav>
           </div>
         </div>

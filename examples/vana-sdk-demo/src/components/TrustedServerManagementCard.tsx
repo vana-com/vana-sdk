@@ -197,9 +197,22 @@ export const TrustedServerManagementCard: React.FC<
                 </div>
               )}
 
-              <p className="text-xs text-blue-600 dark:text-blue-400 mt-3">
-                <strong>Next:</strong> Trust this server using the form below.
-              </p>
+              <div className="flex items-center justify-between mt-4 pt-3 border-t border-blue-200 dark:border-blue-700">
+                <p className="text-xs text-blue-600 dark:text-blue-400">
+                  Ready to trust this server?
+                </p>
+                <Button
+                  size="sm"
+                  color="primary"
+                  onPress={
+                    useGaslessTransaction ? onTrustServerGasless : onTrustServer
+                  }
+                  isLoading={isTrustingServer}
+                  isDisabled={isTrustingServer}
+                >
+                  Trust Now
+                </Button>
+              </div>
             </div>
           </div>
         )}
@@ -212,6 +225,7 @@ export const TrustedServerManagementCard: React.FC<
           </div>
 
           <FormBuilder
+            title=""
             fields={[
               {
                 name: "serverId",

@@ -129,7 +129,7 @@ export const EncryptionTestCard: React.FC<EncryptionTestCardProps> = ({
   }, [encryptedData, showEncryptedContent]);
 
   return (
-    <Card>
+    <Card id="encryption">
       <CardHeader>
         <SectionHeader
           icon={<Lock className="h-5 w-5" />}

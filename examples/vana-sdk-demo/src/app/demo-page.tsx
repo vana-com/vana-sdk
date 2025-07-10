@@ -2031,19 +2031,21 @@ export default function Home() {
 
         {/* Right Sidebar - SDK Configuration */}
         {vana && (
-          <SDKConfigurationSidebar
-            sdkConfig={sdkConfig}
-            onConfigChange={(config) =>
-              setSdkConfig((prev) => ({ ...prev, ...config }))
-            }
-            configStatus={configStatus}
-            onApplyConfiguration={() => {
-              setConfigStatus(
-                "✅ Configuration will be applied on next SDK initialization",
-              );
-              setTimeout(() => setConfigStatus(""), 3000);
-            }}
-          />
+          <div id="configuration">
+            <SDKConfigurationSidebar
+              sdkConfig={sdkConfig}
+              onConfigChange={(config) =>
+                setSdkConfig((prev) => ({ ...prev, ...config }))
+              }
+              configStatus={configStatus}
+              onApplyConfiguration={() => {
+                setConfigStatus(
+                  "✅ Configuration will be applied on next SDK initialization",
+                );
+                setTimeout(() => setConfigStatus(""), 3000);
+              }}
+            />
+          </div>
         )}
       </div>
     </div>

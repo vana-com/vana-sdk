@@ -70,7 +70,7 @@ export const ServerUploadCard: React.FC<ServerUploadCardProps> = ({
   chainId,
 }) => {
   return (
-    <Card>
+    <Card id="server-upload">
       <CardHeader>
         <SectionHeader
           icon={<Shield className="h-5 w-5" />}

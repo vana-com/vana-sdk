@@ -67,7 +67,7 @@ export const TrustedServerManagementCard: React.FC<
   chainId,
 }) => {
   return (
-    <Card>
+    <Card id="trusted-servers">
       <CardHeader>
         <SectionHeader
           icon={<Shield className="h-5 w-5" />}

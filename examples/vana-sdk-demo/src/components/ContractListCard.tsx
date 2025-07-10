@@ -24,7 +24,7 @@ export const ContractListCard: React.FC<ContractListCardProps> = ({
   chainName,
 }) => {
   return (
-    <Card>
+    <Card id="contracts">
       <CardHeader>
         <SectionHeader
           icon={<ExternalLink className="h-5 w-5" />}

@@ -1,12 +1,5 @@
 import React from "react";
-import {
-  Card,
-  CardHeader,
-  CardBody,
-  Input,
-  Button,
-  Spinner,
-} from "@heroui/react";
+import { Input, Button, Spinner } from "@heroui/react";
 import { Database, Search } from "lucide-react";
 import { UserFile } from "vana-sdk";
 import { SectionHeader } from "./ui/SectionHeader";
@@ -77,24 +70,22 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
   chainId,
 }) => {
   return (
-    <Card id="data">
-      <CardHeader>
-        <SectionHeader
-          icon={<Database className="h-5 w-5" />}
-          title="Your Data"
-          description={
-            <>
-              <em>
-                Demonstrates: `getUserFiles()`, `uploadFile()`,
-                `decryptUserData()`
-              </em>
-              <br />
-              Manage your registered data files and decrypt content you own.
-            </>
-          }
-        />
-      </CardHeader>
-      <CardBody>
+    <section id="data">
+      <SectionHeader
+        icon={<Database className="h-5 w-5" />}
+        title="Your Data"
+        description={
+          <>
+            <em>
+              Demonstrates: `getUserFiles()`, `uploadFile()`,
+              `decryptUserData()`
+            </em>
+            <br />
+            Manage your registered data files and decrypt content you own.
+          </>
+        }
+      />
+      <div className="mt-6">
         <div className="flex items-center gap-2 mb-4 ml-auto">
           <Input
             placeholder="Enter file ID"
@@ -202,7 +193,7 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
             )}
           </div>
         )}
-      </CardBody>
-    </Card>
+      </div>
+    </section>
   );
 };

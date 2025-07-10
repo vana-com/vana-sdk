@@ -1,6 +1,5 @@
 import React from "react";
-import { Input, Select, SelectItem, Button } from "@heroui/react";
-import { StatusMessage } from "./ui/StatusMessage";
+import { Input, Select, SelectItem, Switch } from "@heroui/react";
 
 interface SDKConfig {
   relayerUrl: string;
@@ -11,11 +10,15 @@ interface SDKConfig {
   defaultStorageProvider: string;
 }
 
+export interface AppConfig {
+  useGaslessTransactions: boolean;
+}
+
 interface SDKConfigurationSidebarProps {
   sdkConfig: SDKConfig;
   onConfigChange: (config: Partial<SDKConfig>) => void;
-  configStatus: string;
-  onApplyConfiguration: () => void;
+  appConfig: AppConfig;
+  onAppConfigChange: (config: Partial<AppConfig>) => void;
 }
 
 /**
@@ -24,7 +27,7 @@ interface SDKConfigurationSidebarProps {
  */
 export const SDKConfigurationSidebar: React.FC<
   SDKConfigurationSidebarProps
-> = ({ sdkConfig, onConfigChange, configStatus, onApplyConfiguration }) => {
+> = ({ sdkConfig, onConfigChange, appConfig, onAppConfigChange }) => {
   return (
     <div className="w-80 border-l border-divider bg-content1 sticky top-0 self-start max-h-screen overflow-y-auto">
       <div className="p-4">
@@ -128,25 +131,29 @@ export const SDKConfigurationSidebar: React.FC<
               </Select>
             </div>
 
-            {/* Configuration Status */}
-            {configStatus && (
-              <StatusMessage status={configStatus} type="info" />
-            )}
+            {/* App Configuration */}
+            <div className="space-y-4 pt-4 border-t border-divider">
+              <h4 className="font-medium text-sm text-gray-700 dark:text-gray-300">
+                App Configuration
+              </h4>
 
-            {/* Apply Button */}
-            <div className="space-y-2">
-              <Button
-                color="primary"
-                size="sm"
-                className="w-full"
-                onPress={onApplyConfiguration}
-              >
-                Apply Configuration
-              </Button>
-              <p className="text-xs text-muted-foreground">
-                💡 These settings affect file uploads, storage selection, and
-                API endpoints throughout the interface
-              </p>
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <label className="text-sm font-medium">
+                    Gasless Transactions
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    Use signature-based transactions instead of gas
+                  </p>
+                </div>
+                <Switch
+                  isSelected={appConfig.useGaslessTransactions}
+                  onValueChange={(value) =>
+                    onAppConfigChange({ useGaslessTransactions: value })
+                  }
+                  size="sm"
+                />
+              </div>
             </div>
           </div>
         </div>

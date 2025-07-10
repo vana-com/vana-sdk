@@ -1,21 +1,19 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://vana.org/schemas/grant-file.json",
-  "title": "Vana Grant File",
-  "description": "Schema for Vana permission grant files stored in IPFS",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Vana Data Permission Grant",
+  "description": "User-signed permission that authorizes a specific application to access selected files via a personal server",
   "type": "object",
-  "required": ["grantee", "operation", "files", "parameters", "metadata"],
+  "required": ["grantee", "operation", "files", "parameters"],
   "properties": {
     "grantee": {
       "type": "string",
-      "pattern": "^0x[a-fA-F0-9]{40}$",
-      "description": "Ethereum address of the actor receiving the permission grant"
+      "pattern": "^0x[0-9a-fA-F]{40}$",
+      "description": "EVM address of the application authorized to use this grant"
     },
     "operation": {
       "type": "string",
       "minLength": 1,
-      "description": "Type of operation being granted permission for",
-      "examples": ["llm_inference", "data_analysis", "model_training"]
+      "description": "Operation the grantee is authorized to perform"
     },
     "files": {
       "type": "array",
@@ -24,64 +22,17 @@
         "minimum": 0
       },
       "uniqueItems": true,
-      "description": "Array of file IDs that permission is granted for"
+      "description": "File IDs this grant covers"
     },
     "parameters": {
       "type": "object",
       "description": "Operation-specific parameters",
       "additionalProperties": true
     },
-    "metadata": {
-      "type": "object",
-      "required": ["timestamp", "version", "userAddress"],
-      "properties": {
-        "timestamp": {
-          "type": "string",
-          "format": "date-time",
-          "description": "ISO 8601 timestamp when the grant was created"
-        },
-        "version": {
-          "type": "string",
-          "pattern": "^\\d+\\.\\d+$",
-          "description": "Grant file format version",
-          "default": "1.0"
-        },
-        "userAddress": {
-          "type": "string",
-          "pattern": "^0x[a-fA-F0-9]{40}$",
-          "description": "Ethereum address of the user granting permission"
-        },
-        "expiry": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Optional expiry timestamp for the grant"
-        },
-        "application": {
-          "type": "object",
-          "description": "Optional metadata about the grantee application/service",
-          "properties": {
-            "name": {
-              "type": "string",
-              "description": "Human-readable name of the application"
-            },
-            "version": {
-              "type": "string",
-              "description": "Version of the application"
-            },
-            "description": {
-              "type": "string",
-              "description": "Description of what the application does"
-            },
-            "website": {
-              "type": "string",
-              "format": "uri",
-              "description": "Website URL of the application"
-            }
-          },
-          "additionalProperties": true
-        }
-      },
-      "additionalProperties": false
+    "expires": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Optional Unix timestamp when grant expires (seconds since epoch per POSIX.1-2008)"
     }
   },
   "additionalProperties": false,
@@ -96,16 +47,7 @@
         "maxTokens": 2000,
         "temperature": 0.7
       },
-      "metadata": {
-        "timestamp": "2025-07-10T04:26:19.508Z",
-        "version": "1.0",
-        "userAddress": "0xd7Ae9319049f0B6cA9AD044b165c5B4F143EF451",
-        "application": {
-          "name": "Demo Data Analyzer",
-          "version": "1.0.0",
-          "description": "AI-powered data analysis service"
-        }
-      }
+      "expires": 1736467579
     }
   ]
 }

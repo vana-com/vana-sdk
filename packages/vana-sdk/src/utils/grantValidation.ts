@@ -48,14 +48,13 @@ export function validateGranteeAccess(
  * Validates that a grant has not expired (if expiry is set)
  */
 export function validateGrantExpiry(grantFile: GrantFile): void {
-  if (grantFile.metadata.expiry) {
-    const expiryDate = new Date(grantFile.metadata.expiry);
-    const now = new Date();
+  if (grantFile.expires) {
+    const now = Math.floor(Date.now() / 1000); // Current Unix timestamp
 
-    if (now > expiryDate) {
+    if (now > grantFile.expires) {
       throw new GrantValidationError("Permission denied: grant has expired", {
-        expiry: grantFile.metadata.expiry,
-        currentTime: now.toISOString(),
+        expires: grantFile.expires,
+        currentTime: now,
       });
     }
   }
@@ -142,10 +141,6 @@ export function validateGrantFileAgainstSchema(grantFile: unknown): GrantFile {
     throw new GrantValidationError("Invalid grantee address format");
   }
 
-  if (!validated.metadata.userAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
-    throw new GrantValidationError("Invalid user address format");
-  }
-
   if (!validated.operation || validated.operation.trim().length === 0) {
     throw new GrantValidationError("Operation cannot be empty");
   }
@@ -162,19 +157,10 @@ export function validateGrantFileAgainstSchema(grantFile: unknown): GrantFile {
     throw new GrantValidationError("Invalid file IDs", { invalidFileIds });
   }
 
-  // Validate timestamp format
-  try {
-    new Date(validated.metadata.timestamp);
-  } catch {
-    throw new GrantValidationError("Invalid timestamp format");
-  }
-
-  // Validate expiry format if present
-  if (validated.metadata.expiry) {
-    try {
-      new Date(validated.metadata.expiry);
-    } catch {
-      throw new GrantValidationError("Invalid expiry timestamp format");
+  // Validate expires format if present (Unix timestamp)
+  if (validated.expires !== undefined) {
+    if (!Number.isInteger(validated.expires) || validated.expires < 0) {
+      throw new GrantValidationError("Invalid expires timestamp format (must be positive integer)");
     }
   }
 

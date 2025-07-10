@@ -7,19 +7,20 @@ import { SerializationError, NetworkError } from "../errors";
  */
 export function createGrantFile(
   params: GrantPermissionParams,
-  userAddress: Address,
 ): GrantFile {
-  return {
+  const grantFile: GrantFile = {
     grantee: params.to,
     operation: params.operation,
     files: params.files,
     parameters: params.parameters,
-    metadata: {
-      timestamp: new Date().toISOString(),
-      version: "1.0",
-      userAddress,
-    },
   };
+
+  // Add expiration if provided
+  if (params.expiresAt) {
+    grantFile.expires = params.expiresAt;
+  }
+
+  return grantFile;
 }
 
 /**
@@ -144,17 +145,17 @@ export async function retrieveGrantFile(
 export function getGrantFileHash(grantFile: GrantFile): string {
   try {
     // Create a stable JSON representation
-    const sortedFile = {
+    const sortedFile: GrantFile = {
       grantee: grantFile.grantee,
       operation: grantFile.operation,
       files: [...grantFile.files].sort((a, b) => a - b), // Sort files for consistency
       parameters: sortObjectKeys(grantFile.parameters),
-      metadata: {
-        timestamp: grantFile.metadata.timestamp,
-        version: grantFile.metadata.version,
-        userAddress: grantFile.metadata.userAddress,
-      },
     };
+
+    // Add expires if present
+    if (grantFile.expires !== undefined) {
+      sortedFile.expires = grantFile.expires;
+    }
 
     const jsonString = JSON.stringify(sortedFile);
     console.info(`Hash: ${keccak256(toHex(jsonString))}`);
@@ -198,6 +199,7 @@ export function validateGrantFile(data: unknown): data is GrantFile {
 
   const obj = data as Record<string, unknown>;
 
+  // Validate required fields
   // Validate grantee address
   if (
     typeof obj.grantee !== "string" ||
@@ -206,7 +208,7 @@ export function validateGrantFile(data: unknown): data is GrantFile {
     return false;
   }
 
-  if (typeof obj.operation !== "string") {
+  if (typeof obj.operation !== "string" || obj.operation.length === 0) {
     return false;
   }
 
@@ -214,20 +216,21 @@ export function validateGrantFile(data: unknown): data is GrantFile {
     return false;
   }
 
+  // Validate file IDs are non-negative integers
+  if (!obj.files.every((id) => typeof id === "number" && id >= 0 && Number.isInteger(id))) {
+    return false;
+  }
+
   if (!obj.parameters || typeof obj.parameters !== "object") {
     return false;
   }
 
-  if (!obj.metadata || typeof obj.metadata !== "object") {
-    return false;
+  // Validate optional expires field
+  if (obj.expires !== undefined) {
+    if (typeof obj.expires !== "number" || obj.expires < 0 || !Number.isInteger(obj.expires)) {
+      return false;
+    }
   }
 
-  const metadata = obj.metadata as Record<string, unknown>;
-
-  return !!(
-    typeof metadata.timestamp === "string" &&
-    typeof metadata.version === "string" &&
-    typeof metadata.userAddress === "string" &&
-    metadata.userAddress.match(/^0x[a-fA-F0-9]{40}$/)
-  );
+  return true;
 }

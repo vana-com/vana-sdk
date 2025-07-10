@@ -32,6 +32,7 @@ describe("Grant Files Utils", () => {
       const grantFile = createGrantFile(params, userAddress);
 
       expect(grantFile).toEqual({
+        grantee: params.to,
         operation: params.operation,
         files: params.files,
         parameters: params.parameters,
@@ -88,13 +89,15 @@ describe("Grant Files Utils", () => {
   describe("getGrantFileHash", () => {
     it("should generate consistent hash for same grant file", () => {
       const grantFile = {
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "llm_inference",
         files: [1, 2, 3],
         parameters: { prompt: "test" },
         metadata: {
           timestamp: "2023-01-01T00:00:00.000Z",
           version: "1.0",
-          userAddress: "0xuser" as `0x${string}`,
+          userAddress:
+            "0x1234567890123456789012345678901234567890" as `0x${string}`,
         },
       };
 
@@ -107,13 +110,15 @@ describe("Grant Files Utils", () => {
 
     it("should generate different hashes for different grant files", () => {
       const grantFile1 = {
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "llm_inference",
         files: [1, 2, 3],
         parameters: { prompt: "test1" },
         metadata: {
           timestamp: "2023-01-01T00:00:00.000Z",
           version: "1.0",
-          userAddress: "0xuser" as `0x${string}`,
+          userAddress:
+            "0x1234567890123456789012345678901234567890" as `0x${string}`,
         },
       };
 
@@ -131,13 +136,15 @@ describe("Grant Files Utils", () => {
 
   describe("storeGrantFile", () => {
     const mockGrantFile = {
+      grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
       operation: "llm_inference",
       files: [1, 2, 3],
       parameters: { prompt: "test" },
       metadata: {
         timestamp: "2023-01-01T00:00:00.000Z",
         version: "1.0",
-        userAddress: "0xuser" as `0x${string}`,
+        userAddress:
+          "0x1234567890123456789012345678901234567890" as `0x${string}`,
       },
     };
 
@@ -208,13 +215,15 @@ describe("Grant Files Utils", () => {
 
   describe("retrieveGrantFile", () => {
     const mockGrantFile = {
+      grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
       operation: "llm_inference",
       files: [1, 2, 3],
       parameters: { prompt: "test" },
       metadata: {
         timestamp: "2023-01-01T00:00:00.000Z",
         version: "1.0",
-        userAddress: "0xuser" as `0x${string}`,
+        userAddress:
+          "0x1234567890123456789012345678901234567890" as `0x${string}`,
       },
     };
 
@@ -314,13 +323,15 @@ describe("Grant Files Utils", () => {
   describe("validateGrantFile", () => {
     it("should validate a correct grant file", () => {
       const validGrantFile = {
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "llm_inference",
         files: [1, 2, 3],
         parameters: { prompt: "test" },
         metadata: {
           timestamp: "2023-01-01T00:00:00.000Z",
           version: "1.0",
-          userAddress: "0xuser" as `0x${string}`,
+          userAddress:
+            "0x1234567890123456789012345678901234567890" as `0x${string}`,
         },
       };
 
@@ -431,6 +442,7 @@ describe("Grant Files Utils", () => {
   describe("getGrantFileHash edge cases", () => {
     it("should handle complex nested objects", () => {
       const grantFile = {
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "test",
         files: [3, 1, 2], // Unsorted - should be sorted in hash
         parameters: {
@@ -448,7 +460,8 @@ describe("Grant Files Utils", () => {
         metadata: {
           timestamp: "2023-01-01T00:00:00.000Z",
           version: "1.0",
-          userAddress: "0xuser" as `0x${string}`,
+          userAddress:
+            "0x1234567890123456789012345678901234567890" as `0x${string}`,
         },
       };
 
@@ -458,6 +471,7 @@ describe("Grant Files Utils", () => {
 
     it("should handle arrays in parameters", () => {
       const grantFile = {
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "test",
         files: [1, 2, 3],
         parameters: {
@@ -470,7 +484,8 @@ describe("Grant Files Utils", () => {
         metadata: {
           timestamp: "2023-01-01T00:00:00.000Z",
           version: "1.0",
-          userAddress: "0xuser" as `0x${string}`,
+          userAddress:
+            "0x1234567890123456789012345678901234567890" as `0x${string}`,
         },
       };
 
@@ -480,6 +495,7 @@ describe("Grant Files Utils", () => {
 
     it("should handle null and primitive values", () => {
       const grantFile = {
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "test",
         files: [1, 2, 3],
         parameters: {
@@ -491,7 +507,8 @@ describe("Grant Files Utils", () => {
         metadata: {
           timestamp: "2023-01-01T00:00:00.000Z",
           version: "1.0",
-          userAddress: "0xuser" as `0x${string}`,
+          userAddress:
+            "0x1234567890123456789012345678901234567890" as `0x${string}`,
         },
       };
 
@@ -501,6 +518,7 @@ describe("Grant Files Utils", () => {
 
     it("should throw SerializationError for invalid data", () => {
       const grantFile = {
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "test",
         files: [1, 2, 3],
         parameters: {
@@ -509,7 +527,8 @@ describe("Grant Files Utils", () => {
         metadata: {
           timestamp: "2023-01-01T00:00:00.000Z",
           version: "1.0",
-          userAddress: "0xuser" as `0x${string}`,
+          userAddress:
+            "0x1234567890123456789012345678901234567890" as `0x${string}`,
         },
       };
 
@@ -547,13 +566,15 @@ describe("Grant Files Utils", () => {
       mockFetch.mockRejectedValue({ code: 500, message: "Server error" });
 
       const grantFile = {
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "test",
         files: [1, 2, 3],
         parameters: { key: "value" },
         metadata: {
           timestamp: "2023-01-01T00:00:00.000Z",
           version: "1.0",
-          userAddress: "0xuser" as `0x${string}`,
+          userAddress:
+            "0x1234567890123456789012345678901234567890" as `0x${string}`,
         },
       };
 
@@ -570,13 +591,15 @@ describe("Grant Files Utils", () => {
       mockFetch.mockRejectedValue(undefined);
 
       const grantFile = {
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "test",
         files: [1, 2, 3],
         parameters: { key: "value" },
         metadata: {
           timestamp: "2023-01-01T00:00:00.000Z",
           version: "1.0",
-          userAddress: "0xuser" as `0x${string}`,
+          userAddress:
+            "0x1234567890123456789012345678901234567890" as `0x${string}`,
         },
       };
 
@@ -696,13 +719,15 @@ describe("Grant Files Utils", () => {
       });
 
       const grantFile = {
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "test",
         files: [1, 2, 3],
         parameters: { key: "value" },
         metadata: {
           timestamp: "2023-01-01T00:00:00.000Z",
           version: "1.0",
-          userAddress: "0xuser" as `0x${string}`,
+          userAddress:
+            "0x1234567890123456789012345678901234567890" as `0x${string}`,
         },
       };
 
@@ -724,13 +749,15 @@ describe("Grant Files Utils", () => {
       };
 
       const grantFile = {
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "test-hash",
         files: [1, 2, 3],
         parameters: { key: "value" },
         metadata: {
           timestamp: "2023-01-01T00:00:00.000Z",
           version: "1.0",
-          userAddress: "0xuser" as `0x${string}`,
+          userAddress:
+            "0x1234567890123456789012345678901234567890" as `0x${string}`,
         },
       };
 

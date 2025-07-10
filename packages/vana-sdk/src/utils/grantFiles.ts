@@ -10,6 +10,7 @@ export function createGrantFile(
   userAddress: Address,
 ): GrantFile {
   return {
+    grantee: params.to,
     operation: params.operation,
     files: params.files,
     parameters: params.parameters,
@@ -144,6 +145,7 @@ export function getGrantFileHash(grantFile: GrantFile): string {
   try {
     // Create a stable JSON representation
     const sortedFile = {
+      grantee: grantFile.grantee,
       operation: grantFile.operation,
       files: [...grantFile.files].sort((a, b) => a - b), // Sort files for consistency
       parameters: sortObjectKeys(grantFile.parameters),
@@ -196,6 +198,14 @@ export function validateGrantFile(data: unknown): data is GrantFile {
 
   const obj = data as Record<string, unknown>;
 
+  // Validate grantee address
+  if (
+    typeof obj.grantee !== "string" ||
+    !obj.grantee.match(/^0x[a-fA-F0-9]{40}$/)
+  ) {
+    return false;
+  }
+
   if (typeof obj.operation !== "string") {
     return false;
   }
@@ -217,6 +227,7 @@ export function validateGrantFile(data: unknown): data is GrantFile {
   return !!(
     typeof metadata.timestamp === "string" &&
     typeof metadata.version === "string" &&
-    typeof metadata.userAddress === "string"
+    typeof metadata.userAddress === "string" &&
+    metadata.userAddress.match(/^0x[a-fA-F0-9]{40}$/)
   );
 }

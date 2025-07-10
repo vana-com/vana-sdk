@@ -1,0 +1,111 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://vana.org/schemas/grant-file.json",
+  "title": "Vana Grant File",
+  "description": "Schema for Vana permission grant files stored in IPFS",
+  "type": "object",
+  "required": ["grantee", "operation", "files", "parameters", "metadata"],
+  "properties": {
+    "grantee": {
+      "type": "string",
+      "pattern": "^0x[a-fA-F0-9]{40}$",
+      "description": "Ethereum address of the actor receiving the permission grant"
+    },
+    "operation": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Type of operation being granted permission for",
+      "examples": ["llm_inference", "data_analysis", "model_training"]
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "uniqueItems": true,
+      "description": "Array of file IDs that permission is granted for"
+    },
+    "parameters": {
+      "type": "object",
+      "description": "Operation-specific parameters",
+      "additionalProperties": true
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["timestamp", "version", "userAddress"],
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp when the grant was created"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+$",
+          "description": "Grant file format version",
+          "default": "1.0"
+        },
+        "userAddress": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{40}$",
+          "description": "Ethereum address of the user granting permission"
+        },
+        "expiry": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Optional expiry timestamp for the grant"
+        },
+        "application": {
+          "type": "object",
+          "description": "Optional metadata about the grantee application/service",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Human-readable name of the application"
+            },
+            "version": {
+              "type": "string",
+              "description": "Version of the application"
+            },
+            "description": {
+              "type": "string",
+              "description": "Description of what the application does"
+            },
+            "website": {
+              "type": "string",
+              "format": "uri",
+              "description": "Website URL of the application"
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "grantee": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
+      "operation": "llm_inference",
+      "files": [1654096, 1654097],
+      "parameters": {
+        "prompt": "Analyze this data: {{data}}",
+        "model": "gpt-4",
+        "maxTokens": 2000,
+        "temperature": 0.7
+      },
+      "metadata": {
+        "timestamp": "2025-07-10T04:26:19.508Z",
+        "version": "1.0",
+        "userAddress": "0xd7Ae9319049f0B6cA9AD044b165c5B4F143EF451",
+        "application": {
+          "name": "Demo Data Analyzer",
+          "version": "1.0.0",
+          "description": "AI-powered data analysis service"
+        }
+      }
+    }
+  ]
+}

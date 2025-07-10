@@ -293,6 +293,7 @@ describe("TypeScript Types", () => {
   describe("GrantFile", () => {
     it("should have all required properties", () => {
       const grantFile: GrantFile = {
+        grantee: "0x1234567890123456789012345678901234567890",
         operation: "llm_inference",
         files: [1, 2, 3],
         parameters: { prompt: "Test prompt" },

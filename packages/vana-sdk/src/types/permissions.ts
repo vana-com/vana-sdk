@@ -86,7 +86,7 @@ export interface GrantPermissionParams {
  * const revokeParams: RevokePermissionParams = {
  *   grantId: '0x1234567890abcdef...' // Hash from the original grant transaction
  * };
- * 
+ *
  * await vana.permissions.revoke(revokeParams);
  * ```
  */
@@ -111,7 +111,7 @@ export interface RevokePermissionParams {
  *   parameters: { model: 'gpt-4' }, // Operation parameters
  *   user: '0xabcd...' // Optional specific user
  * };
- * 
+ *
  * const hasPermission = await vana.permissions.check(checkParams);
  * ```
  */
@@ -220,6 +220,8 @@ export interface SimplifiedPermissionMessage {
  * ```
  */
 export interface GrantFile {
+  /** Address of the actor receiving the permission grant */
+  grantee: Address;
   /** Operation type */
   operation: string;
   /** File IDs */
@@ -240,6 +242,8 @@ export interface GrantFileMetadata {
   version: string;
   /** User address who created the grant */
   userAddress: Address;
+  /** Optional expiry timestamp for the grant */
+  expiry?: string;
   /** Optional application metadata */
   application?: ApplicationMetadata;
 }

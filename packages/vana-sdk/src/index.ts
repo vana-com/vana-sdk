@@ -25,6 +25,7 @@ export * from "./contracts/contractController";
 export * from "./utils/encryption";
 export * from "./utils/formatters";
 export * from "./utils/grantFiles";
+export * from "./utils/grantValidation";
 export * from "./utils/ipfs";
 
 // Storage API

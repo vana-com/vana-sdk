@@ -30,10 +30,11 @@ import {
 
 interface GrantPreview {
   grantFile: {
+    grantee: string;
     operation: string;
     files: number[];
     parameters: unknown;
-    metadata?: unknown;
+    expires?: number;
   };
   grantUrl: string;
   params: GrantPermissionParams & { grantUrl: string };
@@ -486,14 +487,11 @@ export default function Home() {
 
       // Create grant file preview
       const grantFilePreview = {
+        grantee: params.to,
         operation: params.operation,
         files: params.files,
         parameters: params.parameters,
-        metadata: {
-          timestamp: new Date().toISOString(),
-          version: "1.0",
-          userAddress: address,
-        },
+        expires: Math.floor(Date.now() / 1000) + 86400, // Expires in 24 hours
       };
 
       setGrantStatus("Storing grant file in IPFS...");

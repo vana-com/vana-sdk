@@ -79,6 +79,12 @@ import {
   Eye,
   Brain,
 } from "lucide-react";
+import type {
+  TrustedServerSetupAPIResponse,
+  DiscoveredServerInfo,
+} from "@/types/api";
+import { extractReplicateOutput } from "@/types/api";
+import { isIdentityServerOutput } from "vana-sdk";
 
 export default function Home() {
   const { address, isConnected } = useAccount();
@@ -186,11 +192,8 @@ export default function Home() {
 
   // Server discovery state
   const [isDiscoveringServer, setIsDiscoveringServer] = useState(false);
-  const [discoveredServerInfo, setDiscoveredServerInfo] = useState<{
-    serverId: string;
-    serverUrl: string;
-    name: string;
-  } | null>(null);
+  const [discoveredServerInfo, setDiscoveredServerInfo] =
+    useState<DiscoveredServerInfo | null>(null);
 
   // Trusted server file upload state
   const [selectedServerForUpload, setSelectedServerForUpload] =
@@ -1143,32 +1146,20 @@ export default function Home() {
         throw new Error(errorData.error || `HTTP ${response.status}`);
       }
 
-      const result = await response.json();
+      const result: TrustedServerSetupAPIResponse = await response.json();
 
-      // Extract server information from the personal server response
-      // The API returns the user's personal server identity with address field
-      const personalServerData = result.data;
+      // Extract server information using typed extraction
+      const parsedOutput = extractReplicateOutput(
+        result,
+        isIdentityServerOutput,
+      );
 
-      // The output field contains a JSON string that needs to be parsed
-      let parsedOutput;
-      if (typeof personalServerData?.output === "string") {
-        try {
-          parsedOutput = JSON.parse(personalServerData.output);
-        } catch {
-          throw new Error("Failed to parse server response output");
-        }
-      } else {
-        parsedOutput = personalServerData?.output;
-      }
-
-      const serverAddress = parsedOutput?.personal_server?.address;
-
-      if (!serverAddress) {
+      if (!parsedOutput?.personal_server?.address) {
         throw new Error("Could not determine server identity from response");
       }
 
-      const serverInfo = {
-        serverId: serverAddress,
+      const serverInfo: DiscoveredServerInfo = {
+        serverId: parsedOutput.personal_server.address,
         serverUrl: "https://api.replicate.com/v1/predictions",
         name: "Replicate",
       };

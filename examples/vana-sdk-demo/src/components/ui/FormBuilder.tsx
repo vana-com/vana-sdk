@@ -34,6 +34,7 @@ interface FormBuilderProps {
   statusType?: "success" | "error" | "info";
   className?: string;
   singleColumn?: boolean;
+  additionalButtons?: React.ReactNode;
 }
 
 export function FormBuilder({
@@ -47,6 +48,7 @@ export function FormBuilder({
   statusType = "info",
   className = "",
   singleColumn = false,
+  additionalButtons,
 }: FormBuilderProps) {
   const requiredFields = fields.filter((field) => field.required);
   const isFormValid = requiredFields.every(
@@ -112,19 +114,22 @@ export function FormBuilder({
         </div>
       </div>
 
-      <Button
-        onPress={onSubmit}
-        disabled={isSubmitting || !isFormValid}
-        variant="solid"
-        className="w-full"
-      >
-        {isSubmitting ? (
-          <Spinner size="sm" className="mr-2" />
-        ) : (
-          submitIcon && <span className="mr-2">{submitIcon}</span>
-        )}
-        {isSubmitting ? "Processing..." : submitText}
-      </Button>
+      <div className="flex gap-2">
+        {additionalButtons}
+        <Button
+          onPress={onSubmit}
+          disabled={isSubmitting || !isFormValid}
+          variant="solid"
+          className="flex-1"
+        >
+          {isSubmitting ? (
+            <Spinner size="sm" className="mr-2" />
+          ) : (
+            submitIcon && <span className="mr-2">{submitIcon}</span>
+          )}
+          {isSubmitting ? "Processing..." : submitText}
+        </Button>
+      </div>
 
       {status && <p className={`text-sm ${getStatusColor()}`}>{status}</p>}
     </div>

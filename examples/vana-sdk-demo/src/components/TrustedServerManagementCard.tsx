@@ -130,19 +130,18 @@ export const TrustedServerManagementCard: React.FC<
           }
           submitIcon={<Shield className="h-4 w-4" />}
           status={trustServerError}
+          additionalButtons={
+            <Button
+              size="sm"
+              color="default"
+              variant="bordered"
+              onPress={onDiscoverReplicateServer}
+              isLoading={isDiscoveringServer}
+            >
+              Get Hosted Server Details
+            </Button>
+          }
         />
-
-        <div className="flex gap-2 -mt-4">
-          <Button
-            size="sm"
-            color="default"
-            variant="bordered"
-            onPress={onDiscoverReplicateServer}
-            isLoading={isDiscoveringServer}
-          >
-            Get Hosted Server Details
-          </Button>
-        </div>
 
         {trustServerResult && chainId && (
           <div className="p-3 bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 rounded">

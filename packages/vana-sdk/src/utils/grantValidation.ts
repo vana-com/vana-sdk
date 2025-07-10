@@ -142,7 +142,42 @@ export interface GrantValidationResult {
 }
 
 /**
- * Consolidated grant validation with flexible options and strict typing
+ * Validates a grant file with comprehensive schema and business rule checking.
+ * 
+ * This function provides flexible validation with TypeScript overloads:
+ * - When `throwOnError` is false (or `{ throwOnError: false }`), returns a detailed validation result
+ * - When `throwOnError` is true (default), throws specific errors or returns the validated grant
+ * 
+ * @param data - The grant file data to validate (unknown type for safety)
+ * @param options - Validation options including grantee, operation, files, etc.
+ * @returns Either a GrantFile (when throwing) or GrantValidationResult (when not throwing)
+ * 
+ * @throws {GrantSchemaError} When the grant file structure is invalid
+ * @throws {GrantExpiredError} When the grant has expired
+ * @throws {GranteeMismatchError} When the grantee doesn't match the requesting address
+ * @throws {OperationNotAllowedError} When the requested operation is not allowed
+ * @throws {FileAccessDeniedError} When access to requested files is denied
+ * 
+ * @example
+ * ```typescript
+ * // Throwing mode (default) - returns GrantFile or throws
+ * const grant = validateGrant(data, {
+ *   grantee: '0x123...',
+ *   operation: 'llm_inference',
+ *   files: [1, 2, 3]
+ * });
+ * 
+ * // Non-throwing mode - returns validation result
+ * const result = validateGrant(data, {
+ *   grantee: '0x123...',
+ *   throwOnError: false
+ * });
+ * if (result.valid) {
+ *   console.log('Grant is valid:', result.grant);
+ * } else {
+ *   console.log('Validation errors:', result.errors);
+ * }
+ * ```
  */
 /* eslint-disable no-redeclare */
 export function validateGrant(

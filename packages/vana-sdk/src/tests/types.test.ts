@@ -297,21 +297,13 @@ describe("TypeScript Types", () => {
         operation: "llm_inference",
         files: [1, 2, 3],
         parameters: { prompt: "Test prompt" },
-        metadata: {
-          timestamp: "2024-01-01T00:00:00Z",
-          version: "1.0.0",
-          userAddress: "0x1234567890123456789012345678901234567890",
-        },
+        expires: Math.floor(Date.now() / 1000) + 3600,
       };
 
       expect(grantFile.operation).toBe("llm_inference");
       expect(grantFile.files).toEqual([1, 2, 3]);
       expect(grantFile.parameters).toEqual({ prompt: "Test prompt" });
-      expect(grantFile.metadata.timestamp).toBe("2024-01-01T00:00:00Z");
-      expect(grantFile.metadata.version).toBe("1.0.0");
-      expect(grantFile.metadata.userAddress).toBe(
-        "0x1234567890123456789012345678901234567890",
-      );
+      expect(grantFile.expires).toBeGreaterThan(Math.floor(Date.now() / 1000));
     });
   });
 

@@ -6,6 +6,7 @@ import {
   getGrantFileHash,
   validateGrantFile,
 } from "../utils/grantFiles";
+import { validateGrantFileAgainstSchema, GrantValidationError } from "../utils/grantValidation";
 import { NetworkError, SerializationError } from "../errors";
 
 // Mock fetch globally
@@ -460,6 +461,66 @@ describe("Grant Files Utils", () => {
           parameters: "not an object",
         }),
       ).toBe(false);
+    });
+  });
+
+  describe("ajv validation", () => {
+    it("should validate valid grant file with ajv", () => {
+      const validGrantFile = {
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        operation: "llm_inference",
+        files: [1, 2, 3],
+        parameters: { prompt: "test" },
+        expires: 1736467579,
+      };
+
+      expect(() => validateGrantFileAgainstSchema(validGrantFile)).not.toThrow();
+      const result = validateGrantFileAgainstSchema(validGrantFile);
+      expect(result).toEqual(validGrantFile);
+    });
+
+    it("should provide detailed error messages for invalid data", () => {
+      const invalidGrantFile = {
+        grantee: "invalid-address", // Invalid EVM address
+        operation: "", // Empty operation
+        files: [1, -1, 2.5], // Invalid file IDs (negative and non-integer)
+        parameters: null, // Should be object
+        expires: -100, // Negative timestamp
+      };
+
+      expect(() => validateGrantFileAgainstSchema(invalidGrantFile)).toThrow(GrantValidationError);
+      
+      try {
+        validateGrantFileAgainstSchema(invalidGrantFile);
+      } catch (error) {
+        const grantError = error as GrantValidationError;
+        expect(grantError.message).toContain("Grant file schema validation failed");
+        expect(grantError.details?.errors).toBeDefined();
+        expect(Array.isArray(grantError.details?.errors)).toBe(true);
+      }
+    });
+
+    it("should validate files array uniqueness", () => {
+      const grantFileWithDuplicates = {
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        operation: "llm_inference",
+        files: [1, 2, 2, 3], // Duplicate file ID
+        parameters: { prompt: "test" },
+      };
+
+      expect(() => validateGrantFileAgainstSchema(grantFileWithDuplicates)).toThrow(GrantValidationError);
+    });
+
+    it("should reject additional properties", () => {
+      const grantFileWithExtra = {
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        operation: "llm_inference",
+        files: [1, 2, 3],
+        parameters: { prompt: "test" },
+        unknownField: "should not be allowed", // Additional property
+      };
+
+      expect(() => validateGrantFileAgainstSchema(grantFileWithExtra)).toThrow(GrantValidationError);
     });
   });
 

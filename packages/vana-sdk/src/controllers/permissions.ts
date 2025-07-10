@@ -133,8 +133,6 @@ export class PermissionsController {
     signature: Hash;
   }> {
     try {
-      const _userAddress = await this.getUserAddress();
-
       // Step 1: Create grant file with all the real data
       const grantFile = createGrantFile(params);
 

@@ -31,5 +31,5 @@
     "tsBuildInfoFile": ".tsbuildinfo"
   },
   "include": ["src/**/*.ts", "src/**/*.json"],
-  "exclude": ["node_modules", "dist", "examples/**/*", "coverage/**/*"]
+  "exclude": ["node_modules", "dist", "**/dist", "examples/**/*", "coverage/**/*", "test-dist"]
 }

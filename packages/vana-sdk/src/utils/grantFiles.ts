@@ -1,4 +1,4 @@
-import { Address, keccak256, toHex } from "viem";
+import { keccak256, toHex } from "viem";
 import type { GrantFile, GrantPermissionParams } from "../types/permissions";
 import { SerializationError, NetworkError } from "../errors";
 
@@ -149,7 +149,7 @@ export function getGrantFileHash(grantFile: GrantFile): string {
       grantee: grantFile.grantee,
       operation: grantFile.operation,
       files: [...grantFile.files].sort((a, b) => a - b), // Sort files for consistency
-      parameters: sortObjectKeys(grantFile.parameters),
+      parameters: sortObjectKeys(grantFile.parameters) as Record<string, unknown>,
     };
 
     // Add expires if present

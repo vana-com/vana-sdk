@@ -86,7 +86,7 @@ export interface GrantPermissionParams {
  * const revokeParams: RevokePermissionParams = {
  *   grantId: '0x1234567890abcdef...' // Hash from the original grant transaction
  * };
- * 
+ *
  * await vana.permissions.revoke(revokeParams);
  * ```
  */
@@ -111,7 +111,7 @@ export interface RevokePermissionParams {
  *   parameters: { model: 'gpt-4' }, // Operation parameters
  *   user: '0xabcd...' // Optional specific user
  * };
- * 
+ *
  * const hasPermission = await vana.permissions.check(checkParams);
  * ```
  */
@@ -195,70 +195,41 @@ export interface SimplifiedPermissionMessage {
 }
 
 /**
- * Grant file structure stored in IPFS containing permission details.
+ * Grant file structure containing permission details.
  *
  * Grant files contain the complete specification of what an application is permitted
  * to do with user data, including operation parameters and file access rights.
- * These files are stored on IPFS for transparency and immutability.
  *
  * @category Permissions
  * @example
  * ```typescript
  * const grantFile: GrantFile = {
+ *   grantee: '0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6',
  *   operation: 'llm_inference',
- *   files: [1, 2, 3],
+ *   files: [1654096, 1654097],
  *   parameters: {
+ *     prompt: 'Analyze this data: {{data}}',
  *     model: 'gpt-4',
- *     maxTokens: 1000,
+ *     maxTokens: 2000,
  *     temperature: 0.7
  *   },
- *   metadata: {
- *     timestamp: '2024-01-01T00:00:00Z',
- *     version: '1.0'
- *   }
+ *   expires: 1736467579
  * };
  * ```
  */
 export interface GrantFile {
-  /** Operation type */
+  /** EVM address of the application authorized to use this grant */
+  grantee: Address;
+  /** Operation the grantee is authorized to perform */
   operation: string;
-  /** File IDs */
+  /** File IDs this grant covers */
   files: number[];
-  /** Parameters */
+  /** Operation-specific parameters */
   parameters: Record<string, unknown>;
-  /** Metadata */
-  metadata: GrantFileMetadata;
+  /** Optional Unix timestamp when grant expires (seconds since epoch per POSIX.1-2008) */
+  expires?: number;
 }
 
-/**
- * Grant file metadata
- */
-export interface GrantFileMetadata {
-  /** Timestamp when grant was created */
-  timestamp: string;
-  /** Grant file format version */
-  version: string;
-  /** User address who created the grant */
-  userAddress: Address;
-  /** Optional application metadata */
-  application?: ApplicationMetadata;
-}
-
-/**
- * Application metadata
- */
-export interface ApplicationMetadata {
-  /** Application name */
-  name: string;
-  /** Application description */
-  description?: string;
-  /** Application website */
-  website?: string;
-  /** Application logo URL */
-  logo?: string;
-  /** Application version */
-  version?: string;
-}
 
 /**
  * EIP-712 typed data structure for Permission

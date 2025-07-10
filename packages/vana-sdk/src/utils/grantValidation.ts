@@ -1,0 +1,476 @@
+import { Address } from "viem";
+import Ajv, { type ValidateFunction } from "ajv";
+import addFormats from "ajv-formats";
+import type { GrantFile } from "../types/permissions";
+import grantFileSchema from "../schemas/grantFile.schema.json";
+
+/**
+ * Base error class for grant validation failures
+ */
+export class GrantValidationError extends Error {
+  constructor(
+    message: string,
+    public details?: Record<string, unknown>,
+  ) {
+    super(message);
+    this.name = "GrantValidationError";
+  }
+}
+
+/**
+ * Error thrown when a grant has expired
+ */
+export class GrantExpiredError extends GrantValidationError {
+  constructor(
+    message: string,
+    public expires: number,
+    public currentTime: number,
+  ) {
+    super(message, { expires, currentTime });
+    this.name = "GrantExpiredError";
+  }
+}
+
+/**
+ * Error thrown when grantee doesn't match requesting address
+ */
+export class GranteeMismatchError extends GrantValidationError {
+  constructor(
+    message: string,
+    public grantee: Address,
+    public requestingAddress: Address,
+  ) {
+    super(message, { grantee, requestingAddress });
+    this.name = "GranteeMismatchError";
+  }
+}
+
+/**
+ * Error thrown when operation is not allowed by grant
+ */
+export class OperationNotAllowedError extends GrantValidationError {
+  constructor(
+    message: string,
+    public grantedOperation: string,
+    public requestedOperation: string,
+  ) {
+    super(message, { grantedOperation, requestedOperation });
+    this.name = "OperationNotAllowedError";
+  }
+}
+
+/**
+ * Error thrown when file access is not granted
+ */
+export class FileAccessDeniedError extends GrantValidationError {
+  constructor(
+    message: string,
+    public grantedFiles: number[],
+    public requestedFiles: number[],
+    public unauthorizedFiles: number[],
+  ) {
+    super(message, { grantedFiles, requestedFiles, unauthorizedFiles });
+    this.name = "FileAccessDeniedError";
+  }
+}
+
+/**
+ * Error thrown when grant file structure is invalid
+ */
+export class GrantSchemaError extends GrantValidationError {
+  constructor(
+    message: string,
+    public schemaErrors: unknown[],
+    public invalidData: unknown,
+  ) {
+    super(message, { errors: schemaErrors, data: invalidData });
+    this.name = "GrantSchemaError";
+  }
+}
+
+/**
+ * Ajv instance for grant file validation with draft 2020-12 support
+ */
+const ajv = new Ajv({
+  strict: true,
+  removeAdditional: false,
+  useDefaults: false,
+  coerceTypes: false,
+});
+
+// Add format validators (email, date, etc.)
+addFormats(ajv);
+
+/**
+ * Compiled grant file schema validator
+ */
+const validateGrantFileSchema: ValidateFunction = ajv.compile(grantFileSchema);
+
+/**
+ * Options for grant validation
+ */
+export interface GrantValidationOptions {
+  /** Enable JSON schema validation (default: true) */
+  schema?: boolean;
+  /** Grantee address to validate access for */
+  grantee?: Address;
+  /** Operation to validate permission for */
+  operation?: string;
+  /** File IDs to validate access for */
+  files?: number[];
+  /** Override current time for expiry checking (Unix timestamp) */
+  currentTime?: number;
+  /** Return detailed results instead of throwing (default: false) */
+  throwOnError?: boolean;
+}
+
+/**
+ * Detailed validation result
+ */
+export interface GrantValidationResult {
+  /** Whether validation passed */
+  valid: boolean;
+  /** Validation errors encountered */
+  errors: Array<{
+    type: "schema" | "business";
+    field?: string;
+    message: string;
+    error?: Error;
+  }>;
+  /** The validated grant file (if validation passed) */
+  grant?: GrantFile;
+}
+
+/**
+ * Validates a grant file with comprehensive schema and business rule checking.
+ * 
+ * This function provides flexible validation with TypeScript overloads:
+ * - When `throwOnError` is false (or `{ throwOnError: false }`), returns a detailed validation result
+ * - When `throwOnError` is true (default), throws specific errors or returns the validated grant
+ * 
+ * @param data - The grant file data to validate (unknown type for safety)
+ * @param options - Validation options including grantee, operation, files, etc.
+ * @returns Either a GrantFile (when throwing) or GrantValidationResult (when not throwing)
+ * 
+ * @throws {GrantSchemaError} When the grant file structure is invalid
+ * @throws {GrantExpiredError} When the grant has expired
+ * @throws {GranteeMismatchError} When the grantee doesn't match the requesting address
+ * @throws {OperationNotAllowedError} When the requested operation is not allowed
+ * @throws {FileAccessDeniedError} When access to requested files is denied
+ * 
+ * @example
+ * ```typescript
+ * // Throwing mode (default) - returns GrantFile or throws
+ * const grant = validateGrant(data, {
+ *   grantee: '0x123...',
+ *   operation: 'llm_inference',
+ *   files: [1, 2, 3]
+ * });
+ * 
+ * // Non-throwing mode - returns validation result
+ * const result = validateGrant(data, {
+ *   grantee: '0x123...',
+ *   throwOnError: false
+ * });
+ * if (result.valid) {
+ *   console.log('Grant is valid:', result.grant);
+ * } else {
+ *   console.log('Validation errors:', result.errors);
+ * }
+ * ```
+ */
+/* eslint-disable no-redeclare */
+export function validateGrant(
+  data: unknown,
+  options: GrantValidationOptions & { throwOnError: false },
+): GrantValidationResult;
+
+export function validateGrant(
+  data: unknown,
+  options?:
+    | Omit<GrantValidationOptions, "throwOnError">
+    | (GrantValidationOptions & { throwOnError?: true }),
+): GrantFile;
+
+export function validateGrant(
+  data: unknown,
+  options: GrantValidationOptions = {},
+): GrantFile | GrantValidationResult {
+  /* eslint-enable no-redeclare */
+  const {
+    schema = true,
+    grantee,
+    operation,
+    files,
+    currentTime,
+    throwOnError = true,
+  } = options;
+
+  const errors: GrantValidationResult["errors"] = [];
+  let grant: GrantFile | undefined;
+
+  // 1. Schema Validation
+  if (schema) {
+    try {
+      grant = validateGrantFileAgainstSchema(data);
+    } catch (error) {
+      if (error instanceof GrantValidationError) {
+        const schemaError = new GrantSchemaError(
+          error.message,
+          Array.isArray(error.details?.errors) ? error.details.errors : [],
+          data,
+        );
+        errors.push({
+          type: "schema",
+          message: error.message,
+          error: schemaError,
+        });
+      } else {
+        errors.push({
+          type: "schema",
+          message: `Schema validation failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+          error: error instanceof Error ? error : new Error("Unknown error"),
+        });
+      }
+    }
+  } else {
+    // Minimal type assertion if schema validation is skipped
+    grant = data as GrantFile;
+  }
+
+  // 2. Business Logic Validation (only if we have a valid grant)
+  if (grant) {
+    // Check grantee access
+    if (grantee) {
+      try {
+        validateGranteeAccess(grant, grantee);
+      } catch (error) {
+        const field = extractFieldFromBusinessError(error);
+        errors.push({
+          type: "business",
+          field,
+          message:
+            error instanceof Error
+              ? error.message
+              : "Unknown business rule error",
+          error: error instanceof Error ? error : new Error("Unknown error"),
+        });
+      }
+    }
+
+    // Check expiration
+    try {
+      validateGrantExpiry(grant, currentTime);
+    } catch (error) {
+      const field = extractFieldFromBusinessError(error);
+      errors.push({
+        type: "business",
+        field,
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unknown business rule error",
+        error: error instanceof Error ? error : new Error("Unknown error"),
+      });
+    }
+
+    // Check operation access
+    if (operation) {
+      try {
+        validateOperationAccess(grant, operation);
+      } catch (error) {
+        const field = extractFieldFromBusinessError(error);
+        errors.push({
+          type: "business",
+          field,
+          message:
+            error instanceof Error
+              ? error.message
+              : "Unknown business rule error",
+          error: error instanceof Error ? error : new Error("Unknown error"),
+        });
+      }
+    }
+
+    // Check file access
+    if (files) {
+      try {
+        validateFileAccess(grant, files);
+      } catch (error) {
+        const field = extractFieldFromBusinessError(error);
+        errors.push({
+          type: "business",
+          field,
+          message:
+            error instanceof Error
+              ? error.message
+              : "Unknown business rule error",
+          error: error instanceof Error ? error : new Error("Unknown error"),
+        });
+      }
+    }
+  }
+
+  // 3. Return Results
+  if (errors.length > 0) {
+    if (throwOnError) {
+      // Throw the most specific error we have
+      const firstError = errors[0];
+      if (firstError.error) {
+        throw firstError.error;
+      } else {
+        const combinedMessage = errors.map((e) => e.message).join("; ");
+        throw new GrantValidationError(
+          `Grant validation failed: ${combinedMessage}`,
+          { errors, data },
+        );
+      }
+    }
+
+    return { valid: false, errors, grant };
+  }
+
+  if (throwOnError) {
+    return grant as GrantFile;
+  } else {
+    return { valid: true, errors: [], grant: grant as GrantFile };
+  }
+}
+
+/**
+ * Helper function to extract field name from business validation errors
+ */
+function extractFieldFromBusinessError(error: unknown): string | undefined {
+  if (error instanceof GrantExpiredError) return "expires";
+  if (error instanceof GranteeMismatchError) return "grantee";
+  if (error instanceof OperationNotAllowedError) return "operation";
+  if (error instanceof FileAccessDeniedError) return "files";
+  return undefined;
+}
+
+/**
+ * @deprecated Use validateGrant() instead
+ * Validates that a grant file has the correct structure and content
+ */
+export function validateGrantFileStructure(
+  data: unknown,
+): asserts data is GrantFile {
+  validateGrant(data);
+}
+
+/**
+ * Validates that a grant file allows access for a specific grantee
+ */
+export function validateGranteeAccess(
+  grantFile: GrantFile,
+  requestingAddress: Address,
+): void {
+  if (grantFile.grantee.toLowerCase() !== requestingAddress.toLowerCase()) {
+    throw new GranteeMismatchError(
+      "Permission denied: requesting address does not match grantee",
+      grantFile.grantee,
+      requestingAddress,
+    );
+  }
+}
+
+/**
+ * Validates that a grant has not expired (if expiry is set)
+ */
+export function validateGrantExpiry(
+  grantFile: GrantFile,
+  currentTime?: number,
+): void {
+  if (grantFile.expires) {
+    const now = currentTime || Math.floor(Date.now() / 1000); // Current Unix timestamp
+
+    if (now > grantFile.expires) {
+      throw new GrantExpiredError(
+        "Permission denied: grant has expired",
+        grantFile.expires,
+        now,
+      );
+    }
+  }
+}
+
+/**
+ * Validates that a grant includes access to specific file IDs
+ */
+export function validateFileAccess(
+  grantFile: GrantFile,
+  requestedFileIds: number[],
+): void {
+  const grantedFileIds = new Set(grantFile.files);
+  const unauthorizedFiles = requestedFileIds.filter(
+    (fileId) => !grantedFileIds.has(fileId),
+  );
+
+  if (unauthorizedFiles.length > 0) {
+    throw new FileAccessDeniedError(
+      "Permission denied: access not granted for some files",
+      grantFile.files,
+      requestedFileIds,
+      unauthorizedFiles,
+    );
+  }
+}
+
+/**
+ * Validates that a grant allows a specific operation
+ */
+export function validateOperationAccess(
+  grantFile: GrantFile,
+  requestedOperation: string,
+): void {
+  if (grantFile.operation !== requestedOperation) {
+    throw new OperationNotAllowedError(
+      "Permission denied: operation not allowed by grant",
+      grantFile.operation,
+      requestedOperation,
+    );
+  }
+}
+
+/**
+ * @deprecated Use validateGrant() instead
+ * Comprehensive validation of a grant file for a specific request
+ */
+export function validateGrantForRequest(
+  grantFile: GrantFile,
+  requestingAddress: Address,
+  operation: string,
+  fileIds: number[],
+): void {
+  validateGrant(grantFile, {
+    grantee: requestingAddress,
+    operation,
+    files: fileIds,
+  });
+}
+
+/**
+ * @deprecated Use validateGrant() instead
+ * Validates grant file against JSON schema using ajv
+ */
+export function validateGrantFileAgainstSchema(grantFile: unknown): GrantFile {
+  const isValid = validateGrantFileSchema(grantFile);
+
+  if (!isValid) {
+    const errors = validateGrantFileSchema.errors || [];
+    const errorMessages = errors
+      .map((err) => {
+        const path = err.instancePath || err.schemaPath;
+        return `${path}: ${err.message}`;
+      })
+      .join(", ");
+
+    throw new GrantSchemaError(
+      `Grant file schema validation failed: ${errorMessages}`,
+      errors,
+      grantFile,
+    );
+  }
+
+  return grantFile as GrantFile;
+}

@@ -24,19 +24,23 @@ import {
   AddSchemaParams,
   AddRefinerParams,
   UpdateSchemaIdParams,
+  PermissionGrantTypedData,
 } from "vana-sdk";
 
 // Types for demo app state
 
 interface GrantPreview {
   grantFile: {
+    grantee: string;
     operation: string;
     files: number[];
     parameters: unknown;
-    metadata?: unknown;
+    expires?: number;
   };
   grantUrl: string;
-  params: GrantPermissionParams & { grantUrl: string };
+  params: GrantPermissionParams & { expiresAt?: number };
+  typedData?: PermissionGrantTypedData;
+  signature?: string;
 }
 import {
   Card,
@@ -481,58 +485,40 @@ export default function Home() {
         operation: params.operation,
       });
 
-      setGrantStatus("Creating grant file...");
-
-      // Create grant file preview
-      const grantFilePreview = {
-        operation: params.operation,
-        files: params.files,
-        parameters: params.parameters,
-        metadata: {
-          timestamp: new Date().toISOString(),
-          version: "1.0",
-          userAddress: address,
-        },
+      // Add expiration to params (24 hours from now)
+      const paramsWithExpiry = {
+        ...params,
+        expiresAt: Math.floor(Date.now() / 1000) + 86400,
       };
 
-      setGrantStatus("Storing grant file in IPFS...");
+      setGrantStatus("Creating grant file via SDK...");
 
-      // Store in IPFS first
-      const grantFileBlob = new Blob(
-        [JSON.stringify(grantFilePreview, null, 2)],
-        {
-          type: "application/json",
-        },
-      );
+      // Use the SDK to create and sign the grant
+      const { typedData, signature } =
+        await vana.permissions.createAndSign(paramsWithExpiry);
 
-      const formData = new FormData();
-      formData.append("file", grantFileBlob, "grant-file.json");
+      // Extract grant file for preview from the files array in typedData
+      setGrantStatus("Retrieving grant file for preview...");
 
-      const response = await fetch("/api/ipfs/upload", {
-        method: "POST",
-        body: formData,
-      });
+      // The SDK stores the grant file in IPFS and puts the URL in typedData.message.grant
+      const grantUrl = typedData.message.grant;
 
-      if (!response.ok) {
-        throw new Error(`Failed to store grant file: ${response.statusText}`);
-      }
-
-      const storageResult = await response.json();
-      if (!storageResult.success) {
-        throw new Error(storageResult.error || "Failed to store grant file");
-      }
+      // Import the grant utilities to retrieve the stored grant file
+      const { retrieveGrantFile } = await import("vana-sdk");
+      const grantFile = await retrieveGrantFile(grantUrl);
 
       // Show preview to user
       setGrantPreview({
-        grantFile: grantFilePreview,
-        grantUrl: storageResult.url,
-        params: {
-          ...params,
-          grantUrl: storageResult.url, // Pass the pre-stored URL to avoid duplicate storage
-        },
+        grantFile,
+        grantUrl,
+        params: paramsWithExpiry,
+        typedData,
+        signature,
       });
       onOpenGrant();
-      setGrantStatus("Review the grant file before signing...");
+      setGrantStatus(
+        "Review the grant file before submitting to blockchain...",
+      );
     } catch (error) {
       console.error("Failed to prepare grant:", error);
       setGrantStatus(
@@ -546,9 +532,21 @@ export default function Home() {
     if (!grantPreview || !vana) return;
 
     try {
-      setGrantStatus("Awaiting signature...");
+      setGrantStatus("Submitting to blockchain...");
 
-      const txHash = await vana.permissions.grant(grantPreview.params);
+      // Use the pre-signed data to submit the grant
+      let txHash: string;
+
+      if (grantPreview.typedData && grantPreview.signature) {
+        // Submit the already-signed grant
+        txHash = await vana.permissions.submitSignedGrant(
+          grantPreview.typedData,
+          grantPreview.signature as `0x${string}`,
+        );
+      } else {
+        // Fallback to full grant flow (shouldn't happen with new flow)
+        txHash = await vana.permissions.grant(grantPreview.params);
+      }
 
       setGrantStatus(""); // Clear status since permission will appear in list
       setGrantTxHash(txHash);

@@ -82,8 +82,6 @@ export type {
   PermissionInputMessage,
   SimplifiedPermissionMessage,
   GrantFile,
-  GrantFileMetadata,
-  ApplicationMetadata,
   PermissionGrantTypedData,
   GenericTypedData,
   PermissionOperation,

@@ -54,7 +54,7 @@ import {
   NavbarItem,
 } from "@heroui/react";
 import { ResourceList } from "@/components/ui/ResourceList";
-import { NavigationButton } from "@/components/NavigationButton";
+import { NavigationButton } from "@/components/ui/NavigationButton";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { SectionDivider } from "@/components/ui/SectionDivider";
 import { StatusMessage } from "@/components/ui/StatusMessage";

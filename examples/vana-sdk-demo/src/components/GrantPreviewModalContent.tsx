@@ -1,7 +1,7 @@
 import React from "react";
 import { Button } from "@heroui/react";
-import { IpfsAddressDisplay } from "./IpfsAddressDisplay";
-import { CodeDisplay } from "./CodeDisplay";
+import { IpfsAddressDisplay } from "./ui/IpfsAddressDisplay";
+import { CodeDisplay } from "./ui/CodeDisplay";
 
 interface GrantPreview {
   grantFile: {

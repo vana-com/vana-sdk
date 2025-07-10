@@ -11,11 +11,11 @@ import {
 } from "@heroui/react";
 import { Shield, FileText, Upload, Brain } from "lucide-react";
 import { SectionHeader } from "./ui/SectionHeader";
-import { InputModeToggle, InputMode } from "./InputModeToggle";
+import { InputModeToggle, InputMode } from "./ui/InputModeToggle";
 import { FileUpload } from "./ui/FileUpload";
 import { StatusMessage } from "./ui/StatusMessage";
 import { IdChip } from "./ui/IdChip";
-import { IpfsAddressDisplay } from "./IpfsAddressDisplay";
+import { IpfsAddressDisplay } from "./ui/IpfsAddressDisplay";
 import { ExplorerLink } from "./ui/ExplorerLink";
 import { InfoBox } from "./ui/InfoBox";
 

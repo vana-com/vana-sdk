@@ -15,8 +15,8 @@ import { Schema } from "vana-sdk";
 import { SectionHeader } from "./ui/SectionHeader";
 import { ActionButton } from "./ui/ActionButton";
 import { StatusMessage } from "./ui/StatusMessage";
-import { CodeDisplay } from "./CodeDisplay";
-import { InputModeToggle, InputMode } from "./InputModeToggle";
+import { CodeDisplay } from "./ui/CodeDisplay";
+import { InputModeToggle, InputMode } from "./ui/InputModeToggle";
 import { FileUpload } from "./ui/FileUpload";
 import {
   Lock,

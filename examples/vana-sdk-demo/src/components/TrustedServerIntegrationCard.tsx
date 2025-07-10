@@ -11,7 +11,7 @@ import { Brain, Key, Lock, RotateCcw, Copy } from "lucide-react";
 import { SectionHeader } from "./ui/SectionHeader";
 import { ActionButton } from "./ui/ActionButton";
 import { StatusMessage } from "./ui/StatusMessage";
-import { CodeDisplay } from "./CodeDisplay";
+import { CodeDisplay } from "./ui/CodeDisplay";
 import { InfoBox } from "./ui/InfoBox";
 
 interface TrustedServerIntegrationCardProps {

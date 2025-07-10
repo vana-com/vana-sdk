@@ -2,7 +2,7 @@ import React from "react";
 import { Chip } from "@heroui/react";
 import { Refiner } from "vana-sdk";
 import { IdChip } from "./ui/IdChip";
-import { AddressDisplay } from "./AddressDisplay";
+import { AddressDisplay } from "./ui/AddressDisplay";
 
 interface RefinerListItemProps {
   /**

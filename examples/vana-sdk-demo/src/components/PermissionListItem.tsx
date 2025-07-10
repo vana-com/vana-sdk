@@ -1,7 +1,7 @@
 import React from "react";
 import { GrantedPermission, convertIpfsUrl } from "vana-sdk";
 import { ActionButton } from "./ui/ActionButton";
-import { PermissionDisplay } from "./PermissionDisplay";
+import { PermissionDisplay } from "./ui/PermissionDisplay";
 
 interface PermissionListItemProps {
   /**

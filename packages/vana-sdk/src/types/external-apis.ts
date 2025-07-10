@@ -65,7 +65,7 @@ export interface ReplicateAPIResponse {
 
 /** Output from the identity server model */
 export interface IdentityServerOutput {
-  /** User's Ethereum address */
+  /** User's EVM address */
   user_address: string;
   /** Personal server information */
   personal_server: {
@@ -90,7 +90,7 @@ export interface IdentityServerResponse
 
 /** Output from the personal server model */
 export interface PersonalServerOutput {
-  /** User's Ethereum address */
+  /** User's EVM address */
   user_address: string;
   /** Identity information */
   identity: {

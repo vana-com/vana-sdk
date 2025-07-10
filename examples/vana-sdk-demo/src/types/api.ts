@@ -57,7 +57,7 @@ export type RelayAddFileAPIResponse = APIResponse<{
 
 /** Server information discovered from the API */
 export interface DiscoveredServerInfo {
-  /** Server ID (Ethereum address) */
+  /** Server ID (EVM address) */
   serverId: string;
   /** Server URL for API calls */
   serverUrl: string;

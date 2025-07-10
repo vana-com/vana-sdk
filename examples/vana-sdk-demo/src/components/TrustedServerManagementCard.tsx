@@ -189,23 +189,8 @@ export const TrustedServerManagementCard: React.FC<
                         </div>
                       </div>
                       <div className="text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/50 p-2 rounded">
-                        <div className="font-medium mb-1">
-                          Technical Information:
-                        </div>
-                        <ul className="space-y-1 text-xs">
-                          <li>
-                            • <strong>Derived from:</strong> Personal server
-                            derivation
-                          </li>
-                          <li>
-                            • <strong>Used for:</strong> Data encryption and
-                            verification
-                          </li>
-                          <li>
-                            • <strong>Algorithm:</strong> ECDSA secp256k1
-                            (Ethereum compatible)
-                          </li>
-                        </ul>
+                        <strong>Use:</strong> Encrypt data for this server •{" "}
+                        <strong>Type:</strong> ECDSA secp256k1
                       </div>
                     </div>
                   )}
@@ -213,8 +198,7 @@ export const TrustedServerManagementCard: React.FC<
               )}
 
               <p className="text-xs text-blue-600 dark:text-blue-400 mt-3">
-                This server has been auto-populated in the form below. Review
-                and trust it to start using {discoveredServerInfo.name}.
+                Ready to trust? This server is auto-populated below.
               </p>
             </div>
           </div>

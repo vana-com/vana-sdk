@@ -126,10 +126,10 @@ export class ServerController {
    * Gets the trusted server's public key for a given user address.
    *
    * Uses the Identity Server to deterministically derive the personal server's
-   * public key from the user's Ethereum address. This allows anyone to encrypt
+   * public key from the user's EVM address. This allows anyone to encrypt
    * data for a specific user's server without that server needing to be online.
    *
-   * @param userAddress - The user's Ethereum address
+   * @param userAddress - The user's EVM address
    * @returns Promise resolving to the server's public key (hex string)
    */
   async getTrustedServerPublicKey(userAddress: Address): Promise<string> {
@@ -144,7 +144,7 @@ export class ServerController {
       // Basic address validation
       if (!userAddress.startsWith("0x") || userAddress.length !== 42) {
         throw new PersonalServerError(
-          "User address must be a valid Ethereum address",
+          "User address must be a valid EVM address",
         );
       }
 
@@ -292,9 +292,7 @@ export class ServerController {
       !params.userAddress.startsWith("0x") ||
       params.userAddress.length !== 42
     ) {
-      throw new PersonalServerError(
-        "User address must be a valid Ethereum address",
-      );
+      throw new PersonalServerError("User address must be a valid EVM address");
     }
 
     if (typeof params.permissionId !== "number" || params.permissionId <= 0) {

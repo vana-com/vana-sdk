@@ -1151,13 +1151,15 @@ export default function Home() {
       console.debug("🔍 Response data:", result.data);
 
       // Extract server information from the SDK response
-      // The SDK now returns: { userAddress, identity: { metadata: { derivedAddress } }, timestamp }
+      // The SDK now returns: { userAddress, identity: { metadata: { derivedAddress, publicKey } }, timestamp }
       const derivedAddress = result.data?.identity?.metadata?.derivedAddress;
+      const publicKey = result.data?.identity?.metadata?.publicKey;
 
       // Debug: Log extraction results
       console.debug("🔍 SDK Response data:", result.data);
       console.debug("🔍 Identity metadata:", result.data?.identity?.metadata);
       console.debug("🔍 Derived address:", derivedAddress);
+      console.debug("🔍 Public key:", publicKey);
 
       if (!derivedAddress) {
         throw new Error("Could not determine server identity from response");
@@ -1167,6 +1169,7 @@ export default function Home() {
         serverId: derivedAddress,
         serverUrl: "https://api.replicate.com/v1/predictions",
         name: "Replicate",
+        publicKey: publicKey,
       };
 
       setDiscoveredServerInfo(serverInfo);

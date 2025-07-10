@@ -50,6 +50,8 @@ export interface PersonalServerResponse {
     metadata?: {
       /** Derived address for the personal server */
       derivedAddress?: string;
+      /** Public key for encryption */
+      publicKey?: string;
     } & Record<string, unknown>;
   };
   /** Timestamp when the identity was fetched */

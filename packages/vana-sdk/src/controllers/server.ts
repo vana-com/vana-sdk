@@ -638,12 +638,14 @@ export class ServerController {
           unknown
         >;
         const derivedAddress = personalServer?.address as string;
+        const publicKey = personalServer?.public_key as string;
 
         return {
           userAddress: parsedOutput.user_address as string,
           identity: {
             metadata: {
               derivedAddress: derivedAddress,
+              publicKey: publicKey,
             },
           },
           timestamp: new Date().toISOString(),

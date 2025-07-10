@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
 import { Card, CardHeader, CardBody, Button } from "@heroui/react";
-import { Shield, Sparkles } from "lucide-react";
+import { Shield, Sparkles, ChevronDown, ChevronUp, Info } from "lucide-react";
 import { SectionHeader } from "./ui/SectionHeader";
 import { FormBuilder } from "./ui/FormBuilder";
 import { StatusMessage } from "./ui/StatusMessage";
@@ -8,6 +8,7 @@ import { ResourceList } from "./ui/ResourceList";
 import { TrustedServerListItem } from "./TrustedServerListItem";
 import { EmptyState } from "./ui/EmptyState";
 import { ExplorerLink } from "./ui/ExplorerLink";
+import type { DiscoveredServerInfo } from "@/types/api";
 
 interface TrustedServerManagementCardProps {
   // Form state
@@ -26,11 +27,7 @@ interface TrustedServerManagementCardProps {
   // Server discovery
   onDiscoverReplicateServer: () => void;
   isDiscoveringServer: boolean;
-  discoveredServerInfo: {
-    serverId: string;
-    serverUrl: string;
-    name: string;
-  } | null;
+  discoveredServerInfo: DiscoveredServerInfo | null;
 
   // Results and status
   trustServerError: string;
@@ -79,6 +76,8 @@ export const TrustedServerManagementCard: React.FC<
   isUntrusting,
   chainId,
 }) => {
+  const [showAdvancedDetails, setShowAdvancedDetails] = useState(false);
+
   return (
     <Card>
       <CardHeader>
@@ -158,7 +157,62 @@ export const TrustedServerManagementCard: React.FC<
                   {discoveredServerInfo.serverUrl}
                 </div>
               </div>
-              <p className="text-xs text-blue-600 dark:text-blue-400">
+
+              {/* Advanced Details Toggle */}
+              {discoveredServerInfo.publicKey && (
+                <div className="pt-2 border-t border-blue-200 dark:border-blue-700">
+                  <Button
+                    variant="light"
+                    size="sm"
+                    className="text-blue-600 dark:text-blue-400 p-0 h-auto min-w-0"
+                    onPress={() => setShowAdvancedDetails(!showAdvancedDetails)}
+                  >
+                    <div className="flex items-center gap-1">
+                      <Info className="h-3 w-3" />
+                      <span className="text-xs">Advanced Details</span>
+                      {showAdvancedDetails ? (
+                        <ChevronUp className="h-3 w-3" />
+                      ) : (
+                        <ChevronDown className="h-3 w-3" />
+                      )}
+                    </div>
+                  </Button>
+
+                  {showAdvancedDetails && (
+                    <div className="mt-3 space-y-2">
+                      <div className="text-sm">
+                        <span className="font-medium text-blue-700 dark:text-blue-300">
+                          Public Key:
+                        </span>
+                        <div className="mt-1 bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-700 font-mono text-xs break-all">
+                          {discoveredServerInfo.publicKey}
+                        </div>
+                      </div>
+                      <div className="text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/50 p-2 rounded">
+                        <div className="font-medium mb-1">
+                          Technical Information:
+                        </div>
+                        <ul className="space-y-1 text-xs">
+                          <li>
+                            • <strong>Derived from:</strong> Personal server
+                            derivation
+                          </li>
+                          <li>
+                            • <strong>Used for:</strong> Data encryption and
+                            verification
+                          </li>
+                          <li>
+                            • <strong>Algorithm:</strong> ECDSA secp256k1
+                            (Ethereum compatible)
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-3">
                 This server has been auto-populated in the form below. Review
                 and trust it to start using {discoveredServerInfo.name}.
               </p>

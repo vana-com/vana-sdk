@@ -63,6 +63,8 @@ export interface DiscoveredServerInfo {
   serverUrl: string;
   /** Human-readable server name */
   name: string;
+  /** Server's public key for encryption (optional) */
+  publicKey?: string;
 }
 
 /**

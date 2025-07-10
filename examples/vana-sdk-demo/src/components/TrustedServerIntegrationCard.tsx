@@ -1,0 +1,237 @@
+import React from "react";
+import {
+  Card,
+  CardHeader,
+  CardBody,
+  Input,
+  Button,
+  Divider,
+} from "@heroui/react";
+import { Brain, Key, Lock, RotateCcw, Copy } from "lucide-react";
+import { SectionHeader } from "./ui/SectionHeader";
+import { ActionButton } from "./ui/ActionButton";
+import { StatusMessage } from "./ui/StatusMessage";
+import { CodeDisplay } from "./ui/CodeDisplay";
+import { InfoBox } from "./ui/InfoBox";
+
+interface TrustedServerIntegrationCardProps {
+  // Server decryption demo
+  serverFileId: string;
+  onServerFileIdChange: (id: string) => void;
+  serverPrivateKey: string;
+  onServerPrivateKeyChange: (key: string) => void;
+  onServerDecryption: () => void;
+  isServerDecrypting: boolean;
+  serverDecryptError: string;
+  serverDecryptedData: string;
+
+  // Server API integration
+  personalPermissionId: string;
+  onPersonalPermissionIdChange: (id: string) => void;
+  onPersonalServerCall: () => void;
+  isPersonalLoading: boolean;
+  onPollStatus: () => void;
+  isPolling: boolean;
+  personalError: string;
+  personalResult: unknown;
+
+  // Utility functions
+  onCopyToClipboard: (text: string, label: string) => Promise<void>;
+}
+
+/**
+ * TrustedServerIntegrationCard component - Server-side decryption demo and API integration
+ * Demonstrates grantPermission(), trusted server API workflow
+ */
+export const TrustedServerIntegrationCard: React.FC<
+  TrustedServerIntegrationCardProps
+> = ({
+  serverFileId,
+  onServerFileIdChange,
+  serverPrivateKey,
+  onServerPrivateKeyChange,
+  onServerDecryption,
+  isServerDecrypting,
+  serverDecryptError,
+  serverDecryptedData,
+  personalPermissionId,
+  onPersonalPermissionIdChange,
+  onPersonalServerCall,
+  isPersonalLoading,
+  onPollStatus,
+  isPolling,
+  personalError,
+  personalResult,
+  onCopyToClipboard,
+}) => {
+  return (
+    <Card>
+      <CardHeader>
+        <SectionHeader
+          icon={<Brain className="h-5 w-5" />}
+          title="Trusted Server Integration"
+          description={
+            <>
+              <em>
+                Demonstrates: `grantPermission()`, trusted server API workflow
+              </em>
+              <br />
+              Advanced pattern showing server-side logic for processing files
+              with granted permissions.
+            </>
+          }
+        />
+      </CardHeader>
+      <CardBody className="space-y-6">
+        {/* Server Decryption Demo */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Key className="h-4 w-4" />
+            <span className="font-medium">Server Decryption Demo</span>
+          </div>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input
+                label="File ID"
+                value={serverFileId}
+                onChange={(e) => onServerFileIdChange(e.target.value)}
+                placeholder="Enter file ID (e.g., 123)"
+                type="number"
+              />
+              <Input
+                label="Server Private Key"
+                value={serverPrivateKey}
+                onChange={(e) => onServerPrivateKeyChange(e.target.value)}
+                placeholder="Enter server private key (hex)"
+                type="password"
+              />
+            </div>
+
+            <ActionButton
+              onPress={onServerDecryption}
+              disabled={!serverFileId.trim() || !serverPrivateKey.trim()}
+              loading={isServerDecrypting}
+              icon={<Lock className="h-4 w-4" />}
+              className="w-full"
+            >
+              Decrypt File with Server Key
+            </ActionButton>
+
+            {serverDecryptError && (
+              <StatusMessage
+                status={serverDecryptError}
+                type="error"
+                className="p-4"
+              />
+            )}
+
+            {serverDecryptedData && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium">Decrypted File Content:</h4>
+                  <Button
+                    size="sm"
+                    variant="bordered"
+                    onPress={() =>
+                      onCopyToClipboard(
+                        serverDecryptedData,
+                        "Decrypted content",
+                      )
+                    }
+                  >
+                    <Copy className="mr-2 h-3 w-3" />
+                    Copy
+                  </Button>
+                </div>
+                <CodeDisplay
+                  code={serverDecryptedData}
+                  language="text"
+                  size="sm"
+                  maxHeight="max-h-48"
+                />
+                <div className="p-3 bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 rounded-lg">
+                  <p className="text-green-600 text-sm">
+                    ✅ Successfully decrypted file using server's private key!
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <Divider />
+
+        {/* Trusted Server API Integration */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Brain className="h-4 w-4" />
+            <span className="font-medium">Trusted Server API Integration</span>
+          </div>
+
+          <div>
+            <Input
+              label="Permission ID"
+              value={personalPermissionId}
+              onChange={(e) => onPersonalPermissionIdChange(e.target.value)}
+              placeholder="Enter permission ID (e.g., 123)"
+              type="number"
+            />
+          </div>
+          <div className="flex gap-2">
+            <ActionButton
+              onPress={onPersonalServerCall}
+              disabled={!personalPermissionId.trim()}
+              loading={isPersonalLoading}
+              icon={<Brain className="h-4 w-4" />}
+            >
+              Submit Request
+            </ActionButton>
+            {Boolean(
+              personalResult &&
+                (personalResult as { urls?: { get?: string } })?.urls?.get,
+            ) && (
+              <ActionButton
+                onPress={onPollStatus}
+                loading={isPolling}
+                icon={<RotateCcw className="h-4 w-4" />}
+                variant="bordered"
+              >
+                Check Status
+              </ActionButton>
+            )}
+          </div>
+        </div>
+
+        {personalError && (
+          <StatusMessage status={personalError} type="error" className="p-4" />
+        )}
+
+        {Boolean(personalResult) && (
+          <div className="space-y-4">
+            <h4 className="font-medium">Computation Result:</h4>
+            <CodeDisplay
+              code={JSON.stringify(personalResult, null, 2)}
+              language="json"
+              size="sm"
+            />
+          </div>
+        )}
+
+        {/* How it works explanation */}
+        <InfoBox
+          title="Server Permission Workflow:"
+          icon={<Brain className="h-4 w-4" />}
+          variant="info"
+          items={[
+            "Files are encrypted with user's wallet signature key",
+            "User's encryption key is encrypted with server's real public key",
+            "Server uses its private key to decrypt the user's encryption key",
+            "Server then uses user's key to decrypt the file data",
+            "Personal server APIs work with decrypted data for computation",
+          ]}
+        />
+      </CardBody>
+    </Card>
+  );
+};

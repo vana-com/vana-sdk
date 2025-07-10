@@ -92,7 +92,7 @@ export async function retrieveGrantFile(
     const gateways = [
       `https://gateway.pinata.cloud/ipfs/${ipfsHash}`,
       `https://ipfs.io/ipfs/${ipfsHash}`,
-      `https://cloudflare-ipfs.com/ipfs/${ipfsHash}`,
+      `https://dweb.link/ipfs/${ipfsHash}`,
     ];
 
     for (const gatewayUrl of gateways) {

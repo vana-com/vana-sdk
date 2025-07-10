@@ -98,11 +98,11 @@ export const TrustedServerManagementCard: React.FC<
         />
       </CardHeader>
       <CardBody className="space-y-6">
-        {/* Quick Setup Section */}
+        {/* Server Discovery */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h4 className="text-lg font-medium">Quick Setup</h4>
-            <span className="text-sm text-gray-500">Popular Services</span>
+            <h4 className="text-lg font-medium">Discover Server</h4>
+            <span className="text-sm text-gray-500">Get Server Details</span>
           </div>
 
           <Button
@@ -113,7 +113,7 @@ export const TrustedServerManagementCard: React.FC<
           >
             <div className="flex items-center gap-2 w-full">
               <Sparkles className="h-5 w-5 text-purple-500" />
-              <span className="font-medium">Discover Replicate Server</span>
+              <span className="font-medium">Find Replicate Server</span>
               {isDiscoveringServer && (
                 <div className="ml-auto">
                   <div className="w-4 h-4 border-2 border-gray-300 border-t-purple-500 rounded-full animate-spin"></div>
@@ -121,7 +121,7 @@ export const TrustedServerManagementCard: React.FC<
               )}
             </div>
             <span className="text-xs text-gray-500 text-left">
-              Discover and add Replicate's AI server automatically
+              Look up Replicate's server address and public key
             </span>
           </Button>
         </div>
@@ -198,17 +198,17 @@ export const TrustedServerManagementCard: React.FC<
               )}
 
               <p className="text-xs text-blue-600 dark:text-blue-400 mt-3">
-                This server is auto-populated below.
+                <strong>Next:</strong> Trust this server using the form below.
               </p>
             </div>
           </div>
         )}
 
-        {/* Manual Trust Server Form */}
+        {/* Trust Server Form */}
         <div className="space-y-4 pt-4 border-t">
           <div className="flex items-center justify-between">
-            <h4 className="text-lg font-medium">Manual Setup</h4>
-            <span className="text-sm text-gray-500">Advanced</span>
+            <h4 className="text-lg font-medium">Trust Server</h4>
+            <span className="text-sm text-gray-500">Required Step</span>
           </div>
 
           <FormBuilder

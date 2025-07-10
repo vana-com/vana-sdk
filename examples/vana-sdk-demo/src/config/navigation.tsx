@@ -44,12 +44,6 @@ export const navigationConfig: NavigationConfig = {
           targetId: "trusted-servers",
         },
         {
-          id: "schemas",
-          label: "Schema Management",
-          icon: <Database className="h-4 w-4" />,
-          targetId: "schemas",
-        },
-        {
           id: "personal-server",
           label: "Trusted Server Integration",
           icon: <Brain className="h-4 w-4" />,
@@ -64,8 +58,14 @@ export const navigationConfig: NavigationConfig = {
       ],
     },
     {
-      title: "Reference",
+      title: "Schema & Contracts",
       items: [
+        {
+          id: "schemas",
+          label: "Schema Management",
+          icon: <Database className="h-4 w-4" />,
+          targetId: "schemas",
+        },
         {
           id: "contracts",
           label: "Contracts",

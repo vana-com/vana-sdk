@@ -1873,50 +1873,9 @@ export default function Home() {
                     isUntrusting={isUntrusting}
                     chainId={chainId}
                   />
-
-                  {/* Schema Management */}
-                  <SchemaManagementCard
-                    schemasCount={schemasCount}
-                    refinersCount={refinersCount}
-                    schemaName={schemaName}
-                    onSchemaNameChange={setSchemaName}
-                    schemaType={schemaType}
-                    onSchemaTypeChange={setSchemaType}
-                    schemaDefinitionUrl={schemaDefinitionUrl}
-                    onSchemaDefinitionUrlChange={setSchemaDefinitionUrl}
-                    onCreateSchema={handleCreateSchema}
-                    isCreatingSchema={isCreatingSchema}
-                    schemaStatus={schemaStatus}
-                    lastCreatedSchemaId={lastCreatedSchemaId}
-                    refinerName={refinerName}
-                    onRefinerNameChange={setRefinerName}
-                    refinerDlpId={refinerDlpId}
-                    onRefinerDlpIdChange={setRefinerDlpId}
-                    refinerSchemaId={refinerSchemaId}
-                    onRefinerSchemaIdChange={setRefinerSchemaId}
-                    refinerInstructionUrl={refinerInstructionUrl}
-                    onRefinerInstructionUrlChange={setRefinerInstructionUrl}
-                    onCreateRefiner={handleCreateRefiner}
-                    isCreatingRefiner={isCreatingRefiner}
-                    refinerStatus={refinerStatus}
-                    lastCreatedRefinerId={lastCreatedRefinerId}
-                    updateRefinerId={updateRefinerId}
-                    onUpdateRefinerIdChange={setUpdateRefinerId}
-                    updateSchemaId={updateSchemaId}
-                    onUpdateSchemaIdChange={setUpdateSchemaId}
-                    onUpdateSchemaId={handleUpdateSchemaId}
-                    isUpdatingSchema={isUpdatingSchema}
-                    updateSchemaStatus={updateSchemaStatus}
-                    schemas={schemas}
-                    isLoadingSchemas={isLoadingSchemas}
-                    onRefreshSchemas={loadSchemas}
-                    refiners={refiners}
-                    isLoadingRefiners={isLoadingRefiners}
-                    onRefreshRefiners={loadRefiners}
-                  />
                 </div>
 
-                {/* Trusted Server */}
+                {/* Trusted Server Integration */}
                 <TrustedServerIntegrationCard
                   serverFileId={serverFileId}
                   onServerFileIdChange={setServerFileId}
@@ -1937,7 +1896,7 @@ export default function Home() {
                   onCopyToClipboard={copyToClipboard}
                 />
 
-                {/* Trusted Server File Upload */}
+                {/* Server Upload */}
                 <ServerUploadCard
                   trustedServers={trustedServers}
                   selectedServerForUpload={selectedServerForUpload}
@@ -1957,6 +1916,47 @@ export default function Home() {
                   serverUploadStatus={serverUploadStatus}
                   serverUploadResult={serverUploadResult}
                   chainId={chainId}
+                />
+
+                {/* Schema Management */}
+                <SchemaManagementCard
+                  schemasCount={schemasCount}
+                  refinersCount={refinersCount}
+                  schemaName={schemaName}
+                  onSchemaNameChange={setSchemaName}
+                  schemaType={schemaType}
+                  onSchemaTypeChange={setSchemaType}
+                  schemaDefinitionUrl={schemaDefinitionUrl}
+                  onSchemaDefinitionUrlChange={setSchemaDefinitionUrl}
+                  onCreateSchema={handleCreateSchema}
+                  isCreatingSchema={isCreatingSchema}
+                  schemaStatus={schemaStatus}
+                  lastCreatedSchemaId={lastCreatedSchemaId}
+                  refinerName={refinerName}
+                  onRefinerNameChange={setRefinerName}
+                  refinerDlpId={refinerDlpId}
+                  onRefinerDlpIdChange={setRefinerDlpId}
+                  refinerSchemaId={refinerSchemaId}
+                  onRefinerSchemaIdChange={setRefinerSchemaId}
+                  refinerInstructionUrl={refinerInstructionUrl}
+                  onRefinerInstructionUrlChange={setRefinerInstructionUrl}
+                  onCreateRefiner={handleCreateRefiner}
+                  isCreatingRefiner={isCreatingRefiner}
+                  refinerStatus={refinerStatus}
+                  lastCreatedRefinerId={lastCreatedRefinerId}
+                  updateRefinerId={updateRefinerId}
+                  onUpdateRefinerIdChange={setUpdateRefinerId}
+                  updateSchemaId={updateSchemaId}
+                  onUpdateSchemaIdChange={setUpdateSchemaId}
+                  onUpdateSchemaId={handleUpdateSchemaId}
+                  isUpdatingSchema={isUpdatingSchema}
+                  updateSchemaStatus={updateSchemaStatus}
+                  schemas={schemas}
+                  isLoadingSchemas={isLoadingSchemas}
+                  onRefreshSchemas={loadSchemas}
+                  refiners={refiners}
+                  isLoadingRefiners={isLoadingRefiners}
+                  onRefreshRefiners={loadRefiners}
                 />
 
                 {/* Canonical Contracts */}

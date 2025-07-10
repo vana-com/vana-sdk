@@ -1,6 +1,6 @@
 import React from "react";
-import { Card, CardHeader, CardBody } from "@heroui/react";
-import { Shield } from "lucide-react";
+import { Card, CardHeader, CardBody, Button } from "@heroui/react";
+import { Shield, Plus, Sparkles } from "lucide-react";
 import { SectionHeader } from "./ui/SectionHeader";
 import { FormBuilder } from "./ui/FormBuilder";
 import { StatusMessage } from "./ui/StatusMessage";
@@ -22,6 +22,15 @@ interface TrustedServerManagementCardProps {
   onTrustServer: () => void;
   onTrustServerGasless: () => void;
   isTrustingServer: boolean;
+
+  // Server discovery
+  onDiscoverReplicateServer: () => void;
+  isDiscoveringServer: boolean;
+  discoveredServerInfo: {
+    serverId: string;
+    serverUrl: string;
+    name: string;
+  } | null;
 
   // Results and status
   trustServerError: string;
@@ -56,6 +65,9 @@ export const TrustedServerManagementCard: React.FC<
   onTrustServer,
   onTrustServerGasless,
   isTrustingServer,
+  onDiscoverReplicateServer,
+  isDiscoveringServer,
+  discoveredServerInfo,
   trustServerError,
   trustServerResult,
   personalServerError,
@@ -87,51 +99,143 @@ export const TrustedServerManagementCard: React.FC<
         />
       </CardHeader>
       <CardBody className="space-y-6">
-        {/* Trust Server Form */}
-        <FormBuilder
-          title="Trust Server"
-          fields={[
-            {
-              name: "serverId",
-              label: "Server ID (Address)",
-              type: "text",
-              value: serverId,
-              onChange: onServerIdChange,
-              placeholder: "0x...",
-              required: true,
-            },
-            {
-              name: "serverUrl",
-              label: "Server URL",
-              type: "text",
-              value: serverUrl,
-              onChange: onServerUrlChange,
-              placeholder: "https://example.com",
-              required: true,
-            },
-            {
-              name: "transactionType",
-              label: "Transaction Type",
-              type: "select",
-              value: useGaslessTransaction ? "gasless" : "gas",
-              onChange: (value) =>
-                onUseGaslessTransactionChange(value === "gasless"),
-              options: [
-                { value: "gas", label: "Gas Transaction" },
-                { value: "gasless", label: "Gasless (Signature)" },
-              ],
-            },
-          ]}
-          onSubmit={
-            useGaslessTransaction ? onTrustServerGasless : onTrustServer
-          }
-          isSubmitting={isTrustingServer}
-          submitText={
-            useGaslessTransaction ? "Sign & Trust Server" : "Trust Server"
-          }
-          submitIcon={<Shield className="h-4 w-4" />}
-          status={trustServerError}
-        />
+        {/* Quick Setup Section */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="text-lg font-medium">Quick Setup</h4>
+            <span className="text-sm text-gray-500">Popular Services</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <Button
+              onClick={onDiscoverReplicateServer}
+              disabled={isDiscoveringServer}
+              variant="bordered"
+              className="h-auto p-4 flex flex-col items-start gap-2"
+            >
+              <div className="flex items-center gap-2 w-full">
+                <Sparkles className="h-5 w-5 text-purple-500" />
+                <span className="font-medium">Add Replicate Server</span>
+                {isDiscoveringServer && (
+                  <div className="ml-auto">
+                    <div className="w-4 h-4 border-2 border-gray-300 border-t-purple-500 rounded-full animate-spin"></div>
+                  </div>
+                )}
+              </div>
+              <span className="text-xs text-gray-500 text-left">
+                Discover and add Replicate's AI server automatically
+              </span>
+            </Button>
+
+            <Button
+              variant="bordered"
+              className="h-auto p-4 flex flex-col items-start gap-2"
+              disabled
+            >
+              <div className="flex items-center gap-2 w-full">
+                <Plus className="h-5 w-5 text-gray-400" />
+                <span className="font-medium text-gray-400">
+                  Other Services
+                </span>
+              </div>
+              <span className="text-xs text-gray-400 text-left">
+                Coming soon: More service providers
+              </span>
+            </Button>
+          </div>
+        </div>
+
+        {/* Discovered Server Info */}
+        {discoveredServerInfo && (
+          <div className="p-4 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles className="h-5 w-5 text-blue-500" />
+              <span className="text-blue-700 dark:text-blue-300 font-medium">
+                {discoveredServerInfo.name} Server Discovered
+              </span>
+            </div>
+            <div className="space-y-2">
+              <div className="text-sm">
+                <span className="font-medium text-blue-700 dark:text-blue-300">
+                  Server ID:
+                </span>
+                <div className="mt-1 bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-700">
+                  <ExplorerLink
+                    type="address"
+                    hash={discoveredServerInfo.serverId}
+                    chainId={chainId}
+                    truncate={true}
+                  />
+                </div>
+              </div>
+              <div className="text-sm">
+                <span className="font-medium text-blue-700 dark:text-blue-300">
+                  Server URL:
+                </span>
+                <div className="mt-1 bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-700 font-mono text-xs">
+                  {discoveredServerInfo.serverUrl}
+                </div>
+              </div>
+              <p className="text-xs text-blue-600 dark:text-blue-400">
+                This server has been auto-populated in the form below. Review
+                and trust it to start using {discoveredServerInfo.name}.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Manual Trust Server Form */}
+        <div className="space-y-4 pt-4 border-t">
+          <div className="flex items-center justify-between">
+            <h4 className="text-lg font-medium">Manual Server Setup</h4>
+            <span className="text-sm text-gray-500">Advanced Users</span>
+          </div>
+
+          <FormBuilder
+            title="Manual Server Configuration"
+            fields={[
+              {
+                name: "serverId",
+                label: "Server ID (Address)",
+                type: "text",
+                value: serverId,
+                onChange: onServerIdChange,
+                placeholder: "0x... or use Quick Setup above",
+                required: true,
+              },
+              {
+                name: "serverUrl",
+                label: "Server URL",
+                type: "text",
+                value: serverUrl,
+                onChange: onServerUrlChange,
+                placeholder: "https://example.com or use Quick Setup above",
+                required: true,
+              },
+              {
+                name: "transactionType",
+                label: "Transaction Type",
+                type: "select",
+                value: useGaslessTransaction ? "gasless" : "gas",
+                onChange: (value) =>
+                  onUseGaslessTransactionChange(value === "gasless"),
+                options: [
+                  { value: "gas", label: "Gas Transaction" },
+                  { value: "gasless", label: "Gasless (Signature)" },
+                ],
+              },
+            ]}
+            onSubmit={
+              useGaslessTransaction ? onTrustServerGasless : onTrustServer
+            }
+            isSubmitting={isTrustingServer}
+            submitText={
+              useGaslessTransaction ? "Sign & Trust Server" : "Trust Server"
+            }
+            submitIcon={<Shield className="h-4 w-4" />}
+            status={trustServerError}
+          />
+        </div>
 
         {/* Trust Server Success Result */}
         {trustServerResult && (

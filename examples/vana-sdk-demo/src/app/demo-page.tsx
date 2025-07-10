@@ -184,6 +184,14 @@ export default function Home() {
   const [isLoadingTrustedServers, setIsLoadingTrustedServers] = useState(false);
   const [useGaslessTransaction, setUseGaslessTransaction] = useState(false);
 
+  // Server discovery state
+  const [isDiscoveringServer, setIsDiscoveringServer] = useState(false);
+  const [discoveredServerInfo, setDiscoveredServerInfo] = useState<{
+    serverId: string;
+    serverUrl: string;
+    name: string;
+  } | null>(null);
+
   // Trusted server file upload state
   const [selectedServerForUpload, setSelectedServerForUpload] =
     useState<string>("");
@@ -1110,6 +1118,63 @@ export default function Home() {
 
   // Trust server handlers
 
+  const handleDiscoverReplicateServer = async () => {
+    if (!address) return;
+
+    setIsDiscoveringServer(true);
+    setTrustServerError("");
+    setDiscoveredServerInfo(null);
+
+    try {
+      // Call the trusted server setup API to discover/initialize the server identity
+      const response = await fetch("/api/trusted-server/setup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userAddress: address,
+          chainId: chainId,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      // Extract server information from the personal server response
+      // The API returns the user's personal server identity which includes the derived address
+      const personalServerData = result.data;
+      const derivedAddress =
+        personalServerData?.identity?.metadata?.derivedAddress;
+
+      if (!derivedAddress) {
+        throw new Error("Could not determine server identity from response");
+      }
+
+      const serverInfo = {
+        serverId: derivedAddress,
+        serverUrl: "https://api.replicate.com/v1/predictions",
+        name: "Replicate",
+      };
+
+      setDiscoveredServerInfo(serverInfo);
+
+      // Auto-populate the form fields
+      setServerId(serverInfo.serverId);
+      setServerUrl(serverInfo.serverUrl);
+    } catch (error) {
+      setTrustServerError(
+        error instanceof Error ? error.message : "Failed to discover server",
+      );
+    } finally {
+      setIsDiscoveringServer(false);
+    }
+  };
+
   const handleTrustServer = async () => {
     if (!vana || !address) return;
 
@@ -1793,6 +1858,9 @@ export default function Home() {
                     onTrustServer={handleTrustServer}
                     onTrustServerGasless={handleTrustServerGasless}
                     isTrustingServer={isTrustingServer}
+                    onDiscoverReplicateServer={handleDiscoverReplicateServer}
+                    isDiscoveringServer={isDiscoveringServer}
+                    discoveredServerInfo={discoveredServerInfo}
                     trustServerError={trustServerError}
                     trustServerResult={trustServerResult}
                     personalServerError={personalServerError}

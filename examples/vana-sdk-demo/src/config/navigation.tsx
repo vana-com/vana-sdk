@@ -6,7 +6,6 @@ import {
   Upload,
   Brain,
   ExternalLink,
-  Settings,
 } from "lucide-react";
 import type { NavigationConfig } from "@/types/navigation";
 
@@ -67,17 +66,6 @@ export const navigationConfig: NavigationConfig = {
           label: "Contracts",
           icon: <ExternalLink className="h-4 w-4" />,
           targetId: "contracts",
-        },
-      ],
-    },
-    {
-      title: "Configuration",
-      items: [
-        {
-          id: "configuration",
-          label: "SDK Configuration",
-          icon: <Settings className="h-4 w-4" />,
-          targetId: "configuration",
         },
       ],
     },

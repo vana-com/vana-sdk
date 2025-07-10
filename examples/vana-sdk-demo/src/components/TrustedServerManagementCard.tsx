@@ -113,7 +113,7 @@ export const TrustedServerManagementCard: React.FC<
           >
             <div className="flex items-center gap-2 w-full">
               <Sparkles className="h-5 w-5 text-purple-500" />
-              <span className="font-medium">Add Replicate Server</span>
+              <span className="font-medium">Discover Replicate Server</span>
               {isDiscoveringServer && (
                 <div className="ml-auto">
                   <div className="w-4 h-4 border-2 border-gray-300 border-t-purple-500 rounded-full animate-spin"></div>
@@ -198,7 +198,7 @@ export const TrustedServerManagementCard: React.FC<
               )}
 
               <p className="text-xs text-blue-600 dark:text-blue-400 mt-3">
-                Ready to trust? This server is auto-populated below.
+                This server is auto-populated below.
               </p>
             </div>
           </div>
@@ -207,12 +207,11 @@ export const TrustedServerManagementCard: React.FC<
         {/* Manual Trust Server Form */}
         <div className="space-y-4 pt-4 border-t">
           <div className="flex items-center justify-between">
-            <h4 className="text-lg font-medium">Manual Server Setup</h4>
-            <span className="text-sm text-gray-500">Advanced Users</span>
+            <h4 className="text-lg font-medium">Manual Setup</h4>
+            <span className="text-sm text-gray-500">Advanced</span>
           </div>
 
           <FormBuilder
-            title="Manual Server Configuration"
             fields={[
               {
                 name: "serverId",

@@ -20,6 +20,8 @@ vi.mock("console", () => ({
 // Mock process.env
 const originalEnv = process.env;
 
+const mockUserAddress = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
+
 describe("ServerController", () => {
   let serverController: ServerController;
   let mockContext: ControllerContext;
@@ -35,7 +37,7 @@ describe("ServerController", () => {
     // Create mock account
     mockAccount = {
       type: "local",
-      address: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+      address: mockUserAddress as Address,
       signMessage: vi.fn().mockResolvedValue("0xsignature123"),
     };
 
@@ -81,6 +83,7 @@ describe("ServerController", () => {
 
   describe("postRequest", () => {
     const validParams: PostRequestParams = {
+      userAddress: mockUserAddress,
       permissionId: 12345,
     };
 
@@ -120,7 +123,10 @@ describe("ServerController", () => {
     });
 
     it("should throw PersonalServerError for invalid permission ID", async () => {
-      const invalidParams = { permissionId: 0 };
+      const invalidParams = {
+        userAddress: mockUserAddress,
+        permissionId: 0,
+      };
 
       await expect(serverController.postRequest(invalidParams)).rejects.toThrow(
         PersonalServerError,
@@ -131,7 +137,10 @@ describe("ServerController", () => {
     });
 
     it("should throw PersonalServerError for negative permission ID", async () => {
-      const invalidParams = { permissionId: -1 };
+      const invalidParams = {
+        userAddress: mockUserAddress,
+        permissionId: -1,
+      };
 
       await expect(serverController.postRequest(invalidParams)).rejects.toThrow(
         PersonalServerError,
@@ -267,7 +276,7 @@ describe("ServerController", () => {
 
   describe("initPersonalServer", () => {
     const validParams: InitPersonalServerParams = {
-      userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      userAddress: mockUserAddress,
     };
 
     const mockPersonalServerResponse = {
@@ -923,7 +932,10 @@ describe("ServerController", () => {
       mockWalletClient.getAddresses.mockResolvedValue([]);
       mockApplicationClient.getAddresses.mockResolvedValue([]);
 
-      const validParams: PostRequestParams = { permissionId: 123 };
+      const validParams: PostRequestParams = {
+        userAddress: mockUserAddress,
+        permissionId: 123,
+      };
 
       await expect(serverController.postRequest(validParams)).rejects.toThrow(
         PersonalServerError,
@@ -937,7 +949,10 @@ describe("ServerController", () => {
       mockWalletClient.getAddresses.mockResolvedValue(null);
       mockApplicationClient.getAddresses.mockResolvedValue(null);
 
-      const validParams: PostRequestParams = { permissionId: 123 };
+      const validParams: PostRequestParams = {
+        userAddress: mockUserAddress,
+        permissionId: 123,
+      };
 
       await expect(serverController.postRequest(validParams)).rejects.toThrow(
         PersonalServerError,
@@ -947,7 +962,10 @@ describe("ServerController", () => {
 
   describe("private method coverage through public methods", () => {
     it("should validate and create request JSON properly", async () => {
-      const validParams: PostRequestParams = { permissionId: 12345 };
+      const validParams: PostRequestParams = {
+        userAddress: mockUserAddress,
+        permissionId: 12345,
+      };
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -971,9 +989,12 @@ describe("ServerController", () => {
     });
 
     it("should use correct Replicate versions", async () => {
-      const postParams: PostRequestParams = { permissionId: 123 };
+      const postParams: PostRequestParams = {
+        userAddress: mockUserAddress,
+        permissionId: 123,
+      };
       const initParams: InitPersonalServerParams = {
-        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        userAddress: mockUserAddress,
       };
 
       mockFetch

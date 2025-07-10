@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
   console.debug("🔍 Debug - POST /api/trusted-server");
   try {
     const body = await request.json();
-    const { permissionId, chainId } = body;
+    const { userAddress, permissionId, chainId } = body;
 
     // Validate required fields
     if (!permissionId || !chainId) {
@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
 
     // Make trusted server request
     const response = await vana.server.postRequest({
+      userAddress,
       permissionId,
     });
 

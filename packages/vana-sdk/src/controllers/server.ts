@@ -20,7 +20,7 @@ export class ServerController {
   private readonly REPLICATE_API_URL =
     "https://api.replicate.com/v1/predictions";
   private readonly PERSONAL_SERVER_VERSION =
-    "vana-com/personal-server:6bedbf7541a30ce8f5411554259067d1ad2a6e7bb5b5de93830b8daba1fc6d10";
+    "vana-com/personal-server:f9ae047dba51c13d9d353dee141bf7ea5809764d86a69e93dfa7517a170e211d";
   private readonly IDENTITY_SERVER_VERSION =
     "vana-com/identity-server:5d649e9adb8e5b551acd4edb4b7d18d9af52ecf2f3afd037b86b4251a211ff46";
 
@@ -39,18 +39,15 @@ export class ServerController {
       // Step 1: Validate parameters
       this.validatePostRequestParams(params);
 
-      // Step 2: Get user address for signature
-      const applicationAddress = await this.getApplicationAddress();
-
-      // Step 3: Create request JSON
-      const requestJson = this.createRequestJson(params, applicationAddress);
+      // Step 2: Create request JSON using the userAddress from params
+      const requestJson = this.createRequestJson(params);
 
       // Step 4: Create signature locally
       const signature = await this.createSignature(requestJson);
 
       // Step 5: Prepare input for Replicate API
       const replicateInput = {
-        replicate_auth_token: this.getReplicateApiToken(),
+        replicate_api_token: this.getReplicateApiToken(),
         signature,
         request_json: requestJson,
       };
@@ -284,6 +281,22 @@ export class ServerController {
    * Validates the post request parameters.
    */
   private validatePostRequestParams(params: PostRequestParams): void {
+    if (!params.userAddress || typeof params.userAddress !== "string") {
+      throw new PersonalServerError(
+        "User address is required and must be a valid string",
+      );
+    }
+
+    // Basic address validation
+    if (
+      !params.userAddress.startsWith("0x") ||
+      params.userAddress.length !== 42
+    ) {
+      throw new PersonalServerError(
+        "User address must be a valid Ethereum address",
+      );
+    }
+
     if (typeof params.permissionId !== "number" || params.permissionId <= 0) {
       throw new PersonalServerError(
         "Permission ID is required and must be a valid positive number",
@@ -317,13 +330,10 @@ export class ServerController {
   /**
    * Creates the request JSON string for the personal server.
    */
-  private createRequestJson(
-    params: PostRequestParams,
-    userAddress: Address,
-  ): string {
+  private createRequestJson(params: PostRequestParams): string {
     try {
       const requestData = {
-        user_address: userAddress,
+        user_address: params.userAddress,
         permission_id: params.permissionId,
       };
 

@@ -140,7 +140,7 @@ export const TrustedServerManagementCard: React.FC<
             onPress={onDiscoverReplicateServer}
             isLoading={isDiscoveringServer}
           >
-            Use Vana Server
+            Use Hosted Personal Server
           </Button>
         </div>
 

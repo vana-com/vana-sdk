@@ -461,6 +461,361 @@ describe("ServerController", () => {
     });
   });
 
+  describe("getTrustedServerPublicKey", () => {
+    const testUserAddress = "0xd7Ae9319049f0B6cA9AD044b165c5B4F143EF451";
+    const mockPublicKey =
+      "0x04a1b2c3d4e5f6789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+    beforeEach(() => {
+      process.env.REPLICATE_API_TOKEN = "test-token-123";
+    });
+
+    it("should get trusted server public key successfully", async () => {
+      // Mock the initial request
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          id: "test-prediction-123",
+          status: "starting",
+          urls: {
+            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
+            cancel:
+              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
+          },
+          input: { user_address: testUserAddress },
+          output: null,
+          error: null,
+        }),
+      });
+
+      // Mock the polling request with successful response
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          id: "test-prediction-123",
+          status: "succeeded",
+          urls: {
+            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
+            cancel:
+              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
+          },
+          input: { user_address: testUserAddress },
+          output: JSON.stringify({
+            user_address: testUserAddress,
+            personal_server: {
+              address: "0x123...",
+              public_key: mockPublicKey,
+            },
+          }),
+          error: null,
+        }),
+      });
+
+      const result =
+        await serverController.getTrustedServerPublicKey(testUserAddress);
+
+      expect(result).toBe(mockPublicKey);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("should throw error for invalid user address", async () => {
+      await expect(
+        serverController.getTrustedServerPublicKey("invalid-address"),
+      ).rejects.toThrow("User address must be a valid Ethereum address");
+    });
+
+    it("should throw error for empty user address", async () => {
+      await expect(
+        serverController.getTrustedServerPublicKey(""),
+      ).rejects.toThrow("User address is required and must be a valid string");
+    });
+
+    it("should handle Identity Server API failures", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: "Internal Server Error",
+        text: vi.fn().mockResolvedValue("Server error"),
+      });
+
+      await expect(
+        serverController.getTrustedServerPublicKey(testUserAddress),
+      ).rejects.toThrow(
+        "Identity Server API request failed: 500 Internal Server Error",
+      );
+    });
+
+    it("should handle missing public key in response", async () => {
+      // Mock the initial request
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          id: "test-prediction-123",
+          status: "starting",
+          urls: {
+            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
+            cancel:
+              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
+          },
+          input: { user_address: testUserAddress },
+          output: null,
+          error: null,
+        }),
+      });
+
+      // Mock the polling request with response missing public key
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          id: "test-prediction-123",
+          status: "succeeded",
+          urls: {
+            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
+            cancel:
+              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
+          },
+          input: { user_address: testUserAddress },
+          output: JSON.stringify({
+            user_address: testUserAddress,
+            personal_server: {
+              address: "0x123...",
+              // Missing public_key
+            },
+          }),
+          error: null,
+        }),
+      });
+
+      await expect(
+        serverController.getTrustedServerPublicKey(testUserAddress),
+      ).rejects.toThrow(
+        "Identity Server response missing personal_server.public_key",
+      );
+    });
+
+    it("should handle failed Identity Server request", async () => {
+      // Mock the initial request
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          id: "test-prediction-123",
+          status: "starting",
+          urls: {
+            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
+            cancel:
+              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
+          },
+          input: { user_address: testUserAddress },
+          output: null,
+          error: null,
+        }),
+      });
+
+      // Mock the polling request with failed response
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          id: "test-prediction-123",
+          status: "failed",
+          urls: {
+            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
+            cancel:
+              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
+          },
+          input: { user_address: testUserAddress },
+          output: null,
+          error: "Identity server error",
+        }),
+      });
+
+      await expect(
+        serverController.getTrustedServerPublicKey(testUserAddress),
+      ).rejects.toThrow(
+        "Identity Server request failed: Identity server error",
+      );
+    });
+
+    it("should handle timeout in Identity Server request", async () => {
+      // Mock the initial request
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          id: "test-prediction-123",
+          status: "starting",
+          urls: {
+            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
+            cancel:
+              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
+          },
+          input: { user_address: testUserAddress },
+          output: null,
+          error: null,
+        }),
+      });
+
+      // Mock setTimeout to run immediately and reset poll attempts
+      const originalSetTimeout = global.setTimeout;
+      global.setTimeout = vi.fn((callback, _ms) => {
+        callback();
+        return {} as any;
+      });
+
+      try {
+        // Mock all polling requests to stay in processing state
+        mockFetch.mockImplementation(() =>
+          Promise.resolve({
+            ok: true,
+            json: vi.fn().mockResolvedValue({
+              id: "test-prediction-123",
+              status: "processing", // Always processing, never succeeds
+              urls: {
+                get: "https://api.replicate.com/v1/predictions/test-prediction-123",
+                cancel:
+                  "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
+              },
+              input: { user_address: testUserAddress },
+              output: null,
+              error: null,
+            }),
+          }),
+        );
+
+        await expect(
+          serverController.getTrustedServerPublicKey(testUserAddress),
+        ).rejects.toThrow("Identity Server request timed out after 60 seconds");
+      } finally {
+        global.setTimeout = originalSetTimeout;
+      }
+    });
+
+    it("should handle canceled Identity Server request", async () => {
+      // Mock the initial request
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          id: "test-prediction-123",
+          status: "starting",
+          urls: {
+            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
+            cancel:
+              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
+          },
+          input: { user_address: testUserAddress },
+          output: null,
+          error: null,
+        }),
+      });
+
+      // Mock the polling request with canceled response
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          id: "test-prediction-123",
+          status: "canceled",
+          urls: {
+            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
+            cancel:
+              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
+          },
+          input: { user_address: testUserAddress },
+          output: null,
+          error: null,
+        }),
+      });
+
+      await expect(
+        serverController.getTrustedServerPublicKey(testUserAddress),
+      ).rejects.toThrow("Identity Server request was canceled");
+    });
+
+    it("should handle object format response", async () => {
+      // Mock the initial request
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          id: "test-prediction-123",
+          status: "starting",
+          urls: {
+            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
+            cancel:
+              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
+          },
+          input: { user_address: testUserAddress },
+          output: null,
+          error: null,
+        }),
+      });
+
+      // Mock the polling request with object format response (not JSON string)
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          id: "test-prediction-123",
+          status: "succeeded",
+          urls: {
+            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
+            cancel:
+              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
+          },
+          input: { user_address: testUserAddress },
+          output: {
+            user_address: testUserAddress,
+            personal_server: {
+              address: "0x123...",
+              public_key: mockPublicKey,
+            },
+          },
+          error: null,
+        }),
+      });
+
+      const result =
+        await serverController.getTrustedServerPublicKey(testUserAddress);
+
+      expect(result).toBe(mockPublicKey);
+    });
+
+    it("should handle invalid JSON in response", async () => {
+      // Mock the initial request
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          id: "test-prediction-123",
+          status: "starting",
+          urls: {
+            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
+            cancel:
+              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
+          },
+          input: { user_address: testUserAddress },
+          output: null,
+          error: null,
+        }),
+      });
+
+      // Mock the polling request with invalid JSON string
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          id: "test-prediction-123",
+          status: "succeeded",
+          urls: {
+            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
+            cancel:
+              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
+          },
+          input: { user_address: testUserAddress },
+          output: "invalid json {",
+          error: null,
+        }),
+      });
+
+      await expect(
+        serverController.getTrustedServerPublicKey(testUserAddress),
+      ).rejects.toThrow("Failed to parse Identity Server response as JSON");
+    });
+  });
+
   describe("pollStatus", () => {
     const getUrl = "https://api.replicate.com/v1/predictions/test-123";
     const mockStatusResponse = {

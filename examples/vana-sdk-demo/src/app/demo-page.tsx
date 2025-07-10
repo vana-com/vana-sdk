@@ -150,9 +150,7 @@ export default function Home() {
   const [_storageManager, setStorageManager] = useState<StorageManager | null>(
     null,
   );
-  const [ipfsMode, setIpfsMode] = useState<"app-managed" | "user-managed">(
-    "app-managed",
-  );
+  const [ipfsMode] = useState<"app-managed" | "user-managed">("app-managed");
 
   // Schema selection for file upload
   const [selectedUploadSchemaId, setSelectedUploadSchemaId] =
@@ -1981,15 +1979,6 @@ export default function Home() {
                     provider: sdkConfig.defaultStorageProvider || "app-ipfs",
                     ipfsMode: ipfsMode,
                   }}
-                  ipfsModeOverride={ipfsMode}
-                  onIpfsModeOverrideChange={(mode) =>
-                    setIpfsMode(mode as "app-managed" | "user-managed")
-                  }
-                  useIpfsModeOverride={
-                    sdkConfig.defaultStorageProvider === "app-ipfs" ||
-                    sdkConfig.defaultStorageProvider === "user-ipfs"
-                  }
-                  onUseIpfsModeOverrideToggle={() => {}}
                   onCopyToClipboard={handleCopyToClipboard}
                   onDownloadDecrypted={handleDownloadDecrypted}
                 />

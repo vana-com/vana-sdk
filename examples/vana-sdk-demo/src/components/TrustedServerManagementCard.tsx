@@ -144,7 +144,7 @@ export const TrustedServerManagementCard: React.FC<
           </Button>
         </div>
 
-        {trustServerResult && (
+        {trustServerResult && chainId && (
           <div className="p-3 bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 rounded">
             <ExplorerLink
               type="tx"
@@ -161,16 +161,18 @@ export const TrustedServerManagementCard: React.FC<
           items={trustedServers}
           isLoading={isLoadingTrustedServers}
           onRefresh={onRefreshTrustedServers}
-          renderItem={(server, index) => (
-            <TrustedServerListItem
-              key={server}
-              serverId={server}
-              index={index}
-              onUntrust={onUntrustServer}
-              isUntrusting={isUntrusting}
-              chainId={chainId}
-            />
-          )}
+          renderItem={(server, index) =>
+            chainId ? (
+              <TrustedServerListItem
+                key={server}
+                serverId={server}
+                index={index}
+                onUntrust={onUntrustServer}
+                isUntrusting={isUntrusting}
+                chainId={chainId}
+              />
+            ) : null
+          }
           emptyState={
             <EmptyState
               icon={<Shield className="h-12 w-12" />}

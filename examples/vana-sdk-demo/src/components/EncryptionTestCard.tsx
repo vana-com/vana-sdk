@@ -71,10 +71,6 @@ interface EncryptionTestCardProps {
     endpoint?: string;
     ipfsMode?: string;
   };
-  ipfsModeOverride: string;
-  onIpfsModeOverrideChange: (mode: string) => void;
-  useIpfsModeOverride: boolean;
-  onUseIpfsModeOverrideToggle: () => void;
 
   // Utility functions
   onCopyToClipboard: (text: string) => void;
@@ -113,10 +109,6 @@ export const EncryptionTestCard: React.FC<EncryptionTestCardProps> = ({
   onUploadToChain,
   newFileId,
   storageConfig,
-  ipfsModeOverride,
-  onIpfsModeOverrideChange,
-  useIpfsModeOverride,
-  onUseIpfsModeOverrideToggle,
   onCopyToClipboard,
   onDownloadDecrypted,
 }) => {
@@ -374,40 +366,6 @@ export const EncryptionTestCard: React.FC<EncryptionTestCardProps> = ({
                     </div>
                   )}
                 </div>
-
-                {/* IPFS Mode Override */}
-                <div className="mt-4 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="use-ipfs-override"
-                      checked={useIpfsModeOverride}
-                      onChange={onUseIpfsModeOverrideToggle}
-                      className="rounded"
-                    />
-                    <label
-                      htmlFor="use-ipfs-override"
-                      className="text-sm font-medium"
-                    >
-                      Override IPFS Mode
-                    </label>
-                  </div>
-                  {useIpfsModeOverride && (
-                    <Select
-                      label="IPFS Mode"
-                      selectedKeys={ipfsModeOverride ? [ipfsModeOverride] : []}
-                      onSelectionChange={(keys) => {
-                        const selectedKey = Array.from(keys)[0] as string;
-                        onIpfsModeOverrideChange(selectedKey || "");
-                      }}
-                      className="max-w-xs"
-                    >
-                      <SelectItem key="upload">Upload to IPFS</SelectItem>
-                      <SelectItem key="pin">Pin to IPFS</SelectItem>
-                      <SelectItem key="url">Use IPFS URL</SelectItem>
-                    </Select>
-                  )}
-                </div>
               </div>
 
               {/* Schema Selection */}
@@ -430,7 +388,10 @@ export const EncryptionTestCard: React.FC<EncryptionTestCardProps> = ({
                   isDisabled={schemas.length === 0}
                 >
                   {schemas.map((schema) => (
-                    <SelectItem key={schema.id.toString()}>
+                    <SelectItem
+                      key={schema.id.toString()}
+                      textValue={`${schema.name} (ID: ${schema.id})`}
+                    >
                       {schema.name} (ID: {schema.id})
                     </SelectItem>
                   ))}

@@ -1753,7 +1753,7 @@ export default function Home() {
                 <SectionDivider text="Part 1: Core Concepts" />
 
                 {/* Data Management Section */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 gap-6">
                   {/* Your Data */}
                   <YourDataCard
                     fileLookupId={fileLookupId}
@@ -1855,7 +1855,7 @@ export default function Home() {
                 <SectionDivider text="Part 2: Applied Workflows" />
 
                 {/* Server Management Section */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 gap-6">
                   {/* Trusted Server Management */}
                   <TrustedServerManagementCard
                     serverId={serverId}

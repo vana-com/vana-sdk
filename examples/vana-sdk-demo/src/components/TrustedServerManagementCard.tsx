@@ -1,6 +1,6 @@
 import React from "react";
 import { Card, CardHeader, CardBody, Button } from "@heroui/react";
-import { Shield, Plus, Sparkles } from "lucide-react";
+import { Shield, Sparkles } from "lucide-react";
 import { SectionHeader } from "./ui/SectionHeader";
 import { FormBuilder } from "./ui/FormBuilder";
 import { StatusMessage } from "./ui/StatusMessage";
@@ -106,43 +106,25 @@ export const TrustedServerManagementCard: React.FC<
             <span className="text-sm text-gray-500">Popular Services</span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <Button
-              onClick={onDiscoverReplicateServer}
-              disabled={isDiscoveringServer}
-              variant="bordered"
-              className="h-auto p-4 flex flex-col items-start gap-2"
-            >
-              <div className="flex items-center gap-2 w-full">
-                <Sparkles className="h-5 w-5 text-purple-500" />
-                <span className="font-medium">Add Replicate Server</span>
-                {isDiscoveringServer && (
-                  <div className="ml-auto">
-                    <div className="w-4 h-4 border-2 border-gray-300 border-t-purple-500 rounded-full animate-spin"></div>
-                  </div>
-                )}
-              </div>
-              <span className="text-xs text-gray-500 text-left">
-                Discover and add Replicate's AI server automatically
-              </span>
-            </Button>
-
-            <Button
-              variant="bordered"
-              className="h-auto p-4 flex flex-col items-start gap-2"
-              disabled
-            >
-              <div className="flex items-center gap-2 w-full">
-                <Plus className="h-5 w-5 text-gray-400" />
-                <span className="font-medium text-gray-400">
-                  Other Services
-                </span>
-              </div>
-              <span className="text-xs text-gray-400 text-left">
-                Coming soon: More service providers
-              </span>
-            </Button>
-          </div>
+          <Button
+            onClick={onDiscoverReplicateServer}
+            disabled={isDiscoveringServer}
+            variant="bordered"
+            className="h-auto p-4 flex flex-col items-start gap-2 max-w-md"
+          >
+            <div className="flex items-center gap-2 w-full">
+              <Sparkles className="h-5 w-5 text-purple-500" />
+              <span className="font-medium">Add Replicate Server</span>
+              {isDiscoveringServer && (
+                <div className="ml-auto">
+                  <div className="w-4 h-4 border-2 border-gray-300 border-t-purple-500 rounded-full animate-spin"></div>
+                </div>
+              )}
+            </div>
+            <span className="text-xs text-gray-500 text-left">
+              Discover and add Replicate's AI server automatically
+            </span>
+          </Button>
         </div>
 
         {/* Discovered Server Info */}

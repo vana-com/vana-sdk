@@ -1146,17 +1146,16 @@ export default function Home() {
       const result = await response.json();
 
       // Extract server information from the personal server response
-      // The API returns the user's personal server identity which includes the derived address
+      // The API returns the user's personal server identity with address field
       const personalServerData = result.data;
-      const derivedAddress =
-        personalServerData?.identity?.metadata?.derivedAddress;
+      const serverAddress = personalServerData?.personal_server?.address;
 
-      if (!derivedAddress) {
+      if (!serverAddress) {
         throw new Error("Could not determine server identity from response");
       }
 
       const serverInfo = {
-        serverId: derivedAddress,
+        serverId: serverAddress,
         serverUrl: "https://api.replicate.com/v1/predictions",
         name: "Replicate",
       };

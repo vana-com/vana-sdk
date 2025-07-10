@@ -107,6 +107,29 @@ export type {
   PersonalServerResponse,
 } from "./personal";
 
+// External API types
+export type {
+  ReplicateAPIResponse,
+  ReplicateStatus,
+  IdentityServerOutput,
+  IdentityServerResponse,
+  PersonalServerOutput,
+  PersonalServerResponse as PersonalServerAPIResponse,
+  PinataUploadResponse,
+  PinataPin,
+  PinataListResponse,
+  APIResponse,
+} from "./external-apis";
+
+export {
+  isReplicateAPIResponse,
+  isIdentityServerOutput,
+  isPersonalServerOutput,
+  isAPIResponse,
+  safeParseJSON,
+  parseReplicateOutput,
+} from "./external-apis";
+
 // Relayer types
 export type {
   RelayerStorageResponse,

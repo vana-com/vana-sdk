@@ -65,7 +65,7 @@ export const TrustedServerIntegrationCard: React.FC<
   onCopyToClipboard,
 }) => {
   return (
-    <Card>
+    <Card id="personal-server">
       <CardHeader>
         <SectionHeader
           icon={<Brain className="h-5 w-5" />}

@@ -5,6 +5,16 @@ export { VanaProvider } from "./core/provider";
 // Types - modular exports
 export type * from "./types";
 
+// Type guards and utilities
+export {
+  isReplicateAPIResponse,
+  isIdentityServerOutput,
+  isPersonalServerOutput,
+  isAPIResponse,
+  safeParseJSON,
+  parseReplicateOutput,
+} from "./types/external-apis";
+
 // VanaContract is exported from abi to avoid circular dependencies
 export type { VanaContract } from "./abi";
 

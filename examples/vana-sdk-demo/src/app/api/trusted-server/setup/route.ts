@@ -53,6 +53,16 @@ export async function POST(request: NextRequest) {
       userAddress,
     });
 
+    console.debug(
+      "🔍 Debug - SDK response:",
+      JSON.stringify(response, null, 2),
+    );
+    console.debug("🔍 Debug - Response structure:", {
+      keys: Object.keys(response),
+      hasIdentity: "identity" in response,
+      hasUserAddress: "userAddress" in response,
+    });
+
     return NextResponse.json({
       success: true,
       data: response,

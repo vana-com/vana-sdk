@@ -292,9 +292,7 @@ export class ServerController {
       !params.userAddress.startsWith("0x") ||
       params.userAddress.length !== 42
     ) {
-      throw new PersonalServerError(
-        "User address must be a valid EVM address",
-      );
+      throw new PersonalServerError("User address must be a valid EVM address");
     }
 
     if (typeof params.permissionId !== "number" || params.permissionId <= 0) {
@@ -632,11 +630,20 @@ export class ServerController {
           parsedOutput = output;
         }
 
+        // Extract personal server information from the response
+        const personalServer = parsedOutput.personal_server as Record<
+          string,
+          unknown
+        >;
+        const derivedAddress = personalServer?.address as string;
+        const publicKey = personalServer?.public_key as string;
+
         return {
           userAddress: parsedOutput.user_address as string,
           identity: {
             metadata: {
-              derivedAddress: parsedOutput.derived_address as string,
+              derivedAddress: derivedAddress,
+              publicKey: publicKey,
             },
           },
           timestamp: new Date().toISOString(),

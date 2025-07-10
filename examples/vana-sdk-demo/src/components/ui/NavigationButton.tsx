@@ -20,7 +20,7 @@ export const NavigationButton: React.FC<NavigationButtonProps> = ({
   return (
     <button
       onClick={handleClick}
-      className={`flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-default-100 transition-colors w-full text-left ${className}`}
+      className={`flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-default-100 transition-colors w-full text-left cursor-pointer ${className}`}
     >
       {icon}
       {label}

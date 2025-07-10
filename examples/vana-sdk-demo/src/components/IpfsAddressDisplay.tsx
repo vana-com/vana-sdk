@@ -1,5 +1,5 @@
 import { AddressDisplay } from "./AddressDisplay";
-import { getIpfsGatewayUrl } from "@/lib/utils";
+import { convertIpfsUrl } from "vana-sdk";
 
 interface IpfsAddressDisplayProps {
   ipfsUrl: string;
@@ -22,7 +22,7 @@ export function IpfsAddressDisplay({
     <AddressDisplay
       address={ipfsUrl}
       label={label}
-      explorerUrl={getIpfsGatewayUrl(ipfsUrl)}
+      explorerUrl={convertIpfsUrl(ipfsUrl)}
       showCopy={showCopy}
       showExternalLink={showExternalLink}
       truncate={truncate}

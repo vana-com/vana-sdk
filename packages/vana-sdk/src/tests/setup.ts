@@ -8,6 +8,7 @@ let originalConsole: {
   warn: typeof console.warn;
   error: typeof console.error;
   debug: typeof console.debug;
+  info: typeof console.info;
 };
 
 beforeEach(() => {
@@ -17,6 +18,7 @@ beforeEach(() => {
     warn: console.warn,
     error: console.error,
     debug: console.debug,
+    info: console.info,
   };
 
   // Mock console methods to silence output during tests
@@ -25,6 +27,7 @@ beforeEach(() => {
   console.warn = vi.fn();
   console.error = vi.fn();
   console.debug = vi.fn();
+  console.info = vi.fn();
 });
 
 afterEach(() => {
@@ -34,6 +37,7 @@ afterEach(() => {
   console.warn = originalConsole.warn;
   console.error = originalConsole.error;
   console.debug = originalConsole.debug;
+  console.info = originalConsole.info;
 });
 
 // Export utilities for tests that need to check console calls
@@ -50,6 +54,9 @@ export const consoleMocks = {
   getDebugCalls: () =>
     (console.debug as unknown as { mock?: { calls: unknown[] } }).mock?.calls ||
     [],
+  getInfoCalls: () =>
+    (console.info as unknown as { mock?: { calls: unknown[] } }).mock?.calls ||
+    [],
 };
 
 // Utility to temporarily enable console output in specific tests
@@ -60,6 +67,7 @@ export const withConsole = (fn: () => void | Promise<void>) => {
     console.warn = originalConsole.warn;
     console.error = originalConsole.error;
     console.debug = originalConsole.debug;
+    console.info = originalConsole.info;
 
     try {
       await fn();
@@ -69,6 +77,7 @@ export const withConsole = (fn: () => void | Promise<void>) => {
       console.warn = vi.fn();
       console.error = vi.fn();
       console.debug = vi.fn();
+      console.info = vi.fn();
     }
   };
 };

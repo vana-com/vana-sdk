@@ -71,6 +71,9 @@ import { FileUpload } from "@/components/ui/FileUpload";
 import { NavigationButton } from "@/components/NavigationButton";
 import { SectionHeader } from "@/components/SectionHeader";
 import { SectionDivider } from "@/components/SectionDivider";
+import { StatusMessage } from "@/components/StatusMessage";
+import { ActionButton } from "@/components/ActionButton";
+import { InfoBox } from "@/components/InfoBox";
 import { getTxUrl, getAddressUrl } from "@/lib/explorer";
 import {
   ExternalLink,
@@ -1706,17 +1709,16 @@ export default function Home() {
                           className="w-32"
                           size="sm"
                         />
-                        <Button
+                        <ActionButton
                           onPress={handleLookupFile}
-                          disabled={isLookingUpFile || !fileLookupId.trim()}
+                          disabled={!fileLookupId.trim()}
+                          loading={isLookingUpFile}
+                          icon={<Search className="h-4 w-4" />}
+                          loadingIconOnly={true}
                           size="sm"
                         >
-                          {isLookingUpFile ? (
-                            <Spinner size="sm" />
-                          ) : (
-                            <Search className="h-4 w-4" />
-                          )}
-                        </Button>
+                          Search
+                        </ActionButton>
                       </div>
 
                       <ResourceList
@@ -1800,11 +1802,11 @@ export default function Home() {
                           </Button>
 
                           {grantStatus && (
-                            <p
-                              className={`text-sm ${grantStatus.includes("Error") ? "text-destructive" : "text-green-600"} mt-2`}
-                            >
-                              {grantStatus}
-                            </p>
+                            <StatusMessage
+                              status={grantStatus}
+                              inline={true}
+                              className="mt-2"
+                            />
                           )}
 
                           {grantTxHash && (
@@ -1919,15 +1921,7 @@ export default function Home() {
                     </CardHeader>
                     <CardBody>
                       {revokeStatus && (
-                        <div
-                          className={`text-sm p-3 rounded-md mb-4 ${
-                            revokeStatus.includes("Error")
-                              ? "bg-red-50 text-red-700 border border-red-200"
-                              : "bg-green-50 text-green-700 border border-green-200"
-                          }`}
-                        >
-                          {revokeStatus}
-                        </div>
+                        <StatusMessage status={revokeStatus} className="mb-4" />
                       )}
 
                       <ResourceList
@@ -2007,7 +2001,7 @@ export default function Home() {
                                   )}
                                 </div>
                               </div>
-                              <Button
+                              <ActionButton
                                 size="sm"
                                 color="danger"
                                 onPress={() =>
@@ -2015,11 +2009,11 @@ export default function Home() {
                                     permission.id.toString(),
                                   )
                                 }
-                                disabled={isRevoking}
+                                loading={isRevoking}
                                 className="ml-4"
                               >
-                                {isRevoking ? <Spinner size="sm" /> : "Revoke"}
-                              </Button>
+                                Revoke
+                              </ActionButton>
                             </div>
                           </div>
                         )}
@@ -2120,12 +2114,13 @@ export default function Home() {
                       {/* Success Result Display */}
                       {trustServerResult && (
                         <div className="p-4 bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 rounded-lg">
-                          <div className="flex items-center gap-2 mb-3">
-                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                            <p className="text-green-700 dark:text-green-300 font-medium">
-                              Server trusted successfully!
-                            </p>
-                          </div>
+                          <StatusMessage
+                            status="Server trusted successfully!"
+                            type="success"
+                            showIcon={true}
+                            inline={true}
+                            className="mb-3 font-medium"
+                          />
                           <div className="bg-white dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-700">
                             <AddressDisplay
                               address={trustServerResult}
@@ -2184,11 +2179,11 @@ export default function Home() {
 
                       {/* Trusted Server Setup Result Display */}
                       {personalServerError && (
-                        <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-                          <p className="text-destructive text-sm">
-                            {personalServerError}
-                          </p>
-                        </div>
+                        <StatusMessage
+                          status={personalServerError}
+                          type="error"
+                          className="p-4"
+                        />
                       )}
 
                       {personalServerResult && (
@@ -2578,29 +2573,24 @@ export default function Home() {
                           />
                         </div>
 
-                        <Button
+                        <ActionButton
                           onPress={handleServerDecryption}
                           disabled={
-                            isServerDecrypting ||
-                            !serverFileId.trim() ||
-                            !serverPrivateKey.trim()
+                            !serverFileId.trim() || !serverPrivateKey.trim()
                           }
+                          loading={isServerDecrypting}
+                          icon={<Lock className="h-4 w-4" />}
                           className="w-full"
                         >
-                          {isServerDecrypting ? (
-                            <Spinner size="sm" className="mr-2" />
-                          ) : (
-                            <Lock className="h-4 w-4 mr-2" />
-                          )}
                           Decrypt File with Server Key
-                        </Button>
+                        </ActionButton>
 
                         {serverDecryptError && (
-                          <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-                            <p className="text-destructive text-sm">
-                              {serverDecryptError}
-                            </p>
-                          </div>
+                          <StatusMessage
+                            status={serverDecryptError}
+                            type="error"
+                            className="p-4"
+                          />
                         )}
 
                         {serverDecryptedData && (
@@ -2662,46 +2652,37 @@ export default function Home() {
                         />
                       </div>
                       <div className="flex gap-2">
-                        <Button
+                        <ActionButton
                           onPress={handlePersonalServerCall}
-                          disabled={
-                            isPersonalLoading || !personalPermissionId.trim()
-                          }
+                          disabled={!personalPermissionId.trim()}
+                          loading={isPersonalLoading}
+                          icon={<Brain className="h-4 w-4" />}
                         >
-                          {isPersonalLoading ? (
-                            <Spinner size="sm" className="mr-2" />
-                          ) : (
-                            <Brain className="h-4 w-4 mr-2" />
-                          )}
                           Submit Request
-                        </Button>
+                        </ActionButton>
                         {Boolean(
                           personalResult &&
                             (personalResult as { urls?: { get?: string } })
                               ?.urls?.get,
                         ) && (
-                          <Button
+                          <ActionButton
                             onPress={handlePollStatus}
-                            disabled={isPolling}
+                            loading={isPolling}
+                            icon={<RotateCcw className="h-4 w-4" />}
                             variant="bordered"
                           >
-                            {isPolling ? (
-                              <Spinner size="sm" className="mr-2" />
-                            ) : (
-                              <RotateCcw className="h-4 w-4 mr-2" />
-                            )}
                             Check Status
-                          </Button>
+                          </ActionButton>
                         )}
                       </div>
                     </div>
 
                     {personalError && (
-                      <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-                        <p className="text-destructive text-sm">
-                          {personalError}
-                        </p>
-                      </div>
+                      <StatusMessage
+                        status={personalError}
+                        type="error"
+                        className="p-4"
+                      />
                     )}
 
                     {Boolean(personalResult) && (
@@ -2716,38 +2697,18 @@ export default function Home() {
                     )}
 
                     {/* How it works explanation */}
-                    <div className="p-4 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-lg">
-                      <div className="flex items-start gap-2">
-                        <Brain className="h-4 w-4 text-blue-600 mt-0.5" />
-                        <div className="text-sm text-blue-800 dark:text-blue-200">
-                          <p className="font-medium mb-1">
-                            Server Permission Workflow:
-                          </p>
-                          <ul className="text-xs space-y-1 text-blue-700 dark:text-blue-300">
-                            <li>
-                              • Files are encrypted with user's wallet signature
-                              key
-                            </li>
-                            <li>
-                              • User's encryption key is encrypted with server's
-                              real public key
-                            </li>
-                            <li>
-                              • Server uses its private key to decrypt the
-                              user's encryption key
-                            </li>
-                            <li>
-                              • Server then uses user's key to decrypt the file
-                              data
-                            </li>
-                            <li>
-                              • Personal server APIs work with decrypted data
-                              for computation
-                            </li>
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
+                    <InfoBox
+                      title="Server Permission Workflow:"
+                      icon={<Brain className="h-4 w-4" />}
+                      variant="info"
+                      items={[
+                        "Files are encrypted with user's wallet signature key",
+                        "User's encryption key is encrypted with server's real public key",
+                        "Server uses its private key to decrypt the user's encryption key",
+                        "Server then uses user's key to decrypt the file data",
+                        "Personal server APIs work with decrypted data for computation",
+                      ]}
+                    />
                   </CardBody>
                 </Card>
 
@@ -2794,18 +2755,15 @@ export default function Home() {
                         <Key className="h-4 w-4" />
                         Step 2: Generate Encryption Key
                       </span>
-                      <Button
+                      <ActionButton
                         onPress={handleGenerateKey}
-                        disabled={isEncrypting || !encryptionSeed}
+                        disabled={!encryptionSeed}
+                        loading={isEncrypting}
+                        icon={<Key className="h-4 w-4" />}
                         className="w-full"
                       >
-                        {isEncrypting ? (
-                          <Spinner size="sm" className="mr-2" />
-                        ) : (
-                          <Key className="mr-2 h-4 w-4" />
-                        )}
                         Generate Key via Wallet Signature
-                      </Button>
+                      </ActionButton>
                       {generatedKey && (
                         <div className="p-3 bg-muted rounded-md">
                           <div className="flex items-center justify-between mb-2">
@@ -3442,23 +3400,10 @@ export default function Home() {
 
                     {/* Status Messages */}
                     {serverUploadStatus && (
-                      <div
-                        className={`p-4 rounded-lg ${
-                          serverUploadStatus.includes("❌")
-                            ? "bg-destructive/10 border border-destructive/20"
-                            : "bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800"
-                        }`}
-                      >
-                        <p
-                          className={`text-sm ${
-                            serverUploadStatus.includes("❌")
-                              ? "text-destructive"
-                              : "text-green-600"
-                          }`}
-                        >
-                          {serverUploadStatus}
-                        </p>
-                      </div>
+                      <StatusMessage
+                        status={serverUploadStatus}
+                        className="p-4"
+                      />
                     )}
 
                     {/* Success Result */}
@@ -3511,36 +3456,18 @@ export default function Home() {
                     )}
 
                     {/* Information */}
-                    <div className="p-4 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-lg">
-                      <div className="flex items-start gap-2">
-                        <Brain className="h-4 w-4 text-blue-600 mt-0.5" />
-                        <div className="text-sm text-blue-800 dark:text-blue-200">
-                          <p className="font-medium mb-1">How it works:</p>
-                          <ul className="text-xs space-y-1 text-blue-700 dark:text-blue-300">
-                            <li>
-                              • Your file is encrypted with your wallet
-                              signature key
-                            </li>
-                            <li>
-                              • Your encryption key is encrypted with the
-                              server's real public key
-                            </li>
-                            <li>
-                              • Only the selected trusted server can decrypt
-                              your encryption key
-                            </li>
-                            <li>
-                              • The file is stored on IPFS and registered on the
-                              Vana blockchain with permissions
-                            </li>
-                            <li>
-                              • You maintain full control over which servers can
-                              access your data
-                            </li>
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
+                    <InfoBox
+                      title="How it works:"
+                      icon={<Brain className="h-4 w-4" />}
+                      variant="info"
+                      items={[
+                        "Your file is encrypted with your wallet signature key",
+                        "Your encryption key is encrypted with the server's real public key",
+                        "Only the selected trusted server can decrypt your encryption key",
+                        "The file is stored on IPFS and registered on the Vana blockchain with permissions",
+                        "You maintain full control over which servers can access your data",
+                      ]}
+                    />
                   </CardBody>
                 </Card>
 
@@ -3771,11 +3698,7 @@ export default function Home() {
 
                   {/* Configuration Status */}
                   {configStatus && (
-                    <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
-                      <p className="text-sm text-blue-700 dark:text-blue-300">
-                        {configStatus}
-                      </p>
-                    </div>
+                    <StatusMessage status={configStatus} type="info" />
                   )}
 
                   {/* Apply Button */}

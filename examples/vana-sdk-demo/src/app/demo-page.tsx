@@ -68,6 +68,9 @@ import { ResourceList } from "@/components/ui/ResourceList";
 import { FormBuilder } from "@/components/ui/FormBuilder";
 import { StatusDisplay } from "@/components/ui/StatusDisplay";
 import { FileUpload } from "@/components/ui/FileUpload";
+import { NavigationButton } from "@/components/NavigationButton";
+import { SectionHeader } from "@/components/SectionHeader";
+import { SectionDivider } from "@/components/SectionDivider";
 import { getTxUrl, getAddressUrl } from "@/lib/explorer";
 import {
   ExternalLink,
@@ -1575,115 +1578,61 @@ export default function Home() {
           <div className="p-4">
             <h2 className="text-lg font-semibold mb-4">SDK Demo</h2>
             <nav className="space-y-1">
-              <button
-                onClick={() =>
-                  document
-                    .getElementById("configuration")
-                    ?.scrollIntoView({ behavior: "smooth" })
-                }
-                className="flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-default-100 transition-colors w-full text-left"
-              >
-                <Settings className="h-4 w-4" />
-                Configuration
-              </button>
+              <NavigationButton
+                icon={<Settings className="h-4 w-4" />}
+                label="Configuration"
+                targetId="configuration"
+              />
               <div className="mt-4 mb-2">
                 <div className="px-3 py-1 text-xs font-medium text-default-500 uppercase tracking-wider">
                   Core Concepts
                 </div>
               </div>
-              <button
-                onClick={() =>
-                  document
-                    .getElementById("encryption")
-                    ?.scrollIntoView({ behavior: "smooth" })
-                }
-                className="flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-default-100 transition-colors w-full text-left"
-              >
-                <Lock className="h-4 w-4" />
-                Encryption Testing
-              </button>
-              <button
-                onClick={() =>
-                  document
-                    .getElementById("data")
-                    ?.scrollIntoView({ behavior: "smooth" })
-                }
-                className="flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-default-100 transition-colors w-full text-left"
-              >
-                <Database className="h-4 w-4" />
-                Your Data
-              </button>
-              <button
-                onClick={() =>
-                  document
-                    .getElementById("permissions")
-                    ?.scrollIntoView({ behavior: "smooth" })
-                }
-                className="flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-default-100 transition-colors w-full text-left"
-              >
-                <Shield className="h-4 w-4" />
-                Permissions
-              </button>
+              <NavigationButton
+                icon={<Lock className="h-4 w-4" />}
+                label="Encryption Testing"
+                targetId="encryption"
+              />
+              <NavigationButton
+                icon={<Database className="h-4 w-4" />}
+                label="Your Data"
+                targetId="data"
+              />
+              <NavigationButton
+                icon={<Shield className="h-4 w-4" />}
+                label="Permissions"
+                targetId="permissions"
+              />
               <div className="mt-4 mb-2">
                 <div className="px-3 py-1 text-xs font-medium text-default-500 uppercase tracking-wider">
                   Applied Workflows
                 </div>
               </div>
-              <button
-                onClick={() =>
-                  document
-                    .getElementById("trusted-servers")
-                    ?.scrollIntoView({ behavior: "smooth" })
-                }
-                className="flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-default-100 transition-colors w-full text-left"
-              >
-                <Shield className="h-4 w-4" />
-                Trusted Servers
-              </button>
-              <button
-                onClick={() =>
-                  document
-                    .getElementById("server-upload")
-                    ?.scrollIntoView({ behavior: "smooth" })
-                }
-                className="flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-default-100 transition-colors w-full text-left"
-              >
-                <Upload className="h-4 w-4" />
-                Server Upload
-              </button>
-              <button
-                onClick={() =>
-                  document
-                    .getElementById("personal-server")
-                    ?.scrollIntoView({ behavior: "smooth" })
-                }
-                className="flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-default-100 transition-colors w-full text-left"
-              >
-                <Brain className="h-4 w-4" />
-                Trusted Server
-              </button>
-              <button
-                onClick={() =>
-                  document
-                    .getElementById("schemas")
-                    ?.scrollIntoView({ behavior: "smooth" })
-                }
-                className="flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-default-100 transition-colors w-full text-left"
-              >
-                <Database className="h-4 w-4" />
-                Schema Management
-              </button>
-              <button
-                onClick={() =>
-                  document
-                    .getElementById("contracts")
-                    ?.scrollIntoView({ behavior: "smooth" })
-                }
-                className="flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-default-100 transition-colors w-full text-left"
-              >
-                <ExternalLink className="h-4 w-4" />
-                Contracts
-              </button>
+              <NavigationButton
+                icon={<Shield className="h-4 w-4" />}
+                label="Trusted Servers"
+                targetId="trusted-servers"
+              />
+              <NavigationButton
+                icon={<Upload className="h-4 w-4" />}
+                label="Server Upload"
+                targetId="server-upload"
+              />
+              <NavigationButton
+                icon={<Brain className="h-4 w-4" />}
+                label="Trusted Server"
+                targetId="personal-server"
+              />
+              <NavigationButton
+                icon={<Database className="h-4 w-4" />}
+                label="Schema Management"
+                targetId="schemas"
+              />
+              <NavigationButton
+                icon={<ExternalLink className="h-4 w-4" />}
+                label="Contracts"
+                targetId="contracts"
+              />
             </nav>
           </div>
         </div>
@@ -1724,34 +1673,28 @@ export default function Home() {
             {vana && (
               <div className="space-y-8" id="main-content">
                 {/* Part 1: Core Concepts */}
-                <div className="flex items-center gap-4 my-8">
-                  <Divider className="flex-1" />
-                  <div className="px-4 py-2 bg-primary/10 rounded-full">
-                    <span className="text-sm font-medium text-primary">
-                      Part 1: Core Concepts
-                    </span>
-                  </div>
-                  <Divider className="flex-1" />
-                </div>
+                <SectionDivider text="Part 1: Core Concepts" />
 
                 {/* Data Management Section */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Your Data */}
                   <Card id="data">
-                    <CardHeader className="flex-col items-start">
-                      <div className="flex items-center gap-2">
-                        <Database className="h-5 w-5" />
-                        Your Data
-                      </div>
-                      <p className="text-small text-default-500 mt-1">
-                        <em>
-                          Demonstrates: `getUserFiles()`, `uploadFile()`,
-                          `decryptUserData()`
-                        </em>
-                        <br />
-                        Manage your registered data files and decrypt content
-                        you own.
-                      </p>
+                    <CardHeader>
+                      <SectionHeader
+                        icon={<Database className="h-5 w-5" />}
+                        title="Your Data"
+                        description={
+                          <>
+                            <em>
+                              Demonstrates: `getUserFiles()`, `uploadFile()`,
+                              `decryptUserData()`
+                            </em>
+                            <br />
+                            Manage your registered data files and decrypt
+                            content you own.
+                          </>
+                        }
+                      />
                     </CardHeader>
                     <CardBody>
                       <div className="flex items-center gap-2 mb-4 ml-auto">
@@ -1957,19 +1900,22 @@ export default function Home() {
 
                   {/* Permissions Management */}
                   <Card id="permissions">
-                    <CardHeader className="flex-col items-start">
-                      <div className="flex items-center gap-2">
-                        <Shield className="h-5 w-5" />
-                        Permissions Management
-                      </div>
-                      <p className="text-small text-default-500 mt-1">
-                        <em>
-                          Demonstrates: `getPermissions()`,
-                          `revokePermission()`, `grantPermission()`
-                        </em>
-                        <br />
-                        View and manage data access permissions for your files.
-                      </p>
+                    <CardHeader>
+                      <SectionHeader
+                        icon={<Shield className="h-5 w-5" />}
+                        title="Permissions Management"
+                        description={
+                          <>
+                            <em>
+                              Demonstrates: `getPermissions()`,
+                              `revokePermission()`, `grantPermission()`
+                            </em>
+                            <br />
+                            View and manage data access permissions for your
+                            files.
+                          </>
+                        }
+                      />
                     </CardHeader>
                     <CardBody>
                       {revokeStatus && (
@@ -2089,34 +2035,28 @@ export default function Home() {
                 </div>
 
                 {/* Part 2: Applied Workflows */}
-                <div className="flex items-center gap-4 my-8">
-                  <Divider className="flex-1" />
-                  <div className="px-4 py-2 bg-secondary/10 rounded-full">
-                    <span className="text-sm font-medium text-secondary-foreground">
-                      Part 2: Applied Workflows
-                    </span>
-                  </div>
-                  <Divider className="flex-1" />
-                </div>
+                <SectionDivider text="Part 2: Applied Workflows" />
 
                 {/* Server Management Section */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Trust Server */}
                   <Card>
-                    <CardHeader className="flex-col items-start">
-                      <div className="flex items-center gap-2">
-                        <Shield className="h-5 w-5" />
-                        Trusted Server Management
-                      </div>
-                      <p className="text-small text-default-500 mt-1">
-                        <em>
-                          Demonstrates: `trustServer()`, `untrustServer()`,
-                          `getTrustedServers()`
-                        </em>
-                        <br />
-                        Manage your list of trusted servers for data processing
-                        - required before uploading to servers.
-                      </p>
+                    <CardHeader>
+                      <SectionHeader
+                        icon={<Shield className="h-5 w-5" />}
+                        title="Trusted Server Management"
+                        description={
+                          <>
+                            <em>
+                              Demonstrates: `trustServer()`, `untrustServer()`,
+                              `getTrustedServers()`
+                            </em>
+                            <br />
+                            Manage your list of trusted servers for data
+                            processing - required before uploading to servers.
+                          </>
+                        }
+                      />
                     </CardHeader>
                     <CardBody className="space-y-6">
                       {/* Trust Server Form */}
@@ -2283,20 +2223,22 @@ export default function Home() {
 
                   {/* Schema Management */}
                   <Card>
-                    <CardHeader className="flex-col items-start">
-                      <div className="flex items-center gap-2">
-                        <Database className="h-5 w-5" />
-                        Schema Management
-                      </div>
-                      <p className="text-small text-default-500 mt-1">
-                        <em>
-                          Demonstrates: `addSchema()`, `addRefiner()`,
-                          `getSchemas()`, `getRefiners()`
-                        </em>
-                        <br />
-                        Manage data schemas and refiners for structured data
-                        processing workflows.
-                      </p>
+                    <CardHeader>
+                      <SectionHeader
+                        icon={<Database className="h-5 w-5" />}
+                        title="Schema Management"
+                        description={
+                          <>
+                            <em>
+                              Demonstrates: `addSchema()`, `addRefiner()`,
+                              `getSchemas()`, `getRefiners()`
+                            </em>
+                            <br />
+                            Manage data schemas and refiners for structured data
+                            processing workflows.
+                          </>
+                        }
+                      />
                     </CardHeader>
                     <CardBody className="space-y-6">
                       {/* Schema Statistics */}
@@ -2589,20 +2531,22 @@ export default function Home() {
 
                 {/* Trusted Server */}
                 <Card>
-                  <CardHeader className="flex-col items-start">
-                    <div className="flex items-center gap-2">
-                      <Brain className="h-5 w-5" />
-                      Trusted Server Integration
-                    </div>
-                    <p className="text-small text-default-500 mt-1">
-                      <em>
-                        Demonstrates: `grantPermission()`, trusted server API
-                        workflow
-                      </em>
-                      <br />
-                      Advanced pattern showing server-side logic for processing
-                      files with granted permissions.
-                    </p>
+                  <CardHeader>
+                    <SectionHeader
+                      icon={<Brain className="h-5 w-5" />}
+                      title="Trusted Server Integration"
+                      description={
+                        <>
+                          <em>
+                            Demonstrates: `grantPermission()`, trusted server
+                            API workflow
+                          </em>
+                          <br />
+                          Advanced pattern showing server-side logic for
+                          processing files with granted permissions.
+                        </>
+                      }
+                    />
                   </CardHeader>
                   <CardBody className="space-y-6">
                     {/* Server Decryption Demo */}
@@ -2809,20 +2753,22 @@ export default function Home() {
 
                 {/* Encryption Testing */}
                 <Card>
-                  <CardHeader className="flex-col items-start">
-                    <div className="flex items-center gap-2">
-                      <Lock className="h-5 w-5" />
-                      Canonical Encryption Testing
-                    </div>
-                    <p className="text-small text-default-500 mt-1">
-                      <em>
-                        Demonstrates: `generateEncryptionKey()`,
-                        `encryptUserData()`, `decryptUserData()`
-                      </em>
-                      <br />
-                      Test the core, low-level encryption methods interactively
-                      - the "hello world" of data handling.
-                    </p>
+                  <CardHeader>
+                    <SectionHeader
+                      icon={<Lock className="h-5 w-5" />}
+                      title="Canonical Encryption Testing"
+                      description={
+                        <>
+                          <em>
+                            Demonstrates: `generateEncryptionKey()`,
+                            `encryptUserData()`, `decryptUserData()`
+                          </em>
+                          <br />
+                          Test the core, low-level encryption methods
+                          interactively - the "hello world" of data handling.
+                        </>
+                      }
+                    />
                   </CardHeader>
                   <CardBody className="space-y-6">
                     {/* Step 1: Configure Encryption Seed */}
@@ -3349,20 +3295,22 @@ export default function Home() {
 
                 {/* Trusted Server File Upload */}
                 <Card>
-                  <CardHeader className="flex-col items-start">
-                    <div className="flex items-center gap-2">
-                      <Shield className="h-5 w-5" />
-                      Upload File to Trusted Server
-                    </div>
-                    <p className="text-small text-default-500 mt-1">
-                      <em>
-                        Demonstrates: `uploadFileWithPermissions()`,
-                        `getTrustedServerPublicKey()`
-                      </em>
-                      <br />
-                      Complete workflow for securely sharing a file with a
-                      designated server using dual encryption.
-                    </p>
+                  <CardHeader>
+                    <SectionHeader
+                      icon={<Shield className="h-5 w-5" />}
+                      title="Upload File to Trusted Server"
+                      description={
+                        <>
+                          <em>
+                            Demonstrates: `uploadFileWithPermissions()`,
+                            `getTrustedServerPublicKey()`
+                          </em>
+                          <br />
+                          Complete workflow for securely sharing a file with a
+                          designated server using dual encryption.
+                        </>
+                      }
+                    />
                   </CardHeader>
                   <CardBody className="space-y-6">
                     {/* Server Selection */}
@@ -3598,19 +3546,26 @@ export default function Home() {
 
                 {/* Canonical Contracts */}
                 <Card>
-                  <CardHeader className="flex-col items-start">
-                    <div>Canonical Contracts</div>
-                    <p className="text-small text-default-500 mt-1">
-                      <em>
-                        Reference: `protocol.getAvailableContracts()`,
-                        blockchain explorer links
-                      </em>
-                      <br />
-                      All {vana.protocol.getAvailableContracts().length} Vana
-                      protocol contracts deployed on{" "}
-                      {vana?.protocol?.getChainName?.() || "this network"}.
-                      Click to view on block explorer.
-                    </p>
+                  <CardHeader>
+                    <SectionHeader
+                      icon={<ExternalLink className="h-5 w-5" />}
+                      title="Canonical Contracts"
+                      description={
+                        <>
+                          <em>
+                            Reference: `protocol.getAvailableContracts()`,
+                            blockchain explorer links
+                          </em>
+                          <br />
+                          All {
+                            vana.protocol.getAvailableContracts().length
+                          }{" "}
+                          Vana protocol contracts deployed on{" "}
+                          {vana?.protocol?.getChainName?.() || "this network"}.
+                          Click to view on block explorer.
+                        </>
+                      }
+                    />
                   </CardHeader>
                   <CardBody>
                     <ResourceList

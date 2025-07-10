@@ -125,18 +125,14 @@ export const TrustedServerManagementCard: React.FC<
             useGaslessTransaction ? onTrustServerGasless : onTrustServer
           }
           isSubmitting={isTrustingServer}
-          submitText={
-            useGaslessTransaction ? "Sign & Trust Server" : "Trust Server"
-          }
+          submitText="Trust Server"
           submitIcon={<Shield className="h-4 w-4" />}
           status={trustServerError}
           additionalButtons={
             <Button
-              size="sm"
-              color="default"
-              variant="bordered"
               onPress={onDiscoverReplicateServer}
               isLoading={isDiscoveringServer}
+              variant="bordered"
             >
               Get Hosted Server Details
             </Button>

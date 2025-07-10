@@ -20,7 +20,7 @@ export class ServerController {
   private readonly REPLICATE_API_URL =
     "https://api.replicate.com/v1/predictions";
   private readonly PERSONAL_SERVER_VERSION =
-    "vana-com/personal-server:f9ae047dba51c13d9d353dee141bf7ea5809764d86a69e93dfa7517a170e211d";
+    "vana-com/personal-server:292be297c333019e800e85bc32a9f431c9667898a0d88b802f5887843cb42023";
   private readonly IDENTITY_SERVER_VERSION =
     "vana-com/identity-server:5d649e9adb8e5b551acd4edb4b7d18d9af52ecf2f3afd037b86b4251a211ff46";
 

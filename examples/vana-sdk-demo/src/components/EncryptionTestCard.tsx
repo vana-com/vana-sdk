@@ -133,16 +133,16 @@ export const EncryptionTestCard: React.FC<EncryptionTestCardProps> = ({
       <CardHeader>
         <SectionHeader
           icon={<Lock className="h-5 w-5" />}
-          title="Canonical Encryption Testing"
+          title="Encryption & Upload"
           description={
             <>
               <em>
                 Demonstrates: `generateEncryptionKey()`, `encryptUserData()`,
-                `decryptUserData()`
+                `decryptUserData()`, `uploadFile()`
               </em>
               <br />
-              Test the core encryption functions with your own data to
-              understand how Vana protects user information.
+              Encrypt your data and upload it to the Vana blockchain for secure
+              storage and processing.
             </>
           }
         />

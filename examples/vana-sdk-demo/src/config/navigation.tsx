@@ -28,7 +28,7 @@ export const navigationConfig: NavigationConfig = {
         },
         {
           id: "encryption",
-          label: "Encryption Testing",
+          label: "Encryption & Upload",
           icon: <Lock className="h-4 w-4" />,
           targetId: "encryption",
         },

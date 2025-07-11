@@ -361,8 +361,8 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
                 <TableColumn>Definition</TableColumn>
                 <TableColumn>Source</TableColumn>
               </TableHeader>
-              <TableBody items={schemas}>
-                {(schema) => (
+              <TableBody>
+                {schemas.map((schema) => (
                   <TableRow key={schema.id}>
                     <TableCell>
                       <span className="font-mono text-small">{schema.id}</span>
@@ -402,7 +402,7 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
                       )}
                     </TableCell>
                   </TableRow>
-                )}
+                ))}
               </TableBody>
             </Table>
           )}
@@ -462,8 +462,8 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
                 <TableColumn>Instructions</TableColumn>
                 <TableColumn>Source</TableColumn>
               </TableHeader>
-              <TableBody items={refiners}>
-                {(refiner) => (
+              <TableBody>
+                {refiners.map((refiner) => (
                   <TableRow key={refiner.id}>
                     <TableCell>
                       <span className="font-mono text-small">{refiner.id}</span>
@@ -508,7 +508,7 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
                       )}
                     </TableCell>
                   </TableRow>
-                )}
+                ))}
               </TableBody>
             </Table>
           )}

@@ -66,8 +66,8 @@ export const ContractListCard: React.FC<ContractListCardProps> = ({
               <TableColumn>Status</TableColumn>
               <TableColumn>Actions</TableColumn>
             </TableHeader>
-            <TableBody items={contracts}>
-              {(contractName) => {
+            <TableBody>
+              {contracts.map((contractName) => {
                 let contractAddress: string | null = null;
                 let isDeployed = false;
 
@@ -119,7 +119,7 @@ export const ContractListCard: React.FC<ContractListCardProps> = ({
                     </TableCell>
                   </TableRow>
                 );
-              }}
+              })}
             </TableBody>
           </Table>
         )}

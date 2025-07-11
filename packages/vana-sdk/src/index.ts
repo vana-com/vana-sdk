@@ -1,6 +1,5 @@
 // Core modules
 export { Vana } from "./vana";
-export { VanaProvider } from "./core/provider";
 
 // Types - modular exports
 export type * from "./types";
@@ -27,8 +26,7 @@ export { DataController } from "./controllers/data";
 export { ServerController } from "./controllers/server";
 export { ProtocolController } from "./controllers/protocol";
 
-// Base contract class
-export * from "./contracts/contractClient";
+// Contract controller
 export * from "./contracts/contractController";
 
 // Utilities
@@ -38,6 +36,7 @@ export * from "./utils/grantFiles";
 export * from "./utils/grantValidation";
 export * from "./utils/grants";
 export * from "./utils/ipfs";
+export * from "./utils/schemaValidation";
 
 // Storage API
 export * from "./storage";

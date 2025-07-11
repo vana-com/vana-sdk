@@ -1,11 +1,30 @@
 import React from "react";
-import { Database, Brain, RotateCcw } from "lucide-react";
+import {
+  Table,
+  TableHeader,
+  TableColumn,
+  TableBody,
+  TableRow,
+  TableCell,
+  Button,
+  Spinner,
+  Chip,
+} from "@heroui/react";
+import {
+  Database,
+  Brain,
+  RotateCcw,
+  ExternalLink,
+  RefreshCw,
+} from "lucide-react";
 import { SectionHeader } from "./ui/SectionHeader";
 import { FormBuilder } from "./ui/FormBuilder";
-import { ResourceList } from "./ui/ResourceList";
-import { SchemaListItem } from "./SchemaListItem";
-import { RefinerListItem } from "./RefinerListItem";
 import { EmptyState } from "./ui/EmptyState";
+import { ExplorerLink } from "./ui/ExplorerLink";
+import { CopyButton } from "./ui/CopyButton";
+import { SchemaIdDisplay } from "./ui/SchemaIdDisplay";
+import { RefinerIdDisplay } from "./ui/RefinerIdDisplay";
+import { DlpIdDisplay } from "./ui/DlpIdDisplay";
 import { Schema, Refiner } from "vana-sdk";
 
 interface SchemaManagementCardProps {
@@ -55,6 +74,9 @@ interface SchemaManagementCardProps {
   refiners: (Refiner & { source?: "discovered" | "created" })[];
   isLoadingRefiners: boolean;
   onRefreshRefiners: () => void;
+
+  // Chain info
+  chainId: number;
 }
 
 /**
@@ -99,6 +121,7 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
   refiners,
   isLoadingRefiners,
   onRefreshRefiners,
+  chainId,
 }) => {
   return (
     <section id="schemas">
@@ -135,7 +158,7 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
         </div>
 
         {/* Create Schema */}
-        <div className="p-4 border rounded-lg">
+        <div>
           <FormBuilder
             title="Create New Schema"
             fields={[
@@ -144,6 +167,7 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
                 label: "Name",
                 type: "text",
                 placeholder: "e.g., User Profile Schema",
+                description: "A descriptive name for your schema",
                 value: schemaName,
                 onChange: onSchemaNameChange,
                 required: true,
@@ -153,6 +177,7 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
                 label: "Type",
                 type: "text",
                 placeholder: "e.g., json-schema",
+                description: "The schema format type (e.g., json-schema, avro)",
                 value: schemaType,
                 onChange: onSchemaTypeChange,
                 required: true,
@@ -162,6 +187,7 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
                 label: "Definition URL",
                 type: "url",
                 placeholder: "https://example.com/schema.json",
+                description: "URL to the schema definition file",
                 value: schemaDefinitionUrl,
                 onChange: onSchemaDefinitionUrlChange,
                 required: true,
@@ -175,8 +201,8 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
             statusType={schemaStatus?.includes("❌") ? "error" : "success"}
           />
           {lastCreatedSchemaId && (
-            <div className="p-3 bg-green-50 border border-green-200 rounded mt-4">
-              <p className="text-green-700 text-sm">
+            <div className="p-3 bg-success/10 border border-success rounded mt-4">
+              <p className="text-success text-sm">
                 ✅ Schema created successfully with ID:{" "}
                 <strong>{lastCreatedSchemaId}</strong>
               </p>
@@ -185,7 +211,7 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
         </div>
 
         {/* Create Refiner */}
-        <div className="p-4 border rounded-lg">
+        <div>
           <FormBuilder
             title="Create New Refiner"
             fields={[
@@ -194,6 +220,7 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
                 label: "Name",
                 type: "text",
                 placeholder: "e.g., Privacy-Preserving Analytics",
+                description: "A descriptive name for your refiner",
                 value: refinerName,
                 onChange: onRefinerNameChange,
                 required: true,
@@ -203,6 +230,8 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
                 label: "DLP ID",
                 type: "number",
                 placeholder: "e.g., 1",
+                description:
+                  "The Data Liquidity Pool ID this refiner belongs to",
                 value: refinerDlpId,
                 onChange: onRefinerDlpIdChange,
                 required: true,
@@ -212,6 +241,7 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
                 label: "Schema ID",
                 type: "number",
                 placeholder: "e.g., 1",
+                description: "The ID of the schema this refiner processes",
                 value: refinerSchemaId,
                 onChange: onRefinerSchemaIdChange,
                 required: true,
@@ -221,6 +251,7 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
                 label: "Instruction URL",
                 type: "url",
                 placeholder: "https://example.com/instructions.md",
+                description: "URL to the refiner's processing instructions",
                 value: refinerInstructionUrl,
                 onChange: onRefinerInstructionUrlChange,
                 required: true,
@@ -234,8 +265,8 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
             statusType={refinerStatus?.includes("❌") ? "error" : "success"}
           />
           {lastCreatedRefinerId && (
-            <div className="p-3 bg-green-50 border border-green-200 rounded mt-4">
-              <p className="text-green-700 text-sm">
+            <div className="p-3 bg-success/10 border border-success rounded mt-4">
+              <p className="text-success text-sm">
                 ✅ Refiner created successfully with ID:{" "}
                 <strong>{lastCreatedRefinerId}</strong>
               </p>
@@ -244,7 +275,7 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
         </div>
 
         {/* Update Schema ID */}
-        <div className="p-4 border rounded-lg">
+        <div>
           <div className="mb-4">
             <p className="text-sm text-muted-foreground">
               Update the schema ID for an existing refiner (useful for migrating
@@ -259,6 +290,7 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
                 label: "Refiner ID",
                 type: "number",
                 placeholder: "e.g., 1",
+                description: "The ID of the refiner to update",
                 value: updateRefinerId,
                 onChange: onUpdateRefinerIdChange,
                 required: true,
@@ -268,6 +300,7 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
                 label: "New Schema ID",
                 type: "number",
                 placeholder: "e.g., 2",
+                description: "The new schema ID to assign to this refiner",
                 value: updateSchemaId,
                 onChange: onUpdateSchemaIdChange,
                 required: true,
@@ -285,42 +318,243 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
         </div>
 
         {/* Schemas List */}
-        <ResourceList
-          title="Schema Registry"
-          description={`Browse and manage data schemas (${schemas.length} schemas)`}
-          items={schemas}
-          isLoading={isLoadingSchemas}
-          onRefresh={onRefreshSchemas}
-          renderItem={(schema) => (
-            <SchemaListItem key={schema.id} schema={schema} />
-          )}
-          emptyState={
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="text-xl font-semibold">Schema Registry</h3>
+              <p className="text-small text-default-500">
+                Browse and manage data schemas ({schemas.length} schemas)
+              </p>
+            </div>
+            <Button
+              onPress={onRefreshSchemas}
+              variant="bordered"
+              size="sm"
+              startContent={
+                isLoadingSchemas ? (
+                  <Spinner size="sm" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )
+              }
+              isDisabled={isLoadingSchemas}
+            >
+              Refresh
+            </Button>
+          </div>
+
+          {isLoadingSchemas ? (
+            <div className="flex justify-center items-center p-8">
+              <Spinner size="lg" />
+              <span className="ml-3">Loading schemas...</span>
+            </div>
+          ) : schemas.length === 0 ? (
             <EmptyState
               icon={<Database className="h-8 w-8" />}
               title="No schemas found"
               size="compact"
             />
-          }
-        />
+          ) : (
+            <Table
+              aria-label="Schemas table"
+              removeWrapper
+              classNames={{
+                th: "bg-default-100 text-default-700",
+                td: "py-4",
+              }}
+            >
+              <TableHeader>
+                <TableColumn>ID</TableColumn>
+                <TableColumn>Name</TableColumn>
+                <TableColumn>Type</TableColumn>
+                <TableColumn>Definition</TableColumn>
+                <TableColumn>Source</TableColumn>
+              </TableHeader>
+              <TableBody>
+                {schemas.map((schema) => (
+                  <TableRow key={schema.id}>
+                    <TableCell>
+                      <SchemaIdDisplay
+                        schemaId={schema.id}
+                        chainId={chainId}
+                        showCopy={true}
+                        showExternalLink={true}
+                        className="text-small"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-medium">{schema.name}</span>
+                    </TableCell>
+                    <TableCell>
+                      <Chip size="sm" variant="flat">
+                        {schema.type}
+                      </Chip>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        as="a"
+                        href={schema.definitionUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        size="sm"
+                        variant="flat"
+                        startContent={<ExternalLink className="h-3 w-3" />}
+                      >
+                        View Definition
+                      </Button>
+                    </TableCell>
+                    <TableCell>
+                      {schema.source && (
+                        <Chip
+                          size="sm"
+                          color={
+                            schema.source === "created" ? "success" : "default"
+                          }
+                          variant="flat"
+                        >
+                          {schema.source}
+                        </Chip>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
 
         {/* Refiners List */}
-        <ResourceList
-          title="Refiner Registry"
-          description={`Browse and manage data refiners (${refiners.length} refiners)`}
-          items={refiners}
-          isLoading={isLoadingRefiners}
-          onRefresh={onRefreshRefiners}
-          renderItem={(refiner) => (
-            <RefinerListItem key={refiner.id} refiner={refiner} />
-          )}
-          emptyState={
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="text-xl font-semibold">Refiner Registry</h3>
+              <p className="text-small text-default-500">
+                Browse and manage data refiners ({refiners.length} refiners)
+              </p>
+            </div>
+            <Button
+              onPress={onRefreshRefiners}
+              variant="bordered"
+              size="sm"
+              startContent={
+                isLoadingRefiners ? (
+                  <Spinner size="sm" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )
+              }
+              isDisabled={isLoadingRefiners}
+            >
+              Refresh
+            </Button>
+          </div>
+
+          {isLoadingRefiners ? (
+            <div className="flex justify-center items-center p-8">
+              <Spinner size="lg" />
+              <span className="ml-3">Loading refiners...</span>
+            </div>
+          ) : refiners.length === 0 ? (
             <EmptyState
               icon={<Brain className="h-8 w-8" />}
               title="No refiners found"
               size="compact"
             />
-          }
-        />
+          ) : (
+            <Table
+              aria-label="Refiners table"
+              removeWrapper
+              classNames={{
+                th: "bg-default-100 text-default-700",
+                td: "py-4",
+              }}
+            >
+              <TableHeader>
+                <TableColumn>ID</TableColumn>
+                <TableColumn>Name</TableColumn>
+                <TableColumn>Owner</TableColumn>
+                <TableColumn>DLP ID</TableColumn>
+                <TableColumn>Schema ID</TableColumn>
+                <TableColumn>Instructions</TableColumn>
+                <TableColumn>Source</TableColumn>
+              </TableHeader>
+              <TableBody>
+                {refiners.map((refiner) => (
+                  <TableRow key={refiner.id}>
+                    <TableCell>
+                      <RefinerIdDisplay
+                        refinerId={refiner.id}
+                        chainId={chainId}
+                        showCopy={true}
+                        showExternalLink={true}
+                        className="text-small"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-medium">{refiner.name}</span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <ExplorerLink
+                          type="address"
+                          hash={refiner.owner}
+                          chainId={chainId}
+                          truncate={true}
+                          showExternalIcon={false}
+                        />
+                        <CopyButton
+                          value={refiner.owner}
+                          tooltip="Copy owner address"
+                          isInline
+                        />
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <DlpIdDisplay
+                        dlpId={refiner.dlpId}
+                        chainId={chainId}
+                        showCopy={true}
+                        showExternalLink={true}
+                        className="text-small"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Chip size="sm" variant="flat">
+                        Schema #{refiner.schemaId}
+                      </Chip>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        as="a"
+                        href={refiner.refinementInstructionUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        size="sm"
+                        variant="flat"
+                        startContent={<ExternalLink className="h-3 w-3" />}
+                      >
+                        Download Instructions
+                      </Button>
+                    </TableCell>
+                    <TableCell>
+                      {refiner.source && (
+                        <Chip
+                          size="sm"
+                          color={
+                            refiner.source === "created" ? "success" : "default"
+                          }
+                          variant="flat"
+                        >
+                          {refiner.source}
+                        </Chip>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
       </div>
     </section>
   );

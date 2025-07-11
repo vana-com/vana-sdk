@@ -18,7 +18,7 @@ vi.mock("../utils/grantFiles", () => ({
 }));
 
 vi.mock("../utils/grantValidation", () => ({
-  validateGrantForRequest: vi.fn(),
+  validateGrant: vi.fn(),
   GrantValidationError: class extends Error {
     constructor(
       message: string,
@@ -36,7 +36,7 @@ import {
   storeGrantFile,
   retrieveGrantFile,
 } from "../utils/grantFiles";
-import { validateGrantForRequest } from "../utils/grantValidation";
+import { validateGrant } from "../utils/grantValidation";
 
 describe("Grant Utilities", () => {
   const mockGrantFile = {
@@ -61,23 +61,23 @@ describe("Grant Utilities", () => {
   describe("createValidatedGrant", () => {
     it("should create and validate a grant file", () => {
       (createGrantFile as Mock).mockReturnValue(mockGrantFile);
-      (validateGrantForRequest as Mock).mockImplementation(() => {});
+      (validateGrant as Mock).mockImplementation(() => {});
 
       const result = createValidatedGrant(mockParams);
 
       expect(createGrantFile).toHaveBeenCalledWith(mockParams);
-      expect(validateGrantForRequest).toHaveBeenCalledWith(
-        mockGrantFile,
-        mockParams.to,
-        mockParams.operation,
-        mockParams.files,
-      );
+      expect(validateGrant).toHaveBeenCalledWith(mockGrantFile, {
+        grantee: mockParams.to,
+        operation: mockParams.operation,
+        files: mockParams.files,
+        schema: true,
+      });
       expect(result).toEqual(mockGrantFile);
     });
 
     it("should throw GrantValidationError if validation fails", () => {
       (createGrantFile as Mock).mockReturnValue(mockGrantFile);
-      (validateGrantForRequest as Mock).mockImplementation(() => {
+      (validateGrant as Mock).mockImplementation(() => {
         throw new Error("Validation failed");
       });
 
@@ -92,7 +92,7 @@ describe("Grant Utilities", () => {
       const mockUrl = "https://ipfs.io/ipfs/QmGrantFile123";
 
       (createGrantFile as Mock).mockReturnValue(mockGrantFile);
-      (validateGrantForRequest as Mock).mockImplementation(() => {});
+      (validateGrant as Mock).mockImplementation(() => {});
       (storeGrantFile as Mock).mockResolvedValue(mockUrl);
 
       const result = await createAndStoreGrant(
@@ -137,7 +137,7 @@ describe("Grant Utilities", () => {
 
     it("should return allowed: true for valid grant", async () => {
       (retrieveGrantFile as Mock).mockResolvedValue(mockGrantFile);
-      (validateGrantForRequest as Mock).mockImplementation(() => {});
+      (validateGrant as Mock).mockImplementation(() => {});
 
       const result = await checkGrantAccess(
         mockUrl,
@@ -153,7 +153,7 @@ describe("Grant Utilities", () => {
 
     it("should return allowed: false for invalid grant", async () => {
       (retrieveGrantFile as Mock).mockResolvedValue(mockGrantFile);
-      (validateGrantForRequest as Mock).mockImplementation(() => {
+      (validateGrant as Mock).mockImplementation(() => {
         throw new GrantValidationError("Access denied");
       });
 

@@ -20,6 +20,8 @@ export default [
       "**/*.log",
       "**/.DS_Store",
       "**/.eslintignore",
+      "**/docs/**",
+      "**/vitest.config.ts",
     ],
   },
 

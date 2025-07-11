@@ -10,7 +10,7 @@ import {
 } from "@rainbow-me/rainbowkit";
 import { mokshaTestnet, vanaMainnet } from "vana-sdk";
 import "@rainbow-me/rainbowkit/styles.css";
-import { HeroUIProvider } from "@heroui/react";
+import { HeroUIProvider, ToastProvider } from "@heroui/react";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 
 // Configure wagmi
@@ -43,6 +43,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           enableSystem
         >
           <HeroUIProvider>
+            <ToastProvider placement="top-right" />
             <RainbowKitProvider theme={darkTheme()}>
               {children}
             </RainbowKitProvider>

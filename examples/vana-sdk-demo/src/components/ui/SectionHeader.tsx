@@ -12,12 +12,12 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({
   description,
 }) => {
   return (
-    <div className="flex-col items-start">
-      <div className="flex items-center gap-2">
+    <div className="mb-12">
+      <div className="flex items-center gap-3 mb-4">
         {icon}
-        {title}
+        <h2 className="text-2xl font-semibold">{title}</h2>
       </div>
-      <p className="text-small text-default-500 mt-1">{description}</p>
+      <div className="text-default-600">{description}</div>
     </div>
   );
 };

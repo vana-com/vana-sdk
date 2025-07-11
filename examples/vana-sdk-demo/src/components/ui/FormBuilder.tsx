@@ -17,6 +17,7 @@ export interface FormField {
   label: string;
   type: "text" | "email" | "url" | "number" | "textarea" | "select";
   placeholder?: string;
+  description?: string;
   value: string;
   onChange: (value: string) => void;
   required?: boolean;
@@ -70,6 +71,7 @@ export function FormBuilder({
     const commonProps = {
       label: field.label,
       placeholder: field.placeholder,
+      description: field.description,
       value: field.value,
       onChange: (
         e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,

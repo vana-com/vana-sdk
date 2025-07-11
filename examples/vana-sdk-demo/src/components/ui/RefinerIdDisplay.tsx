@@ -4,8 +4,8 @@ import { CopyButton } from "./CopyButton";
 import { getContractAddress } from "vana-sdk";
 import { keccak256, toBytes } from "viem";
 
-interface FileIdDisplayProps {
-  fileId: number | string;
+interface RefinerIdDisplayProps {
+  refinerId: number | string;
   label?: string;
   chainId?: number;
   showCopy?: boolean;
@@ -13,7 +13,7 @@ interface FileIdDisplayProps {
   className?: string;
 }
 
-// Calculate function selector hash for DataRegistry functions
+// Calculate function selector hash for DataRefinerRegistry functions
 const getFunctionHash = (functionSignature: string): string => {
   // Function selector is the first 4 bytes of keccak256 hash of the function signature
   const hash = keccak256(toBytes(functionSignature));
@@ -22,7 +22,7 @@ const getFunctionHash = (functionSignature: string): string => {
 };
 
 // Block explorer URLs for different chains
-const getBlockExplorerUrl = (chainId: number, _fileId: number | string) => {
+const getBlockExplorerUrl = (chainId: number, _refinerId: number | string) => {
   const baseUrls: Record<number, string> = {
     14800: "https://moksha.vanascan.io", // Moksha testnet
     1480: "https://vanascan.io", // Vana mainnet
@@ -32,35 +32,35 @@ const getBlockExplorerUrl = (chainId: number, _fileId: number | string) => {
   if (!baseUrl) return null;
 
   try {
-    // Get DataRegistry contract address using SDK
-    const contractAddress = getContractAddress(chainId, "DataRegistry");
+    // Get DataRefinerRegistry contract address using SDK
+    const contractAddress = getContractAddress(chainId, "DataRefinerRegistry");
 
-    // Get function hash for the files getter function
-    const functionHash = getFunctionHash("files(uint256)");
+    // Get function hash for the refiners getter function
+    const functionHash = getFunctionHash("refiners(uint256)");
 
-    // Link to the specific function in the DataRegistry contract
-    // Users can then directly access the files(uint256) function to look up file details
+    // Link to the specific function in the DataRefinerRegistry contract
+    // Users can then directly access the refiners(uint256) function to look up refiner details
     return `${baseUrl}/address/${contractAddress}?tab=read_write_proxy#${functionHash}`;
   } catch (error) {
     console.warn(
-      `Failed to get DataRegistry address for chain ${chainId}:`,
+      `Failed to get DataRefinerRegistry address for chain ${chainId}:`,
       error,
     );
     return null;
   }
 };
 
-export function FileIdDisplay({
-  fileId,
+export function RefinerIdDisplay({
+  refinerId,
   label,
   chainId = 14800,
   showCopy = true,
   showExternalLink = true,
   className = "",
-}: FileIdDisplayProps) {
-  const displayFileId = `#${fileId}`;
+}: RefinerIdDisplayProps) {
+  const displayRefinerId = `Refiner #${refinerId}`;
   const explorerUrl = showExternalLink
-    ? getBlockExplorerUrl(chainId, fileId)
+    ? getBlockExplorerUrl(chainId, refinerId)
     : null;
 
   return (
@@ -68,17 +68,17 @@ export function FileIdDisplay({
       {label && <span className="text-sm font-medium">{label}:</span>}
       <span
         className="font-mono text-sm cursor-default"
-        title={`File ID: ${fileId}`}
+        title={`Refiner ID: ${refinerId}`}
       >
-        {displayFileId}
+        {displayRefinerId}
       </span>
       {showCopy && (
         <CopyButton
-          value={fileId.toString()}
+          value={refinerId.toString()}
           isInline
           size="sm"
           variant="flat"
-          tooltip="Copy file ID"
+          tooltip="Copy refiner ID"
         />
       )}
       {showExternalLink && explorerUrl && (

@@ -89,6 +89,30 @@ export class SchemaValidator {
       const errorMessage = `Data contract validation failed: ${errors.map((e) => `${e.instancePath} ${e.message}`).join(", ")}`;
       throw new SchemaValidationError(errorMessage, errors);
     }
+
+    // Additional validation based on dialect
+    const typedContract = contract as DataContract;
+    if (
+      typedContract.dialect === "json" &&
+      typeof typedContract.schema === "object"
+    ) {
+      // Validate that the embedded JSON Schema is actually valid
+      try {
+        this.ajv.compile(typedContract.schema);
+      } catch (error) {
+        const errorMessage = `Invalid JSON Schema in data contract: ${error instanceof Error ? error.message : "Unknown schema compilation error"}`;
+        throw new SchemaValidationError(errorMessage, []);
+      }
+    } else if (
+      typedContract.dialect === "sqlite" &&
+      typeof typedContract.schema === "string"
+    ) {
+      // Validate SQLite DDL syntax
+      this.validateSQLiteDDL(
+        typedContract.schema,
+        typedContract.dialectVersion,
+      );
+    }
   }
 
   /**
@@ -155,15 +179,27 @@ export class SchemaValidator {
    * Note: This is a basic validation, full SQL parsing would require a proper SQL parser
    *
    * @param ddl - The DDL string to validate
+   * @param dialectVersion - Optional SQLite version (e.g., "3" for SQLite v3)
    * @returns true if basic validation passes
    * @throws SchemaValidationError if invalid
    */
-  validateSQLiteDDL(ddl: string): void {
+  validateSQLiteDDL(ddl: string, dialectVersion?: string): void {
     if (typeof ddl !== "string" || ddl.trim().length === 0) {
       throw new SchemaValidationError(
         "SQLite DDL must be a non-empty string",
         [],
       );
+    }
+
+    // Validate dialectVersion if provided
+    if (dialectVersion !== undefined) {
+      const supportedVersions = ["3"];
+      if (!supportedVersions.includes(dialectVersion)) {
+        throw new SchemaValidationError(
+          `Unsupported SQLite dialect version: ${dialectVersion}. Supported versions: ${supportedVersions.join(", ")}`,
+          [],
+        );
+      }
     }
 
     // Basic validation - check for CREATE TABLE statements
@@ -224,7 +260,7 @@ export class SchemaValidator {
         contract.dialect === "sqlite" &&
         typeof contract.schema === "string"
       ) {
-        this.validateSQLiteDDL(contract.schema);
+        this.validateSQLiteDDL(contract.schema, contract.dialectVersion);
       }
 
       return contract;

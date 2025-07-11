@@ -181,23 +181,6 @@ export type {
   TimeRange,
 } from "./utils";
 
-// Legacy types for backward compatibility
-// These will be deprecated in future versions
-export type {
-  GrantedPermission as GrantedPermissionLegacy,
-  GrantPermissionParams as GrantPermissionParamsLegacy,
-  RevokePermissionParams as RevokePermissionParamsLegacy,
-  PermissionGrantDomain as PermissionGrantDomainLegacy,
-  PermissionGrantMessage as PermissionGrantMessageLegacy,
-  PermissionInputMessage as PermissionInputMessageLegacy,
-  SimplifiedPermissionMessage as SimplifiedPermissionMessageLegacy,
-  GrantFile as GrantFileLegacy,
-  PermissionGrantTypedData as PermissionGrantTypedDataLegacy,
-  GenericTypedData as GenericTypedDataLegacy,
-} from "./permissions";
-
-export type { ContractInfo as ContractInfoLegacy } from "./contracts";
-
 // Generic types for extensibility
 export type {
   GenericRequest,

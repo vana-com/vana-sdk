@@ -22,6 +22,9 @@ import { FormBuilder } from "./ui/FormBuilder";
 import { EmptyState } from "./ui/EmptyState";
 import { ExplorerLink } from "./ui/ExplorerLink";
 import { CopyButton } from "./ui/CopyButton";
+import { SchemaIdDisplay } from "./ui/SchemaIdDisplay";
+import { RefinerIdDisplay } from "./ui/RefinerIdDisplay";
+import { DlpIdDisplay } from "./ui/DlpIdDisplay";
 import { Schema, Refiner } from "vana-sdk";
 
 interface SchemaManagementCardProps {
@@ -371,15 +374,13 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
                 {schemas.map((schema) => (
                   <TableRow key={schema.id}>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-small">
-                          {schema.id}
-                        </span>
-                        <CopyButton
-                          value={schema.id.toString()}
-                          tooltip="Copy schema ID"
-                        />
-                      </div>
+                      <SchemaIdDisplay
+                        schemaId={schema.id}
+                        chainId={chainId}
+                        showCopy={true}
+                        showExternalLink={true}
+                        className="text-small"
+                      />
                     </TableCell>
                     <TableCell>
                       <span className="font-medium">{schema.name}</span>
@@ -481,15 +482,13 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
                 {refiners.map((refiner) => (
                   <TableRow key={refiner.id}>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-small">
-                          {refiner.id}
-                        </span>
-                        <CopyButton
-                          value={refiner.id.toString()}
-                          tooltip="Copy refiner ID"
-                        />
-                      </div>
+                      <RefinerIdDisplay
+                        refinerId={refiner.id}
+                        chainId={chainId}
+                        showCopy={true}
+                        showExternalLink={true}
+                        className="text-small"
+                      />
                     </TableCell>
                     <TableCell>
                       <span className="font-medium">{refiner.name}</span>
@@ -506,13 +505,18 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
                         <CopyButton
                           value={refiner.owner}
                           tooltip="Copy owner address"
+                          isInline
                         />
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Chip size="sm" variant="flat" color="secondary">
-                        DLP #{refiner.dlpId}
-                      </Chip>
+                      <DlpIdDisplay
+                        dlpId={refiner.dlpId}
+                        chainId={chainId}
+                        showCopy={true}
+                        showExternalLink={true}
+                        className="text-small"
+                      />
                     </TableCell>
                     <TableCell>
                       <Chip size="sm" variant="flat">

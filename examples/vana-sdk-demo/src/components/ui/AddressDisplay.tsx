@@ -10,6 +10,7 @@ interface AddressDisplayProps {
   showExternalLink?: boolean;
   truncate?: boolean;
   className?: string;
+  chainId?: number;
 }
 
 export function AddressDisplay({
@@ -20,6 +21,7 @@ export function AddressDisplay({
   showExternalLink = true,
   truncate = true,
   className = "",
+  chainId: _chainId,
 }: AddressDisplayProps) {
   const displayAddress = truncate
     ? `${address.slice(0, 6)}...${address.slice(-4)}`

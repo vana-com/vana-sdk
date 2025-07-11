@@ -1,42 +1,44 @@
 # Vana SDK
 
-A TypeScript library for interacting with Vana Network smart contracts, focusing on gasless data portability and permissions management.
-
-## 📦 Installation
-
-```bash
-npm install vana-sdk
-```
+The Vana SDK is a comprehensive TypeScript library for building applications on the Vana Network. It provides simple, powerful APIs for gasless data permissions, file management, and secure data portability.
 
 [![npm version](https://img.shields.io/npm/v/vana-sdk)](https://www.npmjs.com/package/vana-sdk)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue)](https://www.typescriptlang.org/)
+[![License: ISC](https://img.shields.io/badge/License-ISC-green.svg)](https://opensource.org/licenses/ISC)
 
-➡️ [View on npm](https://www.npmjs.com/package/vana-sdk)
+[Documentation](./docs) • [Examples](#examples) • [API Reference](#api-reference)
 
-## Features
+## Why Vana SDK?
 
-### ✅ **Data Portability & Permissions (v1.0)**
+- **🔐 Gasless Permissions**: EIP-712 based permission system with zero gas fees for users
+- **📁 Data Management**: Query, upload, and manage encrypted user data files
+- **🔄 Flexible Relaying**: Callback-based relay system supporting any gasless transaction infrastructure
+- **📊 Schema Validation**: Built-in JSON Schema and SQLite schema validation with AJV
+- **🔧 Type-Safe**: Full TypeScript support with comprehensive type definitions
+- **🎯 Production Ready**: Battle-tested with comprehensive error handling and retry mechanisms
 
-- **Gasless Permission Grants:** Complete EIP-712 based permission flow with relayer support
-- **Permission Revocation:** Secure gasless permission revocation
-- **Data File Management:** Query and manage user data files
-- **Type-Safe Contracts:** Low-level access to all Vana protocol contracts with full TypeScript support
+## Installation
 
-### 🔄 **Upcoming Features**
+```bash
+# npm
+npm install vana-sdk
 
-- **Data Contribution Workflow:** Submit data to DLPs and request validation
-- **Data Liquidity Pool Management:** Create and manage DLPs
-- **Query & Access Control:** Advanced data querying capabilities
-- **TEE Integration:** Direct TEE computation workflows
+# yarn
+yarn add vana-sdk
 
-## Architecture
+# pnpm
+pnpm add vana-sdk
+```
 
-The Vana SDK v1.0 follows a **resource-oriented architecture** with three main controllers:
+**Peer Dependencies:**
 
-- **`vana.permissions`** - Gasless permission grants and revocations
-- **`vana.data`** - User data file management
-- **`vana.protocol`** - Low-level contract access for advanced use cases
+```bash
+npm install viem@^2.31.7
+```
 
 ## Quick Start
+
+### Basic Setup
 
 ```typescript
 import { Vana } from "vana-sdk";
@@ -44,7 +46,7 @@ import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { mokshaTestnet } from "vana-sdk/chains";
 
-// 1. Set up your wallet client
+// Create wallet client
 const account = privateKeyToAccount("0x...");
 const walletClient = createWalletClient({
   account,
@@ -52,108 +54,352 @@ const walletClient = createWalletClient({
   transport: http("https://rpc.moksha.vana.org"),
 });
 
-// 2. Initialize the Vana SDK
+// Initialize Vana SDK
 const vana = new Vana({
   walletClient,
-  // relayerUrl: 'https://custom-relayer.com' // Optional, defaults to production
+  // Optional: configure gasless relayer
+  relayerUrl: "https://relayer.moksha.vana.org",
 });
+```
 
-// 3. Grant permission for data access (gasless!)
+### Grant Data Permission (Gasless)
+
+```typescript
+// Grant permission for an AI application to access user data
 const txHash = await vana.permissions.grant({
-  to: "0x1234...", // Application address
+  to: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36", // Application address
   operation: "llm_inference",
   parameters: {
-    prompt: "Analyze my data for insights",
+    prompt: "Analyze my browsing data for insights",
     maxTokens: 1000,
-    files: [12, 15, 28], // File IDs
+    files: [12, 15, 28], // Specific file IDs
+    model: "gpt-4",
   },
+  expiresAt: Math.floor(Date.now() / 1000) + 24 * 60 * 60, // 24 hours
 });
 
-console.log("Permission granted!", txHash);
+console.log("Permission granted:", txHash);
+```
 
-// 4. Get user data files
+### Query User Data Files
+
+```typescript
+// Get all files owned by a user
 const files = await vana.data.getUserFiles({
-  owner: "0x...", // User address
+  user: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
 });
 
-console.log("User files:", files);
+files.forEach((file) => {
+  console.log(`File ${file.id}: ${file.url}`);
+  console.log(`Schema: ${file.schemaId}, Added: ${file.addedAtBlock}`);
+});
+```
 
-// 5. Revoke a permission
-await vana.permissions.revoke({
-  grantId: "0xgrant...", // Grant ID to revoke
+### Upload Encrypted File
+
+```typescript
+// Generate encryption key from wallet
+const encryptionKey = await generateEncryptionKey(walletClient);
+
+// Encrypt user data
+const userData = new Blob([
+  JSON.stringify({
+    browsing_history: [{ url: "https://example.com", timestamp: Date.now() }],
+  }),
+]);
+
+const encryptedData = await encryptUserData(userData, encryptionKey);
+
+// Upload to IPFS and register on-chain
+const result = await vana.data.uploadEncryptedFile({
+  data: encryptedData,
+  schemaId: 123, // JSON schema for browsing data
+  filename: "browsing-data.json",
 });
 
-// 6. Access low-level contracts (escape hatch)
-const dataRegistry = vana.protocol.getContract("DataRegistry");
-console.log("DataRegistry:", dataRegistry.address, dataRegistry.abi);
+console.log("File uploaded:", result.fileId, result.url);
+```
+
+## Architecture
+
+The Vana SDK follows a resource-oriented architecture with five main controllers:
+
+### Core Controllers
+
+| Controller             | Purpose                                 | Key Methods                                                         |
+| ---------------------- | --------------------------------------- | ------------------------------------------------------------------- |
+| **`vana.permissions`** | Gasless permission grants & revocations | `grant()`, `revoke()`, `getUserPermissions()`                       |
+| **`vana.data`**        | Data file management & encryption       | `getUserFiles()`, `uploadEncryptedFile()`, `validateDataContract()` |
+| **`vana.server`**      | Trusted server management               | `trustServer()`, `untrustServer()`, `processWithTrustedServer()`    |
+| **`vana.protocol`**    | Low-level contract access               | `getContract()`, `getAvailableContracts()`                          |
+
+### Configuration Options
+
+```typescript
+const vana = new Vana({
+  // Required: Wallet client for signing
+  walletClient,
+
+  // Optional: Gasless transaction relay
+  relayerUrl: "https://custom-relayer.com",
+
+  // Optional: Custom callback-based relaying
+  relayerCallbacks: {
+    submitPermissionGrant: async (typedData, signature) => {
+      // Custom relay implementation
+      return await customRelayer.submit(typedData, signature);
+    },
+  },
+
+  // Optional: Storage configuration
+  storageManager: new StorageManager({
+    defaultProvider: "ipfs",
+    providers: {
+      ipfs: new PinataStorage({ apiKey: "...", secretKey: "..." }),
+    },
+  }),
+
+  // Optional: Subgraph for efficient data queries
+  subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/moksha",
+});
 ```
 
 ## Core Concepts
 
 ### Gasless Permissions
 
-The heart of Vana SDK v1.0 is the gasless permission system. Users can grant applications access to their data without paying gas fees:
+The Vana SDK enables applications to request data access permissions without users paying gas fees:
 
 ```typescript
-// The complete flow is handled automatically:
-// 1. Parameter serialization & hashing
-// 2. Off-chain storage via relayer
-// 3. Nonce retrieval from PermissionRegistry
-// 4. EIP-712 signature composition
-// 5. User signature via wallet
-// 6. Transaction relay & gas payment
-// 7. Return transaction hash
-
-const txHash = await vana.permissions.grant({
+// Complete gasless permission flow
+const permission = await vana.permissions.grant({
   to: applicationAddress,
   operation: "data_analysis",
   parameters: {
-    // Any structured data for the operation
-    model: "llm-v1",
-    prompt: "Summarize my data",
+    // Structured parameters for the operation
+    analysisType: "sentiment",
     outputFormat: "json",
+    maxDataPoints: 1000,
+  },
+});
+
+// The SDK handles:
+// 1. Parameter serialization & IPFS storage
+// 2. EIP-712 typed data creation
+// 3. User signature via wallet
+// 4. Relayer submission & gas payment
+// 5. On-chain permission registration
+```
+
+### Data File Management
+
+Query and manage encrypted user data files using the subgraph for efficiency:
+
+```typescript
+// Efficiently query user files (no contract scanning)
+const files = await vana.data.getUserFiles({
+  user: userAddress,
+  // Optional: override subgraph URL
+  subgraphUrl: "https://custom-subgraph.com/graphql",
+});
+
+// Files are automatically deduplicated by ID
+// Latest timestamp wins for duplicate file IDs
+console.log(`Found ${files.length} unique files`);
+```
+
+### Schema Validation
+
+Built-in support for validating data contracts and user data:
+
+```typescript
+// Validate a data contract against Vana meta-schema
+const contract = {
+  name: "Instagram Export",
+  version: "1.0.0",
+  dialect: "json",
+  schema: {
+    type: "object",
+    properties: {
+      posts: { type: "array" },
+      profile: { type: "object" },
+    },
+  },
+};
+
+vana.data.validateDataContract(contract);
+
+// Validate user data against the contract
+const userData = { posts: [], profile: { username: "alice" } };
+vana.data.validateDataAgainstContract(userData, contract);
+```
+
+### Flexible Relay System
+
+Configure gasless transactions using callbacks instead of fixed HTTP APIs:
+
+```typescript
+const vana = new Vana({
+  walletClient,
+  relayerCallbacks: {
+    // Custom permission grant relaying
+    submitPermissionGrant: async (typedData, signature) => {
+      const response = await fetch("/api/relay/grant", {
+        method: "POST",
+        body: JSON.stringify({ typedData, signature }),
+      });
+      const result = await response.json();
+      return result.transactionHash;
+    },
+
+    // Custom revocation relaying
+    submitPermissionRevoke: async (typedData, signature) => {
+      return await myCustomRelayer.revoke(typedData, signature);
+    },
   },
 });
 ```
 
-### Data Management
+## API Reference
 
-Query user data files with a simple interface:
+### Permissions Controller
 
 ```typescript
-const files = await vana.data.getUserFiles({ owner: userAddress });
+// Grant permission (gasless)
+await vana.permissions.grant({
+  to: Address,                    // Application address
+  operation: string,              // Operation type
+  parameters: object,             // Operation parameters
+  expiresAt?: number             // Optional expiration timestamp
+}): Promise<Hash>
 
-files.forEach((file) => {
-  console.log(`File ${file.id}: ${file.url}`);
-  console.log(`Added at block: ${file.addedAtBlock}`);
-});
+// Revoke permission (gasless)
+await vana.permissions.revoke({
+  grantId: string,               // Grant ID to revoke
+  nonce?: bigint                 // Optional nonce override
+}): Promise<Hash>
+
+// Query user permissions
+await vana.permissions.getUserPermissions({
+  user: Address,                 // User address
+  subgraphUrl?: string          // Optional subgraph override
+}): Promise<GrantedPermission[]>
+
+// Trust a server
+await vana.permissions.trustServer({
+  serverAddress: Address,        // Server's address
+  serverUrl: string             // Server's URL
+}): Promise<Hash>
 ```
 
-_Note: `getUserFiles` returns mock data in v1.0. Real data querying will be available in a future version._
-
-### Low-Level Access
-
-For advanced use cases, access any Vana contract directly:
+### Data Controller
 
 ```typescript
-// Get contract info
-const permissionRegistry = vana.protocol.getContract("PermissionRegistry");
-const dataRegistry = vana.protocol.getContract("DataRegistry");
+// Get user files
+await vana.data.getUserFiles({
+  user: Address,                 // File owner address
+  subgraphUrl?: string          // Optional subgraph override
+}): Promise<UserFile[]>
 
-// Use with viem for custom interactions
-import { createPublicClient, http } from "viem";
+// Upload encrypted file
+await vana.data.uploadEncryptedFile({
+  data: Blob,                   // Encrypted file data
+  schemaId?: number,            // Optional schema ID
+  filename?: string             // Optional filename
+}): Promise<UploadEncryptedFileResult>
 
-const publicClient = createPublicClient({
-  chain: vana.walletClient.chain,
-  transport: http(),
+// Validate data contract
+vana.data.validateDataContract(
+  contract: unknown             // Contract to validate
+): asserts contract is DataContract
+
+// Validate data against contract
+vana.data.validateDataAgainstContract(
+  data: unknown,                // Data to validate
+  contract: DataContract        // Schema contract
+): void
+
+// Fetch and validate remote schema
+await vana.data.fetchAndValidateSchema(
+  url: string                   // Schema URL
+): Promise<DataContract>
+```
+
+### Server Controller
+
+```typescript
+// Process data with trusted server
+await vana.server.processWithTrustedServer({
+  serverUrl: string,            // Trusted server URL
+  operation: string,            // Operation to perform
+  parameters: object            // Operation parameters
+}): Promise<any>
+
+// Check server trust status
+await vana.server.isServerTrusted({
+  user: Address,                // User address
+  serverAddress: Address        // Server address
+}): Promise<boolean>
+```
+
+### Protocol Controller
+
+```typescript
+// Get contract information
+vana.protocol.getContract(
+  contractName: VanaContract    // Contract name
+): ContractInfo
+
+// List available contracts
+vana.protocol.getAvailableContracts(): VanaContract[]
+
+// Get contract addresses for chain
+vana.protocol.getChainContracts(
+  chainId: number              // Chain ID
+): Record<VanaContract, Address>
+```
+
+## Storage Integration
+
+The SDK includes a powerful storage abstraction supporting multiple providers:
+
+### IPFS Storage
+
+```typescript
+import { StorageManager, PinataStorage } from "vana-sdk";
+
+const storageManager = new StorageManager();
+
+// Configure Pinata IPFS
+const pinataStorage = new PinataStorage({
+  apiKey: process.env.PINATA_API_KEY,
+  secretKey: process.env.PINATA_SECRET_KEY,
+  gatewayUrl: "https://gateway.pinata.cloud/ipfs",
 });
 
-const nonce = await publicClient.readContract({
-  address: permissionRegistry.address,
-  abi: permissionRegistry.abi,
-  functionName: "userNonce",
-  args: [userAddress],
-});
+storageManager.register("ipfs", pinataStorage, true); // Default provider
+
+// Upload file
+const result = await storageManager.upload(encryptedBlob, "encrypted-data.bin");
+```
+
+### Custom Storage Provider
+
+```typescript
+class CustomStorage implements StorageProvider {
+  async upload(file: Blob, filename?: string): Promise<StorageUploadResult> {
+    // Custom upload logic
+    return { url: "custom://uploaded-file", size: file.size };
+  }
+
+  async download(url: string): Promise<Blob> {
+    // Custom download logic
+  }
+
+  // ... other required methods
+}
+
+storageManager.register("custom", new CustomStorage());
 ```
 
 ## Error Handling
@@ -164,212 +410,176 @@ The SDK provides comprehensive error handling with specific error types:
 import {
   RelayerError,
   UserRejectedRequestError,
+  SchemaValidationError,
   InvalidConfigurationError,
-  ContractNotFoundError,
+  NetworkError,
 } from "vana-sdk";
 
 try {
   await vana.permissions.grant(params);
 } catch (error) {
   if (error instanceof UserRejectedRequestError) {
-    console.log("User rejected the signature request");
+    // User rejected the signature request
+    console.log("User cancelled transaction");
   } else if (error instanceof RelayerError) {
-    console.log("Relayer service error:", error.statusCode);
+    // Relayer service error
+    console.log(`Relayer error (${error.statusCode}): ${error.message}`);
+  } else if (error instanceof SchemaValidationError) {
+    // Schema validation failed
+    console.log(`Schema error: ${error.message}`);
+  } else if (error instanceof NetworkError) {
+    // Network connectivity issue
+    console.log(`Network error: ${error.message}`);
   } else {
-    console.log("Unexpected error:", error.message);
+    // Unexpected error
+    console.error("Unexpected error:", error);
   }
 }
 ```
 
-## Configuration
+## Supported Networks
 
-### Supported Networks
+| Network            | Chain ID | RPC URL                       | Explorer                                         |
+| ------------------ | -------- | ----------------------------- | ------------------------------------------------ |
+| **Vana Mainnet**   | `1480`   | `https://rpc.vana.org`        | [vanascan.io](https://vanascan.io)               |
+| **Moksha Testnet** | `14800`  | `https://rpc.moksha.vana.org` | [moksha.vanascan.io](https://moksha.vanascan.io) |
 
-- **Moksha Testnet**: Chain ID `14800`
-- **Vana Mainnet**: Chain ID `1480`
+### Adding Networks to Wallet
 
-### Relayer Configuration
-
-```typescript
-const vana = new Vana({
-  walletClient,
-  relayerUrl: "https://custom-relayer.com", // Optional
-});
-
-// Default relayer URLs:
-// Production: https://relayer.vana.org
-// Moksha: https://relayer.moksha.vana.org
-```
-
-### Environment Setup
-
-Add network to your wallet:
+**Moksha Testnet:**
 
 ```
-Network Name: VANA - Moksha
+Network Name: Vana Moksha Testnet
 RPC URL: https://rpc.moksha.vana.org
 Chain ID: 14800
-Currency: VANA
-Explorer: https://moksha.vanascan.io
+Currency Symbol: VANA
+Block Explorer: https://moksha.vanascan.io
 ```
 
-## Demo Application
+## Examples
 
-See the complete reference implementation at `/examples/data-wallet-reference` that demonstrates:
+### Complete Permission Flow
 
-- Wallet connection with RainbowKit
-- SDK initialization and configuration
-- Permission grant and revoke flows
-- Data file management
-- Error handling and user feedback
+```typescript
+import { Vana, generateEncryptionKey, encryptUserData } from "vana-sdk";
+
+async function completePermissionFlow() {
+  // 1. Initialize SDK
+  const vana = new Vana({ walletClient });
+
+  // 2. Encrypt user data
+  const encryptionKey = await generateEncryptionKey(walletClient);
+  const userData = new Blob([JSON.stringify({ data: "sensitive info" })]);
+  const encryptedData = await encryptUserData(userData, encryptionKey);
+
+  // 3. Upload encrypted file
+  const uploadResult = await vana.data.uploadEncryptedFile({
+    data: encryptedData,
+    schemaId: 123,
+    filename: "user-data.json",
+  });
+
+  // 4. Grant permission to access the file
+  const permissionTx = await vana.permissions.grant({
+    to: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+    operation: "ai_training",
+    parameters: {
+      files: [uploadResult.fileId],
+      model: "llm-v1",
+      maxTokens: 500,
+    },
+  });
+
+  console.log("Permission granted:", permissionTx);
+}
+```
+
+### Schema Validation Example
+
+```typescript
+// Define a data contract
+const instagramContract = {
+  name: "Instagram Export",
+  version: "1.0.0",
+  description: "User's Instagram profile and posts data",
+  dialect: "json",
+  schema: {
+    type: "object",
+    properties: {
+      profile: {
+        type: "object",
+        properties: {
+          username: { type: "string" },
+          followers: { type: "number" },
+          verified: { type: "boolean" },
+        },
+        required: ["username"],
+      },
+      posts: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            likes: { type: "number" },
+            caption: { type: "string" },
+          },
+        },
+      },
+    },
+    required: ["profile"],
+  },
+};
+
+// Validate the contract
+vana.data.validateDataContract(instagramContract);
+
+// Validate user data against the contract
+const userData = {
+  profile: { username: "alice_smith", followers: 1500, verified: false },
+  posts: [{ id: "post_123", likes: 42, caption: "Beautiful sunset! 🌅" }],
+};
+
+vana.data.validateDataAgainstContract(userData, instagramContract);
+```
+
+## Contributing
+
+We welcome contributions to the Vana SDK! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+### Development Setup
 
 ```bash
-cd examples/data-wallet-reference
+git clone https://github.com/vana-com/vana-sdk.git
+cd vana-sdk
+npm install
+npm run build
+npm test
+```
+
+### Running Examples
+
+```bash
+cd examples/vana-sdk-demo
 npm install
 npm run dev
 ```
 
-## Storage API
+## Documentation
 
-The Vana SDK includes a powerful storage abstraction layer that provides a unified interface for different storage providers. This allows applications to seamlessly switch between storage backends without changing their code.
+- [📚 API Documentation](./docs) - Complete TypeDoc API reference
+- [🚀 Getting Started Guide](./docs/getting-started.md) - Step-by-step setup
+- [🏗️ Architecture Guide](./docs/architecture.md) - SDK design and patterns
+- [🔧 Configuration Guide](./docs/configuration.md) - All configuration options
+- [🔒 Security Guide](./docs/security.md) - Best practices and security
 
-### Supported Storage Providers
+## Support
 
-- **IPFS** - Decentralized storage via Pinata or other IPFS services
-- **Google Drive** - Cloud storage with OAuth2 authentication (coming soon)
-
-### Basic Usage
-
-```typescript
-import { StorageManager, IPFSStorage } from "vana-sdk";
-
-// Initialize storage manager
-const storageManager = new StorageManager();
-
-// Register IPFS provider
-const ipfsStorage = new IPFSStorage({
-  apiEndpoint: "/api/ipfs/upload", // Your IPFS upload endpoint
-  gatewayUrl: "https://gateway.pinata.cloud/ipfs",
-});
-storageManager.register("ipfs", ipfsStorage, true); // true = default provider
-
-// Upload file
-const file = new Blob(["encrypted data"], { type: "application/octet-stream" });
-const result = await storageManager.upload(file, "my-file.encrypted");
-
-console.log("File uploaded:", result.url);
-```
-
-### Google Drive Integration
-
-```typescript
-import { GoogleDriveStorage } from "vana-sdk";
-
-// Configure Google Drive storage (requires OAuth setup)
-const googleDriveStorage = new GoogleDriveStorage({
-  accessToken: "oauth2_access_token",
-  refreshToken: "oauth2_refresh_token",
-  clientId: "your_client_id",
-  clientSecret: "your_client_secret",
-  folderId: "optional_folder_id", // Upload to specific folder
-});
-
-storageManager.register("google-drive", googleDriveStorage);
-
-// Upload to Google Drive specifically
-const result = await storageManager.upload(file, "my-file.dat", "google-drive");
-```
-
-### Storage Provider Interface
-
-All storage providers implement the same interface:
-
-```typescript
-interface StorageProvider {
-  upload(file: Blob, filename?: string): Promise<StorageUploadResult>;
-  download(url: string): Promise<Blob>;
-  list(options?: StorageListOptions): Promise<StorageFile[]>;
-  delete(url: string): Promise<boolean>;
-  getConfig(): StorageProviderConfig;
-}
-```
-
-### Storage with Encryption
-
-The storage API integrates seamlessly with the Vana encryption protocol:
-
-```typescript
-import { generateEncryptionKey, encryptUserData } from "vana-sdk";
-
-// Generate encryption key
-const encryptionKey = await generateEncryptionKey(walletClient);
-
-// Encrypt data
-const plainData = new Blob(["sensitive user data"]);
-const encryptedData = await encryptUserData(plainData, encryptionKey);
-
-// Upload encrypted data
-const result = await storageManager.upload(encryptedData, "encrypted-file.bin");
-
-// Later: download and decrypt
-const downloadedData = await storageManager.download(result.url);
-const decryptedData = await decryptUserData(downloadedData, encryptionKey);
-```
-
-## API Reference
-
-### `Vana`
-
-Main SDK class and entry point.
-
-```typescript
-const vana = new Vana(config: VanaConfig)
-```
-
-### `vana.permissions`
-
-Permission management controller.
-
-```typescript
-await vana.permissions.grant(params: GrantPermissionParams): Promise<Hash>
-await vana.permissions.revoke(params: RevokePermissionParams): Promise<Hash>
-```
-
-### `vana.data`
-
-Data file management controller.
-
-```typescript
-await vana.data.getUserFiles(params: { owner: Address }): Promise<UserFile[]>
-```
-
-### `vana.protocol`
-
-Low-level contract access controller.
-
-```typescript
-vana.protocol.getContract(contractName: VanaContract): ContractInfo
-vana.protocol.getAvailableContracts(): VanaContract[]
-```
-
-## Migration from v0.x
-
-If upgrading from previous versions:
-
-1. Replace `VanaProvider` with `Vana`
-2. Update wallet client configuration
-3. Use new resource-oriented API (`vana.permissions.grant` vs direct contract calls)
-4. Update error handling for new error types
-
-## Contributing
-
-We welcome contributions! Please:
-
-- Open an issue for discussion before major changes
-- Follow existing code style and patterns
-- Add tests for new functionality
-- Update documentation as needed
+- **📖 Documentation**: [docs](./docs)
+- **💬 Discord**: [Join our community](https://discord.gg/vana)
+- **🐛 Issues**: [GitHub Issues](https://github.com/vana-com/vana-sdk/issues)
+- **📧 Email**: [support@vana.org](mailto:support@vana.org)
 
 ## License
 
-ISC
+[ISC License](LICENSE) © Vana Foundation

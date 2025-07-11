@@ -215,7 +215,6 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
                 </TableColumn>
                 <TableColumn>File ID</TableColumn>
                 <TableColumn>Owner</TableColumn>
-                <TableColumn>Size</TableColumn>
                 <TableColumn>URL</TableColumn>
                 <TableColumn>Source</TableColumn>
                 <TableColumn>Actions</TableColumn>
@@ -252,13 +251,6 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
                           showExternalLink={false}
                           className="max-w-32"
                         />
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-small">
-                          {file.metadata?.size
-                            ? `${file.metadata.size} bytes`
-                            : "Unknown size"}
-                        </span>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">

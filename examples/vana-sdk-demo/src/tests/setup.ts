@@ -19,8 +19,8 @@ vi.mock("next/navigation", () => ({
 vi.mock("next/dynamic", () => ({
   __esModule: true,
   default: () => {
-    const Component = vi.fn().mockImplementation(() => null) as any;
-    Component.displayName = "DynamicComponent";
+    const Component = vi.fn().mockImplementation(() => null);
+    (Component as any).displayName = "DynamicComponent";
     return Component;
   },
 }));

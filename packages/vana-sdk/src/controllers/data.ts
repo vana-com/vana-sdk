@@ -222,18 +222,39 @@ export class DataController {
         return [];
       }
 
-      // Convert subgraph data directly to UserFile format
-      const userFiles: UserFile[] = user.files
-        .map((file) => ({
-          id: parseInt(file.id),
+      // TODO: Investigate why this is necessary.
+      // Convert subgraph data to UserFile format and deduplicate by file ID
+      // Keep the latest entry for each unique file ID (highest timestamp)
+      const fileMap = new Map<number, UserFile>();
+
+      user.files.forEach((file) => {
+        const fileId = parseInt(file.id);
+        const userFile: UserFile = {
+          id: fileId,
           url: file.url,
           ownerAddress: file.owner.id as Address,
           addedAtBlock: BigInt(file.addedAtBlock),
           schemaId: parseInt(file.schemaId),
           addedAtTimestamp: BigInt(file.addedAtTimestamp),
           transactionHash: file.transactionHash as Address,
-        }))
-        .sort((a, b) => Number(b.addedAtTimestamp - a.addedAtTimestamp)); // Latest first
+        };
+
+        // Keep the file with the latest timestamp for each ID
+        const existing = fileMap.get(fileId);
+        if (
+          !existing ||
+          (userFile.addedAtTimestamp &&
+            existing.addedAtTimestamp &&
+            userFile.addedAtTimestamp > existing.addedAtTimestamp)
+        ) {
+          fileMap.set(fileId, userFile);
+        }
+      });
+
+      // Convert to array and sort by latest timestamp first
+      const userFiles: UserFile[] = Array.from(fileMap.values()).sort((a, b) =>
+        Number((b.addedAtTimestamp || 0n) - (a.addedAtTimestamp || 0n)),
+      );
 
       console.warn(`Found ${userFiles.length} files owned by user:`, owner);
       return userFiles;

@@ -11,7 +11,7 @@ import {
 import { CheckCircle, FileCheck, AlertTriangle } from "lucide-react";
 import { SectionHeader } from "./ui/SectionHeader";
 import { ErrorMessage } from "./ui/ErrorMessage";
-import type { Vana } from "vana-sdk";
+import type { Vana, SchemaValidationError } from "vana-sdk";
 
 interface SchemaValidationCardProps {
   vana: Vana | null;
@@ -69,10 +69,8 @@ export const SchemaValidationCard: React.FC<SchemaValidationCardProps> = ({
 
     try {
       const contract = JSON.parse(contractInput);
-      // Type assertion needed as validateDataContract is not in public API yet
-      (
-        vana.data as { validateDataContract: (contract: unknown) => void }
-      ).validateDataContract(contract);
+      const dataController: typeof vana.data = vana!.data;
+      dataController.validateDataContract(contract);
 
       setValidationResult({
         isValid: true,
@@ -81,7 +79,7 @@ export const SchemaValidationCard: React.FC<SchemaValidationCardProps> = ({
       });
     } catch (err) {
       if (err instanceof Error && err.name === "SchemaValidationError") {
-        const schemaErr = err as { message: string }; // Type assertion for validation error
+        const schemaErr = err as SchemaValidationError;
         setValidationResult({
           isValid: false,
           message: "❌ Data contract validation failed",
@@ -109,31 +107,32 @@ export const SchemaValidationCard: React.FC<SchemaValidationCardProps> = ({
 
     try {
       const contract = JSON.parse(contractInput);
-      const data = JSON.parse(dataInput);
 
       // First validate the contract
-      (
-        vana.data as { validateDataContract: (contract: unknown) => void }
-      ).validateDataContract(contract);
+      const dataController: typeof vana.data = vana!.data;
+      dataController.validateDataContract(contract);
 
-      // Then validate the data against the contract
-      (
-        vana.data as {
-          validateDataAgainstContract: (
-            data: unknown,
-            contract: unknown,
-          ) => void;
-        }
-      ).validateDataAgainstContract(data, contract);
+      // Only validate data for JSON dialect contracts
+      if (contract.dialect === "json") {
+        const data = JSON.parse(dataInput);
+        dataController.validateDataAgainstContract(data, contract);
 
-      setValidationResult({
-        isValid: true,
-        message: "✅ Data validation successful!",
-        details: "The provided data matches the schema requirements.",
-      });
+        setValidationResult({
+          isValid: true,
+          message: "✅ Data validation successful!",
+          details: "The provided data matches the schema requirements.",
+        });
+      } else {
+        // For SQLite and other dialects, we can't validate data content
+        setValidationResult({
+          isValid: true,
+          message: "✅ Contract validation successful!",
+          details: `${contract.dialect.toUpperCase()} schemas validate structure only. Data content validation is not supported for this dialect.`,
+        });
+      }
     } catch (err) {
       if (err instanceof Error && err.name === "SchemaValidationError") {
-        const schemaErr = err as { message: string }; // Type assertion for validation error
+        const schemaErr = err as SchemaValidationError;
         setValidationResult({
           isValid: false,
           message: "❌ Data validation failed",

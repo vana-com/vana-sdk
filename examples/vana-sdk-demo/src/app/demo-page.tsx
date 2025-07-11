@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import { addToast } from "@heroui/react";
 import type { VanaChain } from "vana-sdk";
 import { useAccount, useWalletClient, useChainId } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
@@ -374,100 +375,91 @@ export default function Home() {
         // Initialize Vana SDK with storage configuration
         const baseUrl = sdkConfig.relayerUrl || `${window.location.origin}`;
 
+        // Helper function to reduce boilerplate in relayer callbacks
+        const relayRequest = async (
+          endpoint: string,
+          payload: unknown,
+        ): Promise<{
+          success: boolean;
+          transactionHash?: string;
+          fileId?: number;
+          url?: string;
+          error?: string;
+        }> => {
+          const response = await fetch(`${baseUrl}/api/${endpoint}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          if (!response.ok) {
+            throw new Error(`Relayer request failed: ${response.statusText}`);
+          }
+          const result = await response.json();
+          if (!result.success) {
+            throw new Error(result.error || "Failed to submit to relayer");
+          }
+          return result;
+        };
+
         // Create relayer callbacks for demo app
         const relayerCallbacks = {
           async submitPermissionGrant(
             typedData: PermissionGrantTypedData,
             signature: Hash,
           ) {
-            const response = await fetch(`${baseUrl}/api/relay`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ typedData, signature }),
+            const result = await relayRequest("relay", {
+              typedData,
+              signature,
             });
-            if (!response.ok) {
-              throw new Error(`Relayer request failed: ${response.statusText}`);
-            }
-            const result = await response.json();
-            if (!result.success) {
-              throw new Error(result.error || "Failed to submit to relayer");
-            }
-            return result.transactionHash;
+            return result.transactionHash as Hash;
           },
 
           async submitPermissionRevoke(
             typedData: GenericTypedData,
             signature: Hash,
           ) {
-            const response = await fetch(`${baseUrl}/api/relay`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ typedData, signature }),
+            const result = await relayRequest("relay", {
+              typedData,
+              signature,
             });
-            if (!response.ok) {
-              throw new Error(`Relayer request failed: ${response.statusText}`);
-            }
-            const result = await response.json();
-            if (!result.success) {
-              throw new Error(result.error || "Failed to submit to relayer");
-            }
-            return result.transactionHash;
+            return result.transactionHash as Hash;
           },
 
           async submitTrustServer(
             typedData: TrustServerTypedData,
             signature: Hash,
           ) {
-            const response = await fetch(`${baseUrl}/api/relay`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ typedData, signature }),
+            const result = await relayRequest("relay", {
+              typedData,
+              signature,
             });
-            if (!response.ok) {
-              throw new Error(`Relayer request failed: ${response.statusText}`);
-            }
-            const result = await response.json();
-            if (!result.success) {
-              throw new Error(result.error || "Failed to submit to relayer");
-            }
-            return result.transactionHash;
+            return result.transactionHash as Hash;
           },
 
           async submitUntrustServer(
             typedData: UntrustServerTypedData,
             signature: Hash,
           ) {
-            const response = await fetch(`${baseUrl}/api/relay`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ typedData, signature }),
+            const result = await relayRequest("relay", {
+              typedData,
+              signature,
             });
-            if (!response.ok) {
-              throw new Error(`Relayer request failed: ${response.statusText}`);
-            }
-            const result = await response.json();
-            if (!result.success) {
-              throw new Error(result.error || "Failed to submit to relayer");
-            }
-            return result.transactionHash;
+            return result.transactionHash as Hash;
           },
 
           async submitFileAddition(url: string, userAddress: string) {
-            const response = await fetch(`${baseUrl}/api/relay/addFile`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ url, userAddress }),
+            const result = await relayRequest("relay/addFile", {
+              url,
+              userAddress,
             });
-            if (!response.ok) {
-              throw new Error(`Relayer request failed: ${response.statusText}`);
-            }
-            const result = await response.json();
-            if (!result.success) {
-              throw new Error(result.error || "Failed to submit to relayer");
+            if (result.fileId === undefined) {
+              throw new Error(
+                "File addition failed: no fileId returned from relayer",
+              );
             }
             return {
               fileId: result.fileId,
-              transactionHash: result.transactionHash,
+              transactionHash: result.transactionHash as Hash,
             };
           },
 
@@ -476,59 +468,57 @@ export default function Home() {
             userAddress: string,
             permissions: Array<{ account: string; key: string }>,
           ) {
-            const response = await fetch(
-              `${baseUrl}/api/relay/addFileWithPermissions`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ url, userAddress, permissions }),
-              },
-            );
-            if (!response.ok) {
-              throw new Error(`Relayer request failed: ${response.statusText}`);
-            }
-            const result = await response.json();
-            if (!result.success) {
-              throw new Error(result.error || "Failed to submit to relayer");
+            const result = await relayRequest("relay/addFileWithPermissions", {
+              url,
+              userAddress,
+              permissions,
+            });
+            if (result.fileId === undefined) {
+              throw new Error(
+                "File addition with permissions failed: no fileId returned from relayer",
+              );
             }
             return {
               fileId: result.fileId,
-              transactionHash: result.transactionHash,
+              transactionHash: result.transactionHash as Hash,
             };
           },
 
           async storeGrantFile(grantData: GrantFile) {
-            // Check if there's a store endpoint, otherwise use IPFS
+            // Store grant file via IPFS upload endpoint
             try {
-              const response = await fetch(`${baseUrl}/api/store`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(grantData),
-              });
-              if (!response.ok) {
-                throw new Error(
-                  `Failed to store grant file: ${response.statusText}`,
-                );
-              }
-              const result = await response.json();
-              if (!result.success) {
-                throw new Error(result.error || "Failed to store grant file");
-              }
-              return result.url;
-            } catch {
-              // Fallback to IPFS upload if store endpoint doesn't exist
+              // Convert grant file to blob and create FormData as expected by /api/ipfs/upload
+              const grantFileBlob = new Blob(
+                [JSON.stringify(grantData, null, 2)],
+                {
+                  type: "application/json",
+                },
+              );
+
+              const formData = new FormData();
+              formData.append("file", grantFileBlob, "grant-file.json");
+
               const response = await fetch(`${baseUrl}/api/ipfs/upload`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(grantData),
+                body: formData,
               });
+
               if (!response.ok) {
-                throw new Error(
-                  `Failed to store grant file via IPFS: ${response.statusText}`,
-                );
+                throw new Error(`IPFS upload failed: ${response.statusText}`);
               }
+
               const result = await response.json();
+              if (!result.success) {
+                throw new Error(result.error || "IPFS upload failed");
+              }
+              if (!result.url) {
+                throw new Error("IPFS upload did not return a URL");
+              }
               return result.url;
+            } catch (error) {
+              throw new Error(
+                `Failed to store grant file: ${error instanceof Error ? error.message : "Unknown error"}`,
+              );
             }
           },
         };
@@ -651,15 +641,7 @@ export default function Home() {
         operation: "llm_inference",
         files: selectedFiles,
         parameters: {
-          prompt: "Analyze the user's data for insights and patterns",
-          temperature: 0.7,
-          model: "gpt-4",
-          maxTokens: 2000,
-          metadata: {
-            requestedBy: "demo-app",
-            timestamp: new Date().toISOString(),
-            purpose: "Data analysis demonstration",
-          },
+          prompt: "Analyze this data: {{data}}",
         },
       };
 
@@ -957,12 +939,50 @@ export default function Home() {
 
       let userMessage = "";
       if (error instanceof Error) {
-        // Check if it's a CORS error and suggest using proxy
+        // Check if it's a CORS error and try using proxy
         if (
           error.message.includes("CORS") ||
           error.message.includes("Failed to fetch")
         ) {
-          userMessage = `🌐 CORS Error: File cannot be accessed directly. This is likely due to the file being stored on Google Drive or another service that blocks cross-origin requests. The demo app now includes a proxy server to handle this.`;
+          try {
+            console.info("🔄 CORS error detected, retrying with proxy...");
+
+            // Show toast notification about retry
+            addToast({
+              title: "🔄 CORS Error Detected",
+              description: "Retrying with proxy server...",
+              color: "primary",
+              timeout: 3000,
+            });
+
+            // Create a proxy URL for the file
+            const proxyUrl = `/api/proxy?url=${encodeURIComponent(file.url)}`;
+
+            // Retry decryption using the proxy URL
+            const decryptedBlob = await vana.data.decryptFile(
+              { ...file, url: proxyUrl },
+              DEFAULT_ENCRYPTION_SEED,
+            );
+            const decryptedText = await decryptedBlob.text();
+
+            // Store the decrypted content
+            setDecryptedFiles((prev) =>
+              new Map(prev).set(file.id, decryptedText),
+            );
+
+            // Show success toast
+            addToast({
+              title: "✅ Proxy Success",
+              description: "Successfully decrypted file using proxy server!",
+              color: "success",
+              timeout: 4000,
+            });
+            console.info("✅ Successfully decrypted file using proxy");
+            return; // Success! Exit the error handling
+          } catch (proxyError) {
+            console.error("Proxy decryption also failed:", proxyError);
+            userMessage = `🌐 CORS Error: File cannot be accessed directly or through proxy. This may be due to the file service blocking all external requests.`;
+          }
         } else if (error.message.includes("Wrong encryption key")) {
           userMessage = `🔑 ${error.message}`;
         } else if (error.message.includes("Network error")) {

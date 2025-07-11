@@ -144,9 +144,10 @@ export interface RelayerCallbacks {
  * Base configuration interface
  */
 export interface BaseConfig {
+  // TODO: Remove relayerUrl and relayerCallbacks
   /**
-   * @deprecated Use relayerCallbacks for more flexible relay handling
-   * Optional URL for a Vana Relayer Service for gasless transactions
+   * Optional URL for a Vana Relayer Service for gasless transactions.
+   * If both relayerUrl and relayerCallbacks are provided, relayerCallbacks takes precedence.
    */
   relayerUrl?: string;
 

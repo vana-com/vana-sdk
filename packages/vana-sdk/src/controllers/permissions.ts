@@ -66,9 +66,10 @@ export interface ControllerContext {
   publicClient: PublicClient;
   /** Optional separate wallet for application-specific operations */
   applicationClient?: WalletClient;
+  // TODO: Remove relayerUrl and relayerCallbacks
   /**
-   * @deprecated Use relayerCallbacks for more flexible relay handling
-   * Optional relayer service URL for gasless transactions
+   * Optional relayer service URL for gasless transactions.
+   * If both relayerUrl and relayerCallbacks are provided, relayerCallbacks takes precedence.
    */
   relayerUrl?: string;
   /**
@@ -337,6 +338,88 @@ export class PermissionsController {
 
       throw new BlockchainError(
         `Trust server submission failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Submits an already-signed permission revoke transaction to the blockchain.
+   * This method handles the revocation of previously granted permissions.
+   *
+   * @param typedData - The EIP-712 typed data for PermissionRevoke
+   * @param signature - The user's signature
+   * @returns Promise resolving to the transaction hash
+   */
+  async submitSignedRevoke(
+    typedData: GenericTypedData,
+    signature: Hash,
+  ): Promise<Hash> {
+    try {
+      // Use relayer callbacks first, then fallback to relayerUrl, otherwise direct transaction
+      if (this.context.relayerCallbacks?.submitPermissionRevoke) {
+        return await this.context.relayerCallbacks.submitPermissionRevoke(
+          typedData,
+          signature,
+        );
+      } else if (this.context.relayerUrl) {
+        return await this.relaySignedRevoke(typedData, signature);
+      } else {
+        return await this.submitDirectRevokeTransaction(typedData);
+      }
+    } catch (error) {
+      if (
+        error instanceof RelayerError ||
+        error instanceof NetworkError ||
+        error instanceof UserRejectedRequestError ||
+        error instanceof SignatureError ||
+        error instanceof NonceError
+      ) {
+        throw error;
+      }
+      throw new BlockchainError(
+        `Permission revoke submission failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Submits an already-signed untrust server transaction to the blockchain.
+   * This method handles the removal of trusted servers.
+   *
+   * @param typedData - The EIP-712 typed data for UntrustServer
+   * @param signature - The user's signature
+   * @returns Promise resolving to the transaction hash
+   */
+  async submitSignedUntrustServer(
+    typedData: GenericTypedData,
+    signature: Hash,
+  ): Promise<Hash> {
+    try {
+      // Use relayer callbacks first, then fallback to relayerUrl, otherwise direct transaction
+      if (this.context.relayerCallbacks?.submitUntrustServer) {
+        return await this.context.relayerCallbacks.submitUntrustServer(
+          typedData as unknown as UntrustServerTypedData,
+          signature,
+        );
+      } else if (this.context.relayerUrl) {
+        return await this.relaySignedUntrustServer(typedData, signature);
+      } else {
+        return await this.submitDirectUntrustTransaction(typedData);
+      }
+    } catch (error) {
+      if (
+        error instanceof RelayerError ||
+        error instanceof NetworkError ||
+        error instanceof UserRejectedRequestError ||
+        error instanceof SignatureError ||
+        error instanceof NonceError
+      ) {
+        throw error;
+      }
+      throw new BlockchainError(
+        `Untrust server submission failed: ${error instanceof Error ? error.message : "Unknown error"}`,
         error as Error,
       );
     }
@@ -1339,5 +1422,125 @@ export class PermissionsController {
         error as Error,
       );
     }
+  }
+
+  /**
+   * Relays a signed revoke transaction via the relayer service.
+   */
+  private async relaySignedRevoke(
+    typedData: GenericTypedData,
+    signature: Hash,
+  ): Promise<Hash> {
+    try {
+      const relayerUrl = this.context.relayerUrl;
+      if (!relayerUrl) {
+        throw new RelayerError("No relayer URL configured");
+      }
+
+      const response = await fetch(`${relayerUrl}/relay`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ typedData, signature }),
+      });
+
+      if (!response.ok) {
+        throw new RelayerError(
+          `Failed to relay revoke transaction: ${response.statusText}`,
+          response.status,
+          await response.text(),
+        );
+      }
+
+      const data: RelayerTransactionResponse = await response.json();
+
+      if (!data.success) {
+        throw new RelayerError(
+          data.error || "Failed to relay revoke transaction",
+        );
+      }
+
+      return data.transactionHash;
+    } catch (error) {
+      if (error instanceof RelayerError) {
+        throw error;
+      }
+      throw new NetworkError(
+        `Network error while relaying revoke transaction: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Relays a signed untrust server transaction via the relayer service.
+   */
+  private async relaySignedUntrustServer(
+    typedData: GenericTypedData,
+    signature: Hash,
+  ): Promise<Hash> {
+    try {
+      const relayerUrl = this.context.relayerUrl;
+      if (!relayerUrl) {
+        throw new RelayerError("No relayer URL configured");
+      }
+
+      const response = await fetch(`${relayerUrl}/relay`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ typedData, signature }),
+      });
+
+      if (!response.ok) {
+        throw new RelayerError(
+          `Failed to relay untrust server transaction: ${response.statusText}`,
+          response.status,
+          await response.text(),
+        );
+      }
+
+      const data: RelayerTransactionResponse = await response.json();
+
+      if (!data.success) {
+        throw new RelayerError(
+          data.error || "Failed to relay untrust server transaction",
+        );
+      }
+
+      return data.transactionHash;
+    } catch (error) {
+      if (error instanceof RelayerError) {
+        throw error;
+      }
+      throw new NetworkError(
+        `Network error while relaying untrust server transaction: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Submits a revoke transaction directly to the blockchain.
+   * Note: Direct revocation is not currently supported as revoke operations
+   * are designed to be gasless through relayers only.
+   */
+  private async submitDirectRevokeTransaction(
+    _typedData: GenericTypedData,
+  ): Promise<Hash> {
+    throw new Error(
+      "Direct permission revocation is not supported. Please configure a relayer to submit gasless revoke transactions.",
+    );
+  }
+
+  /**
+   * Submits an untrust server transaction directly to the blockchain.
+   * Note: Direct server untrusting is not currently supported as untrust operations
+   * are designed to be gasless through relayers only.
+   */
+  private async submitDirectUntrustTransaction(
+    _typedData: GenericTypedData,
+  ): Promise<Hash> {
+    throw new Error(
+      "Direct server untrusting is not supported. Please configure a relayer to submit gasless untrust transactions.",
+    );
   }
 }

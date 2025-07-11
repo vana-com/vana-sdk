@@ -94,6 +94,7 @@ export const ContractListCard: React.FC<ContractListCardProps> = ({
                           <CopyButton
                             value={contractAddress}
                             tooltip="Copy contract address"
+                            isInline
                           />
                         </div>
                       ) : (

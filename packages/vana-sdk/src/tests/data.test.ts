@@ -1264,12 +1264,11 @@ describe("DataController", () => {
         subgraphUrl: "https://subgraph.test.com",
       });
 
-      // Should return all 3 files (including duplicates), sorted by latest timestamp first
-      expect(result).toHaveLength(3);
+      // Should return only 2 unique files, with duplicates filtered (keeps latest entry for each ID)
+      expect(result).toHaveLength(2);
       // Results should be sorted by latest timestamp first
-      expect(result[0].id).toBe(10); // Latest timestamp (1640995400)
-      expect(result[1].id).toBe(20); // Middle timestamp (1640995300)
-      expect(result[2].id).toBe(10); // Earliest timestamp (1640995200)
+      expect(result[0].id).toBe(10); // Latest timestamp for file ID 10 (1640995400)
+      expect(result[1].id).toBe(20); // File ID 20 (1640995300)
     });
   });
 

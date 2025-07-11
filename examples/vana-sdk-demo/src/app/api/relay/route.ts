@@ -69,10 +69,10 @@ export async function POST(request: NextRequest) {
         signature,
       );
     } else if (typedData.primaryType === "PermissionRevoke") {
-      // Handle permission revoke - note: relayer support is limited for revoke operations
-      // For now, return an error suggesting direct blockchain interaction
-      throw new Error(
-        "Permission revoke operations should be handled directly by the client",
+      // Handle permission revoke using the permissions controller
+      txHash = await vana.permissions.submitSignedRevoke(
+        typedData as unknown as GenericTypedData,
+        signature,
       );
     } else if (typedData.primaryType === "TrustServer") {
       txHash = await vana.permissions.submitSignedTrustServer(
@@ -80,10 +80,10 @@ export async function POST(request: NextRequest) {
         signature,
       );
     } else if (typedData.primaryType === "UntrustServer") {
-      // Handle untrust server - note: relayer support is limited for untrust operations
-      // For now, return an error suggesting direct blockchain interaction
-      throw new Error(
-        "Untrust server operations should be handled directly by the client",
+      // Handle untrust server using the permissions controller
+      txHash = await vana.permissions.submitSignedUntrustServer(
+        typedData as unknown as GenericTypedData,
+        signature,
       );
     } else {
       throw new Error(`Unsupported operation type: ${typedData.primaryType}`);

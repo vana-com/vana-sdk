@@ -42,7 +42,6 @@ describe("Grant Utilities", () => {
   const mockGrantFile = {
     grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
     operation: "llm_inference",
-    files: [1, 2, 3],
     parameters: { prompt: "test" },
     expires: Math.floor(Date.now() / 1000) + 3600, // 1 hour from now
   };
@@ -69,7 +68,6 @@ describe("Grant Utilities", () => {
       expect(validateGrant).toHaveBeenCalledWith(mockGrantFile, {
         grantee: mockParams.to,
         operation: mockParams.operation,
-        files: mockParams.files,
         schema: true,
       });
       expect(result).toEqual(mockGrantFile);
@@ -238,7 +236,6 @@ describe("Grant Utilities", () => {
 
       expect(summary).toContain("0x1234567890123456789012345678901234567890");
       expect(summary).toContain("llm_inference");
-      expect(summary).toContain("3 file(s)");
       expect(summary).toContain("expires:");
     });
 

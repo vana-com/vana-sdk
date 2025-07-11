@@ -97,17 +97,25 @@ describe("New PermissionsController Methods", () => {
       // Verify that relayRevokeTransaction was called (indicates signature was created)
       expect((controller as any).relayRevokeTransaction).toHaveBeenCalledWith(
         expect.objectContaining({
-          domain: expect.objectContaining({
+          domain: {
             name: "DataPermissions",
             version: "1",
             chainId: 14800,
-          }),
-          message: expect.objectContaining({
+            verifyingContract: "0x1234567890123456789012345678901234567890",
+          },
+          types: {
+            RevokePermission: [
+              { name: "nonce", type: "uint256" },
+              { name: "permissionId", type: "uint256" },
+            ],
+          },
+          primaryType: "RevokePermission",
+          message: {
             nonce: 123n,
             permissionId: 42n,
-          }),
+          },
         }),
-        expect.stringMatching(/^0x[a-f0-9]{130}$/), // Signature pattern
+        "0xsignature123456789012345678901234567890123456789012345678901234567890",
       );
     });
 

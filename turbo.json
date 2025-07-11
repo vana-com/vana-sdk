@@ -18,12 +18,14 @@
       "persistent": true
     },
     "lint": {
+      "dependsOn": ["^build"],
       "outputs": []
     },
     "lint:fix": {
       "outputs": []
     },
     "typecheck": {
+      "dependsOn": ["^build"],
       "outputs": [".tsbuildinfo"]
     },
     "test": {

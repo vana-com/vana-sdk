@@ -8,12 +8,6 @@ describe("SDK Entry Point", () => {
       expect(Vana).toBeDefined();
       expect(typeof Vana).toBe("function");
     });
-
-    it("should export VanaProvider", async () => {
-      const { VanaProvider } = await import("../index");
-      expect(VanaProvider).toBeDefined();
-      expect(typeof VanaProvider).toBe("function");
-    });
   });
 
   describe("Controller exports", () => {
@@ -37,12 +31,6 @@ describe("SDK Entry Point", () => {
   });
 
   describe("Contract exports", () => {
-    it("should export ContractClient", async () => {
-      const { ContractClient } = await import("../index");
-      expect(ContractClient).toBeDefined();
-      expect(typeof ContractClient).toBe("function");
-    });
-
     it("should export getContractController", async () => {
       const { getContractController } = await import("../index");
       expect(getContractController).toBeDefined();

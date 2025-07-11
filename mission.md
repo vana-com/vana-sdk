@@ -1,4 +1,4 @@
-I'm going to give you a series of tasks to complete.
+I'm going to give you a series of tasks to complete. Each of these justifies its own todo list so I recommend taking them on one as a time as mini projects and then referring back to this document after each one is completed and npm run validate passes (with no cheating through --no-verify, skipping tests, etc.)
 
 #1 - reading the right file and permission data
 There is a new Subgraph. Here are the entities:
@@ -200,3 +200,9 @@ Right now the patterned implemented in the SDK for relayed transactions is to co
 - Generally, the copy buttons for things like file IDs should not say Copy, especially when they are inline
 - All File IDs should be rendered with link buttons to the right contract (and URL hash) for reading the File ID in the block explorer for the current network, in addition to copy buttons
 - Decrypt button instances should have an icon
+
+#4 - Up to date documentation
+These docs should not have gaps, they should be consistent with the implemented SDK features and be good quality like how Stripe and Viem write their SDK reference documentation, and considerate of who their audience is:
+
+- typedoc docs for all SDK features
+- SDK README (which is embedded in the SDK typedoc docs btw)

@@ -36,8 +36,8 @@ export const Section: React.FC<SectionProps> = ({
   isFirst = false,
   isLast = false,
 }) => {
-  const paddingClasses = `${isFirst ? "pt-0" : "pt-32"} ${
-    isLast ? "pb-0" : "pb-32"
+  const paddingClasses = `${isFirst ? "pt-0" : "pt-20"} ${
+    isLast ? "pb-0" : "pb-20"
   }`;
 
   return (
@@ -55,7 +55,7 @@ export const SectionDivider: React.FC<{ className?: string }> = ({
   className = "",
 }) => {
   return (
-    <div className={`py-16 ${className}`}>
+    <div className={`py-12 ${className}`}>
       <div className="relative">
         <div className="absolute inset-0 flex items-center">
           <div className="w-full border-t border-default-200/60" />

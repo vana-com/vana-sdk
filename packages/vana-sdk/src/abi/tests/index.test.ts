@@ -10,8 +10,8 @@ describe("ABI utilities", () => {
       expect(abi.length).toBeGreaterThan(0);
     });
 
-    it("should return ABI for PermissionRegistry", () => {
-      const abi = getAbi("PermissionRegistry");
+    it("should return ABI for DataPermissions", () => {
+      const abi = getAbi("DataPermissions");
       expect(abi).toBeDefined();
       expect(Array.isArray(abi)).toBe(true);
       expect(abi.length).toBeGreaterThan(0);
@@ -26,9 +26,9 @@ describe("ABI utilities", () => {
 
     it("should return different ABIs for different contracts", () => {
       const dataRegistryAbi = getAbi("DataRegistry");
-      const permissionRegistryAbi = getAbi("PermissionRegistry");
+      const DataPermissionsAbi = getAbi("DataPermissions");
 
-      expect(dataRegistryAbi).not.toEqual(permissionRegistryAbi);
+      expect(dataRegistryAbi).not.toEqual(DataPermissionsAbi);
     });
 
     it("should return ABI for newly added contracts", () => {

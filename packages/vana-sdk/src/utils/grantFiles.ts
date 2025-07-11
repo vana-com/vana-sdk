@@ -5,13 +5,10 @@ import { SerializationError, NetworkError } from "../errors";
 /**
  * Creates a grant file structure from permission parameters.
  */
-export function createGrantFile(
-  params: GrantPermissionParams,
-): GrantFile {
+export function createGrantFile(params: GrantPermissionParams): GrantFile {
   const grantFile: GrantFile = {
     grantee: params.to,
     operation: params.operation,
-    files: params.files,
     parameters: params.parameters,
   };
 
@@ -148,8 +145,10 @@ export function getGrantFileHash(grantFile: GrantFile): string {
     const sortedFile: GrantFile = {
       grantee: grantFile.grantee,
       operation: grantFile.operation,
-      files: [...grantFile.files].sort((a, b) => a - b), // Sort files for consistency
-      parameters: sortObjectKeys(grantFile.parameters) as Record<string, unknown>,
+      parameters: sortObjectKeys(grantFile.parameters) as Record<
+        string,
+        unknown
+      >,
     };
 
     // Add expires if present
@@ -212,14 +211,7 @@ export function validateGrantFile(data: unknown): data is GrantFile {
     return false;
   }
 
-  if (!Array.isArray(obj.files)) {
-    return false;
-  }
-
-  // Validate file IDs are non-negative integers
-  if (!obj.files.every((id) => typeof id === "number" && id >= 0 && Number.isInteger(id))) {
-    return false;
-  }
+  // Files are no longer stored in grant files - they're tracked in the contract
 
   if (!obj.parameters || typeof obj.parameters !== "object") {
     return false;
@@ -227,7 +219,11 @@ export function validateGrantFile(data: unknown): data is GrantFile {
 
   // Validate optional expires field
   if (obj.expires !== undefined) {
-    if (typeof obj.expires !== "number" || obj.expires < 0 || !Number.isInteger(obj.expires)) {
+    if (
+      typeof obj.expires !== "number" ||
+      obj.expires < 0 ||
+      !Number.isInteger(obj.expires)
+    ) {
       return false;
     }
   }

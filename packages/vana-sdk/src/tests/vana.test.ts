@@ -60,7 +60,10 @@ describe("Vana", () => {
     it("should initialize successfully with valid config", () => {
       const vana = new Vana({
         walletClient: validWalletClient,
-        relayerUrl: "https://test-relayer.com",
+        relayerCallbacks: {
+          submitPermissionGrant: async (_typedData, _signature) => "0xtxhash",
+          submitPermissionRevoke: async (_typedData, _signature) => "0xtxhash",
+        },
       });
 
       expect(vana).toBeDefined();
@@ -69,12 +72,12 @@ describe("Vana", () => {
       expect(vana.protocol).toBeDefined();
     });
 
-    it("should work without relayer URL (direct transaction mode)", () => {
+    it("should work without relayer callbacks (direct transaction mode)", () => {
       const vana = new Vana({
         walletClient: validWalletClient,
       });
 
-      expect(vana.getConfig().relayerUrl).toBeUndefined();
+      expect(vana.getConfig().relayerCallbacks).toBeUndefined();
     });
 
     it("should throw InvalidConfigurationError when config is missing", () => {
@@ -97,31 +100,34 @@ describe("Vana", () => {
       }).toThrow(InvalidConfigurationError);
     });
 
-    it("should throw InvalidConfigurationError when relayerUrl is empty", () => {
+    it("should throw InvalidConfigurationError when relayerCallbacks is invalid", () => {
       expect(() => {
         new Vana({
           walletClient: validWalletClient,
-          relayerUrl: "",
+          relayerCallbacks: "not-an-object" as any,
         });
       }).toThrow(InvalidConfigurationError);
     });
 
-    it("should throw InvalidConfigurationError when relayerUrl is invalid", () => {
+    it("should work with partial relayerCallbacks", () => {
       expect(() => {
         new Vana({
           walletClient: validWalletClient,
-          relayerUrl: "not-a-url",
+          relayerCallbacks: {
+            submitPermissionGrant: async (_typedData, _signature) => "0xtxhash",
+            // Only one callback provided - should still work
+          },
         });
-      }).toThrow(InvalidConfigurationError);
+      }).not.toThrow();
     });
 
-    it("should throw InvalidConfigurationError when relayerUrl is not a string", () => {
+    it("should work with empty relayerCallbacks object", () => {
       expect(() => {
         new Vana({
           walletClient: validWalletClient,
-          relayerUrl: 123 as any,
+          relayerCallbacks: {},
         });
-      }).toThrow(InvalidConfigurationError);
+      }).not.toThrow();
     });
 
     it("should throw InvalidConfigurationError when chain is not supported", () => {
@@ -163,7 +169,10 @@ describe("Vana", () => {
     beforeEach(() => {
       vana = new Vana({
         walletClient: validWalletClient,
-        relayerUrl: "https://test-relayer.com",
+        relayerCallbacks: {
+          submitPermissionGrant: async (_typedData, _signature) => "0xtxhash",
+          submitPermissionRevoke: async (_typedData, _signature) => "0xtxhash",
+        },
       });
     });
 
@@ -188,7 +197,10 @@ describe("Vana", () => {
     beforeEach(() => {
       vana = new Vana({
         walletClient: validWalletClient,
-        relayerUrl: "https://test-relayer.com",
+        relayerCallbacks: {
+          submitPermissionGrant: async (_typedData, _signature) => "0xtxhash",
+          submitPermissionRevoke: async (_typedData, _signature) => "0xtxhash",
+        },
       });
     });
 
@@ -198,7 +210,10 @@ describe("Vana", () => {
       expect(config).toEqual({
         chainId: 14800,
         chainName: "VANA - Moksha",
-        relayerUrl: "https://test-relayer.com",
+        relayerCallbacks: {
+          submitPermissionGrant: expect.any(Function),
+          submitPermissionRevoke: expect.any(Function),
+        },
         defaultStorageProvider: undefined,
         storageProviders: [],
       });
@@ -218,7 +233,10 @@ describe("Vana", () => {
     it("should pass shared context to all controllers", () => {
       const vana = new Vana({
         walletClient: validWalletClient,
-        relayerUrl: "https://test-relayer.com",
+        relayerCallbacks: {
+          submitPermissionGrant: async (_typedData, _signature) => "0xtxhash",
+          submitPermissionRevoke: async (_typedData, _signature) => "0xtxhash",
+        },
       });
 
       // Verify that controllers are initialized with the correct context
@@ -229,7 +247,9 @@ describe("Vana", () => {
       // Test that the controllers have access to the shared context
       // by verifying they can access the configuration
       const config = vana.getConfig();
-      expect(config.relayerUrl).toBe("https://test-relayer.com");
+      expect(config.relayerCallbacks).toBeDefined();
+      expect(config.relayerCallbacks?.submitPermissionGrant).toBeDefined();
+      expect(config.relayerCallbacks?.submitPermissionRevoke).toBeDefined();
       expect(config.chainId).toBe(14800);
       expect(config.chainName).toBe("VANA - Moksha");
     });

@@ -192,7 +192,7 @@ describe("contractController", () => {
         "DataRegistry",
         "TeePool",
         "DataLiquidityPool",
-        "PermissionRegistry",
+        "DataPermissions",
         "DLPRegistry",
       ];
 

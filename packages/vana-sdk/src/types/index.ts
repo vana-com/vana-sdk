@@ -108,6 +108,8 @@ export type {
   UntrustServerInput,
   TrustServerTypedData,
   UntrustServerTypedData,
+  PermissionInfo,
+  RevokePermissionInput,
 } from "./permissions";
 
 // Personal server types

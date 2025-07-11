@@ -143,3 +143,15 @@ export class ServerUrlMismatchError extends VanaError {
   public readonly providedUrl: string;
   public readonly serverId: string;
 }
+
+/**
+ * Error thrown when a permission operation fails.
+ */
+export class PermissionError extends VanaError {
+  constructor(
+    message: string,
+    public readonly originalError?: Error,
+  ) {
+    super(message, "PERMISSION_ERROR");
+  }
+}

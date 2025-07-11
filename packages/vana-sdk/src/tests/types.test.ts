@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import type { VanaConfig, WalletConfig, ChainConfig } from "../types/config";
 import type { UserFile, UploadEncryptedFileResult } from "../types/data";
 import type {
@@ -63,7 +63,7 @@ describe("TypeScript Types", () => {
       };
 
       expect(config.walletClient).toBeDefined();
-      expect(config.relayerUrl).toBeUndefined();
+      expect(config.relayerCallbacks).toBeUndefined();
       expect(config.storage).toBeUndefined();
     });
 
@@ -77,14 +77,16 @@ describe("TypeScript Types", () => {
 
       const config: VanaConfig = {
         walletClient,
-        relayerUrl: "https://relayer.example.com",
+        relayerCallbacks: {
+          submitPermissionGrant: vi.fn(),
+        },
         storage: {
           providers: {},
           defaultProvider: "ipfs",
         },
       };
 
-      expect(config.relayerUrl).toBe("https://relayer.example.com");
+      expect(config.relayerCallbacks).toBeDefined();
       expect(config.storage?.defaultProvider).toBe("ipfs");
     });
   });
@@ -175,22 +177,19 @@ describe("TypeScript Types", () => {
   });
 
   describe("RevokePermissionParams", () => {
-    it("should have required grantId property", () => {
+    it("should have required permissionId property", () => {
       const params: RevokePermissionParams = {
-        grantId:
-          "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+        permissionId: 123n,
       };
 
-      expect(params.grantId).toBe(
-        "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-      );
+      expect(params.permissionId).toBe(123n);
     });
   });
 
   describe("VanaContract union type", () => {
     it("should accept all valid contract names", () => {
       const contracts: VanaContract[] = [
-        "PermissionRegistry",
+        "DataPermissions",
         "DataRegistry",
         "TeePool",
         "ComputeEngine",
@@ -221,7 +220,7 @@ describe("TypeScript Types", () => {
       ];
 
       expect(contracts).toHaveLength(28);
-      expect(contracts.includes("PermissionRegistry")).toBe(true);
+      expect(contracts.includes("DataPermissions")).toBe(true);
       expect(contracts.includes("DataRegistry")).toBe(true);
     });
   });
@@ -229,13 +228,13 @@ describe("TypeScript Types", () => {
   describe("PermissionGrantDomain", () => {
     it("should have all required EIP-712 domain properties", () => {
       const domain: PermissionGrantDomain = {
-        name: "VanaDataWallet",
+        name: "DataPermissions",
         version: "1",
         chainId: 14800,
         verifyingContract: "0x1234567890123456789012345678901234567890",
       };
 
-      expect(domain.name).toBe("VanaDataWallet");
+      expect(domain.name).toBe("DataPermissions");
       expect(domain.version).toBe("1");
       expect(domain.chainId).toBe(14800);
       expect(domain.verifyingContract).toBe(
@@ -269,10 +268,12 @@ describe("TypeScript Types", () => {
       const message: PermissionInputMessage = {
         nonce: BigInt(123),
         grant: "ipfs://QmGrant",
+        fileIds: [1n, 2n, 3n],
       };
 
       expect(message.nonce).toBe(BigInt(123));
       expect(message.grant).toBe("ipfs://QmGrant");
+      expect(message.fileIds).toEqual([1n, 2n, 3n]);
     });
 
     it("should support SimplifiedPermissionMessage structure", () => {
@@ -295,13 +296,11 @@ describe("TypeScript Types", () => {
       const grantFile: GrantFile = {
         grantee: "0x1234567890123456789012345678901234567890",
         operation: "llm_inference",
-        files: [1, 2, 3],
         parameters: { prompt: "Test prompt" },
         expires: Math.floor(Date.now() / 1000) + 3600,
       };
 
       expect(grantFile.operation).toBe("llm_inference");
-      expect(grantFile.files).toEqual([1, 2, 3]);
       expect(grantFile.parameters).toEqual({ prompt: "Test prompt" });
       expect(grantFile.expires).toBeGreaterThan(Math.floor(Date.now() / 1000));
     });
@@ -311,7 +310,7 @@ describe("TypeScript Types", () => {
     it("should support PermissionGrantTypedData structure", () => {
       const typedData: PermissionGrantTypedData = {
         domain: {
-          name: "VanaDataWallet",
+          name: "DataPermissions",
           version: "1",
           chainId: 14800,
           verifyingContract: "0x1234567890123456789012345678901234567890",
@@ -320,27 +319,28 @@ describe("TypeScript Types", () => {
           Permission: [
             { name: "nonce", type: "uint256" },
             { name: "grant", type: "string" },
+            { name: "fileIds", type: "uint256[]" },
           ],
         },
         primaryType: "Permission",
         message: {
           nonce: BigInt(123),
           grant: "ipfs://QmGrant",
+          fileIds: [1n, 2n, 3n],
         },
-        files: [1, 2, 3],
       };
 
-      expect(typedData.domain.name).toBe("VanaDataWallet");
-      expect(typedData.types.Permission).toHaveLength(2);
+      expect(typedData.domain.name).toBe("DataPermissions");
+      expect(typedData.types.Permission).toHaveLength(3);
       expect(typedData.primaryType).toBe("Permission");
       expect(typedData.message.nonce).toBe(BigInt(123));
-      expect(typedData.files).toEqual([1, 2, 3]);
+      expect(typedData.message.fileIds).toEqual([1n, 2n, 3n]);
     });
 
     it("should support GenericTypedData structure", () => {
       const typedData: GenericTypedData = {
         domain: {
-          name: "VanaDataWallet",
+          name: "DataPermissions",
           version: "1",
           chainId: 14800,
           verifyingContract: "0x1234567890123456789012345678901234567890",
@@ -358,7 +358,7 @@ describe("TypeScript Types", () => {
         },
       };
 
-      expect(typedData.domain.name).toBe("VanaDataWallet");
+      expect(typedData.domain.name).toBe("DataPermissions");
       expect(typedData.types.CustomType).toHaveLength(2);
       expect(typedData.primaryType).toBe("CustomType");
       expect(typedData.message.field1).toBe("test");
@@ -487,7 +487,7 @@ describe("TypeScript Types", () => {
         };
 
         expect(config.walletClient).toBeDefined();
-        expect(config.relayerUrl).toBeUndefined();
+        expect(config.relayerCallbacks).toBeUndefined();
         expect(config.storage).toBeUndefined();
       });
 
@@ -501,7 +501,9 @@ describe("TypeScript Types", () => {
 
         const config: WalletConfig = {
           walletClient,
-          relayerUrl: "https://relayer.test.com",
+          relayerCallbacks: {
+            submitPermissionGrant: vi.fn(),
+          },
           storage: {
             providers: {
               ipfs: {
@@ -521,7 +523,7 @@ describe("TypeScript Types", () => {
         };
 
         expect(config.walletClient).toBeDefined();
-        expect(config.relayerUrl).toBe("https://relayer.test.com");
+        expect(config.relayerCallbacks).toBeDefined();
         expect(config.storage?.defaultProvider).toBe("ipfs");
       });
     });
@@ -533,14 +535,16 @@ describe("TypeScript Types", () => {
         };
 
         expect(config.chainId).toBe(14800);
-        expect(config.relayerUrl).toBeUndefined();
+        expect(config.relayerCallbacks).toBeUndefined();
         expect(config.storage).toBeUndefined();
       });
 
       it("should accept optional properties", () => {
         const config: ChainConfig = {
           chainId: 1480,
-          relayerUrl: "https://relayer.mainnet.com",
+          relayerCallbacks: {
+            submitPermissionGrant: vi.fn(),
+          },
           storage: {
             providers: {
               ipfs: {
@@ -560,7 +564,7 @@ describe("TypeScript Types", () => {
         };
 
         expect(config.chainId).toBe(1480);
-        expect(config.relayerUrl).toBe("https://relayer.mainnet.com");
+        expect(config.relayerCallbacks).toBeDefined();
         expect(config.storage?.defaultProvider).toBe("ipfs");
       });
     });
@@ -953,7 +957,7 @@ describe("TypeScript Types", () => {
 
   describe("Contract Type Inference", () => {
     it("should provide proper type inference for contract methods", () => {
-      const contractInfo = getContractInfo("PermissionRegistry");
+      const contractInfo = getContractInfo("DataPermissions");
       expect(contractInfo.address).toBeDefined();
       expect(contractInfo.abi).toBeDefined();
     });
@@ -975,7 +979,7 @@ describe("TypeScript Types", () => {
       });
 
       const factory = new ContractFactory(walletClient);
-      const contract = factory.create("PermissionRegistry");
+      const contract = factory.create("DataPermissions");
       expect(contract).toBeDefined();
     });
 

@@ -659,42 +659,6 @@ export class DataController {
           size: uploadResult.size,
           transactionHash: result.transactionHash,
         };
-      } else if (this.context.relayerUrl) {
-        // Gasless registration via relayer
-        const addFileResponse = await fetch(
-          `${this.context.relayerUrl}/api/relay/addFile`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              url: uploadResult.url,
-              userAddress: userAddress,
-            }),
-          },
-        );
-
-        if (!addFileResponse.ok) {
-          throw new Error(
-            `Failed to register file on blockchain: ${addFileResponse.statusText}`,
-          );
-        }
-
-        const addFileData = await addFileResponse.json();
-
-        if (!addFileData.success) {
-          throw new Error(
-            addFileData.error || "Failed to register file on blockchain",
-          );
-        }
-
-        return {
-          fileId: addFileData.fileId,
-          url: uploadResult.url,
-          size: uploadResult.size,
-          transactionHash: addFileData.transactionHash,
-        };
       } else {
         // Direct transaction (user pays gas)
         const chainId = this.context.walletClient.chain?.id;
@@ -794,7 +758,7 @@ export class DataController {
       // Step 2: Register file on blockchain with schema
       const userAddress = await this.getUserAddress();
 
-      if (this.context.relayerUrl) {
+      if (this.context.relayerCallbacks?.submitFileAddition) {
         // Gasless registration via relayer - need to update relayer to support schema
         throw new Error(
           "Relayer does not yet support uploading files with schema. Please use direct transaction mode.",
@@ -1572,41 +1536,6 @@ export class DataController {
             userAddress,
             encryptedPermissions,
           );
-      } else if (this.context.relayerUrl) {
-        // Gasless registration via relayer
-        const addFileResponse = await fetch(
-          `${this.context.relayerUrl}/api/relay/addFileWithPermissions`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              url: uploadResult.url,
-              userAddress: userAddress,
-              permissions: encryptedPermissions,
-            }),
-          },
-        );
-
-        if (!addFileResponse.ok) {
-          throw new Error(
-            `Failed to register file on blockchain: ${addFileResponse.statusText}`,
-          );
-        }
-
-        const addFileData = await addFileResponse.json();
-
-        if (!addFileData.success) {
-          throw new Error(
-            addFileData.error || "Failed to register file on blockchain",
-          );
-        }
-
-        result = {
-          fileId: addFileData.fileId,
-          transactionHash: addFileData.transactionHash,
-        };
       } else {
         // Direct transaction
         result = await this.addFileWithPermissions(

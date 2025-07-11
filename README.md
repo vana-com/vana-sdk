@@ -324,7 +324,7 @@ console.log("Added at block:", fileDetails.addedAtBlock);
 
 ```typescript
 // Get contract information for advanced usage
-const permissionRegistry = vana.protocol.getContract("PermissionRegistry");
+const DataPermissions = vana.protocol.getContract("DataPermissions");
 const dataRegistry = vana.protocol.getContract("DataRegistry");
 
 // Use with viem for custom contract interactions
@@ -337,8 +337,8 @@ const publicClient = createPublicClient({
 
 // Direct contract read
 const userNonce = await publicClient.readContract({
-  address: permissionRegistry.address,
-  abi: permissionRegistry.abi,
+  address: DataPermissions.address,
+  abi: DataPermissions.abi,
   functionName: "userNonce",
   args: [userAddress],
 });

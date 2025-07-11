@@ -5,14 +5,12 @@ import {
   GrantExpiredError,
   GranteeMismatchError,
   OperationNotAllowedError,
-  FileAccessDeniedError,
 } from "../utils/grantValidation";
 
 describe("validateGrant (Consolidated Validation)", () => {
   const validGrantFile = {
     grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
     operation: "llm_inference",
-    files: [1, 2, 3],
     parameters: { prompt: "test" },
     expires: Math.floor(Date.now() / 1000) + 3600, // 1 hour from now
   };
@@ -27,7 +25,6 @@ describe("validateGrant (Consolidated Validation)", () => {
       const invalidGrant = {
         // Missing required 'grantee' field
         operation: "llm_inference",
-        files: [1, 2, 3],
         parameters: {},
       };
 
@@ -91,22 +88,6 @@ describe("validateGrant (Consolidated Validation)", () => {
       ).toThrow(OperationNotAllowedError);
     });
 
-    it("should validate file access", () => {
-      const result = validateGrant(validGrantFile, {
-        files: [1, 2],
-      });
-
-      expect(result).toEqual(validGrantFile);
-    });
-
-    it("should throw FileAccessDeniedError for unauthorized files", () => {
-      expect(() =>
-        validateGrant(validGrantFile, {
-          files: [1, 2, 4], // 4 is not in the grant
-        }),
-      ).toThrow(FileAccessDeniedError);
-    });
-
     it("should validate expiry with current time", () => {
       const result = validateGrant(validGrantFile);
       expect(result).toEqual(validGrantFile);
@@ -145,7 +126,6 @@ describe("validateGrant (Consolidated Validation)", () => {
       const result = validateGrant(validGrantFile, {
         grantee: "0x1234567890123456789012345678901234567890",
         operation: "llm_inference",
-        files: [1, 2],
       });
 
       expect(result).toEqual(validGrantFile);
@@ -155,17 +135,15 @@ describe("validateGrant (Consolidated Validation)", () => {
       const result = validateGrant(validGrantFile, {
         grantee: "0x9999999999999999999999999999999999999999", // Wrong grantee
         operation: "wrong_operation", // Wrong operation
-        files: [1, 2, 99], // Invalid file
         throwOnError: false,
       });
 
       expect(result.valid).toBe(false);
-      expect(result.errors).toHaveLength(3);
+      expect(result.errors).toHaveLength(2);
 
       const errorTypes = result.errors.map((e) => e.error?.constructor.name);
       expect(errorTypes).toContain("GranteeMismatchError");
       expect(errorTypes).toContain("OperationNotAllowedError");
-      expect(errorTypes).toContain("FileAccessDeniedError");
     });
 
     it("should throw first error encountered when throwOnError is true", () => {
@@ -223,6 +201,49 @@ describe("validateGrant (Consolidated Validation)", () => {
 
       expect(result.errors[0].field).toBe("grantee");
       expect(result.errors[0].type).toBe("business");
+    });
+  });
+
+  describe("Edge Cases for Branch Coverage", () => {
+    it("should handle error without error property (line 283)", () => {
+      // Create a scenario where error.details.errors is not an array
+      const invalidGrant = {
+        grantee: "invalid-address", // This will fail schema validation
+        operation: "test",
+        parameters: {},
+      };
+
+      const result = validateGrant(invalidGrant, { throwOnError: false });
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].type).toBe("schema");
+      // This tests the branch where firstError.error exists
+    });
+
+    it("should return validation result with errors when throwOnError is false (lines 288-293)", () => {
+      const result = validateGrant(validGrantFile, {
+        grantee: "0x9999999999999999999999999999999999999999",
+        operation: "wrong_operation",
+        throwOnError: false,
+      });
+
+      // This tests the return { valid: false, errors, grant } branch
+      expect(result.valid).toBe(false);
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.grant).toEqual(validGrantFile);
+    });
+
+    it("should throw GrantSchemaError for invalid schema (covering specific error path)", () => {
+      // Test the schema error path which covers the firstError.error branch
+      const invalidData = { invalid: "data" };
+
+      expect(() => {
+        validateGrant(invalidData, {
+          schema: true,
+          grantee: "0x1234567890123456789012345678901234567890",
+        });
+      }).toThrow("Invalid grant file schema");
     });
   });
 

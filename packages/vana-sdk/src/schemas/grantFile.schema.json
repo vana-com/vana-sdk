@@ -1,9 +1,9 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Vana Data Permission Grant",
-  "description": "User-signed permission that authorizes a specific application to access selected files via a personal server",
+  "description": "User-signed permission that authorizes a specific application to perform operations via a personal server",
   "type": "object",
-  "required": ["grantee", "operation", "files", "parameters"],
+  "required": ["grantee", "operation", "parameters"],
   "properties": {
     "grantee": {
       "type": "string",
@@ -14,15 +14,6 @@
       "type": "string",
       "minLength": 1,
       "description": "Operation the grantee is authorized to perform"
-    },
-    "files": {
-      "type": "array",
-      "items": {
-        "type": "integer",
-        "minimum": 0
-      },
-      "uniqueItems": true,
-      "description": "File IDs this grant covers"
     },
     "parameters": {
       "type": "object",
@@ -40,7 +31,6 @@
     {
       "grantee": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
       "operation": "llm_inference",
-      "files": [1654096, 1654097],
       "parameters": {
         "prompt": "Analyze this data: {{data}}",
         "model": "gpt-4",

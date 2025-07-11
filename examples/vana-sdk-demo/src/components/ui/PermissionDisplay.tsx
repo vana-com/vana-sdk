@@ -22,7 +22,7 @@ export function PermissionDisplay({
   const hashForUrl =
     grantHash || `0x${permissionId.toString(16).padStart(64, "0")}`; // Use 64 chars for full uint256
 
-  // Link to the PermissionRegistry contract with the permission hash
+  // Link to the DataPermissions contract with the permission hash
   const contractUrl = getContractUrl(
     chainId,
     "0x9f03B01A17d54c6934F2735B5d38a60C56Bf0dBe",

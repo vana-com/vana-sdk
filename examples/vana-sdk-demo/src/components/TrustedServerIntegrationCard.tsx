@@ -1,5 +1,5 @@
 import React from "react";
-import { Input, Button, Divider } from "@heroui/react";
+import { Input, Button } from "@heroui/react";
 import { Brain, Key, Lock, RotateCcw, Copy } from "lucide-react";
 import { SectionHeader } from "./ui/SectionHeader";
 import { ActionButton } from "./ui/ActionButton";
@@ -143,8 +143,8 @@ export const TrustedServerIntegrationCard: React.FC<
                   size="sm"
                   maxHeight="max-h-48"
                 />
-                <div className="p-3 bg-default-100 rounded-lg">
-                  <p className="text-default-700 text-sm">
+                <div className="p-3 bg-success/10 border border-success/20 rounded-lg">
+                  <p className="text-success-700 dark:text-success text-sm">
                     ✅ Successfully decrypted file using server's private key!
                   </p>
                 </div>
@@ -153,10 +153,8 @@ export const TrustedServerIntegrationCard: React.FC<
           </div>
         </div>
 
-        <Divider />
-
         {/* Trusted Server API Integration */}
-        <div className="space-y-4">
+        <div className="space-y-4 mt-12">
           <div className="flex items-center gap-2">
             <Brain className="h-4 w-4" />
             <span className="font-medium">Trusted Server API Integration</span>

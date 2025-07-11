@@ -52,12 +52,10 @@ import {
   ModalHeader,
   ModalBody,
   Spinner,
-  Spacer,
   Navbar,
   NavbarBrand,
   NavbarContent,
   NavbarItem,
-  Divider,
 } from "@heroui/react";
 import { NavigationButton } from "@/components/ui/NavigationButton";
 import { SectionHeader } from "@/components/ui/SectionHeader";
@@ -81,6 +79,7 @@ import type {
   DiscoveredServerInfo,
 } from "@/types/api";
 import { navigationConfig } from "@/config/navigation";
+import { Section, SectionDivider } from "@/components/ui/Section";
 
 export default function Home() {
   const { address, isConnected } = useAccount();
@@ -1693,263 +1692,275 @@ export default function Home() {
             )}
 
             {vana && (
-              <div id="main-content" className="space-y-8">
+              <div id="main-content">
                 {/* Data & Permissions Section */}
-                <h2 className="text-2xl font-semibold">
-                  Data &amp; Permissions
-                </h2>
+                <Section isFirst>
+                  <h1 className="text-3xl font-bold mb-16">
+                    Data &amp; Permissions
+                  </h1>
 
-                <YourDataCard
-                  fileLookupId={fileLookupId}
-                  onFileLookupIdChange={setFileLookupId}
-                  onLookupFile={handleLookupFile}
-                  isLookingUpFile={isLookingUpFile}
-                  fileLookupStatus={fileLookupStatus}
-                  userFiles={userFiles}
-                  isLoadingFiles={isLoadingFiles}
-                  onRefreshFiles={loadUserFiles}
-                  selectedFiles={selectedFiles}
-                  decryptingFiles={decryptingFiles}
-                  decryptedFiles={decryptedFiles}
-                  onFileSelection={handleFileSelection}
-                  onDecryptFile={handleDecryptFile}
-                  onDownloadDecryptedFile={handleDownloadDecryptedFile}
-                  onGrantPermission={handleGrantPermission}
-                  isGranting={isGranting}
-                  grantStatus={grantStatus}
-                  grantTxHash={grantTxHash}
-                  _userAddress={address}
-                  chainId={chainId || 14800}
-                />
+                  <div className="space-y-20">
+                    <YourDataCard
+                      fileLookupId={fileLookupId}
+                      onFileLookupIdChange={setFileLookupId}
+                      onLookupFile={handleLookupFile}
+                      isLookingUpFile={isLookingUpFile}
+                      fileLookupStatus={fileLookupStatus}
+                      userFiles={userFiles}
+                      isLoadingFiles={isLoadingFiles}
+                      onRefreshFiles={loadUserFiles}
+                      selectedFiles={selectedFiles}
+                      decryptingFiles={decryptingFiles}
+                      decryptedFiles={decryptedFiles}
+                      onFileSelection={handleFileSelection}
+                      onDecryptFile={handleDecryptFile}
+                      onDownloadDecryptedFile={handleDownloadDecryptedFile}
+                      onGrantPermission={handleGrantPermission}
+                      isGranting={isGranting}
+                      grantStatus={grantStatus}
+                      grantTxHash={grantTxHash}
+                      _userAddress={address}
+                      chainId={chainId || 14800}
+                    />
 
-                {/* Grant Preview Modal */}
-                <Modal
-                  isOpen={showGrantPreview && !!grantPreview}
-                  onClose={onCloseGrant}
-                  size="2xl"
-                  scrollBehavior="inside"
-                >
-                  <ModalContent>
-                    <ModalHeader className="flex items-center gap-2">
-                      <Eye className="h-5 w-5" />
-                      Review Grant
-                    </ModalHeader>
-                    <ModalBody>
-                      <GrantPreviewModalContent
-                        grantPreview={grantPreview}
-                        onConfirm={handleConfirmGrant}
-                        onCancel={handleCancelGrant}
+                    {/* Grant Preview Modal */}
+                    <Modal
+                      isOpen={showGrantPreview && !!grantPreview}
+                      onClose={onCloseGrant}
+                      size="2xl"
+                      scrollBehavior="inside"
+                    >
+                      <ModalContent>
+                        <ModalHeader className="flex items-center gap-2">
+                          <Eye className="h-5 w-5" />
+                          Review Grant
+                        </ModalHeader>
+                        <ModalBody>
+                          <GrantPreviewModalContent
+                            grantPreview={grantPreview}
+                            onConfirm={handleConfirmGrant}
+                            onCancel={handleCancelGrant}
+                          />
+                        </ModalBody>
+                      </ModalContent>
+                    </Modal>
+
+                    <section id="permissions">
+                      <SectionHeader
+                        icon={<Shield className="h-5 w-5" />}
+                        title="Permissions Management"
+                        description={
+                          <>
+                            <em>
+                              Demonstrates: `getPermissions()`,
+                              `revokePermission()`, `grantPermission()`
+                            </em>
+                            <br />
+                            View and manage data access permissions for your
+                            files.
+                          </>
+                        }
                       />
-                    </ModalBody>
-                  </ModalContent>
-                </Modal>
 
-                <Spacer y={8} />
+                      {revokeStatus && (
+                        <StatusMessage status={revokeStatus} className="mb-4" />
+                      )}
 
-                <section id="permissions">
-                  <SectionHeader
-                    icon={<Shield className="h-5 w-5" />}
-                    title="Permissions Management"
-                    description={
-                      <>
-                        <em>
-                          Demonstrates: `getPermissions()`,
-                          `revokePermission()`, `grantPermission()`
-                        </em>
-                        <br />
-                        View and manage data access permissions for your files.
-                      </>
-                    }
-                  />
+                      <PermissionsTable
+                        userPermissions={userPermissions}
+                        isLoading={isLoadingPermissions}
+                        onRevoke={handleRevokePermissionById}
+                        isRevoking={isRevoking}
+                        onRefresh={loadUserPermissions}
+                      />
+                    </section>
 
-                  {revokeStatus && (
-                    <StatusMessage status={revokeStatus} className="mb-4" />
-                  )}
+                    <EncryptionTestCard
+                      encryptionSeed={encryptionSeed}
+                      onEncryptionSeedChange={setEncryptionSeed}
+                      encryptionKey={generatedKey}
+                      isGeneratingKey={isGeneratingKey}
+                      onGenerateKey={handleGenerateKey}
+                      inputMode={inputMode}
+                      onInputModeChange={setInputMode}
+                      testData={testData}
+                      onTestDataChange={setTestData}
+                      uploadedFile={uploadedFile}
+                      onFileUpload={setUploadedFile}
+                      isEncrypting={isEncrypting}
+                      onEncryptData={handleEncryptData}
+                      onDecryptData={handleDecryptData}
+                      onResetAll={handleResetEncryption}
+                      encryptionStatus={encryptionStatus}
+                      encryptedData={encryptedData}
+                      decryptedData={decryptedData}
+                      showEncryptedContent={showEncryptedContent}
+                      onToggleEncryptedContent={() =>
+                        setShowEncryptedContent(!showEncryptedContent)
+                      }
+                      schemas={schemas}
+                      selectedSchemaId={selectedUploadSchemaId}
+                      onSchemaSelectionChange={setSelectedUploadSchemaId}
+                      isUploadingToChain={isUploadingToChain}
+                      onUploadToChain={handleUploadToBlockchain}
+                      newFileId={newFileId}
+                      storageConfig={{
+                        provider:
+                          sdkConfig.defaultStorageProvider || "app-ipfs",
+                        ipfsMode: ipfsMode,
+                      }}
+                      onCopyToClipboard={handleCopyToClipboard}
+                      onDownloadDecrypted={handleDownloadDecrypted}
+                    />
+                  </div>
+                </Section>
 
-                  <PermissionsTable
-                    userPermissions={userPermissions}
-                    isLoading={isLoadingPermissions}
-                    onRevoke={handleRevokePermissionById}
-                    isRevoking={isRevoking}
-                    onRefresh={loadUserPermissions}
-                  />
-                </section>
-
-                <Spacer y={8} />
-
-                <EncryptionTestCard
-                  encryptionSeed={encryptionSeed}
-                  onEncryptionSeedChange={setEncryptionSeed}
-                  encryptionKey={generatedKey}
-                  isGeneratingKey={isGeneratingKey}
-                  onGenerateKey={handleGenerateKey}
-                  inputMode={inputMode}
-                  onInputModeChange={setInputMode}
-                  testData={testData}
-                  onTestDataChange={setTestData}
-                  uploadedFile={uploadedFile}
-                  onFileUpload={setUploadedFile}
-                  isEncrypting={isEncrypting}
-                  onEncryptData={handleEncryptData}
-                  onDecryptData={handleDecryptData}
-                  onResetAll={handleResetEncryption}
-                  encryptionStatus={encryptionStatus}
-                  encryptedData={encryptedData}
-                  decryptedData={decryptedData}
-                  showEncryptedContent={showEncryptedContent}
-                  onToggleEncryptedContent={() =>
-                    setShowEncryptedContent(!showEncryptedContent)
-                  }
-                  schemas={schemas}
-                  selectedSchemaId={selectedUploadSchemaId}
-                  onSchemaSelectionChange={setSelectedUploadSchemaId}
-                  isUploadingToChain={isUploadingToChain}
-                  onUploadToChain={handleUploadToBlockchain}
-                  newFileId={newFileId}
-                  storageConfig={{
-                    provider: sdkConfig.defaultStorageProvider || "app-ipfs",
-                    ipfsMode: ipfsMode,
-                  }}
-                  onCopyToClipboard={handleCopyToClipboard}
-                  onDownloadDecrypted={handleDownloadDecrypted}
-                />
-
-                <Divider />
-                <Spacer y={16} />
+                <SectionDivider />
 
                 {/* Server & Schema Setup Section */}
-                <h2 className="text-2xl font-semibold">
-                  Server &amp; Schema Setup
-                </h2>
+                <Section>
+                  <h1 className="text-3xl font-bold mb-16">
+                    Server &amp; Schema Setup
+                  </h1>
 
-                <TrustedServerManagementCard
-                  serverId={serverId}
-                  onServerIdChange={setServerId}
-                  serverUrl={serverUrl}
-                  onServerUrlChange={setServerUrl}
-                  onTrustServer={
-                    appConfig.useGaslessTransactions
-                      ? handleTrustServerGasless
-                      : handleTrustServer
-                  }
-                  isTrustingServer={isTrustingServer}
-                  onDiscoverReplicateServer={handleDiscoverReplicateServer}
-                  isDiscoveringServer={isDiscoveringServer}
-                  trustServerError={trustServerError}
-                />
+                  <div className="space-y-20">
+                    <TrustedServerManagementCard
+                      serverId={serverId}
+                      onServerIdChange={setServerId}
+                      serverUrl={serverUrl}
+                      onServerUrlChange={setServerUrl}
+                      onTrustServer={
+                        appConfig.useGaslessTransactions
+                          ? handleTrustServerGasless
+                          : handleTrustServer
+                      }
+                      isTrustingServer={isTrustingServer}
+                      onDiscoverReplicateServer={handleDiscoverReplicateServer}
+                      isDiscoveringServer={isDiscoveringServer}
+                      trustServerError={trustServerError}
+                    />
 
-                <Spacer y={8} />
-                <SchemaManagementCard
-                  schemasCount={schemasCount}
-                  refinersCount={refinersCount}
-                  schemaName={schemaName}
-                  onSchemaNameChange={setSchemaName}
-                  schemaType={schemaType}
-                  onSchemaTypeChange={setSchemaType}
-                  schemaDefinitionUrl={schemaDefinitionUrl}
-                  onSchemaDefinitionUrlChange={setSchemaDefinitionUrl}
-                  onCreateSchema={handleCreateSchema}
-                  isCreatingSchema={isCreatingSchema}
-                  schemaStatus={schemaStatus}
-                  lastCreatedSchemaId={lastCreatedSchemaId}
-                  refinerName={refinerName}
-                  onRefinerNameChange={setRefinerName}
-                  refinerDlpId={refinerDlpId}
-                  onRefinerDlpIdChange={setRefinerDlpId}
-                  refinerSchemaId={refinerSchemaId}
-                  onRefinerSchemaIdChange={setRefinerSchemaId}
-                  refinerInstructionUrl={refinerInstructionUrl}
-                  onRefinerInstructionUrlChange={setRefinerInstructionUrl}
-                  onCreateRefiner={handleCreateRefiner}
-                  isCreatingRefiner={isCreatingRefiner}
-                  refinerStatus={refinerStatus}
-                  lastCreatedRefinerId={lastCreatedRefinerId}
-                  updateRefinerId={updateRefinerId}
-                  onUpdateRefinerIdChange={setUpdateRefinerId}
-                  updateSchemaId={updateSchemaId}
-                  onUpdateSchemaIdChange={setUpdateSchemaId}
-                  onUpdateSchemaId={handleUpdateSchemaId}
-                  isUpdatingSchema={isUpdatingSchema}
-                  updateSchemaStatus={updateSchemaStatus}
-                  schemas={schemas}
-                  isLoadingSchemas={isLoadingSchemas}
-                  onRefreshSchemas={loadSchemas}
-                  refiners={refiners}
-                  isLoadingRefiners={isLoadingRefiners}
-                  onRefreshRefiners={loadRefiners}
-                  chainId={chainId || 14800}
-                />
+                    <SchemaManagementCard
+                      schemasCount={schemasCount}
+                      refinersCount={refinersCount}
+                      schemaName={schemaName}
+                      onSchemaNameChange={setSchemaName}
+                      schemaType={schemaType}
+                      onSchemaTypeChange={setSchemaType}
+                      schemaDefinitionUrl={schemaDefinitionUrl}
+                      onSchemaDefinitionUrlChange={setSchemaDefinitionUrl}
+                      onCreateSchema={handleCreateSchema}
+                      isCreatingSchema={isCreatingSchema}
+                      schemaStatus={schemaStatus}
+                      lastCreatedSchemaId={lastCreatedSchemaId}
+                      refinerName={refinerName}
+                      onRefinerNameChange={setRefinerName}
+                      refinerDlpId={refinerDlpId}
+                      onRefinerDlpIdChange={setRefinerDlpId}
+                      refinerSchemaId={refinerSchemaId}
+                      onRefinerSchemaIdChange={setRefinerSchemaId}
+                      refinerInstructionUrl={refinerInstructionUrl}
+                      onRefinerInstructionUrlChange={setRefinerInstructionUrl}
+                      onCreateRefiner={handleCreateRefiner}
+                      isCreatingRefiner={isCreatingRefiner}
+                      refinerStatus={refinerStatus}
+                      lastCreatedRefinerId={lastCreatedRefinerId}
+                      updateRefinerId={updateRefinerId}
+                      onUpdateRefinerIdChange={setUpdateRefinerId}
+                      updateSchemaId={updateSchemaId}
+                      onUpdateSchemaIdChange={setUpdateSchemaId}
+                      onUpdateSchemaId={handleUpdateSchemaId}
+                      isUpdatingSchema={isUpdatingSchema}
+                      updateSchemaStatus={updateSchemaStatus}
+                      schemas={schemas}
+                      isLoadingSchemas={isLoadingSchemas}
+                      onRefreshSchemas={loadSchemas}
+                      refiners={refiners}
+                      isLoadingRefiners={isLoadingRefiners}
+                      onRefreshRefiners={loadRefiners}
+                      chainId={chainId || 14800}
+                    />
+                  </div>
+                </Section>
 
-                <Divider />
-                <Spacer y={16} />
+                <SectionDivider />
 
                 {/* Server Workflows Section */}
-                <h2 className="text-2xl font-semibold">Server Workflows</h2>
-                <ServerUploadCard
-                  trustedServers={trustedServers}
-                  selectedServerForUpload={selectedServerForUpload}
-                  onSelectedServerForUploadChange={setSelectedServerForUpload}
-                  serverInputMode={serverInputMode}
-                  onServerInputModeChange={setServerInputMode}
-                  serverTextData={serverTextData}
-                  onServerTextDataChange={setServerTextData}
-                  serverFileToUpload={serverFileToUpload}
-                  onServerFileToUploadChange={(file) => {
-                    setServerFileToUpload(file);
-                    setServerUploadStatus("");
-                    setServerUploadResult(null);
-                  }}
-                  onUploadToTrustedServer={handleUploadToTrustedServer}
-                  isUploadingToServer={isUploadingToServer}
-                  serverUploadStatus={serverUploadStatus}
-                  serverUploadResult={serverUploadResult}
-                  chainId={chainId}
-                />
+                <Section>
+                  <h1 className="text-3xl font-bold mb-16">Server Workflows</h1>
 
-                <Spacer y={8} />
-                <TrustedServerIntegrationCard
-                  serverFileId={serverFileId}
-                  onServerFileIdChange={setServerFileId}
-                  serverPrivateKey={serverPrivateKey}
-                  onServerPrivateKeyChange={setServerPrivateKey}
-                  onServerDecryption={handleServerDecryption}
-                  isServerDecrypting={isServerDecrypting}
-                  serverDecryptError={serverDecryptError}
-                  serverDecryptedData={serverDecryptedData}
-                  personalPermissionId={personalPermissionId}
-                  onPersonalPermissionIdChange={setPersonalPermissionId}
-                  onPersonalServerCall={handlePersonalServerCall}
-                  isPersonalLoading={isPersonalLoading}
-                  onPollStatus={handlePollStatus}
-                  isPolling={isPolling}
-                  personalError={personalError}
-                  personalResult={personalResult}
-                  onCopyToClipboard={copyToClipboard}
-                />
+                  <div className="space-y-20">
+                    <ServerUploadCard
+                      trustedServers={trustedServers}
+                      selectedServerForUpload={selectedServerForUpload}
+                      onSelectedServerForUploadChange={
+                        setSelectedServerForUpload
+                      }
+                      serverInputMode={serverInputMode}
+                      onServerInputModeChange={setServerInputMode}
+                      serverTextData={serverTextData}
+                      onServerTextDataChange={setServerTextData}
+                      serverFileToUpload={serverFileToUpload}
+                      onServerFileToUploadChange={(file) => {
+                        setServerFileToUpload(file);
+                        setServerUploadStatus("");
+                        setServerUploadResult(null);
+                      }}
+                      onUploadToTrustedServer={handleUploadToTrustedServer}
+                      isUploadingToServer={isUploadingToServer}
+                      serverUploadStatus={serverUploadStatus}
+                      serverUploadResult={serverUploadResult}
+                      chainId={chainId}
+                    />
 
-                <Divider />
-                <Spacer y={16} />
+                    <TrustedServerIntegrationCard
+                      serverFileId={serverFileId}
+                      onServerFileIdChange={setServerFileId}
+                      serverPrivateKey={serverPrivateKey}
+                      onServerPrivateKeyChange={setServerPrivateKey}
+                      onServerDecryption={handleServerDecryption}
+                      isServerDecrypting={isServerDecrypting}
+                      serverDecryptError={serverDecryptError}
+                      serverDecryptedData={serverDecryptedData}
+                      personalPermissionId={personalPermissionId}
+                      onPersonalPermissionIdChange={setPersonalPermissionId}
+                      onPersonalServerCall={handlePersonalServerCall}
+                      isPersonalLoading={isPersonalLoading}
+                      onPollStatus={handlePollStatus}
+                      isPolling={isPolling}
+                      personalError={personalError}
+                      personalResult={personalResult}
+                      onCopyToClipboard={copyToClipboard}
+                    />
+                  </div>
+                </Section>
+
+                <SectionDivider />
 
                 {/* Reference Section */}
-                <h2 className="text-2xl font-semibold">Reference</h2>
-                <ContractListCard
-                  contracts={vana.protocol.getAvailableContracts()}
-                  getContract={(contractName) =>
-                    vana.protocol.getContract(
-                      contractName as
-                        | "PermissionRegistry"
-                        | "DataRegistry"
-                        | "TeePoolPhala"
-                        | "ComputeEngine"
-                        | "DataRefinerRegistry"
-                        | "QueryEngine"
-                        | "ComputeInstructionRegistry"
-                        | "TeePoolEphemeralStandard",
-                    )
-                  }
-                  chainId={chainId}
-                  chainName={vana?.protocol?.getChainName?.() || "this network"}
-                />
+                <Section isLast>
+                  <h1 className="text-3xl font-bold mb-16">Reference</h1>
+                  <ContractListCard
+                    contracts={vana.protocol.getAvailableContracts()}
+                    getContract={(contractName) =>
+                      vana.protocol.getContract(
+                        contractName as
+                          | "PermissionRegistry"
+                          | "DataRegistry"
+                          | "TeePoolPhala"
+                          | "ComputeEngine"
+                          | "DataRefinerRegistry"
+                          | "QueryEngine"
+                          | "ComputeInstructionRegistry"
+                          | "TeePoolEphemeralStandard",
+                      )
+                    }
+                    chainId={chainId}
+                    chainName={
+                      vana?.protocol?.getChainName?.() || "this network"
+                    }
+                  />
+                </Section>
               </div>
             )}
           </div>

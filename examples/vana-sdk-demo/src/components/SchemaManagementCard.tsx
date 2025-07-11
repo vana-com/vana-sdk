@@ -318,7 +318,7 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
         <div className="space-y-4">
           <div className="flex justify-between items-center">
             <div>
-              <h4 className="text-lg font-semibold">Schema Registry</h4>
+              <h3 className="text-xl font-semibold">Schema Registry</h3>
               <p className="text-small text-default-500">
                 Browse and manage data schemas ({schemas.length} schemas)
               </p>
@@ -426,7 +426,7 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
         <div className="space-y-4">
           <div className="flex justify-between items-center">
             <div>
-              <h4 className="text-lg font-semibold">Refiner Registry</h4>
+              <h3 className="text-xl font-semibold">Refiner Registry</h3>
               <p className="text-small text-default-500">
                 Browse and manage data refiners ({refiners.length} refiners)
               </p>

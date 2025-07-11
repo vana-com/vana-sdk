@@ -134,7 +134,7 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
         <div className="space-y-4">
           <div className="flex justify-between items-center">
             <div>
-              <h4 className="text-lg font-semibold">Your Data Files</h4>
+              <h3 className="text-xl font-semibold">Your Data Files</h3>
               <p className="text-small text-default-500">
                 Manage your registered data files and grant permissions (
                 {userFiles.length} files)
@@ -309,10 +309,10 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
         {/* Grant Permission Section */}
         {selectedFiles.length > 0 && (
           <div className="mt-6 p-4 bg-default-100 rounded">
-            <h3 className="font-medium mb-3 text-default-700">
+            <h4 className="font-medium mb-3 text-default-700">
               Grant Permission ({selectedFiles.length} file
               {selectedFiles.length !== 1 ? "s" : ""} selected)
-            </h3>
+            </h4>
             <Button
               onPress={onGrantPermission}
               disabled={selectedFiles.length === 0 || isGranting}

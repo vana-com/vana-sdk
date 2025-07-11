@@ -11,6 +11,7 @@ import {
   NetworkError,
   BlockchainError,
   SignatureError,
+  PermissionError,
 } from "../errors";
 
 // Mock ALL external dependencies to ensure pure unit tests
@@ -95,7 +96,6 @@ describe("PermissionsController", () => {
     mockCreateGrantFile.mockImplementation((params: any) => ({
       grantee: params.to,
       operation: params.operation,
-      files: params.files,
       parameters: params.parameters,
       expires: params.expiresAt || Math.floor(Date.now() / 1000) + 3600,
     }));
@@ -130,7 +130,10 @@ describe("PermissionsController", () => {
     mockContext = {
       walletClient: mockWalletClient,
       publicClient: mockPublicClient as any,
-      relayerUrl: "https://test-relayer.com",
+      relayerCallbacks: {
+        storeGrantFile: vi.fn().mockResolvedValue("https://mock-grant-url.com"),
+        submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
+      },
     };
 
     controller = new PermissionsController(mockContext);
@@ -148,25 +151,15 @@ describe("PermissionsController", () => {
     };
 
     it("should successfully grant permission with complete flow", async () => {
-      // Mock all the required calls
-      const mockFetch = fetch as Mock;
-
-      // Mock for relayer transaction submission (storeGrantFile is already mocked above)
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            success: true,
-            transactionHash: "0xtxhash",
-          }),
-      });
-
       const result = await controller.grant(mockGrantParams);
 
       expect(result).toBe("0xtxhash");
       expect(mockWalletClient.signTypedData).toHaveBeenCalled();
-      // Since we have relayerUrl configured, it should use relayer path
-      expect(fetch).toHaveBeenCalledTimes(1); // Only relayer transaction (storeGrantFile is mocked separately)
+      // Should use relayerCallbacks pattern
+      expect(mockContext.relayerCallbacks?.storeGrantFile).toHaveBeenCalled();
+      expect(
+        mockContext.relayerCallbacks?.submitPermissionGrant,
+      ).toHaveBeenCalled();
     });
 
     it("should handle user rejection gracefully", async () => {
@@ -187,40 +180,39 @@ describe("PermissionsController", () => {
     });
 
     it("should handle relayer errors", async () => {
-      const mockFetch = fetch as Mock;
+      // Mock relayer callbacks to fail
+      const failingContext = {
+        ...mockContext,
+        relayerCallbacks: {
+          ...mockContext.relayerCallbacks,
+          submitPermissionGrant: vi
+            .fn()
+            .mockRejectedValue(new RelayerError("Relayer failed")),
+        },
+      };
 
-      // Mock nonce retrieval
-      const { createPublicClient } = await import("viem");
-      vi.mocked(createPublicClient).mockReturnValueOnce({
-        readContract: vi.fn().mockResolvedValue(BigInt(0)),
-      } as any);
+      const failingController = new PermissionsController(failingContext);
 
-      // Mock failed transaction relay
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        statusText: "Internal Server Error",
-        text: () => Promise.resolve("Server error"),
-      });
-
-      await expect(controller.grant(mockGrantParams)).rejects.toThrow(
+      await expect(failingController.grant(mockGrantParams)).rejects.toThrow(
         RelayerError,
       );
     });
 
     it("should handle network errors gracefully", async () => {
-      const mockFetch = fetch as Mock;
+      // Mock relayer callbacks to fail with network error
+      const failingContext = {
+        ...mockContext,
+        relayerCallbacks: {
+          ...mockContext.relayerCallbacks,
+          submitPermissionGrant: vi
+            .fn()
+            .mockRejectedValue(new NetworkError("Network error")),
+        },
+      };
 
-      // Mock nonce retrieval
-      const { createPublicClient } = await import("viem");
-      vi.mocked(createPublicClient).mockReturnValueOnce({
-        readContract: vi.fn().mockResolvedValue(BigInt(0)),
-      } as any);
+      const failingController = new PermissionsController(failingContext);
 
-      // Mock network error on relay
-      mockFetch.mockRejectedValue(new Error("Network error"));
-
-      await expect(controller.grant(mockGrantParams)).rejects.toThrow(
+      await expect(failingController.grant(mockGrantParams)).rejects.toThrow(
         NetworkError,
       );
     });
@@ -228,13 +220,10 @@ describe("PermissionsController", () => {
 
   describe("revoke", () => {
     const mockRevokeParams = {
-      grantId: "0x123" as `0x${string}`, // Can now pass permission ID as hex string
+      permissionId: BigInt(123),
     };
 
     it("should successfully revoke permission", async () => {
-      const mockFetch = fetch as Mock;
-
-      // Mock nonce retrieval
       const { createPublicClient } = await import("viem");
       const mockPublicClient = createPublicClient({
         chain: mockWalletClient.chain,
@@ -242,25 +231,25 @@ describe("PermissionsController", () => {
       } as any);
       (mockPublicClient.readContract as Mock).mockResolvedValue(BigInt(1));
 
-      // Mock transaction relay response for revoke
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            success: true,
-            transactionHash: "0xrevokehash",
-          }),
-      });
+      // Mock writeContract to return the expected hash
+      mockWalletClient.writeContract = vi
+        .fn()
+        .mockResolvedValue("0xrevokehash");
 
       const result = await controller.revoke(mockRevokeParams);
 
       expect(result).toBe("0xrevokehash");
-      expect(mockWalletClient.signTypedData).toHaveBeenCalled();
+      expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          address: "0x1234567890123456789012345678901234567890",
+          abi: expect.any(Array),
+          functionName: "revokePermission",
+          args: [mockRevokeParams.permissionId],
+        }),
+      );
     });
 
     it("should handle revoke errors", async () => {
-      const mockFetch = fetch as Mock;
-
       const { createPublicClient } = await import("viem");
       const mockPublicClient = createPublicClient({
         chain: mockWalletClient.chain,
@@ -268,15 +257,13 @@ describe("PermissionsController", () => {
       } as any);
       (mockPublicClient.readContract as Mock).mockResolvedValue(BigInt(1));
 
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 404,
-        statusText: "Not Found",
-        text: () => Promise.resolve("Grant not found"),
-      });
+      // Mock writeContract to throw an error
+      mockWalletClient.writeContract = vi
+        .fn()
+        .mockRejectedValue(new Error("Transaction failed"));
 
       await expect(controller.revoke(mockRevokeParams)).rejects.toThrow(
-        RelayerError,
+        BlockchainError,
       );
     });
   });
@@ -306,7 +293,7 @@ describe("PermissionsController", () => {
 
       const typedData = await compose(params);
 
-      expect(typedData.domain.name).toBe("VanaDataWallet");
+      expect(typedData.domain.name).toBe("DataPermissions");
       expect(typedData.domain.version).toBe("1");
       expect(typedData.domain.chainId).toBe(14800);
       expect(typedData.primaryType).toBe("Permission");
@@ -338,7 +325,7 @@ describe("PermissionsController", () => {
       };
 
       await expect(directController.grant(mockParams)).rejects.toThrow(
-        "No storage available. Provide a grantUrl, configure relayerCallbacks.storeGrantFile, relayerUrl, or storageManager.",
+        "No storage available. Provide a grantUrl, configure relayerCallbacks.storeGrantFile, or storageManager.",
       );
     });
 
@@ -465,51 +452,37 @@ describe("PermissionsController", () => {
         parameters: { prompt: "Test prompt", maxTokens: 100 },
       };
 
-      // Mock grant file utilities
-      const { createGrantFile, storeGrantFile } = await import(
-        "../utils/grantFiles"
+      // Create controller with relayerCallbacks.storeGrantFile configured
+      const mockStoreGrantFile = vi
+        .fn()
+        .mockResolvedValue("https://ipfs.io/ipfs/QmGrantFile");
+      const contextWithStorage = {
+        ...mockContext,
+        relayerCallbacks: {
+          ...mockContext.relayerCallbacks,
+          storeGrantFile: mockStoreGrantFile,
+        },
+      };
+      const controllerWithStorage = new PermissionsController(
+        contextWithStorage,
       );
-      const mockCreateGrantFile = createGrantFile as Mock;
-      const mockStoreGrantFile = storeGrantFile as Mock;
 
-      mockCreateGrantFile.mockReturnValue({
-        grantee: mockParams.to,
-        operation: mockParams.operation,
-        files: mockParams.files,
-        parameters: mockParams.parameters,
-        expires: Math.floor(Date.now() / 1000) + 3600,
-      });
-
-      mockStoreGrantFile.mockResolvedValue("https://ipfs.io/ipfs/QmGrantFile");
-
-      // Mock other dependencies - use single-use mock to avoid pollution
-      const mockFetch = fetch as Mock;
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            success: true,
-            transactionHash: "0xgrantfilehash",
-          }),
-      });
-
+      // Mock other dependencies
       const { createPublicClient } = await import("viem");
       vi.mocked(createPublicClient).mockReturnValueOnce({
         readContract: vi.fn().mockResolvedValue(BigInt(0)),
       } as any);
 
-      const result = await controller.grant(mockParams);
+      const result = await controllerWithStorage.grant(mockParams);
 
-      expect(mockCreateGrantFile).toHaveBeenCalledWith(mockParams);
       expect(mockStoreGrantFile).toHaveBeenCalledWith(
         expect.objectContaining({
+          grantee: mockParams.to,
           operation: mockParams.operation,
-          files: mockParams.files,
           parameters: mockParams.parameters,
         }),
-        "https://test-relayer.com",
       );
-      expect(result).toBe("0xgrantfilehash");
+      expect(result).toBe("0xtxhash");
     });
   });
 
@@ -682,7 +655,10 @@ describe("PermissionsController", () => {
       const controllerWithoutSubgraph = new PermissionsController({
         walletClient: mockWalletClient,
         publicClient: mockPublicClient,
-        relayerUrl: "https://test-relayer.com",
+        relayerCallbacks: {
+          submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
+          submitPermissionRevoke: vi.fn().mockResolvedValue("0xtxhash"),
+        },
         // No subgraphUrl provided
       });
 
@@ -766,20 +742,26 @@ describe("PermissionsController", () => {
   });
 
   describe("Additional Error Handling", () => {
-    it("should handle relayer JSON parse errors", async () => {
-      const mockFetch = fetch as Mock;
+    it("should handle relayer callback errors", async () => {
+      // Create controller with failing relayerCallbacks
+      const failingController = new PermissionsController({
+        walletClient: mockWalletClient,
+        publicClient: mockPublicClient,
+        relayerCallbacks: {
+          submitPermissionGrant: vi
+            .fn()
+            .mockRejectedValue(new NetworkError("Network timeout")),
+          storeGrantFile: vi
+            .fn()
+            .mockResolvedValue("https://ipfs.io/ipfs/QmGrantFile"),
+        },
+      });
 
       // Mock nonce retrieval
       const { createPublicClient } = await import("viem");
       vi.mocked(createPublicClient).mockReturnValueOnce({
         readContract: vi.fn().mockResolvedValue(BigInt(0)),
       } as any);
-
-      // Mock relayer response with invalid JSON
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.reject(new Error("Invalid JSON")),
-      });
 
       const mockParams = {
         to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
@@ -788,27 +770,31 @@ describe("PermissionsController", () => {
         parameters: { test: "value" },
       };
 
-      await expect(controller.grant(mockParams)).rejects.toThrow(NetworkError);
+      await expect(failingController.grant(mockParams)).rejects.toThrow(
+        NetworkError,
+      );
     });
 
-    it("should handle relayer success false with no error message", async () => {
-      const mockFetch = fetch as Mock;
+    it("should handle relayer callback generic errors", async () => {
+      // Create controller with failing relayerCallbacks
+      const failingController = new PermissionsController({
+        walletClient: mockWalletClient,
+        publicClient: mockPublicClient,
+        relayerCallbacks: {
+          submitPermissionGrant: vi
+            .fn()
+            .mockRejectedValue(new Error("Generic relayer error")),
+          storeGrantFile: vi
+            .fn()
+            .mockResolvedValue("https://ipfs.io/ipfs/QmGrantFile"),
+        },
+      });
 
       // Mock nonce retrieval
       const { createPublicClient } = await import("viem");
       vi.mocked(createPublicClient).mockReturnValueOnce({
         readContract: vi.fn().mockResolvedValue(BigInt(0)),
       } as any);
-
-      // Mock relayer response with success: false but no error message
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            success: false,
-            // No error field
-          }),
-      });
 
       const mockParams = {
         to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
@@ -817,8 +803,8 @@ describe("PermissionsController", () => {
         parameters: { test: "value" },
       };
 
-      await expect(controller.grant(mockParams)).rejects.toThrow(
-        "Failed to relay transaction",
+      await expect(failingController.grant(mockParams)).rejects.toThrow(
+        "Permission submission failed",
       );
     });
 
@@ -928,12 +914,14 @@ describe("PermissionsController", () => {
       const noChainController = new PermissionsController({
         walletClient: noChainWallet,
         publicClient: mockPublicClient,
-        relayerUrl: "https://test-relayer.com",
+        relayerCallbacks: {
+          submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
+          submitPermissionRevoke: vi.fn().mockResolvedValue("0xtxhash"),
+        },
       });
 
       const mockRevokeParams = {
-        grantId:
-          "0x1234567890123456789012345678901234567890123456789012345678901234" as Hash,
+        permissionId: 1n,
       };
 
       await expect(noChainController.revoke(mockRevokeParams)).rejects.toThrow(
@@ -942,10 +930,18 @@ describe("PermissionsController", () => {
     });
 
     it("should handle submitToRelayer network errors", async () => {
-      const controller = new PermissionsController({
+      // Create controller with failing relayerCallbacks to test network error
+      const failingController = new PermissionsController({
         walletClient: mockWalletClient,
         publicClient: mockPublicClient,
-        relayerUrl: "https://test-relayer.com",
+        relayerCallbacks: {
+          submitPermissionGrant: vi
+            .fn()
+            .mockRejectedValue(new NetworkError("Network timeout")),
+          storeGrantFile: vi
+            .fn()
+            .mockResolvedValue("https://ipfs.io/ipfs/QmGrantFile"),
+        },
       });
 
       const mockParams = {
@@ -955,11 +951,14 @@ describe("PermissionsController", () => {
         parameters: { someKey: "someValue" },
       };
 
-      const mockFetch = fetch as Mock;
-      mockFetch.mockRejectedValue(new Error("Network timeout"));
+      // Mock nonce retrieval
+      const { createPublicClient } = await import("viem");
+      vi.mocked(createPublicClient).mockReturnValueOnce({
+        readContract: vi.fn().mockResolvedValue(BigInt(0)),
+      } as any);
 
-      await expect(controller.grant(mockParams)).rejects.toThrow(
-        "Network error while relaying transaction: Network timeout",
+      await expect(failingController.grant(mockParams)).rejects.toThrow(
+        NetworkError,
       );
     });
 
@@ -967,7 +966,10 @@ describe("PermissionsController", () => {
       const controller = new PermissionsController({
         walletClient: mockWalletClient,
         publicClient: mockPublicClient,
-        relayerUrl: "https://test-relayer.com",
+        relayerCallbacks: {
+          submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
+          submitPermissionRevoke: vi.fn().mockResolvedValue("0xtxhash"),
+        },
       });
 
       // Mock getAddresses to throw non-Error object
@@ -979,10 +981,21 @@ describe("PermissionsController", () => {
     });
 
     it("should handle grant with non-Error exceptions", async () => {
+      // Create controller with storage but failing nonce retrieval
+      const failingWalletClient = {
+        ...mockWalletClient,
+        getAddresses: vi.fn().mockRejectedValue("string error"),
+      };
+
       const controller = new PermissionsController({
-        walletClient: mockWalletClient,
+        walletClient: failingWalletClient,
         publicClient: mockPublicClient,
-        relayerUrl: "https://test-relayer.com",
+        relayerCallbacks: {
+          submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
+          storeGrantFile: vi
+            .fn()
+            .mockResolvedValue("https://ipfs.io/ipfs/QmGrantFile"),
+        },
       });
 
       const mockParams = {
@@ -991,9 +1004,6 @@ describe("PermissionsController", () => {
         files: [],
         parameters: { someKey: "someValue" },
       };
-
-      // Mock getAddresses to throw non-Error object to trigger unknown error handling
-      mockWalletClient.getAddresses.mockRejectedValue("string error");
 
       await expect(controller.grant(mockParams)).rejects.toThrow(
         "Failed to retrieve user nonce: Unknown error",
@@ -1014,12 +1024,14 @@ describe("PermissionsController", () => {
       const controller = new PermissionsController({
         walletClient: faultyWalletClient,
         publicClient: mockPublicClient,
-        relayerUrl: "https://test-relayer.com",
+        relayerCallbacks: {
+          submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
+          submitPermissionRevoke: vi.fn().mockResolvedValue("0xtxhash"),
+        },
       });
 
       const mockRevokeParams = {
-        grantId:
-          "0x1234567890123456789012345678901234567890123456789012345678901234" as Hash,
+        permissionId: 1n,
       };
 
       await expect(controller.revoke(mockRevokeParams)).rejects.toThrow(
@@ -1031,13 +1043,19 @@ describe("PermissionsController", () => {
       const controller = new PermissionsController({
         walletClient: mockWalletClient,
         publicClient: mockPublicClient,
-        relayerUrl: undefined, // No relayer to force direct transaction path
+        // No relayer callbacks to force direct transaction path
       });
 
       const mockRevokeParams = {
-        grantId:
-          "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890" as Hash,
+        permissionId: 1n,
       };
+
+      // Mock writeContract to return the expected hash
+      mockWalletClient.writeContract = vi
+        .fn()
+        .mockResolvedValue(
+          "0xmockabcdef1234567890abcdef1234567890abcdef1234567890abcdef123456",
+        );
 
       const result = await controller.revoke(mockRevokeParams);
 
@@ -1051,7 +1069,7 @@ describe("PermissionsController", () => {
       const controller = new PermissionsController({
         walletClient: mockWalletClient,
         publicClient: mockPublicClient,
-        relayerUrl: undefined,
+        // No relayer callbacks
       });
 
       const mockParams = {
@@ -1063,14 +1081,13 @@ describe("PermissionsController", () => {
       };
 
       await expect(controller.grant(mockParams)).rejects.toThrow(
-        "No storage available. Provide a grantUrl, configure relayerCallbacks.storeGrantFile, relayerUrl, or storageManager.",
+        "No storage available. Provide a grantUrl, configure relayerCallbacks.storeGrantFile, or storageManager.",
       );
     });
 
     it("should handle submitToRelayer with missing relayer URL", async () => {
       const mockRevokeParams = {
-        grantId:
-          "0x1234567890123456789012345678901234567890123456789012345678901234" as Hash,
+        permissionId: 1n,
       };
 
       // Mock chain to be available but still no relayer URL
@@ -1082,8 +1099,13 @@ describe("PermissionsController", () => {
       const controllerWithChain = new PermissionsController({
         walletClient: mockWalletClientWithChain,
         publicClient: mockPublicClient,
-        relayerUrl: undefined,
+        // No relayer callbacks
       });
+
+      // Mock writeContract to return a mock hash
+      mockWalletClientWithChain.writeContract = vi
+        .fn()
+        .mockResolvedValue("0xmockdirecttxhash");
 
       // This should trigger the submitToRelayer path with missing relayer URL
       // Since we're mocking, we need to test this indirectly through revoke
@@ -1094,53 +1116,47 @@ describe("PermissionsController", () => {
     });
 
     it("should handle failed relayer response in submitToRelayer", async () => {
-      const controller = new PermissionsController({
-        walletClient: mockWalletClient,
-        publicClient: mockPublicClient,
-        relayerUrl: "https://test-relayer.com",
-      });
-
-      const mockRevokeParams = {
-        grantId:
-          "0x1234567890123456789012345678901234567890123456789012345678901234" as Hash,
+      const failingContext = {
+        ...mockContext,
+        relayerCallbacks: {
+          ...mockContext.relayerCallbacks,
+          submitPermissionRevoke: vi
+            .fn()
+            .mockRejectedValue(new RelayerError("Relayer internal error")),
+        },
       };
 
-      // Mock fetch to return failed response
-      const mockFetch = fetch as Mock;
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            success: false,
-            error: "Relayer internal error",
-            transactionHash: "0x0",
-          }),
-      });
+      const failingController = new PermissionsController(failingContext);
 
-      await expect(controller.revoke(mockRevokeParams)).rejects.toThrow(
-        "Relayer internal error",
-      );
+      const mockRevokeParams = {
+        permissionId: 1n,
+      };
+
+      await expect(
+        failingController.revokeWithSignature(mockRevokeParams),
+      ).rejects.toThrow(PermissionError);
     });
 
     it("should handle network errors in submitToRelayer", async () => {
-      const controller = new PermissionsController({
-        walletClient: mockWalletClient,
-        publicClient: mockPublicClient,
-        relayerUrl: "https://test-relayer.com",
-      });
-
-      const mockRevokeParams = {
-        grantId:
-          "0x1234567890123456789012345678901234567890123456789012345678901234" as Hash,
+      const failingContext = {
+        ...mockContext,
+        relayerCallbacks: {
+          ...mockContext.relayerCallbacks,
+          submitPermissionRevoke: vi
+            .fn()
+            .mockRejectedValue(new NetworkError("Failed to fetch")),
+        },
       };
 
-      // Mock fetch to throw non-RelayerError
-      const mockFetch = fetch as Mock;
-      mockFetch.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+      const failingController = new PermissionsController(failingContext);
 
-      await expect(controller.revoke(mockRevokeParams)).rejects.toThrow(
-        "Network error while submitting to relayer: Failed to fetch",
-      );
+      const mockRevokeParams = {
+        permissionId: 1n,
+      };
+
+      await expect(
+        failingController.revokeWithSignature(mockRevokeParams),
+      ).rejects.toThrow(PermissionError);
     });
 
     // Note: Lines 372-373, 427-428 in permissions.ts are defensive checks in relayTransaction/submitToRelayer
@@ -1149,450 +1165,421 @@ describe("PermissionsController", () => {
     // In practice, these would only be hit if the context object is modified during execution.
 
     it("should handle submitToRelayer with undefined relayerUrl context", async () => {
-      // Test through revoke which calls submitToRelayer when there's a chain ID
-      const mockWalletClientWithChain = {
-        ...mockWalletClient,
-        chain: mockWalletClient.chain, // Use existing chain
-      };
-
-      const controllerWithChain = new PermissionsController({
-        walletClient: mockWalletClientWithChain,
+      const controller = new PermissionsController({
+        walletClient: mockWalletClient,
         publicClient: mockPublicClient,
-        relayerUrl: undefined,
+        // No relayer callbacks
       });
 
-      const mockRevokeParams = {
-        grantId:
-          "0x1234567890123456789012345678901234567890123456789012345678901234" as Hash,
+      const mockParams = {
+        to: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+        operation: "read",
+        files: [1, 2, 3],
+        parameters: { someKey: "someValue" },
       };
 
-      // This should trigger direct transaction path, not submitToRelayer
-      // Let me try a different approach - mock to force submitToRelayer path
-      const result = await controllerWithChain.revoke(mockRevokeParams);
+      // This should trigger direct transaction path
+      await expect(controller.grant(mockParams)).rejects.toThrow(
+        "No storage available. Provide a grantUrl, configure relayerCallbacks.storeGrantFile, or storageManager.",
+      );
+    });
 
-      // Direct path should return mock hash
-      expect(result).toMatch(/^0xmock/);
+    it("should handle relayTransaction with real relayer URL", async () => {
+      const controller = new PermissionsController({
+        walletClient: mockWalletClient,
+        publicClient: mockPublicClient,
+        relayerCallbacks: {
+          submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
+          submitPermissionRevoke: vi.fn().mockResolvedValue("0xtxhash"),
+          storeGrantFile: vi
+            .fn()
+            .mockResolvedValue("https://ipfs.io/ipfs/QmGrantFile"),
+        },
+      });
+
+      // Mock nonce retrieval
+      const { createPublicClient } = await import("viem");
+      vi.mocked(createPublicClient).mockReturnValueOnce({
+        readContract: vi.fn().mockResolvedValue(BigInt(0)),
+      } as any);
+
+      const mockParams = {
+        to: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+        operation: "read",
+        files: [1, 2, 3],
+        parameters: { someKey: "someValue" },
+      };
+
+      const result = await controller.grant(mockParams);
+      expect(result).toBe("0xtxhash");
     });
   });
 
-  describe("Missing Relayer URL Scenarios", () => {
-    it("should throw error when no relayer URL configured for grant", async () => {
-      const contextWithoutRelayer = {
-        ...mockContext,
-        relayerUrl: undefined, // No relayer configured
-      };
+  describe("revokeWithSignature", () => {
+    beforeEach(() => {
+      // Mock getUserNonce for typed data creation
+      vi.spyOn(controller as any, "getUserNonce").mockResolvedValue(123n);
 
-      const controller = new PermissionsController(contextWithoutRelayer);
-
-      const mockParams = {
-        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
-        operation: "test",
-        files: [],
-        parameters: { test: "value" },
-      };
-
-      await expect(controller.grant(mockParams)).rejects.toThrow(
-        "No storage available. Provide a grantUrl, configure relayerCallbacks.storeGrantFile, relayerUrl, or storageManager.",
-      );
-    });
-
-    it("should throw error when no relayer URL configured for revoke", async () => {
-      const contextWithoutRelayer = {
-        ...mockContext,
-        relayerUrl: undefined, // No relayer configured
-        walletClient: {
-          ...mockContext.walletClient,
-          chain: undefined, // Missing chain to trigger error path
-        },
-      };
-
-      const controller = new PermissionsController(contextWithoutRelayer);
-
-      const mockRevokeParams = {
-        grantId:
-          "0x1234567890123456789012345678901234567890123456789012345678901234" as Hash,
-      };
-
-      await expect(controller.revoke(mockRevokeParams)).rejects.toThrow(
-        "Chain ID not available",
-      );
-    });
-
-    it("should trigger submitToRelayer missing URL check in revoke path", async () => {
-      // Create a scenario that forces the revoke method to use the relayer path
-      // and then hits the missing relayerUrl check in submitToRelayer
-
-      const contextWithRelayer = {
-        ...mockContext,
-        relayerUrl: "https://relayer.test.com", // Start with relayer URL
-      };
-
-      const controller = new PermissionsController(contextWithRelayer);
-
-      // We need to modify the context after controller construction but before submitToRelayer call
-      // Let's spy on the submitToRelayer method to intercept and modify context
-      const originalMethod = (controller as any).submitToRelayer;
-      const spySubmitToRelayer = vi.spyOn(controller as any, "submitToRelayer");
-      spySubmitToRelayer.mockImplementation(async (...args: any[]) => {
-        // Clear relayerUrl right before the check
-        (controller as any).context.relayerUrl = undefined;
-        // Call original method which will now fail on the relayerUrl check
-        return originalMethod.call(controller, ...args);
+      // Mock getPermissionDomain
+      vi.spyOn(controller as any, "getPermissionDomain").mockResolvedValue({
+        name: "DataPermissions",
+        version: "1",
+        chainId: 14800,
+        verifyingContract: "0x1234567890123456789012345678901234567890",
       });
 
-      const mockRevokeParams = {
-        grantId:
-          "0x1234567890123456789012345678901234567890123456789012345678901234" as Hash,
-      };
-
-      await expect(controller.revoke(mockRevokeParams)).rejects.toThrow(
-        "Relayer URL is not configured",
-      );
-
-      spySubmitToRelayer.mockRestore();
-    });
-
-    it("should throw RelayerError when relayer URL is cleared after initial validation but before submission", async () => {
-      // This tests the defensive check at lines 372-373 in submitToRelayer
-      const contextWithRelayer = {
-        ...mockContext,
-        relayerUrl: "https://relayer.test.com",
-      };
-
-      const controller = new PermissionsController(contextWithRelayer);
-
-      // Mock the relaySignedTransaction private method to clear relayerUrl mid-execution
-      const originalRelaySignedTransaction = (controller as any)
-        .relaySignedTransaction;
-      vi.spyOn(controller as any, "relaySignedTransaction").mockImplementation(
-        async function (this: any, ...args: any[]) {
-          // Clear relayerUrl after method starts but before submitToRelayer is called
-          this.context.relayerUrl = undefined;
-          // Call original which will eventually call submitToRelayer
-          return originalRelaySignedTransaction.apply(this, args);
-        },
-      );
-
-      const mockParams = {
-        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
-        operation: "test",
-        files: [],
-        parameters: { test: "value" },
-      };
-
-      await expect(controller.grant(mockParams)).rejects.toThrow(
-        "Relayer URL is not configured",
-      );
-    });
-
-    it("should handle non-Error exceptions in direct transaction catch block (line 350)", async () => {
-      // Use context WITHOUT relayerUrl to force direct transaction path
-      const originalBigInt = global.BigInt;
-      const directTransactionContext = {
-        ...mockContext,
-        relayerUrl: undefined, // No relayer URL to force direct transaction
-      };
-
-      // Mock walletClient.writeContract to throw non-Error
-      directTransactionContext.walletClient.writeContract = vi
-        .fn()
-        .mockImplementation(() => {
-          throw { code: 500, message: "Server error" }; // Non-Error object
-        });
-
-      const controller = new PermissionsController(directTransactionContext);
-
-      // Mock getUserNonce to return a proper bigint
-      vi.spyOn(controller as any, "getUserNonce").mockResolvedValue(
-        BigInt(123),
-      );
-      // Mock signTypedData to return a signature
+      // Mock signTypedData
       vi.spyOn(controller as any, "signTypedData").mockResolvedValue(
-        "0xsignature123" as `0x${string}`,
+        "0xsignature123456789012345678901234567890123456789012345678901234567890",
+      );
+    });
+
+    it("should successfully revoke permission with signature via relayer", async () => {
+      // Remove the spy on relayRevokeTransaction as it doesn't exist
+      vi.spyOn(controller as any, "signTypedData").mockResolvedValue(
+        "0xsignature123456789012345678901234567890123456789012345678901234567890",
       );
 
-      const mockParams = {
-        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
-        operation: "test",
-        files: [1, 2, 3],
-        parameters: { test: "value" },
-        grantUrl: "https://ipfs.io/ipfs/QmGrantFile123", // Provide grantUrl to skip early validation
+      const params = {
+        permissionId: 42n,
       };
 
-      try {
-        await controller.grant(mockParams);
-        expect.fail("Expected an error to be thrown");
-      } catch (error: any) {
-        expect(error.message).toContain(
-          "Permission submission failed: Unknown error",
+      const result = await controller.revokeWithSignature(params);
+
+      expect(result).toBe("0xtxhash");
+    });
+
+    it("should successfully revoke permission with signature via direct transaction", async () => {
+      const testContext = {
+        ...mockContext,
+        relayerCallbacks: undefined, // No relayer
+        walletClient: {
+          ...mockWalletClient,
+          chain: { id: 14800 },
+        },
+      };
+
+      const controller = new PermissionsController(testContext);
+
+      // Mock submitDirectRevokeTransaction
+      vi.spyOn(
+        controller as any,
+        "submitDirectRevokeTransaction",
+      ).mockResolvedValue(
+        "0xhash123456789012345678901234567890123456789012345678901234567890",
+      );
+
+      const params = {
+        permissionId: 42n,
+      };
+
+      const result = await controller.revokeWithSignature(params);
+
+      expect(result).toBe(
+        "0xhash123456789012345678901234567890123456789012345678901234567890",
+      );
+    });
+
+    it("should handle missing chain ID error", async () => {
+      const testContext = {
+        ...mockContext,
+        walletClient: {
+          ...mockWalletClient,
+          chain: undefined, // No chain
+        },
+      };
+
+      const controller = new PermissionsController(testContext);
+
+      const params = {
+        permissionId: 42n,
+      };
+
+      await expect(controller.revokeWithSignature(params)).rejects.toThrow(
+        PermissionError,
+      );
+    });
+
+    it("should handle getUserNonce errors", async () => {
+      const testContext = {
+        ...mockContext,
+        walletClient: {
+          ...mockWalletClient,
+          chain: { id: 14800 },
+        },
+      };
+
+      const controller = new PermissionsController(testContext);
+
+      vi.spyOn(controller as any, "getUserNonce").mockRejectedValue(
+        new Error("Nonce retrieval failed"),
+      );
+
+      const params = {
+        permissionId: 42n,
+      };
+
+      await expect(controller.revokeWithSignature(params)).rejects.toThrow(
+        "Failed to revoke permission with signature: Nonce retrieval failed",
+      );
+    });
+
+    it("should handle signature errors", async () => {
+      const testContext = {
+        ...mockContext,
+        walletClient: {
+          ...mockWalletClient,
+          chain: { id: 14800 },
+        },
+      };
+
+      const controller = new PermissionsController(testContext);
+
+      vi.spyOn(controller as any, "signTypedData").mockRejectedValue(
+        new Error("Signature failed"),
+      );
+
+      const params = {
+        permissionId: 42n,
+      };
+
+      await expect(controller.revokeWithSignature(params)).rejects.toThrow(
+        "Failed to revoke permission with signature: Signature failed",
+      );
+    });
+  });
+
+  describe("New Permission Query Methods", () => {
+    beforeEach(() => {
+      // Mock the public client for contract reads
+      mockPublicClient.readContract = vi.fn();
+    });
+
+    describe("getFilePermissionIds", () => {
+      it("should successfully get permission IDs for a file", async () => {
+        const mockPermissionIds = [1n, 2n, 3n];
+        (mockPublicClient.readContract as Mock).mockResolvedValue(
+          mockPermissionIds,
         );
-      } finally {
-        global.BigInt = originalBigInt;
-      }
-    });
 
-    it("should handle non-Error exceptions in relayTransaction catch block (line 411)", async () => {
-      const contextWithRelayer = {
-        ...mockContext,
-        relayerUrl: "https://relayer.test.com",
-      };
+        const result = await controller.getFilePermissionIds(123n);
 
-      const controller = new PermissionsController(contextWithRelayer);
-
-      // Mock fetch to throw non-Error, which will be caught in relayTransaction's catch block
-      const mockFetch = fetch as Mock;
-      mockFetch.mockImplementation(() => {
-        throw "Network timeout"; // Non-Error string
-      });
-
-      const mockParams = {
-        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
-        operation: "test",
-        files: [1, 2, 3],
-        parameters: { test: "value" },
-      };
-
-      await expect(controller.grant(mockParams)).rejects.toThrow(
-        "Network error while relaying transaction: Unknown error",
-      );
-    });
-
-    it("should handle non-Error exceptions when relayer returns error (line 448)", async () => {
-      const contextWithRelayer = {
-        ...mockContext,
-        relayerUrl: "https://relayer.test.com",
-      };
-
-      const controller = new PermissionsController(contextWithRelayer);
-
-      // Mock fetch to return error response with data.error
-      const mockFetch = fetch as Mock;
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            success: false,
-            error: "Transaction validation failed",
-          }),
-      });
-
-      const mockParams = {
-        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
-        operation: "test",
-        files: [1, 2, 3],
-        parameters: { test: "value" },
-      };
-
-      await expect(controller.grant(mockParams)).rejects.toThrow(
-        "Transaction validation failed",
-      );
-    });
-
-    it("should handle non-Error exceptions in submitToRelayer catch block (line 457)", async () => {
-      const contextWithRelayer = {
-        ...mockContext,
-        relayerUrl: "https://relayer.test.com",
-      };
-
-      const controller = new PermissionsController(contextWithRelayer);
-
-      // Mock fetch to throw non-Error
-      const mockFetch = fetch as Mock;
-      mockFetch.mockImplementation(() => {
-        throw { status: 500, message: "Server error" }; // Non-Error object
-      });
-
-      const mockParams = {
-        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
-        operation: "test",
-        files: [1, 2, 3],
-        parameters: { test: "value" },
-      };
-
-      await expect(controller.grant(mockParams)).rejects.toThrow(
-        "Network error while relaying transaction: Unknown error",
-      );
-    });
-
-    it("should handle non-Error exceptions in signTypedData (line 309)", async () => {
-      // Mock signTypedData to throw non-Error object (not containing "rejected")
-      mockContext.walletClient.signTypedData = vi
-        .fn()
-        .mockImplementation(() => {
-          throw { code: "SIGN_FAILED", reason: "Hardware wallet disconnected" }; // Non-Error
+        expect(result).toEqual(mockPermissionIds);
+        expect(mockPublicClient.readContract).toHaveBeenCalledWith({
+          address: "0x1234567890123456789012345678901234567890",
+          abi: expect.any(Array),
+          functionName: "filePermissionIds",
+          args: [123n],
         });
+      });
 
-      const controller = new PermissionsController(mockContext);
-      const mockParams = {
-        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
-        operation: "test",
-        files: [1, 2, 3],
-        parameters: { test: "value" },
-        grantUrl: "https://ipfs.io/ipfs/QmGrantFile123",
-      };
+      it("should handle contract read errors", async () => {
+        (mockPublicClient.readContract as Mock).mockRejectedValue(
+          new Error("Contract read failed"),
+        );
 
-      await expect(controller.grant(mockParams)).rejects.toThrow(
-        "Failed to sign typed data: Unknown error",
-      );
+        await expect(controller.getFilePermissionIds(123n)).rejects.toThrow(
+          "Failed to get file permission IDs: Contract read failed",
+        );
+      });
     });
 
-    it("should use chain null fallback in submitDirectTransaction (line 344)", async () => {
-      const contextWithNullChain = {
-        ...mockContext,
-        relayerUrl: undefined, // Force direct transaction path
-        walletClient: {
-          ...mockContext.walletClient,
-          chain: undefined, // Trigger || null fallback
-          getChainId: vi.fn().mockResolvedValue(14800),
-          account: mockContext.walletClient.account, // Use the proper account object
-        },
-      };
+    describe("getPermissionFileIds", () => {
+      it("should successfully get file IDs for a permission", async () => {
+        const mockFileIds = [10n, 20n, 30n];
+        (mockPublicClient.readContract as Mock).mockResolvedValue(mockFileIds);
 
-      // Mock writeContract to verify it receives chain: null
-      contextWithNullChain.walletClient.writeContract = vi
-        .fn()
-        .mockImplementation((params) => {
-          expect(params.chain).toBe(null); // Verify null fallback was used
-          return Promise.resolve("0xhash");
+        const result = await controller.getPermissionFileIds(456n);
+
+        expect(result).toEqual(mockFileIds);
+        expect(mockPublicClient.readContract).toHaveBeenCalledWith({
+          address: "0x1234567890123456789012345678901234567890",
+          abi: expect.any(Array),
+          functionName: "permissionFileIds",
+          args: [456n],
         });
-
-      const controller = new PermissionsController(contextWithNullChain);
-
-      // Mock getUserNonce to return a proper bigint
-      vi.spyOn(controller as any, "getUserNonce").mockResolvedValue(
-        BigInt(123),
-      );
-      // Mock signTypedData to return a signature
-      vi.spyOn(controller as any, "signTypedData").mockResolvedValue(
-        "0xsignature123" as `0x${string}`,
-      );
-
-      const mockParams = {
-        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
-        operation: "test",
-        files: [1, 2, 3],
-        parameters: { test: "value" },
-        grantUrl: "https://ipfs.io/ipfs/QmGrantFile123",
-      };
-
-      await controller.grant(mockParams);
-      expect(
-        contextWithNullChain.walletClient.writeContract,
-      ).toHaveBeenCalledWith(expect.objectContaining({ chain: null }));
-    });
-
-    it("should use fallback error message when relayer error is falsy (line 448)", async () => {
-      const contextWithRelayer = {
-        ...mockContext,
-        relayerUrl: "https://relayer.test.com",
-      };
-
-      const controller = new PermissionsController(contextWithRelayer);
-      const mockFetch = fetch as Mock;
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            success: false,
-            error: null, // Falsy error triggers || fallback
-          }),
       });
 
-      const mockParams = {
-        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
-        operation: "test",
-        files: [1, 2, 3],
-        parameters: { test: "value" },
-      };
+      it("should handle contract read errors", async () => {
+        (mockPublicClient.readContract as Mock).mockRejectedValue(
+          new Error("Contract read failed"),
+        );
 
-      await expect(controller.grant(mockParams)).rejects.toThrow(
-        "Failed to relay transaction", // Correct fallback message
+        await expect(controller.getPermissionFileIds(456n)).rejects.toThrow(
+          "Failed to get permission file IDs: Contract read failed",
+        );
+      });
+    });
+
+    describe("isActivePermission", () => {
+      it("should return true for active permission", async () => {
+        (mockPublicClient.readContract as Mock).mockResolvedValue(true);
+
+        const result = await controller.isActivePermission(789n);
+
+        expect(result).toBe(true);
+        expect(mockPublicClient.readContract).toHaveBeenCalledWith({
+          address: "0x1234567890123456789012345678901234567890",
+          abi: expect.any(Array),
+          functionName: "isActivePermission",
+          args: [789n],
+        });
+      });
+
+      it("should return false for inactive permission", async () => {
+        (mockPublicClient.readContract as Mock).mockResolvedValue(false);
+
+        const result = await controller.isActivePermission(789n);
+
+        expect(result).toBe(false);
+      });
+
+      it("should handle contract read errors", async () => {
+        (mockPublicClient.readContract as Mock).mockRejectedValue(
+          new Error("Contract read failed"),
+        );
+
+        await expect(controller.isActivePermission(789n)).rejects.toThrow(
+          "Failed to check permission status: Contract read failed",
+        );
+      });
+    });
+
+    describe("getPermissionInfo", () => {
+      it("should successfully get permission info", async () => {
+        const mockPermissionInfo = {
+          id: 111n,
+          grantor: "0xabcdef1234567890123456789012345678901234" as Address,
+          nonce: 55n,
+          grant: "ipfs://Qm...",
+          signature: "0xsig123" as `0x${string}`,
+          isActive: true,
+          fileIds: [1n, 2n, 3n],
+        };
+
+        (mockPublicClient.readContract as Mock).mockResolvedValue(
+          mockPermissionInfo,
+        );
+
+        const result = await controller.getPermissionInfo(111n);
+
+        expect(result).toEqual(mockPermissionInfo);
+        expect(mockPublicClient.readContract).toHaveBeenCalledWith({
+          address: "0x1234567890123456789012345678901234567890",
+          abi: expect.any(Array),
+          functionName: "permissions",
+          args: [111n],
+        });
+      });
+
+      it("should handle contract read errors", async () => {
+        (mockPublicClient.readContract as Mock).mockRejectedValue(
+          new Error("Contract read failed"),
+        );
+
+        await expect(controller.getPermissionInfo(111n)).rejects.toThrow(
+          "Failed to get permission info: Contract read failed",
+        );
+      });
+    });
+  });
+
+  describe("Direct Transaction Methods", () => {
+    beforeEach(() => {
+      // Mock writeContract
+      mockWalletClient.writeContract = vi
+        .fn()
+        .mockResolvedValue(
+          "0xhash123456789012345678901234567890123456789012345678901234567890",
+        );
+
+      // Mock getUserAddress
+      vi.spyOn(controller as any, "getUserAddress").mockResolvedValue(
+        "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
       );
     });
 
-    it("should handle non-Error exceptions in submitToRelayer JSON parsing (line 457)", async () => {
-      const contextWithRelayer = {
-        ...mockContext,
-        relayerUrl: "https://relayer.test.com",
-      };
+    describe("submitDirectRevokeTransaction", () => {
+      it("should successfully submit direct revoke transaction", async () => {
+        const typedData = {
+          domain: {
+            name: "DataPermissions",
+            version: "1",
+            chainId: 14800,
+            verifyingContract:
+              "0x1234567890123456789012345678901234567890" as Address,
+          },
+          types: {
+            RevokePermission: [
+              { name: "nonce", type: "uint256" },
+              { name: "permissionId", type: "uint256" },
+            ],
+          },
+          primaryType: "RevokePermission" as const,
+          message: {
+            nonce: 123n,
+            permissionId: 42n,
+          },
+        };
 
-      const controller = new PermissionsController(contextWithRelayer);
-      const mockFetch = fetch as Mock;
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => {
-          throw "JSON parsing failed"; // Non-Error string
-        },
+        const signature =
+          "0xsignature123456789012345678901234567890123456789012345678901234567890";
+
+        const result = await (controller as any).submitDirectRevokeTransaction(
+          typedData,
+          signature,
+        );
+
+        expect(result).toBe(
+          "0xhash123456789012345678901234567890123456789012345678901234567890",
+        );
+
+        expect(mockWalletClient.writeContract).toHaveBeenCalledWith({
+          address: "0x1234567890123456789012345678901234567890",
+          abi: expect.any(Array),
+          functionName: "revokePermissionWithSignature",
+          args: [typedData.message, signature],
+          account: expect.any(Object),
+          chain: mockWalletClient.chain,
+        });
       });
 
-      const mockParams = {
-        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
-        operation: "test",
-        files: [1, 2, 3],
-        parameters: { test: "value" },
-      };
+      it("should handle blockchain errors", async () => {
+        (mockWalletClient.writeContract as Mock).mockRejectedValue(
+          new Error("Transaction failed"),
+        );
 
-      await expect(controller.grant(mockParams)).rejects.toThrow(
-        "Network error while relaying transaction: Unknown error",
-      );
-    });
+        const typedData = {
+          domain: {
+            name: "DataPermissions",
+            version: "1",
+            chainId: 14800,
+            verifyingContract:
+              "0x1234567890123456789012345678901234567890" as Address,
+          },
+          types: {
+            RevokePermission: [
+              { name: "nonce", type: "uint256" },
+              { name: "permissionId", type: "uint256" },
+            ],
+          },
+          primaryType: "RevokePermission" as const,
+          message: {
+            nonce: 123n,
+            permissionId: 42n,
+          },
+        };
 
-    it("should handle non-Error exceptions in getUserNonce catch block (line 238)", async () => {
-      const controller = new PermissionsController(mockContext);
+        const signature =
+          "0xsignature123456789012345678901234567890123456789012345678901234567890";
 
-      // Mock getChainId to throw non-Error
-      mockContext.walletClient.getChainId = vi.fn().mockImplementation(() => {
-        throw { code: "CHAIN_ACCESS_ERROR", reason: "Network unavailable" }; // Non-Error object
+        await expect(
+          (controller as any).submitDirectRevokeTransaction(
+            typedData,
+            signature,
+          ),
+        ).rejects.toThrow("Transaction failed");
       });
-
-      await expect((controller as any).getUserNonce()).rejects.toThrow(
-        "Failed to retrieve user nonce: Unknown error",
-      );
-    });
-
-    it("should use fallback error message when submitToRelayer data.error is falsy (line 448)", async () => {
-      const contextWithRelayer = {
-        ...mockContext,
-        relayerUrl: "https://relayer.test.com",
-      };
-
-      const controller = new PermissionsController(contextWithRelayer);
-
-      // Mock fetch to return success: false with falsy error
-      const mockFetch = fetch as Mock;
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            success: false,
-            error: null, // Falsy error to trigger || fallback
-          }),
-      });
-
-      await expect(
-        (controller as any).submitToRelayer("test", { data: "test" }),
-      ).rejects.toThrow("Failed to submit to relayer");
-    });
-
-    it("should handle non-Error exceptions in submitToRelayer network error (line 457)", async () => {
-      const contextWithRelayer = {
-        ...mockContext,
-        relayerUrl: "https://relayer.test.com",
-      };
-
-      const controller = new PermissionsController(contextWithRelayer);
-
-      // Mock fetch to throw non-Error object directly
-      const mockFetch = fetch as Mock;
-      mockFetch.mockImplementation(() => {
-        throw "Network connection failed"; // Non-Error string
-      });
-
-      await expect(
-        (controller as any).submitToRelayer("test", { data: "test" }),
-      ).rejects.toThrow(
-        "Network error while submitting to relayer: Unknown error",
-      );
     });
   });
 });

@@ -1,7 +1,7 @@
 import type { Address, Hash } from "viem";
 
 /**
- * Represents a granted permission from the PermissionRegistry.
+ * Represents a granted permission from the DataPermissions contract.
  *
  * This interface describes the structure of permissions that have been granted
  * on-chain, including all the metadata and parameters associated with the permission.
@@ -84,15 +84,15 @@ export interface GrantPermissionParams {
  * @example
  * ```typescript
  * const revokeParams: RevokePermissionParams = {
- *   grantId: '0x1234567890abcdef...' // Hash from the original grant transaction
+ *   permissionId: 123n // Permission ID to revoke
  * };
  *
  * await vana.permissions.revoke(revokeParams);
  * ```
  */
 export interface RevokePermissionParams {
-  /** The keccak256 hash of the original PermissionGrant struct to revoke */
-  grantId: Hash;
+  /** The permission ID to revoke */
+  permissionId: bigint;
 }
 
 /**
@@ -180,6 +180,50 @@ export interface PermissionInputMessage {
   nonce: bigint;
   /** Grant URL */
   grant: string;
+  /** File IDs */
+  fileIds: bigint[];
+}
+
+/**
+ * Contract PermissionInput structure
+ */
+export interface PermissionInput {
+  /** Nonce */
+  nonce: bigint;
+  /** Grant URL */
+  grant: string;
+  /** File IDs to grant permission for */
+  fileIds: bigint[];
+}
+
+/**
+ * Contract RevokePermissionInput structure
+ */
+export interface RevokePermissionInput {
+  /** Nonce */
+  nonce: bigint;
+  /** Permission ID to revoke */
+  permissionId: bigint;
+}
+
+/**
+ * Contract Permission Info structure returned from the contract
+ */
+export interface PermissionInfo {
+  /** Permission ID */
+  id: bigint;
+  /** Address that granted the permission */
+  grantor: Address;
+  /** Nonce used when creating */
+  nonce: bigint;
+  /** Grant URL */
+  grant: string;
+  /** Signature bytes */
+  signature: `0x${string}`;
+  /** Whether the permission is active */
+  isActive: boolean;
+  /** File IDs associated with this permission */
+  fileIds: bigint[];
 }
 
 /**
@@ -206,7 +250,6 @@ export interface SimplifiedPermissionMessage {
  * const grantFile: GrantFile = {
  *   grantee: '0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6',
  *   operation: 'llm_inference',
- *   files: [1654096, 1654097],
  *   parameters: {
  *     prompt: 'Analyze this data: {{data}}',
  *     model: 'gpt-4',
@@ -222,14 +265,11 @@ export interface GrantFile {
   grantee: Address;
   /** Operation the grantee is authorized to perform */
   operation: string;
-  /** File IDs this grant covers */
-  files: number[];
   /** Operation-specific parameters */
   parameters: Record<string, unknown>;
   /** Optional Unix timestamp when grant expires (seconds since epoch per POSIX.1-2008) */
   expires?: number;
 }
-
 
 /**
  * EIP-712 typed data structure for Permission

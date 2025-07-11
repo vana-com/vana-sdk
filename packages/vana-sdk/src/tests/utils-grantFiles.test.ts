@@ -34,7 +34,6 @@ describe("Grant Files Utils", () => {
       expect(grantFile).toEqual({
         grantee: params.to,
         operation: params.operation,
-        files: params.files,
         parameters: params.parameters,
       });
     });
@@ -49,7 +48,6 @@ describe("Grant Files Utils", () => {
 
       const grantFile = createGrantFile(params);
 
-      expect(grantFile.files).toEqual([]);
       expect(grantFile.parameters).toEqual({});
     });
 
@@ -349,7 +347,6 @@ describe("Grant Files Utils", () => {
         validateGrantFile({
           grantee: "invalid-address",
           operation: "test",
-          files: [1, 2, 3],
           parameters: {},
         }),
       ).toBe(false);
@@ -358,7 +355,6 @@ describe("Grant Files Utils", () => {
       expect(
         validateGrantFile({
           grantee: "0x1234567890123456789012345678901234567890",
-          files: [1, 2, 3],
           parameters: {},
         }),
       ).toBe(false);
@@ -368,55 +364,24 @@ describe("Grant Files Utils", () => {
         validateGrantFile({
           grantee: "0x1234567890123456789012345678901234567890",
           operation: "",
-          files: [1, 2, 3],
           parameters: {},
         }),
       ).toBe(false);
 
-      // Missing files
+      // Missing files (files are not required in grant files - they're tracked in contract)
       expect(
         validateGrantFile({
           grantee: "0x1234567890123456789012345678901234567890",
           operation: "test",
           parameters: {},
         }),
-      ).toBe(false);
-
-      // Invalid file ID (negative)
-      expect(
-        validateGrantFile({
-          grantee: "0x1234567890123456789012345678901234567890",
-          operation: "test",
-          files: [1, -1, 3],
-          parameters: {},
-        }),
-      ).toBe(false);
-
-      // Invalid file ID (non-integer)
-      expect(
-        validateGrantFile({
-          grantee: "0x1234567890123456789012345678901234567890",
-          operation: "test",
-          files: [1, 2.5, 3],
-          parameters: {},
-        }),
-      ).toBe(false);
-
-      // Missing parameters
-      expect(
-        validateGrantFile({
-          grantee: "0x1234567890123456789012345678901234567890",
-          operation: "test",
-          files: [1, 2, 3],
-        }),
-      ).toBe(false);
+      ).toBe(true);
 
       // Invalid expires (negative)
       expect(
         validateGrantFile({
           grantee: "0x1234567890123456789012345678901234567890",
           operation: "test",
-          files: [1, 2, 3],
           parameters: {},
           expires: -1,
         }),
@@ -427,9 +392,34 @@ describe("Grant Files Utils", () => {
         validateGrantFile({
           grantee: "0x1234567890123456789012345678901234567890",
           operation: "test",
-          files: [1, 2, 3],
           parameters: {},
           expires: 123.5,
+        }),
+      ).toBe(false);
+
+      // Missing parameters
+      expect(
+        validateGrantFile({
+          grantee: "0x1234567890123456789012345678901234567890",
+          operation: "test",
+        }),
+      ).toBe(false);
+
+      // Parameters is null
+      expect(
+        validateGrantFile({
+          grantee: "0x1234567890123456789012345678901234567890",
+          operation: "test",
+          parameters: null,
+        }),
+      ).toBe(false);
+
+      // Parameters is not an object
+      expect(
+        validateGrantFile({
+          grantee: "0x1234567890123456789012345678901234567890",
+          operation: "test",
+          parameters: "not an object",
         }),
       ).toBe(false);
 
@@ -442,25 +432,24 @@ describe("Grant Files Utils", () => {
       // Non-object data
       expect(validateGrantFile("not an object")).toBe(false);
 
-      // Files not an array
+      // Valid grant file with expires
       expect(
         validateGrantFile({
           grantee: "0x1234567890123456789012345678901234567890",
           operation: "test",
-          files: "not an array",
-          parameters: {},
+          parameters: { prompt: "test" },
+          expires: 1736467579,
         }),
-      ).toBe(false);
+      ).toBe(true);
 
-      // Parameters not an object
+      // Valid grant file without expires
       expect(
         validateGrantFile({
           grantee: "0x1234567890123456789012345678901234567890",
           operation: "test",
-          files: [1, 2, 3],
-          parameters: "not an object",
+          parameters: { prompt: "test" },
         }),
-      ).toBe(false);
+      ).toBe(true);
     });
   });
 
@@ -469,7 +458,6 @@ describe("Grant Files Utils", () => {
       const validGrantFile = {
         grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "llm_inference",
-        files: [1, 2, 3],
         parameters: { prompt: "test" },
         expires: Math.floor(Date.now() / 1000) + 3600, // 1 hour from now
       };
@@ -483,7 +471,6 @@ describe("Grant Files Utils", () => {
       const invalidGrantFile = {
         grantee: "invalid-address", // Invalid EVM address
         operation: "", // Empty operation
-        files: [1, -1, 2.5], // Invalid file IDs (negative and non-integer)
         parameters: null, // Should be object
         expires: -100, // Negative timestamp
       };
@@ -502,15 +489,14 @@ describe("Grant Files Utils", () => {
       }
     });
 
-    it("should validate files array uniqueness", () => {
-      const grantFileWithDuplicates = {
+    it("should validate required fields", () => {
+      const grantFileWithMissingOperation = {
         grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
-        operation: "llm_inference",
-        files: [1, 2, 2, 3], // Duplicate file ID
+        // Missing operation field
         parameters: { prompt: "test" },
       };
 
-      expect(() => validateGrant(grantFileWithDuplicates)).toThrow(
+      expect(() => validateGrant(grantFileWithMissingOperation)).toThrow(
         GrantValidationError,
       );
     });
@@ -519,7 +505,6 @@ describe("Grant Files Utils", () => {
       const grantFileWithExtra = {
         grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "llm_inference",
-        files: [1, 2, 3],
         parameters: { prompt: "test" },
         unknownField: "should not be allowed", // Additional property
       };
@@ -535,7 +520,6 @@ describe("Grant Files Utils", () => {
       const grantFile = {
         grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "test",
-        files: [3, 1, 2], // Unsorted - should be sorted in hash
         parameters: {
           z: "last",
           a: "first",
@@ -558,7 +542,6 @@ describe("Grant Files Utils", () => {
       const grantFile = {
         grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "test",
-        files: [1, 2, 3],
         parameters: {
           arrayParam: [3, 1, 2],
           nestedArray: [
@@ -593,7 +576,6 @@ describe("Grant Files Utils", () => {
       const grantFile = {
         grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "test",
-        files: [1, 2, 3],
         parameters: {
           circular: {} as any,
         },

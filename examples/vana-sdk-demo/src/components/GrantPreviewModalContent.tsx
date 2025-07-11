@@ -7,7 +7,6 @@ interface GrantPreview {
   grantFile: {
     grantee: string;
     operation: string;
-    files: number[];
     parameters: unknown;
     expires?: number;
   };
@@ -51,12 +50,6 @@ export const GrantPreviewModalContent: React.FC<
           <span className="font-medium">Operation:</span>
           <p className="text-muted-foreground">
             {grantPreview.grantFile.operation}
-          </p>
-        </div>
-        <div>
-          <span className="font-medium">Files:</span>
-          <p className="text-muted-foreground">
-            [{grantPreview.grantFile.files.join(", ")}]
           </p>
         </div>
       </div>

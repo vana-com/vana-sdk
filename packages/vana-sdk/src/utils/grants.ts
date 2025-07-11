@@ -23,7 +23,6 @@ export function createValidatedGrant(params: GrantPermissionParams): GrantFile {
       schema: true,
       grantee: params.to,
       operation: params.operation,
-      files: params.files,
     });
   } catch (error) {
     throw new GrantValidationError(
@@ -79,7 +78,6 @@ export async function checkGrantAccess(
       schema: true,
       grantee: requestingAddress,
       operation,
-      files: fileIds,
     });
 
     return { allowed: true, grantFile };
@@ -127,10 +125,9 @@ export function getGrantTimeRemaining(grantFile: GrantFile): number | null {
  * Creates a human-readable summary of a grant
  */
 export function summarizeGrant(grantFile: GrantFile): string {
-  const fileCount = grantFile.files.length;
   const expiration = grantFile.expires
     ? new Date(grantFile.expires * 1000).toISOString()
     : "No expiration";
 
-  return `Grant for ${grantFile.grantee} to perform "${grantFile.operation}" on ${fileCount} file(s) (expires: ${expiration})`;
+  return `Grant for ${grantFile.grantee} to perform "${grantFile.operation}" (expires: ${expiration})`;
 }

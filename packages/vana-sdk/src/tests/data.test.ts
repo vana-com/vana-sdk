@@ -132,10 +132,10 @@ describe("DataController", () => {
       waitForTransactionReceipt: vi.fn().mockResolvedValue({ logs: [] }),
     };
 
+    // Base context without relayer (for direct transaction tests)
     mockContext = {
       walletClient: mockWalletClient,
       publicClient: mockPublicClient,
-      relayerUrl: "https://test-relayer.com",
       subgraphUrl:
         "https://api.goldsky.com/api/public/project_cm168cz887zva010j39il7a6p/subgraphs/moksha/7.0.1/gn",
     };
@@ -264,7 +264,6 @@ describe("DataController", () => {
         "../utils/encryption"
       );
       const { StorageManager } = await import("../storage");
-      const mockFetch = fetch as Mock;
 
       const testFile = new Blob(["test content"], { type: "text/plain" });
       const encryptedBlob = new Blob(["encrypted content"]);
@@ -278,16 +277,27 @@ describe("DataController", () => {
       vi.mocked(generateEncryptionKey).mockResolvedValue("0xencryptionkey");
       vi.mocked(encryptUserData).mockResolvedValue(encryptedBlob);
 
-      // Mock relayer response
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            success: true,
-            fileId: 42,
-            transactionHash: "0xtxhash",
-          }),
+      // Mock direct transaction (writeContract and event parsing)
+      mockWalletClient.writeContract = vi.fn().mockResolvedValue("0xtxhash");
+
+      // Mock transaction receipt with FileAdded event
+      mockPublicClient.waitForTransactionReceipt = vi.fn().mockResolvedValue({
+        logs: [
+          {
+            topics: ["0xFileAdded"],
+            data: "0x...",
+          },
+        ],
       });
+
+      // Mock decodeEventLog to return the FileAdded event
+      const { decodeEventLog } = await import("viem");
+      vi.mocked(decodeEventLog).mockReturnValue({
+        eventName: "FileAdded",
+        args: {
+          fileId: 42n,
+        },
+      } as any);
 
       const result = await controller.uploadEncryptedFile(testFile, "test.txt");
 
@@ -307,7 +317,7 @@ describe("DataController", () => {
       mockContext.storageManager = mockStorageManager;
 
       // Remove relayerUrl to force direct transaction path where signing occurs
-      delete mockContext.relayerUrl;
+      delete mockContext.relayerCallbacks;
 
       // Mock writeContract to throw signing error
       mockWalletClient.writeContract = vi
@@ -977,48 +987,53 @@ describe("DataController", () => {
 
     it("should handle relayer registration failure", async () => {
       const { StorageManager } = await import("../storage");
-      const mockFetch = fetch as Mock;
 
       const mockStorageManager = new StorageManager();
-      mockContext.storageManager = mockStorageManager;
-      controller = new DataController(mockContext);
 
-      // Mock relayer to return error response
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        statusText: "Internal Server Error",
-      });
+      // Create context with failing relayer callback
+      const contextWithFailingRelayer = {
+        ...mockContext,
+        storageManager: mockStorageManager,
+        relayerCallbacks: {
+          submitFileAddition: vi
+            .fn()
+            .mockRejectedValue(
+              new Error(
+                "Failed to register file on blockchain: Internal Server Error",
+              ),
+            ),
+        },
+      };
 
+      const controller = new DataController(contextWithFailingRelayer);
       const testFile = new Blob(["test content"]);
 
       await expect(controller.uploadEncryptedFile(testFile)).rejects.toThrow(
-        "Failed to register file on blockchain: Internal Server Error",
+        "Upload failed: Failed to register file on blockchain: Internal Server Error",
       );
     });
 
     it("should handle relayer success false response", async () => {
       const { StorageManager } = await import("../storage");
-      const mockFetch = fetch as Mock;
 
       const mockStorageManager = new StorageManager();
-      mockContext.storageManager = mockStorageManager;
-      controller = new DataController(mockContext);
 
-      // Mock relayer to return success: false
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            success: false,
-            error: "Custom relayer error",
-          }),
-      });
+      // Create context with failing relayer callback
+      const contextWithFailingRelayer = {
+        ...mockContext,
+        storageManager: mockStorageManager,
+        relayerCallbacks: {
+          submitFileAddition: vi
+            .fn()
+            .mockRejectedValue(new Error("Custom relayer error")),
+        },
+      };
 
+      const controller = new DataController(contextWithFailingRelayer);
       const testFile = new Blob(["test content"]);
 
       await expect(controller.uploadEncryptedFile(testFile)).rejects.toThrow(
-        "Custom relayer error",
+        "Upload failed: Custom relayer error",
       );
     });
 
@@ -1076,27 +1091,23 @@ describe("DataController", () => {
       const { StorageManager } = await import("../storage");
 
       const mockStorageManager = new StorageManager();
-      const contextWithRelayer = {
+
+      // Create context with failing relayer callback
+      const contextWithFailingRelayer = {
         ...mockContext,
         storageManager: mockStorageManager,
-        relayerUrl: "https://relayer.test.com",
+        relayerCallbacks: {
+          submitFileAddition: vi
+            .fn()
+            .mockRejectedValue(new Error("Blockchain registration failed")),
+        },
       };
 
-      const controller = new DataController(contextWithRelayer);
+      const controller = new DataController(contextWithFailingRelayer);
       const testFile = new Blob(["test content"]);
 
-      // Mock successful upload to storage but failed relayer registration
-      global.fetch = vi.fn().mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            success: false, // This triggers the uncovered branch
-            error: "Blockchain registration failed",
-          }),
-      });
-
       await expect(controller.uploadEncryptedFile(testFile)).rejects.toThrow(
-        "Blockchain registration failed",
+        "Upload failed: Blockchain registration failed",
       );
     });
 
@@ -1104,27 +1115,25 @@ describe("DataController", () => {
       const { StorageManager } = await import("../storage");
 
       const mockStorageManager = new StorageManager();
-      const contextWithRelayer = {
+
+      // Create context with failing relayer callback
+      const contextWithFailingRelayer = {
         ...mockContext,
         storageManager: mockStorageManager,
-        relayerUrl: "https://relayer.test.com",
+        relayerCallbacks: {
+          submitFileAddition: vi
+            .fn()
+            .mockRejectedValue(
+              new Error("Failed to register file on blockchain"),
+            ),
+        },
       };
 
-      const controller = new DataController(contextWithRelayer);
+      const controller = new DataController(contextWithFailingRelayer);
       const testFile = new Blob(["test content"]);
 
-      // Mock successful upload to storage but failed relayer registration without error message
-      global.fetch = vi.fn().mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            success: false, // This triggers the uncovered branch
-            // No error property to test the fallback
-          }),
-      });
-
       await expect(controller.uploadEncryptedFile(testFile)).rejects.toThrow(
-        "Failed to register file on blockchain",
+        "Upload failed: Failed to register file on blockchain",
       );
     });
   });
@@ -2291,7 +2300,12 @@ describe("DataController", () => {
       const contextWithRelayer = {
         ...mockContext,
         storageManager: mockStorageManager,
-        relayerUrl: "https://relayer.example.com",
+        relayerCallbacks: {
+          submitFileAddition: vi.fn().mockResolvedValue({
+            fileId: 123,
+            transactionHash: "0x123456789abcdef",
+          }),
+        },
       };
 
       const controllerWithRelayer = new DataController(contextWithRelayer);
@@ -2300,7 +2314,7 @@ describe("DataController", () => {
       await expect(
         controllerWithRelayer.uploadEncryptedFileWithSchema(testFile, 1),
       ).rejects.toThrow(
-        "Relayer does not yet support uploading files with schema",
+        "Upload failed: Relayer does not yet support uploading files with schema",
       );
     });
   });

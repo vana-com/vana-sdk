@@ -419,4 +419,70 @@ describe("StorageManager", () => {
       expect(mockProvider2.uploadMock).toHaveBeenCalledWith(blob2, "file2.txt");
     });
   });
+
+  describe("Provider Introspection", () => {
+    it("should return list of registered storage providers", () => {
+      storageManager.register("provider1", mockProvider1);
+      storageManager.register("provider2", mockProvider2);
+
+      const providers = storageManager.getStorageProviders();
+
+      expect(providers).toEqual(["provider1", "provider2"]);
+      expect(providers).toHaveLength(2);
+    });
+
+    it("should return empty array when no providers registered", () => {
+      const providers = storageManager.getStorageProviders();
+
+      expect(providers).toEqual([]);
+      expect(providers).toHaveLength(0);
+    });
+
+    it("should return default storage provider name", () => {
+      storageManager.register("provider1", mockProvider1);
+      storageManager.setDefaultProvider("provider1");
+
+      const defaultProvider = storageManager.getDefaultStorageProvider();
+
+      expect(defaultProvider).toBe("provider1");
+    });
+
+    it("should return undefined when no default provider set", () => {
+      const defaultProvider = storageManager.getDefaultStorageProvider();
+
+      expect(defaultProvider).toBeUndefined();
+    });
+
+    it("should maintain consistency between listProviders and getStorageProviders", () => {
+      storageManager.register("provider1", mockProvider1);
+      storageManager.register("provider2", mockProvider2);
+
+      const providers1 = storageManager.getStorageProviders();
+      const providers2 = storageManager.listProviders();
+
+      expect(providers1).toEqual(providers2);
+      expect(providers1).toEqual(["provider1", "provider2"]);
+    });
+
+    it("should maintain consistency between getDefaultProvider and getDefaultStorageProvider", () => {
+      storageManager.register("provider1", mockProvider1);
+      storageManager.setDefaultProvider("provider1");
+
+      const default1 = storageManager.getDefaultProvider();
+      const default2 = storageManager.getDefaultStorageProvider();
+
+      expect(default1).toBe("provider1");
+      expect(default2).toBe("provider1");
+    });
+
+    it("should handle null vs undefined default provider edge case", () => {
+      // When no default is set, getDefaultProvider returns null
+      // but getDefaultStorageProvider returns undefined
+      const default1 = storageManager.getDefaultProvider();
+      const default2 = storageManager.getDefaultStorageProvider();
+
+      expect(default1).toBeNull();
+      expect(default2).toBeUndefined();
+    });
+  });
 });

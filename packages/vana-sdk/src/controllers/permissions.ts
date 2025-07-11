@@ -5,7 +5,6 @@ import {
   RevokePermissionParams,
   PermissionGrantTypedData,
   GenericTypedData,
-  RelayerTransactionResponse,
   GrantedPermission,
   TrustServerParams,
   UntrustServerParams,
@@ -15,6 +14,7 @@ import {
   UntrustServerTypedData,
   Server,
 } from "../types/index";
+import { PermissionInfo } from "../types/permissions";
 import type { RelayerCallbacks } from "../types/config";
 import {
   RelayerError,
@@ -25,12 +25,12 @@ import {
   NonceError,
   BlockchainError,
   ServerUrlMismatchError,
+  PermissionError,
 } from "../errors";
 import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../abi";
 import {
   createGrantFile,
-  storeGrantFile,
   getGrantFileHash,
   retrieveGrantFile,
 } from "../utils/grantFiles";
@@ -51,7 +51,11 @@ import { StorageManager } from "../storage";
  * const vana = new Vana({
  *   account: privateKeyToAccount('0x...'), // Creates walletClient
  *   network: 'moksha', // Creates publicClient for network
- *   relayerUrl: 'https://relayer.vana.org', // Optional gasless transactions
+ *   relayerCallbacks: { // Optional gasless transactions
+ *     submitPermissionGrant: async (typedData, signature) => {
+ *       return await myRelayer.submit(typedData, signature);
+ *     }
+ *   },
  *   storage: { // Optional custom storage
  *     defaultProvider: 'ipfs',
  *     providers: { ipfs: new IPFSStorage() }
@@ -66,15 +70,8 @@ export interface ControllerContext {
   publicClient: PublicClient;
   /** Optional separate wallet for application-specific operations */
   applicationClient?: WalletClient;
-  // TODO: Remove relayerUrl and relayerCallbacks
-  /**
-   * Optional relayer service URL for gasless transactions.
-   * If both relayerUrl and relayerCallbacks are provided, relayerCallbacks takes precedence.
-   */
-  relayerUrl?: string;
   /**
    * Optional relayer callback functions for handling gasless transactions.
-   * Takes precedence over relayerUrl if both are provided.
    */
   relayerCallbacks?: RelayerCallbacks;
   /** Optional storage manager for file upload/download operations */
@@ -155,18 +152,15 @@ export class PermissionsController {
       if (!grantUrl) {
         if (
           !this.context.relayerCallbacks?.storeGrantFile &&
-          !this.context.relayerUrl &&
           !this.context.storageManager
         ) {
           throw new Error(
-            "No storage available. Provide a grantUrl, configure relayerCallbacks.storeGrantFile, relayerUrl, or storageManager.",
+            "No storage available. Provide a grantUrl, configure relayerCallbacks.storeGrantFile, or storageManager.",
           );
         }
         if (this.context.relayerCallbacks?.storeGrantFile) {
           grantUrl =
             await this.context.relayerCallbacks.storeGrantFile(grantFile);
-        } else if (this.context.relayerUrl) {
-          grantUrl = await storeGrantFile(grantFile, this.context.relayerUrl);
         } else if (this.context.storageManager) {
           // Store using local storage manager if available
           const blob = new Blob([JSON.stringify(grantFile)], {
@@ -253,14 +247,12 @@ export class PermissionsController {
         ),
       );
 
-      // Use relayer callbacks first, then fallback to relayerUrl, otherwise direct transaction
+      // Use relayer callbacks or direct transaction
       if (this.context.relayerCallbacks?.submitPermissionGrant) {
         return await this.context.relayerCallbacks.submitPermissionGrant(
           typedData,
           signature,
         );
-      } else if (this.context.relayerUrl) {
-        return await this.relaySignedTransaction(typedData, signature);
       } else {
         return await this.submitDirectTransaction(typedData, signature);
       }
@@ -356,16 +348,14 @@ export class PermissionsController {
     signature: Hash,
   ): Promise<Hash> {
     try {
-      // Use relayer callbacks first, then fallback to relayerUrl, otherwise direct transaction
+      // Use relayer callbacks or direct transaction
       if (this.context.relayerCallbacks?.submitPermissionRevoke) {
         return await this.context.relayerCallbacks.submitPermissionRevoke(
           typedData,
           signature,
         );
-      } else if (this.context.relayerUrl) {
-        return await this.relaySignedRevoke(typedData, signature);
       } else {
-        return await this.submitDirectRevokeTransaction(typedData);
+        return await this.submitDirectRevokeTransaction(typedData, signature);
       }
     } catch (error) {
       if (
@@ -397,14 +387,12 @@ export class PermissionsController {
     signature: Hash,
   ): Promise<Hash> {
     try {
-      // Use relayer callbacks first, then fallback to relayerUrl, otherwise direct transaction
+      // Use relayer callbacks or direct transaction
       if (this.context.relayerCallbacks?.submitUntrustServer) {
         return await this.context.relayerCallbacks.submitUntrustServer(
           typedData as unknown as UntrustServerTypedData,
           signature,
         );
-      } else if (this.context.relayerUrl) {
-        return await this.relaySignedUntrustServer(typedData, signature);
       } else {
         return await this.submitDirectUntrustTransaction(typedData);
       }
@@ -433,21 +421,23 @@ export class PermissionsController {
     signature: Hash,
   ): Promise<Hash> {
     const chainId = await this.context.walletClient.getChainId();
-    const permissionRegistryAddress = getContractAddress(
+    const DataPermissionsAddress = getContractAddress(
       chainId,
-      "PermissionRegistry",
+      "DataPermissions",
     );
-    const permissionRegistryAbi = getAbi("PermissionRegistry");
+    const DataPermissionsAbi = getAbi("DataPermissions");
 
-    // Prepare the PermissionInput struct (simplified format)
+    // Prepare the PermissionInput struct
     const permissionInput = {
-      nonce: BigInt(typedData.message.nonce),
+      nonce: typedData.message.nonce,
       grant: typedData.message.grant,
+      fileIds: typedData.message.fileIds,
     };
 
     console.debug("🔍 Debug - Permission input being sent to contract:", {
       nonce: permissionInput.nonce.toString(),
       grant: permissionInput.grant,
+      fileIds: permissionInput.fileIds.map((id) => id.toString()),
     });
     console.debug("🔍 Debug - Grant field value:", typedData.message.grant);
     console.debug(
@@ -457,8 +447,8 @@ export class PermissionsController {
 
     // Submit directly to the contract using the provided wallet client
     const txHash = await this.context.walletClient.writeContract({
-      address: permissionRegistryAddress,
-      abi: permissionRegistryAbi,
+      address: DataPermissionsAddress,
+      abi: DataPermissionsAbi,
       functionName: "addPermission",
       args: [permissionInput, signature],
       account:
@@ -467,62 +457,6 @@ export class PermissionsController {
     });
 
     return txHash;
-  }
-
-  /**
-   * Submits a signed transaction via the relayer service.
-   */
-  private async relaySignedTransaction(
-    typedData: PermissionGrantTypedData,
-    signature: Hash,
-  ): Promise<Hash> {
-    try {
-      const relayerUrl = this.context.relayerUrl;
-      if (!relayerUrl) {
-        throw new RelayerError("Relayer URL is not configured", 500);
-      }
-
-      const response = await fetch(`${relayerUrl}/api/relay`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          typedData: {
-            ...typedData,
-            message: {
-              ...typedData.message,
-              nonce: Number(typedData.message.nonce),
-            },
-          },
-          signature,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new RelayerError(
-          `Failed to relay transaction: ${response.statusText}`,
-          response.status,
-          await response.text(),
-        );
-      }
-
-      const data: RelayerTransactionResponse = await response.json();
-
-      if (!data.success) {
-        throw new RelayerError(data.error || "Failed to relay transaction");
-      }
-
-      return data.transactionHash;
-    } catch (error) {
-      if (error instanceof RelayerError) {
-        throw error;
-      }
-      throw new NetworkError(
-        `Network error while relaying transaction: ${error instanceof Error ? error.message : "Unknown error"}`,
-        error as Error,
-      );
-    }
   }
 
   /**
@@ -538,60 +472,25 @@ export class PermissionsController {
         throw new BlockchainError("Chain ID not available");
       }
 
-      // Normalize grantId to hex format internally
-      const grantId = this.normalizeGrantId(params.grantId);
+      const chainId = await this.context.walletClient.getChainId();
+      const DataPermissionsAddress = getContractAddress(
+        chainId,
+        "DataPermissions",
+      );
+      const DataPermissionsAbi = getAbi("DataPermissions");
 
-      const userAddress = await this.getUserAddress();
-      const nonce = await this.getUserNonce();
+      // Direct contract call for revocation
+      const txHash = await this.context.walletClient.writeContract({
+        address: DataPermissionsAddress,
+        abi: DataPermissionsAbi,
+        functionName: "revokePermission",
+        args: [params.permissionId],
+        account:
+          this.context.walletClient.account || (await this.getUserAddress()),
+        chain: this.context.walletClient.chain || null,
+      });
 
-      // Create revoke message (simplified for now)
-      const revokeMessage = {
-        from: userAddress,
-        grantId: grantId,
-        nonce,
-      };
-
-      // Create typed data for revoke (simplified structure)
-      const typedData = {
-        domain: await this.getPermissionDomain(),
-        types: {
-          PermissionRevoke: [
-            { name: "from", type: "address" },
-            { name: "grantId", type: "bytes32" },
-            { name: "nonce", type: "uint256" },
-          ],
-        },
-        primaryType: "PermissionRevoke" as const,
-        message: revokeMessage,
-      };
-
-      const signature = await this.signTypedData(typedData);
-
-      // Submit either via relayer callbacks, relayer URL, or direct transaction
-      if (this.context.relayerCallbacks?.submitPermissionRevoke) {
-        return await this.context.relayerCallbacks.submitPermissionRevoke(
-          typedData,
-          signature,
-        );
-      } else if (this.context.relayerUrl) {
-        // Submit to relayer
-        const response = await this.submitToRelayer("revoke", {
-          typedData: {
-            ...typedData,
-            message: {
-              ...typedData.message,
-              nonce: Number(typedData.message.nonce),
-            },
-          },
-          signature,
-        });
-
-        return response.transactionHash;
-      } else {
-        // TODO: Implement direct revoke transaction
-        // For now, return a mock hash since the contract doesn't have revoke yet
-        return `0xmock${grantId.slice(2).substring(0, 60)}` as Hash;
-      }
+      return txHash;
     } catch (error) {
       if (error instanceof Error) {
         // Re-throw known Vana errors directly
@@ -615,22 +514,75 @@ export class PermissionsController {
   }
 
   /**
-   * Retrieves the user's current nonce from the PermissionRegistry contract.
+   * Revokes a permission with a signature (gasless transaction).
+   *
+   * @param params - Parameters for revoking the permission
+   * @returns Promise resolving to transaction hash
+   */
+  async revokeWithSignature(params: RevokePermissionParams): Promise<Hash> {
+    try {
+      // Check chain ID availability early
+      if (!this.context.walletClient.chain?.id) {
+        throw new BlockchainError("Chain ID not available");
+      }
+
+      const nonce = await this.getUserNonce();
+
+      // Create revoke permission input
+      const revokePermissionInput = {
+        nonce,
+        permissionId: params.permissionId,
+      };
+
+      // Create typed data for revoke
+      const typedData = {
+        domain: await this.getPermissionDomain(),
+        types: {
+          RevokePermission: [
+            { name: "nonce", type: "uint256" },
+            { name: "permissionId", type: "uint256" },
+          ],
+        },
+        primaryType: "RevokePermission" as const,
+        message: revokePermissionInput,
+      };
+
+      const signature = await this.signTypedData(typedData);
+
+      // Submit via relayer callbacks or directly
+      if (this.context.relayerCallbacks?.submitPermissionRevoke) {
+        return await this.context.relayerCallbacks.submitPermissionRevoke(
+          typedData,
+          signature,
+        );
+      } else {
+        return await this.submitDirectRevokeTransaction(typedData, signature);
+      }
+    } catch (error) {
+      throw new PermissionError(
+        `Failed to revoke permission with signature: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Retrieves the user's current nonce from the DataPermissions contract.
    */
   private async getUserNonce(): Promise<bigint> {
     try {
       const userAddress = await this.getUserAddress();
       const chainId = await this.context.walletClient.getChainId();
 
-      const permissionRegistryAddress = getContractAddress(
+      const DataPermissionsAddress = getContractAddress(
         chainId,
-        "PermissionRegistry",
+        "DataPermissions",
       );
-      const permissionRegistryAbi = getAbi("PermissionRegistry");
+      const DataPermissionsAbi = getAbi("DataPermissions");
 
       const nonce = (await this.context.publicClient.readContract({
-        address: permissionRegistryAddress,
-        abi: permissionRegistryAbi,
+        address: DataPermissionsAddress,
+        abi: DataPermissionsAbi,
         functionName: "userNonce",
         args: [userAddress],
       })) as bigint;
@@ -667,12 +619,14 @@ export class PermissionsController {
         Permission: [
           { name: "nonce", type: "uint256" },
           { name: "grant", type: "string" },
+          { name: "fileIds", type: "uint256[]" },
         ],
       },
       primaryType: "Permission",
       message: {
         nonce: params.nonce,
         grant: params.grantUrl,
+        fileIds: params.files.map((fileId) => BigInt(fileId)),
       },
       files: params.files,
     };
@@ -683,16 +637,16 @@ export class PermissionsController {
    */
   private async getPermissionDomain() {
     const chainId = await this.context.walletClient.getChainId();
-    const permissionRegistryAddress = getContractAddress(
+    const DataPermissionsAddress = getContractAddress(
       chainId,
-      "PermissionRegistry",
+      "DataPermissions",
     );
 
     return {
-      name: "VanaDataWallet",
+      name: "DataPermissions",
       version: "1",
       chainId,
-      verifyingContract: permissionRegistryAddress,
+      verifyingContract: DataPermissionsAddress,
     };
   }
 
@@ -715,52 +669,6 @@ export class PermissionsController {
       }
       throw new SignatureError(
         `Failed to sign typed data: ${error instanceof Error ? error.message : "Unknown error"}`,
-        error as Error,
-      );
-    }
-  }
-
-  /**
-   * Submits a request to the relayer service (generic method).
-   */
-  private async submitToRelayer(
-    endpoint: string,
-    payload: unknown,
-  ): Promise<RelayerTransactionResponse> {
-    try {
-      const relayerUrl = this.context.relayerUrl;
-      if (!relayerUrl) {
-        throw new RelayerError("Relayer URL is not configured", 500);
-      }
-      const response = await fetch(`${relayerUrl}/api/v1/${endpoint}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        throw new RelayerError(
-          `Failed to submit to relayer: ${response.statusText}`,
-          response.status,
-          await response.text(),
-        );
-      }
-
-      const data: RelayerTransactionResponse = await response.json();
-
-      if (!data.success) {
-        throw new RelayerError(data.error || "Failed to submit to relayer");
-      }
-
-      return data;
-    } catch (error) {
-      if (error instanceof RelayerError) {
-        throw error;
-      }
-      throw new NetworkError(
-        `Network error while submitting to relayer: ${error instanceof Error ? error.message : "Unknown error"}`,
         error as Error,
       );
     }
@@ -872,7 +780,6 @@ export class PermissionsController {
           try {
             const grantFile = await retrieveGrantFile(permission.grant);
             operation = grantFile.operation;
-            files = grantFile.files;
             parameters = grantFile.parameters;
           } catch (error) {
             console.warn(
@@ -880,6 +787,20 @@ export class PermissionsController {
               error,
             );
             // Continue with basic permission data even if grant file can't be retrieved
+          }
+
+          // Get file IDs from the contract
+          try {
+            const fileIds = await this.getPermissionFileIds(
+              BigInt(permission.id),
+            );
+            files = fileIds.map((id) => Number(id));
+          } catch (error) {
+            console.warn(
+              `Failed to retrieve file IDs for permission ${permission.id}:`,
+              error,
+            );
+            // Continue with empty files array
           }
 
           userPermissions.push({
@@ -909,6 +830,130 @@ export class PermissionsController {
       console.error("Failed to fetch user permissions:", error);
       throw new BlockchainError(
         `Failed to fetch user permissions: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Gets all permission IDs for a specific file.
+   *
+   * @param fileId - The file ID to query permissions for
+   * @returns Promise resolving to array of permission IDs
+   */
+  async getFilePermissionIds(fileId: bigint): Promise<bigint[]> {
+    try {
+      const chainId = await this.context.walletClient.getChainId();
+      const DataPermissionsAddress = getContractAddress(
+        chainId,
+        "DataPermissions",
+      );
+      const DataPermissionsAbi = getAbi("DataPermissions");
+
+      const permissionIds = (await this.context.publicClient.readContract({
+        address: DataPermissionsAddress,
+        abi: DataPermissionsAbi,
+        functionName: "filePermissionIds",
+        args: [fileId],
+      })) as bigint[];
+
+      return permissionIds;
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get file permission IDs: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Gets all file IDs associated with a permission.
+   *
+   * @param permissionId - The permission ID to query files for
+   * @returns Promise resolving to array of file IDs
+   */
+  async getPermissionFileIds(permissionId: bigint): Promise<bigint[]> {
+    try {
+      const chainId = await this.context.walletClient.getChainId();
+      const DataPermissionsAddress = getContractAddress(
+        chainId,
+        "DataPermissions",
+      );
+      const DataPermissionsAbi = getAbi("DataPermissions");
+
+      const fileIds = (await this.context.publicClient.readContract({
+        address: DataPermissionsAddress,
+        abi: DataPermissionsAbi,
+        functionName: "permissionFileIds",
+        args: [permissionId],
+      })) as bigint[];
+
+      return fileIds;
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get permission file IDs: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Checks if a permission is active.
+   *
+   * @param permissionId - The permission ID to check
+   * @returns Promise resolving to boolean indicating if permission is active
+   */
+  async isActivePermission(permissionId: bigint): Promise<boolean> {
+    try {
+      const chainId = await this.context.walletClient.getChainId();
+      const DataPermissionsAddress = getContractAddress(
+        chainId,
+        "DataPermissions",
+      );
+      const DataPermissionsAbi = getAbi("DataPermissions");
+
+      const isActive = (await this.context.publicClient.readContract({
+        address: DataPermissionsAddress,
+        abi: DataPermissionsAbi,
+        functionName: "isActivePermission",
+        args: [permissionId],
+      })) as boolean;
+
+      return isActive;
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to check permission status: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Gets permission details from the contract.
+   *
+   * @param permissionId - The permission ID to query
+   * @returns Promise resolving to permission info
+   */
+  async getPermissionInfo(permissionId: bigint): Promise<PermissionInfo> {
+    try {
+      const chainId = await this.context.walletClient.getChainId();
+      const DataPermissionsAddress = getContractAddress(
+        chainId,
+        "DataPermissions",
+      );
+      const DataPermissionsAbi = getAbi("DataPermissions");
+
+      const permissionInfo = (await this.context.publicClient.readContract({
+        address: DataPermissionsAddress,
+        abi: DataPermissionsAbi,
+        functionName: "permissions",
+        args: [permissionId],
+      })) as PermissionInfo;
+
+      return permissionInfo;
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get permission info: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
       );
     }
   }
@@ -950,16 +995,16 @@ export class PermissionsController {
   async trustServer(params: TrustServerParams): Promise<Hash> {
     try {
       const chainId = await this.context.walletClient.getChainId();
-      const permissionRegistryAddress = getContractAddress(
+      const DataPermissionsAddress = getContractAddress(
         chainId,
-        "PermissionRegistry",
+        "DataPermissions",
       );
-      const permissionRegistryAbi = getAbi("PermissionRegistry");
+      const DataPermissionsAbi = getAbi("DataPermissions");
 
       // Submit directly to the contract
       const txHash = await this.context.walletClient.writeContract({
-        address: permissionRegistryAddress,
-        abi: permissionRegistryAbi,
+        address: DataPermissionsAddress,
+        abi: DataPermissionsAbi,
         functionName: "trustServer",
         args: [params.serverId, params.serverUrl],
         account:
@@ -1004,14 +1049,12 @@ export class PermissionsController {
         typedData as unknown as GenericTypedData,
       );
 
-      // Submit via relayer callbacks, relayer URL, or direct transaction
+      // Submit via relayer callbacks or direct transaction
       if (this.context.relayerCallbacks?.submitTrustServer) {
         return await this.context.relayerCallbacks.submitTrustServer(
           typedData,
           signature,
         );
-      } else if (this.context.relayerUrl) {
-        return await this.relayTrustServerTransaction(typedData, signature);
       } else {
         return await this.submitTrustServerTransaction(
           trustServerInput,
@@ -1049,16 +1092,16 @@ export class PermissionsController {
   async untrustServer(params: UntrustServerParams): Promise<Hash> {
     try {
       const chainId = await this.context.walletClient.getChainId();
-      const permissionRegistryAddress = getContractAddress(
+      const DataPermissionsAddress = getContractAddress(
         chainId,
-        "PermissionRegistry",
+        "DataPermissions",
       );
-      const permissionRegistryAbi = getAbi("PermissionRegistry");
+      const DataPermissionsAbi = getAbi("DataPermissions");
 
       // Submit directly to the contract
       const txHash = await this.context.walletClient.writeContract({
-        address: permissionRegistryAddress,
-        abi: permissionRegistryAbi,
+        address: DataPermissionsAddress,
+        abi: DataPermissionsAbi,
         functionName: "untrustServer",
         args: [params.serverId],
         account:
@@ -1103,14 +1146,12 @@ export class PermissionsController {
         typedData as unknown as GenericTypedData,
       );
 
-      // Submit via relayer callbacks, relayer URL, or direct transaction
+      // Submit via relayer callbacks or direct transaction
       if (this.context.relayerCallbacks?.submitUntrustServer) {
         return await this.context.relayerCallbacks.submitUntrustServer(
           typedData,
           signature,
         );
-      } else if (this.context.relayerUrl) {
-        return await this.relayUntrustServerTransaction(typedData, signature);
       } else {
         return await this.submitUntrustServerTransaction(
           untrustServerInput,
@@ -1149,15 +1190,15 @@ export class PermissionsController {
     try {
       const user = userAddress || (await this.getUserAddress());
       const chainId = await this.context.walletClient.getChainId();
-      const permissionRegistryAddress = getContractAddress(
+      const DataPermissionsAddress = getContractAddress(
         chainId,
-        "PermissionRegistry",
+        "DataPermissions",
       );
-      const permissionRegistryAbi = getAbi("PermissionRegistry");
+      const DataPermissionsAbi = getAbi("DataPermissions");
 
       const serverIds = (await this.context.publicClient.readContract({
-        address: permissionRegistryAddress,
-        abi: permissionRegistryAbi,
+        address: DataPermissionsAddress,
+        abi: DataPermissionsAbi,
         functionName: "userServerIdsValues",
         args: [user],
       })) as Address[];
@@ -1180,15 +1221,15 @@ export class PermissionsController {
   async getServerInfo(serverId: Address): Promise<Server> {
     try {
       const chainId = await this.context.walletClient.getChainId();
-      const permissionRegistryAddress = getContractAddress(
+      const DataPermissionsAddress = getContractAddress(
         chainId,
-        "PermissionRegistry",
+        "DataPermissions",
       );
-      const permissionRegistryAbi = getAbi("PermissionRegistry");
+      const DataPermissionsAbi = getAbi("DataPermissions");
 
       const server = (await this.context.publicClient.readContract({
-        address: permissionRegistryAddress,
-        abi: permissionRegistryAbi,
+        address: DataPermissionsAddress,
+        abi: DataPermissionsAbi,
         functionName: "servers",
         args: [serverId],
       })) as Server;
@@ -1253,15 +1294,15 @@ export class PermissionsController {
     signature: Hash,
   ): Promise<Hash> {
     const chainId = await this.context.walletClient.getChainId();
-    const permissionRegistryAddress = getContractAddress(
+    const DataPermissionsAddress = getContractAddress(
       chainId,
-      "PermissionRegistry",
+      "DataPermissions",
     );
-    const permissionRegistryAbi = getAbi("PermissionRegistry");
+    const DataPermissionsAbi = getAbi("DataPermissions");
 
     const txHash = await this.context.walletClient.writeContract({
-      address: permissionRegistryAddress,
-      abi: permissionRegistryAbi,
+      address: DataPermissionsAddress,
+      abi: DataPermissionsAbi,
       functionName: "trustServerWithSignature",
       args: [
         {
@@ -1287,15 +1328,15 @@ export class PermissionsController {
     signature: Hash,
   ): Promise<Hash> {
     const chainId = await this.context.walletClient.getChainId();
-    const permissionRegistryAddress = getContractAddress(
+    const DataPermissionsAddress = getContractAddress(
       chainId,
-      "PermissionRegistry",
+      "DataPermissions",
     );
-    const permissionRegistryAbi = getAbi("PermissionRegistry");
+    const DataPermissionsAbi = getAbi("DataPermissions");
 
     const txHash = await this.context.walletClient.writeContract({
-      address: permissionRegistryAddress,
-      abi: permissionRegistryAbi,
+      address: DataPermissionsAddress,
+      abi: DataPermissionsAbi,
       functionName: "untrustServerWithSignature",
       args: [
         {
@@ -1313,222 +1354,31 @@ export class PermissionsController {
   }
 
   /**
-   * Relays a trust server transaction via the relayer service.
-   */
-  private async relayTrustServerTransaction(
-    typedData: TrustServerTypedData,
-    signature: Hash,
-  ): Promise<Hash> {
-    try {
-      const relayerUrl = this.context.relayerUrl;
-      if (!relayerUrl) {
-        throw new RelayerError("Relayer URL is not configured", 500);
-      }
-
-      const response = await fetch(`${relayerUrl}/api/relay`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          typedData: {
-            ...typedData,
-            message: {
-              ...typedData.message,
-              nonce: Number(typedData.message.nonce),
-            },
-          },
-          signature,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new RelayerError(
-          `Failed to relay transaction: ${response.statusText}`,
-          response.status,
-          await response.text(),
-        );
-      }
-
-      const data: RelayerTransactionResponse = await response.json();
-
-      if (!data.success) {
-        throw new RelayerError(data.error || "Failed to relay transaction");
-      }
-
-      return data.transactionHash;
-    } catch (error) {
-      if (error instanceof RelayerError) {
-        throw error;
-      }
-      throw new NetworkError(
-        `Network error while relaying transaction: ${error instanceof Error ? error.message : "Unknown error"}`,
-        error as Error,
-      );
-    }
-  }
-
-  /**
-   * Relays an untrust server transaction via the relayer service.
-   */
-  private async relayUntrustServerTransaction(
-    typedData: UntrustServerTypedData,
-    signature: Hash,
-  ): Promise<Hash> {
-    try {
-      const relayerUrl = this.context.relayerUrl;
-      if (!relayerUrl) {
-        throw new RelayerError("Relayer URL is not configured", 500);
-      }
-
-      const response = await fetch(`${relayerUrl}/api/relay`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          typedData: {
-            ...typedData,
-            message: {
-              ...typedData.message,
-              nonce: Number(typedData.message.nonce),
-            },
-          },
-          signature,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new RelayerError(
-          `Failed to relay transaction: ${response.statusText}`,
-          response.status,
-          await response.text(),
-        );
-      }
-
-      const data: RelayerTransactionResponse = await response.json();
-
-      if (!data.success) {
-        throw new RelayerError(data.error || "Failed to relay transaction");
-      }
-
-      return data.transactionHash;
-    } catch (error) {
-      if (error instanceof RelayerError) {
-        throw error;
-      }
-      throw new NetworkError(
-        `Network error while relaying transaction: ${error instanceof Error ? error.message : "Unknown error"}`,
-        error as Error,
-      );
-    }
-  }
-
-  /**
-   * Relays a signed revoke transaction via the relayer service.
-   */
-  private async relaySignedRevoke(
-    typedData: GenericTypedData,
-    signature: Hash,
-  ): Promise<Hash> {
-    try {
-      const relayerUrl = this.context.relayerUrl;
-      if (!relayerUrl) {
-        throw new RelayerError("No relayer URL configured");
-      }
-
-      const response = await fetch(`${relayerUrl}/relay`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ typedData, signature }),
-      });
-
-      if (!response.ok) {
-        throw new RelayerError(
-          `Failed to relay revoke transaction: ${response.statusText}`,
-          response.status,
-          await response.text(),
-        );
-      }
-
-      const data: RelayerTransactionResponse = await response.json();
-
-      if (!data.success) {
-        throw new RelayerError(
-          data.error || "Failed to relay revoke transaction",
-        );
-      }
-
-      return data.transactionHash;
-    } catch (error) {
-      if (error instanceof RelayerError) {
-        throw error;
-      }
-      throw new NetworkError(
-        `Network error while relaying revoke transaction: ${error instanceof Error ? error.message : "Unknown error"}`,
-        error as Error,
-      );
-    }
-  }
-
-  /**
-   * Relays a signed untrust server transaction via the relayer service.
-   */
-  private async relaySignedUntrustServer(
-    typedData: GenericTypedData,
-    signature: Hash,
-  ): Promise<Hash> {
-    try {
-      const relayerUrl = this.context.relayerUrl;
-      if (!relayerUrl) {
-        throw new RelayerError("No relayer URL configured");
-      }
-
-      const response = await fetch(`${relayerUrl}/relay`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ typedData, signature }),
-      });
-
-      if (!response.ok) {
-        throw new RelayerError(
-          `Failed to relay untrust server transaction: ${response.statusText}`,
-          response.status,
-          await response.text(),
-        );
-      }
-
-      const data: RelayerTransactionResponse = await response.json();
-
-      if (!data.success) {
-        throw new RelayerError(
-          data.error || "Failed to relay untrust server transaction",
-        );
-      }
-
-      return data.transactionHash;
-    } catch (error) {
-      if (error instanceof RelayerError) {
-        throw error;
-      }
-      throw new NetworkError(
-        `Network error while relaying untrust server transaction: ${error instanceof Error ? error.message : "Unknown error"}`,
-        error as Error,
-      );
-    }
-  }
-
-  /**
-   * Submits a revoke transaction directly to the blockchain.
-   * Note: Direct revocation is not currently supported as revoke operations
-   * are designed to be gasless through relayers only.
+   * Submits a revoke transaction directly to the blockchain with signature.
    */
   private async submitDirectRevokeTransaction(
-    _typedData: GenericTypedData,
+    typedData: GenericTypedData,
+    signature: Hash,
   ): Promise<Hash> {
-    throw new Error(
-      "Direct permission revocation is not supported. Please configure a relayer to submit gasless revoke transactions.",
+    const chainId = await this.context.walletClient.getChainId();
+    const DataPermissionsAddress = getContractAddress(
+      chainId,
+      "DataPermissions",
     );
+    const DataPermissionsAbi = getAbi("DataPermissions");
+
+    const txHash = await this.context.walletClient.writeContract({
+      address: DataPermissionsAddress,
+      abi: DataPermissionsAbi,
+      functionName: "revokePermissionWithSignature",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      args: [typedData.message as any, signature] as any,
+      account:
+        this.context.walletClient.account || (await this.getUserAddress()),
+      chain: this.context.walletClient.chain || null,
+    });
+
+    return txHash;
   }
 
   /**

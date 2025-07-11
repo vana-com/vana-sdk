@@ -2,7 +2,7 @@ import { ComputeEngineABI } from "./ComputeEngineImplementation";
 import { DataRegistryABI } from "./DataRegistryImplementation";
 import { TeePoolABI } from "./TeePoolImplementation";
 import { TeePoolPhalaABI } from "./TeePoolPhalaImplementation";
-import { PermissionRegistryABI } from "./PermissionRegistryImplementation";
+import { DataPermissionsABI } from "./PermissionRegistryImplementation";
 
 // Data Access Infrastructure
 import { DataRefinerRegistryABI } from "./DataRefinerRegistryImplementation";
@@ -41,7 +41,7 @@ import { DATPausableABI } from "./DATPausableImplementation";
 import { DATVotesABI } from "./DATVotesImplementation";
 
 const contractAbis = {
-  PermissionRegistry: PermissionRegistryABI,
+  DataPermissions: DataPermissionsABI,
   DataRegistry: DataRegistryABI,
   TeePoolPhala: TeePoolPhalaABI, // Main TeePool (Intel TDX)
   ComputeEngine: ComputeEngineABI,

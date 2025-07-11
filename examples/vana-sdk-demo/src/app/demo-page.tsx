@@ -39,7 +39,6 @@ interface GrantPreview {
   grantFile: {
     grantee: string;
     operation: string;
-    files: number[];
     parameters: unknown;
     expires?: number;
   };
@@ -748,13 +747,11 @@ export default function Home() {
     setRevokeStatus("Preparing permission revoke...");
 
     try {
-      // Convert permission ID to proper 32-byte hex Hash format
+      // Convert permission ID to bigint
       const bigIntId = BigInt(permissionId);
-      const grantIdAsHash =
-        `0x${bigIntId.toString(16).padStart(64, "0")}` as `0x${string}`;
 
       const params: RevokePermissionParams = {
-        grantId: grantIdAsHash,
+        permissionId: bigIntId,
       };
 
       setRevokeStatus("Awaiting signature...");
@@ -2168,7 +2165,7 @@ export default function Home() {
                     getContract={(contractName) =>
                       vana.protocol.getContract(
                         contractName as
-                          | "PermissionRegistry"
+                          | "DataPermissions"
                           | "DataRegistry"
                           | "TeePoolPhala"
                           | "ComputeEngine"

@@ -228,7 +228,7 @@ describe("PermissionsController", () => {
 
   describe("revoke", () => {
     const mockRevokeParams = {
-      grantId: "0x123" as `0x${string}`, // Can now pass permission ID as hex string
+      permissionId: 1n, // Permission ID as bigint
     };
 
     it("should successfully revoke permission", async () => {
@@ -932,8 +932,7 @@ describe("PermissionsController", () => {
       });
 
       const mockRevokeParams = {
-        grantId:
-          "0x1234567890123456789012345678901234567890123456789012345678901234" as Hash,
+        permissionId: 1n,
       };
 
       await expect(noChainController.revoke(mockRevokeParams)).rejects.toThrow(
@@ -1018,8 +1017,7 @@ describe("PermissionsController", () => {
       });
 
       const mockRevokeParams = {
-        grantId:
-          "0x1234567890123456789012345678901234567890123456789012345678901234" as Hash,
+        permissionId: 1n,
       };
 
       await expect(controller.revoke(mockRevokeParams)).rejects.toThrow(
@@ -1035,8 +1033,7 @@ describe("PermissionsController", () => {
       });
 
       const mockRevokeParams = {
-        grantId:
-          "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890" as Hash,
+        permissionId: 1n,
       };
 
       const result = await controller.revoke(mockRevokeParams);
@@ -1069,8 +1066,7 @@ describe("PermissionsController", () => {
 
     it("should handle submitToRelayer with missing relayer URL", async () => {
       const mockRevokeParams = {
-        grantId:
-          "0x1234567890123456789012345678901234567890123456789012345678901234" as Hash,
+        permissionId: 1n,
       };
 
       // Mock chain to be available but still no relayer URL
@@ -1101,8 +1097,7 @@ describe("PermissionsController", () => {
       });
 
       const mockRevokeParams = {
-        grantId:
-          "0x1234567890123456789012345678901234567890123456789012345678901234" as Hash,
+        permissionId: 1n,
       };
 
       // Mock fetch to return failed response
@@ -1130,8 +1125,7 @@ describe("PermissionsController", () => {
       });
 
       const mockRevokeParams = {
-        grantId:
-          "0x1234567890123456789012345678901234567890123456789012345678901234" as Hash,
+        permissionId: 1n,
       };
 
       // Mock fetch to throw non-RelayerError
@@ -1162,8 +1156,7 @@ describe("PermissionsController", () => {
       });
 
       const mockRevokeParams = {
-        grantId:
-          "0x1234567890123456789012345678901234567890123456789012345678901234" as Hash,
+        permissionId: 1n,
       };
 
       // This should trigger direct transaction path, not submitToRelayer
@@ -1209,8 +1202,7 @@ describe("PermissionsController", () => {
       const controller = new PermissionsController(contextWithoutRelayer);
 
       const mockRevokeParams = {
-        grantId:
-          "0x1234567890123456789012345678901234567890123456789012345678901234" as Hash,
+        permissionId: 1n,
       };
 
       await expect(controller.revoke(mockRevokeParams)).rejects.toThrow(
@@ -1241,8 +1233,7 @@ describe("PermissionsController", () => {
       });
 
       const mockRevokeParams = {
-        grantId:
-          "0x1234567890123456789012345678901234567890123456789012345678901234" as Hash,
+        permissionId: 1n,
       };
 
       await expect(controller.revoke(mockRevokeParams)).rejects.toThrow(

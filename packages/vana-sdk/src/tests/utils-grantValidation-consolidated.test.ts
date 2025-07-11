@@ -5,14 +5,12 @@ import {
   GrantExpiredError,
   GranteeMismatchError,
   OperationNotAllowedError,
-  FileAccessDeniedError,
 } from "../utils/grantValidation";
 
 describe("validateGrant (Consolidated Validation)", () => {
   const validGrantFile = {
     grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
     operation: "llm_inference",
-    files: [1, 2, 3],
     parameters: { prompt: "test" },
     expires: Math.floor(Date.now() / 1000) + 3600, // 1 hour from now
   };
@@ -27,7 +25,6 @@ describe("validateGrant (Consolidated Validation)", () => {
       const invalidGrant = {
         // Missing required 'grantee' field
         operation: "llm_inference",
-        files: [1, 2, 3],
         parameters: {},
       };
 
@@ -91,22 +88,6 @@ describe("validateGrant (Consolidated Validation)", () => {
       ).toThrow(OperationNotAllowedError);
     });
 
-    it("should validate file access", () => {
-      const result = validateGrant(validGrantFile, {
-        files: [1, 2],
-      });
-
-      expect(result).toEqual(validGrantFile);
-    });
-
-    it("should throw FileAccessDeniedError for unauthorized files", () => {
-      expect(() =>
-        validateGrant(validGrantFile, {
-          files: [1, 2, 4], // 4 is not in the grant
-        }),
-      ).toThrow(FileAccessDeniedError);
-    });
-
     it("should validate expiry with current time", () => {
       const result = validateGrant(validGrantFile);
       expect(result).toEqual(validGrantFile);
@@ -145,7 +126,6 @@ describe("validateGrant (Consolidated Validation)", () => {
       const result = validateGrant(validGrantFile, {
         grantee: "0x1234567890123456789012345678901234567890",
         operation: "llm_inference",
-        files: [1, 2],
       });
 
       expect(result).toEqual(validGrantFile);
@@ -155,17 +135,15 @@ describe("validateGrant (Consolidated Validation)", () => {
       const result = validateGrant(validGrantFile, {
         grantee: "0x9999999999999999999999999999999999999999", // Wrong grantee
         operation: "wrong_operation", // Wrong operation
-        files: [1, 2, 99], // Invalid file
         throwOnError: false,
       });
 
       expect(result.valid).toBe(false);
-      expect(result.errors).toHaveLength(3);
+      expect(result.errors).toHaveLength(2);
 
       const errorTypes = result.errors.map((e) => e.error?.constructor.name);
       expect(errorTypes).toContain("GranteeMismatchError");
       expect(errorTypes).toContain("OperationNotAllowedError");
-      expect(errorTypes).toContain("FileAccessDeniedError");
     });
 
     it("should throw first error encountered when throwOnError is true", () => {

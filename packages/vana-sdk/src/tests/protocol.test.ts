@@ -11,7 +11,7 @@ vi.mock("../config/addresses", () => ({
   getContractAddress: vi.fn(),
   CONTRACT_ADDRESSES: {
     14800: {
-      PermissionRegistry: "0x3acB2023DF2617EFb61422BA0c8C6E97916961e0",
+      DataPermissions: "0x3acB2023DF2617EFb61422BA0c8C6E97916961e0",
       DataRegistry: "0x8C8788f98385F6ba1adD4234e551ABba0f82Cb7C",
       TeePool: "0x3c92fD91639b41f13338CE62f19131e7d19eaa0D",
       TeePoolPhala: "0xE8EC6BD73b23Ad40E6B9a6f4bD343FAc411bD99A",
@@ -23,7 +23,7 @@ vi.mock("../config/addresses", () => ({
       TeePoolPersistentStandard: "0xe8bB8d0629651Cf33e0845d743976Dc1f0971d76",
     },
     1480: {
-      PermissionRegistry: "0x0000000000000000000000000000000000000000",
+      DataPermissions: "0x0000000000000000000000000000000000000000",
       DataRegistry: "0x8C8788f98385F6ba1adD4234e551ABba0f82Cb7C",
       TeePool: "0x3c92fD91639b41f13338CE62f19131e7d19eaa0D",
       TeePoolPhala: "0xE8EC6BD73b23Ad40E6B9a6f4bD343FAc411bD99A",
@@ -141,7 +141,7 @@ describe("ProtocolController", () => {
       // Test a few different contract types
       const contracts = [
         "DataRegistry",
-        "PermissionRegistry",
+        "DataPermissions",
         "TeePoolPhala",
         "ComputeEngine",
       ] as const;
@@ -205,7 +205,7 @@ describe("ProtocolController", () => {
       expect(contracts.length).toBeGreaterThan(0);
 
       // Should include core contracts
-      expect(contracts).toContain("PermissionRegistry");
+      expect(contracts).toContain("DataPermissions");
       expect(contracts).toContain("DataRegistry");
       expect(contracts).toContain("TeePoolPhala");
       expect(contracts).toContain("ComputeEngine");

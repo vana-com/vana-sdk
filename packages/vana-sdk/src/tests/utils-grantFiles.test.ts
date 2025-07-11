@@ -49,7 +49,6 @@ describe("Grant Files Utils", () => {
 
       const grantFile = createGrantFile(params);
 
-      expect(grantFile.files).toEqual([]);
       expect(grantFile.parameters).toEqual({});
     });
 

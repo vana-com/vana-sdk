@@ -60,21 +60,6 @@ export class OperationNotAllowedError extends GrantValidationError {
 }
 
 /**
- * Error thrown when file access is not granted
- */
-export class FileAccessDeniedError extends GrantValidationError {
-  constructor(
-    message: string,
-    public grantedFiles: number[],
-    public requestedFiles: number[],
-    public unauthorizedFiles: number[],
-  ) {
-    super(message, { grantedFiles, requestedFiles, unauthorizedFiles });
-    this.name = "FileAccessDeniedError";
-  }
-}
-
-/**
  * Error thrown when grant file structure is invalid
  */
 export class GrantSchemaError extends GrantValidationError {
@@ -116,8 +101,6 @@ export interface GrantValidationOptions {
   grantee?: Address;
   /** Operation to validate permission for */
   operation?: string;
-  /** File IDs to validate access for */
-  files?: number[];
   /** Override current time for expiry checking (Unix timestamp) */
   currentTime?: number;
   /** Return detailed results instead of throwing (default: false) */
@@ -156,7 +139,6 @@ export interface GrantValidationResult {
  * @throws {GrantExpiredError} When the grant has expired
  * @throws {GranteeMismatchError} When the grantee doesn't match the requesting address
  * @throws {OperationNotAllowedError} When the requested operation is not allowed
- * @throws {FileAccessDeniedError} When access to requested files is denied
  *
  * @example
  * ```typescript
@@ -164,7 +146,6 @@ export interface GrantValidationResult {
  * const grant = validateGrant(data, {
  *   grantee: '0x123...',
  *   operation: 'llm_inference',
- *   files: [1, 2, 3]
  * });
  *
  * // Non-throwing mode - returns validation result
@@ -201,7 +182,6 @@ export function validateGrant(
     schema = true,
     grantee,
     operation,
-    files,
     currentTime,
     throwOnError = true,
   } = options;
@@ -295,24 +275,6 @@ export function validateGrant(
         });
       }
     }
-
-    // Check file access
-    if (files) {
-      try {
-        validateFileAccess(grant, files);
-      } catch (error) {
-        const field = extractFieldFromBusinessError(error);
-        errors.push({
-          type: "business",
-          field,
-          message:
-            error instanceof Error
-              ? error.message
-              : "Unknown business rule error",
-          error: error instanceof Error ? error : new Error("Unknown error"),
-        });
-      }
-    }
   }
 
   // 3. Return Results
@@ -348,7 +310,6 @@ function extractFieldFromBusinessError(error: unknown): string | undefined {
   if (error instanceof GrantExpiredError) return "expires";
   if (error instanceof GranteeMismatchError) return "grantee";
   if (error instanceof OperationNotAllowedError) return "operation";
-  if (error instanceof FileAccessDeniedError) return "files";
   return undefined;
 }
 
@@ -385,28 +346,6 @@ export function validateGrantExpiry(
         now,
       );
     }
-  }
-}
-
-/**
- * Validates that a grant includes access to specific file IDs
- */
-export function validateFileAccess(
-  grantFile: GrantFile,
-  requestedFileIds: number[],
-): void {
-  const grantedFileIds = new Set(grantFile.files);
-  const unauthorizedFiles = requestedFileIds.filter(
-    (fileId) => !grantedFileIds.has(fileId),
-  );
-
-  if (unauthorizedFiles.length > 0) {
-    throw new FileAccessDeniedError(
-      "Permission denied: access not granted for some files",
-      grantFile.files,
-      requestedFileIds,
-      unauthorizedFiles,
-    );
   }
 }
 

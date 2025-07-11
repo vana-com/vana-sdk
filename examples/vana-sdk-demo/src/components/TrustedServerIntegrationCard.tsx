@@ -143,8 +143,8 @@ export const TrustedServerIntegrationCard: React.FC<
                   size="sm"
                   maxHeight="max-h-48"
                 />
-                <div className="p-3 bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 rounded-lg">
-                  <p className="text-green-600 text-sm">
+                <div className="p-3 bg-default-100 rounded-lg">
+                  <p className="text-default-700 text-sm">
                     ✅ Successfully decrypted file using server's private key!
                   </p>
                 </div>
@@ -179,7 +179,7 @@ export const TrustedServerIntegrationCard: React.FC<
               loading={isPersonalLoading}
               icon={<Brain className="h-4 w-4" />}
             >
-              Submit Request
+              Process with Trusted Server
             </ActionButton>
             {Boolean(
               personalResult &&

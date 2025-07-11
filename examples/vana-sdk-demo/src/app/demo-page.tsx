@@ -193,7 +193,7 @@ export default function Home() {
     "text",
   );
   const [serverTextData, setServerTextData] = useState<string>(
-    `{"message": "Hello from trusted server!", "timestamp": "${new Date().toISOString()}"}`,
+    `{"message": "Sample data from Vana SDK demo", "timestamp": "${new Date().toISOString()}"}`,
   );
   const [isUploadingToServer, setIsUploadingToServer] = useState(false);
   const [serverUploadStatus, setServerUploadStatus] = useState<string>("");
@@ -904,19 +904,42 @@ export default function Home() {
         ? `${originalFileName}.encrypted`
         : "encrypted-data.bin";
 
-      // Use schema-aware upload if a schema is selected
-      const result = selectedUploadSchemaId
-        ? await vana.data.uploadEncryptedFileWithSchema(
+      // Use schema-aware upload if a schema is selected, with fallback
+      let result;
+      if (selectedUploadSchemaId) {
+        try {
+          result = await vana.data.uploadEncryptedFileWithSchema(
             encryptedData,
             parseInt(selectedUploadSchemaId),
             filename,
             providerName,
-          )
-        : await vana.data.uploadEncryptedFile(
-            encryptedData,
-            filename,
-            providerName,
           );
+        } catch (error) {
+          if (
+            error instanceof Error &&
+            error.message.includes(
+              "Relayer does not yet support uploading files with schema",
+            )
+          ) {
+            console.warn(
+              "⚠️ Schema upload not supported by relayer, falling back to regular upload",
+            );
+            result = await vana.data.uploadEncryptedFile(
+              encryptedData,
+              filename,
+              providerName,
+            );
+          } else {
+            throw error;
+          }
+        }
+      } else {
+        result = await vana.data.uploadEncryptedFile(
+          encryptedData,
+          filename,
+          providerName,
+        );
+      }
 
       console.info("✅ File uploaded and registered:", {
         fileId: result.fileId,
@@ -1346,7 +1369,7 @@ export default function Home() {
       // Clear the form
       setServerFileToUpload(null);
       setServerTextData(
-        `{"message": "Hello from trusted server!", "timestamp": "${new Date().toISOString()}"}`,
+        `{"message": "Sample data from Vana SDK demo", "timestamp": "${new Date().toISOString()}"}`,
       );
       setSelectedServerForUpload("");
 
@@ -1695,7 +1718,7 @@ export default function Home() {
                   isGranting={isGranting}
                   grantStatus={grantStatus}
                   grantTxHash={grantTxHash}
-                  userAddress={address}
+                  _userAddress={address}
                   chainId={chainId || 14800}
                 />
 
@@ -1854,6 +1877,7 @@ export default function Home() {
                   refiners={refiners}
                   isLoadingRefiners={isLoadingRefiners}
                   onRefreshRefiners={loadRefiners}
+                  chainId={chainId || 14800}
                 />
 
                 <Divider />

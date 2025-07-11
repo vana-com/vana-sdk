@@ -13,6 +13,7 @@ import { ExternalLink } from "lucide-react";
 import { SectionHeader } from "./ui/SectionHeader";
 import { EmptyState } from "./ui/EmptyState";
 import { getAddressUrl } from "@/lib/explorer";
+import { CopyButton } from "./ui/CopyButton";
 
 interface ContractListCardProps {
   contracts: string[];
@@ -86,9 +87,15 @@ export const ContractListCard: React.FC<ContractListCardProps> = ({
                     </TableCell>
                     <TableCell>
                       {isDeployed && contractAddress ? (
-                        <span className="font-mono text-small">
-                          {contractAddress}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-small truncate max-w-32">
+                            {contractAddress}
+                          </span>
+                          <CopyButton
+                            value={contractAddress}
+                            tooltip="Copy contract address"
+                          />
+                        </div>
                       ) : (
                         <span className="text-default-400">Not deployed</span>
                       )}
@@ -111,9 +118,9 @@ export const ContractListCard: React.FC<ContractListCardProps> = ({
                           rel="noopener noreferrer"
                           size="sm"
                           variant="flat"
-                          startContent={<ExternalLink className="h-3 w-3" />}
+                          isIconOnly
                         >
-                          View on Explorer
+                          <ExternalLink className="h-3 w-3" />
                         </Button>
                       )}
                     </TableCell>

@@ -14,6 +14,7 @@ import {
 import { GrantedPermission, convertIpfsUrl } from "vana-sdk";
 import { Shield, ExternalLink, Eye } from "lucide-react";
 import { PermissionDisplay } from "./ui/PermissionDisplay";
+import { CopyButton } from "./ui/CopyButton";
 
 interface PermissionsTableProps {
   /**
@@ -151,14 +152,21 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
             </TableColumn>
           )}
         </TableHeader>
-        <TableBody items={userPermissions}>
-          {(permission) => (
+        <TableBody>
+          {userPermissions.map((permission) => (
             <TableRow key={permission.id.toString()}>
               <TableCell>
-                <PermissionDisplay
-                  permissionId={permission.id}
-                  className="inline-flex"
-                />
+                <div className="flex items-center gap-2">
+                  <PermissionDisplay
+                    permissionId={permission.id}
+                    className="inline-flex"
+                  />
+                  <CopyButton
+                    value={permission.id.toString()}
+                    tooltip="Copy permission ID"
+                    size="sm"
+                  />
+                </div>
               </TableCell>
 
               <TableCell>
@@ -192,9 +200,9 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
                       rel="noopener noreferrer"
                       size="sm"
                       variant="flat"
-                      startContent={<ExternalLink className="h-3 w-3" />}
+                      isIconOnly
                     >
-                      Grant File
+                      <ExternalLink className="h-3 w-3" />
                     </Button>
                   </Tooltip>
                 </div>
@@ -213,7 +221,7 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
                 </Button>
               </TableCell>
             </TableRow>
-          )}
+          ))}
         </TableBody>
       </Table>
     </div>

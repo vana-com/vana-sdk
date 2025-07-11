@@ -20,6 +20,8 @@ import {
 import { SectionHeader } from "./ui/SectionHeader";
 import { FormBuilder } from "./ui/FormBuilder";
 import { EmptyState } from "./ui/EmptyState";
+import { ExplorerLink } from "./ui/ExplorerLink";
+import { CopyButton } from "./ui/CopyButton";
 import { Schema, Refiner } from "vana-sdk";
 
 interface SchemaManagementCardProps {
@@ -69,6 +71,9 @@ interface SchemaManagementCardProps {
   refiners: (Refiner & { source?: "discovered" | "created" })[];
   isLoadingRefiners: boolean;
   onRefreshRefiners: () => void;
+
+  // Chain info
+  chainId: number;
 }
 
 /**
@@ -113,6 +118,7 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
   refiners,
   isLoadingRefiners,
   onRefreshRefiners,
+  chainId,
 }) => {
   return (
     <section id="schemas">
@@ -149,7 +155,7 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
         </div>
 
         {/* Create Schema */}
-        <div className="p-4 border rounded-lg">
+        <div>
           <FormBuilder
             title="Create New Schema"
             fields={[
@@ -192,8 +198,8 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
             statusType={schemaStatus?.includes("❌") ? "error" : "success"}
           />
           {lastCreatedSchemaId && (
-            <div className="p-3 bg-green-50 border border-green-200 rounded mt-4">
-              <p className="text-green-700 text-sm">
+            <div className="p-3 bg-success/10 border border-success rounded mt-4">
+              <p className="text-success text-sm">
                 ✅ Schema created successfully with ID:{" "}
                 <strong>{lastCreatedSchemaId}</strong>
               </p>
@@ -202,7 +208,7 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
         </div>
 
         {/* Create Refiner */}
-        <div className="p-4 border rounded-lg">
+        <div>
           <FormBuilder
             title="Create New Refiner"
             fields={[
@@ -256,8 +262,8 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
             statusType={refinerStatus?.includes("❌") ? "error" : "success"}
           />
           {lastCreatedRefinerId && (
-            <div className="p-3 bg-green-50 border border-green-200 rounded mt-4">
-              <p className="text-green-700 text-sm">
+            <div className="p-3 bg-success/10 border border-success rounded mt-4">
+              <p className="text-success text-sm">
                 ✅ Refiner created successfully with ID:{" "}
                 <strong>{lastCreatedRefinerId}</strong>
               </p>
@@ -266,7 +272,7 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
         </div>
 
         {/* Update Schema ID */}
-        <div className="p-4 border rounded-lg">
+        <div>
           <div className="mb-4">
             <p className="text-sm text-muted-foreground">
               Update the schema ID for an existing refiner (useful for migrating
@@ -365,7 +371,15 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
                 {schemas.map((schema) => (
                   <TableRow key={schema.id}>
                     <TableCell>
-                      <span className="font-mono text-small">{schema.id}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-small">
+                          {schema.id}
+                        </span>
+                        <CopyButton
+                          value={schema.id.toString()}
+                          tooltip="Copy schema ID"
+                        />
+                      </div>
                     </TableCell>
                     <TableCell>
                       <span className="font-medium">{schema.name}</span>
@@ -457,6 +471,7 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
               <TableHeader>
                 <TableColumn>ID</TableColumn>
                 <TableColumn>Name</TableColumn>
+                <TableColumn>Owner</TableColumn>
                 <TableColumn>DLP ID</TableColumn>
                 <TableColumn>Schema ID</TableColumn>
                 <TableColumn>Instructions</TableColumn>
@@ -466,10 +481,33 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
                 {refiners.map((refiner) => (
                   <TableRow key={refiner.id}>
                     <TableCell>
-                      <span className="font-mono text-small">{refiner.id}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-small">
+                          {refiner.id}
+                        </span>
+                        <CopyButton
+                          value={refiner.id.toString()}
+                          tooltip="Copy refiner ID"
+                        />
+                      </div>
                     </TableCell>
                     <TableCell>
                       <span className="font-medium">{refiner.name}</span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <ExplorerLink
+                          type="address"
+                          hash={refiner.owner}
+                          chainId={chainId}
+                          truncate={true}
+                          showExternalIcon={false}
+                        />
+                        <CopyButton
+                          value={refiner.owner}
+                          tooltip="Copy owner address"
+                        />
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Chip size="sm" variant="flat" color="secondary">
@@ -491,7 +529,7 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
                         variant="flat"
                         startContent={<ExternalLink className="h-3 w-3" />}
                       >
-                        View Instructions
+                        Download Instructions
                       </Button>
                     </TableCell>
                     <TableCell>

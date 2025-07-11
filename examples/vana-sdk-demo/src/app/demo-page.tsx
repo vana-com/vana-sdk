@@ -25,6 +25,11 @@ import {
   AddRefinerParams,
   UpdateSchemaIdParams,
   PermissionGrantTypedData,
+  GenericTypedData,
+  TrustServerTypedData,
+  UntrustServerTypedData,
+  GrantFile,
+  Hash,
 } from "vana-sdk";
 
 // Types for demo app state
@@ -371,7 +376,10 @@ export default function Home() {
 
         // Create relayer callbacks for demo app
         const relayerCallbacks = {
-          async submitPermissionGrant(typedData, signature) {
+          async submitPermissionGrant(
+            typedData: PermissionGrantTypedData,
+            signature: Hash,
+          ) {
             const response = await fetch(`${baseUrl}/api/relay`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -387,7 +395,10 @@ export default function Home() {
             return result.transactionHash;
           },
 
-          async submitPermissionRevoke(typedData, signature) {
+          async submitPermissionRevoke(
+            typedData: GenericTypedData,
+            signature: Hash,
+          ) {
             const response = await fetch(`${baseUrl}/api/relay`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -403,7 +414,10 @@ export default function Home() {
             return result.transactionHash;
           },
 
-          async submitTrustServer(typedData, signature) {
+          async submitTrustServer(
+            typedData: TrustServerTypedData,
+            signature: Hash,
+          ) {
             const response = await fetch(`${baseUrl}/api/relay`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -419,7 +433,10 @@ export default function Home() {
             return result.transactionHash;
           },
 
-          async submitUntrustServer(typedData, signature) {
+          async submitUntrustServer(
+            typedData: UntrustServerTypedData,
+            signature: Hash,
+          ) {
             const response = await fetch(`${baseUrl}/api/relay`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -435,7 +452,7 @@ export default function Home() {
             return result.transactionHash;
           },
 
-          async submitFileAddition(url, userAddress) {
+          async submitFileAddition(url: string, userAddress: string) {
             const response = await fetch(`${baseUrl}/api/relay/addFile`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -455,9 +472,9 @@ export default function Home() {
           },
 
           async submitFileAdditionWithPermissions(
-            url,
-            userAddress,
-            permissions,
+            url: string,
+            userAddress: string,
+            permissions: Array<{ account: string; key: string }>,
           ) {
             const response = await fetch(
               `${baseUrl}/api/relay/addFileWithPermissions`,
@@ -480,7 +497,7 @@ export default function Home() {
             };
           },
 
-          async storeGrantFile(grantData) {
+          async storeGrantFile(grantData: GrantFile) {
             // Check if there's a store endpoint, otherwise use IPFS
             try {
               const response = await fetch(`${baseUrl}/api/store`, {

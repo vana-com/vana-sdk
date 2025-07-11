@@ -69,7 +69,10 @@ export const SchemaValidationCard: React.FC<SchemaValidationCardProps> = ({
 
     try {
       const contract = JSON.parse(contractInput);
-      vana.data.validateDataContract(contract);
+      // Type assertion needed as validateDataContract is not in public API yet
+      (
+        vana.data as { validateDataContract: (contract: unknown) => void }
+      ).validateDataContract(contract);
 
       setValidationResult({
         isValid: true,
@@ -109,10 +112,19 @@ export const SchemaValidationCard: React.FC<SchemaValidationCardProps> = ({
       const data = JSON.parse(dataInput);
 
       // First validate the contract
-      vana.data.validateDataContract(contract);
+      (
+        vana.data as { validateDataContract: (contract: unknown) => void }
+      ).validateDataContract(contract);
 
       // Then validate the data against the contract
-      vana.data.validateDataAgainstContract(data, contract);
+      (
+        vana.data as {
+          validateDataAgainstContract: (
+            data: unknown,
+            contract: unknown,
+          ) => void;
+        }
+      ).validateDataAgainstContract(data, contract);
 
       setValidationResult({
         isValid: true,
@@ -270,12 +282,8 @@ export const SchemaValidationCard: React.FC<SchemaValidationCardProps> = ({
             className="max-w-xs"
             label="Validation Mode"
           >
-            <SelectItem key="contract" value="contract">
-              Validate Contract Only
-            </SelectItem>
-            <SelectItem key="data" value="data">
-              Validate Data Against Contract
-            </SelectItem>
+            <SelectItem key="contract">Validate Contract Only</SelectItem>
+            <SelectItem key="data">Validate Data Against Contract</SelectItem>
           </Select>
 
           <Button

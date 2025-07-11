@@ -36,14 +36,14 @@ export function AddressDisplay({
           value={address}
           isInline
           size="sm"
-          variant="light"
+          variant="flat"
           tooltip="Copy address"
         />
       )}
       {showExternalLink && explorerUrl && (
         <Button
           size="sm"
-          variant="light"
+          variant="flat"
           isIconOnly
           as="a"
           href={explorerUrl}

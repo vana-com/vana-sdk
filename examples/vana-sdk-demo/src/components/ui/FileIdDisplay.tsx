@@ -53,14 +53,14 @@ export function FileIdDisplay({
           value={fileId.toString()}
           isInline
           size="sm"
-          variant="light"
+          variant="flat"
           tooltip="Copy file ID"
         />
       )}
       {showExternalLink && explorerUrl && (
         <Button
           size="sm"
-          variant="light"
+          variant="flat"
           isIconOnly
           as="a"
           href={explorerUrl}

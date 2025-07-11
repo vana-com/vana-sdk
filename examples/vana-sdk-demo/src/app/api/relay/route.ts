@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { recoverTypedDataAddress, getContract } from "viem";
+import { recoverTypedDataAddress } from "viem";
 import type { Hash } from "viem";
 import { createRelayerVana } from "@/lib/relayer";
-import { getContractAddress, getAbi } from "vana-sdk";
+// Note: getContractAddress and getAbi removed as they're no longer needed
 import type {
   PermissionGrantTypedData,
   TrustServerTypedData,
@@ -69,31 +69,22 @@ export async function POST(request: NextRequest) {
         signature,
       );
     } else if (typedData.primaryType === "PermissionRevoke") {
-      // Handle permission revoke - submit directly to blockchain
-      // The SDK doesn't have submitSignedRevoke, so we need to submit directly
-      const contract = getContract({
-        address: getContractAddress(vana.chainId, "PermissionRegistry"),
-        abi: getAbi("PermissionRegistry"),
-        walletClient: vana.protocol.walletClient,
-      });
-
-      const { grantId, nonce } = typedData.message;
-      txHash = await contract.write.revokePermission([grantId, BigInt(nonce)]);
+      // Handle permission revoke - note: relayer support is limited for revoke operations
+      // For now, return an error suggesting direct blockchain interaction
+      throw new Error(
+        "Permission revoke operations should be handled directly by the client",
+      );
     } else if (typedData.primaryType === "TrustServer") {
       txHash = await vana.permissions.submitSignedTrustServer(
         typedData as unknown as TrustServerTypedData,
         signature,
       );
     } else if (typedData.primaryType === "UntrustServer") {
-      // Handle untrust server - similar to trust server but different method
-      const contract = getContract({
-        address: getContractAddress(vana.chainId, "PermissionRegistry"),
-        abi: getAbi("PermissionRegistry"),
-        walletClient: vana.protocol.walletClient,
-      });
-
-      const { serverAddress } = typedData.message;
-      txHash = await contract.write.untrustServer([serverAddress]);
+      // Handle untrust server - note: relayer support is limited for untrust operations
+      // For now, return an error suggesting direct blockchain interaction
+      throw new Error(
+        "Untrust server operations should be handled directly by the client",
+      );
     } else {
       throw new Error(`Unsupported operation type: ${typedData.primaryType}`);
     }

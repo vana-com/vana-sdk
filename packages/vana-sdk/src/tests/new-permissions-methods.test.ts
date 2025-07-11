@@ -94,7 +94,7 @@ describe("New PermissionsController Methods", () => {
       expect(result).toBe(
         "0xhash123456789012345678901234567890123456789012345678901234567890",
       );
-      expect(controller.signTypedData).toHaveBeenCalledWith({
+      expect((controller as any).signTypedData).toHaveBeenCalledWith({
         domain: {
           name: "DataPermissions",
           version: "1",

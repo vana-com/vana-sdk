@@ -1586,4 +1586,490 @@ describe("PermissionsController", () => {
       );
     });
   });
+
+  describe("revokeWithSignature", () => {
+    beforeEach(() => {
+      // Mock getUserNonce for typed data creation
+      vi.spyOn(controller as any, "getUserNonce").mockResolvedValue(123n);
+
+      // Mock getPermissionDomain
+      vi.spyOn(controller as any, "getPermissionDomain").mockResolvedValue({
+        name: "DataPermissions",
+        version: "1",
+        chainId: 14800,
+        verifyingContract: "0x1234567890123456789012345678901234567890",
+      });
+
+      // Mock signTypedData
+      vi.spyOn(controller as any, "signTypedData").mockResolvedValue(
+        "0xsignature123456789012345678901234567890123456789012345678901234567890",
+      );
+    });
+
+    it("should successfully revoke permission with signature via relayer", async () => {
+      const testContext = {
+        ...mockContext,
+        relayerUrl: "https://relayer.example.com",
+        walletClient: {
+          ...mockWalletClient,
+          chain: { id: 14800 },
+        },
+      };
+
+      const controller = new PermissionsController(testContext);
+
+      // Mock relayRevokeTransaction
+      vi.spyOn(controller as any, "relayRevokeTransaction").mockResolvedValue(
+        "0xhash123456789012345678901234567890123456789012345678901234567890",
+      );
+
+      const params = {
+        permissionId: 42n,
+      };
+
+      const result = await controller.revokeWithSignature(params);
+
+      expect(result).toBe(
+        "0xhash123456789012345678901234567890123456789012345678901234567890",
+      );
+      expect((controller as any).signTypedData).toHaveBeenCalledWith({
+        domain: {
+          name: "DataPermissions",
+          version: "1",
+          chainId: 14800,
+          verifyingContract: "0x1234567890123456789012345678901234567890",
+        },
+        types: {
+          RevokePermission: [
+            { name: "nonce", type: "uint256" },
+            { name: "permissionId", type: "uint256" },
+          ],
+        },
+        primaryType: "RevokePermission",
+        message: {
+          nonce: 123n,
+          permissionId: 42n,
+        },
+      });
+    });
+
+    it("should successfully revoke permission with signature via direct transaction", async () => {
+      const testContext = {
+        ...mockContext,
+        relayerUrl: undefined, // No relayer
+        walletClient: {
+          ...mockWalletClient,
+          chain: { id: 14800 },
+        },
+      };
+
+      const controller = new PermissionsController(testContext);
+
+      // Mock submitDirectRevokeTransaction
+      vi.spyOn(
+        controller as any,
+        "submitDirectRevokeTransaction",
+      ).mockResolvedValue(
+        "0xhash123456789012345678901234567890123456789012345678901234567890",
+      );
+
+      const params = {
+        permissionId: 42n,
+      };
+
+      const result = await controller.revokeWithSignature(params);
+
+      expect(result).toBe(
+        "0xhash123456789012345678901234567890123456789012345678901234567890",
+      );
+    });
+
+    it("should handle missing chain ID error", async () => {
+      const testContext = {
+        ...mockContext,
+        walletClient: {
+          ...mockWalletClient,
+          chain: undefined, // No chain
+        },
+      };
+
+      const controller = new PermissionsController(testContext);
+
+      const params = {
+        permissionId: 42n,
+      };
+
+      await expect(controller.revokeWithSignature(params)).rejects.toThrow(
+        BlockchainError,
+      );
+    });
+
+    it("should handle getUserNonce errors", async () => {
+      const testContext = {
+        ...mockContext,
+        walletClient: {
+          ...mockWalletClient,
+          chain: { id: 14800 },
+        },
+      };
+
+      const controller = new PermissionsController(testContext);
+
+      vi.spyOn(controller as any, "getUserNonce").mockRejectedValue(
+        new Error("Nonce retrieval failed"),
+      );
+
+      const params = {
+        permissionId: 42n,
+      };
+
+      await expect(controller.revokeWithSignature(params)).rejects.toThrow(
+        "Failed to revoke permission with signature: Nonce retrieval failed",
+      );
+    });
+
+    it("should handle signature errors", async () => {
+      const testContext = {
+        ...mockContext,
+        walletClient: {
+          ...mockWalletClient,
+          chain: { id: 14800 },
+        },
+      };
+
+      const controller = new PermissionsController(testContext);
+
+      vi.spyOn(controller as any, "signTypedData").mockRejectedValue(
+        new Error("Signature failed"),
+      );
+
+      const params = {
+        permissionId: 42n,
+      };
+
+      await expect(controller.revokeWithSignature(params)).rejects.toThrow(
+        "Failed to revoke permission with signature: Signature failed",
+      );
+    });
+  });
+
+  describe("New Permission Query Methods", () => {
+    beforeEach(() => {
+      // Mock the public client for contract reads
+      mockPublicClient.readContract = vi.fn();
+    });
+
+    describe("getFilePermissionIds", () => {
+      it("should successfully get permission IDs for a file", async () => {
+        const mockPermissionIds = [1n, 2n, 3n];
+        (mockPublicClient.readContract as Mock).mockResolvedValue(
+          mockPermissionIds,
+        );
+
+        const result = await controller.getFilePermissionIds(123n);
+
+        expect(result).toEqual(mockPermissionIds);
+        expect(mockPublicClient.readContract).toHaveBeenCalledWith({
+          address: "0x1234567890123456789012345678901234567890",
+          abi: expect.any(Array),
+          functionName: "getFilePermissionIds",
+          args: [123n],
+        });
+      });
+
+      it("should handle contract read errors", async () => {
+        (mockPublicClient.readContract as Mock).mockRejectedValue(
+          new Error("Contract read failed"),
+        );
+
+        await expect(controller.getFilePermissionIds(123n)).rejects.toThrow(
+          "Failed to get file permission IDs: Contract read failed",
+        );
+      });
+    });
+
+    describe("getPermissionFileIds", () => {
+      it("should successfully get file IDs for a permission", async () => {
+        const mockFileIds = [10n, 20n, 30n];
+        (mockPublicClient.readContract as Mock).mockResolvedValue(mockFileIds);
+
+        const result = await controller.getPermissionFileIds(456n);
+
+        expect(result).toEqual(mockFileIds);
+        expect(mockPublicClient.readContract).toHaveBeenCalledWith({
+          address: "0x1234567890123456789012345678901234567890",
+          abi: expect.any(Array),
+          functionName: "getPermissionFileIds",
+          args: [456n],
+        });
+      });
+
+      it("should handle contract read errors", async () => {
+        (mockPublicClient.readContract as Mock).mockRejectedValue(
+          new Error("Contract read failed"),
+        );
+
+        await expect(controller.getPermissionFileIds(456n)).rejects.toThrow(
+          "Failed to get permission file IDs: Contract read failed",
+        );
+      });
+    });
+
+    describe("isActivePermission", () => {
+      it("should return true for active permission", async () => {
+        (mockPublicClient.readContract as Mock).mockResolvedValue(true);
+
+        const result = await controller.isActivePermission(789n);
+
+        expect(result).toBe(true);
+        expect(mockPublicClient.readContract).toHaveBeenCalledWith({
+          address: "0x1234567890123456789012345678901234567890",
+          abi: expect.any(Array),
+          functionName: "isActivePermission",
+          args: [789n],
+        });
+      });
+
+      it("should return false for inactive permission", async () => {
+        (mockPublicClient.readContract as Mock).mockResolvedValue(false);
+
+        const result = await controller.isActivePermission(789n);
+
+        expect(result).toBe(false);
+      });
+
+      it("should handle contract read errors", async () => {
+        (mockPublicClient.readContract as Mock).mockRejectedValue(
+          new Error("Contract read failed"),
+        );
+
+        await expect(controller.isActivePermission(789n)).rejects.toThrow(
+          "Failed to check if permission is active: Contract read failed",
+        );
+      });
+    });
+
+    describe("getPermissionInfo", () => {
+      it("should successfully get permission info", async () => {
+        const mockPermissionInfo = {
+          id: 111n,
+          grantor: "0xabcdef1234567890123456789012345678901234" as Address,
+          nonce: 55n,
+          grant: "ipfs://Qm...",
+          signature: "0xsig123" as `0x${string}`,
+          isActive: true,
+          fileIds: [1n, 2n, 3n],
+        };
+
+        (mockPublicClient.readContract as Mock).mockResolvedValue(
+          mockPermissionInfo,
+        );
+
+        const result = await controller.getPermissionInfo(111n);
+
+        expect(result).toEqual(mockPermissionInfo);
+        expect(mockPublicClient.readContract).toHaveBeenCalledWith({
+          address: "0x1234567890123456789012345678901234567890",
+          abi: expect.any(Array),
+          functionName: "getPermissionInfo",
+          args: [111n],
+        });
+      });
+
+      it("should handle contract read errors", async () => {
+        (mockPublicClient.readContract as Mock).mockRejectedValue(
+          new Error("Contract read failed"),
+        );
+
+        await expect(controller.getPermissionInfo(111n)).rejects.toThrow(
+          "Failed to get permission info: Contract read failed",
+        );
+      });
+    });
+  });
+
+  describe("Direct Transaction Methods", () => {
+    beforeEach(() => {
+      // Mock writeContract
+      mockWalletClient.writeContract = vi
+        .fn()
+        .mockResolvedValue(
+          "0xhash123456789012345678901234567890123456789012345678901234567890",
+        );
+
+      // Mock getUserAddress
+      vi.spyOn(controller as any, "getUserAddress").mockResolvedValue(
+        "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      );
+    });
+
+    describe("submitDirectRevokeTransaction", () => {
+      it("should successfully submit direct revoke transaction", async () => {
+        const typedData = {
+          domain: {
+            name: "DataPermissions",
+            version: "1",
+            chainId: 14800,
+            verifyingContract:
+              "0x1234567890123456789012345678901234567890" as Address,
+          },
+          types: {
+            RevokePermission: [
+              { name: "nonce", type: "uint256" },
+              { name: "permissionId", type: "uint256" },
+            ],
+          },
+          primaryType: "RevokePermission" as const,
+          message: {
+            nonce: 123n,
+            permissionId: 42n,
+          },
+        };
+
+        const signature =
+          "0xsignature123456789012345678901234567890123456789012345678901234567890";
+
+        const result = await (controller as any).submitDirectRevokeTransaction(
+          typedData,
+          signature,
+        );
+
+        expect(result).toBe(
+          "0xhash123456789012345678901234567890123456789012345678901234567890",
+        );
+
+        expect(mockWalletClient.writeContract).toHaveBeenCalledWith({
+          address: "0x1234567890123456789012345678901234567890",
+          abi: expect.any(Array),
+          functionName: "revokePermissionWithSignature",
+          args: [typedData.message, signature],
+          account: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          chain: mockWalletClient.chain,
+        });
+      });
+
+      it("should handle blockchain errors", async () => {
+        (mockWalletClient.writeContract as Mock).mockRejectedValue(
+          new Error("Transaction failed"),
+        );
+
+        const typedData = {
+          domain: {
+            name: "DataPermissions",
+            version: "1",
+            chainId: 14800,
+            verifyingContract:
+              "0x1234567890123456789012345678901234567890" as Address,
+          },
+          types: {
+            RevokePermission: [
+              { name: "nonce", type: "uint256" },
+              { name: "permissionId", type: "uint256" },
+            ],
+          },
+          primaryType: "RevokePermission" as const,
+          message: {
+            nonce: 123n,
+            permissionId: 42n,
+          },
+        };
+
+        const signature =
+          "0xsignature123456789012345678901234567890123456789012345678901234567890";
+
+        await expect(
+          (controller as any).submitDirectRevokeTransaction(
+            typedData,
+            signature,
+          ),
+        ).rejects.toThrow(BlockchainError);
+      });
+    });
+
+    describe("relayRevokeTransaction", () => {
+      beforeEach(() => {
+        // Mock submitToRelayer for revoke
+        vi.spyOn(controller as any, "submitToRelayer").mockResolvedValue(
+          "0xhash123456789012345678901234567890123456789012345678901234567890",
+        );
+      });
+
+      it("should successfully relay revoke transaction", async () => {
+        const typedData = {
+          domain: {
+            name: "DataPermissions",
+            version: "1",
+            chainId: 14800,
+            verifyingContract:
+              "0x1234567890123456789012345678901234567890" as Address,
+          },
+          types: {
+            RevokePermission: [
+              { name: "nonce", type: "uint256" },
+              { name: "permissionId", type: "uint256" },
+            ],
+          },
+          primaryType: "RevokePermission" as const,
+          message: {
+            nonce: 123n,
+            permissionId: 42n,
+          },
+        };
+
+        const signature =
+          "0xsignature123456789012345678901234567890123456789012345678901234567890";
+
+        const result = await (controller as any).relayRevokeTransaction(
+          typedData,
+          signature,
+        );
+
+        expect(result).toBe(
+          "0xhash123456789012345678901234567890123456789012345678901234567890",
+        );
+
+        expect((controller as any).submitToRelayer).toHaveBeenCalledWith(
+          "/permissions/revoke",
+          {
+            typedData,
+            signature,
+          },
+        );
+      });
+
+      it("should handle relayer errors", async () => {
+        vi.spyOn(controller as any, "submitToRelayer").mockRejectedValue(
+          new RelayerError("Relayer submission failed"),
+        );
+
+        const typedData = {
+          domain: {
+            name: "DataPermissions",
+            version: "1",
+            chainId: 14800,
+            verifyingContract:
+              "0x1234567890123456789012345678901234567890" as Address,
+          },
+          types: {
+            RevokePermission: [
+              { name: "nonce", type: "uint256" },
+              { name: "permissionId", type: "uint256" },
+            ],
+          },
+          primaryType: "RevokePermission" as const,
+          message: {
+            nonce: 123n,
+            permissionId: 42n,
+          },
+        };
+
+        const signature =
+          "0xsignature123456789012345678901234567890123456789012345678901234567890";
+
+        await expect(
+          (controller as any).relayRevokeTransaction(typedData, signature),
+        ).rejects.toThrow(RelayerError);
+      });
+    });
+  });
 });

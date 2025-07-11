@@ -65,6 +65,7 @@ export const TrustedServerManagementCard: React.FC<
               value: serverId,
               onChange: onServerIdChange,
               placeholder: "0x...",
+              description: "The Ethereum address of the server to trust",
               required: true,
             },
             {
@@ -74,6 +75,7 @@ export const TrustedServerManagementCard: React.FC<
               value: serverUrl,
               onChange: onServerUrlChange,
               placeholder: "https://...",
+              description: "The API endpoint URL of the server",
               required: true,
             },
           ]}

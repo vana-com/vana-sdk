@@ -89,6 +89,7 @@ export const TrustedServerIntegrationCard: React.FC<
                 onChange={(e) => onServerFileIdChange(e.target.value)}
                 placeholder="Enter file ID (e.g., 123)"
                 type="number"
+                description="The ID of the encrypted file to decrypt on the server"
               />
               <Input
                 label="Server Private Key"
@@ -96,6 +97,7 @@ export const TrustedServerIntegrationCard: React.FC<
                 onChange={(e) => onServerPrivateKeyChange(e.target.value)}
                 placeholder="Enter server private key (hex)"
                 type="password"
+                description="Hexadecimal private key for server-side decryption"
               />
             </div>
 
@@ -167,6 +169,7 @@ export const TrustedServerIntegrationCard: React.FC<
               onChange={(e) => onPersonalPermissionIdChange(e.target.value)}
               placeholder="Enter permission ID (e.g., 123)"
               type="number"
+              description="The ID of a permission grant to use for server API access"
             />
           </div>
           <div className="flex gap-2">

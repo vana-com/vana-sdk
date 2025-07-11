@@ -1,9 +1,18 @@
 import React from "react";
+import {
+  Table,
+  TableHeader,
+  TableColumn,
+  TableBody,
+  TableRow,
+  TableCell,
+  Button,
+  Chip,
+} from "@heroui/react";
 import { ExternalLink } from "lucide-react";
 import { SectionHeader } from "./ui/SectionHeader";
-import { ResourceList } from "./ui/ResourceList";
-import { ContractListItem } from "./ContractListItem";
 import { EmptyState } from "./ui/EmptyState";
+import { getAddressUrl } from "@/lib/explorer";
 
 interface ContractListCardProps {
   contracts: string[];
@@ -40,38 +49,80 @@ export const ContractListCard: React.FC<ContractListCardProps> = ({
         }
       />
       <div className="mt-6">
-        <ResourceList
-          title=""
-          description=""
-          items={contracts}
-          isLoading={false}
-          onRefresh={() => {}}
-          itemsPerPage={8}
-          renderItem={(contractName) => {
-            try {
-              const contract = getContract(contractName);
-              return (
-                <ContractListItem
-                  key={contractName}
-                  contractName={contractName}
-                  contractAddress={contract.address}
-                  chainId={chainId}
-                  isDeployed={true}
-                />
-              );
-            } catch {
-              return (
-                <ContractListItem
-                  key={contractName}
-                  contractName={contractName}
-                  chainId={chainId}
-                  isDeployed={false}
-                />
-              );
-            }
-          }}
-          emptyState={<EmptyState title="No contracts found" />}
-        />
+        {contracts.length === 0 ? (
+          <EmptyState title="No contracts found" />
+        ) : (
+          <Table
+            aria-label="Canonical contracts table"
+            removeWrapper
+            classNames={{
+              th: "bg-default-100 text-default-700",
+              td: "py-4",
+            }}
+          >
+            <TableHeader>
+              <TableColumn>Contract Name</TableColumn>
+              <TableColumn>Address</TableColumn>
+              <TableColumn>Status</TableColumn>
+              <TableColumn>Actions</TableColumn>
+            </TableHeader>
+            <TableBody items={contracts}>
+              {(contractName) => {
+                let contractAddress: string | null = null;
+                let isDeployed = false;
+
+                try {
+                  const contract = getContract(contractName);
+                  contractAddress = contract.address;
+                  isDeployed = true;
+                } catch {
+                  isDeployed = false;
+                }
+
+                return (
+                  <TableRow key={contractName}>
+                    <TableCell>
+                      <span className="font-medium">{contractName}</span>
+                    </TableCell>
+                    <TableCell>
+                      {isDeployed && contractAddress ? (
+                        <span className="font-mono text-small">
+                          {contractAddress}
+                        </span>
+                      ) : (
+                        <span className="text-default-400">Not deployed</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        size="sm"
+                        color={isDeployed ? "success" : "default"}
+                        variant="flat"
+                      >
+                        {isDeployed ? "Deployed" : "Not Deployed"}
+                      </Chip>
+                    </TableCell>
+                    <TableCell>
+                      {isDeployed && contractAddress && (
+                        <Button
+                          as="a"
+                          href={getAddressUrl(chainId, contractAddress)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          size="sm"
+                          variant="flat"
+                          startContent={<ExternalLink className="h-3 w-3" />}
+                        >
+                          View on Explorer
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              }}
+            </TableBody>
+          </Table>
+        )}
       </div>
     </section>
   );

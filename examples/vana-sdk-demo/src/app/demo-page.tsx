@@ -57,10 +57,10 @@ import {
   NavbarBrand,
   NavbarContent,
   NavbarItem,
+  Divider,
 } from "@heroui/react";
 import { NavigationButton } from "@/components/ui/NavigationButton";
 import { SectionHeader } from "@/components/ui/SectionHeader";
-import { SectionDivider } from "@/components/ui/SectionDivider";
 import { StatusMessage } from "@/components/ui/StatusMessage";
 import { PermissionsTable } from "@/components/PermissionsTable";
 import { EncryptionTestCard } from "@/components/EncryptionTestCard";
@@ -1670,10 +1670,11 @@ export default function Home() {
             )}
 
             {vana && (
-              <div id="main-content">
+              <div id="main-content" className="space-y-8">
                 {/* Data & Permissions Section */}
-                <SectionDivider text={navigationConfig.sections[0].title} />
-                <Spacer y={8} />
+                <h2 className="text-2xl font-semibold">
+                  Data &amp; Permissions
+                </h2>
 
                 <YourDataCard
                   fileLookupId={fileLookupId}
@@ -1790,11 +1791,13 @@ export default function Home() {
                   onDownloadDecrypted={handleDownloadDecrypted}
                 />
 
-                <Spacer y={12} />
+                <Divider />
+                <Spacer y={16} />
 
                 {/* Server & Schema Setup Section */}
-                <SectionDivider text={navigationConfig.sections[1].title} />
-                <Spacer y={8} />
+                <h2 className="text-2xl font-semibold">
+                  Server &amp; Schema Setup
+                </h2>
 
                 <TrustedServerManagementCard
                   serverId={serverId}
@@ -1853,11 +1856,11 @@ export default function Home() {
                   onRefreshRefiners={loadRefiners}
                 />
 
-                <Spacer y={12} />
+                <Divider />
+                <Spacer y={16} />
 
                 {/* Server Workflows Section */}
-                <SectionDivider text={navigationConfig.sections[2].title} />
-                <Spacer y={8} />
+                <h2 className="text-2xl font-semibold">Server Workflows</h2>
                 <ServerUploadCard
                   trustedServers={trustedServers}
                   selectedServerForUpload={selectedServerForUpload}
@@ -1900,11 +1903,11 @@ export default function Home() {
                   onCopyToClipboard={copyToClipboard}
                 />
 
-                <Spacer y={12} />
+                <Divider />
+                <Spacer y={16} />
 
                 {/* Reference Section */}
-                <SectionDivider text={navigationConfig.sections[3].title} />
-                <Spacer y={8} />
+                <h2 className="text-2xl font-semibold">Reference</h2>
                 <ContractListCard
                   contracts={vana.protocol.getAvailableContracts()}
                   getContract={(contractName) =>

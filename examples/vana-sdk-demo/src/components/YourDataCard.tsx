@@ -94,6 +94,7 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
             onChange={(e) => onFileLookupIdChange(e.target.value)}
             className="w-32"
             size="sm"
+            description="Search for a specific file by its numeric ID"
           />
           <ActionButton
             onPress={onLookupFile}

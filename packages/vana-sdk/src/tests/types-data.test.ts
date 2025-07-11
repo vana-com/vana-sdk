@@ -609,9 +609,9 @@ describe("Data Types", () => {
       };
 
       expect(complexUpload.metadata?.custom?.nested).toBeDefined();
-      expect(Array.isArray(complexUpload.metadata?.custom?.nested.array)).toBe(
-        true,
-      );
+      expect(
+        Array.isArray((complexUpload.metadata?.custom as any)?.nested?.array),
+      ).toBe(true);
       expect(typeof complexUpload.metadata?.custom?.timestamp).toBe("number");
     });
   });

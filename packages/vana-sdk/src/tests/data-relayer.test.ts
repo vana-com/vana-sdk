@@ -41,7 +41,16 @@ describe("DataController Relayer Integration", () => {
       } as any,
       publicClient: {} as any,
       applicationClient: {} as any,
-      relayerUrl: "https://test-relayer.example.com",
+      relayerCallbacks: {
+        submitFileAddition: vi.fn().mockResolvedValue({
+          fileId: 123,
+          transactionHash: "0x123456789abcdef",
+        }),
+        submitFileAdditionWithPermissions: vi.fn().mockResolvedValue({
+          fileId: 456,
+          transactionHash: "0xabcdef123456789",
+        }),
+      },
       storageManager: mockStorageManager,
     };
 
@@ -49,7 +58,7 @@ describe("DataController Relayer Integration", () => {
   });
 
   describe("uploadFileWithPermissions", () => {
-    it("should use relayer when relayerUrl is configured", async () => {
+    it("should use relayer when relayerCallbacks is configured", async () => {
       const testBlob = new Blob(["test data"], { type: "text/plain" });
       const permissions = [
         {
@@ -58,16 +67,6 @@ describe("DataController Relayer Integration", () => {
             "0x04a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4",
         },
       ];
-
-      // Mock successful relayer response
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          success: true,
-          fileId: 42,
-          transactionHash: "0xRelayerTxHash",
-        }),
-      });
 
       const result = await dataController.uploadFileWithPermissions(
         testBlob,
@@ -75,26 +74,30 @@ describe("DataController Relayer Integration", () => {
         "test.txt",
       );
 
-      // Verify relayer was called with correct endpoint
-      expect(mockFetch).toHaveBeenCalledWith(
-        "https://test-relayer.example.com/api/relay/addFileWithPermissions",
-        expect.objectContaining({
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: expect.stringContaining("ipfs://QmTestHash123"),
-        }),
+      // Verify relayer callback was called with correct parameters
+      expect(
+        mockContext.relayerCallbacks?.submitFileAdditionWithPermissions,
+      ).toHaveBeenCalledWith(
+        "ipfs://QmTestHash123",
+        "0xTestUser",
+        expect.arrayContaining([
+          expect.objectContaining({
+            account: "0xTrustedServer",
+            key: expect.any(String), // Encrypted key
+          }),
+        ]),
       );
 
       // Verify response structure
       expect(result).toEqual({
-        fileId: 42,
+        fileId: 456,
         url: "ipfs://QmTestHash123",
         size: 1024,
-        transactionHash: "0xRelayerTxHash",
+        transactionHash: "0xabcdef123456789",
       });
     });
 
-    it("should include encrypted permissions in relayer request", async () => {
+    it("should include encrypted permissions in relayer callback", async () => {
       const testBlob = new Blob(["test data"], { type: "text/plain" });
       const permissions = [
         {
@@ -104,42 +107,32 @@ describe("DataController Relayer Integration", () => {
         },
       ];
 
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          success: true,
-          fileId: 42,
-          transactionHash: "0xRelayerTxHash",
-        }),
-      });
-
       await dataController.uploadFileWithPermissions(
         testBlob,
         permissions,
         "test.txt",
       );
 
-      // Verify the request body contains permissions
-      const fetchCall = mockFetch.mock.calls[0];
-      const requestBody = JSON.parse(fetchCall[1].body);
-
-      expect(requestBody).toEqual({
-        url: "ipfs://QmTestHash123",
-        userAddress: "0xTestUser",
-        permissions: expect.arrayContaining([
+      // Verify the callback was called with correct parameters
+      expect(
+        mockContext.relayerCallbacks?.submitFileAdditionWithPermissions,
+      ).toHaveBeenCalledWith(
+        "ipfs://QmTestHash123",
+        "0xTestUser",
+        expect.arrayContaining([
           expect.objectContaining({
             account: "0xTrustedServer",
             key: expect.any(String), // Encrypted key
           }),
         ]),
-      });
+      );
     });
 
-    it("should fallback to direct transaction when no relayerUrl", async () => {
-      // Remove relayer URL from context
+    it("should fallback to direct transaction when no relayerCallbacks", async () => {
+      // Remove relayer callbacks from context
       const contextWithoutRelayer = {
         ...mockContext,
-        relayerUrl: undefined,
+        relayerCallbacks: undefined,
       };
       const controller = new DataController(contextWithoutRelayer);
 
@@ -167,7 +160,6 @@ describe("DataController Relayer Integration", () => {
       );
 
       // Verify direct transaction was used
-      expect(mockFetch).not.toHaveBeenCalled();
       expect(addFileWithPermissionsSpy).toHaveBeenCalledWith(
         "ipfs://QmTestHash123",
         "0xTestUser",
@@ -178,6 +170,20 @@ describe("DataController Relayer Integration", () => {
     });
 
     it("should handle relayer errors gracefully", async () => {
+      // Create context with relayer callback that throws an error
+      const contextWithError = {
+        ...mockContext,
+        relayerCallbacks: {
+          ...mockContext.relayerCallbacks,
+          submitFileAdditionWithPermissions: vi
+            .fn()
+            .mockRejectedValue(
+              new Error("Failed to register file on blockchain"),
+            ),
+        },
+      };
+      const controller = new DataController(contextWithError);
+
       const testBlob = new Blob(["test data"], { type: "text/plain" });
       const permissions = [
         {
@@ -187,15 +193,9 @@ describe("DataController Relayer Integration", () => {
         },
       ];
 
-      // Mock relayer error response
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        statusText: "Internal Server Error",
-      });
-
       await expect(
-        dataController.uploadFileWithPermissions(testBlob, permissions),
-      ).rejects.toThrow("Failed to register file on blockchain");
+        controller.uploadFileWithPermissions(testBlob, permissions),
+      ).rejects.toThrow("Failed to upload file with permissions");
     });
   });
 });

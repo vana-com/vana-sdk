@@ -6,6 +6,7 @@ import type {
   VanaChainId,
 } from "./types";
 import { isWalletConfig, isChainConfig, isVanaChainId } from "./types";
+import type { RelayerCallbacks } from "./types/config";
 import { InvalidConfigurationError } from "./errors";
 import {
   PermissionsController,
@@ -50,14 +51,22 @@ import { getChainConfig } from "./chains";
  * // Basic configuration - uses chain defaults
  * const vana = new Vana({
  *   walletClient,
- *   relayerUrl: 'https://relayer.vana.org' // optional
+ *   relayerCallbacks: { // optional gasless transactions
+ *     submitPermissionGrant: async (typedData, signature) => {
+ *       return await myRelayer.submit(typedData, signature);
+ *     }
+ *   }
  * });
  *
  * // Advanced configuration - override subgraph URL
  * const vana = new Vana({
  *   walletClient,
  *   subgraphUrl: 'https://api.goldsky.com/api/public/...',
- *   relayerUrl: 'https://relayer.vana.org'
+ *   relayerCallbacks: {
+ *     submitPermissionGrant: async (typedData, signature) => {
+ *       return await myRelayer.submit(typedData, signature);
+ *     }
+ *   }
  * });
  *
  * // Grant permission
@@ -92,7 +101,7 @@ export class Vana {
   /** Controller providing low-level access to protocol contracts */
   public readonly protocol: ProtocolController;
 
-  private readonly relayerUrl?: string;
+  private readonly relayerCallbacks?: RelayerCallbacks;
   private readonly storageManager?: StorageManager;
 
   /**
@@ -113,7 +122,11 @@ export class Vana {
    *   chainId: 14800,
    *   rpcUrl: 'https://rpc.moksha.vana.org',
    *   account,
-   *   relayerUrl: 'https://relayer.vana.org'
+   *   relayerCallbacks: {
+   *     submitPermissionGrant: async (typedData, signature) => {
+   *       return await myRelayer.submit(typedData, signature);
+   *     }
+   *   }
    * });
    * ```
    */
@@ -144,7 +157,11 @@ export class Vana {
    *
    * const vana = Vana.fromWallet({
    *   walletClient,
-   *   relayerUrl: 'https://relayer.vana.org'
+   *   relayerCallbacks: {
+   *     submitPermissionGrant: async (typedData, signature) => {
+   *       return await myRelayer.submit(typedData, signature);
+   *     }
+   *   }
    * });
    * ```
    */
@@ -162,8 +179,8 @@ export class Vana {
     // Validate configuration
     this.validateConfig(config);
 
-    // Store relayer URL
-    this.relayerUrl = config.relayerUrl;
+    // Store relayer callbacks if provided
+    this.relayerCallbacks = config.relayerCallbacks;
 
     // Initialize storage manager if storage providers are provided
     if (config.storage?.providers) {
@@ -231,16 +248,12 @@ export class Vana {
     const chainConfig = getChainConfig(walletClient.chain.id);
     const subgraphUrl = config.subgraphUrl || chainConfig?.subgraphUrl;
 
-    // Use relayer callbacks if provided
-    const relayerCallbacks = config.relayerCallbacks;
-
     // Create shared context for all controllers
     const sharedContext: ControllerContext = {
       walletClient,
       publicClient,
       applicationClient: walletClient, // Using same wallet for now
-      relayerUrl: config.relayerUrl,
-      relayerCallbacks,
+      relayerCallbacks: this.relayerCallbacks,
       storageManager: this.storageManager,
       subgraphUrl,
     };
@@ -263,21 +276,12 @@ export class Vana {
       throw new InvalidConfigurationError("Configuration object is required");
     }
 
-    // Validate relayerUrl if provided
-    if (config.relayerUrl !== undefined) {
-      if (typeof config.relayerUrl !== "string") {
-        throw new InvalidConfigurationError("relayerUrl must be a string");
-      }
-
-      if (config.relayerUrl.trim() === "") {
-        throw new InvalidConfigurationError("relayerUrl cannot be empty");
-      }
-
-      // Basic URL validation
-      try {
-        new URL(config.relayerUrl);
-      } catch {
-        throw new InvalidConfigurationError("relayerUrl must be a valid URL");
+    // Validate relayerCallbacks if provided
+    if (config.relayerCallbacks !== undefined) {
+      if (typeof config.relayerCallbacks !== "object") {
+        throw new InvalidConfigurationError(
+          "relayerCallbacks must be an object",
+        );
       }
     }
 
@@ -415,7 +419,7 @@ export class Vana {
     return {
       chainId: this.chainId as VanaChainId,
       chainName: this.chainName,
-      relayerUrl: this.relayerUrl,
+      relayerCallbacks: this.relayerCallbacks,
       storageProviders: this.storageManager?.getStorageProviders() || [],
       defaultStorageProvider: this.storageManager?.getDefaultStorageProvider(),
     };

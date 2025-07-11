@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import type { VanaConfig, WalletConfig, ChainConfig } from "../types/config";
 import type { UserFile, UploadEncryptedFileResult } from "../types/data";
 import type {
@@ -63,7 +63,7 @@ describe("TypeScript Types", () => {
       };
 
       expect(config.walletClient).toBeDefined();
-      expect(config.relayerUrl).toBeUndefined();
+      expect(config.relayerCallbacks).toBeUndefined();
       expect(config.storage).toBeUndefined();
     });
 
@@ -77,14 +77,16 @@ describe("TypeScript Types", () => {
 
       const config: VanaConfig = {
         walletClient,
-        relayerUrl: "https://relayer.example.com",
+        relayerCallbacks: {
+          submitPermissionGrant: vi.fn(),
+        },
         storage: {
           providers: {},
           defaultProvider: "ipfs",
         },
       };
 
-      expect(config.relayerUrl).toBe("https://relayer.example.com");
+      expect(config.relayerCallbacks).toBeDefined();
       expect(config.storage?.defaultProvider).toBe("ipfs");
     });
   });
@@ -226,13 +228,13 @@ describe("TypeScript Types", () => {
   describe("PermissionGrantDomain", () => {
     it("should have all required EIP-712 domain properties", () => {
       const domain: PermissionGrantDomain = {
-        name: "VanaDataWallet",
+        name: "DataPermissions",
         version: "1",
         chainId: 14800,
         verifyingContract: "0x1234567890123456789012345678901234567890",
       };
 
-      expect(domain.name).toBe("VanaDataWallet");
+      expect(domain.name).toBe("DataPermissions");
       expect(domain.version).toBe("1");
       expect(domain.chainId).toBe(14800);
       expect(domain.verifyingContract).toBe(
@@ -308,7 +310,7 @@ describe("TypeScript Types", () => {
     it("should support PermissionGrantTypedData structure", () => {
       const typedData: PermissionGrantTypedData = {
         domain: {
-          name: "VanaDataWallet",
+          name: "DataPermissions",
           version: "1",
           chainId: 14800,
           verifyingContract: "0x1234567890123456789012345678901234567890",
@@ -328,7 +330,7 @@ describe("TypeScript Types", () => {
         },
       };
 
-      expect(typedData.domain.name).toBe("VanaDataWallet");
+      expect(typedData.domain.name).toBe("DataPermissions");
       expect(typedData.types.Permission).toHaveLength(3);
       expect(typedData.primaryType).toBe("Permission");
       expect(typedData.message.nonce).toBe(BigInt(123));
@@ -338,7 +340,7 @@ describe("TypeScript Types", () => {
     it("should support GenericTypedData structure", () => {
       const typedData: GenericTypedData = {
         domain: {
-          name: "VanaDataWallet",
+          name: "DataPermissions",
           version: "1",
           chainId: 14800,
           verifyingContract: "0x1234567890123456789012345678901234567890",
@@ -356,7 +358,7 @@ describe("TypeScript Types", () => {
         },
       };
 
-      expect(typedData.domain.name).toBe("VanaDataWallet");
+      expect(typedData.domain.name).toBe("DataPermissions");
       expect(typedData.types.CustomType).toHaveLength(2);
       expect(typedData.primaryType).toBe("CustomType");
       expect(typedData.message.field1).toBe("test");
@@ -485,7 +487,7 @@ describe("TypeScript Types", () => {
         };
 
         expect(config.walletClient).toBeDefined();
-        expect(config.relayerUrl).toBeUndefined();
+        expect(config.relayerCallbacks).toBeUndefined();
         expect(config.storage).toBeUndefined();
       });
 
@@ -499,7 +501,9 @@ describe("TypeScript Types", () => {
 
         const config: WalletConfig = {
           walletClient,
-          relayerUrl: "https://relayer.test.com",
+          relayerCallbacks: {
+            submitPermissionGrant: vi.fn(),
+          },
           storage: {
             providers: {
               ipfs: {
@@ -519,7 +523,7 @@ describe("TypeScript Types", () => {
         };
 
         expect(config.walletClient).toBeDefined();
-        expect(config.relayerUrl).toBe("https://relayer.test.com");
+        expect(config.relayerCallbacks).toBeDefined();
         expect(config.storage?.defaultProvider).toBe("ipfs");
       });
     });
@@ -531,14 +535,16 @@ describe("TypeScript Types", () => {
         };
 
         expect(config.chainId).toBe(14800);
-        expect(config.relayerUrl).toBeUndefined();
+        expect(config.relayerCallbacks).toBeUndefined();
         expect(config.storage).toBeUndefined();
       });
 
       it("should accept optional properties", () => {
         const config: ChainConfig = {
           chainId: 1480,
-          relayerUrl: "https://relayer.mainnet.com",
+          relayerCallbacks: {
+            submitPermissionGrant: vi.fn(),
+          },
           storage: {
             providers: {
               ipfs: {
@@ -558,7 +564,7 @@ describe("TypeScript Types", () => {
         };
 
         expect(config.chainId).toBe(1480);
-        expect(config.relayerUrl).toBe("https://relayer.mainnet.com");
+        expect(config.relayerCallbacks).toBeDefined();
         expect(config.storage?.defaultProvider).toBe("ipfs");
       });
     });

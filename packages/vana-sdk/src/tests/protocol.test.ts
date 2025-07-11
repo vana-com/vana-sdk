@@ -77,7 +77,12 @@ describe("ProtocolController", () => {
     mockContext = {
       walletClient: mockWalletClient,
       publicClient: mockPublicClient,
-      relayerUrl: "https://test-relayer.com",
+      relayerCallbacks: {
+        submitFileAddition: vi.fn().mockResolvedValue({
+          fileId: 123,
+          transactionHash: "0x123456789abcdef",
+        }),
+      },
     };
 
     controller = new ProtocolController(mockContext);
@@ -124,7 +129,9 @@ describe("ProtocolController", () => {
       const noChainController = new ProtocolController({
         walletClient: noChainClient,
         publicClient: mockPublicClient,
-        relayerUrl: "https://test-relayer.com",
+        relayerCallbacks: {
+          submitFileAddition: vi.fn(),
+        },
       });
 
       expect(() => {
@@ -249,7 +256,9 @@ describe("ProtocolController", () => {
       const noChainController = new ProtocolController({
         walletClient: noChainClient,
         publicClient: mockPublicClient,
-        relayerUrl: "https://test-relayer.com",
+        relayerCallbacks: {
+          submitFileAddition: vi.fn(),
+        },
       });
 
       expect(() => {
@@ -273,7 +282,9 @@ describe("ProtocolController", () => {
       const noChainController = new ProtocolController({
         walletClient: noChainClient,
         publicClient: mockPublicClient,
-        relayerUrl: "https://test-relayer.com",
+        relayerCallbacks: {
+          submitFileAddition: vi.fn(),
+        },
       });
 
       expect(() => {

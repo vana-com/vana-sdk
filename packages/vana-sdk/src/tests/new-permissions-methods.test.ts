@@ -54,7 +54,6 @@ describe("New PermissionsController Methods", () => {
     mockContext = {
       walletClient: mockWalletClient,
       publicClient: mockPublicClient,
-      relayerUrl: "https://relayer.example.com",
     };
 
     controller = new PermissionsController(mockContext);
@@ -80,22 +79,53 @@ describe("New PermissionsController Methods", () => {
     });
 
     it("should successfully revoke permission with signature via relayer", async () => {
-      // Mock relayRevokeTransaction
-      vi.spyOn(controller as any, "relayRevokeTransaction").mockResolvedValue(
-        "0xhash123456789012345678901234567890123456789012345678901234567890",
+      // Mock relayerCallbacks for the controller
+      const mockSubmitPermissionRevoke = vi
+        .fn()
+        .mockResolvedValue(
+          "0xhash123456789012345678901234567890123456789012345678901234567890",
+        );
+
+      const contextWithRelayerCallbacks = {
+        ...mockContext,
+        relayerCallbacks: {
+          submitPermissionRevoke: mockSubmitPermissionRevoke,
+        },
+      };
+
+      const controllerWithRelayer = new PermissionsController(
+        contextWithRelayerCallbacks,
+      );
+
+      // Mock methods
+      vi.spyOn(controllerWithRelayer as any, "getUserNonce").mockResolvedValue(
+        123n,
+      );
+      vi.spyOn(
+        controllerWithRelayer as any,
+        "getPermissionDomain",
+      ).mockResolvedValue({
+        name: "DataPermissions",
+        version: "1",
+        chainId: 14800,
+        verifyingContract: "0x1234567890123456789012345678901234567890",
+      });
+      vi.spyOn(controllerWithRelayer as any, "signTypedData").mockResolvedValue(
+        "0xsignature123456789012345678901234567890123456789012345678901234567890",
       );
 
       const params = {
         permissionId: 42n,
       };
 
-      const result = await controller.revokeWithSignature(params);
+      const result = await controllerWithRelayer.revokeWithSignature(params);
 
       expect(result).toBe(
         "0xhash123456789012345678901234567890123456789012345678901234567890",
       );
-      // Verify that relayRevokeTransaction was called (indicates signature was created)
-      expect((controller as any).relayRevokeTransaction).toHaveBeenCalledWith(
+
+      // Verify that relayerCallbacks.submitPermissionRevoke was called
+      expect(mockSubmitPermissionRevoke).toHaveBeenCalledWith(
         expect.objectContaining({
           domain: {
             name: "DataPermissions",
@@ -120,12 +150,8 @@ describe("New PermissionsController Methods", () => {
     });
 
     it("should successfully revoke permission with signature via direct transaction", async () => {
-      const directContext = {
-        ...mockContext,
-        relayerUrl: undefined, // No relayer
-      };
-
-      const directController = new PermissionsController(directContext);
+      // Use context without relayerCallbacks to trigger direct transaction path
+      const directController = new PermissionsController(mockContext);
 
       // Mock methods for direct controller
       vi.spyOn(directController as any, "getUserNonce").mockResolvedValue(123n);
@@ -408,115 +434,6 @@ describe("New PermissionsController Methods", () => {
             signature,
           ),
         ).rejects.toThrow("Transaction failed");
-      });
-    });
-
-    describe("relayRevokeTransaction", () => {
-      beforeEach(() => {
-        // Mock fetch for direct HTTP calls
-        global.fetch = vi.fn().mockResolvedValue({
-          ok: true,
-          json: () =>
-            Promise.resolve({
-              success: true,
-              transactionHash:
-                "0xhash123456789012345678901234567890123456789012345678901234567890",
-            }),
-        });
-      });
-
-      it("should successfully relay revoke transaction", async () => {
-        const typedData = {
-          domain: {
-            name: "DataPermissions",
-            version: "1",
-            chainId: 14800,
-            verifyingContract:
-              "0x1234567890123456789012345678901234567890" as Address,
-          },
-          types: {
-            RevokePermission: [
-              { name: "nonce", type: "uint256" },
-              { name: "permissionId", type: "uint256" },
-            ],
-          },
-          primaryType: "RevokePermission" as const,
-          message: {
-            nonce: 123n,
-            permissionId: 42n,
-          },
-        };
-
-        const signature =
-          "0xsignature123456789012345678901234567890123456789012345678901234567890";
-
-        const result = await (controller as any).relayRevokeTransaction(
-          typedData,
-          signature,
-        );
-
-        expect(result).toBe(
-          "0xhash123456789012345678901234567890123456789012345678901234567890",
-        );
-
-        expect(global.fetch).toHaveBeenCalledWith(
-          "https://relayer.example.com/api/relay/revoke",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              typedData: {
-                ...typedData,
-                message: {
-                  nonce: Number(typedData.message.nonce),
-                  permissionId: Number(typedData.message.permissionId),
-                },
-              },
-              signature,
-            }),
-          },
-        );
-      });
-
-      it("should handle relayer errors", async () => {
-        global.fetch = vi.fn().mockResolvedValue({
-          ok: false,
-          status: 500,
-          statusText: "Internal Server Error",
-          text: () => Promise.resolve("Internal server error"),
-        });
-
-        const typedData = {
-          domain: {
-            name: "DataPermissions",
-            version: "1",
-            chainId: 14800,
-            verifyingContract:
-              "0x1234567890123456789012345678901234567890" as Address,
-          },
-          types: {
-            RevokePermission: [
-              { name: "nonce", type: "uint256" },
-              { name: "permissionId", type: "uint256" },
-            ],
-          },
-          primaryType: "RevokePermission" as const,
-          message: {
-            nonce: 123n,
-            permissionId: 42n,
-          },
-        };
-
-        const signature =
-          "0xsignature123456789012345678901234567890123456789012345678901234567890";
-
-        await expect(
-          (controller as any).relayRevokeTransaction(typedData, signature),
-        ).rejects.toThrow(
-          "Failed to relay revoke transaction: Internal Server Error",
-        );
       });
     });
   });

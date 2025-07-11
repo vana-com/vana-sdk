@@ -82,7 +82,7 @@ describe("Generic Types", () => {
 
       expect(errorResponse.success).toBe(false);
       expect(errorResponse.error?.code).toBe("VALIDATION_ERROR");
-      expect(errorResponse.error?.details.field).toBe("email");
+      expect((errorResponse.error?.details as any)?.field).toBe("email");
     });
 
     it("should structure async result correctly", () => {
@@ -813,7 +813,7 @@ describe("Generic Types", () => {
 
       const stringFields: StringFields = {
         stringField: "test",
-        optionalField: "optional",
+        // optionalField: "optional", // This field shouldn't exist in PickByType<TestType, string>
       };
 
       const nonStringFields: NonStringFields = {

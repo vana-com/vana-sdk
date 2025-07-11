@@ -204,6 +204,49 @@ describe("validateGrant (Consolidated Validation)", () => {
     });
   });
 
+  describe("Edge Cases for Branch Coverage", () => {
+    it("should handle error without error property (line 283)", () => {
+      // Create a scenario where error.details.errors is not an array
+      const invalidGrant = {
+        grantee: "invalid-address", // This will fail schema validation
+        operation: "test",
+        parameters: {},
+      };
+
+      const result = validateGrant(invalidGrant, { throwOnError: false });
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].type).toBe("schema");
+      // This tests the branch where firstError.error exists
+    });
+
+    it("should return validation result with errors when throwOnError is false (lines 288-293)", () => {
+      const result = validateGrant(validGrantFile, {
+        grantee: "0x9999999999999999999999999999999999999999",
+        operation: "wrong_operation",
+        throwOnError: false,
+      });
+
+      // This tests the return { valid: false, errors, grant } branch
+      expect(result.valid).toBe(false);
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.grant).toEqual(validGrantFile);
+    });
+
+    it("should throw GrantSchemaError for invalid schema (covering specific error path)", () => {
+      // Test the schema error path which covers the firstError.error branch
+      const invalidData = { invalid: "data" };
+
+      expect(() => {
+        validateGrant(invalidData, {
+          schema: true,
+          grantee: "0x1234567890123456789012345678901234567890",
+        });
+      }).toThrow("Invalid grant file schema");
+    });
+  });
+
   describe("Performance Options", () => {
     it("should allow skipping schema validation for trusted data", () => {
       const trustedData = validGrantFile;

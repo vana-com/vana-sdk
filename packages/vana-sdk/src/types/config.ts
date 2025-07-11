@@ -144,17 +144,9 @@ export interface RelayerCallbacks {
  * Base configuration interface
  */
 export interface BaseConfig {
-  // TODO: Remove relayerUrl and relayerCallbacks
-  /**
-   * Optional URL for a Vana Relayer Service for gasless transactions.
-   * If both relayerUrl and relayerCallbacks are provided, relayerCallbacks takes precedence.
-   */
-  relayerUrl?: string;
-
   /**
    * Optional relayer callback functions for handling gasless transactions.
    * Provides flexible relay mechanism - can use HTTP, WebSocket, or any custom implementation.
-   * Takes precedence over relayerUrl if both are provided.
    */
   relayerCallbacks?: RelayerCallbacks;
 
@@ -207,14 +199,24 @@ export interface ChainConfig extends BaseConfig {
  *     chain: moksha,
  *     transport: http()
  *   }),
- *   relayerUrl: 'https://relayer.vana.org'
+ *   relayerCallbacks: {
+ *     submitPermissionGrant: async (typedData, signature) => {
+ *       // Custom relay implementation
+ *       return await myRelayer.submit(typedData, signature);
+ *     }
+ *   }
  * };
  *
  * // Using ChainConfig with chain ID and account
  * const config: VanaConfig = {
  *   chainId: 14800,
  *   account: privateKeyToAccount('0x...'),
- *   relayerUrl: 'https://relayer.vana.org'
+ *   relayerCallbacks: {
+ *     submitPermissionGrant: async (typedData, signature) => {
+ *       // Custom relay implementation
+ *       return await myRelayer.submit(typedData, signature);
+ *     }
+ *   }
  * };
  * ```
  */
@@ -228,12 +230,12 @@ export interface RuntimeConfig {
   chainId: VanaChainId;
   /** Current chain name */
   chainName: string;
-  /** Relayer URL if configured */
-  relayerUrl?: string;
   /** Available storage providers */
   storageProviders: string[];
   /** Default storage provider */
   defaultStorageProvider?: string;
+  /** Current relayer callbacks configuration */
+  relayerCallbacks?: RelayerCallbacks;
 }
 
 /**

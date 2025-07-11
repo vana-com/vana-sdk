@@ -734,11 +734,13 @@ describe("Permission Types", () => {
       };
 
       expect(complexParams.parameters.algorithm).toBe("neural_network");
-      expect(complexParams.parameters.hyperparameters.epochs).toBe(100);
+      expect((complexParams.parameters as any).hyperparameters.epochs).toBe(
+        100,
+      );
       expect(
-        Array.isArray(complexParams.parameters.hyperparameters.layers),
+        Array.isArray((complexParams.parameters as any).hyperparameters.layers),
       ).toBe(true);
-      expect(complexParams.parameters.metadata.version).toBe("1.0.0");
+      expect((complexParams.parameters as any).metadata.version).toBe("1.0.0");
     });
 
     it("should validate address and hash formats", () => {

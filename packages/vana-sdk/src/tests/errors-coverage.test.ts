@@ -115,7 +115,7 @@ describe("Error Classes Coverage", () => {
         "test user rejected",
       );
       const configError = new InvalidConfigurationError("test config");
-      const contractError = new ContractNotFoundError("test contract");
+      const contractError = new ContractNotFoundError("test contract", 14800);
       const blockchainError = new BlockchainError("test blockchain");
       const serializationError = new SerializationError("test serialization");
       const signatureError = new SignatureError("test signature");
@@ -126,7 +126,11 @@ describe("Error Classes Coverage", () => {
       );
       const urlMismatchError = new ServerUrlMismatchError("url1", "url2", "id");
       const permissionError = new PermissionError("test permission");
-      const storageError = new StorageError("test storage", "STORAGE_FAILED");
+      const storageError = new StorageError(
+        "test storage",
+        "STORAGE_FAILED",
+        "test-provider",
+      );
 
       expect(relayerError).toBeInstanceOf(VanaError);
       expect(userRejectedError).toBeInstanceOf(VanaError);
@@ -147,7 +151,11 @@ describe("Error Classes Coverage", () => {
       const relayerError = new RelayerError("test");
       const networkError = new NetworkError("test");
       const urlMismatchError = new ServerUrlMismatchError("url1", "url2", "id");
-      const storageError = new StorageError("test storage", "STORAGE_FAILED");
+      const storageError = new StorageError(
+        "test storage",
+        "STORAGE_FAILED",
+        "test-provider",
+      );
 
       expect(relayerError).toBeInstanceOf(Error);
       expect(networkError).toBeInstanceOf(Error);

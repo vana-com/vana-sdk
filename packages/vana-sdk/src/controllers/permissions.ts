@@ -5,7 +5,6 @@ import {
   RevokePermissionParams,
   PermissionGrantTypedData,
   GenericTypedData,
-  RelayerTransactionResponse,
   GrantedPermission,
   TrustServerParams,
   UntrustServerParams,
@@ -14,8 +13,8 @@ import {
   TrustServerTypedData,
   UntrustServerTypedData,
   Server,
-  PermissionInfo,
 } from "../types/index";
+import { PermissionInfo } from "../types/permissions";
 import type { RelayerCallbacks } from "../types/config";
 import {
   RelayerError,
@@ -32,7 +31,6 @@ import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../abi";
 import {
   createGrantFile,
-  storeGrantFile,
   getGrantFileHash,
   retrieveGrantFile,
 } from "../utils/grantFiles";
@@ -53,7 +51,11 @@ import { StorageManager } from "../storage";
  * const vana = new Vana({
  *   account: privateKeyToAccount('0x...'), // Creates walletClient
  *   network: 'moksha', // Creates publicClient for network
- *   relayerUrl: 'https://relayer.vana.org', // Optional gasless transactions
+ *   relayerCallbacks: { // Optional gasless transactions
+ *     submitPermissionGrant: async (typedData, signature) => {
+ *       return await myRelayer.submit(typedData, signature);
+ *     }
+ *   },
  *   storage: { // Optional custom storage
  *     defaultProvider: 'ipfs',
  *     providers: { ipfs: new IPFSStorage() }
@@ -68,15 +70,8 @@ export interface ControllerContext {
   publicClient: PublicClient;
   /** Optional separate wallet for application-specific operations */
   applicationClient?: WalletClient;
-  // TODO: Remove relayerUrl and relayerCallbacks
-  /**
-   * Optional relayer service URL for gasless transactions.
-   * If both relayerUrl and relayerCallbacks are provided, relayerCallbacks takes precedence.
-   */
-  relayerUrl?: string;
   /**
    * Optional relayer callback functions for handling gasless transactions.
-   * Takes precedence over relayerUrl if both are provided.
    */
   relayerCallbacks?: RelayerCallbacks;
   /** Optional storage manager for file upload/download operations */
@@ -157,18 +152,15 @@ export class PermissionsController {
       if (!grantUrl) {
         if (
           !this.context.relayerCallbacks?.storeGrantFile &&
-          !this.context.relayerUrl &&
           !this.context.storageManager
         ) {
           throw new Error(
-            "No storage available. Provide a grantUrl, configure relayerCallbacks.storeGrantFile, relayerUrl, or storageManager.",
+            "No storage available. Provide a grantUrl, configure relayerCallbacks.storeGrantFile, or storageManager.",
           );
         }
         if (this.context.relayerCallbacks?.storeGrantFile) {
           grantUrl =
             await this.context.relayerCallbacks.storeGrantFile(grantFile);
-        } else if (this.context.relayerUrl) {
-          grantUrl = await storeGrantFile(grantFile, this.context.relayerUrl);
         } else if (this.context.storageManager) {
           // Store using local storage manager if available
           const blob = new Blob([JSON.stringify(grantFile)], {
@@ -255,14 +247,12 @@ export class PermissionsController {
         ),
       );
 
-      // Use relayer callbacks first, then fallback to relayerUrl, otherwise direct transaction
+      // Use relayer callbacks or direct transaction
       if (this.context.relayerCallbacks?.submitPermissionGrant) {
         return await this.context.relayerCallbacks.submitPermissionGrant(
           typedData,
           signature,
         );
-      } else if (this.context.relayerUrl) {
-        return await this.relaySignedTransaction(typedData, signature);
       } else {
         return await this.submitDirectTransaction(typedData, signature);
       }
@@ -358,14 +348,12 @@ export class PermissionsController {
     signature: Hash,
   ): Promise<Hash> {
     try {
-      // Use relayer callbacks first, then fallback to relayerUrl, otherwise direct transaction
+      // Use relayer callbacks or direct transaction
       if (this.context.relayerCallbacks?.submitPermissionRevoke) {
         return await this.context.relayerCallbacks.submitPermissionRevoke(
           typedData,
           signature,
         );
-      } else if (this.context.relayerUrl) {
-        return await this.relaySignedRevoke(typedData, signature);
       } else {
         return await this.submitDirectRevokeTransaction(typedData, signature);
       }
@@ -399,14 +387,12 @@ export class PermissionsController {
     signature: Hash,
   ): Promise<Hash> {
     try {
-      // Use relayer callbacks first, then fallback to relayerUrl, otherwise direct transaction
+      // Use relayer callbacks or direct transaction
       if (this.context.relayerCallbacks?.submitUntrustServer) {
         return await this.context.relayerCallbacks.submitUntrustServer(
           typedData as unknown as UntrustServerTypedData,
           signature,
         );
-      } else if (this.context.relayerUrl) {
-        return await this.relaySignedUntrustServer(typedData, signature);
       } else {
         return await this.submitDirectUntrustTransaction(typedData);
       }
@@ -471,62 +457,6 @@ export class PermissionsController {
     });
 
     return txHash;
-  }
-
-  /**
-   * Submits a signed transaction via the relayer service.
-   */
-  private async relaySignedTransaction(
-    typedData: PermissionGrantTypedData,
-    signature: Hash,
-  ): Promise<Hash> {
-    try {
-      const relayerUrl = this.context.relayerUrl;
-      if (!relayerUrl) {
-        throw new RelayerError("Relayer URL is not configured", 500);
-      }
-
-      const response = await fetch(`${relayerUrl}/api/relay`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          typedData: {
-            ...typedData,
-            message: {
-              ...typedData.message,
-              nonce: Number(typedData.message.nonce),
-            },
-          },
-          signature,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new RelayerError(
-          `Failed to relay transaction: ${response.statusText}`,
-          response.status,
-          await response.text(),
-        );
-      }
-
-      const data: RelayerTransactionResponse = await response.json();
-
-      if (!data.success) {
-        throw new RelayerError(data.error || "Failed to relay transaction");
-      }
-
-      return data.transactionHash;
-    } catch (error) {
-      if (error instanceof RelayerError) {
-        throw error;
-      }
-      throw new NetworkError(
-        `Network error while relaying transaction: ${error instanceof Error ? error.message : "Unknown error"}`,
-        error as Error,
-      );
-    }
   }
 
   /**
@@ -619,9 +549,12 @@ export class PermissionsController {
 
       const signature = await this.signTypedData(typedData);
 
-      // Submit either via relayer or directly
-      if (this.context.relayerUrl) {
-        return await this.relayRevokeTransaction(typedData, signature);
+      // Submit via relayer callbacks or directly
+      if (this.context.relayerCallbacks?.submitPermissionRevoke) {
+        return await this.context.relayerCallbacks.submitPermissionRevoke(
+          typedData,
+          signature,
+        );
       } else {
         return await this.submitDirectRevokeTransaction(typedData, signature);
       }
@@ -695,6 +628,7 @@ export class PermissionsController {
         grant: params.grantUrl,
         fileIds: params.files.map((fileId) => BigInt(fileId)),
       },
+      files: params.files,
     };
   }
 
@@ -709,7 +643,7 @@ export class PermissionsController {
     );
 
     return {
-      name: "VanaDataWallet",
+      name: "DataPermissions",
       version: "1",
       chainId,
       verifyingContract: DataPermissionsAddress,
@@ -735,52 +669,6 @@ export class PermissionsController {
       }
       throw new SignatureError(
         `Failed to sign typed data: ${error instanceof Error ? error.message : "Unknown error"}`,
-        error as Error,
-      );
-    }
-  }
-
-  /**
-   * Submits a request to the relayer service (generic method).
-   */
-  private async submitToRelayer(
-    endpoint: string,
-    payload: unknown,
-  ): Promise<RelayerTransactionResponse> {
-    try {
-      const relayerUrl = this.context.relayerUrl;
-      if (!relayerUrl) {
-        throw new RelayerError("Relayer URL is not configured", 500);
-      }
-      const response = await fetch(`${relayerUrl}/api/v1/${endpoint}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        throw new RelayerError(
-          `Failed to submit to relayer: ${response.statusText}`,
-          response.status,
-          await response.text(),
-        );
-      }
-
-      const data: RelayerTransactionResponse = await response.json();
-
-      if (!data.success) {
-        throw new RelayerError(data.error || "Failed to submit to relayer");
-      }
-
-      return data;
-    } catch (error) {
-      if (error instanceof RelayerError) {
-        throw error;
-      }
-      throw new NetworkError(
-        `Network error while submitting to relayer: ${error instanceof Error ? error.message : "Unknown error"}`,
         error as Error,
       );
     }
@@ -1161,14 +1049,12 @@ export class PermissionsController {
         typedData as unknown as GenericTypedData,
       );
 
-      // Submit via relayer callbacks, relayer URL, or direct transaction
+      // Submit via relayer callbacks or direct transaction
       if (this.context.relayerCallbacks?.submitTrustServer) {
         return await this.context.relayerCallbacks.submitTrustServer(
           typedData,
           signature,
         );
-      } else if (this.context.relayerUrl) {
-        return await this.relayTrustServerTransaction(typedData, signature);
       } else {
         return await this.submitTrustServerTransaction(
           trustServerInput,
@@ -1260,14 +1146,12 @@ export class PermissionsController {
         typedData as unknown as GenericTypedData,
       );
 
-      // Submit via relayer callbacks, relayer URL, or direct transaction
+      // Submit via relayer callbacks or direct transaction
       if (this.context.relayerCallbacks?.submitUntrustServer) {
         return await this.context.relayerCallbacks.submitUntrustServer(
           typedData,
           signature,
         );
-      } else if (this.context.relayerUrl) {
-        return await this.relayUntrustServerTransaction(typedData, signature);
       } else {
         return await this.submitUntrustServerTransaction(
           untrustServerInput,
@@ -1470,212 +1354,6 @@ export class PermissionsController {
   }
 
   /**
-   * Relays a trust server transaction via the relayer service.
-   */
-  private async relayTrustServerTransaction(
-    typedData: TrustServerTypedData,
-    signature: Hash,
-  ): Promise<Hash> {
-    try {
-      const relayerUrl = this.context.relayerUrl;
-      if (!relayerUrl) {
-        throw new RelayerError("Relayer URL is not configured", 500);
-      }
-
-      const response = await fetch(`${relayerUrl}/api/relay`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          typedData: {
-            ...typedData,
-            message: {
-              ...typedData.message,
-              nonce: Number(typedData.message.nonce),
-            },
-          },
-          signature,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new RelayerError(
-          `Failed to relay transaction: ${response.statusText}`,
-          response.status,
-          await response.text(),
-        );
-      }
-
-      const data: RelayerTransactionResponse = await response.json();
-
-      if (!data.success) {
-        throw new RelayerError(data.error || "Failed to relay transaction");
-      }
-
-      return data.transactionHash;
-    } catch (error) {
-      if (error instanceof RelayerError) {
-        throw error;
-      }
-      throw new NetworkError(
-        `Network error while relaying transaction: ${error instanceof Error ? error.message : "Unknown error"}`,
-        error as Error,
-      );
-    }
-  }
-
-  /**
-   * Relays an untrust server transaction via the relayer service.
-   */
-  private async relayUntrustServerTransaction(
-    typedData: UntrustServerTypedData,
-    signature: Hash,
-  ): Promise<Hash> {
-    try {
-      const relayerUrl = this.context.relayerUrl;
-      if (!relayerUrl) {
-        throw new RelayerError("Relayer URL is not configured", 500);
-      }
-
-      const response = await fetch(`${relayerUrl}/api/relay`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          typedData: {
-            ...typedData,
-            message: {
-              ...typedData.message,
-              nonce: Number(typedData.message.nonce),
-            },
-          },
-          signature,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new RelayerError(
-          `Failed to relay transaction: ${response.statusText}`,
-          response.status,
-          await response.text(),
-        );
-      }
-
-      const data: RelayerTransactionResponse = await response.json();
-
-      if (!data.success) {
-        throw new RelayerError(data.error || "Failed to relay transaction");
-      }
-
-      return data.transactionHash;
-    } catch (error) {
-      if (error instanceof RelayerError) {
-        throw error;
-      }
-      throw new NetworkError(
-        `Network error while relaying transaction: ${error instanceof Error ? error.message : "Unknown error"}`,
-        error as Error,
-      );
-    }
-  }
-
-  /**
-   * Relays a signed revoke transaction via the relayer service.
-   */
-  private async relaySignedRevoke(
-    typedData: GenericTypedData,
-    signature: Hash,
-  ): Promise<Hash> {
-    try {
-      const relayerUrl = this.context.relayerUrl;
-      if (!relayerUrl) {
-        throw new RelayerError("No relayer URL configured");
-      }
-
-      const response = await fetch(`${relayerUrl}/relay`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ typedData, signature }),
-      });
-
-      if (!response.ok) {
-        throw new RelayerError(
-          `Failed to relay revoke transaction: ${response.statusText}`,
-          response.status,
-          await response.text(),
-        );
-      }
-
-      const data: RelayerTransactionResponse = await response.json();
-
-      if (!data.success) {
-        throw new RelayerError(
-          data.error || "Failed to relay revoke transaction",
-        );
-      }
-
-      return data.transactionHash;
-    } catch (error) {
-      if (error instanceof RelayerError) {
-        throw error;
-      }
-      throw new NetworkError(
-        `Network error while relaying revoke transaction: ${error instanceof Error ? error.message : "Unknown error"}`,
-        error as Error,
-      );
-    }
-  }
-
-  /**
-   * Relays a signed untrust server transaction via the relayer service.
-   */
-  private async relaySignedUntrustServer(
-    typedData: GenericTypedData,
-    signature: Hash,
-  ): Promise<Hash> {
-    try {
-      const relayerUrl = this.context.relayerUrl;
-      if (!relayerUrl) {
-        throw new RelayerError("No relayer URL configured");
-      }
-
-      const response = await fetch(`${relayerUrl}/relay`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ typedData, signature }),
-      });
-
-      if (!response.ok) {
-        throw new RelayerError(
-          `Failed to relay untrust server transaction: ${response.statusText}`,
-          response.status,
-          await response.text(),
-        );
-      }
-
-      const data: RelayerTransactionResponse = await response.json();
-
-      if (!data.success) {
-        throw new RelayerError(
-          data.error || "Failed to relay untrust server transaction",
-        );
-      }
-
-      return data.transactionHash;
-    } catch (error) {
-      if (error instanceof RelayerError) {
-        throw error;
-      }
-      throw new NetworkError(
-        `Network error while relaying untrust server transaction: ${error instanceof Error ? error.message : "Unknown error"}`,
-        error as Error,
-      );
-    }
-  }
-
-  /**
    * Submits a revoke transaction directly to the blockchain with signature.
    */
   private async submitDirectRevokeTransaction(
@@ -1701,65 +1379,6 @@ export class PermissionsController {
     });
 
     return txHash;
-  }
-
-  /**
-   * Submits a revoke transaction via the relayer service.
-   */
-  private async relayRevokeTransaction(
-    typedData: GenericTypedData,
-    signature: Hash,
-  ): Promise<Hash> {
-    try {
-      const relayerUrl = this.context.relayerUrl;
-      if (!relayerUrl) {
-        throw new RelayerError("Relayer URL is not configured", 500);
-      }
-
-      const response = await fetch(`${relayerUrl}/api/relay/revoke`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          typedData: {
-            ...typedData,
-            message: {
-              ...typedData.message,
-              nonce: Number(typedData.message.nonce),
-              permissionId: Number(typedData.message.permissionId),
-            },
-          },
-          signature,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new RelayerError(
-          `Failed to relay revoke transaction: ${response.statusText}`,
-          response.status,
-          await response.text(),
-        );
-      }
-
-      const data: RelayerTransactionResponse = await response.json();
-
-      if (!data.success) {
-        throw new RelayerError(
-          data.error || "Failed to relay revoke transaction",
-        );
-      }
-
-      return data.transactionHash;
-    } catch (error) {
-      if (error instanceof RelayerError) {
-        throw error;
-      }
-      throw new NetworkError(
-        `Network error while relaying revoke transaction: ${error instanceof Error ? error.message : "Unknown error"}`,
-        error as Error,
-      );
-    }
   }
 
   /**

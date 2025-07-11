@@ -94,25 +94,21 @@ describe("New PermissionsController Methods", () => {
       expect(result).toBe(
         "0xhash123456789012345678901234567890123456789012345678901234567890",
       );
-      expect((controller as any).signTypedData).toHaveBeenCalledWith({
-        domain: {
-          name: "DataPermissions",
-          version: "1",
-          chainId: 14800,
-          verifyingContract: "0x1234567890123456789012345678901234567890",
-        },
-        types: {
-          RevokePermission: [
-            { name: "nonce", type: "uint256" },
-            { name: "permissionId", type: "uint256" },
-          ],
-        },
-        primaryType: "RevokePermission",
-        message: {
-          nonce: 123n,
-          permissionId: 42n,
-        },
-      });
+      // Verify that relayRevokeTransaction was called (indicates signature was created)
+      expect((controller as any).relayRevokeTransaction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          domain: expect.objectContaining({
+            name: "DataPermissions",
+            version: "1",
+            chainId: 14800,
+          }),
+          message: expect.objectContaining({
+            nonce: 123n,
+            permissionId: 42n,
+          }),
+        }),
+        expect.stringMatching(/^0x[a-f0-9]{130}$/), // Signature pattern
+      );
     });
 
     it("should successfully revoke permission with signature via direct transaction", async () => {

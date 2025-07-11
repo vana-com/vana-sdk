@@ -34,7 +34,6 @@ describe("Grant Files Utils", () => {
       expect(grantFile).toEqual({
         grantee: params.to,
         operation: params.operation,
-        files: params.files,
         parameters: params.parameters,
       });
     });

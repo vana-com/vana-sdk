@@ -211,18 +211,7 @@ export function validateGrantFile(data: unknown): data is GrantFile {
     return false;
   }
 
-  if (!Array.isArray(obj.files)) {
-    return false;
-  }
-
-  // Validate file IDs are non-negative integers
-  if (
-    !obj.files.every(
-      (id) => typeof id === "number" && id >= 0 && Number.isInteger(id),
-    )
-  ) {
-    return false;
-  }
+  // Files are no longer stored in grant files - they're tracked in the contract
 
   if (!obj.parameters || typeof obj.parameters !== "object") {
     return false;

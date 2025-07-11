@@ -74,15 +74,18 @@ describe("External APIs Types", () => {
       const output: PersonalServerOutput = {
         user_address: "0x1234567890123456789012345678901234567890",
         identity: {
-          name: "Test User",
-          verified: true,
+          metadata: { name: "Test User", verified: true },
+          derivedAddress: "0x9876543210987654321098765432109876543210",
         },
       };
 
       expect(output.user_address).toBe(
         "0x1234567890123456789012345678901234567890",
       );
-      expect(output.identity.name).toBe("Test User");
+      expect(output.identity.metadata?.name).toBe("Test User");
+      expect(output.identity.derivedAddress).toBe(
+        "0x9876543210987654321098765432109876543210",
+      );
     });
 
     it("should structure APIResponse correctly", () => {
@@ -263,8 +266,7 @@ describe("External APIs Types", () => {
       const validOutput = {
         user_address: "0x1234567890123456789012345678901234567890",
         identity: {
-          name: "Test User",
-          verified: true,
+          metadata: { name: "Test User", verified: true },
         },
       };
 
@@ -283,7 +285,7 @@ describe("External APIs Types", () => {
 
     it("should return false when user_address is missing", () => {
       const invalidOutput = {
-        identity: { name: "Test User" },
+        identity: { metadata: { name: "Test User" } },
       };
 
       expect(isPersonalServerOutput(invalidOutput)).toBe(false);
@@ -300,7 +302,7 @@ describe("External APIs Types", () => {
     it("should return false when user_address is not a string", () => {
       const invalidOutput = {
         user_address: 123,
-        identity: { name: "Test User" },
+        identity: { metadata: { name: "Test User" } },
       };
 
       expect(isPersonalServerOutput(invalidOutput)).toBe(false);

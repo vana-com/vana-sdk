@@ -69,6 +69,7 @@ describe("Contract Types", () => {
           type: "function" as const,
           inputs: [],
           outputs: [],
+          stateMutability: "view" as const,
         },
       ] as const;
 

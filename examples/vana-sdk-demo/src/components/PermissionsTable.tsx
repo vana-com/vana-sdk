@@ -12,8 +12,11 @@ import {
   Spinner,
 } from "@heroui/react";
 import { GrantedPermission, convertIpfsUrl } from "vana-sdk";
-import { Shield, ExternalLink, Eye } from "lucide-react";
+import { Shield, ExternalLink, Eye, RefreshCw } from "lucide-react";
 import { PermissionDisplay } from "./ui/PermissionDisplay";
+import { CopyButton } from "./ui/CopyButton";
+import { FileIdDisplay } from "./ui/FileIdDisplay";
+import { useChainId } from "wagmi";
 
 interface PermissionsTableProps {
   /**
@@ -49,6 +52,7 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
   isRevoking,
   onRefresh,
 }) => {
+  const chainId = useChainId();
   const handleRevoke = (permission: GrantedPermission) => {
     onRevoke(permission.id.toString());
   };
@@ -118,18 +122,27 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <div>
-          <h4 className="text-lg font-semibold">Permissions Management</h4>
-          <p className="text-small text-default-500">
-            {userPermissions.length} permission
-            {userPermissions.length !== 1 ? "s" : ""} granted
-          </p>
+        <div className="flex items-center gap-2">
+          <Shield className="h-5 w-5 text-primary" />
+          <div>
+            <h4 className="text-lg font-semibold">Permissions Management</h4>
+            <p className="text-small text-default-500">
+              {userPermissions.length} permission
+              {userPermissions.length !== 1 ? "s" : ""} granted
+            </p>
+          </div>
         </div>
         <Button
           onPress={onRefresh}
           variant="bordered"
           size="sm"
-          startContent={isLoading ? <Spinner size="sm" /> : undefined}
+          startContent={
+            isLoading ? (
+              <Spinner size="sm" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )
+          }
           isDisabled={isLoading}
         >
           Refresh
@@ -151,14 +164,22 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
             </TableColumn>
           )}
         </TableHeader>
-        <TableBody items={userPermissions}>
-          {(permission) => (
+        <TableBody>
+          {userPermissions.map((permission) => (
             <TableRow key={permission.id.toString()}>
               <TableCell>
-                <PermissionDisplay
-                  permissionId={permission.id}
-                  className="inline-flex"
-                />
+                <div className="flex items-center gap-2">
+                  <PermissionDisplay
+                    permissionId={permission.id}
+                    className="inline-flex"
+                  />
+                  <CopyButton
+                    value={permission.id.toString()}
+                    tooltip="Copy permission ID"
+                    isInline
+                    size="sm"
+                  />
+                </div>
               </TableCell>
 
               <TableCell>
@@ -174,9 +195,23 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
                     {permission.files.length !== 1 ? "s" : ""}
                   </span>
                   {permission.files.length > 0 && (
-                    <span className="text-tiny text-default-400">
-                      IDs: {permission.files.join(", ")}
-                    </span>
+                    <div className="flex flex-wrap gap-1 max-w-48">
+                      {permission.files.slice(0, 3).map((fileId) => (
+                        <FileIdDisplay
+                          key={fileId}
+                          fileId={fileId}
+                          chainId={chainId}
+                          showCopy={false}
+                          showExternalLink={true}
+                          className="text-tiny"
+                        />
+                      ))}
+                      {permission.files.length > 3 && (
+                        <span className="text-tiny text-default-400">
+                          +{permission.files.length - 3} more
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
               </TableCell>
@@ -192,9 +227,9 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
                       rel="noopener noreferrer"
                       size="sm"
                       variant="flat"
-                      startContent={<ExternalLink className="h-3 w-3" />}
+                      isIconOnly
                     >
-                      Grant File
+                      <ExternalLink className="h-3 w-3" />
                     </Button>
                   </Tooltip>
                 </div>
@@ -213,7 +248,7 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
                 </Button>
               </TableCell>
             </TableRow>
-          )}
+          ))}
         </TableBody>
       </Table>
     </div>

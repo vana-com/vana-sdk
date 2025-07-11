@@ -143,21 +143,21 @@ export interface GrantValidationResult {
 
 /**
  * Validates a grant file with comprehensive schema and business rule checking.
- * 
+ *
  * This function provides flexible validation with TypeScript overloads:
  * - When `throwOnError` is false (or `{ throwOnError: false }`), returns a detailed validation result
  * - When `throwOnError` is true (default), throws specific errors or returns the validated grant
- * 
+ *
  * @param data - The grant file data to validate (unknown type for safety)
  * @param options - Validation options including grantee, operation, files, etc.
  * @returns Either a GrantFile (when throwing) or GrantValidationResult (when not throwing)
- * 
+ *
  * @throws {GrantSchemaError} When the grant file structure is invalid
  * @throws {GrantExpiredError} When the grant has expired
  * @throws {GranteeMismatchError} When the grantee doesn't match the requesting address
  * @throws {OperationNotAllowedError} When the requested operation is not allowed
  * @throws {FileAccessDeniedError} When access to requested files is denied
- * 
+ *
  * @example
  * ```typescript
  * // Throwing mode (default) - returns GrantFile or throws
@@ -166,7 +166,7 @@ export interface GrantValidationResult {
  *   operation: 'llm_inference',
  *   files: [1, 2, 3]
  * });
- * 
+ *
  * // Non-throwing mode - returns validation result
  * const result = validateGrant(data, {
  *   grantee: '0x123...',
@@ -212,7 +212,11 @@ export function validateGrant(
   // 1. Schema Validation
   if (schema) {
     try {
-      grant = validateGrantFileAgainstSchema(data);
+      if (validateGrantFileSchema(data)) {
+        grant = data as GrantFile;
+      } else {
+        throw new GrantValidationError("Invalid grant file schema");
+      }
     } catch (error) {
       if (error instanceof GrantValidationError) {
         const schemaError = new GrantSchemaError(
@@ -349,16 +353,6 @@ function extractFieldFromBusinessError(error: unknown): string | undefined {
 }
 
 /**
- * @deprecated Use validateGrant() instead
- * Validates that a grant file has the correct structure and content
- */
-export function validateGrantFileStructure(
-  data: unknown,
-): asserts data is GrantFile {
-  validateGrant(data);
-}
-
-/**
  * Validates that a grant file allows access for a specific grantee
  */
 export function validateGranteeAccess(
@@ -430,47 +424,4 @@ export function validateOperationAccess(
       requestedOperation,
     );
   }
-}
-
-/**
- * @deprecated Use validateGrant() instead
- * Comprehensive validation of a grant file for a specific request
- */
-export function validateGrantForRequest(
-  grantFile: GrantFile,
-  requestingAddress: Address,
-  operation: string,
-  fileIds: number[],
-): void {
-  validateGrant(grantFile, {
-    grantee: requestingAddress,
-    operation,
-    files: fileIds,
-  });
-}
-
-/**
- * @deprecated Use validateGrant() instead
- * Validates grant file against JSON schema using ajv
- */
-export function validateGrantFileAgainstSchema(grantFile: unknown): GrantFile {
-  const isValid = validateGrantFileSchema(grantFile);
-
-  if (!isValid) {
-    const errors = validateGrantFileSchema.errors || [];
-    const errorMessages = errors
-      .map((err) => {
-        const path = err.instancePath || err.schemaPath;
-        return `${path}: ${err.message}`;
-      })
-      .join(", ");
-
-    throw new GrantSchemaError(
-      `Grant file schema validation failed: ${errorMessages}`,
-      errors,
-      grantFile,
-    );
-  }
-
-  return grantFile as GrantFile;
 }

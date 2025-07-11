@@ -1,15 +1,36 @@
 import React from "react";
-import { Input, Button, Spinner } from "@heroui/react";
-import { Database, Search } from "lucide-react";
-import { UserFile } from "vana-sdk";
+import {
+  Input,
+  Button,
+  Spinner,
+  Table,
+  TableHeader,
+  TableColumn,
+  TableBody,
+  TableRow,
+  TableCell,
+  Checkbox,
+  Chip,
+} from "@heroui/react";
+import {
+  Database,
+  Search,
+  ExternalLink,
+  Download,
+  RefreshCw,
+  Key,
+} from "lucide-react";
+import type { UserFile } from "vana-sdk/types/data";
 import { SectionHeader } from "./ui/SectionHeader";
 import { ActionButton } from "./ui/ActionButton";
-import { ResourceList } from "./ui/ResourceList";
-import { FileCard } from "./FileCard";
 import { EmptyState } from "./ui/EmptyState";
 import { StatusDisplay } from "./ui/StatusDisplay";
 import { StatusMessage } from "./ui/StatusMessage";
 import { ExplorerLink } from "./ui/ExplorerLink";
+import { CopyButton } from "./ui/CopyButton";
+import { FileIdDisplay } from "./ui/FileIdDisplay";
+import { AddressDisplay } from "./ui/AddressDisplay";
+import { ErrorMessage } from "./ui/ErrorMessage";
 
 interface YourDataCardProps {
   // File lookup
@@ -20,7 +41,9 @@ interface YourDataCardProps {
   fileLookupStatus: string;
 
   // User files
-  userFiles: UserFile[];
+  userFiles: (UserFile & {
+    source?: "discovered" | "looked-up" | "uploaded";
+  })[];
   isLoadingFiles: boolean;
   onRefreshFiles: () => void;
 
@@ -28,9 +51,15 @@ interface YourDataCardProps {
   selectedFiles: number[];
   decryptingFiles: Set<number>;
   decryptedFiles: Map<number, string>;
+  fileDecryptErrors: Map<number, string>;
   onFileSelection: (fileId: number, selected: boolean) => void;
-  onDecryptFile: (file: UserFile) => void;
-  onDownloadDecryptedFile: (file: UserFile) => void;
+  onDecryptFile: (
+    file: UserFile & { source?: "discovered" | "looked-up" | "uploaded" },
+  ) => void;
+  onDownloadDecryptedFile: (
+    file: UserFile & { source?: "discovered" | "looked-up" | "uploaded" },
+  ) => void;
+  onClearFileError: (fileId: number) => void;
 
   // Permission granting
   onGrantPermission: () => void;
@@ -39,7 +68,7 @@ interface YourDataCardProps {
   grantTxHash: string;
 
   // User info
-  userAddress: string | undefined;
+  _userAddress: string | undefined;
   chainId: number;
 }
 
@@ -59,14 +88,16 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
   selectedFiles,
   decryptingFiles,
   decryptedFiles,
+  fileDecryptErrors,
   onFileSelection,
   onDecryptFile,
   onDownloadDecryptedFile,
+  onClearFileError,
   onGrantPermission,
   isGranting,
   grantStatus,
   grantTxHash,
-  userAddress,
+  _userAddress,
   chainId,
 }) => {
   return (
@@ -94,6 +125,7 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
             onChange={(e) => onFileLookupIdChange(e.target.value)}
             className="w-32"
             size="sm"
+            description="Search for a specific file by its numeric ID"
           />
           <ActionButton
             onPress={onLookupFile}
@@ -107,40 +139,196 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
           </ActionButton>
         </div>
 
-        <ResourceList
-          title="Your Data Files"
-          description={`Manage your registered data files and grant permissions (${userFiles.length} files)`}
-          items={userFiles}
-          isLoading={isLoadingFiles}
-          onRefresh={onRefreshFiles}
-          renderItem={(file) => {
-            const isDecrypting = decryptingFiles.has(file.id);
-            const decryptedContent = decryptedFiles.get(file.id);
-            return (
-              <FileCard
-                key={file.id}
-                file={file}
-                isSelected={selectedFiles.includes(file.id)}
-                isDecrypted={!!decryptedContent}
-                decryptedContent={decryptedContent}
-                isDecrypting={isDecrypting}
-                userAddress={userAddress}
-                onSelect={() =>
-                  onFileSelection(file.id, !selectedFiles.includes(file.id))
-                }
-                onDecrypt={() => onDecryptFile(file)}
-                onDownloadDecrypted={() => onDownloadDecryptedFile(file)}
-              />
-            );
-          }}
-          emptyState={
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="text-xl font-semibold">Your Data Files</h3>
+              <p className="text-small text-default-500">
+                Manage your registered data files and grant permissions (
+                {userFiles.length} files)
+              </p>
+            </div>
+            <Button
+              onPress={onRefreshFiles}
+              variant="bordered"
+              size="sm"
+              startContent={
+                isLoadingFiles ? (
+                  <Spinner size="sm" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )
+              }
+              isDisabled={isLoadingFiles}
+            >
+              Refresh
+            </Button>
+          </div>
+
+          {isLoadingFiles ? (
+            <div className="flex justify-center items-center p-8">
+              <Spinner size="lg" />
+              <span className="ml-3">Loading files...</span>
+            </div>
+          ) : userFiles.length === 0 ? (
             <EmptyState
               icon={<Database className="h-12 w-12" />}
               title="No data files found"
               description="Upload and encrypt files to get started"
             />
-          }
-        />
+          ) : (
+            <Table
+              aria-label="Data files table"
+              removeWrapper
+              classNames={{
+                th: "bg-default-100 text-default-700",
+                td: "py-4",
+              }}
+            >
+              <TableHeader>
+                <TableColumn>
+                  <Checkbox
+                    isSelected={
+                      selectedFiles.length === userFiles.length &&
+                      userFiles.length > 0
+                    }
+                    isIndeterminate={
+                      selectedFiles.length > 0 &&
+                      selectedFiles.length < userFiles.length
+                    }
+                    onValueChange={(selected) => {
+                      if (selected) {
+                        // Select all files
+                        userFiles.forEach((file) => {
+                          if (!selectedFiles.includes(file.id)) {
+                            onFileSelection(file.id, true);
+                          }
+                        });
+                      } else {
+                        // Deselect all files
+                        selectedFiles.forEach((fileId) => {
+                          onFileSelection(fileId, false);
+                        });
+                      }
+                    }}
+                  />
+                </TableColumn>
+                <TableColumn>File ID</TableColumn>
+                <TableColumn>Owner</TableColumn>
+                <TableColumn>URL</TableColumn>
+                <TableColumn>Source</TableColumn>
+                <TableColumn>Actions</TableColumn>
+              </TableHeader>
+              <TableBody>
+                {userFiles.map((file) => {
+                  const isDecrypting = decryptingFiles.has(file.id);
+                  const decryptedContent = decryptedFiles.get(file.id);
+                  const isSelected = selectedFiles.includes(file.id);
+
+                  return (
+                    <TableRow key={file.id}>
+                      <TableCell>
+                        <Checkbox
+                          isSelected={isSelected}
+                          onValueChange={(selected) =>
+                            onFileSelection(file.id, selected)
+                          }
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <FileIdDisplay
+                          fileId={file.id}
+                          chainId={chainId}
+                          showCopy={true}
+                          showExternalLink={true}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <AddressDisplay
+                          address={file.ownerAddress}
+                          truncate={true}
+                          showCopy={true}
+                          showExternalLink={false}
+                          className="max-w-32"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            as="a"
+                            href={file.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            size="sm"
+                            variant="flat"
+                            isIconOnly
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                          </Button>
+                          <CopyButton
+                            value={file.url}
+                            tooltip="Copy file URL"
+                            isInline
+                          />
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {file.source && (
+                          <Chip
+                            size="sm"
+                            color={
+                              file.source === "uploaded" ? "success" : "default"
+                            }
+                            variant="flat"
+                          >
+                            {file.source}
+                          </Chip>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="flat"
+                            onPress={() => onDecryptFile(file)}
+                            isLoading={isDecrypting}
+                            isDisabled={isDecrypting}
+                            startContent={
+                              !isDecrypting ? (
+                                <Key className="h-3 w-3" />
+                              ) : undefined
+                            }
+                          >
+                            {isDecrypting ? "Decrypting..." : "Decrypt"}
+                          </Button>
+                          {decryptedContent && (
+                            <Button
+                              size="sm"
+                              variant="flat"
+                              onPress={() => onDownloadDecryptedFile(file)}
+                              startContent={<Download className="h-3 w-3" />}
+                            >
+                              Download
+                            </Button>
+                          )}
+                        </div>
+                        {fileDecryptErrors.has(file.id) && (
+                          <div className="mt-2">
+                            <ErrorMessage
+                              error={fileDecryptErrors.get(file.id) || null}
+                              onDismiss={() => onClearFileError(file.id)}
+                              className="text-xs"
+                            />
+                          </div>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </div>
 
         {userFiles.length > 0 && (
           <div className="mt-4 p-3 bg-primary/10 rounded">
@@ -158,19 +346,28 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
 
         {/* Grant Permission Section */}
         {selectedFiles.length > 0 && (
-          <div className="mt-6 p-4 bg-green-50/50 rounded">
-            <h3 className="font-medium mb-3 text-green-700">
-              Grant Permission ({selectedFiles.length} file
-              {selectedFiles.length !== 1 ? "s" : ""} selected)
-            </h3>
-            <Button
-              onPress={onGrantPermission}
-              disabled={selectedFiles.length === 0 || isGranting}
-              className="mb-4"
-            >
-              {isGranting && <Spinner size="sm" className="mr-2" />}
-              Grant Permission to Selected Files
-            </Button>
+          <div className="mt-6 border-t pt-4">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h4 className="font-semibold text-default-900">
+                  Grant Permissions
+                </h4>
+                <p className="text-sm text-default-500">
+                  {selectedFiles.length} file
+                  {selectedFiles.length !== 1 ? "s" : ""} selected for
+                  permission granting
+                </p>
+              </div>
+              <Button
+                onPress={onGrantPermission}
+                disabled={selectedFiles.length === 0 || isGranting}
+                color="primary"
+                size="md"
+              >
+                {isGranting && <Spinner size="sm" className="mr-2" />}
+                Grant Permissions
+              </Button>
+            </div>
 
             {grantStatus && (
               <StatusMessage

@@ -1,0 +1,53 @@
+{
+  "$id": "https://vana.org/data-schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Data Contract",
+  "description": "Meta‑schema that validates a data contract object containing a dataset schema and related metadata.",
+  "type": "object",
+  "required": ["name", "version", "dialect", "schema"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Human‑readable name of the contract."
+    },
+    "version": {
+      "type": "string",
+      "description": "Semantic version of the contract's business logic (e.g. 1.1.0)."
+    },
+    "description": {
+      "type": "string",
+      "description": "Long‑form description of the dataset or API."
+    },
+    "dialect": {
+      "type": "string",
+      "description": "Primary language/format of the data schema.",
+      "enum": ["sqlite", "json"]
+    },
+    "dialectVersion": {
+      "type": "string",
+      "description": "Optional: The version of the dialect's engine or specification the schema targets (e.g., '3' for SQLite v3). Omit for self-describing dialects like json."
+    },
+    "schema": {
+      "description": "The actual schema definition. For 'sqlite', supply a DDL string; for 'json', embed a JSON Schema object."
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": { "dialect": { "const": "sqlite" } }
+      },
+      "then": {
+        "properties": { "schema": { "type": "string" } }
+      }
+    },
+    {
+      "if": {
+        "properties": { "dialect": { "const": "json" } }
+      },
+      "then": {
+        "properties": { "schema": { "type": "object" } }
+      }
+    }
+  ]
+}

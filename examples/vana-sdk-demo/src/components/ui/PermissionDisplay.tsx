@@ -1,5 +1,5 @@
 import { Button } from "@heroui/react";
-import { ExternalLink, Shield } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { getContractUrl } from "@/lib/explorer";
 import { useChainId } from "wagmi";
 
@@ -35,8 +35,7 @@ export function PermissionDisplay({
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>
-      <Shield className="h-4 w-4 text-muted-foreground" />
-      <span className="font-mono text-sm">#{permissionId.toString()}</span>
+      <span className="font-mono text-sm">{permissionId.toString()}</span>
       {showExternalLink && (
         <Button
           size="sm"

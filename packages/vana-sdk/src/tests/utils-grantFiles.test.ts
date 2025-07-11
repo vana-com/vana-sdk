@@ -6,7 +6,7 @@ import {
   getGrantFileHash,
   validateGrantFile,
 } from "../utils/grantFiles";
-import { validateGrantFileAgainstSchema, GrantValidationError } from "../utils/grantValidation";
+import { validateGrant, GrantValidationError } from "../utils/grantValidation";
 import { NetworkError, SerializationError } from "../errors";
 
 // Mock fetch globally
@@ -471,11 +471,11 @@ describe("Grant Files Utils", () => {
         operation: "llm_inference",
         files: [1, 2, 3],
         parameters: { prompt: "test" },
-        expires: 1736467579,
+        expires: Math.floor(Date.now() / 1000) + 3600, // 1 hour from now
       };
 
-      expect(() => validateGrantFileAgainstSchema(validGrantFile)).not.toThrow();
-      const result = validateGrantFileAgainstSchema(validGrantFile);
+      expect(() => validateGrant(validGrantFile)).not.toThrow();
+      const result = validateGrant(validGrantFile);
       expect(result).toEqual(validGrantFile);
     });
 
@@ -488,13 +488,15 @@ describe("Grant Files Utils", () => {
         expires: -100, // Negative timestamp
       };
 
-      expect(() => validateGrantFileAgainstSchema(invalidGrantFile)).toThrow(GrantValidationError);
-      
+      expect(() => validateGrant(invalidGrantFile)).toThrow(
+        GrantValidationError,
+      );
+
       try {
-        validateGrantFileAgainstSchema(invalidGrantFile);
+        validateGrant(invalidGrantFile);
       } catch (error) {
         const grantError = error as GrantValidationError;
-        expect(grantError.message).toContain("Grant file schema validation failed");
+        expect(grantError.message).toContain("Invalid grant file schema");
         expect(grantError.details?.errors).toBeDefined();
         expect(Array.isArray(grantError.details?.errors)).toBe(true);
       }
@@ -508,7 +510,9 @@ describe("Grant Files Utils", () => {
         parameters: { prompt: "test" },
       };
 
-      expect(() => validateGrantFileAgainstSchema(grantFileWithDuplicates)).toThrow(GrantValidationError);
+      expect(() => validateGrant(grantFileWithDuplicates)).toThrow(
+        GrantValidationError,
+      );
     });
 
     it("should reject additional properties", () => {
@@ -520,7 +524,9 @@ describe("Grant Files Utils", () => {
         unknownField: "should not be allowed", // Additional property
       };
 
-      expect(() => validateGrantFileAgainstSchema(grantFileWithExtra)).toThrow(GrantValidationError);
+      expect(() => validateGrant(grantFileWithExtra)).toThrow(
+        GrantValidationError,
+      );
     });
   });
 

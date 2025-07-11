@@ -18,6 +18,12 @@ export interface UserFile {
   ownerAddress: Address;
   /** Block number when the file was added to the registry */
   addedAtBlock: bigint;
+  /** The schema ID associated with this file, if any */
+  schemaId?: number;
+  /** The timestamp when the file was added */
+  addedAtTimestamp?: bigint;
+  /** The transaction hash of the file addition */
+  transactionHash?: Address;
   /** Optional file metadata */
   metadata?: FileMetadata;
 }

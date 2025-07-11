@@ -1,5 +1,5 @@
 import React from "react";
-import { Input, Button, Divider } from "@heroui/react";
+import { Input, Button } from "@heroui/react";
 import { Brain, Key, Lock, RotateCcw, Copy } from "lucide-react";
 import { SectionHeader } from "./ui/SectionHeader";
 import { ActionButton } from "./ui/ActionButton";
@@ -89,6 +89,7 @@ export const TrustedServerIntegrationCard: React.FC<
                 onChange={(e) => onServerFileIdChange(e.target.value)}
                 placeholder="Enter file ID (e.g., 123)"
                 type="number"
+                description="The ID of the encrypted file to decrypt on the server"
               />
               <Input
                 label="Server Private Key"
@@ -96,6 +97,7 @@ export const TrustedServerIntegrationCard: React.FC<
                 onChange={(e) => onServerPrivateKeyChange(e.target.value)}
                 placeholder="Enter server private key (hex)"
                 type="password"
+                description="Hexadecimal private key for server-side decryption"
               />
             </div>
 
@@ -141,8 +143,8 @@ export const TrustedServerIntegrationCard: React.FC<
                   size="sm"
                   maxHeight="max-h-48"
                 />
-                <div className="p-3 bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 rounded-lg">
-                  <p className="text-green-600 text-sm">
+                <div className="p-3 bg-success/10 border border-success/20 rounded-lg">
+                  <p className="text-success-700 dark:text-success text-sm">
                     ✅ Successfully decrypted file using server's private key!
                   </p>
                 </div>
@@ -151,10 +153,8 @@ export const TrustedServerIntegrationCard: React.FC<
           </div>
         </div>
 
-        <Divider />
-
         {/* Trusted Server API Integration */}
-        <div className="space-y-4">
+        <div className="space-y-4 mt-12">
           <div className="flex items-center gap-2">
             <Brain className="h-4 w-4" />
             <span className="font-medium">Trusted Server API Integration</span>
@@ -167,6 +167,7 @@ export const TrustedServerIntegrationCard: React.FC<
               onChange={(e) => onPersonalPermissionIdChange(e.target.value)}
               placeholder="Enter permission ID (e.g., 123)"
               type="number"
+              description="The ID of a permission grant to use for server API access"
             />
           </div>
           <div className="flex gap-2">
@@ -176,7 +177,7 @@ export const TrustedServerIntegrationCard: React.FC<
               loading={isPersonalLoading}
               icon={<Brain className="h-4 w-4" />}
             >
-              Submit Request
+              Process with Trusted Server
             </ActionButton>
             {Boolean(
               personalResult &&

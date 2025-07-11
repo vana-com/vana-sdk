@@ -231,12 +231,16 @@ export class Vana {
     const chainConfig = getChainConfig(walletClient.chain.id);
     const subgraphUrl = config.subgraphUrl || chainConfig?.subgraphUrl;
 
+    // Use relayer callbacks if provided
+    const relayerCallbacks = config.relayerCallbacks;
+
     // Create shared context for all controllers
     const sharedContext: ControllerContext = {
       walletClient,
       publicClient,
       applicationClient: walletClient, // Using same wallet for now
       relayerUrl: config.relayerUrl,
+      relayerCallbacks,
       storageManager: this.storageManager,
       subgraphUrl,
     };

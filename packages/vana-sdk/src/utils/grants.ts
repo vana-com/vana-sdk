@@ -5,10 +5,7 @@ import {
   storeGrantFile,
   retrieveGrantFile,
 } from "./grantFiles";
-import {
-  validateGrantForRequest,
-  GrantValidationError,
-} from "./grantValidation";
+import { validateGrant, GrantValidationError } from "./grantValidation";
 
 /**
  * High-level utilities for working with grants in the Vana SDK
@@ -22,12 +19,12 @@ export function createValidatedGrant(params: GrantPermissionParams): GrantFile {
 
   // Validate the created grant file
   try {
-    validateGrantForRequest(
-      grantFile,
-      params.to,
-      params.operation,
-      params.files,
-    );
+    validateGrant(grantFile, {
+      schema: true,
+      grantee: params.to,
+      operation: params.operation,
+      files: params.files,
+    });
   } catch (error) {
     throw new GrantValidationError(
       `Created grant file failed validation: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -78,7 +75,12 @@ export async function checkGrantAccess(
     const grantFile = await retrieveAndValidateGrant(grantUrl, relayerUrl);
 
     // Validate the grant for the request
-    validateGrantForRequest(grantFile, requestingAddress, operation, fileIds);
+    validateGrant(grantFile, {
+      schema: true,
+      grantee: requestingAddress,
+      operation,
+      files: fileIds,
+    });
 
     return { allowed: true, grantFile };
   } catch (error) {

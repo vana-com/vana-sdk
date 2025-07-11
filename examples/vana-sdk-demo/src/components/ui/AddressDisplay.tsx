@@ -1,5 +1,6 @@
 import { Button } from "@heroui/react";
-import { Copy, ExternalLink } from "lucide-react";
+import { ExternalLink } from "lucide-react";
+import { CopyButton } from "./CopyButton";
 
 interface AddressDisplayProps {
   address: string;
@@ -9,6 +10,7 @@ interface AddressDisplayProps {
   showExternalLink?: boolean;
   truncate?: boolean;
   className?: string;
+  chainId?: number;
 }
 
 export function AddressDisplay({
@@ -19,18 +21,11 @@ export function AddressDisplay({
   showExternalLink = true,
   truncate = true,
   className = "",
+  chainId: _chainId,
 }: AddressDisplayProps) {
   const displayAddress = truncate
     ? `${address.slice(0, 6)}...${address.slice(-4)}`
     : address;
-
-  const copyToClipboard = async () => {
-    try {
-      await navigator.clipboard.writeText(address);
-    } catch (error) {
-      console.error("Failed to copy address:", error);
-    }
-  };
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>
@@ -39,14 +34,18 @@ export function AddressDisplay({
         {displayAddress}
       </span>
       {showCopy && (
-        <Button size="sm" variant="light" onPress={copyToClipboard} isIconOnly>
-          <Copy className="h-3 w-3" />
-        </Button>
+        <CopyButton
+          value={address}
+          isInline
+          size="sm"
+          variant="flat"
+          tooltip="Copy address"
+        />
       )}
       {showExternalLink && explorerUrl && (
         <Button
           size="sm"
-          variant="light"
+          variant="flat"
           isIconOnly
           as="a"
           href={explorerUrl}

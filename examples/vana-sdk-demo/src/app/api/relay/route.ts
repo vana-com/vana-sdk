@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { recoverTypedDataAddress } from "viem";
 import type { Hash } from "viem";
 import { createRelayerVana } from "@/lib/relayer";
+// Note: getContractAddress and getAbi removed as they're no longer needed
 import type {
   PermissionGrantTypedData,
   TrustServerTypedData,
@@ -67,9 +68,21 @@ export async function POST(request: NextRequest) {
         typedData as unknown as PermissionGrantTypedData,
         signature,
       );
+    } else if (typedData.primaryType === "PermissionRevoke") {
+      // Handle permission revoke using the permissions controller
+      txHash = await vana.permissions.submitSignedRevoke(
+        typedData as unknown as GenericTypedData,
+        signature,
+      );
     } else if (typedData.primaryType === "TrustServer") {
       txHash = await vana.permissions.submitSignedTrustServer(
         typedData as unknown as TrustServerTypedData,
+        signature,
+      );
+    } else if (typedData.primaryType === "UntrustServer") {
+      // Handle untrust server using the permissions controller
+      txHash = await vana.permissions.submitSignedUntrustServer(
+        typedData as unknown as GenericTypedData,
         signature,
       );
     } else {

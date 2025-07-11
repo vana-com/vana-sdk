@@ -5,10 +5,11 @@ import { CodeDisplay } from "./ui/CodeDisplay";
 
 interface GrantPreview {
   grantFile: {
+    grantee: string;
     operation: string;
     files: number[];
     parameters: unknown;
-    metadata?: unknown;
+    expires?: number;
   };
   grantUrl: string;
   params: unknown;
@@ -32,7 +33,19 @@ export const GrantPreviewModalContent: React.FC<
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      <div>
+        <IpfsAddressDisplay
+          ipfsUrl={grantPreview.grantUrl}
+          label="Grant File Location"
+          truncate={false}
+        />
+        <p className="text-sm text-muted-foreground mt-2">
+          Please review the grant details below. You can verify that the message
+          you sign matches this content by visiting the IPFS URL above.
+        </p>
+      </div>
+
       <div className="grid grid-cols-2 gap-4 text-sm">
         <div>
           <span className="font-medium">Operation:</span>
@@ -46,14 +59,6 @@ export const GrantPreviewModalContent: React.FC<
             [{grantPreview.grantFile.files.join(", ")}]
           </p>
         </div>
-      </div>
-
-      <div>
-        <IpfsAddressDisplay
-          ipfsUrl={grantPreview.grantUrl}
-          label="IPFS URL"
-          truncate={false}
-        />
       </div>
 
       <div>

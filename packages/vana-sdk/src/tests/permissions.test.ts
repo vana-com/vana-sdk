@@ -338,7 +338,7 @@ describe("PermissionsController", () => {
       };
 
       await expect(directController.grant(mockParams)).rejects.toThrow(
-        "No storage available. Provide a grantUrl, configure relayerUrl, or provide storageManager.",
+        "No storage available. Provide a grantUrl, configure relayerCallbacks.storeGrantFile, relayerUrl, or storageManager.",
       );
     });
 
@@ -414,9 +414,7 @@ describe("PermissionsController", () => {
         parameters: { test: "value" },
       };
 
-      await expect(controller.grant(mockParams)).rejects.toThrow(
-        BlockchainError,
-      );
+      await expect(controller.grant(mockParams)).rejects.toThrow(NonceError);
       expect(mockWalletClient.getAddresses).toHaveBeenCalled();
     });
 
@@ -521,36 +519,50 @@ describe("PermissionsController", () => {
     });
 
     it("should get user permissions successfully", async () => {
-      const { getContract } = await import("viem");
+      const mockFetch = fetch as Mock;
 
-      // Mock permission registry contract
-      const mockPermissionRegistry = {
-        read: {
-          userPermissionIdsLength: vi.fn().mockResolvedValue(BigInt(2)),
-          userPermissionIdsAt: vi
-            .fn()
-            .mockResolvedValueOnce(BigInt(1))
-            .mockResolvedValueOnce(BigInt(2)),
-          permissions: vi
-            .fn()
-            .mockResolvedValueOnce({
-              user: mockWalletClient.account.address,
-              nonce: BigInt(1),
-              grant: "https://ipfs.io/ipfs/Qm1",
-              signature: "0xsig1",
-            })
-            .mockResolvedValueOnce({
-              user: mockWalletClient.account.address,
-              nonce: BigInt(2),
-              grant: "https://ipfs.io/ipfs/Qm2",
-              signature: "0xsig2",
-            }),
-        },
-      };
+      // Mock subgraph response
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              user: {
+                id: mockWalletClient.account.address.toLowerCase(),
+                permissions: [
+                  {
+                    id: "1",
+                    grant: "https://ipfs.io/ipfs/Qm1",
+                    nonce: "1",
+                    signature: "0xsig1",
+                    addedAtBlock: "123456",
+                    addedAtTimestamp: "1640995200",
+                    transactionHash: "0x123...",
+                    user: {
+                      id: mockWalletClient.account.address.toLowerCase(),
+                    },
+                  },
+                  {
+                    id: "2",
+                    grant: "https://ipfs.io/ipfs/Qm2",
+                    nonce: "2",
+                    signature: "0xsig2",
+                    addedAtBlock: "123457",
+                    addedAtTimestamp: "1640995300",
+                    transactionHash: "0x456...",
+                    user: {
+                      id: mockWalletClient.account.address.toLowerCase(),
+                    },
+                  },
+                ],
+              },
+            },
+          }),
+      });
 
-      vi.mocked(getContract).mockReturnValue(mockPermissionRegistry as any);
-
-      const result = await controller.getUserPermissions();
+      const result = await controller.getUserPermissions({
+        subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+      });
 
       expect(result).toHaveLength(2);
       expect(result[0]).toEqual({
@@ -560,8 +572,10 @@ describe("PermissionsController", () => {
         operation: "",
         parameters: {},
         active: true,
-        grantor: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        grantor: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
         grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        grantedAt: 123457,
+        nonce: 2,
       });
       expect(result[1]).toEqual({
         id: 1n,
@@ -570,132 +584,183 @@ describe("PermissionsController", () => {
         operation: "",
         parameters: {},
         active: true,
-        grantor: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        grantor: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
         grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        grantedAt: 123456,
+        nonce: 1,
       });
     });
 
     it("should return empty array when user has no permissions", async () => {
-      const { getContract } = await import("viem");
+      const mockFetch = fetch as Mock;
 
-      const mockPermissionRegistry = {
-        read: {
-          userPermissionIdsLength: vi.fn().mockResolvedValue(BigInt(0)),
-          userPermissionIds: vi.fn(),
-          permissions: vi.fn(),
-        },
-      };
+      // Mock subgraph response with no permissions
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              user: {
+                id: mockWalletClient.account.address.toLowerCase(),
+                permissions: [],
+              },
+            },
+          }),
+      });
 
-      vi.mocked(getContract).mockReturnValue(mockPermissionRegistry as any);
-
-      const result = await controller.getUserPermissions();
+      const result = await controller.getUserPermissions({
+        subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+      });
 
       expect(result).toEqual([]);
-      expect(
-        mockPermissionRegistry.read.userPermissionIdsLength,
-      ).toHaveBeenCalledWith([mockWalletClient.account.address]);
     });
 
     it("should handle permissions with limit parameter", async () => {
-      const { getContract } = await import("viem");
+      const mockFetch = fetch as Mock;
 
-      const mockPermissionRegistry = {
-        read: {
-          userPermissionIdsLength: vi.fn().mockResolvedValue(BigInt(5)),
-          userPermissionIdsAt: vi
-            .fn()
-            .mockResolvedValueOnce(BigInt(1))
-            .mockResolvedValueOnce(BigInt(2)),
-          permissions: vi.fn().mockResolvedValue({
-            user: mockWalletClient.account.address,
-            nonce: BigInt(1),
-            grant: "https://ipfs.io/ipfs/Qm1",
-            signature: "0xsig1",
+      // Mock subgraph response with 5 permissions but we'll limit to 2
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              user: {
+                id: mockWalletClient.account.address.toLowerCase(),
+                permissions: [
+                  {
+                    id: "1",
+                    grant: "https://ipfs.io/ipfs/Qm1",
+                    nonce: "1",
+                    signature: "0xsig1",
+                    addedAtBlock: "123456",
+                    addedAtTimestamp: "1640995200",
+                    transactionHash: "0x123...",
+                    user: {
+                      id: mockWalletClient.account.address.toLowerCase(),
+                    },
+                  },
+                  {
+                    id: "2",
+                    grant: "https://ipfs.io/ipfs/Qm2",
+                    nonce: "2",
+                    signature: "0xsig2",
+                    addedAtBlock: "123457",
+                    addedAtTimestamp: "1640995300",
+                    transactionHash: "0x456...",
+                    user: {
+                      id: mockWalletClient.account.address.toLowerCase(),
+                    },
+                  },
+                  // We include more than 2 to test the limit
+                  {
+                    id: "3",
+                    grant: "https://ipfs.io/ipfs/Qm3",
+                    nonce: "3",
+                    signature: "0xsig3",
+                    addedAtBlock: "123458",
+                    addedAtTimestamp: "1640995400",
+                    transactionHash: "0x789...",
+                    user: {
+                      id: mockWalletClient.account.address.toLowerCase(),
+                    },
+                  },
+                ],
+              },
+            },
           }),
-        },
-      };
-
-      vi.mocked(getContract).mockReturnValue(mockPermissionRegistry as any);
-
-      const result = await controller.getUserPermissions({ limit: 2 });
-
-      expect(result).toHaveLength(2);
-      expect(
-        mockPermissionRegistry.read.userPermissionIdsAt,
-      ).toHaveBeenCalledTimes(2);
-    });
-
-    it("should handle chain ID not available error", async () => {
-      const noChainWallet = {
-        ...mockWalletClient,
-        chain: null,
-      };
-
-      const noChainController = new PermissionsController({
-        walletClient: noChainWallet,
-        publicClient: mockPublicClient,
-        relayerUrl: "https://test-relayer.com",
       });
 
-      await expect(noChainController.getUserPermissions()).rejects.toThrow(
-        BlockchainError,
-      );
+      const result = await controller.getUserPermissions({
+        limit: 2,
+        subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+      });
+
+      expect(result).toHaveLength(2);
     });
 
-    it("should handle contract read errors gracefully", async () => {
-      const { getContract } = await import("viem");
+    it("should handle missing subgraph URL error", async () => {
+      const controllerWithoutSubgraph = new PermissionsController({
+        walletClient: mockWalletClient,
+        publicClient: mockPublicClient,
+        relayerUrl: "https://test-relayer.com",
+        // No subgraphUrl provided
+      });
 
-      const mockPermissionRegistry = {
-        read: {
-          userPermissionIdsLength: vi
-            .fn()
-            .mockRejectedValue(new Error("Contract read failed")),
-          userPermissionIds: vi.fn(),
-          permissions: vi.fn(),
-        },
-      };
+      await expect(
+        controllerWithoutSubgraph.getUserPermissions(),
+      ).rejects.toThrow("subgraphUrl is required");
+    });
 
-      vi.mocked(getContract).mockReturnValue(mockPermissionRegistry as any);
+    it("should handle subgraph errors gracefully", async () => {
+      const mockFetch = fetch as Mock;
 
-      await expect(controller.getUserPermissions()).rejects.toThrow(
-        BlockchainError,
-      );
+      // Mock subgraph error response
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            errors: [
+              {
+                message: "Subgraph indexing error",
+              },
+            ],
+          }),
+      });
+
+      await expect(
+        controller.getUserPermissions({
+          subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+        }),
+      ).rejects.toThrow(BlockchainError);
     });
 
     it("should handle permission reading errors at specific indices", async () => {
-      const { getContract } = await import("viem");
+      const mockFetch = fetch as Mock;
 
-      const mockPermissionRegistry = {
-        read: {
-          userPermissionIdsLength: vi.fn().mockResolvedValue(BigInt(2)),
-          userPermissionIdsAt: vi
-            .fn()
-            .mockResolvedValueOnce(BigInt(1))
-            .mockRejectedValueOnce(new Error("Permission read failed")),
-          permissions: vi.fn().mockResolvedValueOnce({
-            user: mockWalletClient.account.address,
-            nonce: BigInt(1),
-            grant: "https://ipfs.io/ipfs/Qm1",
-            signature: "0xsig1",
+      // Mock subgraph response with one permission that will have retrieveGrantFile error
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              user: {
+                id: mockWalletClient.account.address.toLowerCase(),
+                permissions: [
+                  {
+                    id: "1",
+                    grant: "https://ipfs.io/ipfs/QmInvalidGrant", // This will fail in retrieveGrantFile
+                    nonce: "1",
+                    signature: "0xsig1",
+                    addedAtBlock: "123456",
+                    addedAtTimestamp: "1640995200",
+                    transactionHash: "0x123...",
+                    user: {
+                      id: mockWalletClient.account.address.toLowerCase(),
+                    },
+                  },
+                ],
+              },
+            },
           }),
-        },
-      };
+      });
 
-      vi.mocked(getContract).mockReturnValue(mockPermissionRegistry as any);
+      const result = await controller.getUserPermissions({
+        subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+      });
 
-      const result = await controller.getUserPermissions();
-
-      // Should still return the one successful permission
+      // Should still return the one permission even with grant file retrieval error
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({
         id: 1n,
         files: [],
-        grant: "https://ipfs.io/ipfs/Qm1",
+        grant: "https://ipfs.io/ipfs/QmInvalidGrant",
         operation: "",
         parameters: {},
         active: true,
-        grantor: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        grantor: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
         grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        grantedAt: 123456,
+        nonce: 1,
       });
     });
   });
@@ -931,7 +996,7 @@ describe("PermissionsController", () => {
       mockWalletClient.getAddresses.mockRejectedValue("string error");
 
       await expect(controller.grant(mockParams)).rejects.toThrow(
-        "Permission grant preparation failed with unknown error",
+        "Failed to retrieve user nonce: Unknown error",
       );
     });
 
@@ -998,7 +1063,7 @@ describe("PermissionsController", () => {
       };
 
       await expect(controller.grant(mockParams)).rejects.toThrow(
-        "No storage available. Provide a grantUrl, configure relayerUrl, or provide storageManager.",
+        "No storage available. Provide a grantUrl, configure relayerCallbacks.storeGrantFile, relayerUrl, or storageManager.",
       );
     });
 
@@ -1127,7 +1192,7 @@ describe("PermissionsController", () => {
       };
 
       await expect(controller.grant(mockParams)).rejects.toThrow(
-        "No storage available. Provide a grantUrl, configure relayerUrl, or provide storageManager.",
+        "No storage available. Provide a grantUrl, configure relayerCallbacks.storeGrantFile, relayerUrl, or storageManager.",
       );
     });
 

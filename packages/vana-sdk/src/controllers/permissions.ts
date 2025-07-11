@@ -1,4 +1,4 @@
-import { Address, Hash, getContract } from "viem";
+import { Address, Hash } from "viem";
 import type { WalletClient, PublicClient } from "viem";
 import {
   GrantPermissionParams,
@@ -15,6 +15,7 @@ import {
   UntrustServerTypedData,
   Server,
 } from "../types/index";
+import type { RelayerCallbacks } from "../types/config";
 import {
   RelayerError,
   UserRejectedRequestError,
@@ -65,8 +66,16 @@ export interface ControllerContext {
   publicClient: PublicClient;
   /** Optional separate wallet for application-specific operations */
   applicationClient?: WalletClient;
-  /** Optional relayer service URL for gasless transactions */
+  /**
+   * @deprecated Use relayerCallbacks for more flexible relay handling
+   * Optional relayer service URL for gasless transactions
+   */
   relayerUrl?: string;
+  /**
+   * Optional relayer callback functions for handling gasless transactions.
+   * Takes precedence over relayerUrl if both are provided.
+   */
+  relayerCallbacks?: RelayerCallbacks;
   /** Optional storage manager for file upload/download operations */
   storageManager?: StorageManager;
   /** Optional subgraph URL for querying user files and permissions */
@@ -143,12 +152,19 @@ export class PermissionsController {
       let grantUrl = params.grantUrl;
       console.debug("🔍 Debug - Grant URL from params:", grantUrl);
       if (!grantUrl) {
-        if (!this.context.relayerUrl && !this.context.storageManager) {
+        if (
+          !this.context.relayerCallbacks?.storeGrantFile &&
+          !this.context.relayerUrl &&
+          !this.context.storageManager
+        ) {
           throw new Error(
-            "No storage available. Provide a grantUrl, configure relayerUrl, or provide storageManager.",
+            "No storage available. Provide a grantUrl, configure relayerCallbacks.storeGrantFile, relayerUrl, or storageManager.",
           );
         }
-        if (this.context.relayerUrl) {
+        if (this.context.relayerCallbacks?.storeGrantFile) {
+          grantUrl =
+            await this.context.relayerCallbacks.storeGrantFile(grantFile);
+        } else if (this.context.relayerUrl) {
           grantUrl = await storeGrantFile(grantFile, this.context.relayerUrl);
         } else if (this.context.storageManager) {
           // Store using local storage manager if available
@@ -236,8 +252,13 @@ export class PermissionsController {
         ),
       );
 
-      // Use relayer if configured, otherwise direct transaction
-      if (this.context.relayerUrl) {
+      // Use relayer callbacks first, then fallback to relayerUrl, otherwise direct transaction
+      if (this.context.relayerCallbacks?.submitPermissionGrant) {
+        return await this.context.relayerCallbacks.submitPermissionGrant(
+          typedData,
+          signature,
+        );
+      } else if (this.context.relayerUrl) {
         return await this.relaySignedTransaction(typedData, signature);
       } else {
         return await this.submitDirectTransaction(typedData, signature);
@@ -463,8 +484,13 @@ export class PermissionsController {
 
       const signature = await this.signTypedData(typedData);
 
-      // Submit either via relayer or direct transaction
-      if (this.context.relayerUrl) {
+      // Submit either via relayer callbacks, relayer URL, or direct transaction
+      if (this.context.relayerCallbacks?.submitPermissionRevoke) {
+        return await this.context.relayerCallbacks.submitPermissionRevoke(
+          typedData,
+          signature,
+        );
+      } else if (this.context.relayerUrl) {
         // Submit to relayer
         const response = await this.submitToRelayer("revoke", {
           typedData: {
@@ -669,66 +695,92 @@ export class PermissionsController {
   }
 
   /**
-   * Retrieves all permissions granted by the current user.
+   * Retrieves all permissions granted by the current user using the new subgraph entities.
    *
-   * @param params - Optional parameters to limit results
+   * @param params - Optional parameters including limit and subgraph URL
    * @returns Promise resolving to an array of GrantedPermission objects
    *
-   * This method queries the PermissionRegistry contract to find
-   * all permissions where the current user is the grantor. It iterates through
-   * the permissions registry and filters for user-granted permissions.
+   * This method queries the Vana subgraph to find permissions directly granted by the user
+   * using the new Permission entity. It efficiently handles millions of permissions by
+   * using the subgraph instead of scanning the contract.
    */
   async getUserPermissions(params?: {
     limit?: number;
+    subgraphUrl?: string;
   }): Promise<GrantedPermission[]> {
     try {
       const userAddress = await this.getUserAddress();
-      const chainId = this.context.walletClient.chain?.id;
 
-      if (!chainId) {
-        throw new BlockchainError("Chain ID not available");
+      // Use provided subgraph URL or default from context
+      const graphqlEndpoint = params?.subgraphUrl || this.context.subgraphUrl;
+
+      if (!graphqlEndpoint) {
+        throw new BlockchainError(
+          "subgraphUrl is required. Please provide a valid subgraph endpoint or configure it in Vana constructor.",
+        );
       }
 
-      const permissionRegistryAddress = getContractAddress(
-        chainId,
-        "PermissionRegistry",
-      );
-      const permissionRegistryAbi = getAbi("PermissionRegistry");
+      // Query the subgraph for user's permissions using the new Permission entity
+      const query = `
+        query GetUserPermissions($userId: ID!) {
+          user(id: $userId) {
+            id
+            permissions {
+              id
+              grant
+              nonce
+              signature
+              addedAtBlock
+              addedAtTimestamp
+              transactionHash
+              user {
+                id
+              }
+            }
+          }
+        }
+      `;
 
-      const permissionRegistry = getContract({
-        address: permissionRegistryAddress,
-        abi: permissionRegistryAbi,
-        client: this.context.walletClient,
+      const response = await fetch(graphqlEndpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          query,
+          variables: {
+            userId: userAddress.toLowerCase(),
+          },
+        }),
       });
 
-      // Get count of permissions for this specific user
-      const userPermissionCount =
-        await permissionRegistry.read.userPermissionIdsLength([userAddress]);
-      const count = Number(userPermissionCount);
+      if (!response.ok) {
+        throw new BlockchainError(
+          `Subgraph request failed: ${response.status} ${response.statusText}`,
+        );
+      }
 
-      if (count === 0) {
+      const result = await response.json();
+
+      if (result.errors) {
+        throw new BlockchainError(
+          `Subgraph errors: ${result.errors.map((e: { message: string }) => e.message).join(", ")}`,
+        );
+      }
+
+      const userData = result.data?.user;
+      if (!userData || !userData.permissions?.length) {
+        console.warn("No permissions found for user:", userAddress);
         return [];
       }
 
       const userPermissions: GrantedPermission[] = [];
-      const limit = params?.limit || 50; // Default limit to avoid too many calls
-      const itemsToFetch = Math.min(count, limit);
+      const limit = params?.limit || 50; // Default limit
+      const permissionsToProcess = userData.permissions.slice(0, limit);
 
-      // Get permission IDs for this user, starting from most recent
-      for (let i = count - 1; i >= Math.max(0, count - itemsToFetch); i--) {
+      // Process each permission and fetch grant file data
+      for (const permission of permissionsToProcess) {
         try {
-          // Get the permission ID for this user at this index
-          const permissionId =
-            await permissionRegistry.read.userPermissionIdsAt([
-              userAddress,
-              BigInt(i),
-            ]);
-
-          // Get the permission details
-          const permission = await permissionRegistry.read.permissions([
-            permissionId,
-          ]);
-
           // Fetch and parse the grant file from IPFS to get complete permission data
           let operation: string | undefined;
           let files: number[] = [];
@@ -741,24 +793,26 @@ export class PermissionsController {
             parameters = grantFile.parameters;
           } catch (error) {
             console.warn(
-              `Failed to retrieve grant file for permission ${permissionId}:`,
+              `Failed to retrieve grant file for permission ${permission.id}:`,
               error,
             );
             // Continue with basic permission data even if grant file can't be retrieved
           }
 
           userPermissions.push({
-            id: permissionId,
+            id: BigInt(permission.id),
             files: files,
             operation: operation || "",
             parameters: (parameters as Record<string, unknown>) || {},
             grant: permission.grant,
-            grantor: permission.user, // The user field contains the grantor address
+            grantor: permission.user.id as Address, // The user field contains the grantor address
             grantee: userAddress, // Current user is the grantee in this context
             active: true, // Default to active if not specified
+            grantedAt: Number(permission.addedAtBlock),
+            nonce: Number(permission.nonce),
           });
         } catch (error) {
-          console.warn(`Failed to read permission at index ${i}:`, error);
+          console.warn(`Failed to process permission ${permission.id}:`, error);
         }
       }
 
@@ -867,8 +921,13 @@ export class PermissionsController {
         typedData as unknown as GenericTypedData,
       );
 
-      // Submit via relayer or direct transaction
-      if (this.context.relayerUrl) {
+      // Submit via relayer callbacks, relayer URL, or direct transaction
+      if (this.context.relayerCallbacks?.submitTrustServer) {
+        return await this.context.relayerCallbacks.submitTrustServer(
+          typedData,
+          signature,
+        );
+      } else if (this.context.relayerUrl) {
         return await this.relayTrustServerTransaction(typedData, signature);
       } else {
         return await this.submitTrustServerTransaction(
@@ -961,8 +1020,13 @@ export class PermissionsController {
         typedData as unknown as GenericTypedData,
       );
 
-      // Submit via relayer or direct transaction
-      if (this.context.relayerUrl) {
+      // Submit via relayer callbacks, relayer URL, or direct transaction
+      if (this.context.relayerCallbacks?.submitUntrustServer) {
+        return await this.context.relayerCallbacks.submitUntrustServer(
+          typedData,
+          signature,
+        );
+      } else if (this.context.relayerUrl) {
         return await this.relayUntrustServerTransaction(typedData, signature);
       } else {
         return await this.submitUntrustServerTransaction(

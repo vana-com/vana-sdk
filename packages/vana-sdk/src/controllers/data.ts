@@ -23,18 +23,57 @@ import {
   encryptWithWalletPublicKey,
   decryptWithWalletPrivateKey,
 } from "../utils/encryption";
+import {
+  validateDataContract,
+  validateDataAgainstContract,
+  fetchAndValidateSchema,
+  SchemaValidationError,
+  type DataContract,
+} from "../utils/schemaValidation";
 
 /**
- * GraphQL query response types for the subgraph
+ * GraphQL query response types for the new subgraph entities
  */
+interface SubgraphFile {
+  id: string;
+  url: string;
+  schemaId: string;
+  addedAtBlock: string;
+  addedAtTimestamp: string;
+  transactionHash: string;
+  owner: {
+    id: string;
+  };
+}
+
+interface SubgraphPermission {
+  id: string;
+  grant: string;
+  nonce: string;
+  signature: string;
+  addedAtBlock: string;
+  addedAtTimestamp: string;
+  transactionHash: string;
+  user: {
+    id: string;
+  };
+}
+
+interface SubgraphTrustedServer {
+  id: string;
+  serverAddress: string;
+  serverUrl: string;
+  trustedAt: string;
+  user: {
+    id: string;
+  };
+}
+
 interface SubgraphUser {
   id: string;
-  fileContributions: Array<{
-    id: string;
-    fileId: string;
-    createdAt: string;
-    createdAtBlock: string;
-  }>;
+  files: SubgraphFile[];
+  permissions: SubgraphPermission[];
+  trustedServers: SubgraphTrustedServer[];
 }
 
 interface SubgraphResponse {
@@ -83,16 +122,16 @@ export class DataController {
   }
 
   /**
-   * Retrieves a list of data files for which a user has contributed proofs.
+   * Retrieves a list of data files owned by a user.
    *
-   * This method queries the Vana subgraph to find files where the user
-   * has submitted proof contributions. It efficiently handles millions of files by:
-   * 1. Querying the subgraph for user's file contributions (proof submissions)
-   * 2. Deduplicating file IDs (user may have multiple proofs per file)
-   * 3. Fetching file details from the DataRegistry contract
+   * This method queries the Vana subgraph to find files directly owned by the user
+   * using the new File entity. It efficiently handles millions of files by:
+   * 1. Querying the subgraph for user's directly owned files
+   * 2. Returning complete file information including schema metadata
+   * 3. No need for additional contract calls as all data comes from subgraph
    *
-   * @remarks The subgraph tracks proof contributions, not direct file ownership.
-   * Files are associated with users through their proof submissions.
+   * @remarks The subgraph now tracks direct file ownership through the File entity.
+   * Files are associated with users through the owner field.
    *
    * @param params - Object containing the owner address and optional subgraph URL
    * @param params.owner - The wallet address of the user to query files for
@@ -130,16 +169,21 @@ export class DataController {
     }
 
     try {
-      // Query the subgraph for user's file contributions
+      // Query the subgraph for user's files using the new File entity
       const query = `
-        query GetUserFileContributions($userId: ID!) {
+        query GetUserFiles($userId: ID!) {
           user(id: $userId) {
             id
-            fileContributions {
+            files {
               id
-              fileId
-              createdAt
-              createdAtBlock
+              url
+              schemaId
+              addedAtBlock
+              addedAtTimestamp
+              transactionHash
+              owner {
+                id
+              }
             }
           }
         }
@@ -173,87 +217,270 @@ export class DataController {
       }
 
       const user = result.data?.user;
-      if (!user || !user.fileContributions?.length) {
-        console.warn("No file contributions found for user:", owner);
+      if (!user || !user.files?.length) {
+        console.warn("No files found for user:", owner);
         return [];
       }
 
-      // Deduplicate file IDs and convert to UserFile format
-      const uniqueFileIds = new Set<number>();
-      const fileContributions = user.fileContributions
-        .map((contribution) => ({
-          fileId: parseInt(contribution.fileId),
-          createdAtBlock: BigInt(contribution.createdAtBlock),
+      // Convert subgraph data directly to UserFile format
+      const userFiles: UserFile[] = user.files
+        .map((file) => ({
+          id: parseInt(file.id),
+          url: file.url,
+          ownerAddress: file.owner.id as Address,
+          addedAtBlock: BigInt(file.addedAtBlock),
+          schemaId: parseInt(file.schemaId),
+          addedAtTimestamp: BigInt(file.addedAtTimestamp),
+          transactionHash: file.transactionHash as Address,
         }))
-        .filter((contribution) => {
-          if (uniqueFileIds.has(contribution.fileId)) {
-            return false; // Duplicate file ID
-          }
-          uniqueFileIds.add(contribution.fileId);
-          return true;
-        })
-        .sort((a, b) => Number(b.createdAtBlock - a.createdAtBlock)); // Latest first
+        .sort((a, b) => Number(b.addedAtTimestamp - a.addedAtTimestamp)); // Latest first
 
-      // Fetch file details from the DataRegistry contract for each unique file
-      const userFiles: UserFile[] = [];
-      const chainId = this.context.walletClient.chain?.id;
-
-      if (chainId) {
-        const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
-        const dataRegistryAbi = getAbi("DataRegistry");
-
-        const dataRegistry = getContract({
-          address: dataRegistryAddress,
-          abi: dataRegistryAbi,
-          client: this.context.walletClient,
-        });
-
-        // Fetch details for each file (limit to first 50 to avoid too many requests)
-        const filesToFetch = fileContributions.slice(0, 50);
-
-        for (const contribution of filesToFetch) {
-          try {
-            const fileDetails = await dataRegistry.read.files([
-              BigInt(contribution.fileId),
-            ]);
-
-            // Handle both array format (from contracts) and object format
-            if (Array.isArray(fileDetails)) {
-              const [_id, url, ownerAddress, addedAtBlock] =
-                fileDetails as unknown as [bigint, string, Address, bigint];
-              userFiles.push({
-                id: contribution.fileId,
-                url: url,
-                ownerAddress: ownerAddress,
-                addedAtBlock: BigInt(addedAtBlock),
-              });
-            } else {
-              // Object format
-              userFiles.push({
-                id: contribution.fileId,
-                url: fileDetails.url,
-                ownerAddress: fileDetails.ownerAddress,
-                addedAtBlock: BigInt(fileDetails.addedAtBlock),
-              });
-            }
-          } catch (error) {
-            console.warn(
-              `Failed to fetch details for file ${contribution.fileId}:`,
-              error,
-            );
-          }
-        }
-      }
-
-      console.warn(
-        `Found ${userFiles.length} files with contributions from user:`,
-        owner,
-      );
+      console.warn(`Found ${userFiles.length} files owned by user:`, owner);
       return userFiles;
     } catch (error) {
       console.error("Failed to fetch user files from subgraph:", error);
       throw new Error(
         `Failed to fetch user files from subgraph: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Retrieves a list of permissions granted by a user using the new subgraph entities.
+   *
+   * This method queries the Vana subgraph to find permissions directly granted by the user
+   * using the new Permission entity. It efficiently handles millions of permissions by:
+   * 1. Querying the subgraph for user's directly granted permissions
+   * 2. Returning complete permission information from subgraph
+   * 3. No need for additional contract calls as all data comes from subgraph
+   *
+   * @param params - Object containing the user address and optional subgraph URL
+   * @param params.user - The wallet address of the user to query permissions for
+   * @param params.subgraphUrl - Optional subgraph URL to override the default
+   * @returns Promise resolving to an array of permission objects
+   * @throws Error if subgraph is unavailable or returns invalid data
+   */
+  async getUserPermissions(params: {
+    user: Address;
+    subgraphUrl?: string;
+  }): Promise<
+    Array<{
+      id: string;
+      grant: string;
+      nonce: bigint;
+      signature: string;
+      addedAtBlock: bigint;
+      addedAtTimestamp: bigint;
+      transactionHash: Address;
+      user: Address;
+    }>
+  > {
+    const { user, subgraphUrl } = params;
+
+    // Use provided subgraph URL or default from context
+    const graphqlEndpoint = subgraphUrl || this.context.subgraphUrl;
+
+    if (!graphqlEndpoint) {
+      throw new Error(
+        "subgraphUrl is required. Please provide a valid subgraph endpoint or configure it in Vana constructor.",
+      );
+    }
+
+    try {
+      // Query the subgraph for user's permissions using the new Permission entity
+      const query = `
+        query GetUserPermissions($userId: ID!) {
+          user(id: $userId) {
+            id
+            permissions {
+              id
+              grant
+              nonce
+              signature
+              addedAtBlock
+              addedAtTimestamp
+              transactionHash
+              user {
+                id
+              }
+            }
+          }
+        }
+      `;
+
+      const response = await fetch(graphqlEndpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          query,
+          variables: {
+            userId: user.toLowerCase(),
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Subgraph request failed: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      const result: SubgraphResponse = await response.json();
+
+      if (result.errors) {
+        throw new Error(
+          `Subgraph errors: ${result.errors.map((e) => e.message).join(", ")}`,
+        );
+      }
+
+      const userData = result.data?.user;
+      if (!userData || !userData.permissions?.length) {
+        console.warn("No permissions found for user:", user);
+        return [];
+      }
+
+      // Convert subgraph data directly to permission format
+      const permissions = userData.permissions
+        .map((permission) => ({
+          id: permission.id,
+          grant: permission.grant,
+          nonce: BigInt(permission.nonce),
+          signature: permission.signature,
+          addedAtBlock: BigInt(permission.addedAtBlock),
+          addedAtTimestamp: BigInt(permission.addedAtTimestamp),
+          transactionHash: permission.transactionHash as Address,
+          user: permission.user.id as Address,
+        }))
+        .sort((a, b) => Number(b.addedAtTimestamp - a.addedAtTimestamp)); // Latest first
+
+      console.warn(
+        `Found ${permissions.length} permissions granted by user:`,
+        user,
+      );
+      return permissions;
+    } catch (error) {
+      console.error("Failed to fetch user permissions from subgraph:", error);
+      throw new Error(
+        `Failed to fetch user permissions from subgraph: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Retrieves a list of trusted servers for a user using the new subgraph entities.
+   *
+   * This method queries the Vana subgraph to find trusted servers directly associated with the user
+   * using the new TrustedServer entity. It efficiently handles server trust relationships by:
+   * 1. Querying the subgraph for user's trusted servers
+   * 2. Returning complete server information from subgraph
+   * 3. No need for additional contract calls as all data comes from subgraph
+   *
+   * @param params - Object containing the user address and optional subgraph URL
+   * @param params.user - The wallet address of the user to query trusted servers for
+   * @param params.subgraphUrl - Optional subgraph URL to override the default
+   * @returns Promise resolving to an array of trusted server objects
+   * @throws Error if subgraph is unavailable or returns invalid data
+   */
+  async getUserTrustedServers(params: {
+    user: Address;
+    subgraphUrl?: string;
+  }): Promise<
+    Array<{
+      id: string;
+      serverAddress: Address;
+      serverUrl: string;
+      trustedAt: bigint;
+      user: Address;
+    }>
+  > {
+    const { user, subgraphUrl } = params;
+
+    // Use provided subgraph URL or default from context
+    const graphqlEndpoint = subgraphUrl || this.context.subgraphUrl;
+
+    if (!graphqlEndpoint) {
+      throw new Error(
+        "subgraphUrl is required. Please provide a valid subgraph endpoint or configure it in Vana constructor.",
+      );
+    }
+
+    try {
+      // Query the subgraph for user's trusted servers using the new TrustedServer entity
+      const query = `
+        query GetUserTrustedServers($userId: ID!) {
+          user(id: $userId) {
+            id
+            trustedServers {
+              id
+              serverAddress
+              serverUrl
+              trustedAt
+              user {
+                id
+              }
+            }
+          }
+        }
+      `;
+
+      const response = await fetch(graphqlEndpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          query,
+          variables: {
+            userId: user.toLowerCase(),
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Subgraph request failed: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      const result: SubgraphResponse = await response.json();
+
+      if (result.errors) {
+        throw new Error(
+          `Subgraph errors: ${result.errors.map((e) => e.message).join(", ")}`,
+        );
+      }
+
+      const userData = result.data?.user;
+      if (!userData || !userData.trustedServers?.length) {
+        console.warn("No trusted servers found for user:", user);
+        return [];
+      }
+
+      // Convert subgraph data directly to trusted server format
+      const trustedServers = userData.trustedServers
+        .map((server) => ({
+          id: server.id,
+          serverAddress: server.serverAddress as Address,
+          serverUrl: server.serverUrl,
+          trustedAt: BigInt(server.trustedAt),
+          user: server.user.id as Address,
+        }))
+        .sort((a, b) => Number(b.trustedAt - a.trustedAt)); // Latest first
+
+      console.warn(
+        `Found ${trustedServers.length} trusted servers for user:`,
+        user,
+      );
+      return trustedServers;
+    } catch (error) {
+      console.error(
+        "Failed to fetch user trusted servers from subgraph:",
+        error,
+      );
+      throw new Error(
+        `Failed to fetch user trusted servers from subgraph: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }
@@ -398,7 +625,20 @@ export class DataController {
       // Step 2: Register file on blockchain (either via relayer or direct)
       const userAddress = await this.getUserAddress();
 
-      if (this.context.relayerUrl) {
+      if (this.context.relayerCallbacks?.submitFileAddition) {
+        // Use callback for file addition
+        const result = await this.context.relayerCallbacks.submitFileAddition(
+          uploadResult.url,
+          userAddress,
+        );
+
+        return {
+          fileId: result.fileId,
+          url: uploadResult.url,
+          size: uploadResult.size,
+          transactionHash: result.transactionHash,
+        };
+      } else if (this.context.relayerUrl) {
         // Gasless registration via relayer
         const addFileResponse = await fetch(
           `${this.context.relayerUrl}/api/relay/addFile`,
@@ -1303,7 +1543,15 @@ export class DataController {
 
       // 6. Register file with permissions (either via relayer or direct)
       let result;
-      if (this.context.relayerUrl) {
+      if (this.context.relayerCallbacks?.submitFileAdditionWithPermissions) {
+        // Use callback for file addition with permissions
+        result =
+          await this.context.relayerCallbacks.submitFileAdditionWithPermissions(
+            uploadResult.url,
+            userAddress,
+            encryptedPermissions,
+          );
+      } else if (this.context.relayerUrl) {
         // Gasless registration via relayer
         const addFileResponse = await fetch(
           `${this.context.relayerUrl}/api/relay/addFileWithPermissions`,
@@ -1538,6 +1786,137 @@ export class DataController {
       console.error("Failed to decrypt file with permission:", error);
       throw new Error(
         `Failed to decrypt file with permission: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Validates a data contract against the Vana meta-schema.
+   *
+   * @param contract - The data contract to validate
+   * @returns true if valid
+   * @throws SchemaValidationError if invalid
+   *
+   * @example
+   * ```typescript
+   * const contract = {
+   *   name: "User Profile",
+   *   version: "1.0.0",
+   *   dialect: "json",
+   *   schema: {
+   *     type: "object",
+   *     properties: {
+   *       name: { type: "string" },
+   *       age: { type: "number" }
+   *     }
+   *   }
+   * };
+   *
+   * vana.data.validateDataContract(contract);
+   * ```
+   */
+  validateDataContract(contract: unknown): asserts contract is DataContract {
+    return validateDataContract(contract);
+  }
+
+  /**
+   * Validates data against a JSON Schema from a data contract.
+   *
+   * @param data - The data to validate
+   * @param contract - The data contract containing the schema
+   * @throws SchemaValidationError if invalid
+   *
+   * @example
+   * ```typescript
+   * const contract = {
+   *   name: "User Profile",
+   *   version: "1.0.0",
+   *   dialect: "json",
+   *   schema: {
+   *     type: "object",
+   *     properties: {
+   *       name: { type: "string" },
+   *       age: { type: "number" }
+   *     },
+   *     required: ["name"]
+   *   }
+   * };
+   *
+   * const userData = { name: "Alice", age: 30 };
+   * vana.data.validateDataAgainstContract(userData, contract);
+   * ```
+   */
+  validateDataAgainstContract(data: unknown, contract: DataContract): void {
+    return validateDataAgainstContract(data, contract);
+  }
+
+  /**
+   * Fetches and validates a schema from a URL, then returns the parsed data contract.
+   *
+   * @param url - The URL to fetch the schema from
+   * @returns The validated data contract
+   * @throws SchemaValidationError if invalid or fetch fails
+   *
+   * @example
+   * ```typescript
+   * // Fetch and validate a schema from IPFS or HTTP
+   * const contract = await vana.data.fetchAndValidateSchema("https://example.com/schema.json");
+   * console.log(contract.name, contract.dialect);
+   *
+   * // Use the contract to validate user data
+   * if (contract.dialect === "json") {
+   *   vana.data.validateDataAgainstContract(userData, contract);
+   * }
+   * ```
+   */
+  async fetchAndValidateSchema(url: string): Promise<DataContract> {
+    return fetchAndValidateSchema(url);
+  }
+
+  /**
+   * Retrieves a schema by ID and fetches its definition URL to get the full data contract.
+   *
+   * @param schemaId - The schema ID to retrieve and validate
+   * @returns The validated data contract
+   * @throws SchemaValidationError if schema is invalid
+   *
+   * @example
+   * ```typescript
+   * // Get schema from registry and validate its contract
+   * const contract = await vana.data.getValidatedSchema(123);
+   *
+   * // Use it to validate user data
+   * if (contract.dialect === "json") {
+   *   vana.data.validateDataAgainstContract(userData, contract);
+   * }
+   * ```
+   */
+  async getValidatedSchema(schemaId: number): Promise<DataContract> {
+    try {
+      // First get the schema metadata from the registry
+      const schema = await this.getSchema(schemaId);
+
+      // Then fetch and validate the full data contract from the definition URL
+      const contract = await this.fetchAndValidateSchema(schema.definitionUrl);
+
+      // Verify that the fetched contract name matches the on-chain name
+      if (contract.name !== schema.name) {
+        throw new SchemaValidationError(
+          `Schema name mismatch: on-chain name "${schema.name}" does not match contract name "${contract.name}"`,
+          [],
+        );
+      }
+
+      return contract;
+    } catch (error) {
+      if (error instanceof SchemaValidationError) {
+        throw error;
+      }
+
+      console.error("Failed to get validated schema:", error);
+      throw new SchemaValidationError(
+        `Failed to get validated schema ${schemaId}: ${error instanceof Error ? error.message : "Unknown error"}`,
+        [],
       );
     }
   }

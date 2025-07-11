@@ -8,6 +8,7 @@ export type {
   StorageConfig,
   ConfigValidationOptions,
   ConfigValidationResult,
+  RelayerCallbacks,
 } from "./config";
 
 export { isWalletConfig, isChainConfig } from "./config";
@@ -69,6 +70,16 @@ export type {
   UpdateSchemaIdParams,
   UpdateSchemaIdResult,
 } from "./data";
+
+// Schema validation types
+export type { DataContract } from "../utils/schemaValidation";
+export {
+  SchemaValidationError,
+  SchemaValidator,
+  validateDataContract,
+  validateDataAgainstContract,
+  fetchAndValidateSchema,
+} from "../utils/schemaValidation";
 
 // Permission types
 export type {

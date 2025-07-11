@@ -164,34 +164,23 @@ describe("DataController", () => {
             data: {
               user: {
                 id: testAddress.toLowerCase(),
-                fileContributions: [
+                files: [
                   {
-                    id: "1",
-                    fileId: "12",
-                    createdAt: "1640995200",
-                    createdAtBlock: "123456",
+                    id: "12",
+                    url: "ipfs://QmTestFile",
+                    schemaId: "0",
+                    addedAtBlock: "123456",
+                    addedAtTimestamp: "1640995200",
+                    transactionHash: "0x123...",
+                    owner: {
+                      id: testAddress.toLowerCase(),
+                    },
                   },
                 ],
               },
             },
           }),
       });
-
-      // Mock contract calls for file details
-      const { createPublicClient } = await import("viem");
-      const mockPublicClient = {
-        readContract: vi
-          .fn()
-          .mockResolvedValue([
-            BigInt(12),
-            "ipfs://QmTestFile",
-            testAddress,
-            BigInt(123456),
-          ]),
-      };
-      vi.mocked(createPublicClient).mockReturnValueOnce(
-        mockPublicClient as any,
-      );
 
       const result = await controller.getUserFiles({
         owner: testAddress as `0x${string}`,
@@ -202,8 +191,11 @@ describe("DataController", () => {
       expect(result[0]).toEqual({
         id: 12,
         url: "ipfs://QmTestFile",
-        ownerAddress: testAddress,
+        ownerAddress: testAddress.toLowerCase(),
         addedAtBlock: BigInt(123456),
+        schemaId: 0,
+        addedAtTimestamp: BigInt(1640995200),
+        transactionHash: "0x123...",
       });
     });
 
@@ -767,32 +759,23 @@ describe("DataController", () => {
             data: {
               user: {
                 id: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-                fileContributions: [
+                files: [
                   {
-                    id: "1",
-                    fileId: "12",
-                    createdAt: "1640995200",
-                    createdAtBlock: "123456",
+                    id: "12",
+                    url: "ipfs://QmTestFile",
+                    schemaId: "0",
+                    addedAtBlock: "123456",
+                    addedAtTimestamp: "1640995200",
+                    transactionHash: "0x123...",
+                    owner: {
+                      id: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+                    },
                   },
                 ],
               },
             },
           }),
       });
-
-      // Mock getContract to return object format instead of array
-      const { getContract } = await import("viem");
-      vi.mocked(getContract).mockReturnValueOnce({
-        read: {
-          files: vi.fn().mockResolvedValue({
-            id: BigInt(12),
-            url: "ipfs://QmTestFile",
-            ownerAddress:
-              "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
-            addedAtBlock: BigInt(123456),
-          }),
-        },
-      } as any);
 
       const result = await controller.getUserFiles({
         owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
@@ -804,8 +787,11 @@ describe("DataController", () => {
         id: 12,
         url: "ipfs://QmTestFile",
         ownerAddress:
-          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+          "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266" as `0x${string}`,
         addedAtBlock: BigInt(123456),
+        schemaId: 0,
+        addedAtTimestamp: BigInt(1640995200),
+        transactionHash: "0x123...",
       });
     });
   });

@@ -1,6 +1,13 @@
-import type { WalletClient, Account } from "viem";
+import type { WalletClient, Account, Hash } from "viem";
 import type { VanaChainId, VanaChain } from "./chains";
 import type { StorageProvider } from "./storage";
+import type {
+  PermissionGrantTypedData,
+  TrustServerTypedData,
+  UntrustServerTypedData,
+  GenericTypedData,
+  GrantFile,
+} from "./permissions";
 
 /**
  * Configuration for storage providers used by the SDK.
@@ -28,11 +35,128 @@ export interface StorageConfig {
 }
 
 /**
+ * Relayer callback functions for handling gasless transactions.
+ *
+ * Instead of hardcoding HTTP/REST API calls, users can provide custom callback
+ * functions to handle transaction relay in any way they choose (HTTP, WebSocket,
+ * direct blockchain submission, etc.).
+ *
+ * @category Configuration
+ * @example
+ * ```typescript
+ * const relayerCallbacks: RelayerCallbacks = {
+ *   async submitPermissionGrant(typedData, signature) {
+ *     // Custom implementation - could be HTTP, WebSocket, etc.
+ *     const response = await fetch('https://my-relayer.com/api/grant', {
+ *       method: 'POST',
+ *       headers: { 'Content-Type': 'application/json' },
+ *       body: JSON.stringify({ typedData, signature })
+ *     });
+ *     const result = await response.json();
+ *     return result.transactionHash;
+ *   },
+ *
+ *   async submitFileAddition(url, userAddress) {
+ *     // Custom relay implementation
+ *     return await myCustomRelayer.addFile(url, userAddress);
+ *   }
+ * };
+ * ```
+ */
+export interface RelayerCallbacks {
+  /**
+   * Submit a signed permission grant transaction for relay
+   * @param typedData - The EIP-712 typed data that was signed
+   * @param signature - The user's signature
+   * @returns Promise resolving to the transaction hash
+   */
+  submitPermissionGrant?: (
+    typedData: PermissionGrantTypedData,
+    signature: Hash,
+  ) => Promise<Hash>;
+
+  /**
+   * Submit a signed permission revocation transaction for relay
+   * @param typedData - The EIP-712 typed data that was signed
+   * @param signature - The user's signature
+   * @returns Promise resolving to the transaction hash
+   */
+  submitPermissionRevoke?: (
+    typedData: GenericTypedData,
+    signature: Hash,
+  ) => Promise<Hash>;
+
+  /**
+   * Submit a signed trust server transaction for relay
+   * @param typedData - The EIP-712 typed data that was signed
+   * @param signature - The user's signature
+   * @returns Promise resolving to the transaction hash
+   */
+  submitTrustServer?: (
+    typedData: TrustServerTypedData,
+    signature: Hash,
+  ) => Promise<Hash>;
+
+  /**
+   * Submit a signed untrust server transaction for relay
+   * @param typedData - The EIP-712 typed data that was signed
+   * @param signature - The user's signature
+   * @returns Promise resolving to the transaction hash
+   */
+  submitUntrustServer?: (
+    typedData: UntrustServerTypedData,
+    signature: Hash,
+  ) => Promise<Hash>;
+
+  /**
+   * Submit a file addition for relay
+   * @param url - The file URL to register
+   * @param userAddress - The user's address
+   * @returns Promise resolving to object with fileId and transactionHash
+   */
+  submitFileAddition?: (
+    url: string,
+    userAddress: string,
+  ) => Promise<{ fileId: number; transactionHash: Hash }>;
+
+  /**
+   * Submit a file addition with permissions for relay
+   * @param url - The file URL to register
+   * @param userAddress - The user's address
+   * @param permissions - Array of encrypted permissions
+   * @returns Promise resolving to object with fileId and transactionHash
+   */
+  submitFileAdditionWithPermissions?: (
+    url: string,
+    userAddress: string,
+    permissions: Array<{ account: string; key: string }>,
+  ) => Promise<{ fileId: number; transactionHash: Hash }>;
+
+  /**
+   * Store a grant file for relay (e.g., upload to IPFS)
+   * @param grantData - The grant file data
+   * @returns Promise resolving to the storage URL
+   */
+  storeGrantFile?: (grantData: GrantFile) => Promise<string>;
+}
+
+/**
  * Base configuration interface
  */
 export interface BaseConfig {
-  /** Optional URL for a Vana Relayer Service for gasless transactions */
+  /**
+   * @deprecated Use relayerCallbacks for more flexible relay handling
+   * Optional URL for a Vana Relayer Service for gasless transactions
+   */
   relayerUrl?: string;
+
+  /**
+   * Optional relayer callback functions for handling gasless transactions.
+   * Provides flexible relay mechanism - can use HTTP, WebSocket, or any custom implementation.
+   * Takes precedence over relayerUrl if both are provided.
+   */
+  relayerCallbacks?: RelayerCallbacks;
+
   /** Optional storage providers configuration for file upload/download */
   storage?: StorageConfig;
   /**

@@ -8,6 +8,7 @@ interface CopyButtonProps {
   size?: "sm" | "md" | "lg";
   variant?: "flat" | "bordered" | "solid";
   className?: string;
+  isInline?: boolean;
 }
 
 export const CopyButton: React.FC<CopyButtonProps> = ({
@@ -16,6 +17,7 @@ export const CopyButton: React.FC<CopyButtonProps> = ({
   size = "sm",
   variant = "flat",
   className,
+  isInline = false,
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -40,8 +42,9 @@ export const CopyButton: React.FC<CopyButtonProps> = ({
         }
         className={className}
         color={copied ? "success" : "default"}
+        isIconOnly={isInline}
       >
-        {copied ? "Copied" : "Copy"}
+        {isInline ? null : copied ? "Copied" : "Copy"}
       </Button>
     </Tooltip>
   );

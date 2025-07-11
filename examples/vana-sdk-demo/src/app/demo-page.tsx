@@ -64,6 +64,7 @@ import { PermissionsTable } from "@/components/PermissionsTable";
 import { EncryptionTestCard } from "@/components/EncryptionTestCard";
 import { TrustedServerManagementCard } from "@/components/TrustedServerManagementCard";
 import { SchemaManagementCard } from "@/components/SchemaManagementCard";
+import { SchemaValidationCard } from "@/components/SchemaValidationCard";
 import { ServerUploadCard } from "@/components/ServerUploadCard";
 import { YourDataCard } from "@/components/YourDataCard";
 import { TrustedServerIntegrationCard } from "@/components/TrustedServerIntegrationCard";
@@ -135,7 +136,7 @@ export default function Home() {
   const [decryptedFiles, setDecryptedFiles] = useState<Map<number, string>>(
     new Map(),
   );
-  const [_fileDecryptErrors, setFileDecryptErrors] = useState<
+  const [fileDecryptErrors, setFileDecryptErrors] = useState<
     Map<number, string>
   >(new Map());
 
@@ -366,9 +367,158 @@ export default function Home() {
             : sdkConfig.defaultStorageProvider;
 
         // Initialize Vana SDK with storage configuration
+        const baseUrl = sdkConfig.relayerUrl || `${window.location.origin}`;
+
+        // Create relayer callbacks for demo app
+        const relayerCallbacks = {
+          async submitPermissionGrant(typedData, signature) {
+            const response = await fetch(`${baseUrl}/api/relay`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ typedData, signature }),
+            });
+            if (!response.ok) {
+              throw new Error(`Relayer request failed: ${response.statusText}`);
+            }
+            const result = await response.json();
+            if (!result.success) {
+              throw new Error(result.error || "Failed to submit to relayer");
+            }
+            return result.transactionHash;
+          },
+
+          async submitPermissionRevoke(typedData, signature) {
+            const response = await fetch(`${baseUrl}/api/relay`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ typedData, signature }),
+            });
+            if (!response.ok) {
+              throw new Error(`Relayer request failed: ${response.statusText}`);
+            }
+            const result = await response.json();
+            if (!result.success) {
+              throw new Error(result.error || "Failed to submit to relayer");
+            }
+            return result.transactionHash;
+          },
+
+          async submitTrustServer(typedData, signature) {
+            const response = await fetch(`${baseUrl}/api/relay`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ typedData, signature }),
+            });
+            if (!response.ok) {
+              throw new Error(`Relayer request failed: ${response.statusText}`);
+            }
+            const result = await response.json();
+            if (!result.success) {
+              throw new Error(result.error || "Failed to submit to relayer");
+            }
+            return result.transactionHash;
+          },
+
+          async submitUntrustServer(typedData, signature) {
+            const response = await fetch(`${baseUrl}/api/relay`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ typedData, signature }),
+            });
+            if (!response.ok) {
+              throw new Error(`Relayer request failed: ${response.statusText}`);
+            }
+            const result = await response.json();
+            if (!result.success) {
+              throw new Error(result.error || "Failed to submit to relayer");
+            }
+            return result.transactionHash;
+          },
+
+          async submitFileAddition(url, userAddress) {
+            const response = await fetch(`${baseUrl}/api/relay/addFile`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ url, userAddress }),
+            });
+            if (!response.ok) {
+              throw new Error(`Relayer request failed: ${response.statusText}`);
+            }
+            const result = await response.json();
+            if (!result.success) {
+              throw new Error(result.error || "Failed to submit to relayer");
+            }
+            return {
+              fileId: result.fileId,
+              transactionHash: result.transactionHash,
+            };
+          },
+
+          async submitFileAdditionWithPermissions(
+            url,
+            userAddress,
+            permissions,
+          ) {
+            const response = await fetch(
+              `${baseUrl}/api/relay/addFileWithPermissions`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ url, userAddress, permissions }),
+              },
+            );
+            if (!response.ok) {
+              throw new Error(`Relayer request failed: ${response.statusText}`);
+            }
+            const result = await response.json();
+            if (!result.success) {
+              throw new Error(result.error || "Failed to submit to relayer");
+            }
+            return {
+              fileId: result.fileId,
+              transactionHash: result.transactionHash,
+            };
+          },
+
+          async storeGrantFile(grantData) {
+            // Check if there's a store endpoint, otherwise use IPFS
+            try {
+              const response = await fetch(`${baseUrl}/api/store`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(grantData),
+              });
+              if (!response.ok) {
+                throw new Error(
+                  `Failed to store grant file: ${response.statusText}`,
+                );
+              }
+              const result = await response.json();
+              if (!result.success) {
+                throw new Error(result.error || "Failed to store grant file");
+              }
+              return result.url;
+            } catch {
+              // Fallback to IPFS upload if store endpoint doesn't exist
+              const response = await fetch(`${baseUrl}/api/ipfs/upload`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(grantData),
+              });
+              if (!response.ok) {
+                throw new Error(
+                  `Failed to store grant file via IPFS: ${response.statusText}`,
+                );
+              }
+              const result = await response.json();
+              return result.url;
+            }
+          },
+        };
+
         const vanaInstance = new Vana({
           walletClient: walletClient as WalletClient & { chain: VanaChain }, // Type compatibility with Vana SDK
-          relayerUrl: sdkConfig.relayerUrl || `${window.location.origin}`,
+          relayerCallbacks,
           subgraphUrl: sdkConfig.subgraphUrl || undefined,
           storage: {
             providers: storageProviders,
@@ -433,13 +583,34 @@ export default function Home() {
     }
   }, [vana]);
 
-  // Load user files and permissions when Vana is initialized
+  const loadUserTrustedServers = useCallback(async () => {
+    if (!vana || !address) return;
+
+    try {
+      const trustedServers = await vana.data.getUserTrustedServers({
+        user: address,
+      });
+      console.info("Loaded trusted servers:", trustedServers);
+      // TODO: Update state to store trusted servers if needed by the UI
+    } catch (error) {
+      console.error("Failed to load user trusted servers:", error);
+    }
+  }, [vana, address]);
+
+  // Load user files, permissions, and trusted servers when Vana is initialized
   useEffect(() => {
     if (vana && address) {
       loadUserFiles();
       loadUserPermissions();
+      loadUserTrustedServers();
     }
-  }, [vana, address, loadUserFiles, loadUserPermissions]);
+  }, [
+    vana,
+    address,
+    loadUserFiles,
+    loadUserPermissions,
+    loadUserTrustedServers,
+  ]);
 
   const handleFileSelection = (fileId: number, selected: boolean) => {
     if (selected) {
@@ -747,11 +918,11 @@ export default function Home() {
     }
 
     setDecryptingFiles((prev) => new Set(prev).add(file.id));
-    // Clear any previous errors
+    // Clear any previous error for this file
     setFileDecryptErrors((prev) => {
-      const newMap = new Map(prev);
-      newMap.delete(file.id);
-      return newMap;
+      const newErrors = new Map(prev);
+      newErrors.delete(file.id);
+      return newErrors;
     });
 
     try {
@@ -798,6 +969,14 @@ export default function Home() {
         return newSet;
       });
     }
+  };
+
+  const handleClearFileError = (fileId: number) => {
+    setFileDecryptErrors((prev) => {
+      const newErrors = new Map(prev);
+      newErrors.delete(fileId);
+      return newErrors;
+    });
   };
 
   const handleDownloadDecryptedFile = (file: UserFile) => {
@@ -1712,9 +1891,11 @@ export default function Home() {
                       selectedFiles={selectedFiles}
                       decryptingFiles={decryptingFiles}
                       decryptedFiles={decryptedFiles}
+                      fileDecryptErrors={fileDecryptErrors}
                       onFileSelection={handleFileSelection}
                       onDecryptFile={handleDecryptFile}
                       onDownloadDecryptedFile={handleDownloadDecryptedFile}
+                      onClearFileError={handleClearFileError}
                       onGrantPermission={handleGrantPermission}
                       isGranting={isGranting}
                       grantStatus={grantStatus}
@@ -1880,6 +2061,11 @@ export default function Home() {
                       onRefreshRefiners={loadRefiners}
                       chainId={chainId || 14800}
                     />
+                  </div>
+
+                  {/* Schema Validation Section */}
+                  <div className="mt-16">
+                    <SchemaValidationCard vana={vana} />
                   </div>
                 </Section>
 

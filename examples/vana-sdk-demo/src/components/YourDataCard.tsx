@@ -18,6 +18,7 @@ import {
   ExternalLink,
   Download,
   RefreshCw,
+  Key,
 } from "lucide-react";
 import type { UserFile } from "vana-sdk/types/data";
 import { SectionHeader } from "./ui/SectionHeader";
@@ -27,6 +28,9 @@ import { StatusDisplay } from "./ui/StatusDisplay";
 import { StatusMessage } from "./ui/StatusMessage";
 import { ExplorerLink } from "./ui/ExplorerLink";
 import { CopyButton } from "./ui/CopyButton";
+import { FileIdDisplay } from "./ui/FileIdDisplay";
+import { AddressDisplay } from "./ui/AddressDisplay";
+import { ErrorMessage } from "./ui/ErrorMessage";
 
 interface YourDataCardProps {
   // File lookup
@@ -47,6 +51,7 @@ interface YourDataCardProps {
   selectedFiles: number[];
   decryptingFiles: Set<number>;
   decryptedFiles: Map<number, string>;
+  fileDecryptErrors: Map<number, string>;
   onFileSelection: (fileId: number, selected: boolean) => void;
   onDecryptFile: (
     file: UserFile & { source?: "discovered" | "looked-up" | "uploaded" },
@@ -54,6 +59,7 @@ interface YourDataCardProps {
   onDownloadDecryptedFile: (
     file: UserFile & { source?: "discovered" | "looked-up" | "uploaded" },
   ) => void;
+  onClearFileError: (fileId: number) => void;
 
   // Permission granting
   onGrantPermission: () => void;
@@ -82,9 +88,11 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
   selectedFiles,
   decryptingFiles,
   decryptedFiles,
+  fileDecryptErrors,
   onFileSelection,
   onDecryptFile,
   onDownloadDecryptedFile,
+  onClearFileError,
   onGrantPermission,
   isGranting,
   grantStatus,
@@ -178,7 +186,33 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
               }}
             >
               <TableHeader>
-                <TableColumn>Select</TableColumn>
+                <TableColumn>
+                  <Checkbox
+                    isSelected={
+                      selectedFiles.length === userFiles.length &&
+                      userFiles.length > 0
+                    }
+                    isIndeterminate={
+                      selectedFiles.length > 0 &&
+                      selectedFiles.length < userFiles.length
+                    }
+                    onValueChange={(selected) => {
+                      if (selected) {
+                        // Select all files
+                        userFiles.forEach((file) => {
+                          if (!selectedFiles.includes(file.id)) {
+                            onFileSelection(file.id, true);
+                          }
+                        });
+                      } else {
+                        // Deselect all files
+                        selectedFiles.forEach((fileId) => {
+                          onFileSelection(fileId, false);
+                        });
+                      }
+                    }}
+                  />
+                </TableColumn>
                 <TableColumn>File ID</TableColumn>
                 <TableColumn>Owner</TableColumn>
                 <TableColumn>Size</TableColumn>
@@ -203,30 +237,27 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
                         />
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-small">
-                            {file.id}
-                          </span>
-                          <CopyButton
-                            value={file.id.toString()}
-                            tooltip="Copy file ID"
-                          />
-                        </div>
+                        <FileIdDisplay
+                          fileId={file.id}
+                          chainId={chainId}
+                          showCopy={true}
+                          showExternalLink={true}
+                        />
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-small truncate max-w-32">
-                            {file.ownerAddress}
-                          </span>
-                          <CopyButton
-                            value={file.ownerAddress}
-                            tooltip="Copy owner address"
-                          />
-                        </div>
+                        <AddressDisplay
+                          address={file.ownerAddress}
+                          truncate={true}
+                          showCopy={true}
+                          showExternalLink={false}
+                          className="max-w-32"
+                        />
                       </TableCell>
                       <TableCell>
                         <span className="text-small">
-                          {file.metadata?.size || "Unknown"} bytes
+                          {file.metadata?.size
+                            ? `${file.metadata.size} bytes`
+                            : "Unknown size"}
                         </span>
                       </TableCell>
                       <TableCell>
@@ -245,6 +276,7 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
                           <CopyButton
                             value={file.url}
                             tooltip="Copy file URL"
+                            isInline
                           />
                         </div>
                       </TableCell>
@@ -269,6 +301,11 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
                             onPress={() => onDecryptFile(file)}
                             isLoading={isDecrypting}
                             isDisabled={isDecrypting}
+                            startContent={
+                              !isDecrypting ? (
+                                <Key className="h-3 w-3" />
+                              ) : undefined
+                            }
                           >
                             {isDecrypting ? "Decrypting..." : "Decrypt"}
                           </Button>
@@ -283,6 +320,15 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
                             </Button>
                           )}
                         </div>
+                        {fileDecryptErrors.has(file.id) && (
+                          <div className="mt-2">
+                            <ErrorMessage
+                              error={fileDecryptErrors.get(file.id) || null}
+                              onDismiss={() => onClearFileError(file.id)}
+                              className="text-xs"
+                            />
+                          </div>
+                        )}
                       </TableCell>
                     </TableRow>
                   );
@@ -308,19 +354,28 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
 
         {/* Grant Permission Section */}
         {selectedFiles.length > 0 && (
-          <div className="mt-6 p-4 bg-default-100 rounded">
-            <h4 className="font-medium mb-3 text-default-700">
-              Grant Permission ({selectedFiles.length} file
-              {selectedFiles.length !== 1 ? "s" : ""} selected)
-            </h4>
-            <Button
-              onPress={onGrantPermission}
-              disabled={selectedFiles.length === 0 || isGranting}
-              className="mb-4"
-            >
-              {isGranting && <Spinner size="sm" className="mr-2" />}
-              Grant Permission to Selected Files
-            </Button>
+          <div className="mt-6 border-t pt-4">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h4 className="font-semibold text-default-900">
+                  Grant Permissions
+                </h4>
+                <p className="text-sm text-default-500">
+                  {selectedFiles.length} file
+                  {selectedFiles.length !== 1 ? "s" : ""} selected for
+                  permission granting
+                </p>
+              </div>
+              <Button
+                onPress={onGrantPermission}
+                disabled={selectedFiles.length === 0 || isGranting}
+                color="primary"
+                size="md"
+              >
+                {isGranting && <Spinner size="sm" className="mr-2" />}
+                Grant Permissions
+              </Button>
+            </div>
 
             {grantStatus && (
               <StatusMessage

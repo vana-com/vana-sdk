@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { recoverTypedDataAddress } from "viem";
+import { recoverTypedDataAddress, getContract } from "viem";
 import type { Hash } from "viem";
 import { createRelayerVana } from "@/lib/relayer";
+import { getContractAddress, getAbi } from "vana-sdk";
 import type {
   PermissionGrantTypedData,
   TrustServerTypedData,
@@ -67,11 +68,32 @@ export async function POST(request: NextRequest) {
         typedData as unknown as PermissionGrantTypedData,
         signature,
       );
+    } else if (typedData.primaryType === "PermissionRevoke") {
+      // Handle permission revoke - submit directly to blockchain
+      // The SDK doesn't have submitSignedRevoke, so we need to submit directly
+      const contract = getContract({
+        address: getContractAddress(vana.chainId, "PermissionRegistry"),
+        abi: getAbi("PermissionRegistry"),
+        walletClient: vana.protocol.walletClient,
+      });
+
+      const { grantId, nonce } = typedData.message;
+      txHash = await contract.write.revokePermission([grantId, BigInt(nonce)]);
     } else if (typedData.primaryType === "TrustServer") {
       txHash = await vana.permissions.submitSignedTrustServer(
         typedData as unknown as TrustServerTypedData,
         signature,
       );
+    } else if (typedData.primaryType === "UntrustServer") {
+      // Handle untrust server - similar to trust server but different method
+      const contract = getContract({
+        address: getContractAddress(vana.chainId, "PermissionRegistry"),
+        abi: getAbi("PermissionRegistry"),
+        walletClient: vana.protocol.walletClient,
+      });
+
+      const { serverAddress } = typedData.message;
+      txHash = await contract.write.untrustServer([serverAddress]);
     } else {
       throw new Error(`Unsupported operation type: ${typedData.primaryType}`);
     }

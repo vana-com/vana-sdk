@@ -164,6 +164,7 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
                   <CopyButton
                     value={permission.id.toString()}
                     tooltip="Copy permission ID"
+                    isInline
                     size="sm"
                   />
                 </div>

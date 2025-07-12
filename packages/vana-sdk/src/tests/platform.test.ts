@@ -169,7 +169,7 @@ describe("Platform Adapters", () => {
       it("should generate different PGP key pairs on subsequent calls", async () => {
         const keyPair1 = await browserPlatformAdapter.pgp.generateKeyPair();
         // Wait a millisecond to ensure different timestamp
-        await new Promise((resolve) => setTimeout(resolve, 1));
+        await new Promise((resolve) => setTimeout(resolve, 2));
         const keyPair2 = await browserPlatformAdapter.pgp.generateKeyPair();
 
         expect(keyPair1.publicKey).not.toBe(keyPair2.publicKey);
@@ -391,7 +391,7 @@ describe("Platform Adapters", () => {
       it("should generate different PGP key pairs on subsequent calls", async () => {
         const keyPair1 = await nodePlatformAdapter.pgp.generateKeyPair();
         // Wait a millisecond to ensure different timestamp
-        await new Promise((resolve) => setTimeout(resolve, 1));
+        await new Promise((resolve) => setTimeout(resolve, 2));
         const keyPair2 = await nodePlatformAdapter.pgp.generateKeyPair();
 
         expect(keyPair1.publicKey).not.toBe(keyPair2.publicKey);

@@ -58,7 +58,7 @@
     "build:main": "tsc",
     "build:node": "tsc --project tsconfig.node.json",
     "build:browser": "tsc --project tsconfig.browser.json",
-    "build:setup": "node scripts/setup-builds.js",
+    "build:setup": "node scripts/setup-builds.cjs",
     "clean": "rimraf dist",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

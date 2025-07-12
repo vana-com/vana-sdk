@@ -294,7 +294,8 @@ export class ApiClient {
 
       clearTimeout(timeoutId);
 
-      const data = await response.json();
+      const responseData: unknown = await response.json();
+      const data = responseData as { message?: string; [key: string]: unknown };
 
       if (!response.ok) {
         return {
@@ -309,7 +310,7 @@ export class ApiClient {
       }
 
       return {
-        data: data,
+        data: responseData as TData,
         success: true,
         meta: {
           status: response.status,

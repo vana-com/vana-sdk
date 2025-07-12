@@ -512,7 +512,8 @@ describe("TypeScript Types", () => {
                   size: 100,
                   contentType: "text/plain",
                 }),
-                download: async () => new Blob(),
+                download: async () =>
+                  new Blob([], { type: "application/octet-stream" }),
                 list: async () => [],
                 delete: async () => true,
                 getConfig: () => ({ name: "ipfs" }),
@@ -553,7 +554,8 @@ describe("TypeScript Types", () => {
                   size: 100,
                   contentType: "text/plain",
                 }),
-                download: async () => new Blob(),
+                download: async () =>
+                  new Blob([], { type: "application/octet-stream" }),
                 list: async () => [],
                 delete: async () => true,
                 getConfig: () => ({ name: "ipfs" }),

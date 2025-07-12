@@ -4,6 +4,7 @@ import { ServerController } from "../controllers/server";
 import { ControllerContext } from "../controllers/permissions";
 import { NetworkError, SignatureError, PersonalServerError } from "../errors";
 import { PostRequestParams, InitPersonalServerParams } from "../types";
+import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock global fetch
 const mockFetch = vi.fn();
@@ -70,6 +71,7 @@ describe("ServerController", () => {
       applicationClient:
         mockApplicationClient as unknown as ControllerContext["applicationClient"],
       publicClient: {} as unknown as ControllerContext["publicClient"],
+      platform: mockPlatformAdapter,
     };
 
     serverController = new ServerController(mockContext);

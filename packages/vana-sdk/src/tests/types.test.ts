@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import { Vana } from "../index.node";
 import type { VanaConfig, WalletConfig, ChainConfig } from "../types/config";
 import type { UserFile, UploadEncryptedFileResult } from "../types/data";
 import type {
@@ -30,7 +31,6 @@ import type {
 } from "../types/generics";
 import type { VanaContract } from "../abi";
 import {
-  Vana,
   getContractInfo,
   ContractFactory,
   RetryUtility,

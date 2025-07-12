@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DataController } from "../controllers/data";
 import { ControllerContext } from "../controllers/permissions";
 import { Address } from "viem";
+import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock global fetch
 const mockFetch = vi.fn();
@@ -56,6 +57,7 @@ describe("DataController Relayer Integration", () => {
       },
       storageManager:
         mockStorageManager as unknown as ControllerContext["storageManager"],
+      platform: mockPlatformAdapter,
     };
 
     dataController = new DataController(mockContext);

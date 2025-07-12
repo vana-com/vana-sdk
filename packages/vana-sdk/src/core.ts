@@ -19,76 +19,17 @@ import { StorageManager, StorageProvider } from "./storage";
 import { createWalletClient, createPublicClient, http } from "viem";
 import { chains } from "./config/chains";
 import { getChainConfig } from "./chains";
+import type { VanaPlatformAdapter } from "./platform/interface";
 
 /**
- * The main Vana SDK client class.
- *
- * This class serves as the primary entry point into the Vana ecosystem.
- * It is an orchestrator that provides access to all protocol functionality
- * through namespaced resource controllers.
- *
- * ## Configuration Cascade
- *
- * The SDK uses a configuration cascade for optional parameters like `subgraphUrl`:
- * 1. **Method-level**: Override per method call (highest priority)
- * 2. **Instance-level**: Configure in Vana constructor
- * 3. **Chain defaults**: Built-in defaults for known chains (lowest priority)
- *
+ * The core Vana SDK client class that is environment-agnostic.
+ * 
+ * This class contains all the SDK logic and accepts a platform adapter
+ * via its constructor to handle environment-specific operations.
+ * 
  * @category Core SDK
- * @example
- * ```typescript
- * import { Vana, moksha } from 'vana-sdk';
- * import { createWalletClient, http } from 'viem';
- * import { privateKeyToAccount } from 'viem/accounts';
- *
- * const account = privateKeyToAccount('0x...');
- * const walletClient = createWalletClient({
- *   account,
- *   chain: moksha,
- *   transport: http()
- * });
- *
- * // Basic configuration - uses chain defaults
- * const vana = new Vana({
- *   walletClient,
- *   relayerCallbacks: { // optional gasless transactions
- *     submitPermissionGrant: async (typedData, signature) => {
- *       return await myRelayer.submit(typedData, signature);
- *     }
- *   }
- * });
- *
- * // Advanced configuration - override subgraph URL
- * const vana = new Vana({
- *   walletClient,
- *   subgraphUrl: 'https://api.goldsky.com/api/public/...',
- *   relayerCallbacks: {
- *     submitPermissionGrant: async (typedData, signature) => {
- *       return await myRelayer.submit(typedData, signature);
- *     }
- *   }
- * });
- *
- * // Grant permission
- * const txHash = await vana.permissions.grant({
- *   to: '0x...',
- *   operation: 'llm_inference',
- *   parameters: { prompt: 'Hello world' }
- * });
- *
- * // Get user files (uses configured subgraph URL)
- * const files = await vana.data.getUserFiles({
- *   owner: '0x...'
- * });
- *
- * // Get user files with override
- * const files = await vana.data.getUserFiles({
- *   owner: '0x...',
- *   subgraphUrl: 'https://different-subgraph.com'
- * });
- * ```
  */
-export class Vana {
+export class VanaCore {
   /** Controller for managing data access permissions */
   public readonly permissions: PermissionsController;
 
@@ -101,81 +42,48 @@ export class Vana {
   /** Controller providing low-level access to protocol contracts */
   public readonly protocol: ProtocolController;
 
+  /** Platform adapter for environment-specific operations */
+  protected readonly platform: VanaPlatformAdapter;
+
   private readonly relayerCallbacks?: RelayerCallbacks;
   private readonly storageManager?: StorageManager;
 
   /**
-   * Creates a Vana SDK instance from a chain configuration.
+   * Creates a VanaCore instance from a chain configuration.
    * This is a convenience factory method for users who want to provide
    * chain details directly rather than a pre-configured wallet client.
    *
    * @param config - Chain configuration object
-   * @returns Vana SDK instance
-   *
-   * @example
-   * ```typescript
-   * import { Vana } from 'vana-sdk';
-   * import { privateKeyToAccount } from 'viem/accounts';
-   *
-   * const account = privateKeyToAccount('0x...');
-   * const vana = Vana.fromChain({
-   *   chainId: 14800,
-   *   rpcUrl: 'https://rpc.moksha.vana.org',
-   *   account,
-   *   relayerCallbacks: {
-   *     submitPermissionGrant: async (typedData, signature) => {
-   *       return await myRelayer.submit(typedData, signature);
-   *     }
-   *   }
-   * });
-   * ```
+   * @param platform - Platform adapter for environment-specific operations
+   * @returns VanaCore instance
    */
-  static fromChain(config: ChainConfig): Vana {
-    return new Vana(config);
+  static fromChain(config: ChainConfig, platform: VanaPlatformAdapter): VanaCore {
+    return new VanaCore(config, platform);
   }
 
   /**
-   * Creates a Vana SDK instance from a wallet client configuration.
+   * Creates a VanaCore instance from a wallet client configuration.
    * This is the recommended approach when you already have a configured wallet client.
    *
    * @param config - Wallet client configuration object
-   * @returns Vana SDK instance
-   *
-   * @example
-   * ```typescript
-   * import { Vana } from 'vana-sdk';
-   * import { createWalletClient, http } from 'viem';
-   * import { privateKeyToAccount } from 'viem/accounts';
-   * import { mokshaTestnet } from 'vana-sdk/chains';
-   *
-   * const account = privateKeyToAccount('0x...');
-   * const walletClient = createWalletClient({
-   *   account,
-   *   chain: mokshaTestnet,
-   *   transport: http()
-   * });
-   *
-   * const vana = Vana.fromWallet({
-   *   walletClient,
-   *   relayerCallbacks: {
-   *     submitPermissionGrant: async (typedData, signature) => {
-   *       return await myRelayer.submit(typedData, signature);
-   *     }
-   *   }
-   * });
-   * ```
+   * @param platform - Platform adapter for environment-specific operations
+   * @returns VanaCore instance
    */
-  static fromWallet(config: WalletConfig): Vana {
-    return new Vana(config);
+  static fromWallet(config: WalletConfig, platform: VanaPlatformAdapter): VanaCore {
+    return new VanaCore(config, platform);
   }
 
   /**
-   * Creates a new Vana SDK client instance.
+   * Creates a new VanaCore client instance.
    *
    * @param config - Configuration object (WalletConfig or ChainConfig)
+   * @param platform - Platform adapter for environment-specific operations
    * @throws InvalidConfigurationError if the configuration is invalid
    */
-  constructor(config: VanaConfig) {
+  constructor(config: VanaConfig, platform: VanaPlatformAdapter) {
+    // Store the platform adapter
+    this.platform = platform;
+
     // Validate configuration
     this.validateConfig(config);
 
@@ -248,7 +156,7 @@ export class Vana {
     const chainConfig = getChainConfig(walletClient.chain.id);
     const subgraphUrl = config.subgraphUrl || chainConfig?.subgraphUrl;
 
-    // Create shared context for all controllers
+    // Create shared context for all controllers, now including the platform adapter
     const sharedContext: ControllerContext = {
       walletClient,
       publicClient,
@@ -256,6 +164,7 @@ export class Vana {
       relayerCallbacks: this.relayerCallbacks,
       storageManager: this.storageManager,
       subgraphUrl,
+      platform: this.platform, // Pass the platform adapter to controllers
     };
 
     // Initialize controllers

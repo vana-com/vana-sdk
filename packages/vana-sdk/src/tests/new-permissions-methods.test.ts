@@ -4,6 +4,7 @@ import {
   PermissionsController,
   ControllerContext,
 } from "../controllers/permissions";
+import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock ALL external dependencies to ensure pure unit tests
 vi.mock("viem", () => ({
@@ -65,6 +66,7 @@ describe("New PermissionsController Methods", () => {
         mockWalletClient as unknown as ControllerContext["walletClient"],
       publicClient:
         mockPublicClient as unknown as ControllerContext["publicClient"],
+      platform: mockPlatformAdapter,
     };
 
     controller = new PermissionsController(mockContext);

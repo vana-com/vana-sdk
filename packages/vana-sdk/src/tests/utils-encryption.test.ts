@@ -25,10 +25,7 @@ const mockPlatformAdapter: VanaPlatformAdapter = {
   platform: "node",
 };
 
-// Mock the platform module
-vi.mock("../platform", () => ({
-  getPlatformAdapter: () => mockPlatformAdapter,
-}));
+// No longer need to mock the platform module since we pass platform adapters directly
 
 interface MockAccount {
   address: string;
@@ -275,7 +272,7 @@ describe("Encryption Utils", () => {
         encryptedString,
       );
 
-      const result = await encryptUserData(testData, encryptionKey);
+      const result = await encryptUserData(testData, encryptionKey, mockPlatformAdapter);
 
       expect(result).toBeInstanceOf(Blob);
       expect(result.type).toBe("text/plain");
@@ -296,7 +293,7 @@ describe("Encryption Utils", () => {
         encryptedString,
       );
 
-      const result = await encryptUserData(emptyData, encryptionKey);
+      const result = await encryptUserData(emptyData, encryptionKey, mockPlatformAdapter);
 
       expect(result).toBeInstanceOf(Blob);
       expect(mockPlatformAdapter.pgp.encrypt).toHaveBeenCalledWith(
@@ -313,7 +310,7 @@ describe("Encryption Utils", () => {
         new Error("Invalid message format"),
       );
 
-      await expect(encryptUserData(testData, encryptionKey)).rejects.toThrow(
+      await expect(encryptUserData(testData, encryptionKey, mockPlatformAdapter)).rejects.toThrow(
         "Failed to encrypt user data: Error: Invalid message format",
       );
     });
@@ -326,7 +323,7 @@ describe("Encryption Utils", () => {
         new Error("Encryption failed"),
       );
 
-      await expect(encryptUserData(testData, encryptionKey)).rejects.toThrow(
+      await expect(encryptUserData(testData, encryptionKey, mockPlatformAdapter)).rejects.toThrow(
         "Failed to encrypt user data: Error: Encryption failed",
       );
     });
@@ -340,7 +337,7 @@ describe("Encryption Utils", () => {
         encryptedString,
       );
 
-      const result = await encryptUserData(testData, encryptionKey);
+      const result = await encryptUserData(testData, encryptionKey, mockPlatformAdapter);
 
       expect(result).toBeInstanceOf(Blob);
       const resultText = await result.text();
@@ -360,7 +357,7 @@ describe("Encryption Utils", () => {
         "String error message",
       );
 
-      await expect(encryptUserData(testData, encryptionKey)).rejects.toThrow(
+      await expect(encryptUserData(testData, encryptionKey, mockPlatformAdapter)).rejects.toThrow(
         "Failed to encrypt user data: String error message",
       );
     });
@@ -372,7 +369,7 @@ describe("Encryption Utils", () => {
       // Mock a rejection with null/undefined
       vi.mocked(mockPlatformAdapter.pgp.encrypt).mockRejectedValue(null);
 
-      await expect(encryptUserData(testData, encryptionKey)).rejects.toThrow(
+      await expect(encryptUserData(testData, encryptionKey, mockPlatformAdapter)).rejects.toThrow(
         "Failed to encrypt user data: null",
       );
     });
@@ -387,7 +384,7 @@ describe("Encryption Utils", () => {
         reason: "Server error",
       });
 
-      await expect(encryptUserData(testData, encryptionKey)).rejects.toThrow(
+      await expect(encryptUserData(testData, encryptionKey, mockPlatformAdapter)).rejects.toThrow(
         "Failed to encrypt user data: [object Object]",
       );
     });
@@ -403,7 +400,7 @@ describe("Encryption Utils", () => {
         decryptedString,
       );
 
-      const result = await decryptUserData(encryptedData, encryptionKey);
+      const result = await decryptUserData(encryptedData, encryptionKey, mockPlatformAdapter);
 
       expect(result).toBeInstanceOf(Blob);
       expect(result.type).toBe("text/plain");
@@ -424,7 +421,7 @@ describe("Encryption Utils", () => {
         decryptedString,
       );
 
-      const result = await decryptUserData(emptyEncryptedData, encryptionKey);
+      const result = await decryptUserData(emptyEncryptedData, encryptionKey, mockPlatformAdapter);
 
       expect(result).toBeInstanceOf(Blob);
       const resultText = await result.text();
@@ -440,7 +437,7 @@ describe("Encryption Utils", () => {
       );
 
       await expect(
-        decryptUserData(encryptedData, encryptionKey),
+        decryptUserData(encryptedData, encryptionKey, mockPlatformAdapter),
       ).rejects.toThrow(
         "Failed to decrypt user data: Error: Invalid encrypted message",
       );
@@ -455,7 +452,7 @@ describe("Encryption Utils", () => {
         decryptedString,
       );
 
-      const result = await decryptUserData(encryptedData, encryptionKey);
+      const result = await decryptUserData(encryptedData, encryptionKey, mockPlatformAdapter);
 
       expect(result).toBeInstanceOf(Blob);
       const resultText = await result.text();
@@ -474,7 +471,7 @@ describe("Encryption Utils", () => {
         new Error("Session key decryption failed"),
       );
 
-      await expect(decryptUserData(encryptedData, wrongKey)).rejects.toThrow(
+      await expect(decryptUserData(encryptedData, wrongKey, mockPlatformAdapter)).rejects.toThrow(
         "Failed to decrypt user data: Error: Session key decryption failed",
       );
     });
@@ -489,7 +486,7 @@ describe("Encryption Utils", () => {
       );
 
       await expect(
-        decryptUserData(encryptedData, encryptionKey),
+        decryptUserData(encryptedData, encryptionKey, mockPlatformAdapter),
       ).rejects.toThrow("Failed to decrypt user data: Decryption string error");
     });
 
@@ -501,7 +498,7 @@ describe("Encryption Utils", () => {
       vi.mocked(mockPlatformAdapter.pgp.decrypt).mockRejectedValue(undefined);
 
       await expect(
-        decryptUserData(encryptedData, encryptionKey),
+        decryptUserData(encryptedData, encryptionKey, mockPlatformAdapter),
       ).rejects.toThrow("Failed to decrypt user data: undefined");
     });
 
@@ -516,7 +513,7 @@ describe("Encryption Utils", () => {
       });
 
       await expect(
-        decryptUserData(encryptedData, encryptionKey),
+        decryptUserData(encryptedData, encryptionKey, mockPlatformAdapter),
       ).rejects.toThrow("Failed to decrypt user data: [object Object]");
     });
   });
@@ -539,12 +536,12 @@ describe("Encryption Utils", () => {
       );
 
       // Test workflow
-      const encrypted = await encryptUserData(originalData, encryptionKey);
+      const encrypted = await encryptUserData(originalData, encryptionKey, mockPlatformAdapter);
       expect(encrypted).toBeInstanceOf(Blob);
       const encryptedText = await encrypted.text();
       expect(encryptedText).toBe(encryptedString);
 
-      const decrypted = await decryptUserData(encrypted, encryptionKey);
+      const decrypted = await decryptUserData(encrypted, encryptionKey, mockPlatformAdapter);
       expect(decrypted).toBeInstanceOf(Blob);
       const decryptedText = await decrypted.text();
       expect(decryptedText).toBe(originalDataText);
@@ -563,8 +560,8 @@ describe("Encryption Utils", () => {
         originalDataText,
       );
 
-      const encrypted = await encryptUserData(largeData, encryptionKey);
-      const decrypted = await decryptUserData(encrypted, encryptionKey);
+      const encrypted = await encryptUserData(largeData, encryptionKey, mockPlatformAdapter);
+      const decrypted = await decryptUserData(encrypted, encryptionKey, mockPlatformAdapter);
 
       expect(encrypted).toBeInstanceOf(Blob);
       expect(decrypted).toBeInstanceOf(Blob);

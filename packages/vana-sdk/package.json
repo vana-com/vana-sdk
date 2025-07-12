@@ -3,49 +3,44 @@
   "version": "1.0.9",
   "description": "A TypeScript library for interacting with Vana Network smart contracts.",
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/index.node.js",
+  "types": "dist/index.node.d.ts",
   "exports": {
     ".": {
       "node": {
-        "types": "./dist/index.d.ts",
+        "types": "./dist/index.node.d.ts",
         "import": "./dist/index.node.js",
         "require": "./dist/index.node.cjs"
       },
       "browser": {
-        "types": "./dist/index.d.ts",
+        "types": "./dist/index.browser.d.ts",
         "import": "./dist/index.browser.js",
         "require": "./dist/index.browser.cjs"
       },
       "default": {
-        "types": "./dist/index.d.ts",
-        "import": "./dist/index.js"
+        "types": "./dist/index.node.d.ts",
+        "import": "./dist/index.node.js"
       }
     },
     "./platform": {
-      "node": {
-        "types": "./dist/platform/node.d.ts",
-        "import": "./dist/platform/node.js",
-        "require": "./dist/platform/node.cjs"
-      },
-      "browser": {
-        "types": "./dist/platform/browser.d.ts",
-        "import": "./dist/platform/browser.js",
-        "require": "./dist/platform/browser.cjs"
-      },
-      "default": "./dist/platform/index.js"
+      "types": "./dist/platform.d.ts",
+      "import": "./dist/platform.js",
+      "require": "./dist/platform.cjs"
     },
     "./chains": {
-      "types": "./dist/config/chains.d.ts",
-      "import": "./dist/config/chains.js"
+      "types": "./dist/chains.d.ts",
+      "import": "./dist/chains.js",
+      "require": "./dist/chains.cjs"
     },
     "./types": {
       "types": "./dist/types.d.ts",
-      "import": "./dist/types.js"
+      "import": "./dist/types.js",
+      "require": "./dist/types.cjs"
     },
     "./errors": {
       "types": "./dist/errors.d.ts",
-      "import": "./dist/errors.js"
+      "import": "./dist/errors.js",
+      "require": "./dist/errors.cjs"
     }
   },
   "files": [
@@ -54,11 +49,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "rimraf dist && npm run build:main && npm run build:node && npm run build:browser && npm run build:setup",
-    "build:main": "tsc",
-    "build:node": "tsc --project tsconfig.node.json",
-    "build:browser": "tsc --project tsconfig.browser.json",
-    "build:setup": "node scripts/setup-builds.cjs",
+    "build": "tsup",
     "clean": "rimraf dist",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -98,6 +89,7 @@
     "globals": "^16.3.0",
     "prettier": "^3.5.3",
     "rimraf": "^6.0.1",
+    "tsup": "^8.5.0",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"

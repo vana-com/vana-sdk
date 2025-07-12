@@ -10,6 +10,7 @@ import type {
   StorageFile as _StorageFile,
   StorageListOptions as _StorageListOptions,
 } from "../storage/index";
+import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock ALL external dependencies for pure unit tests
 vi.mock("../utils/encryption", () => ({
@@ -166,6 +167,7 @@ describe("DataController", () => {
         mockPublicClient as unknown as ControllerContext["publicClient"],
       subgraphUrl:
         "https://api.goldsky.com/api/public/project_cm168cz887zva010j39il7a6p/subgraphs/moksha/7.0.1/gn",
+      platform: mockPlatformAdapter,
     };
 
     controller = new DataController(mockContext);

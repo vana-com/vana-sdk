@@ -5,6 +5,7 @@
  * to provide crypto, PGP, and HTTP functionality without Node.js dependencies.
  */
 
+import * as openpgp from "openpgp";
 import {
   VanaPlatformAdapter,
   VanaCryptoAdapter,
@@ -12,54 +13,183 @@ import {
   VanaHttpAdapter,
 } from "./interface";
 
+// Browser-native crypto implementation using Web Crypto API
+class BrowserECDH {
+  async generateKeyPair() {
+    const keyPair = await crypto.subtle.generateKey(
+      {
+        name: 'ECDH',
+        namedCurve: 'P-256',
+      },
+      true,
+      ['deriveKey', 'deriveBits']
+    );
+    return keyPair;
+  }
+
+  async encrypt(publicKeyHex: string, message: string): Promise<string> {
+    // Generate ephemeral key pair for this encryption
+    const ephemeralKeyPair = await this.generateKeyPair();
+    
+    // Import the provided public key
+    const publicKeyData = hexToUint8Array(publicKeyHex);
+    const importedPublicKey = await crypto.subtle.importKey(
+      'raw',
+      publicKeyData,
+      { name: 'ECDH', namedCurve: 'P-256' },
+      false,
+      []
+    );
+    
+    // Derive shared secret using ephemeral private key and provided public key
+    const sharedKey = await crypto.subtle.deriveKey(
+      { name: 'ECDH', public: importedPublicKey },
+      ephemeralKeyPair.privateKey,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt']
+    );
+    
+    // Generate IV
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    
+    // Encrypt the message
+    const encoder = new TextEncoder();
+    const data = encoder.encode(message);
+    const encrypted = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv },
+      sharedKey,
+      data
+    );
+    
+    // Export ephemeral public key for sender
+    const ephemeralPublicKeyData = await crypto.subtle.exportKey('raw', ephemeralKeyPair.publicKey);
+    
+    return JSON.stringify({
+      encrypted: Array.from(new Uint8Array(encrypted)),
+      iv: Array.from(iv),
+      ephemeralPublicKey: Array.from(new Uint8Array(ephemeralPublicKeyData)),
+      publicKey: publicKeyHex
+    });
+  }
+
+  async decrypt(privateKeyHex: string, encryptedData: string): Promise<string> {
+    try {
+      const data = JSON.parse(encryptedData);
+      
+      // Validate that we have the expected data structure
+      if (!data.encrypted || !data.iv || !data.ephemeralPublicKey) {
+        throw new Error('Invalid encrypted data format');
+      }
+      
+      // Import the private key
+      const privateKeyData = hexToUint8Array(privateKeyHex);
+      const importedPrivateKey = await crypto.subtle.importKey(
+        'pkcs8',
+        privateKeyData,
+        { name: 'ECDH', namedCurve: 'P-256' },
+        false,
+        ['deriveKey']
+      );
+      
+      // Import ephemeral public key
+      const ephemeralPublicKey = await crypto.subtle.importKey(
+        'raw',
+        new Uint8Array(data.ephemeralPublicKey),
+        { name: 'ECDH', namedCurve: 'P-256' },
+        false,
+        []
+      );
+      
+      // Derive the same shared secret
+      const sharedKey = await crypto.subtle.deriveKey(
+        { name: 'ECDH', public: ephemeralPublicKey },
+        importedPrivateKey,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['decrypt']
+      );
+      
+      // Decrypt
+      const decrypted = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: new Uint8Array(data.iv) },
+        sharedKey,
+        new Uint8Array(data.encrypted)
+      );
+      
+      return new TextDecoder().decode(decrypted);
+    } catch (error) {
+      throw new Error(`Decryption failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+}
+
+// Utility functions for browser crypto
+function hexToUint8Array(hex: string): Uint8Array {
+  const result = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    result[i / 2] = parseInt(hex.substr(i, 2), 16);
+  }
+  return result;
+}
+
+function uint8ArrayToHex(array: Uint8Array): string {
+  return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+// Utility functions for browser crypto remain available if needed in future
+
 /**
  * Browser implementation of crypto operations using eccrypto-js
  */
 class BrowserCryptoAdapter implements VanaCryptoAdapter {
   async encryptWithPublicKey(
     data: string,
-    _publicKey: string,
+    publicKeyHex: string,
   ): Promise<string> {
-    console.warn(
-      "BrowserCryptoAdapter: Using placeholder encryption - not secure for production",
-    );
-    const encoder = new TextEncoder();
-    const dataArray = encoder.encode(data);
-    return `browser-encrypted:${btoa(String.fromCharCode(...dataArray))}:${_publicKey.substring(0, 8)}`;
+    try {
+      const ecdh = new BrowserECDH();
+      return await ecdh.encrypt(publicKeyHex, data);
+    } catch (error) {
+      throw new Error(`Encryption failed: ${error}`);
+    }
   }
 
   async decryptWithPrivateKey(
     encryptedData: string,
-    _privateKey: string,
+    privateKeyHex: string,
   ): Promise<string> {
-    console.warn(
-      "BrowserCryptoAdapter: Using placeholder decryption - not secure for production",
-    );
-    if (encryptedData.startsWith("browser-encrypted:")) {
-      const [, encodedData] = encryptedData.split(":");
-      const decodedData = atob(encodedData);
-      return Array.from(decodedData, (char) => char.charCodeAt(0))
-        .map((byte) => String.fromCharCode(byte))
-        .join("");
+    try {
+      const ecdh = new BrowserECDH();
+      return await ecdh.decrypt(privateKeyHex, encryptedData);
+    } catch (error) {
+      throw new Error(`Decryption failed: ${error}`);
     }
-    return encryptedData;
   }
 
   async generateKeyPair(): Promise<{ publicKey: string; privateKey: string }> {
-    console.warn(
-      "BrowserCryptoAdapter: Using placeholder key generation - not secure for production",
-    );
-    const privateKey = Array.from({ length: 32 }, () =>
-      Math.floor(Math.random() * 256),
-    )
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-    const publicKey = Array.from({ length: 33 }, () =>
-      Math.floor(Math.random() * 256),
-    )
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-    return { publicKey, privateKey };
+    try {
+      // Generate a secp256k1 compatible key pair using Web Crypto API
+      const keyPair = await crypto.subtle.generateKey(
+        {
+          name: 'ECDH',
+          namedCurve: 'P-256',
+        },
+        true,
+        ['deriveKey', 'deriveBits']
+      );
+      
+      // Export keys as hex strings
+      const publicKeyBuffer = await crypto.subtle.exportKey('raw', keyPair.publicKey);
+      const privateKeyBuffer = await crypto.subtle.exportKey('pkcs8', keyPair.privateKey);
+      
+      return {
+        publicKey: uint8ArrayToHex(new Uint8Array(publicKeyBuffer)),
+        privateKey: uint8ArrayToHex(new Uint8Array(privateKeyBuffer))
+      };
+    } catch (error) {
+      throw new Error(`Key generation failed: ${error}`);
+    }
   }
 }
 
@@ -67,43 +197,66 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
  * Browser implementation of PGP operations using openpgp with browser-specific configuration
  */
 class BrowserPGPAdapter implements VanaPGPAdapter {
-  async encrypt(data: string, _publicKey: string): Promise<string> {
-    console.warn(
-      "BrowserPGPAdapter: Using placeholder PGP encryption - not secure for production",
-    );
-    const encoder = new TextEncoder();
-    const encodedData = encoder.encode(data);
-    return `-----BEGIN PGP MESSAGE-----\nbrowser-pgp-encrypted:${btoa(String.fromCharCode(...encodedData))}\n-----END PGP MESSAGE-----`;
-  }
-
-  async decrypt(encryptedData: string, _privateKey: string): Promise<string> {
-    console.warn(
-      "BrowserPGPAdapter: Using placeholder PGP decryption - not secure for production",
-    );
-    const match = encryptedData.match(
-      /browser-pgp-encrypted:([A-Za-z0-9+/=]+)/,
-    );
-    if (match) {
-      const decodedData = atob(match[1]);
-      const dataArray = Array.from(decodedData, (char) => char.charCodeAt(0));
-      return new TextDecoder().decode(new Uint8Array(dataArray));
+  async encrypt(data: string, publicKeyArmored: string): Promise<string> {
+    try {
+      const publicKey = await openpgp.readKey({ armoredKey: publicKeyArmored });
+      
+      const encrypted = await openpgp.encrypt({
+        message: await openpgp.createMessage({ text: data }),
+        encryptionKeys: publicKey,
+        config: { preferredCompressionAlgorithm: openpgp.enums.compression.zlib }
+      });
+      
+      return encrypted as string;
+    } catch (error) {
+      throw new Error(`PGP encryption failed: ${error}`);
     }
-    return encryptedData;
   }
 
-  async generateKeyPair(_options?: {
+  async decrypt(encryptedData: string, privateKeyArmored: string): Promise<string> {
+    try {
+      const privateKey = await openpgp.readPrivateKey({ armoredKey: privateKeyArmored });
+      const message = await openpgp.readMessage({ armoredMessage: encryptedData });
+      
+      const { data: decrypted } = await openpgp.decrypt({
+        message,
+        decryptionKeys: privateKey
+      });
+      
+      return decrypted as string;
+    } catch (error) {
+      throw new Error(`PGP decryption failed: ${error}`);
+    }
+  }
+
+  async generateKeyPair(options?: {
     name?: string;
     email?: string;
     passphrase?: string;
   }): Promise<{ publicKey: string; privateKey: string }> {
-    console.warn(
-      "BrowserPGPAdapter: Using placeholder PGP key generation - not secure for production",
-    );
-
-    return {
-      publicKey: `-----BEGIN PGP PUBLIC KEY BLOCK-----\nbrowser-placeholder-public-key-${Date.now()}\n-----END PGP PUBLIC KEY BLOCK-----`,
-      privateKey: `-----BEGIN PGP PRIVATE KEY BLOCK-----\nbrowser-placeholder-private-key-${Date.now()}\n-----END PGP PRIVATE KEY BLOCK-----`,
-    };
+    try {
+      const name = options?.name || 'Vana User';
+      const email = options?.email || 'user@vana.org';
+      const passphrase = options?.passphrase;
+      
+      const { privateKey, publicKey } = await openpgp.generateKey({
+        type: 'rsa',
+        rsaBits: 2048,
+        userIDs: [{ name, email }],
+        passphrase,
+        config: {
+          preferredCompressionAlgorithm: openpgp.enums.compression.zlib,
+          preferredSymmetricAlgorithm: openpgp.enums.symmetric.aes256
+        }
+      });
+      
+      return {
+        publicKey,
+        privateKey
+      };
+    } catch (error) {
+      throw new Error(`PGP key generation failed: ${error}`);
+    }
   }
 }
 
@@ -123,9 +276,20 @@ class BrowserHttpAdapter implements VanaHttpAdapter {
 /**
  * Complete browser platform adapter implementation
  */
-export const browserPlatformAdapter: VanaPlatformAdapter = {
-  crypto: new BrowserCryptoAdapter(),
-  pgp: new BrowserPGPAdapter(),
-  http: new BrowserHttpAdapter(),
-  platform: "browser" as const,
-};
+export class BrowserPlatformAdapter implements VanaPlatformAdapter {
+  crypto: VanaCryptoAdapter;
+  pgp: VanaPGPAdapter;
+  http: VanaHttpAdapter;
+  platform: "browser" = "browser" as const;
+
+  constructor() {
+    this.crypto = new BrowserCryptoAdapter();
+    this.pgp = new BrowserPGPAdapter();
+    this.http = new BrowserHttpAdapter();
+  }
+}
+
+/**
+ * Default instance export for backwards compatibility
+ */
+export const browserPlatformAdapter: VanaPlatformAdapter = new BrowserPlatformAdapter();

@@ -1,5 +1,48 @@
-// Core modules
-export { Vana } from "./vana";
+// Core modules - environment-specific Vana classes are exported from index.node.ts and index.browser.ts
+export { VanaCore } from "./core";
+
+// Universal Vana class with runtime platform detection
+// This provides a fallback for environments where conditional exports don't work properly
+import { VanaCore } from "./core";
+import { NodePlatformAdapter } from "./platform/node";
+import { BrowserPlatformAdapter } from "./platform/browser";
+import type { VanaConfig } from "./types";
+import type { VanaPlatformAdapter } from "./platform/interface";
+
+/**
+ * Universal Vana SDK class with automatic platform detection.
+ * Detects the runtime environment and uses the appropriate platform adapter.
+ * 
+ * For better performance and explicit control, prefer importing from:
+ * - Node.js: Use the environment-specific entry points via conditional exports
+ * - Browser: Use the environment-specific entry points via conditional exports
+ */
+export class Vana extends VanaCore {
+  constructor(config: VanaConfig) {
+    // Runtime platform detection and adapter selection
+    const platformAdapter = Vana.createPlatformAdapter();
+    super(config, platformAdapter);
+  }
+
+  private static createPlatformAdapter(): VanaPlatformAdapter {
+    // Runtime environment detection
+    const isNode = typeof window === 'undefined' && typeof global !== 'undefined' && typeof process !== 'undefined';
+    
+    if (isNode) {
+      return new NodePlatformAdapter();
+    } else {
+      return new BrowserPlatformAdapter();
+    }
+  }
+
+  static override fromChain(config: VanaConfig) {
+    return new Vana(config);
+  }
+
+  static override fromWallet(config: VanaConfig) {
+    return new Vana(config);
+  }
+}
 
 // Types - modular exports
 export type * from "./types";

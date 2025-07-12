@@ -6,6 +6,11 @@
  */
 
 /**
+ * Platform type identifier
+ */
+export type PlatformType = "node" | "browser";
+
+/**
  * Encryption operations that require different implementations per platform
  */
 export interface VanaCryptoAdapter {
@@ -102,5 +107,5 @@ export interface VanaPlatformAdapter {
   /**
    * Platform identifier for debugging/telemetry
    */
-  readonly platform: "node" | "browser";
+  readonly platform: PlatformType;
 }

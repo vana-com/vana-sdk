@@ -13,6 +13,7 @@ import {
   SignatureError,
   PermissionError,
 } from "../errors";
+import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock ALL external dependencies to ensure pure unit tests
 vi.mock("viem", () => ({
@@ -157,6 +158,7 @@ describe("PermissionsController", () => {
         storeGrantFile: vi.fn().mockResolvedValue("https://mock-grant-url.com"),
         submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
       },
+      platform: mockPlatformAdapter,
     };
 
     controller = new PermissionsController(mockContext);
@@ -344,6 +346,7 @@ describe("PermissionsController", () => {
           mockWalletClient as unknown as ControllerContext["walletClient"],
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
         // No relayerUrl - forces direct transaction path
       });
     });
@@ -690,6 +693,7 @@ describe("PermissionsController", () => {
           mockWalletClient as unknown as ControllerContext["walletClient"],
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
         relayerCallbacks: {
           submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
           submitPermissionRevoke: vi.fn().mockResolvedValue("0xtxhash"),
@@ -784,6 +788,7 @@ describe("PermissionsController", () => {
           mockWalletClient as unknown as ControllerContext["walletClient"],
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
         relayerCallbacks: {
           submitPermissionGrant: vi
             .fn()
@@ -819,6 +824,7 @@ describe("PermissionsController", () => {
           mockWalletClient as unknown as ControllerContext["walletClient"],
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
         relayerCallbacks: {
           submitPermissionGrant: vi
             .fn()
@@ -853,6 +859,7 @@ describe("PermissionsController", () => {
           mockWalletClient as unknown as ControllerContext["walletClient"],
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
         // No relayerUrl - forces direct transaction path
       });
 
@@ -894,6 +901,7 @@ describe("PermissionsController", () => {
           noChainWallet as unknown as ControllerContext["walletClient"],
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
         // No relayerUrl - forces direct transaction path
       });
 
@@ -921,6 +929,7 @@ describe("PermissionsController", () => {
           noAccountWallet as unknown as ControllerContext["walletClient"],
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
         // No relayerUrl - forces direct transaction path
       });
 
@@ -961,6 +970,7 @@ describe("PermissionsController", () => {
           noChainWallet as unknown as ControllerContext["walletClient"],
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
         relayerCallbacks: {
           submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
           submitPermissionRevoke: vi.fn().mockResolvedValue("0xtxhash"),
@@ -983,6 +993,7 @@ describe("PermissionsController", () => {
           mockWalletClient as unknown as ControllerContext["walletClient"],
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
         relayerCallbacks: {
           submitPermissionGrant: vi
             .fn()
@@ -1017,6 +1028,7 @@ describe("PermissionsController", () => {
           mockWalletClient as unknown as ControllerContext["walletClient"],
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
         relayerCallbacks: {
           submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
           submitPermissionRevoke: vi.fn().mockResolvedValue("0xtxhash"),
@@ -1043,6 +1055,7 @@ describe("PermissionsController", () => {
           failingWalletClient as unknown as ControllerContext["walletClient"],
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
         relayerCallbacks: {
           submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
           storeGrantFile: vi
@@ -1079,6 +1092,7 @@ describe("PermissionsController", () => {
           faultyWalletClient as unknown as ControllerContext["walletClient"],
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
         relayerCallbacks: {
           submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
           submitPermissionRevoke: vi.fn().mockResolvedValue("0xtxhash"),
@@ -1100,6 +1114,7 @@ describe("PermissionsController", () => {
           mockWalletClient as unknown as ControllerContext["walletClient"],
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
         // No relayer callbacks to force direct transaction path
       });
 
@@ -1128,6 +1143,7 @@ describe("PermissionsController", () => {
           mockWalletClient as unknown as ControllerContext["walletClient"],
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
         // No relayer callbacks
       });
 
@@ -1160,6 +1176,7 @@ describe("PermissionsController", () => {
           mockWalletClientWithChain as unknown as ControllerContext["walletClient"],
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
         // No relayer callbacks
       });
 
@@ -1231,6 +1248,7 @@ describe("PermissionsController", () => {
           mockWalletClient as unknown as ControllerContext["walletClient"],
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
         // No relayer callbacks
       });
 
@@ -1253,6 +1271,7 @@ describe("PermissionsController", () => {
           mockWalletClient as unknown as ControllerContext["walletClient"],
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
         relayerCallbacks: {
           submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
           submitPermissionRevoke: vi.fn().mockResolvedValue("0xtxhash"),

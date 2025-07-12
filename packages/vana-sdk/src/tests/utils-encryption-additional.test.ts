@@ -28,10 +28,7 @@ const mockPlatformAdapter: VanaPlatformAdapter = {
   platform: "node",
 };
 
-// Mock the platform module
-vi.mock("../platform", () => ({
-  getPlatformAdapter: () => mockPlatformAdapter,
-}));
+// No longer need to mock the platform module since we pass platform adapters directly
 
 describe("Additional Encryption Utils", () => {
   beforeEach(() => {
@@ -48,7 +45,7 @@ describe("Additional Encryption Utils", () => {
         mockPlatformAdapter.crypto.encryptWithPublicKey,
       ).mockResolvedValue(expectedEncrypted);
 
-      const result = await encryptWithWalletPublicKey(data, publicKey);
+      const result = await encryptWithWalletPublicKey(data, publicKey, mockPlatformAdapter);
 
       expect(result).toBe(expectedEncrypted);
       expect(
@@ -65,7 +62,7 @@ describe("Additional Encryption Utils", () => {
         mockPlatformAdapter.crypto.encryptWithPublicKey,
       ).mockResolvedValue(expectedEncrypted);
 
-      const result = await encryptWithWalletPublicKey(data, publicKey);
+      const result = await encryptWithWalletPublicKey(data, publicKey, mockPlatformAdapter);
 
       expect(result).toBe(expectedEncrypted);
       expect(
@@ -81,7 +78,7 @@ describe("Additional Encryption Utils", () => {
         mockPlatformAdapter.crypto.encryptWithPublicKey,
       ).mockRejectedValue(new Error("Encryption failed"));
 
-      await expect(encryptWithWalletPublicKey(data, publicKey)).rejects.toThrow(
+      await expect(encryptWithWalletPublicKey(data, publicKey, mockPlatformAdapter)).rejects.toThrow(
         "Failed to encrypt with wallet public key: Error: Encryption failed",
       );
     });
@@ -94,7 +91,7 @@ describe("Additional Encryption Utils", () => {
         mockPlatformAdapter.crypto.encryptWithPublicKey,
       ).mockRejectedValue("String error");
 
-      await expect(encryptWithWalletPublicKey(data, publicKey)).rejects.toThrow(
+      await expect(encryptWithWalletPublicKey(data, publicKey, mockPlatformAdapter)).rejects.toThrow(
         "Failed to encrypt with wallet public key: String error",
       );
     });
@@ -113,6 +110,7 @@ describe("Additional Encryption Utils", () => {
       const result = await decryptWithWalletPrivateKey(
         encryptedData,
         privateKey,
+        mockPlatformAdapter,
       );
 
       expect(result).toBe(expectedDecrypted);
@@ -130,7 +128,7 @@ describe("Additional Encryption Utils", () => {
       ).mockRejectedValue(new Error("Decryption failed"));
 
       await expect(
-        decryptWithWalletPrivateKey(encryptedData, privateKey),
+        decryptWithWalletPrivateKey(encryptedData, privateKey, mockPlatformAdapter),
       ).rejects.toThrow(
         "Failed to decrypt with wallet private key: Error: Decryption failed",
       );
@@ -145,7 +143,7 @@ describe("Additional Encryption Utils", () => {
       ).mockRejectedValue("Decryption error");
 
       await expect(
-        decryptWithWalletPrivateKey(encryptedData, privateKey),
+        decryptWithWalletPrivateKey(encryptedData, privateKey, mockPlatformAdapter),
       ).rejects.toThrow(
         "Failed to decrypt with wallet private key: Decryption error",
       );
@@ -162,7 +160,7 @@ describe("Additional Encryption Utils", () => {
         mockPlatformAdapter.crypto.encryptWithPublicKey,
       ).mockResolvedValue(expectedEncrypted);
 
-      const result = await encryptFileKey(fileKey, publicKey);
+      const result = await encryptFileKey(fileKey, publicKey, mockPlatformAdapter);
 
       expect(result).toBe(expectedEncrypted);
       expect(
@@ -178,7 +176,7 @@ describe("Additional Encryption Utils", () => {
         mockPlatformAdapter.crypto.encryptWithPublicKey,
       ).mockRejectedValue(new Error("File key encryption failed"));
 
-      await expect(encryptFileKey(fileKey, publicKey)).rejects.toThrow(
+      await expect(encryptFileKey(fileKey, publicKey, mockPlatformAdapter)).rejects.toThrow(
         "Failed to encrypt file key: Error: File key encryption failed",
       );
     });
@@ -191,7 +189,7 @@ describe("Additional Encryption Utils", () => {
         mockPlatformAdapter.crypto.encryptWithPublicKey,
       ).mockRejectedValue("Key encryption error");
 
-      await expect(encryptFileKey(fileKey, publicKey)).rejects.toThrow(
+      await expect(encryptFileKey(fileKey, publicKey, mockPlatformAdapter)).rejects.toThrow(
         "Failed to encrypt file key: Key encryption error",
       );
     });
@@ -210,7 +208,7 @@ describe("Additional Encryption Utils", () => {
         mockKeyPair,
       );
 
-      const result = await getEncryptionParameters();
+      const result = await getEncryptionParameters(mockPlatformAdapter);
 
       expect(result).toHaveProperty("iv");
       expect(result).toHaveProperty("key");
@@ -224,7 +222,7 @@ describe("Additional Encryption Utils", () => {
         new Error("Key generation failed"),
       );
 
-      await expect(getEncryptionParameters()).rejects.toThrow(
+      await expect(getEncryptionParameters(mockPlatformAdapter)).rejects.toThrow(
         "Failed to generate encryption parameters: Error: Key generation failed",
       );
     });
@@ -234,7 +232,7 @@ describe("Additional Encryption Utils", () => {
         "Generation error",
       );
 
-      await expect(getEncryptionParameters()).rejects.toThrow(
+      await expect(getEncryptionParameters(mockPlatformAdapter)).rejects.toThrow(
         "Failed to generate encryption parameters: Generation error",
       );
     });
@@ -250,7 +248,7 @@ describe("Additional Encryption Utils", () => {
         mockPlatformAdapter.crypto.decryptWithPrivateKey,
       ).mockResolvedValue(expectedDecrypted);
 
-      const result = await decryptWithPrivateKey(encryptedData, privateKey);
+      const result = await decryptWithPrivateKey(encryptedData, privateKey, mockPlatformAdapter);
 
       expect(result).toBe(expectedDecrypted);
       expect(
@@ -267,7 +265,7 @@ describe("Additional Encryption Utils", () => {
       ).mockRejectedValue(new Error("DLP decryption failed"));
 
       await expect(
-        decryptWithPrivateKey(encryptedData, privateKey),
+        decryptWithPrivateKey(encryptedData, privateKey, mockPlatformAdapter),
       ).rejects.toThrow(
         "Failed to decrypt with private key: Error: DLP decryption failed",
       );
@@ -282,7 +280,7 @@ describe("Additional Encryption Utils", () => {
       ).mockRejectedValue("DLP decryption error");
 
       await expect(
-        decryptWithPrivateKey(encryptedData, privateKey),
+        decryptWithPrivateKey(encryptedData, privateKey, mockPlatformAdapter),
       ).rejects.toThrow(
         "Failed to decrypt with private key: DLP decryption error",
       );
@@ -300,7 +298,7 @@ describe("Additional Encryption Utils", () => {
         mockKeyPair,
       );
 
-      const result = await generateEncryptionKeyPair();
+      const result = await generateEncryptionKeyPair(mockPlatformAdapter);
 
       expect(result).toEqual(mockKeyPair);
       expect(mockPlatformAdapter.crypto.generateKeyPair).toHaveBeenCalled();
@@ -311,7 +309,7 @@ describe("Additional Encryption Utils", () => {
         new Error("Crypto key generation failed"),
       );
 
-      await expect(generateEncryptionKeyPair()).rejects.toThrow(
+      await expect(generateEncryptionKeyPair(mockPlatformAdapter)).rejects.toThrow(
         "Failed to generate encryption key pair: Error: Crypto key generation failed",
       );
     });
@@ -321,7 +319,7 @@ describe("Additional Encryption Utils", () => {
         "Crypto generation error",
       );
 
-      await expect(generateEncryptionKeyPair()).rejects.toThrow(
+      await expect(generateEncryptionKeyPair(mockPlatformAdapter)).rejects.toThrow(
         "Failed to generate encryption key pair: Crypto generation error",
       );
     });
@@ -340,7 +338,7 @@ describe("Additional Encryption Utils", () => {
         mockKeyPair,
       );
 
-      const result = await generatePGPKeyPair();
+      const result = await generatePGPKeyPair(mockPlatformAdapter);
 
       expect(result).toEqual(mockKeyPair);
       expect(mockPlatformAdapter.pgp.generateKeyPair).toHaveBeenCalledWith(
@@ -365,7 +363,7 @@ describe("Additional Encryption Utils", () => {
         mockKeyPair,
       );
 
-      const result = await generatePGPKeyPair(options);
+      const result = await generatePGPKeyPair(mockPlatformAdapter, options);
 
       expect(result).toEqual(mockKeyPair);
       expect(mockPlatformAdapter.pgp.generateKeyPair).toHaveBeenCalledWith(
@@ -378,7 +376,7 @@ describe("Additional Encryption Utils", () => {
         new Error("PGP key generation failed"),
       );
 
-      await expect(generatePGPKeyPair()).rejects.toThrow(
+      await expect(generatePGPKeyPair(mockPlatformAdapter)).rejects.toThrow(
         "Failed to generate PGP key pair: Error: PGP key generation failed",
       );
     });
@@ -388,7 +386,7 @@ describe("Additional Encryption Utils", () => {
         "PGP generation error",
       );
 
-      await expect(generatePGPKeyPair()).rejects.toThrow(
+      await expect(generatePGPKeyPair(mockPlatformAdapter)).rejects.toThrow(
         "Failed to generate PGP key pair: PGP generation error",
       );
     });
@@ -409,7 +407,7 @@ describe("Additional Encryption Utils", () => {
         mockKeyPair,
       );
 
-      const result = await generatePGPKeyPair(options);
+      const result = await generatePGPKeyPair(mockPlatformAdapter, options);
 
       expect(result).toEqual(mockKeyPair);
       expect(mockPlatformAdapter.pgp.generateKeyPair).toHaveBeenCalledWith(
@@ -436,6 +434,7 @@ describe("Additional Encryption Utils", () => {
       const encrypted = await encryptWithWalletPublicKey(
         originalData,
         publicKey,
+        mockPlatformAdapter,
       );
       expect(encrypted).toBe(encryptedData);
 
@@ -443,6 +442,7 @@ describe("Additional Encryption Utils", () => {
       const decrypted = await decryptWithWalletPrivateKey(
         encrypted,
         privateKey,
+        mockPlatformAdapter,
       );
       expect(decrypted).toBe(originalData);
     });
@@ -461,11 +461,11 @@ describe("Additional Encryption Utils", () => {
       ).mockResolvedValue(fileKey);
 
       // Encrypt file key
-      const encrypted = await encryptFileKey(fileKey, dlpPublicKey);
+      const encrypted = await encryptFileKey(fileKey, dlpPublicKey, mockPlatformAdapter);
       expect(encrypted).toBe(encryptedFileKey);
 
       // Decrypt file key (using decryptWithPrivateKey)
-      const decrypted = await decryptWithPrivateKey(encrypted, dlpPrivateKey);
+      const decrypted = await decryptWithPrivateKey(encrypted, dlpPrivateKey, mockPlatformAdapter);
       expect(decrypted).toBe(fileKey);
     });
 
@@ -481,8 +481,8 @@ describe("Additional Encryption Utils", () => {
         mockKeyPair,
       );
 
-      const params1 = await getEncryptionParameters();
-      await getEncryptionParameters();
+      const params1 = await getEncryptionParameters(mockPlatformAdapter);
+      await getEncryptionParameters(mockPlatformAdapter);
 
       // Each call should generate new parameters
       expect(params1.iv).toBe("1234567890abcdef");

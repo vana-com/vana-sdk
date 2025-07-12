@@ -3,10 +3,16 @@ import { describe, it, expect } from "vitest";
 // Test that all main exports are available
 describe("SDK Entry Point", () => {
   describe("Core exports", () => {
-    it("should export Vana main class", async () => {
+    it("should export Vana class", async () => {
       const { Vana } = await import("../index");
       expect(Vana).toBeDefined();
       expect(typeof Vana).toBe("function");
+    });
+
+    it("should export VanaCore class", async () => {
+      const { VanaCore } = await import("../index");
+      expect(VanaCore).toBeDefined();
+      expect(typeof VanaCore).toBe("function");
     });
   });
 

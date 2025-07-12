@@ -24,10 +24,7 @@ const mockPlatformAdapter: VanaPlatformAdapter = {
   platform: "node",
 };
 
-// Mock the platform module
-vi.mock("../platform", () => ({
-  getPlatformAdapter: () => mockPlatformAdapter,
-}));
+// No longer need to mock the platform module since we pass platform adapters directly
 
 describe("Wallet Encryption Utils", () => {
   beforeEach(() => {
@@ -50,7 +47,7 @@ describe("Wallet Encryption Utils", () => {
         mockPlatformAdapter.crypto.encryptWithPublicKey as any
       ).mockResolvedValue(expectedEncryptedData);
 
-      const result = await encryptWithWalletPublicKey(testData, publicKey);
+      const result = await encryptWithWalletPublicKey(testData, publicKey, mockPlatformAdapter);
 
       expect(
         mockPlatformAdapter.crypto.encryptWithPublicKey,
@@ -69,7 +66,7 @@ describe("Wallet Encryption Utils", () => {
         mockPlatformAdapter.crypto.encryptWithPublicKey as any
       ).mockResolvedValue(expectedEncryptedData);
 
-      await encryptWithWalletPublicKey(testData, publicKey);
+      await encryptWithWalletPublicKey(testData, publicKey, mockPlatformAdapter);
 
       expect(
         mockPlatformAdapter.crypto.encryptWithPublicKey,
@@ -87,7 +84,7 @@ describe("Wallet Encryption Utils", () => {
         mockPlatformAdapter.crypto.encryptWithPublicKey as any
       ).mockResolvedValue(expectedEncryptedData);
 
-      await encryptWithWalletPublicKey(testData, compressedKey);
+      await encryptWithWalletPublicKey(testData, compressedKey, mockPlatformAdapter);
 
       expect(
         mockPlatformAdapter.crypto.encryptWithPublicKey,
@@ -105,7 +102,7 @@ describe("Wallet Encryption Utils", () => {
         mockPlatformAdapter.crypto.encryptWithPublicKey as any
       ).mockResolvedValue(expectedEncryptedData);
 
-      await encryptWithWalletPublicKey(testData, uncompressedKey);
+      await encryptWithWalletPublicKey(testData, uncompressedKey, mockPlatformAdapter);
 
       expect(
         mockPlatformAdapter.crypto.encryptWithPublicKey,
@@ -122,7 +119,7 @@ describe("Wallet Encryption Utils", () => {
       ).mockRejectedValue(new Error("Encryption failed"));
 
       await expect(
-        encryptWithWalletPublicKey(testData, publicKey),
+        encryptWithWalletPublicKey(testData, publicKey, mockPlatformAdapter),
       ).rejects.toThrow(
         "Failed to encrypt with wallet public key: Error: Encryption failed",
       );
@@ -138,7 +135,7 @@ describe("Wallet Encryption Utils", () => {
       ).mockRejectedValue("Unknown error");
 
       await expect(
-        encryptWithWalletPublicKey(testData, publicKey),
+        encryptWithWalletPublicKey(testData, publicKey, mockPlatformAdapter),
       ).rejects.toThrow(
         "Failed to encrypt with wallet public key: Unknown error",
       );
@@ -159,6 +156,7 @@ describe("Wallet Encryption Utils", () => {
       const result = await decryptWithWalletPrivateKey(
         encryptedData,
         privateKey,
+        mockPlatformAdapter,
       );
 
       expect(
@@ -177,7 +175,7 @@ describe("Wallet Encryption Utils", () => {
         mockPlatformAdapter.crypto.decryptWithPrivateKey as any
       ).mockResolvedValue(expectedDecrypted);
 
-      await decryptWithWalletPrivateKey(encryptedData, privateKey);
+      await decryptWithWalletPrivateKey(encryptedData, privateKey, mockPlatformAdapter);
 
       expect(
         mockPlatformAdapter.crypto.decryptWithPrivateKey,
@@ -201,6 +199,7 @@ describe("Wallet Encryption Utils", () => {
       const result = await decryptWithWalletPrivateKey(
         mockEncryptedData,
         privateKey,
+        mockPlatformAdapter,
       );
 
       // Verify the decryption was called and returned expected result
@@ -220,7 +219,7 @@ describe("Wallet Encryption Utils", () => {
       ).mockRejectedValue(new Error("Decryption failed"));
 
       await expect(
-        decryptWithWalletPrivateKey(encryptedData, privateKey),
+        decryptWithWalletPrivateKey(encryptedData, privateKey, mockPlatformAdapter),
       ).rejects.toThrow(
         "Failed to decrypt with wallet private key: Error: Decryption failed",
       );
@@ -236,7 +235,7 @@ describe("Wallet Encryption Utils", () => {
       ).mockRejectedValue("Unknown error");
 
       await expect(
-        decryptWithWalletPrivateKey(encryptedData, privateKey),
+        decryptWithWalletPrivateKey(encryptedData, privateKey, mockPlatformAdapter),
       ).rejects.toThrow(
         "Failed to decrypt with wallet private key: Unknown error",
       );
@@ -252,7 +251,7 @@ describe("Wallet Encryption Utils", () => {
       ).mockRejectedValue(new Error("Invalid encrypted data format"));
 
       await expect(
-        decryptWithWalletPrivateKey(invalidEncryptedData, privateKey),
+        decryptWithWalletPrivateKey(invalidEncryptedData, privateKey, mockPlatformAdapter),
       ).rejects.toThrow(
         "Failed to decrypt with wallet private key: Error: Invalid encrypted data format",
       );
@@ -278,6 +277,7 @@ describe("Wallet Encryption Utils", () => {
       const encryptedData = await encryptWithWalletPublicKey(
         originalData,
         publicKey,
+        mockPlatformAdapter,
       );
 
       // Mock decryption to return original data
@@ -289,6 +289,7 @@ describe("Wallet Encryption Utils", () => {
       const decryptedData = await decryptWithWalletPrivateKey(
         encryptedData,
         privateKey,
+        mockPlatformAdapter,
       );
 
       expect(decryptedData).toBe(originalData);

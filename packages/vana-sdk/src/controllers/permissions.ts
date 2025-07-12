@@ -36,6 +36,7 @@ import {
 } from "../utils/grantFiles";
 import { validateGrant } from "../utils/grantValidation";
 import { StorageManager } from "../storage";
+import type { VanaPlatformAdapter } from "../platform/interface";
 
 interface SubgraphPermissionsResponse {
   data?: {
@@ -98,6 +99,8 @@ export interface ControllerContext {
   storageManager?: StorageManager;
   /** Optional subgraph URL for querying user files and permissions */
   subgraphUrl?: string;
+  /** Platform adapter for environment-specific operations */
+  platform: VanaPlatformAdapter;
 }
 
 /**
@@ -812,11 +815,8 @@ export class PermissionsController {
             const grantFile = await retrieveGrantFile(permission.grant);
             operation = grantFile.operation;
             parameters = grantFile.parameters;
-          } catch (error) {
-            console.warn(
-              `Failed to retrieve grant file for permission ${permission.id}:`,
-              error,
-            );
+          } catch {
+            // Failed to retrieve grant file - using basic permission data
             // Continue with basic permission data even if grant file can't be retrieved
           }
 
@@ -826,11 +826,8 @@ export class PermissionsController {
               BigInt(permission.id),
             );
             files = fileIds.map((id) => Number(id));
-          } catch (error) {
-            console.warn(
-              `Failed to retrieve file IDs for permission ${permission.id}:`,
-              error,
-            );
+          } catch {
+            // Failed to retrieve file IDs - using empty array
             // Continue with empty files array
           }
 
@@ -846,8 +843,8 @@ export class PermissionsController {
             grantedAt: Number(permission.addedAtBlock),
             nonce: Number(permission.nonce),
           });
-        } catch (error) {
-          console.warn(`Failed to process permission ${permission.id}:`, error);
+        } catch {
+          // Failed to process permission - skipping
         }
       }
 

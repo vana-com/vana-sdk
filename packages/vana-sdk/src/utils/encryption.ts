@@ -9,7 +9,7 @@
  * encryption functionality across Node.js and browser environments.
  */
 
-import { getPlatformAdapter } from "../platform";
+import type { VanaPlatformAdapter } from "../platform/interface";
 import type { WalletClient } from "viem";
 
 /**
@@ -49,14 +49,15 @@ export async function generateEncryptionKey(
  * Encrypt data with a wallet's public key using platform-appropriate cryptography
  * @param data The data to encrypt (as string or Blob)
  * @param publicKey The public key for encryption
+ * @param platformAdapter The platform adapter to use for encryption
  * @returns The encrypted data
  */
 export async function encryptWithWalletPublicKey(
   data: string | Blob,
   publicKey: string,
+  platformAdapter: VanaPlatformAdapter,
 ): Promise<string> {
   try {
-    const platformAdapter = getPlatformAdapter();
     const dataString = data instanceof Blob ? await data.text() : data;
     return await platformAdapter.crypto.encryptWithPublicKey(
       dataString,
@@ -71,14 +72,15 @@ export async function encryptWithWalletPublicKey(
  * Decrypt data with a wallet's private key using platform-appropriate cryptography
  * @param encryptedData The encrypted data
  * @param privateKey The private key for decryption
+ * @param platformAdapter The platform adapter to use for decryption
  * @returns The decrypted data as string
  */
 export async function decryptWithWalletPrivateKey(
   encryptedData: string,
   privateKey: string,
+  platformAdapter: VanaPlatformAdapter,
 ): Promise<string> {
   try {
-    const platformAdapter = getPlatformAdapter();
     return await platformAdapter.crypto.decryptWithPrivateKey(
       encryptedData,
       privateKey,
@@ -92,14 +94,15 @@ export async function decryptWithWalletPrivateKey(
  * Encrypt a file key with a DLP's public key using platform-appropriate cryptography
  * @param fileKey The symmetric key used to encrypt the file
  * @param publicKey The DLP's public key
+ * @param platformAdapter The platform adapter to use for encryption
  * @returns The encrypted key that can be stored on-chain
  */
 export async function encryptFileKey(
   fileKey: string,
   publicKey: string,
+  platformAdapter: VanaPlatformAdapter,
 ): Promise<string> {
   try {
-    const platformAdapter = getPlatformAdapter();
     return await platformAdapter.crypto.encryptWithPublicKey(
       fileKey,
       publicKey,
@@ -111,15 +114,16 @@ export async function encryptFileKey(
 
 /**
  * Generate encryption parameters for secure file storage
+ * @param platformAdapter The platform adapter to use for key generation
  * @returns An object containing the initialization vector and encryption key
  */
-export async function getEncryptionParameters(): Promise<{
+export async function getEncryptionParameters(
+  platformAdapter: VanaPlatformAdapter,
+): Promise<{
   iv: string;
   key: string;
 }> {
   try {
-    const platformAdapter = getPlatformAdapter();
-
     // Generate a new key pair for encryption parameters
     const keyPair = await platformAdapter.crypto.generateKeyPair();
 
@@ -138,14 +142,15 @@ export async function getEncryptionParameters(): Promise<{
  * Decrypt data that was encrypted with the DLP's public key using platform-appropriate cryptography
  * @param encryptedData The encrypted data
  * @param privateKey The private key corresponding to the public key used for encryption
+ * @param platformAdapter The platform adapter to use for decryption
  * @returns The decrypted data
  */
 export async function decryptWithPrivateKey(
   encryptedData: string,
   privateKey: string,
+  platformAdapter: VanaPlatformAdapter,
 ): Promise<string> {
   try {
-    const platformAdapter = getPlatformAdapter();
     return await platformAdapter.crypto.decryptWithPrivateKey(
       encryptedData,
       privateKey,
@@ -159,14 +164,15 @@ export async function decryptWithPrivateKey(
  * Encrypt user data using PGP with platform-appropriate configuration
  * @param data The data to encrypt (string or Blob)
  * @param publicKey The PGP public key
+ * @param platformAdapter The platform adapter to use for encryption
  * @returns The encrypted data as Blob
  */
 export async function encryptUserData(
   data: string | Blob,
   publicKey: string,
+  platformAdapter: VanaPlatformAdapter,
 ): Promise<Blob> {
   try {
-    const platformAdapter = getPlatformAdapter();
     const dataString = data instanceof Blob ? await data.text() : data;
     const encryptedString = await platformAdapter.pgp.encrypt(
       dataString,
@@ -182,14 +188,15 @@ export async function encryptUserData(
  * Decrypt user data using PGP with platform-appropriate configuration
  * @param encryptedData The encrypted data (string or Blob)
  * @param privateKey The PGP private key
+ * @param platformAdapter The platform adapter to use for decryption
  * @returns The decrypted data as Blob
  */
 export async function decryptUserData(
   encryptedData: string | Blob,
   privateKey: string,
+  platformAdapter: VanaPlatformAdapter,
 ): Promise<Blob> {
   try {
-    const platformAdapter = getPlatformAdapter();
     const dataString =
       encryptedData instanceof Blob
         ? await encryptedData.text()
@@ -206,14 +213,16 @@ export async function decryptUserData(
 
 /**
  * Generate a new key pair for asymmetric encryption
+ * @param platformAdapter The platform adapter to use for key generation
  * @returns Promise resolving to public and private key pair
  */
-export async function generateEncryptionKeyPair(): Promise<{
+export async function generateEncryptionKeyPair(
+  platformAdapter: VanaPlatformAdapter,
+): Promise<{
   publicKey: string;
   privateKey: string;
 }> {
   try {
-    const platformAdapter = getPlatformAdapter();
     return await platformAdapter.crypto.generateKeyPair();
   } catch (error) {
     throw new Error(`Failed to generate encryption key pair: ${error}`);
@@ -222,16 +231,19 @@ export async function generateEncryptionKeyPair(): Promise<{
 
 /**
  * Generate a new PGP key pair with platform-appropriate configuration
+ * @param platformAdapter The platform adapter to use for key generation
  * @param options Key generation options
  * @returns Promise resolving to public and private key pair
  */
-export async function generatePGPKeyPair(options?: {
-  name?: string;
-  email?: string;
-  passphrase?: string;
-}): Promise<{ publicKey: string; privateKey: string }> {
+export async function generatePGPKeyPair(
+  platformAdapter: VanaPlatformAdapter,
+  options?: {
+    name?: string;
+    email?: string;
+    passphrase?: string;
+  },
+): Promise<{ publicKey: string; privateKey: string }> {
   try {
-    const platformAdapter = getPlatformAdapter();
     return await platformAdapter.pgp.generateKeyPair(options);
   } catch (error) {
     throw new Error(`Failed to generate PGP key pair: ${error}`);

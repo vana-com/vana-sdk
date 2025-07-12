@@ -5,6 +5,8 @@
  * to provide crypto, PGP, and HTTP functionality.
  */
 
+import { randomBytes } from "crypto";
+import * as openpgp from "openpgp";
 import {
   VanaPlatformAdapter,
   VanaCryptoAdapter,
@@ -12,45 +14,110 @@ import {
   VanaHttpAdapter,
 } from "./interface";
 
+// Eccrypto type definitions removed - using dynamic imports instead
+
+// Dynamically import eccrypto for Node.js
+let eccrypto: {
+  encrypt: (publicKey: Buffer, message: Buffer) => Promise<{
+    iv: Buffer;
+    ephemPublicKey: Buffer;
+    ciphertext: Buffer;
+    mac: Buffer;
+  }>;
+  decrypt: (privateKey: Buffer, encrypted: {
+    iv: Buffer;
+    ephemPublicKey: Buffer;
+    ciphertext: Buffer;
+    mac: Buffer;
+  }) => Promise<Buffer>;
+  getPublicCompressed: (privateKey: Buffer) => Buffer;
+} | null = null;
+
+// Lazy load eccrypto
+async function getEccrypto() {
+  if (!eccrypto) {
+    try {
+      // Import the eccrypto library for Node.js
+      const eccryptoLib = await import("eccrypto");
+      
+      eccrypto = {
+        encrypt: eccryptoLib.encrypt,
+        decrypt: eccryptoLib.decrypt,
+        getPublicCompressed: eccryptoLib.getPublicCompressed
+      };
+    } catch (error) {
+      throw new Error(`Failed to load eccrypto library: ${error}`);
+    }
+  }
+  return eccrypto;
+}
+
 /**
- * Node.js implementation of crypto operations using eccrypto
+ * Node.js implementation of crypto operations using secp256k1
  */
 class NodeCryptoAdapter implements VanaCryptoAdapter {
   async encryptWithPublicKey(
     data: string,
-    _publicKey: string,
+    publicKeyHex: string,
   ): Promise<string> {
-    console.warn(
-      "NodeCryptoAdapter: Using placeholder encryption - not secure for production",
-    );
-    return `node-encrypted:${Buffer.from(data).toString("base64")}:${_publicKey.substring(0, 8)}`;
+    try {
+      const eccryptoLib = await getEccrypto();
+      const publicKey = Buffer.from(publicKeyHex, 'hex');
+      const message = Buffer.from(data, 'utf8');
+      
+      const encrypted = await eccryptoLib.encrypt(publicKey, message);
+      
+      // Serialize encrypted data as JSON
+      const serialized = {
+        iv: encrypted.iv.toString('hex'),
+        ephemPublicKey: encrypted.ephemPublicKey.toString('hex'),
+        ciphertext: encrypted.ciphertext.toString('hex'),
+        mac: encrypted.mac.toString('hex')
+      };
+      
+      return JSON.stringify(serialized);
+    } catch (error) {
+      throw new Error(`Encryption failed: ${error}`);
+    }
   }
 
   async decryptWithPrivateKey(
     encryptedData: string,
-    _privateKey: string,
+    privateKeyHex: string,
   ): Promise<string> {
-    console.warn(
-      "NodeCryptoAdapter: Using placeholder decryption - not secure for production",
-    );
-    if (encryptedData.startsWith("node-encrypted:")) {
-      const [, encodedData] = encryptedData.split(":");
-      return Buffer.from(encodedData, "base64").toString("utf8");
+    try {
+      const eccryptoLib = await getEccrypto();
+      const privateKey = Buffer.from(privateKeyHex, 'hex');
+      
+      // Deserialize encrypted data
+      const serialized = JSON.parse(encryptedData);
+      const encrypted = {
+        iv: Buffer.from(serialized.iv, 'hex'),
+        ephemPublicKey: Buffer.from(serialized.ephemPublicKey, 'hex'),
+        ciphertext: Buffer.from(serialized.ciphertext, 'hex'),
+        mac: Buffer.from(serialized.mac, 'hex')
+      };
+      
+      const decrypted = await eccryptoLib.decrypt(privateKey, encrypted);
+      return decrypted.toString('utf8');
+    } catch (error) {
+      throw new Error(`Decryption failed: ${error}`);
     }
-    return encryptedData;
   }
 
   async generateKeyPair(): Promise<{ publicKey: string; privateKey: string }> {
-    console.warn(
-      "NodeCryptoAdapter: Using placeholder key generation - not secure for production",
-    );
-    const privateKey = Buffer.from(
-      Array.from({ length: 32 }, () => Math.floor(Math.random() * 256)),
-    ).toString("hex");
-    const publicKey = Buffer.from(
-      Array.from({ length: 33 }, () => Math.floor(Math.random() * 256)),
-    ).toString("hex");
-    return { publicKey, privateKey };
+    try {
+      const eccryptoLib = await getEccrypto();
+      const privateKey = randomBytes(32);
+      const publicKey = eccryptoLib.getPublicCompressed(privateKey);
+      
+      return {
+        privateKey: privateKey.toString('hex'),
+        publicKey: publicKey.toString('hex')
+      };
+    } catch (error) {
+      throw new Error(`Key generation failed: ${error}`);
+    }
   }
 }
 
@@ -58,37 +125,66 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
  * Node.js implementation of PGP operations using openpgp with Node-specific configuration
  */
 class NodePGPAdapter implements VanaPGPAdapter {
-  async encrypt(data: string, _publicKey: string): Promise<string> {
-    console.warn(
-      "NodePGPAdapter: Using placeholder PGP encryption - not secure for production",
-    );
-    return `-----BEGIN PGP MESSAGE-----\nnode-pgp-encrypted:${Buffer.from(data).toString("base64")}\n-----END PGP MESSAGE-----`;
-  }
-
-  async decrypt(encryptedData: string, _privateKey: string): Promise<string> {
-    console.warn(
-      "NodePGPAdapter: Using placeholder PGP decryption - not secure for production",
-    );
-    const match = encryptedData.match(/node-pgp-encrypted:([A-Za-z0-9+/=]+)/);
-    if (match) {
-      return Buffer.from(match[1], "base64").toString("utf8");
+  async encrypt(data: string, publicKeyArmored: string): Promise<string> {
+    try {
+      const publicKey = await openpgp.readKey({ armoredKey: publicKeyArmored });
+      
+      const encrypted = await openpgp.encrypt({
+        message: await openpgp.createMessage({ text: data }),
+        encryptionKeys: publicKey,
+        config: { preferredCompressionAlgorithm: openpgp.enums.compression.zlib }
+      });
+      
+      return encrypted as string;
+    } catch (error) {
+      throw new Error(`PGP encryption failed: ${error}`);
     }
-    return encryptedData;
   }
 
-  async generateKeyPair(_options?: {
+  async decrypt(encryptedData: string, privateKeyArmored: string): Promise<string> {
+    try {
+      const privateKey = await openpgp.readPrivateKey({ armoredKey: privateKeyArmored });
+      const message = await openpgp.readMessage({ armoredMessage: encryptedData });
+      
+      const { data: decrypted } = await openpgp.decrypt({
+        message,
+        decryptionKeys: privateKey
+      });
+      
+      return decrypted as string;
+    } catch (error) {
+      throw new Error(`PGP decryption failed: ${error}`);
+    }
+  }
+
+  async generateKeyPair(options?: {
     name?: string;
     email?: string;
     passphrase?: string;
   }): Promise<{ publicKey: string; privateKey: string }> {
-    console.warn(
-      "NodePGPAdapter: Using placeholder PGP key generation - not secure for production",
-    );
-
-    return {
-      publicKey: `-----BEGIN PGP PUBLIC KEY BLOCK-----\nnode-placeholder-public-key-${Date.now()}\n-----END PGP PUBLIC KEY BLOCK-----`,
-      privateKey: `-----BEGIN PGP PRIVATE KEY BLOCK-----\nnode-placeholder-private-key-${Date.now()}\n-----END PGP PRIVATE KEY BLOCK-----`,
-    };
+    try {
+      const name = options?.name || 'Vana User';
+      const email = options?.email || 'user@vana.org';
+      const passphrase = options?.passphrase;
+      
+      const { privateKey, publicKey } = await openpgp.generateKey({
+        type: 'rsa',
+        rsaBits: 2048,
+        userIDs: [{ name, email }],
+        passphrase,
+        config: {
+          preferredCompressionAlgorithm: openpgp.enums.compression.zlib,
+          preferredSymmetricAlgorithm: openpgp.enums.symmetric.aes256
+        }
+      });
+      
+      return {
+        publicKey,
+        privateKey
+      };
+    } catch (error) {
+      throw new Error(`PGP key generation failed: ${error}`);
+    }
   }
 }
 
@@ -108,9 +204,20 @@ class NodeHttpAdapter implements VanaHttpAdapter {
 /**
  * Complete Node.js platform adapter implementation
  */
-export const nodePlatformAdapter: VanaPlatformAdapter = {
-  crypto: new NodeCryptoAdapter(),
-  pgp: new NodePGPAdapter(),
-  http: new NodeHttpAdapter(),
-  platform: "node" as const,
-};
+export class NodePlatformAdapter implements VanaPlatformAdapter {
+  crypto: VanaCryptoAdapter;
+  pgp: VanaPGPAdapter;
+  http: VanaHttpAdapter;
+  platform: "node" = "node" as const;
+
+  constructor() {
+    this.crypto = new NodeCryptoAdapter();
+    this.pgp = new NodePGPAdapter();
+    this.http = new NodeHttpAdapter();
+  }
+}
+
+/**
+ * Default instance export for backwards compatibility
+ */
+export const nodePlatformAdapter: VanaPlatformAdapter = new NodePlatformAdapter();

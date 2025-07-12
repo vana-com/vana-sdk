@@ -5,6 +5,7 @@ import { mokshaTestnet } from "../config/chains";
 import { ProtocolController } from "../controllers/protocol";
 import { ControllerContext } from "../controllers/permissions";
 import { ContractNotFoundError } from "../errors";
+import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock the config and ABI modules
 vi.mock("../config/addresses", () => ({
@@ -85,6 +86,7 @@ describe("ProtocolController", () => {
           transactionHash: "0x123456789abcdef",
         }),
       },
+      platform: mockPlatformAdapter,
     };
 
     controller = new ProtocolController(mockContext);
@@ -135,6 +137,7 @@ describe("ProtocolController", () => {
           noChainClient as unknown as ControllerContext["walletClient"],
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
         relayerCallbacks: {
           submitFileAddition: vi.fn(),
         },
@@ -264,6 +267,7 @@ describe("ProtocolController", () => {
           noChainClient as unknown as ControllerContext["walletClient"],
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
         relayerCallbacks: {
           submitFileAddition: vi.fn(),
         },
@@ -292,6 +296,7 @@ describe("ProtocolController", () => {
           noChainClient as unknown as ControllerContext["walletClient"],
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
         relayerCallbacks: {
           submitFileAddition: vi.fn(),
         },
@@ -421,6 +426,7 @@ describe("ProtocolController", () => {
           walletClientWithDynamicId as unknown as ControllerContext["walletClient"],
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
       });
 
       // Mock getContractAddress to throw an error that contains "Contract address not found"
@@ -459,6 +465,7 @@ describe("ProtocolController", () => {
           walletClientWithThrowingId as unknown as ControllerContext["walletClient"],
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
       });
 
       // Should throw the error from the id getter

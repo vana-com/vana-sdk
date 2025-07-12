@@ -82,23 +82,44 @@ vi.mock("../utils/grantFiles", () => ({
 // Import the mocked functions for configuration
 import { createGrantFile } from "../utils/grantFiles";
 
+interface MockWalletClient {
+  account: {
+    address: string;
+  };
+  chain: {
+    id: number;
+    name: string;
+  };
+  getChainId: ReturnType<typeof vi.fn>;
+  getAddresses: ReturnType<typeof vi.fn>;
+  signTypedData: ReturnType<typeof vi.fn>;
+  writeContract: ReturnType<typeof vi.fn>;
+}
+
+interface MockPublicClient {
+  readContract: ReturnType<typeof vi.fn>;
+  waitForTransactionReceipt: ReturnType<typeof vi.fn>;
+}
+
 describe("PermissionsController", () => {
   let controller: PermissionsController;
   let mockContext: ControllerContext;
-  let mockWalletClient: any;
-  let mockPublicClient: any;
+  let mockWalletClient: MockWalletClient;
+  let mockPublicClient: MockPublicClient;
 
   beforeEach(() => {
     vi.clearAllMocks();
 
     // Set up default mock for createGrantFile to return valid grant files
     const mockCreateGrantFile = createGrantFile as Mock;
-    mockCreateGrantFile.mockImplementation((params: any) => ({
-      grantee: params.to,
-      operation: params.operation,
-      parameters: params.parameters,
-      expires: params.expiresAt || Math.floor(Date.now() / 1000) + 3600,
-    }));
+    mockCreateGrantFile.mockImplementation(
+      (params: Record<string, unknown>) => ({
+        grantee: params.to,
+        operation: params.operation,
+        parameters: params.parameters,
+        expires: params.expiresAt || Math.floor(Date.now() / 1000) + 3600,
+      }),
+    );
 
     // Reset fetch mock to a working state
     const mockFetch = fetch as Mock;
@@ -129,7 +150,7 @@ describe("PermissionsController", () => {
 
     mockContext = {
       walletClient: mockWalletClient,
-      publicClient: mockPublicClient as any,
+      publicClient: mockPublicClient,
       relayerCallbacks: {
         storeGrantFile: vi.fn().mockResolvedValue("https://mock-grant-url.com"),
         submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
@@ -229,7 +250,7 @@ describe("PermissionsController", () => {
         chain: mockWalletClient.chain,
         transport: () => ({}),
       } as any);
-      (mockPublicClient.readContract as Mock).mockResolvedValue(BigInt(1));
+      vi.mocked(mockPublicClient.readContract).mockResolvedValue(BigInt(1));
 
       // Mock writeContract to return the expected hash
       mockWalletClient.writeContract = vi
@@ -255,7 +276,7 @@ describe("PermissionsController", () => {
         chain: mockWalletClient.chain,
         transport: () => ({}),
       } as any);
-      (mockPublicClient.readContract as Mock).mockResolvedValue(BigInt(1));
+      vi.mocked(mockPublicClient.readContract).mockResolvedValue(BigInt(1));
 
       // Mock writeContract to throw an error
       mockWalletClient.writeContract = vi
@@ -275,12 +296,16 @@ describe("PermissionsController", () => {
         chain: mockWalletClient.chain,
         transport: () => ({}),
       } as any);
-      (mockPublicClient.readContract as Mock).mockResolvedValue(BigInt(0));
+      vi.mocked(mockPublicClient.readContract).mockResolvedValue(BigInt(0));
 
       // Access private method for testing
-      const compose = (controller as any).composePermissionGrantMessage.bind(
-        controller,
-      );
+      const compose = (
+        controller as unknown as {
+          composePermissionGrantMessage: (
+            params: Record<string, unknown>,
+          ) => Promise<Record<string, unknown>>;
+        }
+      ).composePermissionGrantMessage.bind(controller);
 
       const params = {
         to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
@@ -430,7 +455,7 @@ describe("PermissionsController", () => {
         chain: mockWalletClient.chain,
         transport: () => ({}),
       } as any);
-      (mockPublicClient.readContract as Mock).mockResolvedValue(BigInt(0));
+      vi.mocked(mockPublicClient.readContract).mockResolvedValue(BigInt(0));
 
       // Mock signature failure with specific error
       mockWalletClient.signTypedData.mockRejectedValue(
@@ -1218,10 +1243,20 @@ describe("PermissionsController", () => {
   describe("revokeWithSignature", () => {
     beforeEach(() => {
       // Mock getUserNonce for typed data creation
-      vi.spyOn(controller as any, "getUserNonce").mockResolvedValue(123n);
+      vi.spyOn(
+        controller as unknown as {
+          getUserNonce: () => Promise<bigint>;
+        },
+        "getUserNonce",
+      ).mockResolvedValue(123n);
 
       // Mock getPermissionDomain
-      vi.spyOn(controller as any, "getPermissionDomain").mockResolvedValue({
+      vi.spyOn(
+        controller as unknown as {
+          getPermissionDomain: () => Promise<Record<string, unknown>>;
+        },
+        "getPermissionDomain",
+      ).mockResolvedValue({
         name: "DataPermissions",
         version: "1",
         chainId: 14800,
@@ -1229,14 +1264,24 @@ describe("PermissionsController", () => {
       });
 
       // Mock signTypedData
-      vi.spyOn(controller as any, "signTypedData").mockResolvedValue(
+      vi.spyOn(
+        controller as unknown as {
+          signTypedData: () => Promise<string>;
+        },
+        "signTypedData",
+      ).mockResolvedValue(
         "0xsignature123456789012345678901234567890123456789012345678901234567890",
       );
     });
 
     it("should successfully revoke permission with signature via relayer", async () => {
       // Remove the spy on relayRevokeTransaction as it doesn't exist
-      vi.spyOn(controller as any, "signTypedData").mockResolvedValue(
+      vi.spyOn(
+        controller as unknown as {
+          signTypedData: () => Promise<string>;
+        },
+        "signTypedData",
+      ).mockResolvedValue(
         "0xsignature123456789012345678901234567890123456789012345678901234567890",
       );
 
@@ -1263,7 +1308,9 @@ describe("PermissionsController", () => {
 
       // Mock submitDirectRevokeTransaction
       vi.spyOn(
-        controller as any,
+        controller as unknown as {
+          submitDirectRevokeTransaction: () => Promise<string>;
+        },
         "submitDirectRevokeTransaction",
       ).mockResolvedValue(
         "0xhash123456789012345678901234567890123456789012345678901234567890",
@@ -1311,9 +1358,12 @@ describe("PermissionsController", () => {
 
       const controller = new PermissionsController(testContext);
 
-      vi.spyOn(controller as any, "getUserNonce").mockRejectedValue(
-        new Error("Nonce retrieval failed"),
-      );
+      vi.spyOn(
+        controller as unknown as {
+          getUserNonce: () => Promise<bigint>;
+        },
+        "getUserNonce",
+      ).mockRejectedValue(new Error("Nonce retrieval failed"));
 
       const params = {
         permissionId: 42n,
@@ -1335,9 +1385,12 @@ describe("PermissionsController", () => {
 
       const controller = new PermissionsController(testContext);
 
-      vi.spyOn(controller as any, "signTypedData").mockRejectedValue(
-        new Error("Signature failed"),
-      );
+      vi.spyOn(
+        controller as unknown as {
+          signTypedData: () => Promise<string>;
+        },
+        "signTypedData",
+      ).mockRejectedValue(new Error("Signature failed"));
 
       const params = {
         permissionId: 42n,
@@ -1358,7 +1411,7 @@ describe("PermissionsController", () => {
     describe("getFilePermissionIds", () => {
       it("should successfully get permission IDs for a file", async () => {
         const mockPermissionIds = [1n, 2n, 3n];
-        (mockPublicClient.readContract as Mock).mockResolvedValue(
+        vi.mocked(mockPublicClient.readContract).mockResolvedValue(
           mockPermissionIds,
         );
 
@@ -1374,7 +1427,7 @@ describe("PermissionsController", () => {
       });
 
       it("should handle contract read errors", async () => {
-        (mockPublicClient.readContract as Mock).mockRejectedValue(
+        vi.mocked(mockPublicClient.readContract).mockRejectedValue(
           new Error("Contract read failed"),
         );
 
@@ -1387,7 +1440,7 @@ describe("PermissionsController", () => {
     describe("getPermissionFileIds", () => {
       it("should successfully get file IDs for a permission", async () => {
         const mockFileIds = [10n, 20n, 30n];
-        (mockPublicClient.readContract as Mock).mockResolvedValue(mockFileIds);
+        vi.mocked(mockPublicClient.readContract).mockResolvedValue(mockFileIds);
 
         const result = await controller.getPermissionFileIds(456n);
 
@@ -1401,7 +1454,7 @@ describe("PermissionsController", () => {
       });
 
       it("should handle contract read errors", async () => {
-        (mockPublicClient.readContract as Mock).mockRejectedValue(
+        vi.mocked(mockPublicClient.readContract).mockRejectedValue(
           new Error("Contract read failed"),
         );
 
@@ -1413,7 +1466,7 @@ describe("PermissionsController", () => {
 
     describe("isActivePermission", () => {
       it("should return true for active permission", async () => {
-        (mockPublicClient.readContract as Mock).mockResolvedValue(true);
+        vi.mocked(mockPublicClient.readContract).mockResolvedValue(true);
 
         const result = await controller.isActivePermission(789n);
 
@@ -1427,7 +1480,7 @@ describe("PermissionsController", () => {
       });
 
       it("should return false for inactive permission", async () => {
-        (mockPublicClient.readContract as Mock).mockResolvedValue(false);
+        vi.mocked(mockPublicClient.readContract).mockResolvedValue(false);
 
         const result = await controller.isActivePermission(789n);
 
@@ -1435,7 +1488,7 @@ describe("PermissionsController", () => {
       });
 
       it("should handle contract read errors", async () => {
-        (mockPublicClient.readContract as Mock).mockRejectedValue(
+        vi.mocked(mockPublicClient.readContract).mockRejectedValue(
           new Error("Contract read failed"),
         );
 
@@ -1457,7 +1510,7 @@ describe("PermissionsController", () => {
           fileIds: [1n, 2n, 3n],
         };
 
-        (mockPublicClient.readContract as Mock).mockResolvedValue(
+        vi.mocked(mockPublicClient.readContract).mockResolvedValue(
           mockPermissionInfo,
         );
 
@@ -1473,7 +1526,7 @@ describe("PermissionsController", () => {
       });
 
       it("should handle contract read errors", async () => {
-        (mockPublicClient.readContract as Mock).mockRejectedValue(
+        vi.mocked(mockPublicClient.readContract).mockRejectedValue(
           new Error("Contract read failed"),
         );
 
@@ -1494,9 +1547,12 @@ describe("PermissionsController", () => {
         );
 
       // Mock getUserAddress
-      vi.spyOn(controller as any, "getUserAddress").mockResolvedValue(
-        "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-      );
+      vi.spyOn(
+        controller as unknown as {
+          getUserAddress: () => Promise<string>;
+        },
+        "getUserAddress",
+      ).mockResolvedValue("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
     });
 
     describe("submitDirectRevokeTransaction", () => {
@@ -1525,10 +1581,14 @@ describe("PermissionsController", () => {
         const signature =
           "0xsignature123456789012345678901234567890123456789012345678901234567890";
 
-        const result = await (controller as any).submitDirectRevokeTransaction(
-          typedData,
-          signature,
-        );
+        const result = await (
+          controller as unknown as {
+            submitDirectRevokeTransaction: (
+              typedData: Record<string, unknown>,
+              signature: string,
+            ) => Promise<string>;
+          }
+        ).submitDirectRevokeTransaction(typedData, signature);
 
         expect(result).toBe(
           "0xhash123456789012345678901234567890123456789012345678901234567890",
@@ -1574,10 +1634,14 @@ describe("PermissionsController", () => {
           "0xsignature123456789012345678901234567890123456789012345678901234567890";
 
         await expect(
-          (controller as any).submitDirectRevokeTransaction(
-            typedData,
-            signature,
-          ),
+          (
+            controller as unknown as {
+              submitDirectRevokeTransaction: (
+                typedData: Record<string, unknown>,
+                signature: string,
+              ) => Promise<string>;
+            }
+          ).submitDirectRevokeTransaction(typedData, signature),
         ).rejects.toThrow("Transaction failed");
       });
     });

@@ -30,9 +30,18 @@ vi.mock("../platform", () => ({
   getPlatformAdapter: () => mockPlatformAdapter,
 }));
 
+interface MockAccount {
+  address: string;
+}
+
+interface MockWallet {
+  account: MockAccount | null;
+  signMessage: ReturnType<typeof vi.fn>;
+}
+
 describe("Encryption Utils", () => {
-  let mockWallet: any;
-  let mockAccount: any;
+  let mockWallet: MockWallet;
+  let mockAccount: MockAccount;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -120,15 +129,17 @@ describe("Encryption Utils", () => {
 
   describe("Parameter validation", () => {
     it("should validate wallet parameter", async () => {
-      await expect(generateEncryptionKey(null as any)).rejects.toThrow();
+      await expect(
+        generateEncryptionKey(null as unknown as MockWallet),
+      ).rejects.toThrow();
     });
 
     it("should validate wallet account property", async () => {
       const invalidWallet = { signMessage: vi.fn() };
 
-      await expect(generateEncryptionKey(invalidWallet as any)).rejects.toThrow(
-        "Wallet account is required",
-      );
+      await expect(
+        generateEncryptionKey(invalidWallet as unknown as MockWallet),
+      ).rejects.toThrow("Wallet account is required");
     });
 
     it("should handle empty string seed", async () => {
@@ -159,10 +170,10 @@ describe("Encryption Utils", () => {
 
   describe("Integration scenarios", () => {
     it("should work with different wallet implementations", async () => {
-      const altWallet = {
+      const altWallet: MockWallet = {
         account: { address: "0xalternate" },
         signMessage: vi.fn().mockResolvedValue("0xaltsignature"),
-      } as any;
+      };
 
       const result = await generateEncryptionKey(altWallet);
 
@@ -216,7 +227,7 @@ describe("Encryption Utils", () => {
       const encryptedString = "encrypted-pgp-data";
 
       // Mock platform adapter PGP encrypt
-      (mockPlatformAdapter.pgp.encrypt as any).mockResolvedValue(
+      vi.mocked(mockPlatformAdapter.pgp.encrypt).mockResolvedValue(
         encryptedString,
       );
 
@@ -237,7 +248,7 @@ describe("Encryption Utils", () => {
       const encryptionKey = "0xkey";
       const encryptedString = "encrypted-empty-data";
 
-      (mockPlatformAdapter.pgp.encrypt as any).mockResolvedValue(
+      vi.mocked(mockPlatformAdapter.pgp.encrypt).mockResolvedValue(
         encryptedString,
       );
 
@@ -254,7 +265,7 @@ describe("Encryption Utils", () => {
       const testData = new Blob(["test data"]);
       const encryptionKey = "0xkey";
 
-      (mockPlatformAdapter.pgp.encrypt as any).mockRejectedValue(
+      vi.mocked(mockPlatformAdapter.pgp.encrypt).mockRejectedValue(
         new Error("Invalid message format"),
       );
 
@@ -267,7 +278,7 @@ describe("Encryption Utils", () => {
       const testData = new Blob(["test data"]);
       const encryptionKey = "0xkey";
 
-      (mockPlatformAdapter.pgp.encrypt as any).mockRejectedValue(
+      vi.mocked(mockPlatformAdapter.pgp.encrypt).mockRejectedValue(
         new Error("Encryption failed"),
       );
 
@@ -281,7 +292,7 @@ describe("Encryption Utils", () => {
       const encryptionKey = "0xkey";
       const encryptedString = "encrypted-string-data";
 
-      (mockPlatformAdapter.pgp.encrypt as any).mockResolvedValue(
+      vi.mocked(mockPlatformAdapter.pgp.encrypt).mockResolvedValue(
         encryptedString,
       );
 
@@ -301,7 +312,7 @@ describe("Encryption Utils", () => {
       const encryptionKey = "0xkey";
 
       // Mock a rejection with a non-Error object (e.g., string)
-      (mockPlatformAdapter.pgp.encrypt as any).mockRejectedValue(
+      vi.mocked(mockPlatformAdapter.pgp.encrypt).mockRejectedValue(
         "String error message",
       );
 
@@ -315,7 +326,7 @@ describe("Encryption Utils", () => {
       const encryptionKey = "0xkey";
 
       // Mock a rejection with null/undefined
-      (mockPlatformAdapter.pgp.encrypt as any).mockRejectedValue(null);
+      vi.mocked(mockPlatformAdapter.pgp.encrypt).mockRejectedValue(null);
 
       await expect(encryptUserData(testData, encryptionKey)).rejects.toThrow(
         "Failed to encrypt user data: null",
@@ -327,7 +338,7 @@ describe("Encryption Utils", () => {
       const encryptionKey = "0xkey";
 
       // Mock a rejection with an object that's not an Error
-      (mockPlatformAdapter.pgp.encrypt as any).mockRejectedValue({
+      vi.mocked(mockPlatformAdapter.pgp.encrypt).mockRejectedValue({
         code: 500,
         reason: "Server error",
       });
@@ -344,7 +355,7 @@ describe("Encryption Utils", () => {
       const encryptionKey = "0xdecryptionkey123";
       const decryptedString = "decrypted";
 
-      (mockPlatformAdapter.pgp.decrypt as any).mockResolvedValue(
+      vi.mocked(mockPlatformAdapter.pgp.decrypt).mockResolvedValue(
         decryptedString,
       );
 
@@ -365,7 +376,7 @@ describe("Encryption Utils", () => {
       const encryptionKey = "0xkey";
       const decryptedString = "";
 
-      (mockPlatformAdapter.pgp.decrypt as any).mockResolvedValue(
+      vi.mocked(mockPlatformAdapter.pgp.decrypt).mockResolvedValue(
         decryptedString,
       );
 
@@ -380,7 +391,7 @@ describe("Encryption Utils", () => {
       const encryptedData = new Blob([new Uint8Array([1, 2, 3])]);
       const encryptionKey = "0xkey";
 
-      (mockPlatformAdapter.pgp.decrypt as any).mockRejectedValue(
+      vi.mocked(mockPlatformAdapter.pgp.decrypt).mockRejectedValue(
         new Error("Invalid encrypted message"),
       );
 
@@ -396,7 +407,7 @@ describe("Encryption Utils", () => {
       const encryptionKey = "0xkey";
       const decryptedString = "decrypted data";
 
-      (mockPlatformAdapter.pgp.decrypt as any).mockResolvedValue(
+      vi.mocked(mockPlatformAdapter.pgp.decrypt).mockResolvedValue(
         decryptedString,
       );
 
@@ -415,7 +426,7 @@ describe("Encryption Utils", () => {
       const encryptedData = new Blob([new Uint8Array([1, 2, 3])]);
       const wrongKey = "0xwrongkey";
 
-      (mockPlatformAdapter.pgp.decrypt as any).mockRejectedValue(
+      vi.mocked(mockPlatformAdapter.pgp.decrypt).mockRejectedValue(
         new Error("Session key decryption failed"),
       );
 
@@ -429,7 +440,7 @@ describe("Encryption Utils", () => {
       const encryptionKey = "0xkey";
 
       // Mock a rejection with a non-Error object (e.g., string)
-      (mockPlatformAdapter.pgp.decrypt as any).mockRejectedValue(
+      vi.mocked(mockPlatformAdapter.pgp.decrypt).mockRejectedValue(
         "Decryption string error",
       );
 
@@ -443,7 +454,7 @@ describe("Encryption Utils", () => {
       const encryptionKey = "0xkey";
 
       // Mock a rejection with null/undefined
-      (mockPlatformAdapter.pgp.decrypt as any).mockRejectedValue(undefined);
+      vi.mocked(mockPlatformAdapter.pgp.decrypt).mockRejectedValue(undefined);
 
       await expect(
         decryptUserData(encryptedData, encryptionKey),
@@ -455,7 +466,7 @@ describe("Encryption Utils", () => {
       const encryptionKey = "0xkey";
 
       // Mock a rejection with an object that's not an Error
-      (mockPlatformAdapter.pgp.decrypt as any).mockRejectedValue({
+      vi.mocked(mockPlatformAdapter.pgp.decrypt).mockRejectedValue({
         status: "failed",
         details: "Crypto error",
       });
@@ -474,7 +485,7 @@ describe("Encryption Utils", () => {
       const originalDataText = "confidential document content";
 
       // Mock encryption
-      (mockPlatformAdapter.pgp.encrypt as any).mockResolvedValue(
+      vi.mocked(mockPlatformAdapter.pgp.encrypt).mockResolvedValue(
         encryptedString,
       );
 
@@ -501,7 +512,7 @@ describe("Encryption Utils", () => {
       const encryptedString = "encrypted-large-data";
       const originalDataText = "A".repeat(50000);
 
-      (mockPlatformAdapter.pgp.encrypt as any).mockResolvedValue(
+      vi.mocked(mockPlatformAdapter.pgp.encrypt).mockResolvedValue(
         encryptedString,
       );
       (mockPlatformAdapter.pgp.decrypt as any).mockResolvedValue(

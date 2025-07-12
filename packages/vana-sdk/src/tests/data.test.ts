@@ -101,11 +101,29 @@ vi.mock("../abi", () => ({
 // Mock fetch globally - no real network calls
 global.fetch = vi.fn();
 
+interface MockWalletClient {
+  account: {
+    address: string;
+  };
+  chain: {
+    id: number;
+    name: string;
+  };
+  getChainId: ReturnType<typeof vi.fn>;
+  getAddresses: ReturnType<typeof vi.fn>;
+  signMessage: ReturnType<typeof vi.fn>;
+  writeContract: ReturnType<typeof vi.fn>;
+}
+
+interface MockPublicClient {
+  waitForTransactionReceipt: ReturnType<typeof vi.fn>;
+}
+
 describe("DataController", () => {
   let controller: DataController;
   let mockContext: ControllerContext;
-  let mockWalletClient: any;
-  let mockPublicClient: any;
+  let mockWalletClient: MockWalletClient;
+  let mockPublicClient: MockPublicClient;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -236,7 +254,7 @@ describe("DataController", () => {
         readContract: vi.fn().mockResolvedValue(BigInt(42)),
       };
       vi.mocked(createPublicClient).mockReturnValueOnce(
-        mockPublicClient as any,
+        mockPublicClient as Record<string, unknown>,
       );
 
       const result = await controller.getTotalFilesCount();
@@ -297,7 +315,7 @@ describe("DataController", () => {
         args: {
           fileId: 42n,
         },
-      } as any);
+      } as Record<string, unknown>);
 
       const result = await controller.uploadEncryptedFile(testFile, "test.txt");
 
@@ -762,7 +780,7 @@ describe("DataController", () => {
         read: {
           files: vi.fn().mockRejectedValue(new Error("Contract call failed")),
         },
-      } as any);
+      } as Record<string, unknown>);
 
       const result = await controller.getUserFiles({
         owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
@@ -846,7 +864,7 @@ describe("DataController", () => {
         read: {
           files: vi.fn().mockResolvedValue(null),
         },
-      } as any);
+      } as Record<string, unknown>);
 
       await expect(controller.getFileById(1)).rejects.toThrow("File not found");
     });
@@ -864,7 +882,7 @@ describe("DataController", () => {
             BigInt(123456),
           ]),
         },
-      } as any);
+      } as Record<string, unknown>);
 
       await expect(controller.getFileById(1)).rejects.toThrow("File not found");
     });
@@ -883,7 +901,7 @@ describe("DataController", () => {
             addedAtBlock: BigInt(123456),
           }),
         },
-      } as any);
+      } as Record<string, unknown>);
 
       await expect(controller.getFileById(1)).rejects.toThrow("File not found");
     });
@@ -902,7 +920,7 @@ describe("DataController", () => {
             addedAtBlock: BigInt(123456),
           }),
         },
-      } as any);
+      } as Record<string, unknown>);
 
       await expect(controller.getFileById(1)).rejects.toThrow("File not found");
     });
@@ -921,7 +939,7 @@ describe("DataController", () => {
             addedAtBlock: BigInt(789123),
           }),
         },
-      } as any);
+      } as Record<string, unknown>);
 
       const result = await controller.getFileById(5);
 
@@ -958,7 +976,7 @@ describe("DataController", () => {
         read: {
           filesCount: vi.fn().mockRejectedValue(new Error("Contract error")),
         },
-      } as any);
+      } as Record<string, unknown>);
 
       const result = await controller.getTotalFilesCount();
 
@@ -1311,7 +1329,7 @@ describe("DataController", () => {
             throw { code: 404, message: "Contract not found" }; // Non-Error object
           }),
         },
-      } as any);
+      } as Record<string, unknown>);
 
       await expect(controller.getFileById(999)).rejects.toThrow(
         "Failed to fetch file 999: Unknown error",
@@ -1520,7 +1538,7 @@ describe("DataController", () => {
       vi.mocked(decodeEventLog).mockReturnValue({
         eventName: "SchemaAdded",
         args: { schemaId: BigInt(1) },
-      } as any);
+      } as Record<string, unknown>);
 
       // Mock the public client to return a receipt with logs
       mockPublicClient.waitForTransactionReceipt = vi.fn().mockResolvedValue({
@@ -1560,7 +1578,7 @@ describe("DataController", () => {
             definitionUrl: mockSchema.definitionUrl,
           }),
         },
-      } as any);
+      } as Record<string, unknown>);
 
       const result = await controller.getSchema(mockSchema.id);
 
@@ -1575,7 +1593,7 @@ describe("DataController", () => {
         read: {
           schemas: vi.fn().mockResolvedValue(null), // null means not found
         },
-      } as any);
+      } as Record<string, unknown>);
 
       await expect(controller.getSchema(999)).rejects.toThrow(
         "Schema not found",
@@ -1590,7 +1608,7 @@ describe("DataController", () => {
         read: {
           schemasCount: vi.fn().mockResolvedValue(BigInt(5)),
         },
-      } as any);
+      } as Record<string, unknown>);
 
       const result = await controller.getSchemasCount();
 
@@ -1603,7 +1621,7 @@ describe("DataController", () => {
       vi.mocked(decodeEventLog).mockReturnValue({
         eventName: "RefinerAdded",
         args: { refinerId: BigInt(1) },
-      } as any);
+      } as Record<string, unknown>);
 
       // Mock the public client to return a receipt with logs
       mockPublicClient.waitForTransactionReceipt = vi.fn().mockResolvedValue({
@@ -1666,7 +1684,7 @@ describe("DataController", () => {
             refinementInstructionUrl: "https://example.com/instructions",
           }),
         },
-      } as any);
+      } as Record<string, unknown>);
 
       const result = await controller.getRefiner(1);
 
@@ -1716,7 +1734,7 @@ describe("DataController", () => {
         read: {
           isValidSchemaId: vi.fn().mockResolvedValue(true),
         },
-      } as any);
+      } as Record<string, unknown>);
 
       const result = await controller.isValidSchemaId(1);
       expect(result).toBe(true);
@@ -1732,7 +1750,7 @@ describe("DataController", () => {
             .fn()
             .mockRejectedValue(new Error("Contract error")),
         },
-      } as any);
+      } as Record<string, unknown>);
 
       const result = await controller.isValidSchemaId(1);
       expect(result).toBe(false);
@@ -1772,7 +1790,7 @@ describe("DataController", () => {
       vi.mocked(decodeEventLog).mockReturnValueOnce({
         eventName: "FileAdded",
         args: { fileId: BigInt(123) },
-      } as any);
+      } as Record<string, unknown>);
 
       vi.mocked(
         mockContext.publicClient.waitForTransactionReceipt,
@@ -1783,7 +1801,7 @@ describe("DataController", () => {
             topics: ["0x456"],
           },
         ],
-      } as any);
+      } as Record<string, unknown>);
 
       const testFile = new Blob(["test data"], { type: "text/plain" });
       const result = await controllerWithStorage.uploadEncryptedFileWithSchema(
@@ -1812,7 +1830,7 @@ describe("DataController", () => {
       vi.mocked(decodeEventLog).mockReturnValueOnce({
         eventName: "FileAdded",
         args: { fileId: BigInt(123) },
-      } as any);
+      } as Record<string, unknown>);
 
       vi.mocked(
         mockContext.publicClient.waitForTransactionReceipt,
@@ -1823,7 +1841,7 @@ describe("DataController", () => {
             topics: ["0x456"],
           },
         ],
-      } as any);
+      } as Record<string, unknown>);
 
       const result = await controller.registerFileWithSchema(
         "https://example.com/file.json",
@@ -2029,7 +2047,7 @@ describe("DataController", () => {
             topics: ["0x456"],
           },
         ],
-      } as any);
+      } as Record<string, unknown>);
 
       const testFile = new Blob(["test data"], { type: "text/plain" });
       const result = await controllerWithStorage.uploadEncryptedFileWithSchema(
@@ -2064,7 +2082,7 @@ describe("DataController", () => {
             topics: ["0x456"],
           },
         ],
-      } as any);
+      } as Record<string, unknown>);
 
       const result = await controller.registerFileWithSchema(
         "https://example.com/file.json",
@@ -2143,7 +2161,7 @@ describe("DataController", () => {
         mockContext.publicClient.waitForTransactionReceipt,
       ).mockResolvedValueOnce({
         logs: [], // No logs
-      } as any);
+      } as Record<string, unknown>);
 
       const testFile = new Blob(["test data"], { type: "text/plain" });
       const result = await controllerWithStorage.uploadEncryptedFileWithSchema(
@@ -2166,7 +2184,7 @@ describe("DataController", () => {
         mockContext.publicClient.waitForTransactionReceipt,
       ).mockResolvedValueOnce({
         logs: [], // No logs
-      } as any);
+      } as Record<string, unknown>);
 
       const result = await controller.registerFileWithSchema(
         "https://example.com/file.json",
@@ -2215,7 +2233,7 @@ describe("DataController", () => {
       vi.mocked(decodeEventLog).mockReturnValueOnce({
         eventName: "DifferentEvent",
         args: { someOtherField: BigInt(999) },
-      } as any);
+      } as Record<string, unknown>);
 
       vi.mocked(
         mockContext.publicClient.waitForTransactionReceipt,
@@ -2226,7 +2244,7 @@ describe("DataController", () => {
             topics: ["0x456"],
           },
         ],
-      } as any);
+      } as Record<string, unknown>);
 
       const testFile = new Blob(["test data"], { type: "text/plain" });
       const result = await controllerWithStorage.uploadEncryptedFileWithSchema(
@@ -2251,7 +2269,7 @@ describe("DataController", () => {
       vi.mocked(decodeEventLog).mockReturnValueOnce({
         eventName: "DifferentEvent",
         args: { someOtherField: BigInt(999) },
-      } as any);
+      } as Record<string, unknown>);
 
       vi.mocked(
         mockContext.publicClient.waitForTransactionReceipt,
@@ -2262,7 +2280,7 @@ describe("DataController", () => {
             topics: ["0x456"],
           },
         ],
-      } as any);
+      } as Record<string, unknown>);
 
       const result = await controller.registerFileWithSchema(
         "https://example.com/file.json",

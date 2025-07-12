@@ -44,8 +44,8 @@ describe("Additional Encryption Utils", () => {
       const publicKey = "0x1234567890abcdef";
       const expectedEncrypted = "encrypted-data";
 
-      (
-        mockPlatformAdapter.crypto.encryptWithPublicKey as any
+      vi.mocked(
+        mockPlatformAdapter.crypto.encryptWithPublicKey,
       ).mockResolvedValue(expectedEncrypted);
 
       const result = await encryptWithWalletPublicKey(data, publicKey);
@@ -61,8 +61,8 @@ describe("Additional Encryption Utils", () => {
       const publicKey = "0x1234567890abcdef";
       const expectedEncrypted = "encrypted-blob-data";
 
-      (
-        mockPlatformAdapter.crypto.encryptWithPublicKey as any
+      vi.mocked(
+        mockPlatformAdapter.crypto.encryptWithPublicKey,
       ).mockResolvedValue(expectedEncrypted);
 
       const result = await encryptWithWalletPublicKey(data, publicKey);
@@ -77,8 +77,8 @@ describe("Additional Encryption Utils", () => {
       const data = "test data";
       const publicKey = "0x1234567890abcdef";
 
-      (
-        mockPlatformAdapter.crypto.encryptWithPublicKey as any
+      vi.mocked(
+        mockPlatformAdapter.crypto.encryptWithPublicKey,
       ).mockRejectedValue(new Error("Encryption failed"));
 
       await expect(encryptWithWalletPublicKey(data, publicKey)).rejects.toThrow(
@@ -90,8 +90,8 @@ describe("Additional Encryption Utils", () => {
       const data = "test data";
       const publicKey = "0x1234567890abcdef";
 
-      (
-        mockPlatformAdapter.crypto.encryptWithPublicKey as any
+      vi.mocked(
+        mockPlatformAdapter.crypto.encryptWithPublicKey,
       ).mockRejectedValue("String error");
 
       await expect(encryptWithWalletPublicKey(data, publicKey)).rejects.toThrow(
@@ -106,8 +106,8 @@ describe("Additional Encryption Utils", () => {
       const privateKey = "0xprivatekey123";
       const expectedDecrypted = "decrypted data";
 
-      (
-        mockPlatformAdapter.crypto.decryptWithPrivateKey as any
+      vi.mocked(
+        mockPlatformAdapter.crypto.decryptWithPrivateKey,
       ).mockResolvedValue(expectedDecrypted);
 
       const result = await decryptWithWalletPrivateKey(
@@ -125,8 +125,8 @@ describe("Additional Encryption Utils", () => {
       const encryptedData = "encrypted-data";
       const privateKey = "0xprivatekey123";
 
-      (
-        mockPlatformAdapter.crypto.decryptWithPrivateKey as any
+      vi.mocked(
+        mockPlatformAdapter.crypto.decryptWithPrivateKey,
       ).mockRejectedValue(new Error("Decryption failed"));
 
       await expect(
@@ -140,8 +140,8 @@ describe("Additional Encryption Utils", () => {
       const encryptedData = "encrypted-data";
       const privateKey = "0xprivatekey123";
 
-      (
-        mockPlatformAdapter.crypto.decryptWithPrivateKey as any
+      vi.mocked(
+        mockPlatformAdapter.crypto.decryptWithPrivateKey,
       ).mockRejectedValue("Decryption error");
 
       await expect(
@@ -158,8 +158,8 @@ describe("Additional Encryption Utils", () => {
       const publicKey = "0xdlppublickey456";
       const expectedEncrypted = "encrypted-file-key";
 
-      (
-        mockPlatformAdapter.crypto.encryptWithPublicKey as any
+      vi.mocked(
+        mockPlatformAdapter.crypto.encryptWithPublicKey,
       ).mockResolvedValue(expectedEncrypted);
 
       const result = await encryptFileKey(fileKey, publicKey);
@@ -174,8 +174,8 @@ describe("Additional Encryption Utils", () => {
       const fileKey = "symmetric-file-key-123";
       const publicKey = "0xdlppublickey456";
 
-      (
-        mockPlatformAdapter.crypto.encryptWithPublicKey as any
+      vi.mocked(
+        mockPlatformAdapter.crypto.encryptWithPublicKey,
       ).mockRejectedValue(new Error("File key encryption failed"));
 
       await expect(encryptFileKey(fileKey, publicKey)).rejects.toThrow(
@@ -187,8 +187,8 @@ describe("Additional Encryption Utils", () => {
       const fileKey = "symmetric-file-key-123";
       const publicKey = "0xdlppublickey456";
 
-      (
-        mockPlatformAdapter.crypto.encryptWithPublicKey as any
+      vi.mocked(
+        mockPlatformAdapter.crypto.encryptWithPublicKey,
       ).mockRejectedValue("Key encryption error");
 
       await expect(encryptFileKey(fileKey, publicKey)).rejects.toThrow(
@@ -206,7 +206,7 @@ describe("Additional Encryption Utils", () => {
           "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12",
       };
 
-      (mockPlatformAdapter.crypto.generateKeyPair as any).mockResolvedValue(
+      vi.mocked(mockPlatformAdapter.crypto.generateKeyPair).mockResolvedValue(
         mockKeyPair,
       );
 
@@ -220,7 +220,7 @@ describe("Additional Encryption Utils", () => {
     });
 
     it("should handle key generation errors", async () => {
-      (mockPlatformAdapter.crypto.generateKeyPair as any).mockRejectedValue(
+      vi.mocked(mockPlatformAdapter.crypto.generateKeyPair).mockRejectedValue(
         new Error("Key generation failed"),
       );
 
@@ -230,7 +230,7 @@ describe("Additional Encryption Utils", () => {
     });
 
     it("should handle non-Error exceptions", async () => {
-      (mockPlatformAdapter.crypto.generateKeyPair as any).mockRejectedValue(
+      vi.mocked(mockPlatformAdapter.crypto.generateKeyPair).mockRejectedValue(
         "Generation error",
       );
 
@@ -246,8 +246,8 @@ describe("Additional Encryption Utils", () => {
       const privateKey = "0xdlpprivatekey789";
       const expectedDecrypted = "decrypted dlp data";
 
-      (
-        mockPlatformAdapter.crypto.decryptWithPrivateKey as any
+      vi.mocked(
+        mockPlatformAdapter.crypto.decryptWithPrivateKey,
       ).mockResolvedValue(expectedDecrypted);
 
       const result = await decryptWithPrivateKey(encryptedData, privateKey);
@@ -262,8 +262,8 @@ describe("Additional Encryption Utils", () => {
       const encryptedData = "encrypted-dlp-data";
       const privateKey = "0xdlpprivatekey789";
 
-      (
-        mockPlatformAdapter.crypto.decryptWithPrivateKey as any
+      vi.mocked(
+        mockPlatformAdapter.crypto.decryptWithPrivateKey,
       ).mockRejectedValue(new Error("DLP decryption failed"));
 
       await expect(
@@ -277,8 +277,8 @@ describe("Additional Encryption Utils", () => {
       const encryptedData = "encrypted-dlp-data";
       const privateKey = "0xdlpprivatekey789";
 
-      (
-        mockPlatformAdapter.crypto.decryptWithPrivateKey as any
+      vi.mocked(
+        mockPlatformAdapter.crypto.decryptWithPrivateKey,
       ).mockRejectedValue("DLP decryption error");
 
       await expect(
@@ -296,7 +296,7 @@ describe("Additional Encryption Utils", () => {
         privateKey: "0xprivate456",
       };
 
-      (mockPlatformAdapter.crypto.generateKeyPair as any).mockResolvedValue(
+      vi.mocked(mockPlatformAdapter.crypto.generateKeyPair).mockResolvedValue(
         mockKeyPair,
       );
 
@@ -307,7 +307,7 @@ describe("Additional Encryption Utils", () => {
     });
 
     it("should handle key generation errors", async () => {
-      (mockPlatformAdapter.crypto.generateKeyPair as any).mockRejectedValue(
+      vi.mocked(mockPlatformAdapter.crypto.generateKeyPair).mockRejectedValue(
         new Error("Crypto key generation failed"),
       );
 
@@ -317,7 +317,7 @@ describe("Additional Encryption Utils", () => {
     });
 
     it("should handle non-Error exceptions", async () => {
-      (mockPlatformAdapter.crypto.generateKeyPair as any).mockRejectedValue(
+      vi.mocked(mockPlatformAdapter.crypto.generateKeyPair).mockRejectedValue(
         "Crypto generation error",
       );
 
@@ -336,7 +336,7 @@ describe("Additional Encryption Utils", () => {
           "-----BEGIN PGP PRIVATE KEY BLOCK-----\ntest\n-----END PGP PRIVATE KEY BLOCK-----",
       };
 
-      (mockPlatformAdapter.pgp.generateKeyPair as any).mockResolvedValue(
+      vi.mocked(mockPlatformAdapter.pgp.generateKeyPair).mockResolvedValue(
         mockKeyPair,
       );
 
@@ -361,7 +361,7 @@ describe("Additional Encryption Utils", () => {
           "-----BEGIN PGP PRIVATE KEY BLOCK-----\ntest-with-options\n-----END PGP PRIVATE KEY BLOCK-----",
       };
 
-      (mockPlatformAdapter.pgp.generateKeyPair as any).mockResolvedValue(
+      vi.mocked(mockPlatformAdapter.pgp.generateKeyPair).mockResolvedValue(
         mockKeyPair,
       );
 
@@ -374,7 +374,7 @@ describe("Additional Encryption Utils", () => {
     });
 
     it("should handle PGP key generation errors", async () => {
-      (mockPlatformAdapter.pgp.generateKeyPair as any).mockRejectedValue(
+      vi.mocked(mockPlatformAdapter.pgp.generateKeyPair).mockRejectedValue(
         new Error("PGP key generation failed"),
       );
 
@@ -384,7 +384,7 @@ describe("Additional Encryption Utils", () => {
     });
 
     it("should handle non-Error exceptions", async () => {
-      (mockPlatformAdapter.pgp.generateKeyPair as any).mockRejectedValue(
+      vi.mocked(mockPlatformAdapter.pgp.generateKeyPair).mockRejectedValue(
         "PGP generation error",
       );
 
@@ -405,7 +405,7 @@ describe("Additional Encryption Utils", () => {
           "-----BEGIN PGP PRIVATE KEY BLOCK-----\npartial-options\n-----END PGP PRIVATE KEY BLOCK-----",
       };
 
-      (mockPlatformAdapter.pgp.generateKeyPair as any).mockResolvedValue(
+      vi.mocked(mockPlatformAdapter.pgp.generateKeyPair).mockResolvedValue(
         mockKeyPair,
       );
 
@@ -425,11 +425,11 @@ describe("Additional Encryption Utils", () => {
       const privateKey = "0xprivate456";
       const encryptedData = "encrypted-sensitive-data";
 
-      (
-        mockPlatformAdapter.crypto.encryptWithPublicKey as any
+      vi.mocked(
+        mockPlatformAdapter.crypto.encryptWithPublicKey,
       ).mockResolvedValue(encryptedData);
-      (
-        mockPlatformAdapter.crypto.decryptWithPrivateKey as any
+      vi.mocked(
+        mockPlatformAdapter.crypto.decryptWithPrivateKey,
       ).mockResolvedValue(originalData);
 
       // Encrypt
@@ -453,11 +453,11 @@ describe("Additional Encryption Utils", () => {
       const dlpPrivateKey = "0xdlpprivate101";
       const encryptedFileKey = "encrypted-file-key-data";
 
-      (
-        mockPlatformAdapter.crypto.encryptWithPublicKey as any
+      vi.mocked(
+        mockPlatformAdapter.crypto.encryptWithPublicKey,
       ).mockResolvedValue(encryptedFileKey);
-      (
-        mockPlatformAdapter.crypto.decryptWithPrivateKey as any
+      vi.mocked(
+        mockPlatformAdapter.crypto.decryptWithPrivateKey,
       ).mockResolvedValue(fileKey);
 
       // Encrypt file key
@@ -477,7 +477,7 @@ describe("Additional Encryption Utils", () => {
           "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
       };
 
-      (mockPlatformAdapter.crypto.generateKeyPair as any).mockResolvedValue(
+      vi.mocked(mockPlatformAdapter.crypto.generateKeyPair).mockResolvedValue(
         mockKeyPair,
       );
 

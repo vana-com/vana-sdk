@@ -2,6 +2,13 @@ import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
 import { DataController } from "../controllers/data";
 import { ControllerContext } from "../controllers/permissions";
 import { mokshaTestnet } from "../config/chains";
+import type { StorageManager } from "../storage/manager";
+import type {
+  StorageProvider as _StorageProvider,
+  StorageUploadResult as _StorageUploadResult,
+  StorageFile as _StorageFile,
+  StorageListOptions as _StorageListOptions,
+} from "../storage/index";
 
 // Mock ALL external dependencies for pure unit tests
 vi.mock("../utils/encryption", () => ({
@@ -1763,20 +1770,17 @@ describe("DataController", () => {
           url: "https://ipfs.io/ipfs/test-hash",
           size: 1024,
         }),
-        providers: new Map(),
-        defaultProvider: "test",
+        download: vi.fn(),
+        list: vi.fn(),
+        delete: vi.fn(),
         register: vi.fn(),
         getProvider: vi.fn(),
         setDefaultProvider: vi.fn(),
         listProviders: vi.fn(),
-        downloadByUrl: vi.fn(),
-        downloadByProvider: vi.fn(),
-        downloadFromUrl: vi.fn(),
-        uploadToProvider: vi.fn(),
-        uploadToDefaultProvider: vi.fn(),
-        uploadWithMetadata: vi.fn(),
-        uploadMultipleFiles: vi.fn(),
-      } as any;
+        getDefaultProvider: vi.fn(),
+        getStorageProviders: vi.fn(),
+        getDefaultStorageProvider: vi.fn(),
+      } as unknown as StorageManager;
 
       const contextWithStorage = {
         ...mockContext,
@@ -1883,20 +1887,17 @@ describe("DataController", () => {
           url: "https://ipfs.io/ipfs/test-hash",
           size: 1024,
         }),
-        providers: new Map(),
-        defaultProvider: "test",
+        download: vi.fn(),
+        list: vi.fn(),
+        delete: vi.fn(),
         register: vi.fn(),
         getProvider: vi.fn(),
         setDefaultProvider: vi.fn(),
         listProviders: vi.fn(),
-        downloadByUrl: vi.fn(),
-        downloadByProvider: vi.fn(),
-        downloadFromUrl: vi.fn(),
-        uploadToProvider: vi.fn(),
-        uploadToDefaultProvider: vi.fn(),
-        uploadWithMetadata: vi.fn(),
-        uploadMultipleFiles: vi.fn(),
-      } as any;
+        getDefaultProvider: vi.fn(),
+        getStorageProviders: vi.fn(),
+        getDefaultStorageProvider: vi.fn(),
+      } as unknown as StorageManager;
 
       const contextWithoutChain = {
         ...mockContext,
@@ -1941,20 +1942,17 @@ describe("DataController", () => {
           url: "https://ipfs.io/ipfs/test-hash",
           size: 1024,
         }),
-        providers: new Map(),
-        defaultProvider: "test",
+        download: vi.fn(),
+        list: vi.fn(),
+        delete: vi.fn(),
         register: vi.fn(),
         getProvider: vi.fn(),
         setDefaultProvider: vi.fn(),
         listProviders: vi.fn(),
-        downloadByUrl: vi.fn(),
-        downloadByProvider: vi.fn(),
-        downloadFromUrl: vi.fn(),
-        uploadToProvider: vi.fn(),
-        uploadToDefaultProvider: vi.fn(),
-        uploadWithMetadata: vi.fn(),
-        uploadMultipleFiles: vi.fn(),
-      } as any;
+        getDefaultProvider: vi.fn(),
+        getStorageProviders: vi.fn(),
+        getDefaultStorageProvider: vi.fn(),
+      } as unknown as StorageManager;
 
       const contextWithStorage = {
         ...mockContext,
@@ -2008,20 +2006,17 @@ describe("DataController", () => {
           url: "https://ipfs.io/ipfs/test-hash",
           size: 1024,
         }),
-        providers: new Map(),
-        defaultProvider: "test",
+        download: vi.fn(),
+        list: vi.fn(),
+        delete: vi.fn(),
         register: vi.fn(),
         getProvider: vi.fn(),
         setDefaultProvider: vi.fn(),
         listProviders: vi.fn(),
-        downloadByUrl: vi.fn(),
-        downloadByProvider: vi.fn(),
-        downloadFromUrl: vi.fn(),
-        uploadToProvider: vi.fn(),
-        uploadToDefaultProvider: vi.fn(),
-        uploadWithMetadata: vi.fn(),
-        uploadMultipleFiles: vi.fn(),
-      } as any;
+        getDefaultProvider: vi.fn(),
+        getStorageProviders: vi.fn(),
+        getDefaultStorageProvider: vi.fn(),
+      } as unknown as StorageManager;
 
       const contextWithStorage = {
         ...mockContext,
@@ -2099,20 +2094,17 @@ describe("DataController", () => {
     it("should handle storage upload failure for schema upload", async () => {
       const mockStorageManager = {
         upload: vi.fn().mockRejectedValue(new Error("Storage upload failed")),
-        providers: new Map(),
-        defaultProvider: "test",
+        download: vi.fn(),
+        list: vi.fn(),
+        delete: vi.fn(),
         register: vi.fn(),
         getProvider: vi.fn(),
         setDefaultProvider: vi.fn(),
         listProviders: vi.fn(),
-        downloadByUrl: vi.fn(),
-        downloadByProvider: vi.fn(),
-        downloadFromUrl: vi.fn(),
-        uploadToProvider: vi.fn(),
-        uploadToDefaultProvider: vi.fn(),
-        uploadWithMetadata: vi.fn(),
-        uploadMultipleFiles: vi.fn(),
-      } as any;
+        getDefaultProvider: vi.fn(),
+        getStorageProviders: vi.fn(),
+        getDefaultStorageProvider: vi.fn(),
+      } as unknown as StorageManager;
 
       const contextWithStorage = {
         ...mockContext,
@@ -2134,20 +2126,17 @@ describe("DataController", () => {
           url: "https://ipfs.io/ipfs/test-hash",
           size: 1024,
         }),
-        providers: new Map(),
-        defaultProvider: "test",
+        download: vi.fn(),
+        list: vi.fn(),
+        delete: vi.fn(),
         register: vi.fn(),
         getProvider: vi.fn(),
         setDefaultProvider: vi.fn(),
         listProviders: vi.fn(),
-        downloadByUrl: vi.fn(),
-        downloadByProvider: vi.fn(),
-        downloadFromUrl: vi.fn(),
-        uploadToProvider: vi.fn(),
-        uploadToDefaultProvider: vi.fn(),
-        uploadWithMetadata: vi.fn(),
-        uploadMultipleFiles: vi.fn(),
-      } as any;
+        getDefaultProvider: vi.fn(),
+        getStorageProviders: vi.fn(),
+        getDefaultStorageProvider: vi.fn(),
+      } as unknown as StorageManager;
 
       const contextWithStorage = {
         ...mockContext,
@@ -2204,20 +2193,17 @@ describe("DataController", () => {
           url: "https://ipfs.io/ipfs/test-hash",
           size: 1024,
         }),
-        providers: new Map(),
-        defaultProvider: "test",
+        download: vi.fn(),
+        list: vi.fn(),
+        delete: vi.fn(),
         register: vi.fn(),
         getProvider: vi.fn(),
         setDefaultProvider: vi.fn(),
         listProviders: vi.fn(),
-        downloadByUrl: vi.fn(),
-        downloadByProvider: vi.fn(),
-        downloadFromUrl: vi.fn(),
-        uploadToProvider: vi.fn(),
-        uploadToDefaultProvider: vi.fn(),
-        uploadWithMetadata: vi.fn(),
-        uploadMultipleFiles: vi.fn(),
-      } as any;
+        getDefaultProvider: vi.fn(),
+        getStorageProviders: vi.fn(),
+        getDefaultStorageProvider: vi.fn(),
+      } as unknown as StorageManager;
 
       const contextWithStorage = {
         ...mockContext,
@@ -2300,20 +2286,17 @@ describe("DataController", () => {
           url: "https://ipfs.io/ipfs/test-hash",
           size: 1024,
         }),
-        providers: new Map(),
-        defaultProvider: "test",
+        download: vi.fn(),
+        list: vi.fn(),
+        delete: vi.fn(),
         register: vi.fn(),
         getProvider: vi.fn(),
         setDefaultProvider: vi.fn(),
         listProviders: vi.fn(),
-        downloadByUrl: vi.fn(),
-        downloadByProvider: vi.fn(),
-        downloadFromUrl: vi.fn(),
-        uploadToProvider: vi.fn(),
-        uploadToDefaultProvider: vi.fn(),
-        uploadWithMetadata: vi.fn(),
-        uploadMultipleFiles: vi.fn(),
-      } as any;
+        getDefaultProvider: vi.fn(),
+        getStorageProviders: vi.fn(),
+        getDefaultStorageProvider: vi.fn(),
+      } as unknown as StorageManager;
 
       const contextWithRelayer = {
         ...mockContext,

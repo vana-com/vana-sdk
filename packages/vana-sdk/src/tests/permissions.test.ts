@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
-import { Hash, Address } from "viem";
+import type { Hash, Address, PublicClient } from "viem";
 import {
   PermissionsController,
   ControllerContext,
@@ -188,7 +188,7 @@ describe("PermissionsController", () => {
       const { createPublicClient } = await import("viem");
       vi.mocked(createPublicClient).mockReturnValueOnce({
         readContract: vi.fn().mockResolvedValue(BigInt(0)),
-      } as any);
+      } as unknown as PublicClient);
 
       // Mock user rejection
       mockWalletClient.signTypedData.mockRejectedValue(
@@ -249,7 +249,7 @@ describe("PermissionsController", () => {
       const mockPublicClient = createPublicClient({
         chain: mockWalletClient.chain,
         transport: () => ({}),
-      } as any);
+      } as Parameters<typeof createPublicClient>[0]);
       vi.mocked(mockPublicClient.readContract).mockResolvedValue(BigInt(1));
 
       // Mock writeContract to return the expected hash
@@ -275,7 +275,7 @@ describe("PermissionsController", () => {
       const mockPublicClient = createPublicClient({
         chain: mockWalletClient.chain,
         transport: () => ({}),
-      } as any);
+      } as Parameters<typeof createPublicClient>[0]);
       vi.mocked(mockPublicClient.readContract).mockResolvedValue(BigInt(1));
 
       // Mock writeContract to throw an error
@@ -295,7 +295,7 @@ describe("PermissionsController", () => {
       const mockPublicClient = createPublicClient({
         chain: mockWalletClient.chain,
         transport: () => ({}),
-      } as any);
+      } as Parameters<typeof createPublicClient>[0]);
       vi.mocked(mockPublicClient.readContract).mockResolvedValue(BigInt(0));
 
       // Access private method for testing
@@ -367,7 +367,7 @@ describe("PermissionsController", () => {
       const { createPublicClient } = await import("viem");
       vi.mocked(createPublicClient).mockReturnValueOnce({
         readContract: vi.fn().mockResolvedValue(BigInt(5)),
-      } as any);
+      } as unknown as PublicClient);
 
       // Mock direct transaction
       mockWalletClient.writeContract = vi
@@ -454,7 +454,7 @@ describe("PermissionsController", () => {
       const mockPublicClient = createPublicClient({
         chain: mockWalletClient.chain,
         transport: () => ({}),
-      } as any);
+      } as Parameters<typeof createPublicClient>[0]);
       vi.mocked(mockPublicClient.readContract).mockResolvedValue(BigInt(0));
 
       // Mock signature failure with specific error
@@ -496,7 +496,7 @@ describe("PermissionsController", () => {
       const { createPublicClient } = await import("viem");
       vi.mocked(createPublicClient).mockReturnValueOnce({
         readContract: vi.fn().mockResolvedValue(BigInt(0)),
-      } as any);
+      } as unknown as PublicClient);
 
       const result = await controllerWithStorage.grant(mockParams);
 
@@ -786,7 +786,7 @@ describe("PermissionsController", () => {
       const { createPublicClient } = await import("viem");
       vi.mocked(createPublicClient).mockReturnValueOnce({
         readContract: vi.fn().mockResolvedValue(BigInt(0)),
-      } as any);
+      } as unknown as PublicClient);
 
       const mockParams = {
         to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
@@ -819,7 +819,7 @@ describe("PermissionsController", () => {
       const { createPublicClient } = await import("viem");
       vi.mocked(createPublicClient).mockReturnValueOnce({
         readContract: vi.fn().mockResolvedValue(BigInt(0)),
-      } as any);
+      } as unknown as PublicClient);
 
       const mockParams = {
         to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
@@ -852,7 +852,7 @@ describe("PermissionsController", () => {
       const { createPublicClient } = await import("viem");
       vi.mocked(createPublicClient).mockReturnValueOnce({
         readContract: vi.fn().mockResolvedValue(BigInt(5)),
-      } as any);
+      } as unknown as PublicClient);
 
       // Mock direct transaction failure
       mockWalletClient.writeContract = vi
@@ -916,7 +916,7 @@ describe("PermissionsController", () => {
       const { createPublicClient } = await import("viem");
       vi.mocked(createPublicClient).mockReturnValueOnce({
         readContract: vi.fn().mockResolvedValue(BigInt(5)),
-      } as any);
+      } as unknown as PublicClient);
 
       // Mock getUserAddress to return an address
       noAccountWallet.getAddresses = vi
@@ -980,7 +980,7 @@ describe("PermissionsController", () => {
       const { createPublicClient } = await import("viem");
       vi.mocked(createPublicClient).mockReturnValueOnce({
         readContract: vi.fn().mockResolvedValue(BigInt(0)),
-      } as any);
+      } as unknown as PublicClient);
 
       await expect(failingController.grant(mockParams)).rejects.toThrow(
         NetworkError,
@@ -1226,7 +1226,7 @@ describe("PermissionsController", () => {
       const { createPublicClient } = await import("viem");
       vi.mocked(createPublicClient).mockReturnValueOnce({
         readContract: vi.fn().mockResolvedValue(BigInt(0)),
-      } as any);
+      } as unknown as PublicClient);
 
       const mockParams = {
         to: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,

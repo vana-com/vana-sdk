@@ -490,7 +490,7 @@ describe("Encryption Utils", () => {
       );
 
       // Mock decryption to return original data
-      (mockPlatformAdapter.pgp.decrypt as any).mockResolvedValue(
+      vi.mocked(mockPlatformAdapter.pgp.decrypt).mockResolvedValue(
         originalDataText,
       );
 
@@ -515,7 +515,7 @@ describe("Encryption Utils", () => {
       vi.mocked(mockPlatformAdapter.pgp.encrypt).mockResolvedValue(
         encryptedString,
       );
-      (mockPlatformAdapter.pgp.decrypt as any).mockResolvedValue(
+      vi.mocked(mockPlatformAdapter.pgp.decrypt).mockResolvedValue(
         originalDataText,
       );
 

@@ -37,6 +37,26 @@ import {
 import { validateGrant } from "../utils/grantValidation";
 import { StorageManager } from "../storage";
 
+interface SubgraphPermissionsResponse {
+  data?: {
+    user?: {
+      permissions?: Array<{
+        id: string;
+        account: string;
+        publicKey: string;
+        encryptedKey: string;
+        grantSignature: string;
+        grantHash: string;
+        grant: string;
+        user: { id: string };
+        addedAtBlock: string;
+        nonce: string;
+      }>;
+    };
+  };
+  errors?: Array<{ message: string }>;
+}
+
 /**
  * Shared configuration and services passed to all SDK controllers.
  *
@@ -762,7 +782,7 @@ export class PermissionsController {
         );
       }
 
-      const result = await response.json();
+      const result = (await response.json()) as SubgraphPermissionsResponse;
 
       if (result.errors) {
         throw new BlockchainError(

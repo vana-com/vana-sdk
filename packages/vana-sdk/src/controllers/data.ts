@@ -208,7 +208,7 @@ export class DataController {
         );
       }
 
-      const result: SubgraphResponse = await response.json();
+      const result = (await response.json()) as SubgraphResponse;
 
       if (result.errors) {
         throw new Error(
@@ -348,7 +348,7 @@ export class DataController {
         );
       }
 
-      const result: SubgraphResponse = await response.json();
+      const result = (await response.json()) as SubgraphResponse;
 
       if (result.errors) {
         throw new Error(
@@ -465,7 +465,7 @@ export class DataController {
         );
       }
 
-      const result: SubgraphResponse = await response.json();
+      const result = (await response.json()) as SubgraphResponse;
 
       if (result.errors) {
         throw new Error(

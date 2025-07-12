@@ -33,6 +33,28 @@ interface PinataPin {
   };
 }
 
+interface PinataUploadResponse {
+  IpfsHash: string;
+  PinSize: number;
+  Timestamp: string;
+}
+
+interface PinataListResponse {
+  count: number;
+  rows: Array<{
+    id: string;
+    ipfs_pin_hash: string;
+    size: number;
+    user_id: string;
+    date_pinned: string;
+    date_unpinned?: string;
+    metadata: {
+      name?: string;
+      keyvalues?: Record<string, unknown>;
+    };
+  }>;
+}
+
 export class PinataStorage implements StorageProvider {
   private readonly apiUrl: string;
   private readonly gatewayUrl: string;
@@ -87,7 +109,7 @@ export class PinataStorage implements StorageProvider {
         );
       }
 
-      const result = await response.json();
+      const result = (await response.json()) as PinataUploadResponse;
       const ipfsHash = result.IpfsHash;
 
       if (!ipfsHash) {
@@ -192,7 +214,7 @@ export class PinataStorage implements StorageProvider {
         );
       }
 
-      const result = await response.json();
+      const result = (await response.json()) as PinataListResponse;
 
       return result.rows.map((pin: PinataPin) => ({
         id: pin.ipfs_pin_hash,

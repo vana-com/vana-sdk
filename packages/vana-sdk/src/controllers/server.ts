@@ -183,7 +183,7 @@ export class ServerController {
         );
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as ReplicatePredictionResponse;
       console.debug("Identity Server Success Response:", data);
 
       // Step 3: Poll for results until completion
@@ -251,7 +251,7 @@ export class ServerController {
         );
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as ReplicatePredictionResponse;
 
       console.debug("Polling Success Response:", data);
 
@@ -442,7 +442,7 @@ export class ServerController {
         );
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as ReplicatePredictionResponse;
 
       console.debug("Replicate Success Response:", data);
 
@@ -513,7 +513,7 @@ export class ServerController {
         );
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as ReplicatePredictionResponse;
 
       console.debug("Personal Server Success Response:", data);
 

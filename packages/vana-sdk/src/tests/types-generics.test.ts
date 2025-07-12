@@ -82,7 +82,9 @@ describe("Generic Types", () => {
 
       expect(errorResponse.success).toBe(false);
       expect(errorResponse.error?.code).toBe("VALIDATION_ERROR");
-      expect((errorResponse.error?.details as any)?.field).toBe("email");
+      expect(
+        (errorResponse.error?.details as Record<string, unknown>)?.field,
+      ).toBe("email");
     });
 
     it("should structure async result correctly", () => {
@@ -415,10 +417,14 @@ describe("Generic Types", () => {
       expect(plugin.config.enabled).toBe(true);
 
       await plugin.init?.();
-      expect((plugin as any).isInitialized()).toBe(true);
+      expect(
+        (plugin as unknown as { isInitialized: () => boolean }).isInitialized(),
+      ).toBe(true);
 
       await plugin.cleanup?.();
-      expect((plugin as any).isInitialized()).toBe(false);
+      expect(
+        (plugin as unknown as { isInitialized: () => boolean }).isInitialized(),
+      ).toBe(false);
     });
   });
 
@@ -476,7 +482,7 @@ describe("Generic Types", () => {
           return this.users.get(id);
         }
 
-        async findAll(_options?: any) {
+        async findAll(_options?: Record<string, unknown>) {
           const users = Array.from(this.users.values());
           return {
             entities: users.slice(0, _options?.limit ?? users.length),
@@ -533,8 +539,8 @@ describe("Generic Types", () => {
             typeof value === "object" &&
             value !== null &&
             "email" in value &&
-            typeof (value as any).email === "string" &&
-            (value as any).email.includes("@")
+            typeof (value as Record<string, unknown>).email === "string" &&
+            (value as Record<string, unknown>).email.includes("@")
           );
         }
 
@@ -544,9 +550,11 @@ describe("Generic Types", () => {
             errors.push("Value must be an object");
           } else if (!("email" in value)) {
             errors.push("Email field is required");
-          } else if (typeof (value as any).email !== "string") {
+          } else if (
+            typeof (value as Record<string, unknown>).email !== "string"
+          ) {
             errors.push("Email must be a string");
-          } else if (!(value as any).email.includes("@")) {
+          } else if (!(value as Record<string, unknown>).email.includes("@")) {
             errors.push("Email must contain @ symbol");
           }
           return errors;

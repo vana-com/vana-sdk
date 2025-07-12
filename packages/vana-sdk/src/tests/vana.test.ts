@@ -44,7 +44,7 @@ const testAccount = privateKeyToAccount(
 );
 
 describe("Vana", () => {
-  let validWalletClient: any;
+  let validWalletClient: ReturnType<typeof createWalletClient>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -82,20 +82,20 @@ describe("Vana", () => {
 
     it("should throw InvalidConfigurationError when config is missing", () => {
       expect(() => {
-        new Vana(null as any);
+        new Vana(null as unknown as Parameters<typeof Vana>[0]);
       }).toThrow(InvalidConfigurationError);
     });
 
     it("should throw InvalidConfigurationError when walletClient is missing", () => {
       expect(() => {
-        new Vana({} as any);
+        new Vana({} as unknown as Parameters<typeof Vana>[0]);
       }).toThrow(InvalidConfigurationError);
     });
 
     it("should throw InvalidConfigurationError when walletClient is invalid", () => {
       expect(() => {
         new Vana({
-          walletClient: {} as any,
+          walletClient: {} as unknown as typeof validWalletClient,
         });
       }).toThrow(InvalidConfigurationError);
     });
@@ -104,7 +104,10 @@ describe("Vana", () => {
       expect(() => {
         new Vana({
           walletClient: validWalletClient,
-          relayerCallbacks: "not-an-object" as any,
+          relayerCallbacks: "not-an-object" as unknown as Record<
+            string,
+            unknown
+          >,
         });
       }).toThrow(InvalidConfigurationError);
     });
@@ -134,7 +137,7 @@ describe("Vana", () => {
       const invalidChainClient = createWalletClient({
         account: testAccount,
         chain: {
-          id: 99999 as any, // Invalid chain ID for testing
+          id: 99999 as unknown as number, // Invalid chain ID for testing
           name: "Unsupported Chain",
           nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
           rpcUrls: { default: { http: ["http://localhost:8545"] } },
@@ -222,7 +225,8 @@ describe("Vana", () => {
     it("should get user address", async () => {
       // Mock the private method call
       const mockGetUserAddress = vi.fn().mockResolvedValue(testAccount.address);
-      (vana.permissions as any).getUserAddress = mockGetUserAddress;
+      (vana.permissions as unknown as Record<string, unknown>).getUserAddress =
+        mockGetUserAddress;
 
       const address = await vana.getUserAddress();
       expect(address).toBe(testAccount.address);

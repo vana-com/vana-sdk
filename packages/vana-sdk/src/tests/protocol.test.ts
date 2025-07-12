@@ -46,8 +46,8 @@ import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../abi";
 
 // Type the mocked functions
-const mockGetContractAddress = getContractAddress as any;
-const mockGetAbi = getAbi as any;
+const mockGetContractAddress = getContractAddress as ReturnType<typeof vi.fn>;
+const mockGetAbi = getAbi as ReturnType<typeof vi.fn>;
 
 // Test account
 const testAccount = privateKeyToAccount(
@@ -57,8 +57,8 @@ const testAccount = privateKeyToAccount(
 describe("ProtocolController", () => {
   let controller: ProtocolController;
   let mockContext: ControllerContext;
-  let mockWalletClient: any;
-  let mockPublicClient: any;
+  let mockWalletClient: ReturnType<typeof createWalletClient>;
+  let mockPublicClient: { waitForTransactionReceipt: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -91,7 +91,9 @@ describe("ProtocolController", () => {
   describe("getContract", () => {
     it("should return contract info for valid contract", () => {
       const mockAddress = "0x1234567890123456789012345678901234567890";
-      const mockAbi: any[] = [{ type: "function", name: "test" }];
+      const mockAbi: Record<string, unknown>[] = [
+        { type: "function", name: "test" },
+      ];
 
       mockGetContractAddress.mockReturnValue(mockAddress);
       mockGetAbi.mockReturnValue(mockAbi);
@@ -309,7 +311,7 @@ describe("ProtocolController", () => {
       mockGetContractAddress.mockReturnValue(
         "0x1234567890123456789012345678901234567890",
       );
-      const mockAbi: any[] = [
+      const mockAbi: Record<string, unknown>[] = [
         { type: "function", name: "version", inputs: [], outputs: [] },
       ];
       mockGetAbi.mockReturnValue(mockAbi);
@@ -438,7 +440,7 @@ describe("ProtocolController", () => {
             throw new Error("Chain ID access failed");
           },
           name: "Test Chain",
-        } as any,
+        } as unknown as typeof mockWalletClient.chain,
       };
 
       const controller = new ProtocolController({

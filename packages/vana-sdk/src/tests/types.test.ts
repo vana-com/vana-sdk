@@ -17,6 +17,7 @@ import type {
   RelayerStorageResponse,
   RelayerTransactionResponse,
 } from "../types/relayer";
+import type { StorageProvider } from "../types/storage";
 import type { ContractInfo } from "../types/contracts";
 import type {
   GenericRequest,
@@ -436,7 +437,9 @@ describe("TypeScript Types", () => {
         "0x1234567890123456789012345678901234567890",
       );
       expect(contractInfo.abi).toHaveLength(1);
-      expect((contractInfo.abi[0] as any).name).toBe("test");
+      expect((contractInfo.abi[0] as Record<string, unknown>).name).toBe(
+        "test",
+      );
     });
   });
 
@@ -514,10 +517,18 @@ describe("TypeScript Types", () => {
                 }),
                 download: async () =>
                   new Blob([], { type: "application/octet-stream" }),
-                list: async () => [],
+                list: async () =>
+                  [] as {
+                    id: string;
+                    name: string;
+                    url: string;
+                    size: number;
+                    contentType: string;
+                    createdAt: Date;
+                  }[],
                 delete: async () => true,
                 getConfig: () => ({ name: "ipfs" }),
-              } as any,
+              } as unknown as StorageProvider,
             },
             defaultProvider: "ipfs",
           },
@@ -556,10 +567,18 @@ describe("TypeScript Types", () => {
                 }),
                 download: async () =>
                   new Blob([], { type: "application/octet-stream" }),
-                list: async () => [],
+                list: async () =>
+                  [] as {
+                    id: string;
+                    name: string;
+                    url: string;
+                    size: number;
+                    contentType: string;
+                    createdAt: Date;
+                  }[],
                 delete: async () => true,
                 getConfig: () => ({ name: "ipfs" }),
-              } as any,
+              } as unknown as StorageProvider,
             },
             defaultProvider: "ipfs",
           },
@@ -807,10 +826,14 @@ describe("TypeScript Types", () => {
           baseUrl: "https://api.example.com",
         });
 
-        const fullUrl = (client as any).buildUrl("/users");
+        const fullUrl = (
+          client as unknown as { buildUrl: (path: string) => string }
+        ).buildUrl("/users");
         expect(fullUrl).toBe("https://api.example.com/users");
 
-        const fullUrlWithSlash = (client as any).buildUrl("users");
+        const fullUrlWithSlash = (
+          client as unknown as { buildUrl: (path: string) => string }
+        ).buildUrl("users");
         expect(fullUrlWithSlash).toBe("https://api.example.com/users");
       });
     });

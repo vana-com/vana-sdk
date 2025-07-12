@@ -185,7 +185,7 @@ describe("Grant Utilities", () => {
   describe("isGrantExpired", () => {
     it("should return false for grant without expiration", () => {
       const grantWithoutExpiry = { ...mockGrantFile };
-      delete (grantWithoutExpiry as any).expires;
+      delete (grantWithoutExpiry as Record<string, unknown>).expires;
 
       expect(isGrantExpired(grantWithoutExpiry)).toBe(false);
     });
@@ -208,7 +208,7 @@ describe("Grant Utilities", () => {
   describe("getGrantTimeRemaining", () => {
     it("should return null for grant without expiration", () => {
       const grantWithoutExpiry = { ...mockGrantFile };
-      delete (grantWithoutExpiry as any).expires;
+      delete (grantWithoutExpiry as Record<string, unknown>).expires;
 
       expect(getGrantTimeRemaining(grantWithoutExpiry)).toBeNull();
     });
@@ -241,7 +241,7 @@ describe("Grant Utilities", () => {
 
     it("should handle grant without expiration", () => {
       const grantWithoutExpiry = { ...mockGrantFile };
-      delete (grantWithoutExpiry as any).expires;
+      delete (grantWithoutExpiry as Record<string, unknown>).expires;
 
       const summary = summarizeGrant(grantWithoutExpiry);
 

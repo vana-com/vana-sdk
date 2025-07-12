@@ -392,7 +392,7 @@ describe("Encryption Utils", () => {
       await expect(
         decryptUserData(encryptedData, encryptionKey),
       ).rejects.toThrow(
-        "Failed to decrypt user data: Invalid encrypted message",
+        "Failed to decrypt file: Invalid encrypted message. This file may not be compatible with PGP decryption or was encrypted using a different method.",
       );
     });
 
@@ -406,7 +406,9 @@ describe("Encryption Utils", () => {
 
       await expect(
         decryptUserData(encryptedData, encryptionKey),
-      ).rejects.toThrow("Failed to decrypt user data: Wrong password");
+      ).rejects.toThrow(
+        "Failed to decrypt file: Wrong password. This file may not be compatible with PGP decryption or was encrypted using a different method.",
+      );
     });
 
     it("should handle wrong encryption key", async () => {
@@ -420,7 +422,7 @@ describe("Encryption Utils", () => {
       );
 
       await expect(decryptUserData(encryptedData, wrongKey)).rejects.toThrow(
-        "Failed to decrypt user data: Session key decryption failed",
+        "Failed to decrypt file: Wrong encryption key. This file may have been encrypted with a different key than your current wallet signature.",
       );
     });
 
@@ -433,7 +435,9 @@ describe("Encryption Utils", () => {
 
       await expect(
         decryptUserData(encryptedData, encryptionKey),
-      ).rejects.toThrow("Failed to decrypt user data: Unknown error");
+      ).rejects.toThrow(
+        "Failed to decrypt file: Unknown error occurred during decryption process.",
+      );
     });
 
     it("should handle undefined/null exceptions during decryption", async () => {
@@ -445,7 +449,9 @@ describe("Encryption Utils", () => {
 
       await expect(
         decryptUserData(encryptedData, encryptionKey),
-      ).rejects.toThrow("Failed to decrypt user data: Unknown error");
+      ).rejects.toThrow(
+        "Failed to decrypt file: Unknown error occurred during decryption process.",
+      );
     });
 
     it("should handle object exceptions during decryption", async () => {
@@ -460,7 +466,9 @@ describe("Encryption Utils", () => {
 
       await expect(
         decryptUserData(encryptedData, encryptionKey),
-      ).rejects.toThrow("Failed to decrypt user data: Unknown error");
+      ).rejects.toThrow(
+        "Failed to decrypt file: Unknown error occurred during decryption process.",
+      );
     });
   });
 

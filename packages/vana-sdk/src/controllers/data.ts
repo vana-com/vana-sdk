@@ -24,11 +24,11 @@ import {
   decryptWithWalletPrivateKey,
 } from "../utils/encryption";
 import {
-  validateDataContract,
-  validateDataAgainstContract,
+  validateDataSchema,
+  validateDataAgainstSchema,
   fetchAndValidateSchema,
   SchemaValidationError,
-  type DataContract,
+  type DataSchema,
 } from "../utils/schemaValidation";
 
 /**
@@ -1741,15 +1741,15 @@ export class DataController {
   }
 
   /**
-   * Validates a data contract against the Vana meta-schema.
+   * Validates a data schema against the Vana meta-schema.
    *
-   * @param contract - The data contract to validate
+   * @param schema - The data schema to validate
    * @returns true if valid
    * @throws SchemaValidationError if invalid
    *
    * @example
    * ```typescript
-   * const contract = {
+   * const schema = {
    *   name: "User Profile",
    *   version: "1.0.0",
    *   dialect: "json",
@@ -1762,23 +1762,23 @@ export class DataController {
    *   }
    * };
    *
-   * vana.data.validateDataContract(contract);
+   * vana.data.validateDataSchema(schema);
    * ```
    */
-  validateDataContract(contract: unknown): asserts contract is DataContract {
-    return validateDataContract(contract);
+  validateDataSchema(schema: unknown): asserts schema is DataSchema {
+    return validateDataSchema(schema);
   }
 
   /**
-   * Validates data against a JSON Schema from a data contract.
+   * Validates data against a JSON Schema from a data schema.
    *
    * @param data - The data to validate
-   * @param contract - The data contract containing the schema
+   * @param schema - The data schema containing the schema
    * @throws SchemaValidationError if invalid
    *
    * @example
    * ```typescript
-   * const contract = {
+   * const schema = {
    *   name: "User Profile",
    *   version: "1.0.0",
    *   dialect: "json",
@@ -1793,71 +1793,73 @@ export class DataController {
    * };
    *
    * const userData = { name: "Alice", age: 30 };
-   * vana.data.validateDataAgainstContract(userData, contract);
+   * vana.data.validateDataAgainstSchema(userData, schema);
    * ```
    */
-  validateDataAgainstContract(data: unknown, contract: DataContract): void {
-    return validateDataAgainstContract(data, contract);
+  validateDataAgainstSchema(data: unknown, schema: DataSchema): void {
+    return validateDataAgainstSchema(data, schema);
   }
 
   /**
-   * Fetches and validates a schema from a URL, then returns the parsed data contract.
+   * Fetches and validates a schema from a URL, then returns the parsed data schema.
    *
    * @param url - The URL to fetch the schema from
-   * @returns The validated data contract
+   * @returns The validated data schema
    * @throws SchemaValidationError if invalid or fetch fails
    *
    * @example
    * ```typescript
    * // Fetch and validate a schema from IPFS or HTTP
-   * const contract = await vana.data.fetchAndValidateSchema("https://example.com/schema.json");
-   * console.log(contract.name, contract.dialect);
+   * const schema = await vana.data.fetchAndValidateSchema("https://example.com/schema.json");
+   * console.log(schema.name, schema.dialect);
    *
-   * // Use the contract to validate user data
-   * if (contract.dialect === "json") {
-   *   vana.data.validateDataAgainstContract(userData, contract);
+   * // Use the schema to validate user data
+   * if (schema.dialect === "json") {
+   *   vana.data.validateDataAgainstSchema(userData, schema);
    * }
    * ```
    */
-  async fetchAndValidateSchema(url: string): Promise<DataContract> {
+  async fetchAndValidateSchema(url: string): Promise<DataSchema> {
     return fetchAndValidateSchema(url);
   }
 
   /**
-   * Retrieves a schema by ID and fetches its definition URL to get the full data contract.
+   * Retrieves a schema by ID and fetches its definition URL to get the full data schema.
    *
    * @param schemaId - The schema ID to retrieve and validate
-   * @returns The validated data contract
+   * @returns The validated data schema
    * @throws SchemaValidationError if schema is invalid
    *
    * @example
    * ```typescript
-   * // Get schema from registry and validate its contract
-   * const contract = await vana.data.getValidatedSchema(123);
+   * // Get schema from registry and validate its schema
+   * const schema = await vana.data.getValidatedSchema(123);
    *
    * // Use it to validate user data
-   * if (contract.dialect === "json") {
-   *   vana.data.validateDataAgainstContract(userData, contract);
+   * if (schema.dialect === "json") {
+   *   vana.data.validateDataAgainstSchema(userData, schema);
    * }
    * ```
    */
-  async getValidatedSchema(schemaId: number): Promise<DataContract> {
+  async getValidatedSchema(schemaId: number): Promise<DataSchema> {
     try {
       // First get the schema metadata from the registry
       const schema = await this.getSchema(schemaId);
 
-      // Then fetch and validate the full data contract from the definition URL
-      const contract = await this.fetchAndValidateSchema(schema.definitionUrl);
+      // Then fetch and validate the full data schema from the definition URL
+      const dataSchema = await this.fetchAndValidateSchema(
+        schema.definitionUrl,
+      );
 
-      // Verify that the fetched contract name matches the on-chain name
-      if (contract.name !== schema.name) {
+      // Verify that the fetched schema name matches the on-chain name
+      if (dataSchema.name !== schema.name) {
         throw new SchemaValidationError(
-          `Schema name mismatch: on-chain name "${schema.name}" does not match contract name "${contract.name}"`,
+          `Schema name mismatch: on-chain name "${schema.name}" does not match schema name "${dataSchema.name}"`,
           [],
         );
       }
 
-      return contract;
+      return dataSchema;
     } catch (error) {
       if (error instanceof SchemaValidationError) {
         throw error;

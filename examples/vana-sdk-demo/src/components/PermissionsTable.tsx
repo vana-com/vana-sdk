@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   Table,
   TableHeader,
@@ -10,6 +10,7 @@ import {
   Tooltip,
   Chip,
   Spinner,
+  Pagination,
 } from "@heroui/react";
 import { GrantedPermission, convertIpfsUrl } from "vana-sdk";
 import { Shield, ExternalLink, Eye, RefreshCw } from "lucide-react";
@@ -53,6 +54,24 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
   onRefresh,
 }) => {
   const chainId = useChainId();
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const ITEMS_PER_PAGE = 10;
+
+  // Calculate paginated items
+  const paginatedPermissions = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    return userPermissions.slice(startIndex, endIndex);
+  }, [userPermissions, currentPage, ITEMS_PER_PAGE]);
+
+  const totalPages = Math.ceil(userPermissions.length / ITEMS_PER_PAGE);
+
+  // Reset to first page when userPermissions changes
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [userPermissions.length]);
   const handleRevoke = (permission: GrantedPermission) => {
     onRevoke(permission.id.toString());
   };
@@ -165,7 +184,7 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
           )}
         </TableHeader>
         <TableBody>
-          {userPermissions.map((permission) => (
+          {paginatedPermissions.map((permission) => (
             <TableRow key={permission.id.toString()}>
               <TableCell>
                 <div className="flex items-center gap-2">
@@ -251,6 +270,32 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
           ))}
         </TableBody>
       </Table>
+
+      {/* Pagination */}
+      {userPermissions.length > ITEMS_PER_PAGE && (
+        <div className="flex justify-center mt-4">
+          <Pagination
+            total={totalPages}
+            page={currentPage}
+            onChange={setCurrentPage}
+            showControls={true}
+            size="sm"
+          />
+        </div>
+      )}
+
+      {/* Status info */}
+      {userPermissions.length > 0 && (
+        <div className="mt-4 text-center text-sm text-gray-600">
+          Showing {paginatedPermissions.length} of {userPermissions.length}{" "}
+          permissions
+          {userPermissions.length > ITEMS_PER_PAGE && (
+            <span className="ml-2">
+              • Page {currentPage} of {totalPages}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 };

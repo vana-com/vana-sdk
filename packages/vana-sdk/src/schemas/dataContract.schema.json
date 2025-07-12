@@ -1,8 +1,8 @@
 {
   "$id": "https://vana.org/data-schema.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Data Contract",
-  "description": "Meta‑schema that validates a data contract object containing a dataset schema and related metadata.",
+  "title": "Schema",
+  "description": "Meta‑schema that validates a schema object containing a dataset schema and related metadata.",
   "type": "object",
   "required": ["name", "version", "dialect", "schema"],
   "properties": {

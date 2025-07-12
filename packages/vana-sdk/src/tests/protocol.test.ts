@@ -75,8 +75,10 @@ describe("ProtocolController", () => {
     };
 
     mockContext = {
-      walletClient: mockWalletClient,
-      publicClient: mockPublicClient,
+      walletClient:
+        mockWalletClient as unknown as ControllerContext["walletClient"],
+      publicClient:
+        mockPublicClient as unknown as ControllerContext["publicClient"],
       relayerCallbacks: {
         submitFileAddition: vi.fn().mockResolvedValue({
           fileId: 123,
@@ -129,8 +131,10 @@ describe("ProtocolController", () => {
       };
 
       const noChainController = new ProtocolController({
-        walletClient: noChainClient,
-        publicClient: mockPublicClient,
+        walletClient:
+          noChainClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
         relayerCallbacks: {
           submitFileAddition: vi.fn(),
         },
@@ -256,8 +260,10 @@ describe("ProtocolController", () => {
       };
 
       const noChainController = new ProtocolController({
-        walletClient: noChainClient,
-        publicClient: mockPublicClient,
+        walletClient:
+          noChainClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
         relayerCallbacks: {
           submitFileAddition: vi.fn(),
         },
@@ -282,8 +288,10 @@ describe("ProtocolController", () => {
       };
 
       const noChainController = new ProtocolController({
-        walletClient: noChainClient,
-        publicClient: mockPublicClient,
+        walletClient:
+          noChainClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
         relayerCallbacks: {
           submitFileAddition: vi.fn(),
         },
@@ -343,9 +351,10 @@ describe("ProtocolController", () => {
         walletClient: {
           ...mockWalletClient,
           chain: undefined, // No chain object
-        },
-        publicClient: mockPublicClient,
-      };
+        } as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
+      } as unknown as ControllerContext;
 
       const controller = new ProtocolController(contextWithoutChain);
 
@@ -408,8 +417,10 @@ describe("ProtocolController", () => {
       };
 
       const controller = new ProtocolController({
-        walletClient: walletClientWithDynamicId,
-        publicClient: mockPublicClient,
+        walletClient:
+          walletClientWithDynamicId as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
       });
 
       // Mock getContractAddress to throw an error that contains "Contract address not found"
@@ -444,8 +455,10 @@ describe("ProtocolController", () => {
       };
 
       const controller = new ProtocolController({
-        walletClient: walletClientWithThrowingId,
-        publicClient: mockPublicClient,
+        walletClient:
+          walletClientWithThrowingId as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
       });
 
       // Should throw the error from the id getter

@@ -1072,7 +1072,7 @@ describe("PinataStorage", () => {
           ) {
             throw { code: 500, message: "Server error" }; // Non-Error object
           }
-          super(init);
+          super(init as ConstructorParameters<typeof URLSearchParams>[0]);
         }
       } as typeof URLSearchParams;
 

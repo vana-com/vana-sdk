@@ -65,9 +65,11 @@ describe("ServerController", () => {
 
     // Create mock context
     mockContext = {
-      walletClient: mockWalletClient,
-      applicationClient: mockApplicationClient,
-      publicClient: {} as Record<string, unknown>,
+      walletClient:
+        mockWalletClient as unknown as ControllerContext["walletClient"],
+      applicationClient:
+        mockApplicationClient as unknown as ControllerContext["applicationClient"],
+      publicClient: {} as unknown as ControllerContext["publicClient"],
     };
 
     serverController = new ServerController(mockContext);

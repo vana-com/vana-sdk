@@ -484,10 +484,11 @@ describe("Generic Types", () => {
 
         async findAll(_options?: Record<string, unknown>) {
           const users = Array.from(this.users.values());
+          const limit = (_options?.limit as number) ?? users.length;
           return {
-            entities: users.slice(0, _options?.limit ?? users.length),
+            entities: users.slice(0, limit),
             total: users.length,
-            hasMore: (_options?.limit ?? users.length) < users.length,
+            hasMore: limit < users.length,
           };
         }
 
@@ -540,7 +541,7 @@ describe("Generic Types", () => {
             value !== null &&
             "email" in value &&
             typeof (value as Record<string, unknown>).email === "string" &&
-            (value as Record<string, unknown>).email.includes("@")
+            ((value as Record<string, unknown>).email as string).includes("@")
           );
         }
 
@@ -554,7 +555,9 @@ describe("Generic Types", () => {
             typeof (value as Record<string, unknown>).email !== "string"
           ) {
             errors.push("Email must be a string");
-          } else if (!(value as Record<string, unknown>).email.includes("@")) {
+          } else if (
+            !((value as Record<string, unknown>).email as string).includes("@")
+          ) {
             errors.push("Email must contain @ symbol");
           }
           return errors;

@@ -69,7 +69,9 @@ describe("Encryption Utils", () => {
       const expectedSignature = "0xsignature123";
       mockWallet.signMessage.mockResolvedValue(expectedSignature);
 
-      const result = await generateEncryptionKey(mockWallet);
+      const result = await generateEncryptionKey(
+        mockWallet as unknown as Parameters<typeof generateEncryptionKey>[0],
+      );
 
       expect(result).toBe(expectedSignature);
       expect(mockWallet.signMessage).toHaveBeenCalledWith({
@@ -83,7 +85,10 @@ describe("Encryption Utils", () => {
       const expectedSignature = "0xcustomsignature";
       mockWallet.signMessage.mockResolvedValue(expectedSignature);
 
-      const result = await generateEncryptionKey(mockWallet, customSeed);
+      const result = await generateEncryptionKey(
+        mockWallet as unknown as Parameters<typeof generateEncryptionKey>[0],
+        customSeed,
+      );
 
       expect(result).toBe(expectedSignature);
       expect(mockWallet.signMessage).toHaveBeenCalledWith({
@@ -95,7 +100,13 @@ describe("Encryption Utils", () => {
     it("should throw error if wallet has no account", async () => {
       const walletWithoutAccount = { ...mockWallet, account: null };
 
-      await expect(generateEncryptionKey(walletWithoutAccount)).rejects.toThrow(
+      await expect(
+        generateEncryptionKey(
+          walletWithoutAccount as unknown as Parameters<
+            typeof generateEncryptionKey
+          >[0],
+        ),
+      ).rejects.toThrow(
         "Wallet account is required for encryption key generation",
       );
     });
@@ -103,9 +114,11 @@ describe("Encryption Utils", () => {
     it("should handle signing errors", async () => {
       mockWallet.signMessage.mockRejectedValue(new Error("Signing failed"));
 
-      await expect(generateEncryptionKey(mockWallet)).rejects.toThrow(
-        "Signing failed",
-      );
+      await expect(
+        generateEncryptionKey(
+          mockWallet as unknown as Parameters<typeof generateEncryptionKey>[0],
+        ),
+      ).rejects.toThrow("Signing failed");
     });
 
     it("should handle user rejection", async () => {
@@ -113,24 +126,30 @@ describe("Encryption Utils", () => {
         new Error("User rejected the request"),
       );
 
-      await expect(generateEncryptionKey(mockWallet)).rejects.toThrow(
-        "User rejected the request",
-      );
+      await expect(
+        generateEncryptionKey(
+          mockWallet as unknown as Parameters<typeof generateEncryptionKey>[0],
+        ),
+      ).rejects.toThrow("User rejected the request");
     });
 
     it("should handle network errors during signing", async () => {
       mockWallet.signMessage.mockRejectedValue(new Error("Network error"));
 
-      await expect(generateEncryptionKey(mockWallet)).rejects.toThrow(
-        "Network error",
-      );
+      await expect(
+        generateEncryptionKey(
+          mockWallet as unknown as Parameters<typeof generateEncryptionKey>[0],
+        ),
+      ).rejects.toThrow("Network error");
     });
   });
 
   describe("Parameter validation", () => {
     it("should validate wallet parameter", async () => {
       await expect(
-        generateEncryptionKey(null as unknown as MockWallet),
+        generateEncryptionKey(
+          null as unknown as Parameters<typeof generateEncryptionKey>[0],
+        ),
       ).rejects.toThrow();
     });
 
@@ -138,14 +157,21 @@ describe("Encryption Utils", () => {
       const invalidWallet = { signMessage: vi.fn() };
 
       await expect(
-        generateEncryptionKey(invalidWallet as unknown as MockWallet),
+        generateEncryptionKey(
+          invalidWallet as unknown as Parameters<
+            typeof generateEncryptionKey
+          >[0],
+        ),
       ).rejects.toThrow("Wallet account is required");
     });
 
     it("should handle empty string seed", async () => {
       mockWallet.signMessage.mockResolvedValue("0xsignature");
 
-      const result = await generateEncryptionKey(mockWallet, "");
+      const result = await generateEncryptionKey(
+        mockWallet as unknown as Parameters<typeof generateEncryptionKey>[0],
+        "",
+      );
 
       expect(result).toBe("0xsignature");
       expect(mockWallet.signMessage).toHaveBeenCalledWith({
@@ -158,7 +184,10 @@ describe("Encryption Utils", () => {
       const longSeed = "a".repeat(1000);
       mockWallet.signMessage.mockResolvedValue("0xlongseedsignature");
 
-      const result = await generateEncryptionKey(mockWallet, longSeed);
+      const result = await generateEncryptionKey(
+        mockWallet as unknown as Parameters<typeof generateEncryptionKey>[0],
+        longSeed,
+      );
 
       expect(result).toBe("0xlongseedsignature");
       expect(mockWallet.signMessage).toHaveBeenCalledWith({
@@ -175,7 +204,9 @@ describe("Encryption Utils", () => {
         signMessage: vi.fn().mockResolvedValue("0xaltsignature"),
       };
 
-      const result = await generateEncryptionKey(altWallet);
+      const result = await generateEncryptionKey(
+        altWallet as unknown as Parameters<typeof generateEncryptionKey>[0],
+      );
 
       expect(result).toBe("0xaltsignature");
     });
@@ -184,9 +215,18 @@ describe("Encryption Utils", () => {
       mockWallet.signMessage.mockResolvedValue("0xconcurrent");
 
       const promises = [
-        generateEncryptionKey(mockWallet, "seed1"),
-        generateEncryptionKey(mockWallet, "seed2"),
-        generateEncryptionKey(mockWallet, "seed3"),
+        generateEncryptionKey(
+          mockWallet as unknown as Parameters<typeof generateEncryptionKey>[0],
+          "seed1",
+        ),
+        generateEncryptionKey(
+          mockWallet as unknown as Parameters<typeof generateEncryptionKey>[0],
+          "seed2",
+        ),
+        generateEncryptionKey(
+          mockWallet as unknown as Parameters<typeof generateEncryptionKey>[0],
+          "seed3",
+        ),
       ];
 
       const results = await Promise.all(promises);
@@ -204,17 +244,21 @@ describe("Encryption Utils", () => {
       );
       mockWallet.signMessage.mockRejectedValue(originalError);
 
-      await expect(generateEncryptionKey(mockWallet)).rejects.toThrow(
-        "Specific wallet error: insufficient funds",
-      );
+      await expect(
+        generateEncryptionKey(
+          mockWallet as unknown as Parameters<typeof generateEncryptionKey>[0],
+        ),
+      ).rejects.toThrow("Specific wallet error: insufficient funds");
     });
 
     it("should handle non-Error objects thrown by wallet", async () => {
       mockWallet.signMessage.mockRejectedValue("String error");
 
-      await expect(generateEncryptionKey(mockWallet)).rejects.toThrow(
-        "String error",
-      );
+      await expect(
+        generateEncryptionKey(
+          mockWallet as unknown as Parameters<typeof generateEncryptionKey>[0],
+        ),
+      ).rejects.toThrow("String error");
     });
   });
 

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
+import type { TransactionReceipt } from "viem";
 import { DataController } from "../controllers/data";
 import { ControllerContext } from "../controllers/permissions";
 import { mokshaTestnet } from "../config/chains";
@@ -159,8 +160,10 @@ describe("DataController", () => {
 
     // Base context without relayer (for direct transaction tests)
     mockContext = {
-      walletClient: mockWalletClient,
-      publicClient: mockPublicClient,
+      walletClient:
+        mockWalletClient as unknown as ControllerContext["walletClient"],
+      publicClient:
+        mockPublicClient as unknown as ControllerContext["publicClient"],
       subgraphUrl:
         "https://api.goldsky.com/api/public/project_cm168cz887zva010j39il7a6p/subgraphs/moksha/7.0.1/gn",
     };
@@ -261,7 +264,7 @@ describe("DataController", () => {
         readContract: vi.fn().mockResolvedValue(BigInt(42)),
       };
       vi.mocked(createPublicClient).mockReturnValueOnce(
-        mockPublicClient as Record<string, unknown>,
+        mockPublicClient as unknown as ReturnType<typeof createPublicClient>,
       );
 
       const result = await controller.getTotalFilesCount();
@@ -322,7 +325,7 @@ describe("DataController", () => {
         args: {
           fileId: 42n,
         },
-      } as Record<string, unknown>);
+      } as ReturnType<typeof decodeEventLog>);
 
       const result = await controller.uploadEncryptedFile(testFile, "test.txt");
 
@@ -724,7 +727,7 @@ describe("DataController", () => {
         walletClient: {
           ...mockWalletClient,
           chain: undefined,
-        },
+        } as unknown as ControllerContext["walletClient"],
       };
 
       const controllerWithoutChain = new DataController(contextWithoutChain);
@@ -787,7 +790,7 @@ describe("DataController", () => {
         read: {
           files: vi.fn().mockRejectedValue(new Error("Contract call failed")),
         },
-      } as Record<string, unknown>);
+      } as unknown as ReturnType<typeof getContract>);
 
       const result = await controller.getUserFiles({
         owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
@@ -852,7 +855,7 @@ describe("DataController", () => {
         walletClient: {
           ...mockWalletClient,
           chain: undefined,
-        },
+        } as unknown as ControllerContext["walletClient"],
       };
 
       const controllerWithoutChain = new DataController(contextWithoutChain);
@@ -871,7 +874,7 @@ describe("DataController", () => {
         read: {
           files: vi.fn().mockResolvedValue(null),
         },
-      } as Record<string, unknown>);
+      } as unknown as ReturnType<typeof viem.getContract>);
 
       await expect(controller.getFileById(1)).rejects.toThrow("File not found");
     });
@@ -889,7 +892,7 @@ describe("DataController", () => {
             BigInt(123456),
           ]),
         },
-      } as Record<string, unknown>);
+      } as unknown as ReturnType<typeof viem.getContract>);
 
       await expect(controller.getFileById(1)).rejects.toThrow("File not found");
     });
@@ -908,7 +911,7 @@ describe("DataController", () => {
             addedAtBlock: BigInt(123456),
           }),
         },
-      } as Record<string, unknown>);
+      } as unknown as ReturnType<typeof viem.getContract>);
 
       await expect(controller.getFileById(1)).rejects.toThrow("File not found");
     });
@@ -927,7 +930,7 @@ describe("DataController", () => {
             addedAtBlock: BigInt(123456),
           }),
         },
-      } as Record<string, unknown>);
+      } as unknown as ReturnType<typeof viem.getContract>);
 
       await expect(controller.getFileById(1)).rejects.toThrow("File not found");
     });
@@ -946,7 +949,7 @@ describe("DataController", () => {
             addedAtBlock: BigInt(789123),
           }),
         },
-      } as Record<string, unknown>);
+      } as unknown as ReturnType<typeof viem.getContract>);
 
       const result = await controller.getFileById(5);
 
@@ -967,7 +970,7 @@ describe("DataController", () => {
         walletClient: {
           ...mockWalletClient,
           chain: undefined,
-        },
+        } as unknown as ControllerContext["walletClient"],
       };
 
       const controllerWithoutChain = new DataController(contextWithoutChain);
@@ -983,7 +986,7 @@ describe("DataController", () => {
         read: {
           filesCount: vi.fn().mockRejectedValue(new Error("Contract error")),
         },
-      } as Record<string, unknown>);
+      } as unknown as ReturnType<typeof getContract>);
 
       const result = await controller.getTotalFilesCount();
 
@@ -1073,7 +1076,7 @@ describe("DataController", () => {
         walletClient: {
           ...mockWalletClient,
           chain: undefined,
-        },
+        } as unknown as ControllerContext["walletClient"],
       };
 
       const controllerWithoutChain = new DataController(contextWithoutChain);
@@ -1336,7 +1339,7 @@ describe("DataController", () => {
             throw { code: 404, message: "Contract not found" }; // Non-Error object
           }),
         },
-      } as Record<string, unknown>);
+      } as unknown as ReturnType<typeof viem.getContract>);
 
       await expect(controller.getFileById(999)).rejects.toThrow(
         "Failed to fetch file 999: Unknown error",
@@ -1545,7 +1548,7 @@ describe("DataController", () => {
       vi.mocked(decodeEventLog).mockReturnValue({
         eventName: "SchemaAdded",
         args: { schemaId: BigInt(1) },
-      } as Record<string, unknown>);
+      } as ReturnType<typeof decodeEventLog>);
 
       // Mock the public client to return a receipt with logs
       mockPublicClient.waitForTransactionReceipt = vi.fn().mockResolvedValue({
@@ -1585,7 +1588,7 @@ describe("DataController", () => {
             definitionUrl: mockSchema.definitionUrl,
           }),
         },
-      } as Record<string, unknown>);
+      } as unknown as ReturnType<typeof viem.getContract>);
 
       const result = await controller.getSchema(mockSchema.id);
 
@@ -1600,7 +1603,7 @@ describe("DataController", () => {
         read: {
           schemas: vi.fn().mockResolvedValue(null), // null means not found
         },
-      } as Record<string, unknown>);
+      } as unknown as ReturnType<typeof viem.getContract>);
 
       await expect(controller.getSchema(999)).rejects.toThrow(
         "Schema not found",
@@ -1615,7 +1618,7 @@ describe("DataController", () => {
         read: {
           schemasCount: vi.fn().mockResolvedValue(BigInt(5)),
         },
-      } as Record<string, unknown>);
+      } as unknown as ReturnType<typeof viem.getContract>);
 
       const result = await controller.getSchemasCount();
 
@@ -1628,7 +1631,7 @@ describe("DataController", () => {
       vi.mocked(decodeEventLog).mockReturnValue({
         eventName: "RefinerAdded",
         args: { refinerId: BigInt(1) },
-      } as Record<string, unknown>);
+      } as ReturnType<typeof decodeEventLog>);
 
       // Mock the public client to return a receipt with logs
       mockPublicClient.waitForTransactionReceipt = vi.fn().mockResolvedValue({
@@ -1691,7 +1694,7 @@ describe("DataController", () => {
             refinementInstructionUrl: "https://example.com/instructions",
           }),
         },
-      } as Record<string, unknown>);
+      } as unknown as ReturnType<typeof viem.getContract>);
 
       const result = await controller.getRefiner(1);
 
@@ -1711,7 +1714,7 @@ describe("DataController", () => {
         walletClient: {
           ...mockWalletClient,
           chain: undefined,
-        },
+        } as unknown as ControllerContext["walletClient"],
       };
 
       const controllerWithoutChain = new DataController(contextWithoutChain);
@@ -1741,7 +1744,7 @@ describe("DataController", () => {
         read: {
           isValidSchemaId: vi.fn().mockResolvedValue(true),
         },
-      } as Record<string, unknown>);
+      } as unknown as ReturnType<typeof viem.getContract>);
 
       const result = await controller.isValidSchemaId(1);
       expect(result).toBe(true);
@@ -1757,7 +1760,7 @@ describe("DataController", () => {
             .fn()
             .mockRejectedValue(new Error("Contract error")),
         },
-      } as Record<string, unknown>);
+      } as unknown as ReturnType<typeof viem.getContract>);
 
       const result = await controller.isValidSchemaId(1);
       expect(result).toBe(false);
@@ -1794,7 +1797,7 @@ describe("DataController", () => {
       vi.mocked(decodeEventLog).mockReturnValueOnce({
         eventName: "FileAdded",
         args: { fileId: BigInt(123) },
-      } as Record<string, unknown>);
+      } as ReturnType<typeof decodeEventLog>);
 
       vi.mocked(
         mockContext.publicClient.waitForTransactionReceipt,
@@ -1805,7 +1808,7 @@ describe("DataController", () => {
             topics: ["0x456"],
           },
         ],
-      } as Record<string, unknown>);
+      } as unknown as TransactionReceipt);
 
       const testFile = new Blob(["test data"], { type: "text/plain" });
       const result = await controllerWithStorage.uploadEncryptedFileWithSchema(
@@ -1834,7 +1837,7 @@ describe("DataController", () => {
       vi.mocked(decodeEventLog).mockReturnValueOnce({
         eventName: "FileAdded",
         args: { fileId: BigInt(123) },
-      } as Record<string, unknown>);
+      } as ReturnType<typeof decodeEventLog>);
 
       vi.mocked(
         mockContext.publicClient.waitForTransactionReceipt,
@@ -1845,7 +1848,7 @@ describe("DataController", () => {
             topics: ["0x456"],
           },
         ],
-      } as Record<string, unknown>);
+      } as unknown as TransactionReceipt);
 
       const result = await controller.registerFileWithSchema(
         "https://example.com/file.json",
@@ -1906,7 +1909,7 @@ describe("DataController", () => {
         walletClient: {
           ...mockWalletClient,
           chain: undefined,
-        },
+        } as unknown as ControllerContext["walletClient"],
       };
 
       const controllerWithoutChain = new DataController(contextWithoutChain);
@@ -1923,7 +1926,7 @@ describe("DataController", () => {
         walletClient: {
           ...mockWalletClient,
           chain: undefined,
-        },
+        } as unknown as ControllerContext["walletClient"],
       };
 
       const controllerWithoutChain = new DataController(contextWithoutChain);
@@ -1991,7 +1994,7 @@ describe("DataController", () => {
         walletClient: {
           ...mockWalletClient,
           chain: undefined,
-        },
+        } as unknown as ControllerContext["walletClient"],
       };
 
       const controllerWithoutChain = new DataController(contextWithoutChain);
@@ -2042,7 +2045,7 @@ describe("DataController", () => {
             topics: ["0x456"],
           },
         ],
-      } as Record<string, unknown>);
+      } as unknown as TransactionReceipt);
 
       const testFile = new Blob(["test data"], { type: "text/plain" });
       const result = await controllerWithStorage.uploadEncryptedFileWithSchema(
@@ -2077,7 +2080,7 @@ describe("DataController", () => {
             topics: ["0x456"],
           },
         ],
-      } as Record<string, unknown>);
+      } as unknown as TransactionReceipt);
 
       const result = await controller.registerFileWithSchema(
         "https://example.com/file.json",
@@ -2150,7 +2153,7 @@ describe("DataController", () => {
         mockContext.publicClient.waitForTransactionReceipt,
       ).mockResolvedValueOnce({
         logs: [], // No logs
-      } as Record<string, unknown>);
+      } as unknown as TransactionReceipt);
 
       const testFile = new Blob(["test data"], { type: "text/plain" });
       const result = await controllerWithStorage.uploadEncryptedFileWithSchema(
@@ -2173,7 +2176,7 @@ describe("DataController", () => {
         mockContext.publicClient.waitForTransactionReceipt,
       ).mockResolvedValueOnce({
         logs: [], // No logs
-      } as Record<string, unknown>);
+      } as unknown as TransactionReceipt);
 
       const result = await controller.registerFileWithSchema(
         "https://example.com/file.json",
@@ -2219,7 +2222,7 @@ describe("DataController", () => {
       vi.mocked(decodeEventLog).mockReturnValueOnce({
         eventName: "DifferentEvent",
         args: { someOtherField: BigInt(999) },
-      } as Record<string, unknown>);
+      } as ReturnType<typeof decodeEventLog>);
 
       vi.mocked(
         mockContext.publicClient.waitForTransactionReceipt,
@@ -2230,7 +2233,7 @@ describe("DataController", () => {
             topics: ["0x456"],
           },
         ],
-      } as Record<string, unknown>);
+      } as unknown as TransactionReceipt);
 
       const testFile = new Blob(["test data"], { type: "text/plain" });
       const result = await controllerWithStorage.uploadEncryptedFileWithSchema(
@@ -2255,7 +2258,7 @@ describe("DataController", () => {
       vi.mocked(decodeEventLog).mockReturnValueOnce({
         eventName: "DifferentEvent",
         args: { someOtherField: BigInt(999) },
-      } as Record<string, unknown>);
+      } as ReturnType<typeof decodeEventLog>);
 
       vi.mocked(
         mockContext.publicClient.waitForTransactionReceipt,
@@ -2266,7 +2269,7 @@ describe("DataController", () => {
             topics: ["0x456"],
           },
         ],
-      } as Record<string, unknown>);
+      } as unknown as TransactionReceipt);
 
       const result = await controller.registerFileWithSchema(
         "https://example.com/file.json",

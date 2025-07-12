@@ -149,8 +149,10 @@ describe("PermissionsController", () => {
     };
 
     mockContext = {
-      walletClient: mockWalletClient,
-      publicClient: mockPublicClient,
+      walletClient:
+        mockWalletClient as unknown as ControllerContext["walletClient"],
+      publicClient:
+        mockPublicClient as unknown as ControllerContext["publicClient"],
       relayerCallbacks: {
         storeGrantFile: vi.fn().mockResolvedValue("https://mock-grant-url.com"),
         submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
@@ -249,7 +251,7 @@ describe("PermissionsController", () => {
       const mockPublicClient = createPublicClient({
         chain: mockWalletClient.chain,
         transport: () => ({}),
-      } as Parameters<typeof createPublicClient>[0]);
+      } as unknown as Parameters<typeof createPublicClient>[0]);
       vi.mocked(mockPublicClient.readContract).mockResolvedValue(BigInt(1));
 
       // Mock writeContract to return the expected hash
@@ -275,7 +277,7 @@ describe("PermissionsController", () => {
       const mockPublicClient = createPublicClient({
         chain: mockWalletClient.chain,
         transport: () => ({}),
-      } as Parameters<typeof createPublicClient>[0]);
+      } as unknown as Parameters<typeof createPublicClient>[0]);
       vi.mocked(mockPublicClient.readContract).mockResolvedValue(BigInt(1));
 
       // Mock writeContract to throw an error
@@ -295,7 +297,7 @@ describe("PermissionsController", () => {
       const mockPublicClient = createPublicClient({
         chain: mockWalletClient.chain,
         transport: () => ({}),
-      } as Parameters<typeof createPublicClient>[0]);
+      } as unknown as Parameters<typeof createPublicClient>[0]);
       vi.mocked(mockPublicClient.readContract).mockResolvedValue(BigInt(0));
 
       // Access private method for testing
@@ -316,7 +318,11 @@ describe("PermissionsController", () => {
         nonce: BigInt(5),
       };
 
-      const typedData = await compose(params);
+      const typedData = (await compose(params)) as unknown as {
+        domain: { name: string; version: string; chainId: number };
+        primaryType: string;
+        message: { nonce: bigint; grant: string };
+      };
 
       expect(typedData.domain.name).toBe("DataPermissions");
       expect(typedData.domain.version).toBe("1");
@@ -334,8 +340,10 @@ describe("PermissionsController", () => {
     beforeEach(() => {
       // Create controller without relayer URL for direct transactions
       directController = new PermissionsController({
-        walletClient: mockWalletClient,
-        publicClient: mockPublicClient,
+        walletClient:
+          mockWalletClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
         // No relayerUrl - forces direct transaction path
       });
     });
@@ -454,7 +462,7 @@ describe("PermissionsController", () => {
       const mockPublicClient = createPublicClient({
         chain: mockWalletClient.chain,
         transport: () => ({}),
-      } as Parameters<typeof createPublicClient>[0]);
+      } as unknown as Parameters<typeof createPublicClient>[0]);
       vi.mocked(mockPublicClient.readContract).mockResolvedValue(BigInt(0));
 
       // Mock signature failure with specific error
@@ -678,8 +686,10 @@ describe("PermissionsController", () => {
 
     it("should handle missing subgraph URL error", async () => {
       const controllerWithoutSubgraph = new PermissionsController({
-        walletClient: mockWalletClient,
-        publicClient: mockPublicClient,
+        walletClient:
+          mockWalletClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
         relayerCallbacks: {
           submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
           submitPermissionRevoke: vi.fn().mockResolvedValue("0xtxhash"),
@@ -770,8 +780,10 @@ describe("PermissionsController", () => {
     it("should handle relayer callback errors", async () => {
       // Create controller with failing relayerCallbacks
       const failingController = new PermissionsController({
-        walletClient: mockWalletClient,
-        publicClient: mockPublicClient,
+        walletClient:
+          mockWalletClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
         relayerCallbacks: {
           submitPermissionGrant: vi
             .fn()
@@ -803,8 +815,10 @@ describe("PermissionsController", () => {
     it("should handle relayer callback generic errors", async () => {
       // Create controller with failing relayerCallbacks
       const failingController = new PermissionsController({
-        walletClient: mockWalletClient,
-        publicClient: mockPublicClient,
+        walletClient:
+          mockWalletClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
         relayerCallbacks: {
           submitPermissionGrant: vi
             .fn()
@@ -835,8 +849,10 @@ describe("PermissionsController", () => {
 
     it("should handle direct transaction blockchain errors", async () => {
       const directController = new PermissionsController({
-        walletClient: mockWalletClient,
-        publicClient: mockPublicClient,
+        walletClient:
+          mockWalletClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
         // No relayerUrl - forces direct transaction path
       });
 
@@ -874,8 +890,10 @@ describe("PermissionsController", () => {
       };
 
       const directController = new PermissionsController({
-        walletClient: noChainWallet,
-        publicClient: mockPublicClient,
+        walletClient:
+          noChainWallet as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
         // No relayerUrl - forces direct transaction path
       });
 
@@ -899,8 +917,10 @@ describe("PermissionsController", () => {
       };
 
       const directController = new PermissionsController({
-        walletClient: noAccountWallet,
-        publicClient: mockPublicClient,
+        walletClient:
+          noAccountWallet as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
         // No relayerUrl - forces direct transaction path
       });
 
@@ -937,8 +957,10 @@ describe("PermissionsController", () => {
       };
 
       const noChainController = new PermissionsController({
-        walletClient: noChainWallet,
-        publicClient: mockPublicClient,
+        walletClient:
+          noChainWallet as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
         relayerCallbacks: {
           submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
           submitPermissionRevoke: vi.fn().mockResolvedValue("0xtxhash"),
@@ -957,8 +979,10 @@ describe("PermissionsController", () => {
     it("should handle submitToRelayer network errors", async () => {
       // Create controller with failing relayerCallbacks to test network error
       const failingController = new PermissionsController({
-        walletClient: mockWalletClient,
-        publicClient: mockPublicClient,
+        walletClient:
+          mockWalletClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
         relayerCallbacks: {
           submitPermissionGrant: vi
             .fn()
@@ -989,8 +1013,10 @@ describe("PermissionsController", () => {
 
     it("should handle getUserPermissions with non-Error exceptions", async () => {
       const controller = new PermissionsController({
-        walletClient: mockWalletClient,
-        publicClient: mockPublicClient,
+        walletClient:
+          mockWalletClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
         relayerCallbacks: {
           submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
           submitPermissionRevoke: vi.fn().mockResolvedValue("0xtxhash"),
@@ -1013,8 +1039,10 @@ describe("PermissionsController", () => {
       };
 
       const controller = new PermissionsController({
-        walletClient: failingWalletClient,
-        publicClient: mockPublicClient,
+        walletClient:
+          failingWalletClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
         relayerCallbacks: {
           submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
           storeGrantFile: vi
@@ -1047,8 +1075,10 @@ describe("PermissionsController", () => {
       };
 
       const controller = new PermissionsController({
-        walletClient: faultyWalletClient,
-        publicClient: mockPublicClient,
+        walletClient:
+          faultyWalletClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
         relayerCallbacks: {
           submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
           submitPermissionRevoke: vi.fn().mockResolvedValue("0xtxhash"),
@@ -1066,8 +1096,10 @@ describe("PermissionsController", () => {
 
     it("should handle direct revoke transaction path", async () => {
       const controller = new PermissionsController({
-        walletClient: mockWalletClient,
-        publicClient: mockPublicClient,
+        walletClient:
+          mockWalletClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
         // No relayer callbacks to force direct transaction path
       });
 
@@ -1092,8 +1124,10 @@ describe("PermissionsController", () => {
 
     it("should handle relayTransaction with missing relayer URL", async () => {
       const controller = new PermissionsController({
-        walletClient: mockWalletClient,
-        publicClient: mockPublicClient,
+        walletClient:
+          mockWalletClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
         // No relayer callbacks
       });
 
@@ -1122,8 +1156,10 @@ describe("PermissionsController", () => {
       };
 
       const controllerWithChain = new PermissionsController({
-        walletClient: mockWalletClientWithChain,
-        publicClient: mockPublicClient,
+        walletClient:
+          mockWalletClientWithChain as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
         // No relayer callbacks
       });
 
@@ -1191,8 +1227,10 @@ describe("PermissionsController", () => {
 
     it("should handle submitToRelayer with undefined relayerUrl context", async () => {
       const controller = new PermissionsController({
-        walletClient: mockWalletClient,
-        publicClient: mockPublicClient,
+        walletClient:
+          mockWalletClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
         // No relayer callbacks
       });
 
@@ -1211,8 +1249,10 @@ describe("PermissionsController", () => {
 
     it("should handle relayTransaction with real relayer URL", async () => {
       const controller = new PermissionsController({
-        walletClient: mockWalletClient,
-        publicClient: mockPublicClient,
+        walletClient:
+          mockWalletClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
         relayerCallbacks: {
           submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
           submitPermissionRevoke: vi.fn().mockResolvedValue("0xtxhash"),
@@ -1301,8 +1341,8 @@ describe("PermissionsController", () => {
         walletClient: {
           ...mockWalletClient,
           chain: { id: 14800 },
-        },
-      };
+        } as unknown as ControllerContext["walletClient"],
+      } as unknown as ControllerContext;
 
       const controller = new PermissionsController(testContext);
 
@@ -1333,8 +1373,8 @@ describe("PermissionsController", () => {
         walletClient: {
           ...mockWalletClient,
           chain: undefined, // No chain
-        },
-      };
+        } as unknown as ControllerContext["walletClient"],
+      } as unknown as ControllerContext;
 
       const controller = new PermissionsController(testContext);
 
@@ -1353,8 +1393,8 @@ describe("PermissionsController", () => {
         walletClient: {
           ...mockWalletClient,
           chain: { id: 14800 },
-        },
-      };
+        } as unknown as ControllerContext["walletClient"],
+      } as unknown as ControllerContext;
 
       const controller = new PermissionsController(testContext);
 
@@ -1380,8 +1420,8 @@ describe("PermissionsController", () => {
         walletClient: {
           ...mockWalletClient,
           chain: { id: 14800 },
-        },
-      };
+        } as unknown as ControllerContext["walletClient"],
+      } as unknown as ControllerContext;
 
       const controller = new PermissionsController(testContext);
 

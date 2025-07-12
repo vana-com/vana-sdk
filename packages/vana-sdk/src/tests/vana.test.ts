@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createWalletClient, http } from "viem";
+import { createWalletClient, http, type WalletClient } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { mokshaTestnet } from "../config/chains";
 import { Vana } from "../vana";
 import { InvalidConfigurationError } from "../errors";
+import { type VanaChain, type VanaConfig, type WalletConfig } from "../types";
 
 // Mock the controllers
 vi.mock("../controllers/permissions", () => ({
@@ -44,7 +45,7 @@ const testAccount = privateKeyToAccount(
 );
 
 describe("Vana", () => {
-  let validWalletClient: ReturnType<typeof createWalletClient>;
+  let validWalletClient: WalletClient & { chain: VanaChain };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -53,7 +54,7 @@ describe("Vana", () => {
       account: testAccount,
       chain: mokshaTestnet,
       transport: http("https://rpc.moksha.vana.org"),
-    });
+    }) as WalletClient & { chain: VanaChain };
   });
 
   describe("Constructor", () => {
@@ -82,13 +83,13 @@ describe("Vana", () => {
 
     it("should throw InvalidConfigurationError when config is missing", () => {
       expect(() => {
-        new Vana(null as unknown as Parameters<typeof Vana>[0]);
+        new Vana(null as unknown as VanaConfig);
       }).toThrow(InvalidConfigurationError);
     });
 
     it("should throw InvalidConfigurationError when walletClient is missing", () => {
       expect(() => {
-        new Vana({} as unknown as Parameters<typeof Vana>[0]);
+        new Vana({} as unknown as VanaConfig);
       }).toThrow(InvalidConfigurationError);
     });
 
@@ -147,8 +148,9 @@ describe("Vana", () => {
 
       expect(() => {
         new Vana({
-          walletClient: invalidChainClient,
-        });
+          walletClient:
+            invalidChainClient as unknown as WalletConfig["walletClient"],
+        } as WalletConfig);
       }).toThrow(InvalidConfigurationError);
     });
 
@@ -160,8 +162,9 @@ describe("Vana", () => {
 
       expect(() => {
         new Vana({
-          walletClient: noChainClient,
-        });
+          walletClient:
+            noChainClient as unknown as WalletConfig["walletClient"],
+        } as WalletConfig);
       }).toThrow(InvalidConfigurationError);
     });
   });

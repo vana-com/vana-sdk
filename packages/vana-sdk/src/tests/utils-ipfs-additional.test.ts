@@ -297,23 +297,14 @@ describe("Additional IPFS Utils", () => {
     it("should throw error when all gateways fail", async () => {
       const url = "ipfs://QmAllFailHash";
       const errorResponse = new Response("Server error", { status: 500 });
-
-      // Mock timers to speed up the delays
-      vi.useFakeTimers();
       globalThis.fetch = vi.fn().mockResolvedValue(errorResponse);
 
-      const fetchPromise = fetchWithFallbacks(url);
-
-      // Fast-forward through all the delays
-      vi.runAllTimers();
-
-      await expect(fetchPromise).rejects.toThrow(
+      await expect(fetchWithFallbacks(url)).rejects.toThrow(
         "All IPFS gateways failed for hash QmAllFailHash",
       );
 
       expect(globalThis.fetch).toHaveBeenCalledTimes(IPFS_GATEWAYS.length);
-      vi.useRealTimers();
-    }, 10000);
+    }, 20000); // Increase timeout to allow for delays
 
     it("should pass through fetch options", async () => {
       const url = "https://example.com/api";

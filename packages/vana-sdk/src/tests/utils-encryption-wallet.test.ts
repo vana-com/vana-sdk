@@ -240,9 +240,7 @@ describe("Wallet Encryption Utils", () => {
 
       await expect(
         decryptWithWalletPrivateKey(encryptedData, privateKey),
-      ).rejects.toThrow(
-        "Failed to decrypt with wallet private key: Decryption failed",
-      );
+      ).rejects.toThrow("Failed to decrypt with wallet: Decryption failed");
     });
 
     it("should handle unknown error types in decryption", async () => {
@@ -255,7 +253,7 @@ describe("Wallet Encryption Utils", () => {
       await expect(
         decryptWithWalletPrivateKey(encryptedData, privateKey),
       ).rejects.toThrow(
-        "Failed to decrypt with wallet private key: Unknown error",
+        "Failed to decrypt with wallet: Unknown error occurred during decryption.",
       );
     });
 
@@ -266,7 +264,9 @@ describe("Wallet Encryption Utils", () => {
 
       await expect(
         decryptWithWalletPrivateKey(invalidEncryptedData, privateKey),
-      ).rejects.toThrow("Failed to decrypt with wallet private key");
+      ).rejects.toThrow(
+        "Failed to decrypt with wallet: Cannot read properties of undefined (reading 'toString')",
+      );
     });
   });
 

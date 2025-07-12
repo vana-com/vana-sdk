@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   Table,
   TableHeader,
@@ -9,6 +9,7 @@ import {
   Button,
   Spinner,
   Chip,
+  Pagination,
 } from "@heroui/react";
 import {
   Database,
@@ -123,6 +124,41 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
   onRefreshRefiners,
   chainId,
 }) => {
+  // Schemas pagination state
+  const [schemasCurrentPage, setSchemasCurrentPage] = React.useState(1);
+  const SCHEMAS_PER_PAGE = 10;
+
+  // Refiners pagination state
+  const [refinersCurrentPage, setRefinersCurrentPage] = React.useState(1);
+  const REFINERS_PER_PAGE = 10;
+
+  // Calculate paginated schemas
+  const paginatedSchemas = useMemo(() => {
+    const startIndex = (schemasCurrentPage - 1) * SCHEMAS_PER_PAGE;
+    const endIndex = startIndex + SCHEMAS_PER_PAGE;
+    return schemas.slice(startIndex, endIndex);
+  }, [schemas, schemasCurrentPage, SCHEMAS_PER_PAGE]);
+
+  const schemaTotalPages = Math.ceil(schemas.length / SCHEMAS_PER_PAGE);
+
+  // Calculate paginated refiners
+  const paginatedRefiners = useMemo(() => {
+    const startIndex = (refinersCurrentPage - 1) * REFINERS_PER_PAGE;
+    const endIndex = startIndex + REFINERS_PER_PAGE;
+    return refiners.slice(startIndex, endIndex);
+  }, [refiners, refinersCurrentPage, REFINERS_PER_PAGE]);
+
+  const refinersTotalPages = Math.ceil(refiners.length / REFINERS_PER_PAGE);
+
+  // Reset to first page when data changes
+  React.useEffect(() => {
+    setSchemasCurrentPage(1);
+  }, [schemas.length]);
+
+  React.useEffect(() => {
+    setRefinersCurrentPage(1);
+  }, [refiners.length]);
+
   return (
     <section id="schemas">
       <SectionHeader
@@ -355,71 +391,100 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
               size="compact"
             />
           ) : (
-            <Table
-              aria-label="Schemas table"
-              removeWrapper
-              classNames={{
-                th: "bg-default-100 text-default-700",
-                td: "py-4",
-              }}
-            >
-              <TableHeader>
-                <TableColumn>ID</TableColumn>
-                <TableColumn>Name</TableColumn>
-                <TableColumn>Type</TableColumn>
-                <TableColumn>Definition</TableColumn>
-                <TableColumn>Source</TableColumn>
-              </TableHeader>
-              <TableBody>
-                {schemas.map((schema) => (
-                  <TableRow key={schema.id}>
-                    <TableCell>
-                      <SchemaIdDisplay
-                        schemaId={schema.id}
-                        chainId={chainId}
-                        showCopy={true}
-                        showExternalLink={true}
-                        className="text-small"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-medium">{schema.name}</span>
-                    </TableCell>
-                    <TableCell>
-                      <Chip size="sm" variant="flat">
-                        {schema.type}
-                      </Chip>
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        as="a"
-                        href={schema.definitionUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        size="sm"
-                        variant="flat"
-                        startContent={<ExternalLink className="h-3 w-3" />}
-                      >
-                        View Definition
-                      </Button>
-                    </TableCell>
-                    <TableCell>
-                      {schema.source && (
-                        <Chip
-                          size="sm"
-                          color={
-                            schema.source === "created" ? "success" : "default"
-                          }
-                          variant="flat"
-                        >
-                          {schema.source}
+            <>
+              <Table
+                aria-label="Schemas table"
+                removeWrapper
+                classNames={{
+                  th: "bg-default-100 text-default-700",
+                  td: "py-4",
+                }}
+              >
+                <TableHeader>
+                  <TableColumn>ID</TableColumn>
+                  <TableColumn>Name</TableColumn>
+                  <TableColumn>Type</TableColumn>
+                  <TableColumn>Definition</TableColumn>
+                  <TableColumn>Source</TableColumn>
+                </TableHeader>
+                <TableBody>
+                  {paginatedSchemas.map((schema) => (
+                    <TableRow key={schema.id}>
+                      <TableCell>
+                        <SchemaIdDisplay
+                          schemaId={schema.id}
+                          chainId={chainId}
+                          showCopy={true}
+                          showExternalLink={true}
+                          className="text-small"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-medium">{schema.name}</span>
+                      </TableCell>
+                      <TableCell>
+                        <Chip size="sm" variant="flat">
+                          {schema.type}
                         </Chip>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          as="a"
+                          href={schema.definitionUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          size="sm"
+                          variant="flat"
+                          startContent={<ExternalLink className="h-3 w-3" />}
+                        >
+                          View Definition
+                        </Button>
+                      </TableCell>
+                      <TableCell>
+                        {schema.source && (
+                          <Chip
+                            size="sm"
+                            color={
+                              schema.source === "created"
+                                ? "success"
+                                : "default"
+                            }
+                            variant="flat"
+                          >
+                            {schema.source}
+                          </Chip>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              {/* Schemas Pagination */}
+              {schemas.length > SCHEMAS_PER_PAGE && (
+                <div className="flex justify-center mt-4">
+                  <Pagination
+                    total={schemaTotalPages}
+                    page={schemasCurrentPage}
+                    onChange={setSchemasCurrentPage}
+                    showControls={true}
+                    size="sm"
+                  />
+                </div>
+              )}
+
+              {/* Schemas Status info */}
+              {schemas.length > 0 && (
+                <div className="mt-4 text-center text-sm text-gray-600">
+                  Showing {paginatedSchemas.length} of {schemas.length} schemas
+                  {schemas.length > SCHEMAS_PER_PAGE && (
+                    <span className="ml-2">
+                      • Page {schemasCurrentPage} of {schemaTotalPages}
+                    </span>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </div>
 
@@ -461,98 +526,128 @@ export const SchemaManagementCard: React.FC<SchemaManagementCardProps> = ({
               size="compact"
             />
           ) : (
-            <Table
-              aria-label="Refiners table"
-              removeWrapper
-              classNames={{
-                th: "bg-default-100 text-default-700",
-                td: "py-4",
-              }}
-            >
-              <TableHeader>
-                <TableColumn>ID</TableColumn>
-                <TableColumn>Name</TableColumn>
-                <TableColumn>Owner</TableColumn>
-                <TableColumn>DLP ID</TableColumn>
-                <TableColumn>Schema ID</TableColumn>
-                <TableColumn>Instructions</TableColumn>
-                <TableColumn>Source</TableColumn>
-              </TableHeader>
-              <TableBody>
-                {refiners.map((refiner) => (
-                  <TableRow key={refiner.id}>
-                    <TableCell>
-                      <RefinerIdDisplay
-                        refinerId={refiner.id}
-                        chainId={chainId}
-                        showCopy={true}
-                        showExternalLink={true}
-                        className="text-small"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-medium">{refiner.name}</span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <ExplorerLink
-                          type="address"
-                          hash={refiner.owner}
+            <>
+              <Table
+                aria-label="Refiners table"
+                removeWrapper
+                classNames={{
+                  th: "bg-default-100 text-default-700",
+                  td: "py-4",
+                }}
+              >
+                <TableHeader>
+                  <TableColumn>ID</TableColumn>
+                  <TableColumn>Name</TableColumn>
+                  <TableColumn>Owner</TableColumn>
+                  <TableColumn>DLP ID</TableColumn>
+                  <TableColumn>Schema ID</TableColumn>
+                  <TableColumn>Instructions</TableColumn>
+                  <TableColumn>Source</TableColumn>
+                </TableHeader>
+                <TableBody>
+                  {paginatedRefiners.map((refiner) => (
+                    <TableRow key={refiner.id}>
+                      <TableCell>
+                        <RefinerIdDisplay
+                          refinerId={refiner.id}
                           chainId={chainId}
-                          truncate={true}
-                          showExternalIcon={false}
+                          showCopy={true}
+                          showExternalLink={true}
+                          className="text-small"
                         />
-                        <CopyButton
-                          value={refiner.owner}
-                          tooltip="Copy owner address"
-                          isInline
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-medium">{refiner.name}</span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <ExplorerLink
+                            type="address"
+                            hash={refiner.owner}
+                            chainId={chainId}
+                            truncate={true}
+                            showExternalIcon={false}
+                          />
+                          <CopyButton
+                            value={refiner.owner}
+                            tooltip="Copy owner address"
+                            isInline
+                          />
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <DlpIdDisplay
+                          dlpId={refiner.dlpId}
+                          chainId={chainId}
+                          showCopy={true}
+                          showExternalLink={true}
+                          className="text-small"
                         />
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <DlpIdDisplay
-                        dlpId={refiner.dlpId}
-                        chainId={chainId}
-                        showCopy={true}
-                        showExternalLink={true}
-                        className="text-small"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Chip size="sm" variant="flat">
-                        Schema #{refiner.schemaId}
-                      </Chip>
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        as="a"
-                        href={refiner.refinementInstructionUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        size="sm"
-                        variant="flat"
-                        startContent={<ExternalLink className="h-3 w-3" />}
-                      >
-                        Download Instructions
-                      </Button>
-                    </TableCell>
-                    <TableCell>
-                      {refiner.source && (
-                        <Chip
-                          size="sm"
-                          color={
-                            refiner.source === "created" ? "success" : "default"
-                          }
-                          variant="flat"
-                        >
-                          {refiner.source}
+                      </TableCell>
+                      <TableCell>
+                        <Chip size="sm" variant="flat">
+                          Schema #{refiner.schemaId}
                         </Chip>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          as="a"
+                          href={refiner.refinementInstructionUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          size="sm"
+                          variant="flat"
+                          startContent={<ExternalLink className="h-3 w-3" />}
+                        >
+                          Download Instructions
+                        </Button>
+                      </TableCell>
+                      <TableCell>
+                        {refiner.source && (
+                          <Chip
+                            size="sm"
+                            color={
+                              refiner.source === "created"
+                                ? "success"
+                                : "default"
+                            }
+                            variant="flat"
+                          >
+                            {refiner.source}
+                          </Chip>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              {/* Refiners Pagination */}
+              {refiners.length > REFINERS_PER_PAGE && (
+                <div className="flex justify-center mt-4">
+                  <Pagination
+                    total={refinersTotalPages}
+                    page={refinersCurrentPage}
+                    onChange={setRefinersCurrentPage}
+                    showControls={true}
+                    size="sm"
+                  />
+                </div>
+              )}
+
+              {/* Refiners Status info */}
+              {refiners.length > 0 && (
+                <div className="mt-4 text-center text-sm text-gray-600">
+                  Showing {paginatedRefiners.length} of {refiners.length}{" "}
+                  refiners
+                  {refiners.length > REFINERS_PER_PAGE && (
+                    <span className="ml-2">
+                      • Page {refinersCurrentPage} of {refinersTotalPages}
+                    </span>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

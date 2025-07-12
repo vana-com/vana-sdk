@@ -2,11 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   SchemaValidator,
   SchemaValidationError,
-  validateDataContract,
-  validateDataAgainstContract,
+  validateDataSchema,
+  validateDataAgainstSchema,
   fetchAndValidateSchema,
   schemaValidator,
-  type DataContract,
+  type DataSchema,
 } from "../utils/schemaValidation";
 
 // Mock fetch for testing
@@ -53,14 +53,14 @@ describe("SchemaValidator", () => {
     it("should initialize with correct configuration", () => {
       expect(validator).toBeInstanceOf(SchemaValidator);
       // Test that the validator is properly initialized by using it
-      expect(() => validator.validateDataContract({})).toThrow();
+      expect(() => validator.validateDataSchema({})).toThrow();
     });
   });
 
-  describe("validateDataContract", () => {
-    it("should validate a correct JSON contract", () => {
-      const validContract = {
-        name: "Test Contract",
+  describe("validateDataSchema", () => {
+    it("should validate a correct JSON schema", () => {
+      const validSchema = {
+        name: "Test Schema",
         version: "1.0.0",
         dialect: "json",
         schema: {
@@ -72,97 +72,97 @@ describe("SchemaValidator", () => {
         },
       };
 
-      expect(() => validator.validateDataContract(validContract)).not.toThrow();
+      expect(() => validator.validateDataSchema(validSchema)).not.toThrow();
     });
 
-    it("should validate a correct SQLite contract", () => {
-      const validContract = {
-        name: "Test Contract",
+    it("should validate a correct SQLite schema", () => {
+      const validSchema = {
+        name: "Test Schema",
         version: "1.0.0",
         dialect: "sqlite",
         schema: "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);",
       };
 
-      expect(() => validator.validateDataContract(validContract)).not.toThrow();
+      expect(() => validator.validateDataSchema(validSchema)).not.toThrow();
     });
 
-    it("should validate a contract with description", () => {
-      const validContract = {
-        name: "Test Contract",
+    it("should validate a schema with description", () => {
+      const validSchema = {
+        name: "Test Schema",
         version: "1.0.0",
-        description: "A test contract",
+        description: "A test schema",
         dialect: "json",
         schema: { type: "object" },
       };
 
-      expect(() => validator.validateDataContract(validContract)).not.toThrow();
+      expect(() => validator.validateDataSchema(validSchema)).not.toThrow();
     });
 
-    it("should validate a contract with dialectVersion", () => {
-      const validContract = {
-        name: "Test Contract",
+    it("should validate a schema with dialectVersion", () => {
+      const validSchema = {
+        name: "Test Schema",
         version: "1.0.0",
         dialect: "sqlite",
         dialectVersion: "3",
         schema: "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);",
       };
 
-      expect(() => validator.validateDataContract(validContract)).not.toThrow();
+      expect(() => validator.validateDataSchema(validSchema)).not.toThrow();
     });
 
     it("should throw error for missing required fields", () => {
-      const invalidContract = {
-        name: "Test Contract",
+      const invalidSchema = {
+        name: "Test Schema",
         // missing version, dialect, schema
       };
 
-      expect(() => validator.validateDataContract(invalidContract)).toThrow(
+      expect(() => validator.validateDataSchema(invalidSchema)).toThrow(
         SchemaValidationError,
       );
     });
 
     it("should throw error for invalid dialect", () => {
-      const invalidContract = {
-        name: "Test Contract",
+      const invalidSchema = {
+        name: "Test Schema",
         version: "1.0.0",
         dialect: "invalid",
         schema: "some schema",
       };
 
-      expect(() => validator.validateDataContract(invalidContract)).toThrow(
+      expect(() => validator.validateDataSchema(invalidSchema)).toThrow(
         SchemaValidationError,
       );
     });
 
     it("should throw error for wrong schema type with json dialect", () => {
-      const invalidContract = {
-        name: "Test Contract",
+      const invalidSchema = {
+        name: "Test Schema",
         version: "1.0.0",
         dialect: "json",
         schema: "should be object not string",
       };
 
-      expect(() => validator.validateDataContract(invalidContract)).toThrow(
+      expect(() => validator.validateDataSchema(invalidSchema)).toThrow(
         SchemaValidationError,
       );
     });
 
     it("should throw error for wrong schema type with sqlite dialect", () => {
-      const invalidContract = {
-        name: "Test Contract",
+      const invalidSchema = {
+        name: "Test Schema",
         version: "1.0.0",
         dialect: "sqlite",
         schema: { type: "object" },
       };
 
-      expect(() => validator.validateDataContract(invalidContract)).toThrow(
+      expect(() => validator.validateDataSchema(invalidSchema)).toThrow(
         SchemaValidationError,
       );
     });
 
     it("should throw error for invalid JSON schema", () => {
-      const invalidContract = {
-        name: "Test Contract",
+      const invalidSchema = {
+        name: "Test Schema",
         version: "1.0.0",
         dialect: "json",
         schema: {
@@ -170,29 +170,29 @@ describe("SchemaValidator", () => {
         },
       };
 
-      expect(() => validator.validateDataContract(invalidContract)).toThrow(
+      expect(() => validator.validateDataSchema(invalidSchema)).toThrow(
         SchemaValidationError,
       );
     });
 
     it("should throw error for additional properties", () => {
-      const invalidContract = {
-        name: "Test Contract",
+      const invalidSchema = {
+        name: "Test Schema",
         version: "1.0.0",
         dialect: "json",
         schema: { type: "object" },
         extraProperty: "not allowed",
       };
 
-      expect(() => validator.validateDataContract(invalidContract)).toThrow(
+      expect(() => validator.validateDataSchema(invalidSchema)).toThrow(
         SchemaValidationError,
       );
     });
   });
 
-  describe("validateDataAgainstContract", () => {
-    const validContract: DataContract = {
-      name: "User Contract",
+  describe("validateDataAgainstSchema", () => {
+    const validSchema: DataSchema = {
+      name: "User Schema",
       version: "1.0.0",
       dialect: "json",
       schema: {
@@ -205,11 +205,11 @@ describe("SchemaValidator", () => {
       },
     };
 
-    it("should validate correct data against contract", () => {
+    it("should validate correct data against schema", () => {
       const validData = { name: "Alice", age: 30 };
 
       expect(() =>
-        validator.validateDataAgainstContract(validData, validContract),
+        validator.validateDataAgainstSchema(validData, validSchema),
       ).not.toThrow();
     });
 
@@ -217,7 +217,7 @@ describe("SchemaValidator", () => {
       const validData = { name: "Bob" };
 
       expect(() =>
-        validator.validateDataAgainstContract(validData, validContract),
+        validator.validateDataAgainstSchema(validData, validSchema),
       ).not.toThrow();
     });
 
@@ -225,7 +225,7 @@ describe("SchemaValidator", () => {
       const invalidData = { age: 25 };
 
       expect(() =>
-        validator.validateDataAgainstContract(invalidData, validContract),
+        validator.validateDataAgainstSchema(invalidData, validSchema),
       ).toThrow(SchemaValidationError);
     });
 
@@ -233,13 +233,13 @@ describe("SchemaValidator", () => {
       const invalidData = { name: "Alice", age: "thirty" };
 
       expect(() =>
-        validator.validateDataAgainstContract(invalidData, validContract),
+        validator.validateDataAgainstSchema(invalidData, validSchema),
       ).toThrow(SchemaValidationError);
     });
 
     it("should throw error for non-json dialect", () => {
-      const sqliteContract: DataContract = {
-        name: "SQLite Contract",
+      const sqliteSchema: DataSchema = {
+        name: "SQLite Schema",
         version: "1.0.0",
         dialect: "sqlite",
         schema: "CREATE TABLE users (id INTEGER PRIMARY KEY);",
@@ -248,37 +248,37 @@ describe("SchemaValidator", () => {
       const data = { name: "Alice" };
 
       expect(() =>
-        validator.validateDataAgainstContract(data, sqliteContract),
+        validator.validateDataAgainstSchema(data, sqliteSchema),
       ).toThrow(SchemaValidationError);
     });
 
     it("should throw error for non-object schema", () => {
-      const invalidContract = {
-        name: "Invalid Contract",
+      const invalidSchema = {
+        name: "Invalid Schema",
         version: "1.0.0",
         dialect: "json",
         schema: "not an object",
-      } as DataContract;
+      } as DataSchema;
 
       const data = { name: "Alice" };
 
       expect(() =>
-        validator.validateDataAgainstContract(data, invalidContract),
+        validator.validateDataAgainstSchema(data, invalidSchema),
       ).toThrow(SchemaValidationError);
     });
 
-    it("should first validate the contract itself", () => {
-      const invalidContract = {
-        name: "Invalid Contract",
+    it("should first validate the schema itself", () => {
+      const invalidSchema = {
+        name: "Invalid Schema",
         version: "1.0.0",
         dialect: "invalid" as any,
         schema: { type: "object" },
-      } as DataContract;
+      } as DataSchema;
 
       const data = { name: "Alice" };
 
       expect(() =>
-        validator.validateDataAgainstContract(data, invalidContract),
+        validator.validateDataAgainstSchema(data, invalidSchema),
       ).toThrow(SchemaValidationError);
     });
   });
@@ -390,8 +390,8 @@ describe("SchemaValidator", () => {
     });
 
     it("should fetch and validate a JSON schema", async () => {
-      const validContract = {
-        name: "Remote Contract",
+      const validSchema = {
+        name: "Remote Schema",
         version: "1.0.0",
         dialect: "json",
         schema: { type: "object" },
@@ -399,20 +399,20 @@ describe("SchemaValidator", () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => validContract,
+        json: async () => validSchema,
       });
 
       const result = await validator.fetchAndValidateSchema(
         "https://example.com/schema.json",
       );
 
-      expect(result).toEqual(validContract);
+      expect(result).toEqual(validSchema);
       expect(mockFetch).toHaveBeenCalledWith("https://example.com/schema.json");
     });
 
     it("should fetch and validate a SQLite schema", async () => {
-      const validContract = {
-        name: "Remote SQLite Contract",
+      const validSchema = {
+        name: "Remote SQLite Schema",
         version: "1.0.0",
         dialect: "sqlite",
         schema: "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);",
@@ -420,14 +420,14 @@ describe("SchemaValidator", () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => validContract,
+        json: async () => validSchema,
       });
 
       const result = await validator.fetchAndValidateSchema(
         "https://example.com/schema.json",
       );
 
-      expect(result).toEqual(validContract);
+      expect(result).toEqual(validSchema);
     });
 
     it("should throw error for HTTP error responses", async () => {
@@ -463,9 +463,9 @@ describe("SchemaValidator", () => {
       ).rejects.toThrow(SchemaValidationError);
     });
 
-    it("should throw error for invalid contract schema", async () => {
-      const invalidContract = {
-        name: "Invalid Contract",
+    it("should throw error for invalid schema", async () => {
+      const invalidSchema = {
+        name: "Invalid Schema",
         version: "1.0.0",
         dialect: "invalid",
         schema: "some schema",
@@ -473,7 +473,7 @@ describe("SchemaValidator", () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => invalidContract,
+        json: async () => invalidSchema,
       });
 
       await expect(
@@ -481,9 +481,9 @@ describe("SchemaValidator", () => {
       ).rejects.toThrow(SchemaValidationError);
     });
 
-    it("should throw error for invalid SQLite DDL in fetched contract", async () => {
-      const invalidContract = {
-        name: "Invalid SQLite Contract",
+    it("should throw error for invalid SQLite DDL in fetched schema", async () => {
+      const invalidSchema = {
+        name: "Invalid SQLite Schema",
         version: "1.0.0",
         dialect: "sqlite",
         schema: "invalid ddl",
@@ -491,7 +491,7 @@ describe("SchemaValidator", () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => invalidContract,
+        json: async () => invalidSchema,
       });
 
       await expect(
@@ -500,14 +500,14 @@ describe("SchemaValidator", () => {
     });
 
     it("should propagate SchemaValidationError from validation", async () => {
-      const invalidContract = {
-        name: "Invalid Contract",
+      const invalidSchema = {
+        name: "Invalid Schema",
         // missing required fields
       };
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => invalidContract,
+        json: async () => invalidSchema,
       });
 
       await expect(
@@ -536,65 +536,72 @@ describe("Convenience functions", () => {
     mockFetch.mockClear();
   });
 
-  describe("validateDataContract", () => {
-    it("should validate a correct contract", () => {
-      const validContract = {
-        name: "Test Contract",
+  describe("validateDataSchema", () => {
+    it("should validate a correct schema", () => {
+      const validSchema = {
+        name: "User Schema",
         version: "1.0.0",
         dialect: "json",
-        schema: { type: "object" },
+        schema: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            age: { type: "number" },
+          },
+        },
       };
 
-      expect(() => validateDataContract(validContract)).not.toThrow();
+      expect(() => validateDataSchema(validSchema)).not.toThrow();
     });
 
-    it("should throw error for invalid contract", () => {
-      const invalidContract = {
-        name: "Test Contract",
+    it("should throw error for invalid schema", () => {
+      const invalidSchema = {
+        name: "Invalid Schema",
         // missing required fields
       };
 
-      expect(() => validateDataContract(invalidContract)).toThrow(
+      expect(() => validateDataSchema(invalidSchema)).toThrow(
         SchemaValidationError,
       );
     });
   });
 
-  describe("validateDataAgainstContract", () => {
-    const validContract: DataContract = {
-      name: "User Contract",
+  describe("validateDataAgainstSchema", () => {
+    const validSchema: DataSchema = {
+      name: "User Schema",
       version: "1.0.0",
       dialect: "json",
       schema: {
         type: "object",
         properties: {
           name: { type: "string" },
+          age: { type: "number" },
         },
         required: ["name"],
       },
     };
 
     it("should validate correct data", () => {
-      const validData = { name: "Alice" };
+      const validData = { name: "Alice", age: 30 };
 
       expect(() =>
-        validateDataAgainstContract(validData, validContract),
+        validateDataAgainstSchema(validData, validSchema),
       ).not.toThrow();
     });
 
     it("should throw error for invalid data", () => {
-      const invalidData = { age: 25 };
+      const invalidData = { age: 30 }; // missing required name
 
-      expect(() =>
-        validateDataAgainstContract(invalidData, validContract),
-      ).toThrow(SchemaValidationError);
+      expect(() => validateDataAgainstSchema(invalidData, validSchema)).toThrow(
+        SchemaValidationError,
+      );
     });
   });
 
   describe("fetchAndValidateSchema", () => {
     it("should fetch and validate a schema", async () => {
-      const validContract = {
-        name: "Remote Contract",
+      const validSchema = {
+        name: "Remote Schema",
         version: "1.0.0",
         dialect: "json",
         schema: { type: "object" },
@@ -602,14 +609,14 @@ describe("Convenience functions", () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => validContract,
+        json: async () => validSchema,
       });
 
       const result = await fetchAndValidateSchema(
         "https://example.com/schema.json",
       );
 
-      expect(result).toEqual(validContract);
+      expect(result).toEqual(validSchema);
     });
 
     it("should throw error for fetch failures", async () => {

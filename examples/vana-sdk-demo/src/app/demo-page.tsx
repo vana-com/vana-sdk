@@ -183,7 +183,17 @@ export default function Home() {
   const [serverUrl, setServerUrl] = useState<string>("");
   const [trustServerError, setTrustServerError] = useState<string>("");
   const [isTrustingServer, setIsTrustingServer] = useState(false);
-  const [trustedServers, setTrustedServers] = useState<string[]>([]);
+  const [trustedServers, setTrustedServers] = useState<
+    Array<{
+      id: string;
+      serverAddress: string;
+      serverUrl: string;
+      trustedAt: bigint;
+      user: string;
+    }>
+  >([]);
+  const [isLoadingTrustedServers, setIsLoadingTrustedServers] = useState(false);
+  const [isUntrusting, setIsUntrusting] = useState(false);
 
   // Server discovery state
   const [isDiscoveringServer, setIsDiscoveringServer] = useState(false);
@@ -406,8 +416,14 @@ export default function Home() {
             typedData: PermissionGrantTypedData,
             signature: Hash,
           ) {
+            // Create a JSON-safe version for relayer
+            const jsonSafeTypedData = JSON.parse(
+              JSON.stringify(typedData, (_key, value) =>
+                typeof value === "bigint" ? value.toString() : value,
+              ),
+            );
             const result = await relayRequest("relay", {
-              typedData,
+              typedData: jsonSafeTypedData,
               signature,
             });
             return result.transactionHash as Hash;
@@ -417,8 +433,14 @@ export default function Home() {
             typedData: GenericTypedData,
             signature: Hash,
           ) {
+            // Create a JSON-safe version for relayer
+            const jsonSafeTypedData = JSON.parse(
+              JSON.stringify(typedData, (_key, value) =>
+                typeof value === "bigint" ? value.toString() : value,
+              ),
+            );
             const result = await relayRequest("relay", {
-              typedData,
+              typedData: jsonSafeTypedData,
               signature,
             });
             return result.transactionHash as Hash;
@@ -428,8 +450,14 @@ export default function Home() {
             typedData: TrustServerTypedData,
             signature: Hash,
           ) {
+            // Create a JSON-safe version for relayer
+            const jsonSafeTypedData = JSON.parse(
+              JSON.stringify(typedData, (_key, value) =>
+                typeof value === "bigint" ? value.toString() : value,
+              ),
+            );
             const result = await relayRequest("relay", {
-              typedData,
+              typedData: jsonSafeTypedData,
               signature,
             });
             return result.transactionHash as Hash;
@@ -439,8 +467,14 @@ export default function Home() {
             typedData: UntrustServerTypedData,
             signature: Hash,
           ) {
+            // Create a JSON-safe version for relayer
+            const jsonSafeTypedData = JSON.parse(
+              JSON.stringify(typedData, (_key, value) =>
+                typeof value === "bigint" ? value.toString() : value,
+              ),
+            );
             const result = await relayRequest("relay", {
-              typedData,
+              typedData: jsonSafeTypedData,
               signature,
             });
             return result.transactionHash as Hash;
@@ -592,14 +626,22 @@ export default function Home() {
   const loadUserTrustedServers = useCallback(async () => {
     if (!vana || !address) return;
 
+    setIsLoadingTrustedServers(true);
     try {
-      const trustedServers = await vana.data.getUserTrustedServers({
+      const servers = await vana.data.getUserTrustedServers({
         user: address,
       });
-      console.info("Loaded trusted servers:", trustedServers);
-      // TODO: Update state to store trusted servers if needed by the UI
+      console.info("Loaded trusted servers:", servers);
+      setTrustedServers(servers);
     } catch (error) {
-      console.error("Failed to load user trusted servers:", error);
+      console.error("Failed to load trusted servers:", error);
+      addToast({
+        color: "danger",
+        title: "Failed to load trusted servers",
+        description: error instanceof Error ? error.message : "Unknown error",
+      });
+    } finally {
+      setIsLoadingTrustedServers(false);
     }
   }, [vana, address]);
 
@@ -1340,17 +1382,6 @@ export default function Home() {
 
   // Trust server handlers
 
-  const loadTrustedServers = async () => {
-    if (!vana || !address) return;
-
-    try {
-      const servers = await vana.permissions.getTrustedServers();
-      setTrustedServers(servers);
-    } catch (error) {
-      console.error("Failed to load trusted servers:", error);
-    }
-  };
-
   const handleDiscoverReplicateServer = async () => {
     if (!address) return;
 
@@ -1451,7 +1482,7 @@ export default function Home() {
 
       // Success - form shows success via trustServerError being cleared
       // Refresh trusted servers list
-      await loadTrustedServers();
+      await loadUserTrustedServers();
     } catch (error) {
       setTrustServerError(
         error instanceof Error ? error.message : "Failed to trust server",
@@ -1497,13 +1528,49 @@ export default function Home() {
       setServerId("");
       setServerUrl("");
       // Refresh trusted servers list
-      await loadTrustedServers();
+      await loadUserTrustedServers();
     } catch (error) {
       setTrustServerError(
         error instanceof Error ? error.message : "Failed to trust server",
       );
     } finally {
       setIsTrustingServer(false);
+    }
+  };
+
+  const handleUntrustServer = async (serverIdToUntrust: string) => {
+    if (!vana || !address) return;
+
+    setIsUntrusting(true);
+    try {
+      if (appConfig.useGaslessTransactions) {
+        await vana.permissions.untrustServerWithSignature({
+          serverId: serverIdToUntrust as `0x${string}`,
+        });
+      } else {
+        await vana.permissions.untrustServer({
+          serverId: serverIdToUntrust as `0x${string}`,
+        });
+      }
+
+      addToast({
+        color: "success",
+        title: "Server untrusted",
+        description:
+          "Server has been successfully removed from your trusted list",
+      });
+
+      // Refresh trusted servers list
+      await loadUserTrustedServers();
+    } catch (error) {
+      console.error("Failed to untrust server:", error);
+      addToast({
+        color: "danger",
+        title: "Failed to untrust server",
+        description: error instanceof Error ? error.message : "Unknown error",
+      });
+    } finally {
+      setIsUntrusting(false);
     }
   };
 
@@ -1657,11 +1724,11 @@ export default function Home() {
   // Load schemas, refiners, and trusted servers when vana is initialized
   useEffect(() => {
     if (vana && address) {
-      loadTrustedServers();
+      loadUserTrustedServers();
       loadSchemas();
       loadRefiners();
     }
-  }, [vana, address, loadSchemas, loadRefiners]);
+  }, [vana, address, loadUserTrustedServers, loadSchemas, loadRefiners]);
 
   // Schema management handlers
   const handleCreateSchema = async () => {
@@ -2053,6 +2120,16 @@ export default function Home() {
                       onDiscoverReplicateServer={handleDiscoverReplicateServer}
                       isDiscoveringServer={isDiscoveringServer}
                       trustServerError={trustServerError}
+                      trustedServers={trustedServers.map((server) => ({
+                        id: server.serverAddress,
+                        url: server.serverUrl,
+                        name: server.serverAddress,
+                      }))}
+                      isLoadingServers={isLoadingTrustedServers}
+                      onRefreshServers={loadUserTrustedServers}
+                      onUntrustServer={handleUntrustServer}
+                      isUntrusting={isUntrusting}
+                      chainId={chainId}
                     />
 
                     <SchemaManagementCard
@@ -2111,7 +2188,9 @@ export default function Home() {
 
                   <div className="space-y-20">
                     <ServerUploadCard
-                      trustedServers={trustedServers}
+                      trustedServers={trustedServers.map(
+                        (server) => server.serverAddress,
+                      )}
                       selectedServerForUpload={selectedServerForUpload}
                       onSelectedServerForUploadChange={
                         setSelectedServerForUpload

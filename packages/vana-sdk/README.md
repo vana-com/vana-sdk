@@ -126,12 +126,12 @@ The Vana SDK follows a resource-oriented architecture with five main controllers
 
 ### Core Controllers
 
-| Controller             | Purpose                                 | Key Methods                                                         |
-| ---------------------- | --------------------------------------- | ------------------------------------------------------------------- |
-| **`vana.permissions`** | Gasless permission grants & revocations | `grant()`, `revoke()`, `getUserPermissions()`                       |
-| **`vana.data`**        | Data file management & encryption       | `getUserFiles()`, `uploadEncryptedFile()`, `validateDataContract()` |
-| **`vana.server`**      | Trusted server management               | `trustServer()`, `untrustServer()`, `processWithTrustedServer()`    |
-| **`vana.protocol`**    | Low-level contract access               | `getContract()`, `getAvailableContracts()`                          |
+| Controller             | Purpose                                 | Key Methods                                                       |
+| ---------------------- | --------------------------------------- | ----------------------------------------------------------------- |
+| **`vana.permissions`** | Gasless permission grants & revocations | `grant()`, `revoke()`, `getUserPermissions()`                     |
+| **`vana.data`**        | Data file management & encryption       | `getUserFiles()`, `uploadEncryptedFile()`, `validateDataSchema()` |
+| **`vana.server`**      | Trusted server management               | `trustServer()`, `untrustServer()`, `processWithTrustedServer()`  |
+| **`vana.protocol`**    | Low-level contract access               | `getContract()`, `getAvailableContracts()`                        |
 
 ### Configuration Options
 
@@ -210,11 +210,11 @@ console.log(`Found ${files.length} unique files`);
 
 ### Schema Validation
 
-Built-in support for validating data contracts and user data:
+Built-in support for validating data schemas and user data:
 
 ```typescript
-// Validate a data contract against Vana meta-schema
-const contract = {
+// Validate a data schema against Vana meta-schema
+const schema = {
   name: "Instagram Export",
   version: "1.0.0",
   dialect: "json",
@@ -227,11 +227,11 @@ const contract = {
   },
 };
 
-vana.data.validateDataContract(contract);
+vana.data.validateDataSchema(schema);
 
-// Validate user data against the contract
+// Validate user data against the schema
 const userData = { posts: [], profile: { username: "alice" } };
-vana.data.validateDataAgainstContract(userData, contract);
+vana.data.validateDataAgainstSchema(userData, schema);
 ```
 
 ### Flexible Relay System
@@ -308,21 +308,21 @@ await vana.data.uploadEncryptedFile({
   filename?: string             // Optional filename
 }): Promise<UploadEncryptedFileResult>
 
-// Validate data contract
-vana.data.validateDataContract(
-  contract: unknown             // Contract to validate
-): asserts contract is DataContract
+// Validate data schema
+vana.data.validateDataSchema(
+  schema: unknown             // Schema to validate
+): asserts schema is DataSchema
 
-// Validate data against contract
-vana.data.validateDataAgainstContract(
+// Validate data against schema
+vana.data.validateDataAgainstSchema(
   data: unknown,                // Data to validate
-  contract: DataContract        // Schema contract
+  schema: DataSchema        // Data schema
 ): void
 
 // Fetch and validate remote schema
 await vana.data.fetchAndValidateSchema(
   url: string                   // Schema URL
-): Promise<DataContract>
+): Promise<DataSchema>
 ```
 
 ### Server Controller
@@ -497,8 +497,8 @@ async function completePermissionFlow() {
 ### Schema Validation Example
 
 ```typescript
-// Define a data contract
-const instagramContract = {
+// Define a data schema
+const instagramSchema = {
   name: "Instagram Export",
   version: "1.0.0",
   description: "User's Instagram profile and posts data",
@@ -531,16 +531,16 @@ const instagramContract = {
   },
 };
 
-// Validate the contract
-vana.data.validateDataContract(instagramContract);
+// Validate the schema
+vana.data.validateDataSchema(instagramSchema);
 
-// Validate user data against the contract
+// Validate user data against the schema
 const userData = {
   profile: { username: "alice_smith", followers: 1500, verified: false },
   posts: [{ id: "post_123", likes: 42, caption: "Beautiful sunset! 🌅" }],
 };
 
-vana.data.validateDataAgainstContract(userData, instagramContract);
+vana.data.validateDataAgainstSchema(userData, instagramSchema);
 ```
 
 ## Contributing

@@ -19,7 +19,7 @@ interface SchemaValidationCardProps {
 
 /**
  * SchemaValidationCard - Demonstrates schema validation features
- * Shows how to validate data contracts and user data against schemas
+ * Shows how to validate schemas and user data against schemas
  */
 export const SchemaValidationCard: React.FC<SchemaValidationCardProps> = ({
   vana,
@@ -70,19 +70,19 @@ export const SchemaValidationCard: React.FC<SchemaValidationCardProps> = ({
     try {
       const contract = JSON.parse(contractInput);
       const dataController: typeof vana.data = vana!.data;
-      dataController.validateDataContract(contract);
+      dataController.validateDataSchema(contract);
 
       setValidationResult({
         isValid: true,
-        message: "✅ Data contract is valid!",
-        details: `Valid ${contract.dialect} schema contract for "${contract.name}" v${contract.version}`,
+        message: "✅ Schema is valid!",
+        details: `Valid ${contract.dialect} schema for "${contract.name}" v${contract.version}`,
       });
     } catch (err) {
       if (err instanceof Error && err.name === "SchemaValidationError") {
         const schemaErr = err as SchemaValidationError;
         setValidationResult({
           isValid: false,
-          message: "❌ Data contract validation failed",
+          message: "❌ Schema validation failed",
           details: schemaErr.message,
         });
       } else {
@@ -108,14 +108,14 @@ export const SchemaValidationCard: React.FC<SchemaValidationCardProps> = ({
     try {
       const contract = JSON.parse(contractInput);
 
-      // First validate the contract
+      // First validate the schema
       const dataController: typeof vana.data = vana!.data;
-      dataController.validateDataContract(contract);
+      dataController.validateDataSchema(contract);
 
-      // Only validate data for JSON dialect contracts
+      // Only validate data for JSON dialect schemas
       if (contract.dialect === "json") {
         const data = JSON.parse(dataInput);
-        dataController.validateDataAgainstContract(data, contract);
+        dataController.validateDataAgainstSchema(data, contract);
 
         setValidationResult({
           isValid: true,
@@ -126,7 +126,7 @@ export const SchemaValidationCard: React.FC<SchemaValidationCardProps> = ({
         // For SQLite and other dialects, we can't validate data content
         setValidationResult({
           isValid: true,
-          message: "✅ Contract validation successful!",
+          message: "✅ Schema validation successful!",
           details: `${contract.dialect.toUpperCase()} schemas validate structure only. Data content validation is not supported for this dialect.`,
         });
       }
@@ -219,12 +219,12 @@ export const SchemaValidationCard: React.FC<SchemaValidationCardProps> = ({
         description={
           <>
             <em>
-              Demonstrates: `validateDataContract()`,
-              `validateDataAgainstContract()`
+              Demonstrates: `validateDataSchema()`,
+              `validateDataAgainstSchema()`
             </em>
             <br />
-            Validate data contracts against the Vana meta-schema and validate
-            user data against JSON schemas.
+            Validate schemas against the Vana meta-schema and validate user data
+            against JSON schemas.
           </>
         }
       />
@@ -250,19 +250,19 @@ export const SchemaValidationCard: React.FC<SchemaValidationCardProps> = ({
           </Button>
         </div>
 
-        {/* Data Contract Input */}
+        {/* Schema Input */}
         <Card>
           <CardHeader>
-            <h3 className="text-lg font-semibold">Data Contract</h3>
+            <h3 className="text-lg font-semibold">Schema</h3>
             <p className="text-sm text-default-500">
-              Enter a Vana data contract to validate against the meta-schema
+              Enter a Vana schema to validate against the meta-schema
             </p>
           </CardHeader>
           <CardBody className="space-y-4">
             <Textarea
               value={contractInput}
               onChange={(e) => setContractInput(e.target.value)}
-              placeholder="Enter data contract JSON..."
+              placeholder="Enter schema JSON..."
               minRows={10}
               maxRows={15}
               className="font-mono text-sm"
@@ -281,8 +281,8 @@ export const SchemaValidationCard: React.FC<SchemaValidationCardProps> = ({
             className="max-w-xs"
             label="Validation Mode"
           >
-            <SelectItem key="contract">Validate Contract Only</SelectItem>
-            <SelectItem key="data">Validate Data Against Contract</SelectItem>
+            <SelectItem key="contract">Validate Schema Only</SelectItem>
+            <SelectItem key="data">Validate Data Against Schema</SelectItem>
           </Select>
 
           <Button
@@ -296,7 +296,7 @@ export const SchemaValidationCard: React.FC<SchemaValidationCardProps> = ({
             {isValidating
               ? "Validating..."
               : validationMode === "contract"
-                ? "Validate Contract"
+                ? "Validate Schema"
                 : "Validate Data"}
           </Button>
         </div>

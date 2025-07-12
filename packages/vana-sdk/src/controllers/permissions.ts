@@ -249,8 +249,14 @@ export class PermissionsController {
 
       // Use relayer callbacks or direct transaction
       if (this.context.relayerCallbacks?.submitPermissionGrant) {
+        // Create a JSON-safe version for relayer
+        const jsonSafeTypedData = JSON.parse(
+          JSON.stringify(typedData, (_key, value) =>
+            typeof value === "bigint" ? value.toString() : value,
+          ),
+        );
         return await this.context.relayerCallbacks.submitPermissionGrant(
-          typedData,
+          jsonSafeTypedData,
           signature,
         );
       } else {
@@ -350,8 +356,14 @@ export class PermissionsController {
     try {
       // Use relayer callbacks or direct transaction
       if (this.context.relayerCallbacks?.submitPermissionRevoke) {
+        // Create a JSON-safe version for relayer
+        const jsonSafeTypedData = JSON.parse(
+          JSON.stringify(typedData, (_key, value) =>
+            typeof value === "bigint" ? value.toString() : value,
+          ),
+        );
         return await this.context.relayerCallbacks.submitPermissionRevoke(
-          typedData,
+          jsonSafeTypedData,
           signature,
         );
       } else {
@@ -628,7 +640,6 @@ export class PermissionsController {
         grant: params.grantUrl,
         fileIds: params.files.map((fileId) => BigInt(fileId)),
       },
-      files: params.files,
     };
   }
 
@@ -1383,14 +1394,33 @@ export class PermissionsController {
 
   /**
    * Submits an untrust server transaction directly to the blockchain.
-   * Note: Direct server untrusting is not currently supported as untrust operations
-   * are designed to be gasless through relayers only.
+   * Note: This bypasses the signature verification and submits directly.
    */
   private async submitDirectUntrustTransaction(
-    _typedData: GenericTypedData,
+    typedData: GenericTypedData,
   ): Promise<Hash> {
-    throw new Error(
-      "Direct server untrusting is not supported. Please configure a relayer to submit gasless untrust transactions.",
+    const chainId = await this.context.walletClient.getChainId();
+    const DataPermissionsAddress = getContractAddress(
+      chainId,
+      "DataPermissions",
     );
+    const DataPermissionsAbi = getAbi("DataPermissions");
+
+    // Extract serverId from typed data message
+    const serverId = (typedData.message as { serverId: `0x${string}` })
+      .serverId;
+
+    // Submit directly to the contract
+    const txHash = await this.context.walletClient.writeContract({
+      address: DataPermissionsAddress,
+      abi: DataPermissionsAbi,
+      functionName: "untrustServer",
+      args: [serverId],
+      account:
+        this.context.walletClient.account || (await this.getUserAddress()),
+      chain: this.context.walletClient.chain || null,
+    });
+
+    return txHash;
   }
 }

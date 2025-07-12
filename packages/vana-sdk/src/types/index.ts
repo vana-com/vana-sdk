@@ -72,12 +72,12 @@ export type {
 } from "./data";
 
 // Schema validation types
-export type { DataContract } from "../utils/schemaValidation";
+export type { DataSchema } from "../utils/schemaValidation";
 export {
   SchemaValidationError,
   SchemaValidator,
-  validateDataContract,
-  validateDataAgainstContract,
+  validateDataSchema,
+  validateDataAgainstSchema,
   fetchAndValidateSchema,
 } from "../utils/schemaValidation";
 

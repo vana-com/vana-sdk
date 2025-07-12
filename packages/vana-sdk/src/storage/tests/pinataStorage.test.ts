@@ -475,7 +475,7 @@ describe("PinataStorage", () => {
       });
 
       // Test with number offset (not string)
-      const files = await storage.list({ offset: 10 as any });
+      const files = await storage.list({ offset: 10 as unknown as string });
 
       expect(files).toHaveLength(1);
       // Verify that pageOffset was not set for non-string offset
@@ -1033,7 +1033,7 @@ describe("PinataStorage", () => {
 
       try {
         await storage.list();
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.log("▶ error type:", typeof err);
         console.log("▶ error instanceof Error:", err instanceof Error);
         console.log("▶ cause type (if any):", typeof err.cause);
@@ -1052,13 +1052,13 @@ describe("PinataStorage", () => {
       // Mock URLSearchParams constructor to throw non-Error
       const originalURLSearchParams = URLSearchParams;
       global.URLSearchParams = class extends URLSearchParams {
-        constructor(init?: any) {
+        constructor(init?: Record<string, unknown>) {
           if (init && typeof init === "object" && init.status === "pinned") {
             throw { code: 500, message: "Server error" }; // Non-Error object
           }
           super(init);
         }
-      } as any;
+      } as typeof URLSearchParams;
 
       try {
         await storage.list();
@@ -1076,8 +1076,11 @@ describe("PinataStorage", () => {
     it("should handle non-Error exceptions in delete catch block (line 257)", async () => {
       // Mock extractIPFSHash to throw non-Error to trigger the catch block
       const storage = new PinataStorage(mockConfig);
-      const extractMethod = (storage as any).extractIPFSHash;
-      (storage as any).extractIPFSHash = function (_url: string) {
+      const extractMethod = (storage as Record<string, unknown>)
+        .extractIPFSHash;
+      (storage as Record<string, unknown>).extractIPFSHash = function (
+        _url: string,
+      ) {
         throw "string error"; // Non-Error string
       };
 
@@ -1090,14 +1093,14 @@ describe("PinataStorage", () => {
           "Pinata delete error: Unknown error",
         );
       } finally {
-        (storage as any).extractIPFSHash = extractMethod;
+        (storage as Record<string, unknown>).extractIPFSHash = extractMethod;
       }
     });
 
     it("should handle non-Error exceptions in list method directly (line 216)", async () => {
       // Mock JSON.stringify to throw non-Error during metadata creation
       const originalStringify = JSON.stringify;
-      JSON.stringify = function (value: any) {
+      JSON.stringify = function (value: unknown) {
         if (
           value &&
           value.keyvalues &&
@@ -1148,7 +1151,7 @@ describe("PinataStorage", () => {
         constructor() {
           throw "URLSearchParams construction failed"; // Non-Error string
         }
-      } as any;
+      } as typeof URLSearchParams;
 
       try {
         await storage.list();
@@ -1166,8 +1169,9 @@ describe("PinataStorage", () => {
     it("should handle non-Error exceptions in delete extractIPFSHash (line 257)", async () => {
       // Mock extractIPFSHash to throw non-Error at method start
       const testStorage = new PinataStorage(mockConfig);
-      const originalExtract = (testStorage as any).extractIPFSHash;
-      (testStorage as any).extractIPFSHash = () => {
+      const originalExtract = (testStorage as Record<string, unknown>)
+        .extractIPFSHash;
+      (testStorage as Record<string, unknown>).extractIPFSHash = () => {
         throw "Hash extraction failed"; // Non-Error string
       };
 
@@ -1180,7 +1184,8 @@ describe("PinataStorage", () => {
           "Pinata delete error: Unknown error",
         );
       } finally {
-        (testStorage as any).extractIPFSHash = originalExtract;
+        (testStorage as Record<string, unknown>).extractIPFSHash =
+          originalExtract;
       }
     });
 
@@ -1194,7 +1199,7 @@ describe("PinataStorage", () => {
         throw new Error(
           "Test failed: storage.list() did not throw as expected.",
         );
-      } catch (finalError: any) {
+      } catch (finalError: unknown) {
         // 1. Verify the final error is what we expect
         expect(finalError).toBeInstanceOf(StorageError);
         expect(finalError.message).toBe("Pinata list error: Unknown error");

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   Input,
   Button,
@@ -11,6 +11,7 @@ import {
   TableCell,
   Checkbox,
   Chip,
+  Pagination,
 } from "@heroui/react";
 import {
   Database,
@@ -28,6 +29,7 @@ import { StatusDisplay } from "./ui/StatusDisplay";
 import { StatusMessage } from "./ui/StatusMessage";
 import { ExplorerLink } from "./ui/ExplorerLink";
 import { CopyButton } from "./ui/CopyButton";
+import { FilePreview } from "./FilePreview";
 import { FileIdDisplay } from "./ui/FileIdDisplay";
 import { AddressDisplay } from "./ui/AddressDisplay";
 import { ErrorMessage } from "./ui/ErrorMessage";
@@ -100,6 +102,23 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
   _userAddress,
   chainId,
 }) => {
+  // Pagination state
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const ITEMS_PER_PAGE = 10;
+
+  // Calculate paginated items
+  const paginatedFiles = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    return userFiles.slice(startIndex, endIndex);
+  }, [userFiles, currentPage, ITEMS_PER_PAGE]);
+
+  const totalPages = Math.ceil(userFiles.length / ITEMS_PER_PAGE);
+
+  // Reset to first page when userFiles changes
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [userFiles.length]);
   return (
     <section id="data">
       <SectionHeader
@@ -177,164 +196,208 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
               description="Upload and encrypt files to get started"
             />
           ) : (
-            <Table
-              aria-label="Data files table"
-              removeWrapper
-              classNames={{
-                th: "bg-default-100 text-default-700",
-                td: "py-4",
-              }}
-            >
-              <TableHeader>
-                <TableColumn>
-                  <Checkbox
-                    isSelected={
-                      selectedFiles.length === userFiles.length &&
-                      userFiles.length > 0
-                    }
-                    isIndeterminate={
-                      selectedFiles.length > 0 &&
-                      selectedFiles.length < userFiles.length
-                    }
-                    onValueChange={(selected) => {
-                      if (selected) {
-                        // Select all files
-                        userFiles.forEach((file) => {
-                          if (!selectedFiles.includes(file.id)) {
-                            onFileSelection(file.id, true);
-                          }
-                        });
-                      } else {
-                        // Deselect all files
-                        selectedFiles.forEach((fileId) => {
-                          onFileSelection(fileId, false);
-                        });
+            <>
+              <Table
+                aria-label="Data files table"
+                removeWrapper
+                classNames={{
+                  th: "bg-default-100 text-default-700",
+                  td: "py-4",
+                }}
+              >
+                <TableHeader>
+                  <TableColumn>
+                    <Checkbox
+                      isSelected={
+                        paginatedFiles.length > 0 &&
+                        paginatedFiles.every((file) =>
+                          selectedFiles.includes(file.id),
+                        )
                       }
-                    }}
-                  />
-                </TableColumn>
-                <TableColumn>File ID</TableColumn>
-                <TableColumn>Owner</TableColumn>
-                <TableColumn>URL</TableColumn>
-                <TableColumn>Source</TableColumn>
-                <TableColumn>Actions</TableColumn>
-              </TableHeader>
-              <TableBody>
-                {userFiles.map((file) => {
-                  const isDecrypting = decryptingFiles.has(file.id);
-                  const decryptedContent = decryptedFiles.get(file.id);
-                  const isSelected = selectedFiles.includes(file.id);
+                      isIndeterminate={
+                        paginatedFiles.some((file) =>
+                          selectedFiles.includes(file.id),
+                        ) &&
+                        !paginatedFiles.every((file) =>
+                          selectedFiles.includes(file.id),
+                        )
+                      }
+                      onValueChange={(selected) => {
+                        if (selected) {
+                          // Select all files on current page
+                          paginatedFiles.forEach((file) => {
+                            if (!selectedFiles.includes(file.id)) {
+                              onFileSelection(file.id, true);
+                            }
+                          });
+                        } else {
+                          // Deselect all files on current page
+                          paginatedFiles.forEach((file) => {
+                            if (selectedFiles.includes(file.id)) {
+                              onFileSelection(file.id, false);
+                            }
+                          });
+                        }
+                      }}
+                    />
+                  </TableColumn>
+                  <TableColumn>File ID</TableColumn>
+                  <TableColumn>Owner</TableColumn>
+                  <TableColumn>URL</TableColumn>
+                  <TableColumn>Source</TableColumn>
+                  <TableColumn>Actions</TableColumn>
+                </TableHeader>
+                <TableBody>
+                  {paginatedFiles.map((file) => {
+                    const isDecrypting = decryptingFiles.has(file.id);
+                    const decryptedContent = decryptedFiles.get(file.id);
+                    const isSelected = selectedFiles.includes(file.id);
 
-                  return (
-                    <TableRow key={file.id}>
-                      <TableCell>
-                        <Checkbox
-                          isSelected={isSelected}
-                          onValueChange={(selected) =>
-                            onFileSelection(file.id, selected)
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <FileIdDisplay
-                          fileId={file.id}
-                          chainId={chainId}
-                          showCopy={true}
-                          showExternalLink={true}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <AddressDisplay
-                          address={file.ownerAddress}
-                          truncate={true}
-                          showCopy={true}
-                          showExternalLink={false}
-                          className="max-w-32"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            as="a"
-                            href={file.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            size="sm"
-                            variant="flat"
-                            isIconOnly
-                          >
-                            <ExternalLink className="h-3 w-3" />
-                          </Button>
-                          <CopyButton
-                            value={file.url}
-                            tooltip="Copy file URL"
-                            isInline
+                    return (
+                      <TableRow key={file.id}>
+                        <TableCell>
+                          <Checkbox
+                            isSelected={isSelected}
+                            onValueChange={(selected) =>
+                              onFileSelection(file.id, selected)
+                            }
                           />
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {file.source && (
-                          <Chip
-                            size="sm"
-                            color={
-                              file.source === "uploaded" ? "success" : "default"
-                            }
-                            variant="flat"
-                          >
-                            {file.source}
-                          </Chip>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="flat"
-                            onPress={() => onDecryptFile(file)}
-                            isLoading={isDecrypting}
-                            isDisabled={isDecrypting}
-                            startContent={
-                              !isDecrypting ? (
-                                <Key className="h-3 w-3" />
-                              ) : undefined
-                            }
-                          >
-                            {isDecrypting ? "Decrypting..." : "Decrypt"}
-                          </Button>
-                          {decryptedContent && (
+                        </TableCell>
+                        <TableCell>
+                          <FileIdDisplay
+                            fileId={file.id}
+                            chainId={chainId}
+                            showCopy={true}
+                            showExternalLink={true}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <AddressDisplay
+                            address={file.ownerAddress}
+                            truncate={true}
+                            showCopy={true}
+                            showExternalLink={false}
+                            className="max-w-32"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              as="a"
+                              href={file.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              size="sm"
+                              variant="flat"
+                              isIconOnly
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                            </Button>
+                            <CopyButton
+                              value={file.url}
+                              tooltip="Copy file URL"
+                              isInline
+                            />
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {file.source && (
+                            <Chip
+                              size="sm"
+                              color={
+                                file.source === "uploaded"
+                                  ? "success"
+                                  : "default"
+                              }
+                              variant="flat"
+                            >
+                              {file.source}
+                            </Chip>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
                             <Button
                               size="sm"
                               variant="flat"
-                              onPress={() => onDownloadDecryptedFile(file)}
-                              startContent={<Download className="h-3 w-3" />}
+                              onPress={() => onDecryptFile(file)}
+                              isLoading={isDecrypting}
+                              isDisabled={isDecrypting}
+                              startContent={
+                                !isDecrypting ? (
+                                  <Key className="h-3 w-3" />
+                                ) : undefined
+                              }
                             >
-                              Download
+                              {isDecrypting ? "Decrypting..." : "Decrypt"}
                             </Button>
-                          )}
-                        </div>
-                        {fileDecryptErrors.has(file.id) && (
-                          <div className="mt-2">
-                            <ErrorMessage
-                              error={fileDecryptErrors.get(file.id) || null}
-                              onDismiss={() => onClearFileError(file.id)}
-                              className="text-xs"
-                            />
+                            {decryptedContent && (
+                              <Button
+                                size="sm"
+                                variant="flat"
+                                onPress={() => onDownloadDecryptedFile(file)}
+                                startContent={<Download className="h-3 w-3" />}
+                              >
+                                Download
+                              </Button>
+                            )}
                           </div>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                          {fileDecryptErrors.has(file.id) && (
+                            <div className="mt-2">
+                              <ErrorMessage
+                                error={fileDecryptErrors.get(file.id) || null}
+                                onDismiss={() => onClearFileError(file.id)}
+                                className="text-xs"
+                              />
+                            </div>
+                          )}
+                          {decryptedContent && (
+                            <div className="mt-2">
+                              <FilePreview
+                                content={decryptedContent}
+                                fileName={
+                                  file.url.split("/").pop() || `file-${file.id}`
+                                }
+                                className="max-w-md"
+                              />
+                            </div>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+
+              {/* Pagination */}
+              {userFiles.length > ITEMS_PER_PAGE && (
+                <div className="flex justify-center mt-4">
+                  <Pagination
+                    total={totalPages}
+                    page={currentPage}
+                    onChange={setCurrentPage}
+                    showControls={true}
+                    size="sm"
+                  />
+                </div>
+              )}
+            </>
           )}
         </div>
 
         {userFiles.length > 0 && (
           <div className="mt-4 p-3 bg-primary/10 rounded">
             <p className="text-sm text-primary">
-              <strong>Selected files:</strong> {selectedFiles.length} • Use
-              &quot;Decrypt&quot; to view encrypted file contents using your
+              <strong>Selected files:</strong> {selectedFiles.length} of{" "}
+              {userFiles.length} total
+              {userFiles.length > ITEMS_PER_PAGE && (
+                <span className="ml-2">
+                  • Page {currentPage} of {totalPages} (showing{" "}
+                  {paginatedFiles.length} files)
+                </span>
+              )}
+              <br />
+              Use &quot;Decrypt&quot; to view encrypted file contents using your
               wallet signature.
             </p>
           </div>

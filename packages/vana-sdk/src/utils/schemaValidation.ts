@@ -1,11 +1,11 @@
 import Ajv, { type ValidateFunction } from "ajv";
 import addFormats from "ajv-formats";
-import dataContractSchema from "../schemas/dataContract.schema.json";
+import dataSchemaSchema from "../schemas/dataContract.schema.json";
 
 /**
- * Data contract interface following the Vana schema specification
+ * Data schema interface following the Vana schema specification
  */
-export interface DataContract {
+export interface DataSchema {
   name: string;
   version: string;
   description?: string;
@@ -38,7 +38,7 @@ export class SchemaValidationError extends Error {
  */
 export class SchemaValidator {
   private ajv: Ajv;
-  private dataContractValidator: ValidateFunction;
+  private dataSchemaValidator: ValidateFunction;
 
   constructor() {
     this.ajv = new Ajv({
@@ -50,14 +50,14 @@ export class SchemaValidator {
     // Add format validation (e.g., date, email, uri)
     addFormats(this.ajv);
 
-    // Compile the data contract meta-schema validator
-    this.dataContractValidator = this.ajv.compile(dataContractSchema);
+    // Compile the data schema meta-schema validator
+    this.dataSchemaValidator = this.ajv.compile(dataSchemaSchema);
   }
 
   /**
-   * Validates a data contract against the Vana meta-schema
+   * Validates a data schema against the Vana meta-schema
    *
-   * @param contract - The data contract to validate
+   * @param schema - The data schema to validate
    * @returns true if valid
    * @throws SchemaValidationError if invalid
    *
@@ -65,7 +65,7 @@ export class SchemaValidator {
    * ```typescript
    * const validator = new SchemaValidator();
    *
-   * const contract = {
+   * const schema = {
    *   name: "User Profile",
    *   version: "1.0.0",
    *   dialect: "json",
@@ -78,48 +78,45 @@ export class SchemaValidator {
    *   }
    * };
    *
-   * validator.validateDataContract(contract); // throws if invalid
+   * validator.validateDataSchema(schema); // throws if invalid
    * ```
    */
-  validateDataContract(contract: unknown): asserts contract is DataContract {
-    const isValid = this.dataContractValidator(contract);
+  validateDataSchema(schema: unknown): asserts schema is DataSchema {
+    const isValid = this.dataSchemaValidator(schema);
 
     if (!isValid) {
-      const errors = this.dataContractValidator.errors || [];
-      const errorMessage = `Data contract validation failed: ${errors.map((e) => `${e.instancePath} ${e.message}`).join(", ")}`;
+      const errors = this.dataSchemaValidator.errors || [];
+      const errorMessage = `Data schema validation failed: ${errors.map((e) => `${e.instancePath} ${e.message}`).join(", ")}`;
       throw new SchemaValidationError(errorMessage, errors);
     }
 
     // Additional validation based on dialect
-    const typedContract = contract as DataContract;
+    const typedSchema = schema as DataSchema;
     if (
-      typedContract.dialect === "json" &&
-      typeof typedContract.schema === "object"
+      typedSchema.dialect === "json" &&
+      typeof typedSchema.schema === "object"
     ) {
       // Validate that the embedded JSON Schema is actually valid
       try {
-        this.ajv.compile(typedContract.schema);
+        this.ajv.compile(typedSchema.schema);
       } catch (error) {
-        const errorMessage = `Invalid JSON Schema in data contract: ${error instanceof Error ? error.message : "Unknown schema compilation error"}`;
+        const errorMessage = `Invalid JSON Schema in data schema: ${error instanceof Error ? error.message : "Unknown schema compilation error"}`;
         throw new SchemaValidationError(errorMessage, []);
       }
     } else if (
-      typedContract.dialect === "sqlite" &&
-      typeof typedContract.schema === "string"
+      typedSchema.dialect === "sqlite" &&
+      typeof typedSchema.schema === "string"
     ) {
       // Validate SQLite DDL syntax
-      this.validateSQLiteDDL(
-        typedContract.schema,
-        typedContract.dialectVersion,
-      );
+      this.validateSQLiteDDL(typedSchema.schema, typedSchema.dialectVersion);
     }
   }
 
   /**
-   * Validates data against a JSON Schema from a data contract
+   * Validates data against a JSON Schema from a data schema
    *
    * @param data - The data to validate
-   * @param contract - The data contract containing the schema
+   * @param schema - The data schema containing the schema
    * @returns true if valid
    * @throws SchemaValidationError if invalid
    *
@@ -127,7 +124,7 @@ export class SchemaValidator {
    * ```typescript
    * const validator = new SchemaValidator();
    *
-   * const contract = {
+   * const schema = {
    *   name: "User Profile",
    *   version: "1.0.0",
    *   dialect: "json",
@@ -142,29 +139,29 @@ export class SchemaValidator {
    * };
    *
    * const userData = { name: "Alice", age: 30 };
-   * validator.validateDataAgainstContract(userData, contract);
+   * validator.validateDataAgainstSchema(userData, schema);
    * ```
    */
-  validateDataAgainstContract(data: unknown, contract: DataContract): void {
-    // First validate the contract itself
-    this.validateDataContract(contract);
+  validateDataAgainstSchema(data: unknown, schema: DataSchema): void {
+    // First validate the schema itself
+    this.validateDataSchema(schema);
 
-    if (contract.dialect !== "json") {
+    if (schema.dialect !== "json") {
       throw new SchemaValidationError(
-        `Data validation only supported for JSON dialect, got: ${contract.dialect}`,
+        `Data validation only supported for JSON dialect, got: ${schema.dialect}`,
         [],
       );
     }
 
-    if (typeof contract.schema !== "object") {
+    if (typeof schema.schema !== "object") {
       throw new SchemaValidationError(
-        "JSON dialect contracts must have an object schema",
+        "JSON dialect schemas must have an object schema",
         [],
       );
     }
 
     // Compile and validate against the data schema
-    const dataValidator = this.ajv.compile(contract.schema);
+    const dataValidator = this.ajv.compile(schema.schema);
     const isValid = dataValidator(data);
 
     if (!isValid) {
@@ -236,34 +233,31 @@ export class SchemaValidator {
    * Fetches and validates a schema from a URL
    *
    * @param url - The URL to fetch the schema from
-   * @returns The validated data contract
+   * @returns The validated data schema
    * @throws SchemaValidationError if invalid or fetch fails
    *
    * @example
    * ```typescript
    * const validator = new SchemaValidator();
-   * const contract = await validator.fetchAndValidateSchema("https://example.com/schema.json");
+   * const schema = await validator.fetchAndValidateSchema("https://example.com/schema.json");
    * ```
    */
-  async fetchAndValidateSchema(url: string): Promise<DataContract> {
+  async fetchAndValidateSchema(url: string): Promise<DataSchema> {
     try {
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      const contract = await response.json();
-      this.validateDataContract(contract);
+      const schema = await response.json();
+      this.validateDataSchema(schema);
 
       // Additional validation based on dialect
-      if (
-        contract.dialect === "sqlite" &&
-        typeof contract.schema === "string"
-      ) {
-        this.validateSQLiteDDL(contract.schema, contract.dialectVersion);
+      if (schema.dialect === "sqlite" && typeof schema.schema === "string") {
+        this.validateSQLiteDDL(schema.schema, schema.dialectVersion);
       }
 
-      return contract;
+      return schema;
     } catch (error) {
       if (error instanceof SchemaValidationError) {
         throw error;
@@ -283,39 +277,39 @@ export class SchemaValidator {
 export const schemaValidator = new SchemaValidator();
 
 /**
- * Convenience function to validate a data contract
+ * Convenience function to validate a data schema
  *
- * @param contract - The data contract to validate
+ * @param schema - The data schema to validate
  * @returns true if valid
  * @throws SchemaValidationError if invalid
  */
-export function validateDataContract(
-  contract: unknown,
-): asserts contract is DataContract {
-  return schemaValidator.validateDataContract(contract);
+export function validateDataSchema(
+  schema: unknown,
+): asserts schema is DataSchema {
+  return schemaValidator.validateDataSchema(schema);
 }
 
 /**
- * Convenience function to validate data against a contract
+ * Convenience function to validate data against a schema
  *
  * @param data - The data to validate
- * @param contract - The data contract containing the schema
+ * @param schema - The data schema containing the schema
  * @throws SchemaValidationError if invalid
  */
-export function validateDataAgainstContract(
+export function validateDataAgainstSchema(
   data: unknown,
-  contract: DataContract,
+  schema: DataSchema,
 ): void {
-  return schemaValidator.validateDataAgainstContract(data, contract);
+  return schemaValidator.validateDataAgainstSchema(data, schema);
 }
 
 /**
  * Convenience function to fetch and validate a schema from a URL
  *
  * @param url - The URL to fetch the schema from
- * @returns The validated data contract
+ * @returns The validated data schema
  * @throws SchemaValidationError if invalid or fetch fails
  */
-export function fetchAndValidateSchema(url: string): Promise<DataContract> {
+export function fetchAndValidateSchema(url: string): Promise<DataSchema> {
   return schemaValidator.fetchAndValidateSchema(url);
 }

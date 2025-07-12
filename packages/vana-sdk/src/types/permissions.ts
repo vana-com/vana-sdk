@@ -288,8 +288,6 @@ export interface PermissionGrantTypedData {
   primaryType: "Permission";
   /** Message to sign */
   message: PermissionInputMessage;
-  /** Files to grant permission for (passed to relayer) */
-  files?: number[];
 }
 
 /**

@@ -371,14 +371,13 @@ describe("Permission Types", () => {
           grant: "ipfs://QmTypedData",
           fileIds: [1n, 2n],
         },
-        files: [1, 2],
       };
 
       expect(typedData.domain.name).toBe("DataPermissions");
       expect(typedData.primaryType).toBe("Permission");
       expect(typedData.types.Permission).toHaveLength(3);
       expect(typedData.message.nonce).toBe(123n);
-      expect(typedData.files).toEqual([1, 2]);
+      // Files are now only in message.fileIds, not at the top level
     });
 
     it("should structure generic typed data correctly", () => {

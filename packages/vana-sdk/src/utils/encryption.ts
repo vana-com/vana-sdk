@@ -121,8 +121,20 @@ export async function decryptUserData(
     // Convert decrypted data back to Blob
     return new Blob([decrypted as Uint8Array]);
   } catch (error) {
+    // Provide more helpful error messages for confirmed OpenPGP.js errors
+    if (error instanceof Error) {
+      if (error.message.includes("Session key decryption failed")) {
+        throw new Error(
+          "Failed to decrypt file: Wrong encryption key. This file may have been encrypted with a different key than your current wallet signature.",
+        );
+      }
+      // Default case - just clean up the generic error message
+      throw new Error(
+        `Failed to decrypt file: ${error.message}. This file may not be compatible with PGP decryption or was encrypted using a different method.`,
+      );
+    }
     throw new Error(
-      `Failed to decrypt user data: ${error instanceof Error ? error.message : "Unknown error"}`,
+      "Failed to decrypt file: Unknown error occurred during decryption process.",
     );
   }
 }
@@ -247,8 +259,28 @@ export async function decryptWithWalletPrivateKey(
 
     return decryptedBuffer.toString("utf8");
   } catch (error) {
+    // Provide more helpful error messages for confirmed eccrypto errors
+    if (error instanceof Error) {
+      if (error.message.includes("Bad private key")) {
+        throw new Error(
+          "Failed to decrypt with wallet: Invalid private key format. Make sure you're using a valid 32-byte secp256k1 private key.",
+        );
+      }
+      if (error.message.includes("Bad MAC")) {
+        throw new Error(
+          "Failed to decrypt with wallet: Authentication failed. The data may be corrupted or encrypted with a different key.",
+        );
+      }
+      if (error.message.includes("Bad public key")) {
+        throw new Error(
+          "Failed to decrypt with wallet: Invalid public key in encrypted data. Expected 33-byte (compressed) or 65-byte (uncompressed) format.",
+        );
+      }
+      // Default case for other ECIES errors
+      throw new Error(`Failed to decrypt with wallet: ${error.message}`);
+    }
     throw new Error(
-      `Failed to decrypt with wallet private key: ${error instanceof Error ? error.message : "Unknown error"}`,
+      "Failed to decrypt with wallet: Unknown error occurred during decryption.",
     );
   }
 }

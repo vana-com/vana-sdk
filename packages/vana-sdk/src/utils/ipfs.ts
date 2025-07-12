@@ -8,15 +8,17 @@
 /**
  * Default IPFS gateway URL
  */
-export const DEFAULT_IPFS_GATEWAY = "https://ipfs.io/ipfs/";
+export const DEFAULT_IPFS_GATEWAY = "https://dweb.link/ipfs/";
 
 /**
- * Alternative IPFS gateways for fallback
+ * Alternative IPFS gateways for fallback - ordered by reliability and rate limits
  */
 export const IPFS_GATEWAYS = [
-  "https://ipfs.io/ipfs/",
-  "https://gateway.pinata.cloud/ipfs/",
-  "https://dweb.link/ipfs/",
+  "https://dweb.link/ipfs/", // Interplanetary Shipyard - highly reliable
+  "https://ipfs.io/ipfs/", // IPFS Foundation - reliable
+  "https://cloudflare-ipfs.com/ipfs/", // Cloudflare - good performance
+  "https://gateway.pinata.cloud/ipfs/", // Pinata - backup option (has rate limits)
+  "https://ipfs.filebase.io/ipfs/", // Filebase - emerging reliable option
 ] as const;
 
 /**
@@ -109,4 +111,70 @@ export function convertIpfsUrlWithFallbacks(url: string): string[] {
     return getGatewayUrls(hash);
   }
   return [url];
+}
+
+/**
+ * Fetch content from IPFS with automatic gateway fallbacks
+ *
+ * @param url - The IPFS URL to fetch
+ * @param options - Optional fetch options
+ * @returns Promise resolving to Response object
+ * @throws Error if all gateways fail
+ */
+export async function fetchWithFallbacks(
+  url: string,
+  options?: RequestInit,
+): Promise<Response> {
+  const hash = extractIpfsHash(url);
+  if (!hash) {
+    // Not an IPFS URL, fetch directly
+    return fetch(url, options);
+  }
+
+  const gatewayUrls = getGatewayUrls(hash);
+  let lastError: Error | null = null;
+
+  for (let i = 0; i < gatewayUrls.length; i++) {
+    const gatewayUrl = gatewayUrls[i];
+    try {
+      const response = await fetch(gatewayUrl, {
+        ...options,
+        // Add timeout to avoid hanging on slow gateways
+        signal: AbortSignal.timeout(10000), // 10 second timeout
+      });
+
+      // If response is ok, return it
+      if (response.ok) {
+        return response;
+      }
+
+      // If rate limited (429), try next gateway immediately
+      if (response.status === 429) {
+        lastError = new Error(`Gateway rate limited: ${gatewayUrl}`);
+        continue;
+      }
+
+      // For other HTTP errors, still try next gateway
+      lastError = new Error(`Gateway error ${response.status}: ${gatewayUrl}`);
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+
+      // For rate limiting or timeout errors, continue to next gateway
+      if (
+        lastError.message.includes("429") ||
+        lastError.name === "TimeoutError"
+      ) {
+        continue;
+      }
+    }
+
+    // Add delay between retries (except for last attempt)
+    if (i < gatewayUrls.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1))); // Exponential backoff
+    }
+  }
+
+  throw new Error(
+    `All IPFS gateways failed for hash ${hash}. Last error: ${lastError?.message}`,
+  );
 }

@@ -299,7 +299,7 @@ describe("PermissionsController", () => {
       expect(typedData.primaryType).toBe("Permission");
       expect(typedData.message.nonce).toBe(params.nonce);
       expect(typedData.message.grant).toBe(params.grantUrl);
-      expect(typedData.files).toEqual(params.files);
+      // Files are now only in message.fileIds, not at the top level
     });
   });
 

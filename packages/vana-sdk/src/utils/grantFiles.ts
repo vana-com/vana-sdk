@@ -2,6 +2,12 @@ import { keccak256, toHex } from "viem";
 import type { GrantFile, GrantPermissionParams } from "../types/permissions";
 import { SerializationError, NetworkError } from "../errors";
 
+interface GrantFileStorageResponse {
+  success: boolean;
+  error?: string;
+  url?: string;
+}
+
 /**
  * Creates a grant file structure from permission parameters.
  */
@@ -52,13 +58,14 @@ export async function storeGrantFile(
       );
     }
 
-    const data = await response.json();
+    const responseData: unknown = await response.json();
+    const data = responseData as GrantFileStorageResponse;
 
     if (!data.success) {
       throw new NetworkError(data.error || "Failed to store grant file");
     }
 
-    return data.url; // The IPFS URL from the upload response
+    return data.url || ""; // The IPFS URL from the upload response
   } catch (error) {
     if (error instanceof NetworkError) {
       throw error;

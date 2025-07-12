@@ -15,6 +15,14 @@ import {
   StorageError,
 } from "../index";
 
+interface ServerIPFSResponse {
+  success: boolean;
+  error?: string;
+  url?: string;
+  size?: number;
+  ipfsHash?: string;
+}
+
 export interface ServerIPFSConfig {
   /** API endpoint for server-side IPFS uploads */
   uploadEndpoint: string;
@@ -61,7 +69,8 @@ export class ServerIPFSStorage implements StorageProvider {
         );
       }
 
-      const result = await response.json();
+      const responseData: unknown = await response.json();
+      const result = responseData as ServerIPFSResponse;
 
       if (!result.success) {
         throw new StorageError(
@@ -72,7 +81,7 @@ export class ServerIPFSStorage implements StorageProvider {
       }
 
       return {
-        url: result.url,
+        url: result.url || "",
         size: result.size || file.size,
         contentType: file.type || "application/octet-stream",
         metadata: {

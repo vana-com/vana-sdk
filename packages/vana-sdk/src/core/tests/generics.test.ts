@@ -25,7 +25,7 @@ const mockSetTimeout = vi.fn().mockImplementation((callback, _delay) => {
 });
 
 beforeEach(() => {
-  global.setTimeout = mockSetTimeout as any;
+  global.setTimeout = mockSetTimeout as unknown as typeof setTimeout;
 });
 
 afterEach(() => {
@@ -346,7 +346,7 @@ describe("RateLimiter", () => {
       await rateLimiter.checkLimit();
 
       // Move time forward past the window
-      (Date.now as any).mockReturnValue(1000000 + 15000);
+      (Date.now as ReturnType<typeof vi.fn>).mockReturnValue(1000000 + 15000);
 
       expect(await rateLimiter.checkLimit()).toBe(true);
     });
@@ -389,7 +389,7 @@ describe("RateLimiter", () => {
 
       // Advance time to clear window
       setTimeout(() => {
-        (Date.now as any).mockReturnValue(1000000 + 15000);
+        (Date.now as ReturnType<typeof vi.fn>).mockReturnValue(1000000 + 15000);
       }, 0);
 
       await waitPromise;
@@ -427,7 +427,7 @@ describe("MemoryCache", () => {
       expect(await cache.get("key1")).toBe("value1");
 
       // Advance time past TTL
-      (Date.now as any).mockReturnValue(1000000 + 6000);
+      (Date.now as ReturnType<typeof vi.fn>).mockReturnValue(1000000 + 6000);
       expect(await cache.get("key1")).toBeUndefined();
     });
   });
@@ -470,7 +470,7 @@ describe("MemoryCache", () => {
       await cache.set("key1", "value1", 5000);
       expect(await cache.has("key1")).toBe(true);
 
-      (Date.now as any).mockReturnValue(1000000 + 6000);
+      (Date.now as ReturnType<typeof vi.fn>).mockReturnValue(1000000 + 6000);
       expect(await cache.has("key1")).toBe(false);
     });
   });

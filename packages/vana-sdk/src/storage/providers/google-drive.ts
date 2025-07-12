@@ -36,6 +36,19 @@ interface GoogleDriveFile {
   createdTime: string;
 }
 
+interface GoogleDriveUploadResponse {
+  id: string;
+  name: string;
+}
+
+interface GoogleDriveListResponse {
+  files: GoogleDriveFile[];
+}
+
+interface GoogleDriveTokenResponse {
+  access_token: string;
+}
+
 export class GoogleDriveStorage implements StorageProvider {
   private readonly baseUrl = "https://www.googleapis.com/drive/v3";
   private readonly uploadUrl = "https://www.googleapis.com/upload/drive/v3";
@@ -102,7 +115,7 @@ export class GoogleDriveStorage implements StorageProvider {
         );
       }
 
-      const result = await response.json();
+      const result = (await response.json()) as GoogleDriveUploadResponse;
 
       // Make file publicly readable
       await this.makeFilePublic(result.id);
@@ -212,7 +225,7 @@ export class GoogleDriveStorage implements StorageProvider {
         );
       }
 
-      const result = await response.json();
+      const result = (await response.json()) as GoogleDriveListResponse;
 
       return result.files.map((file: GoogleDriveFile) => ({
         id: file.id,
@@ -380,7 +393,7 @@ export class GoogleDriveStorage implements StorageProvider {
         );
       }
 
-      const result = await response.json();
+      const result = (await response.json()) as GoogleDriveTokenResponse;
       this.config.accessToken = result.access_token;
 
       return result.access_token;

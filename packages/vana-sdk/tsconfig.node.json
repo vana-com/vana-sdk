@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist/node",
+    "lib": ["es2022"],
+    "types": ["node"]
+  },
+  "include": [
+    "src/index.node.ts",
+    "src/platform/node.ts",
+    "src/platform/interface.ts",
+    "src/**/*"
+  ],
+  "exclude": [
+    "src/index.browser.ts",
+    "src/platform/browser.ts",
+    "node_modules",
+    "dist",
+    "test"
+  ]
+}

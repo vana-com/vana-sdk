@@ -7,8 +7,33 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "node": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.node.js",
+        "require": "./dist/index.node.cjs"
+      },
+      "browser": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.browser.js",
+        "require": "./dist/index.browser.cjs"
+      },
+      "default": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      }
+    },
+    "./platform": {
+      "node": {
+        "types": "./dist/platform/node.d.ts",
+        "import": "./dist/platform/node.js",
+        "require": "./dist/platform/node.cjs"
+      },
+      "browser": {
+        "types": "./dist/platform/browser.d.ts",
+        "import": "./dist/platform/browser.js",
+        "require": "./dist/platform/browser.cjs"
+      },
+      "default": "./dist/platform/index.js"
     },
     "./chains": {
       "types": "./dist/config/chains.d.ts",
@@ -29,7 +54,11 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "rimraf dist && tsc",
+    "build": "rimraf dist && npm run build:main && npm run build:node && npm run build:browser && npm run build:setup",
+    "build:main": "tsc",
+    "build:node": "tsc --project tsconfig.node.json",
+    "build:browser": "tsc --project tsconfig.browser.json",
+    "build:setup": "node scripts/setup-builds.js",
     "clean": "rimraf dist",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -53,6 +82,7 @@
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
     "eccrypto": "^1.1.6",
+    "eccrypto-js": "^5.4.0",
     "openpgp": "^6.1.1",
     "viem": "^2.31.7"
   },

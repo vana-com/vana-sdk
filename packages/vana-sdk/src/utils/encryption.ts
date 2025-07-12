@@ -1,289 +1,145 @@
 /**
- * Canonical Vana Protocol Encryption Functions
+ * Utility functions for encryption related operations in the Vana SDK
  *
- * These functions define the standard way user data is encrypted/decrypted in Vana.
- * All applications should use these canonical functions to ensure compatibility
- * with existing encrypted data on the Vana network.
+ * This module uses the platform adapter pattern to provide consistent
+ * encryption functionality across Node.js and browser environments.
  */
 
-import * as openpgp from "openpgp";
-import * as eccrypto from "eccrypto";
-import { type WalletClient } from "viem";
+import { getPlatformAdapter } from "../platform";
 
 /**
- * Default encryption seed message used throughout Vana protocol
+ * Encrypt a file key with a DLP's public key using platform-appropriate cryptography
+ * @param fileKey The symmetric key used to encrypt the file
+ * @param publicKey The DLP's public key
+ * @returns The encrypted key that can be stored on-chain
  */
-export const DEFAULT_ENCRYPTION_SEED =
-  "Please sign to retrieve your encryption key";
-
-/**
- * Generate an encryption key by signing the canonical Vana encryption seed
- *
- * This is the standard protocol function for creating encryption keys in Vana.
- * The signature serves as a symmetric encryption key for user data.
- *
- * @param wallet The user's wallet client for signing
- * @param seed Optional custom encryption seed (defaults to Vana standard)
- * @returns The signature that serves as the encryption key
- */
-export async function generateEncryptionKey(
-  wallet: WalletClient,
-  seed: string = DEFAULT_ENCRYPTION_SEED,
-): Promise<string> {
-  if (!wallet.account) {
-    throw new Error("Wallet account is required for encryption key generation");
-  }
-
-  // Sign the encryption seed to generate a deterministic encryption key
-  const signature = await wallet.signMessage({
-    account: wallet.account,
-    message: seed,
-  });
-
-  return signature;
-}
-
-/**
- * Encrypt user data using the canonical Vana protocol
- *
- * This is the standard way to encrypt files in Vana. Uses OpenPGP symmetric
- * encryption with the user's signature as the password. All encrypted data
- * on Vana follows this pattern.
- *
- * @param data The data to encrypt (as a Blob)
- * @param encryptionKey The encryption key (signature from generateEncryptionKey)
- * @returns The encrypted data as a Blob
- */
-export async function encryptUserData(
-  data: Blob,
-  encryptionKey: string,
-): Promise<Blob> {
-  try {
-    // Convert Blob to binary for OpenPGP
-    const dataBuffer = await data.arrayBuffer();
-    const message = await openpgp.createMessage({
-      binary: new Uint8Array(dataBuffer),
-    });
-
-    // Encrypt using signature as password (Vana standard)
-    const encrypted = await openpgp.encrypt({
-      message,
-      passwords: [encryptionKey],
-      format: "binary",
-    });
-
-    // Convert encrypted stream to Blob
-    const response = new Response(encrypted as ReadableStream<Uint8Array>);
-    const arrayBuffer = await response.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-
-    return new Blob([uint8Array], {
-      type: "application/octet-stream",
-    });
-  } catch (error) {
-    throw new Error(
-      `Failed to encrypt user data: ${error instanceof Error ? error.message : "Unknown error"}`,
-    );
-  }
-}
-
-/**
- * Decrypt user data using the canonical Vana protocol
- *
- * This is the standard way to decrypt files in Vana. Uses OpenPGP symmetric
- * decryption with the user's signature as the password.
- *
- * @param encryptedData The encrypted data (as a Blob)
- * @param encryptionKey The encryption key (signature from generateEncryptionKey)
- * @returns The decrypted data as a Blob
- */
-export async function decryptUserData(
-  encryptedData: Blob,
-  encryptionKey: string,
-): Promise<Blob> {
-  try {
-    // Convert Blob to binary for OpenPGP
-    const dataBuffer = await encryptedData.arrayBuffer();
-    const uint8Array = new Uint8Array(dataBuffer);
-
-    // Read the encrypted message
-    const message = await openpgp.readMessage({
-      binaryMessage: uint8Array,
-    });
-
-    // Decrypt using signature as password (Vana standard)
-    const { data: decrypted } = await openpgp.decrypt({
-      message,
-      passwords: [encryptionKey],
-      format: "binary",
-    });
-
-    // Convert decrypted data back to Blob
-    return new Blob([decrypted as Uint8Array]);
-  } catch (error) {
-    // Provide more helpful error messages for confirmed OpenPGP.js errors
-    if (error instanceof Error) {
-      if (error.message.includes("Session key decryption failed")) {
-        throw new Error(
-          "Failed to decrypt file: Wrong encryption key. This file may have been encrypted with a different key than your current wallet signature.",
-        );
-      }
-      // Default case - just clean up the generic error message
-      throw new Error(
-        `Failed to decrypt file: ${error.message}. This file may not be compatible with PGP decryption or was encrypted using a different method.`,
-      );
-    }
-    throw new Error(
-      "Failed to decrypt file: Unknown error occurred during decryption process.",
-    );
-  }
-}
-
-/**
- * Encrypt data with a wallet public key using ECIES
- *
- * This function encrypts data using a wallet's public key, allowing only the holder
- * of the corresponding private key to decrypt it. Used for granting file permissions
- * by encrypting the user's encryption key with a server's public key.
- *
- * @param data The data to encrypt (string)
- * @param publicKey The wallet public key (hex string, with or without 0x prefix)
- * @returns The encrypted data as a hex string
- */
-export async function encryptWithWalletPublicKey(
-  data: string,
+export async function encryptFileKey(
+  fileKey: string,
   publicKey: string,
 ): Promise<string> {
   try {
-    // Remove 0x prefix if present
-    const cleanPublicKey = publicKey.startsWith("0x")
-      ? publicKey.slice(2)
-      : publicKey;
-
-    // Convert hex string to bytes
-    const publicKeyBytes = Buffer.from(cleanPublicKey, "hex");
-
-    // Handle compressed vs uncompressed keys
-    const uncompressedKey =
-      publicKeyBytes.length === 64
-        ? Buffer.concat([Buffer.from([4]), publicKeyBytes])
-        : publicKeyBytes;
-
-    // Encrypt with ECIES
-    const encryptedBuffer = await eccrypto.encrypt(
-      uncompressedKey,
-      Buffer.from(data),
+    const platformAdapter = getPlatformAdapter();
+    return await platformAdapter.crypto.encryptWithPublicKey(
+      fileKey,
+      publicKey,
     );
-
-    // Combine all parts into a single buffer
-    const combined = Buffer.concat([
-      encryptedBuffer.iv,
-      encryptedBuffer.ephemPublicKey,
-      encryptedBuffer.ciphertext,
-      encryptedBuffer.mac,
-    ]);
-
-    return combined.toString("hex");
   } catch (error) {
-    throw new Error(
-      `Failed to encrypt with wallet public key: ${error instanceof Error ? error.message : "Unknown error"}`,
-    );
+    throw new Error(`Failed to encrypt file key: ${error}`);
   }
 }
 
 /**
- * Example usage for demo app integration:
- *
- * // 1. User encrypts their data with their own key
- * const encryptionKey = await generateEncryptionKey(wallet);
- * const encryptedData = await encryptUserData(data, encryptionKey);
- *
- * // 2. To grant server permission, encrypt user's key with server's public key
- * const serverPublicKey = await vana.server.getTrustedServerPublicKey(serverAddress);
- * const encryptedKey = await encryptWithWalletPublicKey(encryptionKey, serverPublicKey);
- *
- * // 3. Store permission via data registry
- * await addFileWithPermissions(fileId, [{
- *   address: serverAddress,
- *   encryptedKey: encryptedKey
- * }]);
+ * Generate encryption parameters for secure file storage
+ * @returns An object containing the initialization vector and encryption key
  */
+export async function getEncryptionParameters(): Promise<{
+  iv: string;
+  key: string;
+}> {
+  try {
+    const platformAdapter = getPlatformAdapter();
+
+    // Generate a new key pair for encryption parameters
+    const keyPair = await platformAdapter.crypto.generateKeyPair();
+
+    // Use parts of the generated keys as IV and key
+    // In production, this would use proper key derivation
+    return {
+      iv: keyPair.publicKey.substring(0, 16),
+      key: keyPair.privateKey.substring(0, 32),
+    };
+  } catch (error) {
+    throw new Error(`Failed to generate encryption parameters: ${error}`);
+  }
+}
 
 /**
- * Decrypt data with a wallet private key using ECIES
- *
- * This function decrypts data that was encrypted with the corresponding public key.
- * Used by servers or other permitted parties to decrypt the user's encryption key
- * so they can then decrypt the user's data.
- *
- * @param encryptedData The encrypted data (hex string)
- * @param privateKey The wallet private key (hex string, with or without 0x prefix)
- * @returns The decrypted data as a string
+ * Decrypt data that was encrypted with the DLP's public key using platform-appropriate cryptography
+ * @param encryptedData The encrypted data
+ * @param privateKey The private key corresponding to the public key used for encryption
+ * @returns The decrypted data
  */
-export async function decryptWithWalletPrivateKey(
+export async function decryptWithPrivateKey(
   encryptedData: string,
   privateKey: string,
 ): Promise<string> {
   try {
-    // Remove 0x prefix if present
-    const cleanPrivateKey = privateKey.startsWith("0x")
-      ? privateKey.slice(2)
-      : privateKey;
-    const cleanEncryptedData = encryptedData.startsWith("0x")
-      ? encryptedData.slice(2)
-      : encryptedData;
-
-    // Convert hex strings to bytes
-    const privateKeyBytes = Buffer.from(cleanPrivateKey, "hex");
-    const encryptedDataBytes = Buffer.from(cleanEncryptedData, "hex");
-
-    // Parse the encrypted data (iv + ephemPublicKey + ciphertext + mac)
-    const iv = encryptedDataBytes.subarray(0, 16);
-    const ephemPublicKey = encryptedDataBytes.subarray(16, 81); // 65 bytes for uncompressed public key
-    const ciphertext = encryptedDataBytes.subarray(81, -32);
-    const mac = encryptedDataBytes.subarray(-32);
-
-    // Reconstruct the encrypted object
-    const encryptedObject = {
-      iv,
-      ephemPublicKey,
-      ciphertext,
-      mac,
-    };
-
-    // Decrypt with ECIES
-    const decryptedBuffer = await eccrypto.decrypt(
-      privateKeyBytes,
-      encryptedObject,
+    const platformAdapter = getPlatformAdapter();
+    return await platformAdapter.crypto.decryptWithPrivateKey(
+      encryptedData,
+      privateKey,
     );
-
-    return decryptedBuffer.toString("utf8");
   } catch (error) {
-    // Provide more helpful error messages for confirmed eccrypto errors
-    if (error instanceof Error) {
-      if (error.message.includes("Bad private key")) {
-        throw new Error(
-          "Failed to decrypt with wallet: Invalid private key format. Make sure you're using a valid 32-byte secp256k1 private key.",
-        );
-      }
-      if (error.message.includes("Bad MAC")) {
-        throw new Error(
-          "Failed to decrypt with wallet: Authentication failed. The data may be corrupted or encrypted with a different key.",
-        );
-      }
-      if (error.message.includes("Bad public key")) {
-        throw new Error(
-          "Failed to decrypt with wallet: Invalid public key in encrypted data. Expected 33-byte (compressed) or 65-byte (uncompressed) format.",
-        );
-      }
-      // Default case for other ECIES errors
-      throw new Error(`Failed to decrypt with wallet: ${error.message}`);
-    }
-    throw new Error(
-      "Failed to decrypt with wallet: Unknown error occurred during decryption.",
-    );
+    throw new Error(`Failed to decrypt with private key: ${error}`);
   }
 }
 
-// Note: Key sharing functions for DLP access (ECIES/eccrypto) will be added later
-// as a separate feature for proxy re-encryption workflow.
+/**
+ * Encrypt user data using PGP with platform-appropriate configuration
+ * @param data The data to encrypt
+ * @param publicKey The PGP public key
+ * @returns The encrypted data
+ */
+export async function encryptUserData(
+  data: string,
+  publicKey: string,
+): Promise<string> {
+  try {
+    const platformAdapter = getPlatformAdapter();
+    return await platformAdapter.pgp.encrypt(data, publicKey);
+  } catch (error) {
+    throw new Error(`Failed to encrypt user data: ${error}`);
+  }
+}
+
+/**
+ * Decrypt user data using PGP with platform-appropriate configuration
+ * @param encryptedData The encrypted data
+ * @param privateKey The PGP private key
+ * @returns The decrypted data
+ */
+export async function decryptUserData(
+  encryptedData: string,
+  privateKey: string,
+): Promise<string> {
+  try {
+    const platformAdapter = getPlatformAdapter();
+    return await platformAdapter.pgp.decrypt(encryptedData, privateKey);
+  } catch (error) {
+    throw new Error(`Failed to decrypt user data: ${error}`);
+  }
+}
+
+/**
+ * Generate a new key pair for asymmetric encryption
+ * @returns Promise resolving to public and private key pair
+ */
+export async function generateEncryptionKeyPair(): Promise<{
+  publicKey: string;
+  privateKey: string;
+}> {
+  try {
+    const platformAdapter = getPlatformAdapter();
+    return await platformAdapter.crypto.generateKeyPair();
+  } catch (error) {
+    throw new Error(`Failed to generate encryption key pair: ${error}`);
+  }
+}
+
+/**
+ * Generate a new PGP key pair with platform-appropriate configuration
+ * @param options Key generation options
+ * @returns Promise resolving to public and private key pair
+ */
+export async function generatePGPKeyPair(options?: {
+  name?: string;
+  email?: string;
+  passphrase?: string;
+}): Promise<{ publicKey: string; privateKey: string }> {
+  try {
+    const platformAdapter = getPlatformAdapter();
+    return await platformAdapter.pgp.generateKeyPair(options);
+  } catch (error) {
+    throw new Error(`Failed to generate PGP key pair: ${error}`);
+  }
+}

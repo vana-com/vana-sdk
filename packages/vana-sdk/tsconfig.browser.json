@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist/browser",
+    "lib": ["es2022", "dom", "dom.iterable"],
+    "types": []
+  },
+  "include": [
+    "src/index.browser.ts",
+    "src/platform/browser.ts",
+    "src/platform/interface.ts",
+    "src/**/*"
+  ],
+  "exclude": [
+    "src/index.node.ts",
+    "src/platform/node.ts",
+    "node_modules",
+    "dist",
+    "test"
+  ]
+}

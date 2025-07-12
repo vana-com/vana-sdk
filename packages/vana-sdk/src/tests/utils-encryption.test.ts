@@ -5,13 +5,29 @@ import {
   decryptUserData,
   DEFAULT_ENCRYPTION_SEED,
 } from "../utils/encryption";
+import type { VanaPlatformAdapter } from "../platform/interface";
 
-// Mock OpenPGP
-vi.mock("openpgp", () => ({
-  createMessage: vi.fn(),
-  encrypt: vi.fn(),
-  readMessage: vi.fn(),
-  decrypt: vi.fn(),
+// Create a mock platform adapter
+const mockPlatformAdapter: VanaPlatformAdapter = {
+  crypto: {
+    encryptWithPublicKey: vi.fn(),
+    decryptWithPrivateKey: vi.fn(),
+    generateKeyPair: vi.fn(),
+  },
+  pgp: {
+    encrypt: vi.fn(),
+    decrypt: vi.fn(),
+    generateKeyPair: vi.fn(),
+  },
+  http: {
+    fetch: vi.fn(),
+  },
+  platform: "node",
+};
+
+// Mock the platform module
+vi.mock("../platform", () => ({
+  getPlatformAdapter: () => mockPlatformAdapter,
 }));
 
 describe("Encryption Utils", () => {
@@ -192,72 +208,45 @@ describe("Encryption Utils", () => {
   });
 
   describe("encryptUserData", () => {
-    let mockOpenpgp: any;
-
-    beforeEach(async () => {
-      mockOpenpgp = await import("openpgp");
-    });
-
     it("should encrypt user data successfully", async () => {
       const testData = new Blob(["sensitive user data"], {
         type: "text/plain",
       });
       const encryptionKey = "0xencryptionkey123";
+      const encryptedString = "encrypted-pgp-data";
 
-      // Mock OpenPGP functions
-      const mockMessage = { data: "mock-message" };
-      const mockEncryptedStream = new ReadableStream();
-
-      mockOpenpgp.createMessage.mockResolvedValue(mockMessage);
-      mockOpenpgp.encrypt.mockResolvedValue(mockEncryptedStream);
-
-      // Mock Response and arrayBuffer
-      global.Response = vi.fn().mockImplementation(() => ({
-        arrayBuffer: () => Promise.resolve(new ArrayBuffer(10)),
-      })) as any;
+      // Mock platform adapter PGP encrypt
+      (mockPlatformAdapter.pgp.encrypt as any).mockResolvedValue(
+        encryptedString,
+      );
 
       const result = await encryptUserData(testData, encryptionKey);
 
       expect(result).toBeInstanceOf(Blob);
-      expect(mockOpenpgp.createMessage).toHaveBeenCalledWith({
-        binary: expect.any(Uint8Array),
-      });
-      expect(mockOpenpgp.encrypt).toHaveBeenCalledWith({
-        message: mockMessage,
-        passwords: [encryptionKey],
-        format: "binary",
-      });
+      expect(result.type).toBe("text/plain");
+      const resultText = await result.text();
+      expect(resultText).toBe(encryptedString);
+      expect(mockPlatformAdapter.pgp.encrypt).toHaveBeenCalledWith(
+        "sensitive user data",
+        encryptionKey,
+      );
     });
 
     it("should handle empty data", async () => {
       const emptyData = new Blob([]);
       const encryptionKey = "0xkey";
+      const encryptedString = "encrypted-empty-data";
 
-      const mockMessage = { data: "empty-message" };
-      const mockEncryptedStream = new ReadableStream();
-
-      mockOpenpgp.createMessage.mockResolvedValue(mockMessage);
-      mockOpenpgp.encrypt.mockResolvedValue(mockEncryptedStream);
-
-      global.Response = vi.fn().mockImplementation(() => ({
-        arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
-      })) as any;
+      (mockPlatformAdapter.pgp.encrypt as any).mockResolvedValue(
+        encryptedString,
+      );
 
       const result = await encryptUserData(emptyData, encryptionKey);
 
       expect(result).toBeInstanceOf(Blob);
-    });
-
-    it("should handle createMessage errors", async () => {
-      const testData = new Blob(["test data"]);
-      const encryptionKey = "0xkey";
-
-      mockOpenpgp.createMessage.mockRejectedValue(
-        new Error("Invalid message format"),
-      );
-
-      await expect(encryptUserData(testData, encryptionKey)).rejects.toThrow(
-        "Failed to encrypt user data: Invalid message format",
+      expect(mockPlatformAdapter.pgp.encrypt).toHaveBeenCalledWith(
+        "",
+        encryptionKey,
       );
     });
 
@@ -265,32 +254,45 @@ describe("Encryption Utils", () => {
       const testData = new Blob(["test data"]);
       const encryptionKey = "0xkey";
 
-      const mockMessage = { data: "mock-message" };
-      mockOpenpgp.createMessage.mockResolvedValue(mockMessage);
-      mockOpenpgp.encrypt.mockRejectedValue(new Error("Encryption failed"));
+      (mockPlatformAdapter.pgp.encrypt as any).mockRejectedValue(
+        new Error("Invalid message format"),
+      );
 
       await expect(encryptUserData(testData, encryptionKey)).rejects.toThrow(
-        "Failed to encrypt user data: Encryption failed",
+        "Failed to encrypt user data: Error: Invalid message format",
       );
     });
 
-    it("should handle Response processing errors", async () => {
+    it("should handle different encryption errors", async () => {
       const testData = new Blob(["test data"]);
       const encryptionKey = "0xkey";
 
-      const mockMessage = { data: "mock-message" };
-      const mockEncryptedStream = new ReadableStream();
-
-      mockOpenpgp.createMessage.mockResolvedValue(mockMessage);
-      mockOpenpgp.encrypt.mockResolvedValue(mockEncryptedStream);
-
-      global.Response = vi.fn().mockImplementation(() => ({
-        arrayBuffer: () =>
-          Promise.reject(new Error("Response processing failed")),
-      })) as any;
+      (mockPlatformAdapter.pgp.encrypt as any).mockRejectedValue(
+        new Error("Encryption failed"),
+      );
 
       await expect(encryptUserData(testData, encryptionKey)).rejects.toThrow(
-        "Failed to encrypt user data: Response processing failed",
+        "Failed to encrypt user data: Error: Encryption failed",
+      );
+    });
+
+    it("should handle string data input", async () => {
+      const testData = "string data to encrypt";
+      const encryptionKey = "0xkey";
+      const encryptedString = "encrypted-string-data";
+
+      (mockPlatformAdapter.pgp.encrypt as any).mockResolvedValue(
+        encryptedString,
+      );
+
+      const result = await encryptUserData(testData, encryptionKey);
+
+      expect(result).toBeInstanceOf(Blob);
+      const resultText = await result.text();
+      expect(resultText).toBe(encryptedString);
+      expect(mockPlatformAdapter.pgp.encrypt).toHaveBeenCalledWith(
+        testData,
+        encryptionKey,
       );
     });
 
@@ -299,10 +301,12 @@ describe("Encryption Utils", () => {
       const encryptionKey = "0xkey";
 
       // Mock a rejection with a non-Error object (e.g., string)
-      mockOpenpgp.createMessage.mockRejectedValue("String error message");
+      (mockPlatformAdapter.pgp.encrypt as any).mockRejectedValue(
+        "String error message",
+      );
 
       await expect(encryptUserData(testData, encryptionKey)).rejects.toThrow(
-        "Failed to encrypt user data: Unknown error",
+        "Failed to encrypt user data: String error message",
       );
     });
 
@@ -311,10 +315,10 @@ describe("Encryption Utils", () => {
       const encryptionKey = "0xkey";
 
       // Mock a rejection with null/undefined
-      mockOpenpgp.createMessage.mockRejectedValue(null);
+      (mockPlatformAdapter.pgp.encrypt as any).mockRejectedValue(null);
 
       await expect(encryptUserData(testData, encryptionKey)).rejects.toThrow(
-        "Failed to encrypt user data: Unknown error",
+        "Failed to encrypt user data: null",
       );
     });
 
@@ -323,91 +327,87 @@ describe("Encryption Utils", () => {
       const encryptionKey = "0xkey";
 
       // Mock a rejection with an object that's not an Error
-      mockOpenpgp.createMessage.mockRejectedValue({
+      (mockPlatformAdapter.pgp.encrypt as any).mockRejectedValue({
         code: 500,
         reason: "Server error",
       });
 
       await expect(encryptUserData(testData, encryptionKey)).rejects.toThrow(
-        "Failed to encrypt user data: Unknown error",
+        "Failed to encrypt user data: [object Object]",
       );
     });
   });
 
   describe("decryptUserData", () => {
-    let mockOpenpgp: any;
-
-    beforeEach(async () => {
-      mockOpenpgp = await import("openpgp");
-    });
-
     it("should decrypt user data successfully", async () => {
       const encryptedData = new Blob([new Uint8Array([1, 2, 3, 4])]);
       const encryptionKey = "0xdecryptionkey123";
+      const decryptedString = "decrypted";
 
-      const mockMessage = { data: "encrypted-message" };
-      const mockDecryptedData = new Uint8Array([
-        100, 101, 99, 114, 121, 112, 116, 101, 100,
-      ]); // 'decrypted'
-
-      mockOpenpgp.readMessage.mockResolvedValue(mockMessage);
-      mockOpenpgp.decrypt.mockResolvedValue({ data: mockDecryptedData });
+      (mockPlatformAdapter.pgp.decrypt as any).mockResolvedValue(
+        decryptedString,
+      );
 
       const result = await decryptUserData(encryptedData, encryptionKey);
 
       expect(result).toBeInstanceOf(Blob);
-      expect(mockOpenpgp.readMessage).toHaveBeenCalledWith({
-        binaryMessage: expect.any(Uint8Array),
-      });
-      expect(mockOpenpgp.decrypt).toHaveBeenCalledWith({
-        message: mockMessage,
-        passwords: [encryptionKey],
-        format: "binary",
-      });
+      expect(result.type).toBe("text/plain");
+      const resultText = await result.text();
+      expect(resultText).toBe(decryptedString);
+      expect(mockPlatformAdapter.pgp.decrypt).toHaveBeenCalledWith(
+        expect.any(String),
+        encryptionKey,
+      );
     });
 
     it("should handle empty encrypted data", async () => {
       const emptyEncryptedData = new Blob([]);
       const encryptionKey = "0xkey";
+      const decryptedString = "";
 
-      const mockMessage = { data: "empty-encrypted-message" };
-      const mockDecryptedData = new Uint8Array([]);
-
-      mockOpenpgp.readMessage.mockResolvedValue(mockMessage);
-      mockOpenpgp.decrypt.mockResolvedValue({ data: mockDecryptedData });
+      (mockPlatformAdapter.pgp.decrypt as any).mockResolvedValue(
+        decryptedString,
+      );
 
       const result = await decryptUserData(emptyEncryptedData, encryptionKey);
 
       expect(result).toBeInstanceOf(Blob);
-    });
-
-    it("should handle readMessage errors", async () => {
-      const encryptedData = new Blob([new Uint8Array([1, 2, 3])]);
-      const encryptionKey = "0xkey";
-
-      mockOpenpgp.readMessage.mockRejectedValue(
-        new Error("Invalid encrypted message"),
-      );
-
-      await expect(
-        decryptUserData(encryptedData, encryptionKey),
-      ).rejects.toThrow(
-        "Failed to decrypt file: Invalid encrypted message. This file may not be compatible with PGP decryption or was encrypted using a different method.",
-      );
+      const resultText = await result.text();
+      expect(resultText).toBe("");
     });
 
     it("should handle decryption errors", async () => {
       const encryptedData = new Blob([new Uint8Array([1, 2, 3])]);
       const encryptionKey = "0xkey";
 
-      const mockMessage = { data: "encrypted-message" };
-      mockOpenpgp.readMessage.mockResolvedValue(mockMessage);
-      mockOpenpgp.decrypt.mockRejectedValue(new Error("Wrong password"));
+      (mockPlatformAdapter.pgp.decrypt as any).mockRejectedValue(
+        new Error("Invalid encrypted message"),
+      );
 
       await expect(
         decryptUserData(encryptedData, encryptionKey),
       ).rejects.toThrow(
-        "Failed to decrypt file: Wrong password. This file may not be compatible with PGP decryption or was encrypted using a different method.",
+        "Failed to decrypt user data: Error: Invalid encrypted message",
+      );
+    });
+
+    it("should handle string encrypted data input", async () => {
+      const encryptedData = "encrypted-string-data";
+      const encryptionKey = "0xkey";
+      const decryptedString = "decrypted data";
+
+      (mockPlatformAdapter.pgp.decrypt as any).mockResolvedValue(
+        decryptedString,
+      );
+
+      const result = await decryptUserData(encryptedData, encryptionKey);
+
+      expect(result).toBeInstanceOf(Blob);
+      const resultText = await result.text();
+      expect(resultText).toBe(decryptedString);
+      expect(mockPlatformAdapter.pgp.decrypt).toHaveBeenCalledWith(
+        encryptedData,
+        encryptionKey,
       );
     });
 
@@ -415,14 +415,12 @@ describe("Encryption Utils", () => {
       const encryptedData = new Blob([new Uint8Array([1, 2, 3])]);
       const wrongKey = "0xwrongkey";
 
-      const mockMessage = { data: "encrypted-message" };
-      mockOpenpgp.readMessage.mockResolvedValue(mockMessage);
-      mockOpenpgp.decrypt.mockRejectedValue(
+      (mockPlatformAdapter.pgp.decrypt as any).mockRejectedValue(
         new Error("Session key decryption failed"),
       );
 
       await expect(decryptUserData(encryptedData, wrongKey)).rejects.toThrow(
-        "Failed to decrypt file: Wrong encryption key. This file may have been encrypted with a different key than your current wallet signature.",
+        "Failed to decrypt user data: Error: Session key decryption failed",
       );
     });
 
@@ -431,13 +429,13 @@ describe("Encryption Utils", () => {
       const encryptionKey = "0xkey";
 
       // Mock a rejection with a non-Error object (e.g., string)
-      mockOpenpgp.readMessage.mockRejectedValue("Decryption string error");
+      (mockPlatformAdapter.pgp.decrypt as any).mockRejectedValue(
+        "Decryption string error",
+      );
 
       await expect(
         decryptUserData(encryptedData, encryptionKey),
-      ).rejects.toThrow(
-        "Failed to decrypt file: Unknown error occurred during decryption process.",
-      );
+      ).rejects.toThrow("Failed to decrypt user data: Decryption string error");
     });
 
     it("should handle undefined/null exceptions during decryption", async () => {
@@ -445,13 +443,11 @@ describe("Encryption Utils", () => {
       const encryptionKey = "0xkey";
 
       // Mock a rejection with null/undefined
-      mockOpenpgp.readMessage.mockRejectedValue(undefined);
+      (mockPlatformAdapter.pgp.decrypt as any).mockRejectedValue(undefined);
 
       await expect(
         decryptUserData(encryptedData, encryptionKey),
-      ).rejects.toThrow(
-        "Failed to decrypt file: Unknown error occurred during decryption process.",
-      );
+      ).rejects.toThrow("Failed to decrypt user data: undefined");
     });
 
     it("should handle object exceptions during decryption", async () => {
@@ -459,79 +455,66 @@ describe("Encryption Utils", () => {
       const encryptionKey = "0xkey";
 
       // Mock a rejection with an object that's not an Error
-      mockOpenpgp.readMessage.mockRejectedValue({
+      (mockPlatformAdapter.pgp.decrypt as any).mockRejectedValue({
         status: "failed",
         details: "Crypto error",
       });
 
       await expect(
         decryptUserData(encryptedData, encryptionKey),
-      ).rejects.toThrow(
-        "Failed to decrypt file: Unknown error occurred during decryption process.",
-      );
+      ).rejects.toThrow("Failed to decrypt user data: [object Object]");
     });
   });
 
   describe("Encrypt-Decrypt Integration", () => {
-    let mockOpenpgp: any;
-
-    beforeEach(async () => {
-      mockOpenpgp = await import("openpgp");
-    });
-
     it("should handle full encrypt-decrypt workflow", async () => {
       const originalData = new Blob(["confidential document content"]);
       const encryptionKey = "0xworkflowkey";
+      const encryptedString = "encrypted-pgp-data";
+      const originalDataText = "confidential document content";
 
       // Mock encryption
-      const mockMessage = { data: "message-object" };
-      const mockEncryptedStream = new ReadableStream();
+      (mockPlatformAdapter.pgp.encrypt as any).mockResolvedValue(
+        encryptedString,
+      );
 
-      mockOpenpgp.createMessage.mockResolvedValue(mockMessage);
-      mockOpenpgp.encrypt.mockResolvedValue(mockEncryptedStream);
-
-      global.Response = vi.fn().mockImplementation(() => ({
-        arrayBuffer: () => Promise.resolve(new ArrayBuffer(20)),
-      })) as any;
-
-      // Mock decryption
-      const mockDecryptedData = new Uint8Array([
-        99, 111, 110, 102, 105, 100, 101, 110, 116, 105, 97, 108,
-      ]);
-      mockOpenpgp.readMessage.mockResolvedValue(mockMessage);
-      mockOpenpgp.decrypt.mockResolvedValue({ data: mockDecryptedData });
+      // Mock decryption to return original data
+      (mockPlatformAdapter.pgp.decrypt as any).mockResolvedValue(
+        originalDataText,
+      );
 
       // Test workflow
       const encrypted = await encryptUserData(originalData, encryptionKey);
       expect(encrypted).toBeInstanceOf(Blob);
+      const encryptedText = await encrypted.text();
+      expect(encryptedText).toBe(encryptedString);
 
       const decrypted = await decryptUserData(encrypted, encryptionKey);
       expect(decrypted).toBeInstanceOf(Blob);
+      const decryptedText = await decrypted.text();
+      expect(decryptedText).toBe(originalDataText);
     });
 
     it("should handle large file encryption and decryption", async () => {
       const largeData = new Blob([new Uint8Array(50000).fill(65)]); // 50KB of 'A' characters
       const encryptionKey = "0xlargefile";
+      const encryptedString = "encrypted-large-data";
+      const originalDataText = "A".repeat(50000);
 
-      const mockMessage = { data: "large-message-object" };
-      const mockEncryptedStream = new ReadableStream();
-
-      mockOpenpgp.createMessage.mockResolvedValue(mockMessage);
-      mockOpenpgp.encrypt.mockResolvedValue(mockEncryptedStream);
-
-      global.Response = vi.fn().mockImplementation(() => ({
-        arrayBuffer: () => Promise.resolve(new ArrayBuffer(50000)),
-      })) as any;
-
-      const mockDecryptedData = new Uint8Array(50000).fill(65);
-      mockOpenpgp.readMessage.mockResolvedValue(mockMessage);
-      mockOpenpgp.decrypt.mockResolvedValue({ data: mockDecryptedData });
+      (mockPlatformAdapter.pgp.encrypt as any).mockResolvedValue(
+        encryptedString,
+      );
+      (mockPlatformAdapter.pgp.decrypt as any).mockResolvedValue(
+        originalDataText,
+      );
 
       const encrypted = await encryptUserData(largeData, encryptionKey);
       const decrypted = await decryptUserData(encrypted, encryptionKey);
 
       expect(encrypted).toBeInstanceOf(Blob);
       expect(decrypted).toBeInstanceOf(Blob);
+      const decryptedText = await decrypted.text();
+      expect(decryptedText).toBe(originalDataText);
     });
   });
 });

@@ -25,7 +25,7 @@ export interface PinataConfig {
 
 interface PinataPin {
   ipfs_pin_hash: string;
-  size: string;
+  size: number;
   date_pinned: string;
   metadata?: {
     name?: string;
@@ -220,7 +220,7 @@ export class PinataStorage implements StorageProvider {
         id: pin.ipfs_pin_hash,
         name: pin.metadata?.name || "Unnamed",
         url: `${this.gatewayUrl}/ipfs/${pin.ipfs_pin_hash}`,
-        size: parseInt(pin.size) || 0,
+        size: parseInt(String(pin.size), 10) || 0,
         contentType: "application/octet-stream", // Pinata doesn't store content type
         createdAt: new Date(pin.date_pinned),
         metadata: {

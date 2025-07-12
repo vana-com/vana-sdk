@@ -4,12 +4,29 @@ import {
   encryptWithWalletPublicKey,
   decryptWithWalletPrivateKey,
 } from "../utils/encryption";
-import * as eccrypto from "eccrypto";
+import type { VanaPlatformAdapter } from "../platform/interface";
 
-// Mock eccrypto
-vi.mock("eccrypto", () => ({
-  encrypt: vi.fn(),
-  decrypt: vi.fn(),
+// Create a mock platform adapter
+const mockPlatformAdapter: VanaPlatformAdapter = {
+  crypto: {
+    encryptWithPublicKey: vi.fn(),
+    decryptWithPrivateKey: vi.fn(),
+    generateKeyPair: vi.fn(),
+  },
+  pgp: {
+    encrypt: vi.fn(),
+    decrypt: vi.fn(),
+    generateKeyPair: vi.fn(),
+  },
+  http: {
+    fetch: vi.fn(),
+  },
+  platform: "node",
+};
+
+// Mock the platform module
+vi.mock("../platform", () => ({
+  getPlatformAdapter: () => mockPlatformAdapter,
 }));
 
 describe("Wallet Encryption Utils", () => {
@@ -27,29 +44,18 @@ describe("Wallet Encryption Utils", () => {
       const publicKey =
         "0x04abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
 
-      const mockEncryptedResult = {
-        iv: Buffer.from("test-iv", "utf8"),
-        ephemPublicKey: Buffer.from("test-ephemeral-key", "utf8"),
-        ciphertext: Buffer.from("test-ciphertext", "utf8"),
-        mac: Buffer.from("test-mac", "utf8"),
-      };
+      const expectedEncryptedData = "encrypted-hex-data";
 
-      (eccrypto.encrypt as any).mockResolvedValue(mockEncryptedResult);
+      (
+        mockPlatformAdapter.crypto.encryptWithPublicKey as any
+      ).mockResolvedValue(expectedEncryptedData);
 
       const result = await encryptWithWalletPublicKey(testData, publicKey);
 
-      expect(eccrypto.encrypt).toHaveBeenCalledWith(
-        expect.any(Buffer),
-        Buffer.from(testData),
-      );
-      expect(result).toBe(
-        Buffer.concat([
-          mockEncryptedResult.iv,
-          mockEncryptedResult.ephemPublicKey,
-          mockEncryptedResult.ciphertext,
-          mockEncryptedResult.mac,
-        ]).toString("hex"),
-      );
+      expect(
+        mockPlatformAdapter.crypto.encryptWithPublicKey,
+      ).toHaveBeenCalledWith(testData, publicKey);
+      expect(result).toBe(expectedEncryptedData);
     });
 
     it("should handle public key without 0x prefix", async () => {
@@ -57,48 +63,35 @@ describe("Wallet Encryption Utils", () => {
       const publicKey =
         "04abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
 
-      const mockEncryptedResult = {
-        iv: Buffer.from("iv", "utf8"),
-        ephemPublicKey: Buffer.from("ephemKey", "utf8"),
-        ciphertext: Buffer.from("cipher", "utf8"),
-        mac: Buffer.from("mac", "utf8"),
-      };
+      const expectedEncryptedData = "encrypted-hex-data";
 
-      (eccrypto.encrypt as any).mockResolvedValue(mockEncryptedResult);
+      (
+        mockPlatformAdapter.crypto.encryptWithPublicKey as any
+      ).mockResolvedValue(expectedEncryptedData);
 
       await encryptWithWalletPublicKey(testData, publicKey);
 
-      expect(eccrypto.encrypt as any).toHaveBeenCalledWith(
-        expect.any(Buffer),
-        Buffer.from(testData),
-      );
+      expect(
+        mockPlatformAdapter.crypto.encryptWithPublicKey,
+      ).toHaveBeenCalledWith(testData, publicKey);
     });
 
-    it("should handle compressed public key (64 bytes) by adding uncompressed prefix", async () => {
+    it("should handle compressed public key (64 bytes)", async () => {
       const testData = "test data";
       const compressedKey =
         "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"; // 64 bytes (32 * 2)
 
-      const mockEncryptedResult = {
-        iv: Buffer.from("iv", "utf8"),
-        ephemPublicKey: Buffer.from("ephemKey", "utf8"),
-        ciphertext: Buffer.from("cipher", "utf8"),
-        mac: Buffer.from("mac", "utf8"),
-      };
+      const expectedEncryptedData = "encrypted-hex-data";
 
-      (eccrypto.encrypt as any).mockResolvedValue(mockEncryptedResult);
+      (
+        mockPlatformAdapter.crypto.encryptWithPublicKey as any
+      ).mockResolvedValue(expectedEncryptedData);
 
       await encryptWithWalletPublicKey(testData, compressedKey);
 
-      const expectedBuffer = Buffer.concat([
-        Buffer.from([4]), // Uncompressed prefix
-        Buffer.from(compressedKey.slice(2), "hex"),
-      ]);
-
-      expect(eccrypto.encrypt as any).toHaveBeenCalledWith(
-        expectedBuffer,
-        Buffer.from(testData),
-      );
+      expect(
+        mockPlatformAdapter.crypto.encryptWithPublicKey,
+      ).toHaveBeenCalledWith(testData, compressedKey);
     });
 
     it("should handle uncompressed public key (65 bytes) without modification", async () => {
@@ -106,23 +99,17 @@ describe("Wallet Encryption Utils", () => {
       const uncompressedKey =
         "0x04abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"; // 65 bytes
 
-      const mockEncryptedResult = {
-        iv: Buffer.from("iv", "utf8"),
-        ephemPublicKey: Buffer.from("ephemKey", "utf8"),
-        ciphertext: Buffer.from("cipher", "utf8"),
-        mac: Buffer.from("mac", "utf8"),
-      };
+      const expectedEncryptedData = "encrypted-hex-data";
 
-      (eccrypto.encrypt as any).mockResolvedValue(mockEncryptedResult);
+      (
+        mockPlatformAdapter.crypto.encryptWithPublicKey as any
+      ).mockResolvedValue(expectedEncryptedData);
 
       await encryptWithWalletPublicKey(testData, uncompressedKey);
 
-      const expectedBuffer = Buffer.from(uncompressedKey.slice(2), "hex");
-
-      expect(eccrypto.encrypt as any).toHaveBeenCalledWith(
-        expectedBuffer,
-        Buffer.from(testData),
-      );
+      expect(
+        mockPlatformAdapter.crypto.encryptWithPublicKey,
+      ).toHaveBeenCalledWith(testData, uncompressedKey);
     });
 
     it("should throw error when encryption fails", async () => {
@@ -130,14 +117,14 @@ describe("Wallet Encryption Utils", () => {
       const publicKey =
         "0x04abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
 
-      (eccrypto.encrypt as any).mockRejectedValue(
-        new Error("Encryption failed"),
-      );
+      (
+        mockPlatformAdapter.crypto.encryptWithPublicKey as any
+      ).mockRejectedValue(new Error("Encryption failed"));
 
       await expect(
         encryptWithWalletPublicKey(testData, publicKey),
       ).rejects.toThrow(
-        "Failed to encrypt with wallet public key: Encryption failed",
+        "Failed to encrypt with wallet public key: Error: Encryption failed",
       );
     });
 
@@ -146,7 +133,9 @@ describe("Wallet Encryption Utils", () => {
       const publicKey =
         "0x04abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
 
-      (eccrypto.encrypt as any).mockRejectedValue("Unknown error");
+      (
+        mockPlatformAdapter.crypto.encryptWithPublicKey as any
+      ).mockRejectedValue("Unknown error");
 
       await expect(
         encryptWithWalletPublicKey(testData, publicKey),
@@ -163,19 +152,18 @@ describe("Wallet Encryption Utils", () => {
         "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12";
       const expectedDecrypted = "decrypted data";
 
-      (eccrypto.decrypt as any).mockResolvedValue(
-        Buffer.from(expectedDecrypted),
-      );
+      (
+        mockPlatformAdapter.crypto.decryptWithPrivateKey as any
+      ).mockResolvedValue(expectedDecrypted);
 
       const result = await decryptWithWalletPrivateKey(
         encryptedData,
         privateKey,
       );
 
-      expect(eccrypto.decrypt as any).toHaveBeenCalledWith(
-        Buffer.from(privateKey.slice(2), "hex"),
-        expect.any(Object),
-      );
+      expect(
+        mockPlatformAdapter.crypto.decryptWithPrivateKey,
+      ).toHaveBeenCalledWith(encryptedData, privateKey);
       expect(result).toBe(expectedDecrypted);
     });
 
@@ -185,16 +173,15 @@ describe("Wallet Encryption Utils", () => {
         "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12";
       const expectedDecrypted = "decrypted data";
 
-      (eccrypto.decrypt as any).mockResolvedValue(
-        Buffer.from(expectedDecrypted),
-      );
+      (
+        mockPlatformAdapter.crypto.decryptWithPrivateKey as any
+      ).mockResolvedValue(expectedDecrypted);
 
       await decryptWithWalletPrivateKey(encryptedData, privateKey);
 
-      expect(eccrypto.decrypt as any).toHaveBeenCalledWith(
-        Buffer.from(privateKey, "hex"),
-        expect.any(Object),
-      );
+      expect(
+        mockPlatformAdapter.crypto.decryptWithPrivateKey,
+      ).toHaveBeenCalledWith(encryptedData, privateKey);
     });
 
     it("should properly parse encrypted data structure", async () => {
@@ -207,9 +194,9 @@ describe("Wallet Encryption Utils", () => {
         "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12";
       const expectedDecrypted = "decrypted data";
 
-      (eccrypto.decrypt as any).mockResolvedValue(
-        Buffer.from(expectedDecrypted),
-      );
+      (
+        mockPlatformAdapter.crypto.decryptWithPrivateKey as any
+      ).mockResolvedValue(expectedDecrypted);
 
       const result = await decryptWithWalletPrivateKey(
         mockEncryptedData,
@@ -217,15 +204,9 @@ describe("Wallet Encryption Utils", () => {
       );
 
       // Verify the decryption was called and returned expected result
-      expect(eccrypto.decrypt as any).toHaveBeenCalledWith(
-        Buffer.from(privateKey.slice(2), "hex"),
-        expect.objectContaining({
-          iv: expect.any(Buffer),
-          ephemPublicKey: expect.any(Buffer),
-          ciphertext: expect.any(Buffer),
-          mac: expect.any(Buffer),
-        }),
-      );
+      expect(
+        mockPlatformAdapter.crypto.decryptWithPrivateKey,
+      ).toHaveBeenCalledWith(mockEncryptedData, privateKey);
       expect(result).toBe(expectedDecrypted);
     });
 
@@ -234,13 +215,15 @@ describe("Wallet Encryption Utils", () => {
       const privateKey =
         "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12";
 
-      (eccrypto.decrypt as any).mockRejectedValue(
-        new Error("Decryption failed"),
-      );
+      (
+        mockPlatformAdapter.crypto.decryptWithPrivateKey as any
+      ).mockRejectedValue(new Error("Decryption failed"));
 
       await expect(
         decryptWithWalletPrivateKey(encryptedData, privateKey),
-      ).rejects.toThrow("Failed to decrypt with wallet: Decryption failed");
+      ).rejects.toThrow(
+        "Failed to decrypt with wallet private key: Error: Decryption failed",
+      );
     });
 
     it("should handle unknown error types in decryption", async () => {
@@ -248,12 +231,14 @@ describe("Wallet Encryption Utils", () => {
       const privateKey =
         "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12";
 
-      (eccrypto.decrypt as any).mockRejectedValue("Unknown error");
+      (
+        mockPlatformAdapter.crypto.decryptWithPrivateKey as any
+      ).mockRejectedValue("Unknown error");
 
       await expect(
         decryptWithWalletPrivateKey(encryptedData, privateKey),
       ).rejects.toThrow(
-        "Failed to decrypt with wallet: Unknown error occurred during decryption.",
+        "Failed to decrypt with wallet private key: Unknown error",
       );
     });
 
@@ -262,10 +247,14 @@ describe("Wallet Encryption Utils", () => {
       const privateKey =
         "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12";
 
+      (
+        mockPlatformAdapter.crypto.decryptWithPrivateKey as any
+      ).mockRejectedValue(new Error("Invalid encrypted data format"));
+
       await expect(
         decryptWithWalletPrivateKey(invalidEncryptedData, privateKey),
       ).rejects.toThrow(
-        "Failed to decrypt with wallet: Cannot read properties of undefined (reading 'toString')",
+        "Failed to decrypt with wallet private key: Error: Invalid encrypted data format",
       );
     });
   });
@@ -278,15 +267,12 @@ describe("Wallet Encryption Utils", () => {
       const privateKey =
         "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12";
 
-      // Mock encryption
-      const mockEncryptedResult = {
-        iv: Buffer.from("test-iv-16bytes!", "utf8"),
-        ephemPublicKey: Buffer.from("04" + "a".repeat(128), "hex"),
-        ciphertext: Buffer.from("encrypted-content", "utf8"),
-        mac: Buffer.from("test-mac-32bytes-test-mac-32b", "utf8"),
-      };
+      const encryptedHexData = "encrypted-hex-data";
 
-      (eccrypto.encrypt as any).mockResolvedValue(mockEncryptedResult);
+      // Mock encryption to return encrypted data
+      (
+        mockPlatformAdapter.crypto.encryptWithPublicKey as any
+      ).mockResolvedValue(encryptedHexData);
 
       // Encrypt
       const encryptedData = await encryptWithWalletPublicKey(
@@ -295,7 +281,9 @@ describe("Wallet Encryption Utils", () => {
       );
 
       // Mock decryption to return original data
-      (eccrypto.decrypt as any).mockResolvedValue(Buffer.from(originalData));
+      (
+        mockPlatformAdapter.crypto.decryptWithPrivateKey as any
+      ).mockResolvedValue(originalData);
 
       // Decrypt
       const decryptedData = await decryptWithWalletPrivateKey(
@@ -304,8 +292,12 @@ describe("Wallet Encryption Utils", () => {
       );
 
       expect(decryptedData).toBe(originalData);
-      expect(eccrypto.encrypt as any).toHaveBeenCalledTimes(1);
-      expect(eccrypto.decrypt as any).toHaveBeenCalledTimes(1);
+      expect(
+        mockPlatformAdapter.crypto.encryptWithPublicKey,
+      ).toHaveBeenCalledTimes(1);
+      expect(
+        mockPlatformAdapter.crypto.decryptWithPrivateKey,
+      ).toHaveBeenCalledTimes(1);
     });
   });
 });

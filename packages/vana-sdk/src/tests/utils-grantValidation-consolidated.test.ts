@@ -114,7 +114,7 @@ describe("validateGrant (Consolidated Validation)", () => {
 
     it("should handle grants without expiry", () => {
       const noExpiryGrant = { ...validGrantFile };
-      delete (noExpiryGrant as any).expires;
+      delete (noExpiryGrant as unknown as { expires?: number }).expires;
 
       const result = validateGrant(noExpiryGrant);
       expect(result.expires).toBeUndefined();

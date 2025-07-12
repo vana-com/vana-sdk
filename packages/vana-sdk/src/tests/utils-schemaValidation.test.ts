@@ -271,7 +271,7 @@ describe("SchemaValidator", () => {
       const invalidSchema = {
         name: "Invalid Schema",
         version: "1.0.0",
-        dialect: "invalid" as any,
+        dialect: "invalid" as unknown as "json" | "sqlite",
         schema: { type: "object" },
       } as DataSchema;
 

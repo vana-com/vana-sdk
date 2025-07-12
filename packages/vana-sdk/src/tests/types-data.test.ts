@@ -609,8 +609,21 @@ describe("Data Types", () => {
       };
 
       expect(complexUpload.metadata?.custom?.nested).toBeDefined();
+
+      // Type the custom metadata structure for this test
+      type CustomMetadata = {
+        nested: {
+          data: string;
+          array: number[];
+          boolean: boolean;
+        };
+        timestamp: number;
+      };
+
       expect(
-        Array.isArray((complexUpload.metadata?.custom as any)?.nested?.array),
+        Array.isArray(
+          (complexUpload.metadata?.custom as CustomMetadata)?.nested?.array,
+        ),
       ).toBe(true);
       expect(typeof complexUpload.metadata?.custom?.timestamp).toBe("number");
     });

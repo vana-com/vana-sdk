@@ -11,7 +11,12 @@ const mockAbortController = {
   signal: { aborted: false },
   abort: vi.fn(),
 };
-global.AbortController = vi.fn(() => mockAbortController) as any;
+
+// Type the mock constructor properly
+type AbortControllerConstructor = new () => AbortController;
+global.AbortController = vi.fn(
+  () => mockAbortController,
+) as unknown as AbortControllerConstructor;
 
 describe("ApiClient", () => {
   let apiClient: ApiClient;

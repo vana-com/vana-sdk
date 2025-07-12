@@ -1,49 +1,37 @@
-// Core modules - environment-specific Vana classes are exported from index.node.ts and index.browser.ts
-export { VanaCore } from "./core";
-
-// Universal Vana class with runtime platform detection
-// This provides a fallback for environments where conditional exports don't work properly
 import { VanaCore } from "./core";
 import { NodePlatformAdapter } from "./platform/node";
-import { BrowserPlatformAdapter } from "./platform/browser";
 import type { VanaConfig } from "./types";
-import type { VanaPlatformAdapter } from "./platform/interface";
 
 /**
- * Universal Vana SDK class with automatic platform detection.
- * Detects the runtime environment and uses the appropriate platform adapter.
- * 
- * For better performance and explicit control, prefer importing from:
- * - Node.js: Use the environment-specific entry points via conditional exports
- * - Browser: Use the environment-specific entry points via conditional exports
+ * The Vana SDK class pre-configured for Node.js environments.
+ * Automatically uses the Node.js platform adapter.
  */
 export class Vana extends VanaCore {
   constructor(config: VanaConfig) {
-    // Runtime platform detection and adapter selection
-    const platformAdapter = Vana.createPlatformAdapter();
-    super(config, platformAdapter);
+    // Automatically inject the Node.js platform adapter
+    super(config, new NodePlatformAdapter());
   }
 
-  private static createPlatformAdapter(): VanaPlatformAdapter {
-    // Runtime environment detection
-    const isNode = typeof window === 'undefined' && typeof global !== 'undefined' && typeof process !== 'undefined';
-    
-    if (isNode) {
-      return new NodePlatformAdapter();
-    } else {
-      return new BrowserPlatformAdapter();
-    }
-  }
-
+  /**
+   * Creates a Vana SDK instance from a chain configuration.
+   * @param config - Chain configuration object
+   * @returns Vana SDK instance configured for Node.js
+   */
   static override fromChain(config: VanaConfig) {
     return new Vana(config);
   }
 
+  /**
+   * Creates a Vana SDK instance from a wallet client configuration.
+   * @param config - Wallet client configuration object
+   * @returns Vana SDK instance configured for Node.js
+   */
   static override fromWallet(config: VanaConfig) {
     return new Vana(config);
   }
 }
 
+// Re-export everything that was in index.ts (avoiding circular dependency)
 // Types - modular exports
 export type * from "./types";
 
@@ -115,5 +103,5 @@ export type {
   RequestOptions,
 } from "./core/apiClient";
 
-// Legacy exports for backward compatibility
-// VanaContract is already exported from "./types" above
+// Re-export the SDK as both named and default export
+export default Vana;

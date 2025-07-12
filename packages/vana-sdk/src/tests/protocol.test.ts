@@ -5,6 +5,7 @@ import { mokshaTestnet } from "../config/chains";
 import { ProtocolController } from "../controllers/protocol";
 import { ControllerContext } from "../controllers/permissions";
 import { ContractNotFoundError } from "../errors";
+import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock the config and ABI modules
 vi.mock("../config/addresses", () => ({
@@ -46,8 +47,8 @@ import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../abi";
 
 // Type the mocked functions
-const mockGetContractAddress = getContractAddress as any;
-const mockGetAbi = getAbi as any;
+const mockGetContractAddress = getContractAddress as ReturnType<typeof vi.fn>;
+const mockGetAbi = getAbi as ReturnType<typeof vi.fn>;
 
 // Test account
 const testAccount = privateKeyToAccount(
@@ -57,8 +58,8 @@ const testAccount = privateKeyToAccount(
 describe("ProtocolController", () => {
   let controller: ProtocolController;
   let mockContext: ControllerContext;
-  let mockWalletClient: any;
-  let mockPublicClient: any;
+  let mockWalletClient: ReturnType<typeof createWalletClient>;
+  let mockPublicClient: { waitForTransactionReceipt: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -75,14 +76,17 @@ describe("ProtocolController", () => {
     };
 
     mockContext = {
-      walletClient: mockWalletClient,
-      publicClient: mockPublicClient,
+      walletClient:
+        mockWalletClient as unknown as ControllerContext["walletClient"],
+      publicClient:
+        mockPublicClient as unknown as ControllerContext["publicClient"],
       relayerCallbacks: {
         submitFileAddition: vi.fn().mockResolvedValue({
           fileId: 123,
           transactionHash: "0x123456789abcdef",
         }),
       },
+      platform: mockPlatformAdapter,
     };
 
     controller = new ProtocolController(mockContext);
@@ -91,7 +95,9 @@ describe("ProtocolController", () => {
   describe("getContract", () => {
     it("should return contract info for valid contract", () => {
       const mockAddress = "0x1234567890123456789012345678901234567890";
-      const mockAbi: any[] = [{ type: "function", name: "test" }];
+      const mockAbi: Record<string, unknown>[] = [
+        { type: "function", name: "test" },
+      ];
 
       mockGetContractAddress.mockReturnValue(mockAddress);
       mockGetAbi.mockReturnValue(mockAbi);
@@ -127,8 +133,11 @@ describe("ProtocolController", () => {
       };
 
       const noChainController = new ProtocolController({
-        walletClient: noChainClient,
-        publicClient: mockPublicClient,
+        walletClient:
+          noChainClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
         relayerCallbacks: {
           submitFileAddition: vi.fn(),
         },
@@ -254,8 +263,11 @@ describe("ProtocolController", () => {
       };
 
       const noChainController = new ProtocolController({
-        walletClient: noChainClient,
-        publicClient: mockPublicClient,
+        walletClient:
+          noChainClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
         relayerCallbacks: {
           submitFileAddition: vi.fn(),
         },
@@ -280,8 +292,11 @@ describe("ProtocolController", () => {
       };
 
       const noChainController = new ProtocolController({
-        walletClient: noChainClient,
-        publicClient: mockPublicClient,
+        walletClient:
+          noChainClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
         relayerCallbacks: {
           submitFileAddition: vi.fn(),
         },
@@ -309,7 +324,7 @@ describe("ProtocolController", () => {
       mockGetContractAddress.mockReturnValue(
         "0x1234567890123456789012345678901234567890",
       );
-      const mockAbi: any[] = [
+      const mockAbi: Record<string, unknown>[] = [
         { type: "function", name: "version", inputs: [], outputs: [] },
       ];
       mockGetAbi.mockReturnValue(mockAbi);
@@ -341,9 +356,10 @@ describe("ProtocolController", () => {
         walletClient: {
           ...mockWalletClient,
           chain: undefined, // No chain object
-        },
-        publicClient: mockPublicClient,
-      };
+        } as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
+      } as unknown as ControllerContext;
 
       const controller = new ProtocolController(contextWithoutChain);
 
@@ -406,8 +422,11 @@ describe("ProtocolController", () => {
       };
 
       const controller = new ProtocolController({
-        walletClient: walletClientWithDynamicId,
-        publicClient: mockPublicClient,
+        walletClient:
+          walletClientWithDynamicId as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
       });
 
       // Mock getContractAddress to throw an error that contains "Contract address not found"
@@ -438,12 +457,15 @@ describe("ProtocolController", () => {
             throw new Error("Chain ID access failed");
           },
           name: "Test Chain",
-        } as any,
+        } as unknown as typeof mockWalletClient.chain,
       };
 
       const controller = new ProtocolController({
-        walletClient: walletClientWithThrowingId,
-        publicClient: mockPublicClient,
+        walletClient:
+          walletClientWithThrowingId as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
       });
 
       // Should throw the error from the id getter

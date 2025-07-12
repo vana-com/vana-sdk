@@ -25,12 +25,34 @@ export interface PinataConfig {
 
 interface PinataPin {
   ipfs_pin_hash: string;
-  size: string;
+  size: number;
   date_pinned: string;
   metadata?: {
     name?: string;
     [key: string]: unknown;
   };
+}
+
+interface PinataUploadResponse {
+  IpfsHash: string;
+  PinSize: number;
+  Timestamp: string;
+}
+
+interface PinataListResponse {
+  count: number;
+  rows: Array<{
+    id: string;
+    ipfs_pin_hash: string;
+    size: number;
+    user_id: string;
+    date_pinned: string;
+    date_unpinned?: string;
+    metadata: {
+      name?: string;
+      keyvalues?: Record<string, unknown>;
+    };
+  }>;
 }
 
 export class PinataStorage implements StorageProvider {
@@ -87,7 +109,7 @@ export class PinataStorage implements StorageProvider {
         );
       }
 
-      const result = await response.json();
+      const result = (await response.json()) as PinataUploadResponse;
       const ipfsHash = result.IpfsHash;
 
       if (!ipfsHash) {
@@ -192,13 +214,13 @@ export class PinataStorage implements StorageProvider {
         );
       }
 
-      const result = await response.json();
+      const result = (await response.json()) as PinataListResponse;
 
       return result.rows.map((pin: PinataPin) => ({
         id: pin.ipfs_pin_hash,
         name: pin.metadata?.name || "Unnamed",
         url: `${this.gatewayUrl}/ipfs/${pin.ipfs_pin_hash}`,
-        size: parseInt(pin.size) || 0,
+        size: parseInt(String(pin.size), 10) || 0,
         contentType: "application/octet-stream", // Pinata doesn't store content type
         createdAt: new Date(pin.date_pinned),
         metadata: {

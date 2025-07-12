@@ -32,6 +32,7 @@ import {
   GrantFile,
   Hash,
 } from "vana-sdk";
+import { BrowserPlatformAdapter } from "vana-sdk/platform";
 
 // Types for demo app state
 
@@ -868,7 +869,8 @@ export default function Home() {
         setOriginalFileName(fileName);
       }
 
-      const encrypted = await encryptUserData(dataBlob, generatedKey);
+      const platformAdapter = new BrowserPlatformAdapter();
+      const encrypted = await encryptUserData(dataBlob, generatedKey, platformAdapter);
       setEncryptedData(encrypted);
       setEncryptionStatus("✅ Data encrypted successfully!");
     } catch (error) {
@@ -891,7 +893,8 @@ export default function Home() {
     setEncryptionStatus("Decrypting data...");
 
     try {
-      const decrypted = await decryptUserData(encryptedData, generatedKey);
+      const platformAdapter = new BrowserPlatformAdapter();
+      const decrypted = await decryptUserData(encryptedData, generatedKey, platformAdapter);
       const decryptedText = await decrypted.text();
       setDecryptedData(decryptedText);
       setEncryptionStatus("✅ Data decrypted successfully!");

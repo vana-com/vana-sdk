@@ -100,11 +100,12 @@ export default [
 
   // Config files configuration
   {
-    files: ["**/*.config.{js,ts,cjs,mjs}", "**/scripts/**/*.{js,ts}"],
+    files: ["**/*.config.{js,ts,cjs,mjs}", "**/scripts/**/*.{js,ts,cjs,mjs}"],
     languageOptions: {
       globals: {
         ...globals.node,
         ...globals.nodeBuiltin,
+        console: "readonly",
         require: "readonly",
         module: "readonly",
         __dirname: "readonly",

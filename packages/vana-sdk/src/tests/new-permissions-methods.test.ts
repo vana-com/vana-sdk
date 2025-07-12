@@ -4,6 +4,7 @@ import {
   PermissionsController,
   ControllerContext,
 } from "../controllers/permissions";
+import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock ALL external dependencies to ensure pure unit tests
 vi.mock("viem", () => ({
@@ -34,8 +35,17 @@ vi.mock("../abi", () => ({
 describe("New PermissionsController Methods", () => {
   let controller: PermissionsController;
   let mockContext: ControllerContext;
-  let mockWalletClient: any;
-  let mockPublicClient: any;
+  let mockWalletClient: {
+    writeContract: ReturnType<typeof vi.fn>;
+    signTypedData: ReturnType<typeof vi.fn>;
+    account: { address: string };
+    chain: { id: number };
+    getChainId: ReturnType<typeof vi.fn>;
+  };
+  let mockPublicClient: {
+    readContract: ReturnType<typeof vi.fn>;
+    getChainId: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     mockWalletClient = {
@@ -52,8 +62,11 @@ describe("New PermissionsController Methods", () => {
     };
 
     mockContext = {
-      walletClient: mockWalletClient,
-      publicClient: mockPublicClient,
+      walletClient:
+        mockWalletClient as unknown as ControllerContext["walletClient"],
+      publicClient:
+        mockPublicClient as unknown as ControllerContext["publicClient"],
+      platform: mockPlatformAdapter,
     };
 
     controller = new PermissionsController(mockContext);
@@ -62,10 +75,18 @@ describe("New PermissionsController Methods", () => {
   describe("revokeWithSignature", () => {
     beforeEach(() => {
       // Mock getUserNonce for typed data creation
-      vi.spyOn(controller as any, "getUserNonce").mockResolvedValue(123n);
+      vi.spyOn(
+        controller as unknown as { getUserNonce: () => Promise<bigint> },
+        "getUserNonce",
+      ).mockResolvedValue(123n);
 
       // Mock getPermissionDomain
-      vi.spyOn(controller as any, "getPermissionDomain").mockResolvedValue({
+      vi.spyOn(
+        controller as unknown as {
+          getPermissionDomain: () => Promise<unknown>;
+        },
+        "getPermissionDomain",
+      ).mockResolvedValue({
         name: "DataPermissions",
         version: "1",
         chainId: 14800,
@@ -73,7 +94,10 @@ describe("New PermissionsController Methods", () => {
       });
 
       // Mock signTypedData
-      vi.spyOn(controller as any, "signTypedData").mockResolvedValue(
+      vi.spyOn(
+        controller as unknown as { signTypedData: () => Promise<string> },
+        "signTypedData",
+      ).mockResolvedValue(
         "0xsignature123456789012345678901234567890123456789012345678901234567890",
       );
     });
@@ -98,11 +122,16 @@ describe("New PermissionsController Methods", () => {
       );
 
       // Mock methods
-      vi.spyOn(controllerWithRelayer as any, "getUserNonce").mockResolvedValue(
-        123n,
-      );
       vi.spyOn(
-        controllerWithRelayer as any,
+        controllerWithRelayer as unknown as {
+          getUserNonce: () => Promise<bigint>;
+        },
+        "getUserNonce",
+      ).mockResolvedValue(123n);
+      vi.spyOn(
+        controllerWithRelayer as unknown as {
+          getPermissionDomain: () => Promise<unknown>;
+        },
         "getPermissionDomain",
       ).mockResolvedValue({
         name: "DataPermissions",
@@ -110,7 +139,12 @@ describe("New PermissionsController Methods", () => {
         chainId: 14800,
         verifyingContract: "0x1234567890123456789012345678901234567890",
       });
-      vi.spyOn(controllerWithRelayer as any, "signTypedData").mockResolvedValue(
+      vi.spyOn(
+        controllerWithRelayer as unknown as {
+          signTypedData: () => Promise<string>;
+        },
+        "signTypedData",
+      ).mockResolvedValue(
         "0xsignature123456789012345678901234567890123456789012345678901234567890",
       );
 
@@ -154,9 +188,14 @@ describe("New PermissionsController Methods", () => {
       const directController = new PermissionsController(mockContext);
 
       // Mock methods for direct controller
-      vi.spyOn(directController as any, "getUserNonce").mockResolvedValue(123n);
       vi.spyOn(
-        directController as any,
+        directController as unknown as { getUserNonce: () => Promise<bigint> },
+        "getUserNonce",
+      ).mockResolvedValue(123n);
+      vi.spyOn(
+        directController as unknown as {
+          getPermissionDomain: () => Promise<unknown>;
+        },
         "getPermissionDomain",
       ).mockResolvedValue({
         name: "DataPermissions",
@@ -164,13 +203,18 @@ describe("New PermissionsController Methods", () => {
         chainId: 14800,
         verifyingContract: "0x1234567890123456789012345678901234567890",
       });
-      vi.spyOn(directController as any, "signTypedData").mockResolvedValue(
+      vi.spyOn(
+        directController as unknown as { signTypedData: () => Promise<string> },
+        "signTypedData",
+      ).mockResolvedValue(
         "0xsignature123456789012345678901234567890123456789012345678901234567890",
       );
 
       // Mock submitDirectRevokeTransaction
       vi.spyOn(
-        directController as any,
+        directController as unknown as {
+          submitDirectRevokeTransaction: () => Promise<string>;
+        },
         "submitDirectRevokeTransaction",
       ).mockResolvedValue(
         "0xhash123456789012345678901234567890123456789012345678901234567890",
@@ -194,7 +238,7 @@ describe("New PermissionsController Methods", () => {
           ...mockWalletClient,
           chain: undefined, // No chain
         },
-      };
+      } as unknown as ControllerContext;
 
       const noChainController = new PermissionsController(noChainContext);
 
@@ -349,9 +393,10 @@ describe("New PermissionsController Methods", () => {
       );
 
       // Mock getUserAddress
-      vi.spyOn(controller as any, "getUserAddress").mockResolvedValue(
-        "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-      );
+      vi.spyOn(
+        controller as unknown as { getUserAddress: () => Promise<string> },
+        "getUserAddress",
+      ).mockResolvedValue("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
     });
 
     describe("submitDirectRevokeTransaction", () => {
@@ -380,10 +425,14 @@ describe("New PermissionsController Methods", () => {
         const signature =
           "0xsignature123456789012345678901234567890123456789012345678901234567890";
 
-        const result = await (controller as any).submitDirectRevokeTransaction(
-          typedData,
-          signature,
-        );
+        const result = await (
+          controller as unknown as {
+            submitDirectRevokeTransaction: (
+              typedData: unknown,
+              signature: string,
+            ) => Promise<string>;
+          }
+        ).submitDirectRevokeTransaction(typedData, signature);
 
         expect(result).toBe(
           "0xhash123456789012345678901234567890123456789012345678901234567890",
@@ -429,10 +478,14 @@ describe("New PermissionsController Methods", () => {
           "0xsignature123456789012345678901234567890123456789012345678901234567890";
 
         await expect(
-          (controller as any).submitDirectRevokeTransaction(
-            typedData,
-            signature,
-          ),
+          (
+            controller as unknown as {
+              submitDirectRevokeTransaction: (
+                typedData: unknown,
+                signature: string,
+              ) => Promise<string>;
+            }
+          ).submitDirectRevokeTransaction(typedData, signature),
         ).rejects.toThrow("Transaction failed");
       });
     });

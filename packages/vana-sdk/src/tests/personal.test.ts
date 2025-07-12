@@ -4,6 +4,7 @@ import { ServerController } from "../controllers/server";
 import { ControllerContext } from "../controllers/permissions";
 import { NetworkError, SignatureError, PersonalServerError } from "../errors";
 import { PostRequestParams, InitPersonalServerParams } from "../types";
+import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock global fetch
 const mockFetch = vi.fn();
@@ -25,9 +26,19 @@ const mockUserAddress = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
 describe("ServerController", () => {
   let serverController: ServerController;
   let mockContext: ControllerContext;
-  let mockWalletClient: any;
-  let mockApplicationClient: any;
-  let mockAccount: any;
+  let mockWalletClient: {
+    account: unknown;
+    getAddresses: ReturnType<typeof vi.fn>;
+  };
+  let mockApplicationClient: {
+    account: unknown;
+    getAddresses: ReturnType<typeof vi.fn>;
+  };
+  let mockAccount: {
+    type: string;
+    address: Address;
+    signMessage: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     // Reset environment
@@ -55,9 +66,12 @@ describe("ServerController", () => {
 
     // Create mock context
     mockContext = {
-      walletClient: mockWalletClient,
-      applicationClient: mockApplicationClient,
-      publicClient: {} as any,
+      walletClient:
+        mockWalletClient as unknown as ControllerContext["walletClient"],
+      applicationClient:
+        mockApplicationClient as unknown as ControllerContext["applicationClient"],
+      publicClient: {} as unknown as ControllerContext["publicClient"],
+      platform: mockPlatformAdapter,
     };
 
     serverController = new ServerController(mockContext);
@@ -77,7 +91,9 @@ describe("ServerController", () => {
     });
 
     it("should set the context correctly", () => {
-      expect((serverController as any).context).toBe(mockContext);
+      expect(
+        (serverController as unknown as { context: unknown }).context,
+      ).toBe(mockContext);
     });
   });
 
@@ -336,7 +352,7 @@ describe("ServerController", () => {
     });
 
     it("should throw PersonalServerError for non-string user address", async () => {
-      const invalidParams = { userAddress: 123 as any };
+      const invalidParams = { userAddress: 123 as unknown as string };
 
       await expect(
         serverController.initPersonalServer(invalidParams),
@@ -454,7 +470,9 @@ describe("ServerController", () => {
 
       // Mock setTimeout to avoid actual waiting
       const originalSetTimeout = global.setTimeout;
-      global.setTimeout = vi.fn().mockImplementation((fn) => fn()) as any;
+      global.setTimeout = vi
+        .fn()
+        .mockImplementation((fn) => fn()) as unknown as typeof setTimeout;
 
       try {
         await expect(
@@ -669,8 +687,10 @@ describe("ServerController", () => {
       const originalSetTimeout = global.setTimeout;
       global.setTimeout = vi.fn((callback, _ms) => {
         callback();
-        return { __promisify__: vi.fn() } as any;
-      }) as any;
+        return { __promisify__: vi.fn() } as unknown as ReturnType<
+          typeof setTimeout
+        >;
+      }) as unknown as typeof setTimeout;
 
       try {
         // Mock all polling requests to stay in processing state

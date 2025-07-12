@@ -3,6 +3,15 @@ import { getContractController, __contractCache } from "../contractController";
 import { VanaContract } from "../../abi";
 import { createClient } from "../../core/client";
 import { vanaMainnet, mokshaTestnet } from "../../config/chains";
+import type { PublicClient, WalletClient as _WalletClient } from "viem";
+
+// Mock client interface for testing
+interface _MockClient {
+  chain?: { id: number } | null | undefined;
+  transport: Record<string, unknown>;
+  readContract: ReturnType<typeof vi.fn>;
+  writeContract: ReturnType<typeof vi.fn>;
+}
 
 // Mock dependencies
 vi.mock("../../core/client", () => ({
@@ -45,14 +54,14 @@ describe("contractController", () => {
     transport: {},
     readContract: vi.fn(),
     writeContract: vi.fn(),
-  } as any;
+  };
 
   const mockClientWithoutChain = {
     chain: undefined,
     transport: {},
     readContract: vi.fn(),
     writeContract: vi.fn(),
-  } as any;
+  };
 
   beforeEach(() => {
     // Reset mocks
@@ -62,7 +71,9 @@ describe("contractController", () => {
     __contractCache.clear();
 
     // Mock createClient to return our mock client
-    vi.mocked(createClient).mockReturnValue(mockClient);
+    vi.mocked(createClient).mockReturnValue(
+      mockClient as unknown as ReturnType<typeof createClient>,
+    );
   });
 
   afterEach(() => {
@@ -123,12 +134,15 @@ describe("contractController", () => {
         transport: {},
         readContract: vi.fn(),
         writeContract: vi.fn(),
-      } as any;
+      };
 
       const { getContract } = await import("viem");
       const { getContractAddress } = await import("../../config/addresses");
 
-      const controller = getContractController("DataRegistry", customClient);
+      const controller = getContractController(
+        "DataRegistry",
+        customClient as unknown as PublicClient,
+      );
 
       expect(getContract).toHaveBeenCalledWith({
         address: "0x1234567890123456789012345678901234567890",
@@ -149,7 +163,7 @@ describe("contractController", () => {
 
       const controller = getContractController(
         "DataRegistry",
-        mockClientWithoutChain,
+        mockClientWithoutChain as unknown as PublicClient,
       );
 
       expect(getContract).toHaveBeenCalledWith({
@@ -171,13 +185,13 @@ describe("contractController", () => {
         transport: {},
         readContract: vi.fn(),
         writeContract: vi.fn(),
-      } as any;
+      };
 
       const { getContractAddress } = await import("../../config/addresses");
 
       const controller = getContractController(
         "DataRegistry",
-        clientWithNullChain,
+        clientWithNullChain as unknown as PublicClient,
       );
 
       expect(getContractAddress).toHaveBeenCalledWith(

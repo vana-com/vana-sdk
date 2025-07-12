@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DataController } from "../controllers/data";
 import { ControllerContext } from "../controllers/permissions";
 import { Address } from "viem";
+import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock global fetch
 const mockFetch = vi.fn();
@@ -18,7 +19,9 @@ vi.mock("../utils/encryption", () => ({
 describe("DataController Relayer Integration", () => {
   let dataController: DataController;
   let mockContext: ControllerContext;
-  let mockStorageManager: any;
+  let mockStorageManager: {
+    upload: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -38,9 +41,10 @@ describe("DataController Relayer Integration", () => {
         account: { address: "0xTestUser" },
         getAddresses: vi.fn().mockResolvedValue(["0xTestUser"]),
         signMessage: vi.fn().mockResolvedValue("0xSignature"),
-      } as any,
-      publicClient: {} as any,
-      applicationClient: {} as any,
+      } as unknown as ControllerContext["walletClient"],
+      publicClient: {} as unknown as ControllerContext["publicClient"],
+      applicationClient:
+        {} as unknown as ControllerContext["applicationClient"],
       relayerCallbacks: {
         submitFileAddition: vi.fn().mockResolvedValue({
           fileId: 123,
@@ -51,7 +55,9 @@ describe("DataController Relayer Integration", () => {
           transactionHash: "0xabcdef123456789",
         }),
       },
-      storageManager: mockStorageManager,
+      storageManager:
+        mockStorageManager as unknown as ControllerContext["storageManager"],
+      platform: mockPlatformAdapter,
     };
 
     dataController = new DataController(mockContext);

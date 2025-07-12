@@ -208,7 +208,7 @@ export class DataController {
         );
       }
 
-      const result: SubgraphResponse = await response.json();
+      const result = (await response.json()) as SubgraphResponse;
 
       if (result.errors) {
         throw new Error(
@@ -256,7 +256,7 @@ export class DataController {
         Number((b.addedAtTimestamp || 0n) - (a.addedAtTimestamp || 0n)),
       );
 
-      console.warn(`Found ${userFiles.length} files owned by user:`, owner);
+      // Successfully retrieved user files
       return userFiles;
     } catch (error) {
       console.error("Failed to fetch user files from subgraph:", error);
@@ -348,7 +348,7 @@ export class DataController {
         );
       }
 
-      const result: SubgraphResponse = await response.json();
+      const result = (await response.json()) as SubgraphResponse;
 
       if (result.errors) {
         throw new Error(
@@ -376,10 +376,7 @@ export class DataController {
         }))
         .sort((a, b) => Number(b.addedAtTimestamp - a.addedAtTimestamp)); // Latest first
 
-      console.warn(
-        `Found ${permissions.length} permissions granted by user:`,
-        user,
-      );
+      // Successfully retrieved user permissions
       return permissions;
     } catch (error) {
       console.error("Failed to fetch user permissions from subgraph:", error);
@@ -465,7 +462,7 @@ export class DataController {
         );
       }
 
-      const result: SubgraphResponse = await response.json();
+      const result = (await response.json()) as SubgraphResponse;
 
       if (result.errors) {
         throw new Error(
@@ -475,7 +472,7 @@ export class DataController {
 
       const userData = result.data?.user;
       if (!userData || !userData.trustedServers?.length) {
-        console.warn("No trusted servers found for user:", user);
+        // No trusted servers found for user
         return [];
       }
 
@@ -490,10 +487,7 @@ export class DataController {
         }))
         .sort((a, b) => Number(b.trustedAt - a.trustedAt)); // Latest first
 
-      console.warn(
-        `Found ${trustedServers.length} trusted servers for user:`,
-        user,
-      );
+      // Successfully retrieved trusted servers
       return trustedServers;
     } catch (error) {
       console.error(
@@ -849,7 +843,7 @@ export class DataController {
 
       // Step 2: Fetch the encrypted file from the URL
       const fetchUrl = this.convertIpfsUrl(file.url);
-      console.warn(`🔍 Fetching file from: ${file.url} -> ${fetchUrl}`);
+      // Fetching file from storage
 
       const response = await fetch(fetchUrl);
       if (!response.ok) {
@@ -876,7 +870,7 @@ export class DataController {
       }
 
       // Step 3: Decrypt the file using the canonical Vana decryption method
-      const decryptedBlob = await decryptUserData(encryptedBlob, encryptionKey);
+      const decryptedBlob = await decryptUserData(encryptedBlob, encryptionKey, this.context.platform);
 
       return decryptedBlob;
     } catch (error) {
@@ -1494,7 +1488,7 @@ export class DataController {
       );
 
       // 2. Encrypt data with user's key
-      const encryptedData = await encryptUserData(data, userEncryptionKey);
+      const encryptedData = await encryptUserData(data, userEncryptionKey, this.context.platform);
 
       // 3. Upload the encrypted file
       if (!this.context.storageManager) {
@@ -1518,6 +1512,7 @@ export class DataController {
           const encryptedKey = await encryptWithWalletPublicKey(
             userEncryptionKey,
             permission.publicKey,
+            this.context.platform,
           );
           return {
             account: permission.account,
@@ -1588,6 +1583,7 @@ export class DataController {
       const encryptedKey = await encryptWithWalletPublicKey(
         userEncryptionKey,
         publicKey,
+        this.context.platform,
       );
 
       // 3. Add permission to the file
@@ -1716,6 +1712,7 @@ export class DataController {
       const userEncryptionKey = await decryptWithWalletPrivateKey(
         encryptedKey,
         privateKey,
+        this.context.platform,
       );
 
       // 3. Download the encrypted file
@@ -1729,6 +1726,7 @@ export class DataController {
       const decryptedData = await decryptUserData(
         encryptedData,
         userEncryptionKey,
+        this.context.platform,
       );
 
       return decryptedData;

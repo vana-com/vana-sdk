@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createWalletClient, http } from "viem";
+import { createWalletClient, http, type WalletClient } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { mokshaTestnet } from "../config/chains";
-import { Vana } from "../vana";
+import { VanaCore } from "../core";
 import { InvalidConfigurationError } from "../errors";
+import { type VanaChain, type VanaConfig, type WalletConfig } from "../types";
+import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock the controllers
 vi.mock("../controllers/permissions", () => ({
@@ -43,8 +45,8 @@ const testAccount = privateKeyToAccount(
   "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
 );
 
-describe("Vana", () => {
-  let validWalletClient: any;
+describe("VanaCore", () => {
+  let validWalletClient: WalletClient & { chain: VanaChain };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -53,18 +55,18 @@ describe("Vana", () => {
       account: testAccount,
       chain: mokshaTestnet,
       transport: http("https://rpc.moksha.vana.org"),
-    });
+    }) as WalletClient & { chain: VanaChain };
   });
 
   describe("Constructor", () => {
     it("should initialize successfully with valid config", () => {
-      const vana = new Vana({
+      const vana = new VanaCore({
         walletClient: validWalletClient,
         relayerCallbacks: {
           submitPermissionGrant: async (_typedData, _signature) => "0xtxhash",
           submitPermissionRevoke: async (_typedData, _signature) => "0xtxhash",
         },
-      });
+      }, mockPlatformAdapter);
 
       expect(vana).toBeDefined();
       expect(vana.permissions).toBeDefined();
@@ -73,60 +75,63 @@ describe("Vana", () => {
     });
 
     it("should work without relayer callbacks (direct transaction mode)", () => {
-      const vana = new Vana({
+      const vana = new VanaCore({
         walletClient: validWalletClient,
-      });
+      }, mockPlatformAdapter);
 
       expect(vana.getConfig().relayerCallbacks).toBeUndefined();
     });
 
     it("should throw InvalidConfigurationError when config is missing", () => {
       expect(() => {
-        new Vana(null as any);
+        new VanaCore(null as unknown as VanaConfig, mockPlatformAdapter);
       }).toThrow(InvalidConfigurationError);
     });
 
     it("should throw InvalidConfigurationError when walletClient is missing", () => {
       expect(() => {
-        new Vana({} as any);
+        new VanaCore({} as unknown as VanaConfig, mockPlatformAdapter);
       }).toThrow(InvalidConfigurationError);
     });
 
     it("should throw InvalidConfigurationError when walletClient is invalid", () => {
       expect(() => {
-        new Vana({
-          walletClient: {} as any,
-        });
+        new VanaCore({
+          walletClient: {} as unknown as typeof validWalletClient,
+        }, mockPlatformAdapter);
       }).toThrow(InvalidConfigurationError);
     });
 
     it("should throw InvalidConfigurationError when relayerCallbacks is invalid", () => {
       expect(() => {
-        new Vana({
+        new VanaCore({
           walletClient: validWalletClient,
-          relayerCallbacks: "not-an-object" as any,
-        });
+          relayerCallbacks: "not-an-object" as unknown as Record<
+            string,
+            unknown
+          >,
+        }, mockPlatformAdapter);
       }).toThrow(InvalidConfigurationError);
     });
 
     it("should work with partial relayerCallbacks", () => {
       expect(() => {
-        new Vana({
+        new VanaCore({
           walletClient: validWalletClient,
           relayerCallbacks: {
             submitPermissionGrant: async (_typedData, _signature) => "0xtxhash",
             // Only one callback provided - should still work
           },
-        });
+        }, mockPlatformAdapter);
       }).not.toThrow();
     });
 
     it("should work with empty relayerCallbacks object", () => {
       expect(() => {
-        new Vana({
+        new VanaCore({
           walletClient: validWalletClient,
           relayerCallbacks: {},
-        });
+        }, mockPlatformAdapter);
       }).not.toThrow();
     });
 
@@ -134,7 +139,7 @@ describe("Vana", () => {
       const invalidChainClient = createWalletClient({
         account: testAccount,
         chain: {
-          id: 99999 as any, // Invalid chain ID for testing
+          id: 99999 as unknown as number, // Invalid chain ID for testing
           name: "Unsupported Chain",
           nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
           rpcUrls: { default: { http: ["http://localhost:8545"] } },
@@ -143,9 +148,10 @@ describe("Vana", () => {
       });
 
       expect(() => {
-        new Vana({
-          walletClient: invalidChainClient,
-        });
+        new VanaCore({
+          walletClient:
+            invalidChainClient as unknown as WalletConfig["walletClient"],
+        } as WalletConfig, mockPlatformAdapter);
       }).toThrow(InvalidConfigurationError);
     });
 
@@ -156,24 +162,25 @@ describe("Vana", () => {
       };
 
       expect(() => {
-        new Vana({
-          walletClient: noChainClient,
-        });
+        new VanaCore({
+          walletClient:
+            noChainClient as unknown as WalletConfig["walletClient"],
+        } as WalletConfig, mockPlatformAdapter);
       }).toThrow(InvalidConfigurationError);
     });
   });
 
   describe("Properties", () => {
-    let vana: Vana;
+    let vana: VanaCore;
 
     beforeEach(() => {
-      vana = new Vana({
+      vana = new VanaCore({
         walletClient: validWalletClient,
         relayerCallbacks: {
           submitPermissionGrant: async (_typedData, _signature) => "0xtxhash",
           submitPermissionRevoke: async (_typedData, _signature) => "0xtxhash",
         },
-      });
+      }, mockPlatformAdapter);
     });
 
     it("should expose all controller properties", () => {
@@ -192,16 +199,16 @@ describe("Vana", () => {
   });
 
   describe("Methods", () => {
-    let vana: Vana;
+    let vana: VanaCore;
 
     beforeEach(() => {
-      vana = new Vana({
+      vana = new VanaCore({
         walletClient: validWalletClient,
         relayerCallbacks: {
           submitPermissionGrant: async (_typedData, _signature) => "0xtxhash",
           submitPermissionRevoke: async (_typedData, _signature) => "0xtxhash",
         },
-      });
+      }, mockPlatformAdapter);
     });
 
     it("should return configuration summary", () => {
@@ -222,7 +229,8 @@ describe("Vana", () => {
     it("should get user address", async () => {
       // Mock the private method call
       const mockGetUserAddress = vi.fn().mockResolvedValue(testAccount.address);
-      (vana.permissions as any).getUserAddress = mockGetUserAddress;
+      (vana.permissions as unknown as Record<string, unknown>).getUserAddress =
+        mockGetUserAddress;
 
       const address = await vana.getUserAddress();
       expect(address).toBe(testAccount.address);
@@ -231,13 +239,13 @@ describe("Vana", () => {
 
   describe("Integration", () => {
     it("should pass shared context to all controllers", () => {
-      const vana = new Vana({
+      const vana = new VanaCore({
         walletClient: validWalletClient,
         relayerCallbacks: {
           submitPermissionGrant: async (_typedData, _signature) => "0xtxhash",
           submitPermissionRevoke: async (_typedData, _signature) => "0xtxhash",
         },
-      });
+      }, mockPlatformAdapter);
 
       // Verify that controllers are initialized with the correct context
       expect(vana.permissions).toBeDefined();
@@ -265,7 +273,7 @@ describe("Vana", () => {
         getConfig: vi.fn().mockReturnValue({ name: "Mock Provider" }),
       };
 
-      const vana = new Vana({
+      const vana = new VanaCore({
         walletClient: validWalletClient,
         storage: {
           providers: {
@@ -273,7 +281,7 @@ describe("Vana", () => {
           },
           defaultProvider: "mock",
         },
-      });
+      }, mockPlatformAdapter);
 
       expect(vana).toBeDefined();
       // StorageManager should be created and configured
@@ -298,7 +306,7 @@ describe("Vana", () => {
         getConfig: vi.fn().mockReturnValue({ name: "Mock Provider 2" }),
       };
 
-      const vana = new Vana({
+      const vana = new VanaCore({
         walletClient: validWalletClient,
         storage: {
           providers: {
@@ -307,7 +315,7 @@ describe("Vana", () => {
           },
           // No defaultProvider specified
         },
-      });
+      }, mockPlatformAdapter);
 
       expect(vana).toBeDefined();
       const { StorageManager } = await import("../storage");
@@ -322,9 +330,9 @@ describe("Vana", () => {
     });
 
     it("should work without storage configuration", async () => {
-      const vana = new Vana({
+      const vana = new VanaCore({
         walletClient: validWalletClient,
-      });
+      }, mockPlatformAdapter);
 
       expect(vana).toBeDefined();
       // StorageManager should not be called when no storage config
@@ -333,9 +341,9 @@ describe("Vana", () => {
       const callCount = MockedStorageManager.mock.calls.length;
 
       // Create another instance to verify StorageManager isn't called again
-      new Vana({
+      new VanaCore({
         walletClient: validWalletClient,
-      });
+      }, mockPlatformAdapter);
 
       expect(MockedStorageManager.mock.calls.length).toBe(callCount); // Should be same, no new calls
     });

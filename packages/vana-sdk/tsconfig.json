@@ -21,7 +21,6 @@
     "noImplicitOverride": true,
     "skipLibCheck": true,
     "types": ["node"],
-    "rootDir": "./src",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": false,
@@ -30,6 +29,6 @@
     "incremental": true,
     "tsBuildInfoFile": ".tsbuildinfo"
   },
-  "include": ["src/**/*.ts", "src/**/*.json"],
+  "include": ["src/**/*.ts", "src/**/*.json", "tsup.config.ts"],
   "exclude": ["node_modules", "dist", "**/dist", "examples/**/*", "coverage/**/*", "test-dist"]
 }

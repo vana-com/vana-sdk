@@ -573,11 +573,14 @@ describe("Grant Files Utils", () => {
     });
 
     it("should throw SerializationError for invalid data", () => {
+      // Type for circular reference testing
+      type CircularRef = { self?: CircularRef };
+
       const grantFile = {
         grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "test",
         parameters: {
-          circular: {} as any,
+          circular: {} as CircularRef,
         },
       };
 

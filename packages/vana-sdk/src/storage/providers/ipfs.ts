@@ -25,6 +25,12 @@ export interface IPFSConfig {
   gatewayUrl?: string;
 }
 
+interface IPFSUploadResponse {
+  IpfsHash?: string;
+  Hash?: string;
+  hash?: string;
+}
+
 export class IPFSStorage implements StorageProvider {
   constructor(private config: IPFSConfig) {
     if (!config.apiEndpoint) {
@@ -82,7 +88,7 @@ export class IPFSStorage implements StorageProvider {
         );
       }
 
-      const result = await response.json();
+      const result = (await response.json()) as IPFSUploadResponse;
 
       // Handle different IPFS service response formats
       const hash = result.IpfsHash || result.Hash || result.hash;

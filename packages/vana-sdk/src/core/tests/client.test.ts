@@ -7,7 +7,7 @@ describe("client", () => {
   beforeEach(async () => {
     // Reset client cache between tests - accessing module-level cache
     const clientModule = await import("../client");
-    (clientModule as any)._client = undefined;
+    (clientModule as unknown as { _client?: unknown })._client = undefined;
   });
 
   describe("defaultFromBlock", () => {
@@ -122,7 +122,7 @@ describe("client", () => {
 
     it("should handle initial cache state correctly", () => {
       // Ensure cache is empty
-      (global as any)._client = undefined;
+      (global as unknown as { _client?: unknown })._client = undefined;
 
       const client = createClient();
       expect(client.chain?.id).toBe(mokshaTestnet.id);

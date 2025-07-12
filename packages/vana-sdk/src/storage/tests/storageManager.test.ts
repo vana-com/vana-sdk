@@ -5,6 +5,7 @@ import {
   StorageUploadResult,
   StorageFile,
   StorageError,
+  StorageProviderConfig,
 } from "../index";
 
 // Mock storage provider for testing
@@ -23,7 +24,7 @@ class MockStorageProvider implements StorageProvider {
     return this.downloadMock(url);
   }
 
-  async list(options?: any): Promise<StorageFile[]> {
+  async list(options?: Record<string, unknown>): Promise<StorageFile[]> {
     return this.listMock(options);
   }
 
@@ -31,7 +32,7 @@ class MockStorageProvider implements StorageProvider {
     return this.deleteMock(url);
   }
 
-  getConfig(): any {
+  getConfig(): StorageProviderConfig {
     return this.getConfigMock();
   }
 }

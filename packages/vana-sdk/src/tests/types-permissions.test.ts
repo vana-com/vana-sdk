@@ -1,5 +1,22 @@
 import { describe, it, expect } from "vitest";
 import type { Address, Hash } from "viem";
+
+// Test-specific interfaces
+interface ComplexParameters {
+  algorithm: string;
+  hyperparameters: {
+    learningRate: number;
+    batchSize: number;
+    epochs: number;
+    layers: Array<Record<string, unknown>>;
+  };
+  metadata: {
+    description: string;
+    version: string;
+    author: string;
+  };
+}
+
 import type {
   GrantedPermission,
   GrantPermissionParams,
@@ -733,13 +750,20 @@ describe("Permission Types", () => {
       };
 
       expect(complexParams.parameters.algorithm).toBe("neural_network");
-      expect((complexParams.parameters as any).hyperparameters.epochs).toBe(
-        100,
-      );
       expect(
-        Array.isArray((complexParams.parameters as any).hyperparameters.layers),
+        (complexParams.parameters as unknown as ComplexParameters)
+          .hyperparameters.epochs,
+      ).toBe(100);
+      expect(
+        Array.isArray(
+          (complexParams.parameters as unknown as ComplexParameters)
+            .hyperparameters.layers,
+        ),
       ).toBe(true);
-      expect((complexParams.parameters as any).metadata.version).toBe("1.0.0");
+      expect(
+        (complexParams.parameters as unknown as ComplexParameters).metadata
+          .version,
+      ).toBe("1.0.0");
     });
 
     it("should validate address and hash formats", () => {

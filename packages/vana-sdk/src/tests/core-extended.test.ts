@@ -367,7 +367,7 @@ describe("VanaCore Extended Tests", () => {
       expect(() => {
         new VanaCore(
           {
-            chainId: 1, // Ethereum mainnet - not supported
+            chainId: 1 as any, // Ethereum mainnet - not supported
             account: testAccount,
           },
           mockPlatformAdapter,

@@ -7,6 +7,8 @@ import {
   TableBody,
   TableRow,
   TableCell,
+  Select,
+  SelectItem,
 } from "@heroui/react";
 import { Shield, ExternalLink, Trash2 } from "lucide-react";
 import { SectionHeader } from "./ui/SectionHeader";
@@ -43,6 +45,10 @@ interface TrustedServerManagementCardProps {
   // Results and status
   trustServerError: string;
   chainId?: number;
+
+  // Query mode selection
+  queryMode?: "subgraph" | "rpc" | "auto";
+  onQueryModeChange?: (mode: "subgraph" | "rpc" | "auto") => void;
 }
 
 export const TrustedServerManagementCard: React.FC<
@@ -63,6 +69,8 @@ export const TrustedServerManagementCard: React.FC<
   onRefreshServers,
   trustServerError,
   chainId = 14800,
+  queryMode = "auto",
+  onQueryModeChange,
 }) => {
   return (
     <section id="trusted-servers">
@@ -134,14 +142,36 @@ export const TrustedServerManagementCard: React.FC<
                   {trustedServers.length !== 1 ? "s" : ""} trusted
                 </p>
               </div>
-              <Button
-                onPress={onRefreshServers}
-                variant="bordered"
-                size="sm"
-                isLoading={isLoadingServers}
-              >
-                Refresh
-              </Button>
+              <div className="flex items-center gap-2">
+                {onQueryModeChange && (
+                  <Select
+                    size="sm"
+                    label="Query Mode"
+                    placeholder="Select query mode"
+                    selectedKeys={[queryMode]}
+                    onSelectionChange={(keys) => {
+                      const mode = Array.from(keys)[0] as
+                        | "subgraph"
+                        | "rpc"
+                        | "auto";
+                      onQueryModeChange(mode);
+                    }}
+                    className="w-40"
+                  >
+                    <SelectItem key="auto">Auto (Smart Fallback)</SelectItem>
+                    <SelectItem key="subgraph">Subgraph (Fast)</SelectItem>
+                    <SelectItem key="rpc">RPC (Direct)</SelectItem>
+                  </Select>
+                )}
+                <Button
+                  onPress={onRefreshServers}
+                  variant="bordered"
+                  size="sm"
+                  isLoading={isLoadingServers}
+                >
+                  Refresh
+                </Button>
+              </div>
             </div>
 
             {trustedServers.length === 0 ? (

@@ -6,6 +6,7 @@ import { ActionButton } from "./ui/ActionButton";
 import { StatusMessage } from "./ui/StatusMessage";
 import { CodeDisplay } from "./ui/CodeDisplay";
 import { InfoBox } from "./ui/InfoBox";
+import { AddressDisplay } from "./ui/AddressDisplay";
 
 interface TrustedServerIntegrationCardProps {
   // Server decryption demo
@@ -13,6 +14,7 @@ interface TrustedServerIntegrationCardProps {
   onServerFileIdChange: (id: string) => void;
   serverPrivateKey: string;
   onServerPrivateKeyChange: (key: string) => void;
+  derivedServerAddress: string;
   onServerDecryption: () => void;
   isServerDecrypting: boolean;
   serverDecryptError: string;
@@ -43,6 +45,7 @@ export const TrustedServerIntegrationCard: React.FC<
   onServerFileIdChange,
   serverPrivateKey,
   onServerPrivateKeyChange,
+  derivedServerAddress,
   onServerDecryption,
   isServerDecrypting,
   serverDecryptError,
@@ -100,6 +103,27 @@ export const TrustedServerIntegrationCard: React.FC<
                 description="Hexadecimal private key for server-side decryption"
               />
             </div>
+
+            {/* Display derived server address when private key is provided */}
+            {derivedServerAddress && (
+              <div className="p-4 bg-success-50 border border-success-200 rounded-lg">
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-success-800">
+                    Derived Server Address:
+                  </p>
+                  <AddressDisplay
+                    address={derivedServerAddress}
+                    showCopy={true}
+                    showExternalLink={true}
+                    truncate={false}
+                  />
+                  <p className="text-xs text-success-600">
+                    This is the server's address derived from the private key
+                    above.
+                  </p>
+                </div>
+              </div>
+            )}
 
             <ActionButton
               onPress={onServerDecryption}

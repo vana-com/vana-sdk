@@ -377,3 +377,58 @@ export interface UpdateSchemaIdResult {
   /** Transaction hash of the update */
   transactionHash: Hash;
 }
+
+/**
+ * Query mode for trusted server retrieval
+ */
+export type TrustedServerQueryMode = "subgraph" | "rpc" | "auto";
+
+/**
+ * Trusted server data structure (unified format for both subgraph and RPC modes)
+ */
+export interface TrustedServer {
+  /** Unique identifier for the trusted server relationship */
+  id: string;
+  /** Server address (EVM address) */
+  serverAddress: Address;
+  /** Server URL */
+  serverUrl: string;
+  /** Timestamp when server was trusted */
+  trustedAt: bigint;
+  /** User who trusted the server */
+  user: Address;
+  /** Index in user's trusted server list (only available in RPC mode) */
+  trustIndex?: number;
+}
+
+/**
+ * Parameters for getUserTrustedServers with dual-mode support
+ */
+export interface GetUserTrustedServersParams {
+  /** User address to query */
+  user: Address;
+  /** Query mode: 'subgraph' (fast, requires subgraph), 'rpc' (direct contract), or 'auto' (tries subgraph first) */
+  mode?: TrustedServerQueryMode;
+  /** Subgraph URL (required for subgraph mode) */
+  subgraphUrl?: string;
+  /** Pagination limit (applies to RPC mode) */
+  limit?: number;
+  /** Pagination offset (applies to RPC mode) */
+  offset?: number;
+}
+
+/**
+ * Result of getUserTrustedServers query
+ */
+export interface GetUserTrustedServersResult {
+  /** Array of trusted servers */
+  servers: TrustedServer[];
+  /** Query mode that was actually used */
+  usedMode: TrustedServerQueryMode;
+  /** Total count (only available in RPC mode) */
+  total?: number;
+  /** Whether there are more servers (pagination info for RPC mode) */
+  hasMore?: boolean;
+  /** Any warnings or fallback information */
+  warnings?: string[];
+}

@@ -10,6 +10,9 @@ import {
   AddRefinerResult,
   UpdateSchemaIdParams,
   UpdateSchemaIdResult,
+  TrustedServer,
+  GetUserTrustedServersParams,
+  GetUserTrustedServersResult,
 } from "../types/index";
 import { ControllerContext } from "./permissions";
 import { ServerController } from "./server";
@@ -390,112 +393,311 @@ export class DataController {
    * Retrieves a list of trusted servers for a user using the new subgraph entities.
    *
    * This method queries the Vana subgraph to find trusted servers directly associated with the user
-   * using the new TrustedServer entity. It efficiently handles server trust relationships by:
-   * 1. Querying the subgraph for user's trusted servers
-   * 2. Returning complete server information from subgraph
-   * 3. No need for additional contract calls as all data comes from subgraph
+   * with support for both subgraph and direct RPC queries.
    *
-   * @param params - Object containing the user address and optional subgraph URL
-   * @param params.user - The wallet address of the user to query trusted servers for
-   * @param params.subgraphUrl - Optional subgraph URL to override the default
-   * @returns Promise resolving to an array of trusted server objects
-   * @throws Error if subgraph is unavailable or returns invalid data
+   * This method supports multiple query modes:
+   * - 'subgraph': Fast query via subgraph (requires subgraphUrl)
+   * - 'rpc': Direct contract queries (slower but no external dependencies)
+   * - 'auto': Try subgraph first, fallback to RPC if unavailable
+   *
+   * @param params - Query parameters including user address and mode selection
+   * @returns Promise resolving to trusted servers with metadata about the query
+   * @throws Error if query fails in both modes (when using 'auto')
+   *
+   * @example
+   * ```typescript
+   * // Use subgraph for fast queries
+   * const result = await vana.data.getUserTrustedServers({
+   *   user: '0x...',
+   *   mode: 'subgraph',
+   *   subgraphUrl: 'https://...'
+   * });
+   *
+   * // Use direct RPC (no external dependencies)
+   * const result = await vana.data.getUserTrustedServers({
+   *   user: '0x...',
+   *   mode: 'rpc',
+   *   limit: 10
+   * });
+   *
+   * // Auto-fallback mode
+   * const result = await vana.data.getUserTrustedServers({
+   *   user: '0x...',
+   *   mode: 'auto' // tries subgraph first, falls back to RPC
+   * });
+   * ```
    */
-  async getUserTrustedServers(params: {
+  async getUserTrustedServers(
+    params: GetUserTrustedServersParams,
+  ): Promise<GetUserTrustedServersResult> {
+    const { user, mode = "auto", subgraphUrl, limit = 50, offset = 0 } = params;
+    const warnings: string[] = [];
+
+    // Determine which query method to try first
+    let trySubgraph = false;
+    let tryRpc = false;
+
+    switch (mode) {
+      case "subgraph":
+        trySubgraph = true;
+        break;
+      case "rpc":
+        tryRpc = true;
+        break;
+      case "auto":
+        trySubgraph = true;
+        tryRpc = true; // fallback
+        break;
+    }
+
+    // Try subgraph query first (if enabled)
+    if (trySubgraph) {
+      try {
+        const subgraphResult = await this._getUserTrustedServersViaSubgraph({
+          user,
+          subgraphUrl: subgraphUrl || this.context.subgraphUrl,
+        });
+
+        return {
+          servers: subgraphResult,
+          usedMode: "subgraph",
+          warnings: warnings.length > 0 ? warnings : undefined,
+        };
+      } catch (error) {
+        if (mode === "subgraph") {
+          // If specifically requested subgraph mode, throw the error
+          throw error;
+        }
+
+        // In auto mode, log the warning and try RPC fallback
+        warnings.push(
+          `Subgraph query failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        );
+        console.warn("Subgraph query failed, falling back to RPC mode:", error);
+      }
+    }
+
+    // Try RPC query (if enabled or as fallback)
+    if (tryRpc) {
+      try {
+        const rpcResult = await this._getUserTrustedServersViaRpc({
+          user,
+          limit,
+          offset,
+        });
+
+        return {
+          servers: rpcResult.servers,
+          usedMode: "rpc",
+          total: rpcResult.total,
+          hasMore: rpcResult.hasMore,
+          warnings: warnings.length > 0 ? warnings : undefined,
+        };
+      } catch (error) {
+        if (mode === "rpc") {
+          // If specifically requested RPC mode, throw the error
+          throw error;
+        }
+
+        // In auto mode with subgraph already failed, throw combined error
+        throw new Error(
+          `Both query methods failed. Subgraph: ${warnings[0] || "Unknown error"}. RPC: ${error instanceof Error ? error.message : "Unknown error"}`,
+        );
+      }
+    }
+
+    throw new Error("Invalid query mode specified");
+  }
+
+  /**
+   * Internal method: Query trusted servers via subgraph
+   */
+  private async _getUserTrustedServersViaSubgraph(params: {
     user: Address;
     subgraphUrl?: string;
-  }): Promise<
-    Array<{
-      id: string;
-      serverAddress: Address;
-      serverUrl: string;
-      trustedAt: bigint;
-      user: Address;
-    }>
-  > {
+  }): Promise<TrustedServer[]> {
     const { user, subgraphUrl } = params;
 
-    // Use provided subgraph URL or default from context
-    const graphqlEndpoint = subgraphUrl || this.context.subgraphUrl;
-
+    const graphqlEndpoint = subgraphUrl;
     if (!graphqlEndpoint) {
       throw new Error(
-        "subgraphUrl is required. Please provide a valid subgraph endpoint or configure it in Vana constructor.",
+        "subgraphUrl is required for subgraph mode. Please provide a valid subgraph endpoint or configure it in Vana constructor.",
       );
     }
 
-    try {
-      // Query the subgraph for user's trusted servers using the new TrustedServer entity
-      const query = `
-        query GetUserTrustedServers($userId: ID!) {
-          user(id: $userId) {
+    const query = `
+      query GetUserTrustedServers($userId: ID!) {
+        user(id: $userId) {
+          id
+          trustedServers {
             id
-            trustedServers {
+            serverAddress
+            serverUrl
+            trustedAt
+            user {
               id
-              serverAddress
-              serverUrl
-              trustedAt
-              user {
-                id
-              }
             }
           }
         }
-      `;
-
-      const response = await fetch(graphqlEndpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      }
+    `;
+    console.info("GraphQL Endpoint:", graphqlEndpoint);
+    console.info(
+      "Body:",
+      JSON.stringify({
+        query,
+        variables: {
+          userId: user.toLowerCase(),
         },
-        body: JSON.stringify({
-          query,
-          variables: {
-            userId: user.toLowerCase(),
-          },
-        }),
+      }),
+    );
+
+    const response = await fetch(graphqlEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query,
+        variables: {
+          userId: user.toLowerCase(),
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Subgraph request failed: ${response.status} ${response.statusText}`,
+      );
+    }
+
+    const result = (await response.json()) as SubgraphResponse;
+
+    if (result.errors) {
+      throw new Error(
+        `Subgraph errors: ${result.errors.map((e) => e.message).join(", ")}`,
+      );
+    }
+
+    const userData = result.data?.user;
+    if (!userData || !userData.trustedServers?.length) {
+      return [];
+    }
+
+    // Convert subgraph data to unified format
+    return userData.trustedServers
+      .map((server) => ({
+        id: server.id,
+        serverAddress: server.serverAddress as Address,
+        serverUrl: server.serverUrl,
+        trustedAt: BigInt(server.trustedAt),
+        user: server.user.id as Address,
+      }))
+      .sort((a, b) => Number(b.trustedAt - a.trustedAt));
+  }
+
+  /**
+   * Internal method: Query trusted servers via direct RPC
+   */
+  private async _getUserTrustedServersViaRpc(params: {
+    user: Address;
+    limit: number;
+    offset: number;
+  }): Promise<{
+    servers: TrustedServer[];
+    total: number;
+    hasMore: boolean;
+  }> {
+    const { user, limit, offset } = params;
+
+    try {
+      const chainId = this.context.walletClient.chain?.id;
+      if (!chainId) {
+        throw new Error("Chain ID not available");
+      }
+
+      const DataPermissionsAddress = getContractAddress(
+        chainId,
+        "DataPermissions",
+      );
+      const DataPermissionsAbi = getAbi("DataPermissions");
+
+      // Get total count first
+      const totalCount = (await this.context.publicClient.readContract({
+        address: DataPermissionsAddress,
+        abi: DataPermissionsAbi,
+        functionName: "userServerIdsLength",
+        args: [user],
+      })) as bigint;
+
+      const total = Number(totalCount);
+
+      if (total === 0 || offset >= total) {
+        return {
+          servers: [],
+          total,
+          hasMore: false,
+        };
+      }
+
+      // Calculate pagination
+      const endIndex = Math.min(offset + limit, total);
+
+      // Fetch server IDs using pagination
+      const serverIdPromises: Promise<Address>[] = [];
+      for (let i = offset; i < endIndex; i++) {
+        const promise = this.context.publicClient.readContract({
+          address: DataPermissionsAddress,
+          abi: DataPermissionsAbi,
+          functionName: "userServerIdsAt",
+          args: [user, BigInt(i)],
+        }) as Promise<Address>;
+        serverIdPromises.push(promise);
+      }
+
+      const serverIds = await Promise.all(serverIdPromises);
+
+      // Fetch server info for each ID
+      const serverInfoPromises = serverIds.map(async (serverId, index) => {
+        try {
+          const serverInfo = (await this.context.publicClient.readContract({
+            address: DataPermissionsAddress,
+            abi: DataPermissionsAbi,
+            functionName: "servers",
+            args: [serverId],
+          })) as { url: string };
+
+          return {
+            id: `${user.toLowerCase()}-${serverId.toLowerCase()}`,
+            serverAddress: serverId,
+            serverUrl: serverInfo.url,
+            trustedAt: BigInt(Date.now()), // RPC mode doesn't have timestamp, use current time
+            user,
+            trustIndex: offset + index,
+          };
+        } catch {
+          // If server info fails, return basic info
+          return {
+            id: `${user.toLowerCase()}-${serverId.toLowerCase()}`,
+            serverAddress: serverId,
+            serverUrl: "",
+            trustedAt: BigInt(Date.now()),
+            user,
+            trustIndex: offset + index,
+          };
+        }
       });
 
-      if (!response.ok) {
-        throw new Error(
-          `Subgraph request failed: ${response.status} ${response.statusText}`,
-        );
-      }
+      const servers = await Promise.all(serverInfoPromises);
 
-      const result = (await response.json()) as SubgraphResponse;
-
-      if (result.errors) {
-        throw new Error(
-          `Subgraph errors: ${result.errors.map((e) => e.message).join(", ")}`,
-        );
-      }
-
-      const userData = result.data?.user;
-      if (!userData || !userData.trustedServers?.length) {
-        // No trusted servers found for user
-        return [];
-      }
-
-      // Convert subgraph data directly to trusted server format
-      const trustedServers = userData.trustedServers
-        .map((server) => ({
-          id: server.id,
-          serverAddress: server.serverAddress as Address,
-          serverUrl: server.serverUrl,
-          trustedAt: BigInt(server.trustedAt),
-          user: server.user.id as Address,
-        }))
-        .sort((a, b) => Number(b.trustedAt - a.trustedAt)); // Latest first
-
-      // Successfully retrieved trusted servers
-      return trustedServers;
+      return {
+        servers,
+        total,
+        hasMore: offset + limit < total,
+      };
     } catch (error) {
-      console.error(
-        "Failed to fetch user trusted servers from subgraph:",
-        error,
-      );
       throw new Error(
-        `Failed to fetch user trusted servers from subgraph: ${error instanceof Error ? error.message : "Unknown error"}`,
+        `RPC query failed: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }
@@ -870,7 +1072,11 @@ export class DataController {
       }
 
       // Step 3: Decrypt the file using the canonical Vana decryption method
-      const decryptedBlob = await decryptUserData(encryptedBlob, encryptionKey, this.context.platform);
+      const decryptedBlob = await decryptUserData(
+        encryptedBlob,
+        encryptionKey,
+        this.context.platform,
+      );
 
       return decryptedBlob;
     } catch (error) {
@@ -1488,7 +1694,11 @@ export class DataController {
       );
 
       // 2. Encrypt data with user's key
-      const encryptedData = await encryptUserData(data, userEncryptionKey, this.context.platform);
+      const encryptedData = await encryptUserData(
+        data,
+        userEncryptionKey,
+        this.context.platform,
+      );
 
       // 3. Upload the encrypted file
       if (!this.context.storageManager) {

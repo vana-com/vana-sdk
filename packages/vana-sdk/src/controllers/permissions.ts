@@ -13,6 +13,11 @@ import {
   TrustServerTypedData,
   UntrustServerTypedData,
   Server,
+  TrustedServerInfo,
+  PaginatedTrustedServers,
+  TrustedServerQueryOptions,
+  BatchServerInfoResult,
+  ServerTrustStatus,
 } from "../types/index";
 import { PermissionInfo } from "../types/permissions";
 import type { RelayerCallbacks } from "../types/config";
@@ -677,7 +682,7 @@ export class PermissionsController {
     );
 
     return {
-      name: "DataPermissions",
+      name: "VanaDataPermissions",
       version: "1",
       chainId,
       verifyingContract: DataPermissionsAddress,
@@ -758,9 +763,6 @@ export class PermissionsController {
               addedAtBlock
               addedAtTimestamp
               transactionHash
-              user {
-                id
-              }
             }
           }
         }
@@ -1266,6 +1268,251 @@ export class PermissionsController {
     } catch (error) {
       throw new BlockchainError(
         `Failed to get server info: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Gets the total count of trusted servers for a user.
+   *
+   * @param userAddress - Optional user address (defaults to current user)
+   * @returns Promise resolving to the number of trusted servers
+   */
+  async getTrustedServersCount(userAddress?: Address): Promise<number> {
+    try {
+      const user = userAddress || (await this.getUserAddress());
+      const chainId = await this.context.walletClient.getChainId();
+      const DataPermissionsAddress = getContractAddress(
+        chainId,
+        "DataPermissions",
+      );
+      const DataPermissionsAbi = getAbi("DataPermissions");
+
+      const count = (await this.context.publicClient.readContract({
+        address: DataPermissionsAddress,
+        abi: DataPermissionsAbi,
+        functionName: "userServerIdsLength",
+        args: [user],
+      })) as bigint;
+
+      return Number(count);
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get trusted servers count: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Gets trusted servers with pagination support.
+   *
+   * @param options - Query options including pagination parameters
+   * @returns Promise resolving to paginated trusted servers
+   */
+  async getTrustedServersPaginated(
+    options: TrustedServerQueryOptions = {},
+  ): Promise<PaginatedTrustedServers> {
+    try {
+      const user = options.userAddress || (await this.getUserAddress());
+      const limit = options.limit || 50;
+      const offset = options.offset || 0;
+
+      const chainId = await this.context.walletClient.getChainId();
+      const DataPermissionsAddress = getContractAddress(
+        chainId,
+        "DataPermissions",
+      );
+      const DataPermissionsAbi = getAbi("DataPermissions");
+
+      // Get total count first
+      const totalCount = (await this.context.publicClient.readContract({
+        address: DataPermissionsAddress,
+        abi: DataPermissionsAbi,
+        functionName: "userServerIdsLength",
+        args: [user],
+      })) as bigint;
+
+      const total = Number(totalCount);
+
+      // If offset is beyond available servers, return empty result
+      if (offset >= total) {
+        return {
+          servers: [],
+          total,
+          offset,
+          limit,
+          hasMore: false,
+        };
+      }
+
+      // Calculate how many servers to fetch
+      const endIndex = Math.min(offset + limit, total);
+
+      // Fetch servers using userServerIdsAt for each index
+      const serverPromises: Promise<Address>[] = [];
+      for (let i = offset; i < endIndex; i++) {
+        const promise = this.context.publicClient.readContract({
+          address: DataPermissionsAddress,
+          abi: DataPermissionsAbi,
+          functionName: "userServerIdsAt",
+          args: [user, BigInt(i)],
+        }) as Promise<Address>;
+        serverPromises.push(promise);
+      }
+
+      const servers = await Promise.all(serverPromises);
+
+      return {
+        servers,
+        total,
+        offset,
+        limit,
+        hasMore: offset + limit < total,
+      };
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get paginated trusted servers: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Gets trusted servers with their complete information.
+   *
+   * @param options - Query options
+   * @returns Promise resolving to array of trusted server info
+   */
+  async getTrustedServersWithInfo(
+    options: TrustedServerQueryOptions = {},
+  ): Promise<TrustedServerInfo[]> {
+    try {
+      // Get paginated server IDs
+      const paginatedResult = await this.getTrustedServersPaginated(options);
+
+      // Fetch server info for each server ID
+      const serverInfoPromises = paginatedResult.servers.map(
+        async (serverId, index) => {
+          try {
+            const serverInfo = await this.getServerInfo(serverId);
+            return {
+              serverId,
+              url: serverInfo.url,
+              isTrusted: true,
+              trustIndex: options.offset ? options.offset + index : index,
+            };
+          } catch {
+            // If we can't get server info, return basic info
+            return {
+              serverId,
+              url: "",
+              isTrusted: true,
+              trustIndex: options.offset ? options.offset + index : index,
+            };
+          }
+        },
+      );
+
+      return await Promise.all(serverInfoPromises);
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get trusted servers with info: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Gets server information for multiple servers efficiently.
+   *
+   * @param serverIds - Array of server IDs to query
+   * @returns Promise resolving to batch result with successes and failures
+   */
+  async getServerInfoBatch(
+    serverIds: Address[],
+  ): Promise<BatchServerInfoResult> {
+    if (serverIds.length === 0) {
+      return {
+        servers: new Map(),
+        failed: [],
+      };
+    }
+
+    try {
+      const chainId = await this.context.walletClient.getChainId();
+      const DataPermissionsAddress = getContractAddress(
+        chainId,
+        "DataPermissions",
+      );
+      const DataPermissionsAbi = getAbi("DataPermissions");
+
+      // Create promises for all server info requests
+      const serverInfoPromises = serverIds.map(async (serverId) => {
+        try {
+          const server = (await this.context.publicClient.readContract({
+            address: DataPermissionsAddress,
+            abi: DataPermissionsAbi,
+            functionName: "servers",
+            args: [serverId],
+          })) as Server;
+          return { serverId, server, success: true };
+        } catch {
+          return { serverId, server: null, success: false };
+        }
+      });
+
+      const results = await Promise.all(serverInfoPromises);
+
+      // Separate successful and failed requests
+      const servers = new Map<Address, { url: string }>();
+      const failed: Address[] = [];
+
+      for (const result of results) {
+        if (result.success && result.server) {
+          servers.set(result.serverId, result.server);
+        } else {
+          failed.push(result.serverId);
+        }
+      }
+
+      return { servers, failed };
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to batch get server info: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Checks whether a specific server is trusted by a user.
+   *
+   * @param serverId - Server ID to check
+   * @param userAddress - Optional user address (defaults to current user)
+   * @returns Promise resolving to server trust status
+   */
+  async checkServerTrustStatus(
+    serverId: Address,
+    userAddress?: Address,
+  ): Promise<ServerTrustStatus> {
+    try {
+      const user = userAddress || (await this.getUserAddress());
+      const trustedServers = await this.getTrustedServers(user);
+
+      const trustIndex = trustedServers.findIndex(
+        (server) => server.toLowerCase() === serverId.toLowerCase(),
+      );
+
+      return {
+        serverId,
+        isTrusted: trustIndex !== -1,
+        trustIndex: trustIndex !== -1 ? trustIndex : undefined,
+      };
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to check server trust status: ${error instanceof Error ? error.message : "Unknown error"}`,
         error as Error,
       );
     }

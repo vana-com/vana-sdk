@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { getContractController, __contractCache } from "../contractController";
+import {
+  getContractController,
+  clearContractCache,
+  __contractCache,
+} from "../contractController";
 import { VanaContract } from "../../abi";
 import { createClient } from "../../core/client";
 import { vanaMainnet, mokshaTestnet } from "../../config/chains";
@@ -272,6 +276,70 @@ describe("contractController", () => {
       expect(teePool1).toBe(teePool2);
       expect(dataRegistry1).not.toBe(teePool1);
       expect(getContract).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("clearContractCache", () => {
+    it("should clear specific contract and chain combination", async () => {
+      // Setup cache with multiple entries
+      getContractController("DataRegistry"); // Uses mokshaTestnet.id by default
+
+      // Create a custom client with different chain
+      const vanaClient = {
+        chain: { id: vanaMainnet.id },
+        transport: {},
+        readContract: vi.fn(),
+        writeContract: vi.fn(),
+      };
+      getContractController(
+        "DataRegistry",
+        vanaClient as unknown as PublicClient,
+      );
+      getContractController("TeePool");
+
+      expect(__contractCache.size).toBe(3);
+
+      // Clear specific contract and chain
+      clearContractCache("DataRegistry", mokshaTestnet.id);
+
+      expect(__contractCache.size).toBe(2);
+    });
+
+    it("should clear all instances of a contract across chains", async () => {
+      // Setup cache
+      getContractController("DataRegistry");
+      getContractController("TeePool");
+
+      const vanaClient = {
+        chain: { id: vanaMainnet.id },
+        transport: {},
+        readContract: vi.fn(),
+        writeContract: vi.fn(),
+      };
+      getContractController(
+        "DataRegistry",
+        vanaClient as unknown as PublicClient,
+      );
+
+      expect(__contractCache.size).toBe(3);
+
+      // Clear all DataRegistry contracts
+      clearContractCache("DataRegistry");
+
+      expect(__contractCache.size).toBe(1); // Only TeePool should remain
+    });
+
+    it("should clear entire cache when no parameters provided", async () => {
+      // Setup cache
+      getContractController("DataRegistry");
+      getContractController("TeePool");
+
+      expect(__contractCache.size).toBe(2);
+
+      // Clear entire cache
+      clearContractCache();
+
+      expect(__contractCache.size).toBe(0);
     });
   });
 });

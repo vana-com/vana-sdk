@@ -22,7 +22,7 @@ export class ServerController {
   private readonly PERSONAL_SERVER_VERSION =
     "vana-com/personal-server:292be297c333019e800e85bc32a9f431c9667898a0d88b802f5887843cb42023";
   private readonly IDENTITY_SERVER_VERSION =
-    "vana-com/identity-server:5d649e9adb8e5b551acd4edb4b7d18d9af52ecf2f3afd037b86b4251a211ff46";
+    "vana-com/identity-server:8e357fbeb87c0558b545809cabd0ef2f311082d8ce1f12b93cb8ad2f38cfbfd2";
 
   constructor(private readonly context: ControllerContext) {}
 

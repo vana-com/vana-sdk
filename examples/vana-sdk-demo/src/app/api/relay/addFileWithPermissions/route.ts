@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     console.info("🔐 Permissions:", permissions.length, "granted");
 
     // Create Vana SDK instance with relayer wallet
-    const vana = createRelayerVana();
+    const vana = await createRelayerVana();
 
     // Use the SDK's DataController to add file with permissions
     // This handles all the contract interaction and receipt parsing internally

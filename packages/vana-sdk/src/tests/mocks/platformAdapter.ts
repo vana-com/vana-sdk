@@ -10,6 +10,10 @@ export const createMockPlatformAdapter = (): VanaPlatformAdapter => ({
     encryptWithPublicKey: vi.fn(),
     decryptWithPrivateKey: vi.fn(),
     generateKeyPair: vi.fn(),
+    encryptWithWalletPublicKey: vi.fn(),
+    decryptWithWalletPrivateKey: vi.fn(),
+    encryptWithPassword: vi.fn(),
+    decryptWithPassword: vi.fn(),
   },
   pgp: {
     encrypt: vi.fn(),

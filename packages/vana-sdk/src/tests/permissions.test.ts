@@ -326,7 +326,7 @@ describe("PermissionsController", () => {
         message: { nonce: bigint; grant: string };
       };
 
-      expect(typedData.domain.name).toBe("DataPermissions");
+      expect(typedData.domain.name).toBe("VanaDataPermissions");
       expect(typedData.domain.version).toBe("1");
       expect(typedData.domain.chainId).toBe(14800);
       expect(typedData.primaryType).toBe("Permission");

@@ -38,6 +38,48 @@ export interface VanaCryptoAdapter {
    * @returns Promise resolving to public and private key pair
    */
   generateKeyPair(): Promise<{ publicKey: string; privateKey: string }>;
+
+  /**
+   * Encrypt data with a wallet's public key using ECDH cryptography
+   * Uses platform-appropriate ECDH implementation (eccrypto vs eccrypto-js)
+   * @param data The data to encrypt (string)
+   * @param publicKey The wallet's public key (secp256k1)
+   * @returns Promise resolving to encrypted data as hex string
+   */
+  encryptWithWalletPublicKey(data: string, publicKey: string): Promise<string>;
+
+  /**
+   * Decrypt data with a wallet's private key using ECDH cryptography
+   * Uses platform-appropriate ECDH implementation (eccrypto vs eccrypto-js)
+   * @param encryptedData The encrypted data as hex string
+   * @param privateKey The wallet's private key (secp256k1)
+   * @returns Promise resolving to decrypted data as string
+   */
+  decryptWithWalletPrivateKey(
+    encryptedData: string,
+    privateKey: string,
+  ): Promise<string>;
+
+  /**
+   * Encrypt data with a password using PGP password-based encryption
+   * Uses platform-appropriate OpenPGP implementation with consistent format
+   * @param data The data to encrypt as Uint8Array
+   * @param password The password for encryption (typically wallet signature)
+   * @returns Promise resolving to encrypted data as Uint8Array
+   */
+  encryptWithPassword(data: Uint8Array, password: string): Promise<Uint8Array>;
+
+  /**
+   * Decrypt data with a password using PGP password-based decryption
+   * Uses platform-appropriate OpenPGP implementation with consistent format
+   * @param encryptedData The encrypted data as Uint8Array
+   * @param password The password for decryption (typically wallet signature)
+   * @returns Promise resolving to decrypted data as Uint8Array
+   */
+  decryptWithPassword(
+    encryptedData: Uint8Array,
+    password: string,
+  ): Promise<Uint8Array>;
 }
 
 /**

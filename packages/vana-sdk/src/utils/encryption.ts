@@ -59,7 +59,7 @@ export async function encryptWithWalletPublicKey(
 ): Promise<string> {
   try {
     const dataString = data instanceof Blob ? await data.text() : data;
-    return await platformAdapter.crypto.encryptWithPublicKey(
+    return await platformAdapter.crypto.encryptWithWalletPublicKey(
       dataString,
       publicKey,
     );
@@ -81,7 +81,7 @@ export async function decryptWithWalletPrivateKey(
   platformAdapter: VanaPlatformAdapter,
 ): Promise<string> {
   try {
-    return await platformAdapter.crypto.decryptWithPrivateKey(
+    return await platformAdapter.crypto.decryptWithWalletPrivateKey(
       encryptedData,
       privateKey,
     );
@@ -163,22 +163,32 @@ export async function decryptWithPrivateKey(
 /**
  * Encrypt user data using PGP with platform-appropriate configuration
  * @param data The data to encrypt (string or Blob)
- * @param publicKey The PGP public key
+ * @param walletSignature The wallet signature to use as password
  * @param platformAdapter The platform adapter to use for encryption
  * @returns The encrypted data as Blob
  */
 export async function encryptUserData(
   data: string | Blob,
-  publicKey: string,
+  walletSignature: string,
   platformAdapter: VanaPlatformAdapter,
 ): Promise<Blob> {
   try {
-    const dataString = data instanceof Blob ? await data.text() : data;
-    const encryptedString = await platformAdapter.pgp.encrypt(
-      dataString,
-      publicKey,
+    // Convert data to binary for encryption
+    const dataBuffer =
+      data instanceof Blob
+        ? await data.arrayBuffer()
+        : new TextEncoder().encode(data);
+    const dataArray = new Uint8Array(dataBuffer);
+
+    // Use platform adapter's password-based encryption
+    const encrypted = await platformAdapter.crypto.encryptWithPassword(
+      dataArray,
+      walletSignature,
     );
-    return new Blob([encryptedString], { type: "text/plain" });
+
+    return new Blob([encrypted], {
+      type: "application/octet-stream",
+    });
   } catch (error) {
     throw new Error(`Failed to encrypt user data: ${error}`);
   }
@@ -187,25 +197,31 @@ export async function encryptUserData(
 /**
  * Decrypt user data using PGP with platform-appropriate configuration
  * @param encryptedData The encrypted data (string or Blob)
- * @param privateKey The PGP private key
+ * @param walletSignature The wallet signature to use as password
  * @param platformAdapter The platform adapter to use for decryption
  * @returns The decrypted data as Blob
  */
 export async function decryptUserData(
   encryptedData: string | Blob,
-  privateKey: string,
+  walletSignature: string,
   platformAdapter: VanaPlatformAdapter,
 ): Promise<Blob> {
   try {
-    const dataString =
+    // Convert encrypted data to proper format
+    const encryptedBuffer =
       encryptedData instanceof Blob
-        ? await encryptedData.text()
-        : encryptedData;
-    const decryptedString = await platformAdapter.pgp.decrypt(
-      dataString,
-      privateKey,
+        ? await encryptedData.arrayBuffer()
+        : new TextEncoder().encode(encryptedData);
+    const encryptedArray = new Uint8Array(encryptedBuffer);
+
+    // Use platform adapter's password-based decryption
+    const decrypted = await platformAdapter.crypto.decryptWithPassword(
+      encryptedArray,
+      walletSignature,
     );
-    return new Blob([decryptedString], { type: "text/plain" });
+
+    // Convert decrypted data back to Blob
+    return new Blob([decrypted], { type: "text/plain" });
   } catch (error) {
     throw new Error(`Failed to decrypt user data: ${error}`);
   }

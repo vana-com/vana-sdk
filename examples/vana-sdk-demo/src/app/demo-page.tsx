@@ -32,6 +32,7 @@ import {
   GrantFile,
   Hash,
 } from "vana-sdk";
+import { privateKeyToAccount } from "viem/accounts";
 import { BrowserPlatformAdapter } from "vana-sdk/platform";
 
 // Types for demo app state
@@ -127,7 +128,9 @@ export default function Home() {
   const [testData, setTestData] = useState<string>(
     `{"message": "Hello Vana!", "timestamp": "${new Date().toISOString()}"}`,
   );
-  const [generatedKey, setGeneratedKey] = useState<string>("");
+  const [generatedEncryptionKey, setGeneratedEncryptionKey] = useState<
+    string | null
+  >(null);
   const [isGeneratingKey] = useState(false);
   const [encryptedData, setEncryptedData] = useState<Blob | null>(null);
   const [decryptedData, setDecryptedData] = useState<string>("");
@@ -181,6 +184,7 @@ export default function Home() {
   const [serverDecryptedData, setServerDecryptedData] = useState<string>("");
   const [serverDecryptError, setServerDecryptError] = useState<string>("");
   const [isServerDecrypting, setIsServerDecrypting] = useState(false);
+  const [derivedServerAddress, setDerivedServerAddress] = useState<string>("");
 
   // Trust server state
   const [serverId, setServerId] = useState<string>("");
@@ -197,6 +201,9 @@ export default function Home() {
     }>
   >([]);
   const [isLoadingTrustedServers, setIsLoadingTrustedServers] = useState(false);
+  const [trustedServerQueryMode, setTrustedServerQueryMode] = useState<
+    "subgraph" | "rpc" | "auto"
+  >("auto");
   const [isUntrusting, setIsUntrusting] = useState(false);
 
   // Server discovery state
@@ -430,6 +437,7 @@ export default function Home() {
               const result = await relayRequest("relay", {
                 typedData: jsonSafeTypedData,
                 signature,
+                expectedUserAddress: address, // Add expected user address for verification
               });
               return result.transactionHash as Hash;
             },
@@ -447,6 +455,7 @@ export default function Home() {
               const result = await relayRequest("relay", {
                 typedData: jsonSafeTypedData,
                 signature,
+                expectedUserAddress: address, // Add expected user address for verification
               });
               return result.transactionHash as Hash;
             },
@@ -464,6 +473,7 @@ export default function Home() {
               const result = await relayRequest("relay", {
                 typedData: jsonSafeTypedData,
                 signature,
+                expectedUserAddress: address, // Add expected user address for verification
               });
               return result.transactionHash as Hash;
             },
@@ -481,6 +491,7 @@ export default function Home() {
               const result = await relayRequest("relay", {
                 typedData: jsonSafeTypedData,
                 signature,
+                expectedUserAddress: address, // Add expected user address for verification
               });
               return result.transactionHash as Hash;
             },
@@ -634,27 +645,43 @@ export default function Home() {
     }
   }, [vana]);
 
-  const loadUserTrustedServers = useCallback(async () => {
-    if (!vana || !address) return;
+  const loadUserTrustedServers = useCallback(
+    async (mode: "subgraph" | "rpc" | "auto" = "auto") => {
+      if (!vana || !address) return;
 
-    setIsLoadingTrustedServers(true);
-    try {
-      const servers = await vana.data.getUserTrustedServers({
-        user: address,
-      });
-      console.info("Loaded trusted servers:", servers);
-      setTrustedServers(servers);
-    } catch (error) {
-      console.error("Failed to load trusted servers:", error);
-      addToast({
-        color: "danger",
-        title: "Failed to load trusted servers",
-        description: error instanceof Error ? error.message : "Unknown error",
-      });
-    } finally {
-      setIsLoadingTrustedServers(false);
-    }
-  }, [vana, address]);
+      setIsLoadingTrustedServers(true);
+      try {
+        const result = await vana.data.getUserTrustedServers({
+          user: address,
+          mode,
+          subgraphUrl: process.env.NEXT_PUBLIC_SUBGRAPH_URL,
+          limit: 10, // For demo purposes, limit to 10 servers
+        });
+
+        console.info("Loaded trusted servers:", result);
+
+        // Show which mode was actually used
+        addToast({
+          color: "success",
+          title: `Trusted servers loaded via ${result.usedMode.toUpperCase()}`,
+          description: `Found ${result.servers.length} trusted servers${result.total ? ` (${result.total} total)` : ""}${result.warnings ? `. Warnings: ${result.warnings.join(", ")}` : ""}`,
+        });
+
+        // For backward compatibility, extract just the servers array
+        setTrustedServers(result.servers);
+      } catch (error) {
+        console.error("Failed to load trusted servers:", error);
+        addToast({
+          color: "danger",
+          title: "Failed to load trusted servers",
+          description: error instanceof Error ? error.message : "Unknown error",
+        });
+      } finally {
+        setIsLoadingTrustedServers(false);
+      }
+    },
+    [vana, address],
+  );
 
   // Load user files, permissions, and trusted servers when Vana is initialized
   useEffect(() => {
@@ -830,12 +857,15 @@ export default function Home() {
     if (!walletClient) return;
 
     setIsEncrypting(true);
-    setEncryptionStatus("Generating encryption key...");
+    setEncryptionStatus("Generating encryption key from wallet signature...");
 
     try {
-      const key = await generateEncryptionKey(walletClient, encryptionSeed);
-      setGeneratedKey(key);
-      setEncryptionStatus("✅ Encryption key generated successfully!");
+      const encryptionKey = await generateEncryptionKey(
+        walletClient,
+        encryptionSeed,
+      );
+      setGeneratedEncryptionKey(encryptionKey);
+      setEncryptionStatus("✅ Encryption key generated from wallet signature!");
     } catch (error) {
       console.error("Failed to generate key:", error);
       setEncryptionStatus(
@@ -847,8 +877,8 @@ export default function Home() {
   };
 
   const handleEncryptData = async () => {
-    if (!generatedKey) {
-      setEncryptionStatus("❌ Please generate a key first");
+    if (!generatedEncryptionKey) {
+      setEncryptionStatus("❌ Please generate an encryption key first");
       return;
     }
 
@@ -881,7 +911,7 @@ export default function Home() {
 
       const encrypted = await encryptUserData(
         dataBlob,
-        generatedKey,
+        generatedEncryptionKey,
         platformAdapter,
       );
       setEncryptedData(encrypted);
@@ -897,7 +927,7 @@ export default function Home() {
   };
 
   const handleDecryptData = async () => {
-    if (!encryptedData || !generatedKey) {
+    if (!encryptedData || !generatedEncryptionKey) {
       setEncryptionStatus("❌ Please encrypt data first");
       return;
     }
@@ -908,7 +938,7 @@ export default function Home() {
     try {
       const decrypted = await decryptUserData(
         encryptedData,
-        generatedKey,
+        generatedEncryptionKey,
         platformAdapter,
       );
       const decryptedText = await decrypted.text();
@@ -1236,7 +1266,7 @@ export default function Home() {
   };
 
   const handleResetEncryption = () => {
-    setGeneratedKey("");
+    setGeneratedEncryptionKey(null);
     setEncryptedData(null);
     setDecryptedData("");
     setEncryptionStatus("");
@@ -1357,11 +1387,39 @@ export default function Home() {
     }
   };
 
+  // Derive server address from private key when it changes
+  useEffect(() => {
+    if (serverPrivateKey.trim()) {
+      try {
+        // Ensure private key starts with 0x
+        const formattedKey = serverPrivateKey.trim().startsWith("0x")
+          ? serverPrivateKey.trim()
+          : `0x${serverPrivateKey.trim()}`;
+
+        const account = privateKeyToAccount(formattedKey as `0x${string}`);
+        setDerivedServerAddress(account.address);
+        setServerDecryptError(""); // Clear any previous errors
+      } catch {
+        setDerivedServerAddress("");
+        setServerDecryptError("Invalid private key format");
+      }
+    } else {
+      setDerivedServerAddress("");
+    }
+  }, [serverPrivateKey]);
+
   // Server decryption demo handler
   const handleServerDecryption = async () => {
     if (!vana || !serverFileId.trim() || !serverPrivateKey.trim()) {
       setServerDecryptError(
         "Please provide both File ID and Server Private Key",
+      );
+      return;
+    }
+
+    if (!derivedServerAddress) {
+      setServerDecryptError(
+        "Invalid private key - cannot derive server address",
       );
       return;
     }
@@ -1380,11 +1438,11 @@ export default function Home() {
       // Get the file from the blockchain
       const file = await vana.data.getFileById(fileIdNum);
 
-      // Decrypt the file using the server's private key
+      // Decrypt the file using the server's private key and derived address
       const decryptedBlob = await vana.data.decryptFileWithPermission(
         file,
         serverPrivateKey.trim(),
-        address, // Server account address
+        derivedServerAddress as `0x${string}`, // Use derived server address instead of user address
       );
 
       // Convert blob to text for display
@@ -2079,7 +2137,7 @@ export default function Home() {
                     <EncryptionTestCard
                       encryptionSeed={encryptionSeed}
                       onEncryptionSeedChange={setEncryptionSeed}
-                      encryptionKey={generatedKey}
+                      encryptionKey={generatedEncryptionKey || ""}
                       isGeneratingKey={isGeneratingKey}
                       onGenerateKey={handleGenerateKey}
                       inputMode={inputMode}
@@ -2145,10 +2203,14 @@ export default function Home() {
                         name: server.serverAddress,
                       }))}
                       isLoadingServers={isLoadingTrustedServers}
-                      onRefreshServers={loadUserTrustedServers}
+                      onRefreshServers={() =>
+                        loadUserTrustedServers(trustedServerQueryMode)
+                      }
                       onUntrustServer={handleUntrustServer}
                       isUntrusting={isUntrusting}
                       chainId={chainId}
+                      queryMode={trustedServerQueryMode}
+                      onQueryModeChange={setTrustedServerQueryMode}
                     />
 
                     <SchemaManagementCard
@@ -2236,6 +2298,7 @@ export default function Home() {
                       onServerFileIdChange={setServerFileId}
                       serverPrivateKey={serverPrivateKey}
                       onServerPrivateKeyChange={setServerPrivateKey}
+                      derivedServerAddress={derivedServerAddress}
                       onServerDecryption={handleServerDecryption}
                       isServerDecrypting={isServerDecrypting}
                       serverDecryptError={serverDecryptError}

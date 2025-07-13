@@ -69,6 +69,10 @@ export type {
   AddRefinerResult,
   UpdateSchemaIdParams,
   UpdateSchemaIdResult,
+  TrustedServerQueryMode,
+  TrustedServer,
+  GetUserTrustedServersParams,
+  GetUserTrustedServersResult,
 } from "./data";
 
 // Schema validation types
@@ -110,6 +114,11 @@ export type {
   UntrustServerTypedData,
   PermissionInfo,
   RevokePermissionInput,
+  TrustedServerInfo,
+  PaginatedTrustedServers,
+  TrustedServerQueryOptions,
+  BatchServerInfoResult,
+  ServerTrustStatus,
 } from "./permissions";
 
 // Personal server types

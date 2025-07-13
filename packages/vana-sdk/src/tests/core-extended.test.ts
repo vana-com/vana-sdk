@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { VanaCore } from "../core";
 import { InvalidConfigurationError } from "../errors";
-import { createWalletClient, http } from "viem";
+import { createWalletClient, http, type Account } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { mokshaTestnet } from "../config/chains";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
-import type { VanaChain } from "../types";
+import type { VanaChain, VanaChainId } from "../types";
+import type { StorageProvider } from "../storage";
 
 // Mock controllers
 vi.mock("../controllers/permissions", () => ({
@@ -131,7 +132,7 @@ describe("VanaCore Extended Tests", () => {
         new VanaCore(
           {
             chainId: 14800,
-            account: { invalid: "account" } as any,
+            account: { invalid: "account" } as unknown as Account,
           },
           mockPlatformAdapter,
         );
@@ -158,7 +159,10 @@ describe("VanaCore Extended Tests", () => {
           {
             walletClient: validWalletClient,
             storage: {
-              providers: "not-an-object" as any,
+              providers: "not-an-object" as unknown as Record<
+                string,
+                StorageProvider
+              >,
             },
           },
           mockPlatformAdapter,
@@ -173,7 +177,7 @@ describe("VanaCore Extended Tests", () => {
             walletClient: validWalletClient,
             storage: {
               providers: {
-                invalid: null as any,
+                invalid: null as unknown as StorageProvider,
               },
             },
           },
@@ -195,7 +199,7 @@ describe("VanaCore Extended Tests", () => {
                   list: vi.fn(),
                   delete: vi.fn(),
                   getConfig: vi.fn(),
-                } as any,
+                } as unknown as StorageProvider,
               },
               defaultProvider: "nonexistent",
             },
@@ -219,8 +223,8 @@ describe("VanaCore Extended Tests", () => {
           walletClient: validWalletClient,
           storage: {
             providers: {
-              first: mockProvider as any,
-              second: mockProvider as any,
+              first: mockProvider as StorageProvider,
+              second: mockProvider as StorageProvider,
             },
           },
         },
@@ -244,8 +248,8 @@ describe("VanaCore Extended Tests", () => {
           walletClient: validWalletClient,
           storage: {
             providers: {
-              ipfs: mockProvider as any,
-              pinata: mockProvider as any,
+              ipfs: mockProvider as StorageProvider,
+              pinata: mockProvider as StorageProvider,
             },
             defaultProvider: "pinata",
           },
@@ -299,7 +303,7 @@ describe("VanaCore Extended Tests", () => {
           walletClient: validWalletClient,
           storage: {
             providers: {
-              test: mockProvider as any,
+              test: mockProvider as StorageProvider,
             },
             defaultProvider: "test",
           },
@@ -367,7 +371,7 @@ describe("VanaCore Extended Tests", () => {
       expect(() => {
         new VanaCore(
           {
-            chainId: 1 as any, // Ethereum mainnet - not supported
+            chainId: 1 as VanaChainId, // Ethereum mainnet - not supported
             account: testAccount,
           },
           mockPlatformAdapter,

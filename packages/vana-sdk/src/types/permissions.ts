@@ -481,3 +481,69 @@ export interface PermissionEvent {
   /** Event timestamp */
   timestamp: number;
 }
+
+/**
+ * Enhanced trusted server information with trust status
+ */
+export interface TrustedServerInfo {
+  /** Server ID (address) */
+  serverId: Address;
+  /** Server URL */
+  url: string;
+  /** Whether this server is trusted by the user */
+  isTrusted: boolean;
+  /** Index in user's trusted server list (if trusted) */
+  trustIndex?: number;
+}
+
+/**
+ * Paginated result for trusted server queries
+ */
+export interface PaginatedTrustedServers {
+  /** Array of server addresses */
+  servers: Address[];
+  /** Total number of trusted servers */
+  total: number;
+  /** Offset used for this query */
+  offset: number;
+  /** Limit used for this query */
+  limit: number;
+  /** Whether there are more servers beyond this page */
+  hasMore: boolean;
+}
+
+/**
+ * Options for querying trusted servers
+ */
+export interface TrustedServerQueryOptions {
+  /** User address to query (defaults to current user) */
+  userAddress?: Address;
+  /** Maximum number of servers to return */
+  limit?: number;
+  /** Offset for pagination */
+  offset?: number;
+  /** Whether to include full server info or just IDs */
+  includeServerInfo?: boolean;
+}
+
+/**
+ * Result of batch server info requests
+ */
+export interface BatchServerInfoResult {
+  /** Successfully retrieved server info */
+  servers: Map<Address, { url: string }>;
+  /** Server IDs that failed to retrieve */
+  failed: Address[];
+}
+
+/**
+ * Server trust status information
+ */
+export interface ServerTrustStatus {
+  /** Server ID being checked */
+  serverId: Address;
+  /** Whether the server is trusted by the user */
+  isTrusted: boolean;
+  /** Index in user's trusted server list (if trusted) */
+  trustIndex?: number;
+}

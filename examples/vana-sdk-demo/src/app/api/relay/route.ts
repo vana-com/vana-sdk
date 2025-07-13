@@ -15,9 +15,11 @@ export async function POST(request: NextRequest) {
     const {
       typedData,
       signature,
+      expectedUserAddress,
     }: {
       typedData: GenericTypedData;
       signature: Hash;
+      expectedUserAddress?: string;
     } = body;
 
     if (!typedData || !signature) {
@@ -55,6 +57,38 @@ export async function POST(request: NextRequest) {
     }
 
     console.info("✅ Signature verified, signer:", signerAddress);
+
+    // Verify that the recovered signer matches the expected user address (security best practice)
+    if (expectedUserAddress) {
+      const normalizedSigner = signerAddress.toLowerCase();
+      const normalizedExpected = expectedUserAddress.toLowerCase();
+
+      if (normalizedSigner !== normalizedExpected) {
+        console.warn("🚨 Security verification failed: Signer mismatch", {
+          recovered: normalizedSigner,
+          expected: normalizedExpected,
+          domain: typedData.domain.name,
+        });
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Security verification failed: Recovered signer address (${normalizedSigner}) does not match expected user address (${normalizedExpected}). This may be due to incorrect EIP-712 domain configuration.`,
+            details: {
+              recoveredSigner: normalizedSigner,
+              expectedUser: normalizedExpected,
+              domain: typedData.domain.name,
+            },
+          },
+          { status: 403 },
+        );
+      }
+
+      console.info("✅ Signer verification passed: addresses match");
+    } else {
+      console.warn(
+        "⚠️ No expected user address provided - skipping signer verification",
+      );
+    }
 
     // Submit to blockchain using SDK
     console.info("⛓️ Submitting to blockchain via SDK...");

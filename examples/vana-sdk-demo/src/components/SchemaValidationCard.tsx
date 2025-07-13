@@ -11,7 +11,7 @@ import {
 import { CheckCircle, FileCheck, AlertTriangle } from "lucide-react";
 import { SectionHeader } from "./ui/SectionHeader";
 import { ErrorMessage } from "./ui/ErrorMessage";
-import type { Vana, SchemaValidationError } from "vana-sdk";
+import type { Vana, SchemaValidationError, DataController } from "vana-sdk";
 
 interface SchemaValidationCardProps {
   vana: Vana | null;
@@ -69,7 +69,10 @@ export const SchemaValidationCard: React.FC<SchemaValidationCardProps> = ({
 
     try {
       const contract = JSON.parse(contractInput);
-      const dataController: typeof vana.data = vana!.data;
+      if (!vana.data) {
+        throw new Error("Data controller not available");
+      }
+      const dataController: DataController = vana.data;
       dataController.validateDataSchema(contract);
 
       setValidationResult({
@@ -109,7 +112,10 @@ export const SchemaValidationCard: React.FC<SchemaValidationCardProps> = ({
       const contract = JSON.parse(contractInput);
 
       // First validate the schema
-      const dataController: typeof vana.data = vana!.data;
+      if (!vana.data) {
+        throw new Error("Data controller not available");
+      }
+      const dataController: DataController = vana.data;
       dataController.validateDataSchema(contract);
 
       // Only validate data for JSON dialect schemas

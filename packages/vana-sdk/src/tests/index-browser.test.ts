@@ -3,6 +3,7 @@ import { Vana } from "../index.browser";
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { mokshaTestnet } from "../config/chains";
+import type { VanaChain } from "../types";
 
 // Mock browser platform adapter
 vi.mock("../platform/browser", () => ({
@@ -41,12 +42,14 @@ vi.mock("../controllers/protocol", () => ({
   })),
 }));
 
-describe("Browser Entry Point", () => {
+describe("Browser Index Entry Point", () => {
   const testAccount = privateKeyToAccount(
     "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
   );
 
-  let validWalletClient: ReturnType<typeof createWalletClient>;
+  let validWalletClient: ReturnType<typeof createWalletClient> & {
+    chain: VanaChain;
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -55,7 +58,7 @@ describe("Browser Entry Point", () => {
       account: testAccount,
       chain: mokshaTestnet,
       transport: http("https://rpc.moksha.vana.org"),
-    });
+    }) as typeof validWalletClient;
   });
 
   it("should export Vana class", () => {
@@ -63,7 +66,7 @@ describe("Browser Entry Point", () => {
     expect(typeof Vana).toBe("function");
   });
 
-  it("should create Vana instance with browser platform adapter", () => {
+  it("should create Vana instance", () => {
     const vana = new Vana({
       walletClient: validWalletClient,
     });
@@ -75,7 +78,7 @@ describe("Browser Entry Point", () => {
     expect(vana.protocol).toBeDefined();
   });
 
-  it("should create Vana instance from chain config", () => {
+  it("should create instance from chain config", () => {
     const vana = Vana.fromChain({
       chainId: 14800,
       account: testAccount,
@@ -84,7 +87,7 @@ describe("Browser Entry Point", () => {
     expect(vana).toBeInstanceOf(Vana);
   });
 
-  it("should create Vana instance from wallet config", () => {
+  it("should create instance from wallet config", () => {
     const vana = Vana.fromWallet({
       walletClient: validWalletClient,
     });

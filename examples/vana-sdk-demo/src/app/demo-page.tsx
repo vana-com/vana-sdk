@@ -93,6 +93,9 @@ export default function Home() {
   const { data: walletClient } = useWalletClient();
   const chainId = useChainId();
 
+  // Create platform adapter instance once for reuse
+  const platformAdapter = new BrowserPlatformAdapter();
+
   const [vana, setVana] = useState<Vana | null>(null);
   const [userFiles, setUserFiles] = useState<
     (UserFile & { source?: "discovered" | "looked-up" | "uploaded" })[]
@@ -869,8 +872,11 @@ export default function Home() {
         setOriginalFileName(fileName);
       }
 
-      const platformAdapter = new BrowserPlatformAdapter();
-      const encrypted = await encryptUserData(dataBlob, generatedKey, platformAdapter);
+      const encrypted = await encryptUserData(
+        dataBlob,
+        generatedKey,
+        platformAdapter,
+      );
       setEncryptedData(encrypted);
       setEncryptionStatus("✅ Data encrypted successfully!");
     } catch (error) {
@@ -893,8 +899,11 @@ export default function Home() {
     setEncryptionStatus("Decrypting data...");
 
     try {
-      const platformAdapter = new BrowserPlatformAdapter();
-      const decrypted = await decryptUserData(encryptedData, generatedKey, platformAdapter);
+      const decrypted = await decryptUserData(
+        encryptedData,
+        generatedKey,
+        platformAdapter,
+      );
       const decryptedText = await decrypted.text();
       setDecryptedData(decryptedText);
       setEncryptionStatus("✅ Data decrypted successfully!");

@@ -20,7 +20,7 @@ vi.mock("next/dynamic", () => ({
   __esModule: true,
   default: () => {
     const Component = vi.fn().mockImplementation(() => null);
-    (Component as any).displayName = "DynamicComponent";
+    (Component as { displayName?: string }).displayName = "DynamicComponent";
     return Component;
   },
 }));

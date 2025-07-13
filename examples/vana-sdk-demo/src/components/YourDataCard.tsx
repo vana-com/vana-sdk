@@ -12,6 +12,7 @@ import {
   Checkbox,
   Chip,
   Pagination,
+  Textarea,
 } from "@heroui/react";
 import {
   Database,
@@ -69,6 +70,10 @@ interface YourDataCardProps {
   grantStatus: string;
   grantTxHash: string;
 
+  // Prompt customization
+  promptText: string;
+  onPromptTextChange: (text: string) => void;
+
   // User info
   _userAddress: string | undefined;
   chainId: number;
@@ -99,6 +104,8 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
   isGranting,
   grantStatus,
   grantTxHash,
+  promptText,
+  onPromptTextChange,
   _userAddress,
   chainId,
 }) => {
@@ -430,6 +437,19 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
                 {isGranting && <Spinner size="sm" className="mr-2" />}
                 Grant Permissions
               </Button>
+            </div>
+
+            {/* Prompt Customization */}
+            <div className="mb-4">
+              <Textarea
+                label="LLM Prompt"
+                placeholder="Enter your custom prompt for the LLM"
+                value={promptText}
+                onChange={(e) => onPromptTextChange(e.target.value)}
+                description="Customize the prompt that will be used by the LLM when processing your data. Use {{data}} as a placeholder for your file contents."
+                minRows={3}
+                maxRows={6}
+              />
             </div>
 
             {grantStatus && (

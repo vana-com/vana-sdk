@@ -162,6 +162,15 @@ export default function Home() {
   );
   const [ipfsMode] = useState<"app-managed" | "user-managed">("app-managed");
 
+  // Prompt state for customizable LLM prompt
+  const [promptText, setPromptText] = useState<string>(
+    "Create a comprehensive Digital DNA profile from this data that captures the essence of this person's digital footprint: {{data}}",
+  );
+
+  // Execution context state for displaying permission details
+  const [lastUsedPermissionId, setLastUsedPermissionId] = useState<string>("");
+  const [lastUsedPrompt, setLastUsedPrompt] = useState<string>("");
+
   // Schema selection for file upload
   const [selectedUploadSchemaId, setSelectedUploadSchemaId] =
     useState<string>("");
@@ -720,7 +729,7 @@ export default function Home() {
         operation: "llm_inference",
         files: selectedFiles,
         parameters: {
-          prompt: "Analyze this data: {{data}}",
+          prompt: promptText,
         },
       };
 
@@ -1334,6 +1343,29 @@ export default function Home() {
 
       const result = await response.json();
       setPersonalResult(result.data);
+
+      // Fetch and store permission context for display
+      if (vana) {
+        try {
+          const permissionInfo = await vana.permissions.getPermissionInfo(
+            BigInt(permissionId),
+          );
+          const { retrieveGrantFile } = await import("vana-sdk");
+          const grantFile = await retrieveGrantFile(permissionInfo.grant);
+
+          setLastUsedPermissionId(permissionId.toString());
+          setLastUsedPrompt(
+            typeof grantFile.parameters?.prompt === "string"
+              ? grantFile.parameters.prompt
+              : "",
+          );
+        } catch (error) {
+          console.warn("Failed to fetch permission context:", error);
+          // Don't fail the main operation if context fetching fails
+          setLastUsedPermissionId(permissionId.toString());
+          setLastUsedPrompt("");
+        }
+      }
     } catch (error) {
       setPersonalError(
         error instanceof Error ? error.message : "Unknown error",
@@ -2078,6 +2110,8 @@ export default function Home() {
                       isGranting={isGranting}
                       grantStatus={grantStatus}
                       grantTxHash={grantTxHash}
+                      promptText={promptText}
+                      onPromptTextChange={setPromptText}
                       _userAddress={address}
                       chainId={chainId || 14800}
                     />
@@ -2311,6 +2345,8 @@ export default function Home() {
                       isPolling={isPolling}
                       personalError={personalError}
                       personalResult={personalResult}
+                      lastUsedPermissionId={lastUsedPermissionId}
+                      lastUsedPrompt={lastUsedPrompt}
                       onCopyToClipboard={copyToClipboard}
                     />
                   </div>

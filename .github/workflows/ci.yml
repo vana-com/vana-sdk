@@ -34,7 +34,10 @@ jobs:
         run: npm run typecheck
 
       - name: Run tests
-        run: npm test
+        run: npm run test:coverage
+
+      - name: Run validation script
+        run: npm run validate
 
       - name: Run build
         run: npm run build

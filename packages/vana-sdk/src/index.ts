@@ -1,11 +1,9 @@
 // Core modules - environment-specific Vana classes are exported from index.node.ts and index.browser.ts
 export { VanaCore } from "./core";
 
-// Universal Vana class with runtime platform detection
-// This provides a fallback for environments where conditional exports don't work properly
+// Universal Vana class with runtime platform detection using dynamic imports
+// This provides robust isomorphic support without bundling browser code in server environments
 import { VanaCore } from "./core";
-import { NodePlatformAdapter } from "./platform/node";
-import { BrowserPlatformAdapter } from "./platform/browser";
 import type { VanaConfig } from "./types";
 import type { VanaPlatformAdapter } from "./platform/interface";
 
@@ -22,20 +20,33 @@ import type { VanaPlatformAdapter } from "./platform/interface";
 
 /**
  * Universal Vana SDK class with automatic platform detection.
- * Detects the runtime environment and uses the appropriate platform adapter.
+ * Uses dynamic imports to ensure platform-specific code is only loaded in the correct environment.
+ * This prevents SSR issues where browser-only APIs are bundled in server environments.
  *
- * For better performance and explicit control, prefer importing from:
- * - Node.js: Use the environment-specific entry points via conditional exports
- * - Browser: Use the environment-specific entry points via conditional exports
+ * BREAKING CHANGE: The constructor is now private. Use the async static create() method instead.
  */
 export class Vana extends VanaCore {
-  constructor(config: VanaConfig) {
-    // Runtime platform detection and adapter selection
-    const platformAdapter = Vana.createPlatformAdapter();
-    super(config, platformAdapter);
+  /**
+   * Private constructor to enforce async initialization.
+   * Use Vana.create() instead of new Vana().
+   */
+  private constructor(config: VanaConfig, platform: VanaPlatformAdapter) {
+    super(config, platform);
   }
 
-  private static createPlatformAdapter(): VanaPlatformAdapter {
+  /**
+   * Creates a new Vana instance with automatic platform detection.
+   * This is the new official way to initialize the SDK.
+   *
+   * @param config - Configuration object (WalletConfig or ChainConfig)
+   * @returns Promise resolving to a Vana instance
+   */
+  public static async create(config: VanaConfig): Promise<Vana> {
+    const platformAdapter = await Vana.createPlatformAdapter();
+    return new Vana(config, platformAdapter);
+  }
+
+  private static async createPlatformAdapter(): Promise<VanaPlatformAdapter> {
     // Runtime environment detection
     const isNode =
       typeof window === "undefined" &&
@@ -43,18 +54,14 @@ export class Vana extends VanaCore {
       typeof process !== "undefined";
 
     if (isNode) {
+      // Dynamic import for Node.js environment
+      const { NodePlatformAdapter } = await import("./platform/node");
       return new NodePlatformAdapter();
     } else {
+      // Dynamic import for browser environment
+      const { BrowserPlatformAdapter } = await import("./platform/browser");
       return new BrowserPlatformAdapter();
     }
-  }
-
-  static override fromChain(config: VanaConfig) {
-    return new Vana(config);
-  }
-
-  static override fromWallet(config: VanaConfig) {
-    return new Vana(config);
   }
 }
 

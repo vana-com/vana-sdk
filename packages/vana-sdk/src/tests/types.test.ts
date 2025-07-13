@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { Vana } from "../index.node";
+import { Vana } from "../index";
 import type { VanaConfig, WalletConfig, ChainConfig } from "../types/config";
 import type { UserFile, UploadEncryptedFileResult } from "../types/data";
 import type {
@@ -934,9 +934,9 @@ describe("TypeScript Types", () => {
 
   describe("Enhanced Vana Class", () => {
     describe("Factory Methods", () => {
-      it("should create Vana from ChainConfig", () => {
+      it("should create Vana from ChainConfig", async () => {
         const account = privateKeyToAccount(testPrivateKey);
-        const vana = Vana.fromChain({
+        const vana = await Vana.create({
           chainId: 14800,
           rpcUrl: "https://rpc.moksha.vana.org",
           account,
@@ -944,7 +944,7 @@ describe("TypeScript Types", () => {
         expect(vana).toBeInstanceOf(Vana);
       });
 
-      it("should create Vana from WalletConfig", () => {
+      it("should create Vana from WalletConfig", async () => {
         const account = privateKeyToAccount(testPrivateKey);
         const walletClient = createWalletClient({
           account,
@@ -952,13 +952,13 @@ describe("TypeScript Types", () => {
           transport: http(),
         });
 
-        const vana = Vana.fromWallet({ walletClient });
+        const vana = await Vana.create({ walletClient });
         expect(vana).toBeInstanceOf(Vana);
       });
     });
 
     describe("Dual Configuration Support", () => {
-      it("should work with both WalletConfig and ChainConfig", () => {
+      it("should work with both WalletConfig and ChainConfig", async () => {
         const account = privateKeyToAccount(testPrivateKey);
         const walletClient = createWalletClient({
           account,
@@ -966,9 +966,9 @@ describe("TypeScript Types", () => {
           transport: http(),
         });
 
-        const vanaWithWallet = new Vana({ walletClient });
+        const vanaWithWallet = await Vana.create({ walletClient });
         const account2 = privateKeyToAccount(testPrivateKey);
-        const vanaWithChain = new Vana({
+        const vanaWithChain = await Vana.create({
           chainId: 14800,
           rpcUrl: "https://rpc.moksha.vana.org",
           account: account2,

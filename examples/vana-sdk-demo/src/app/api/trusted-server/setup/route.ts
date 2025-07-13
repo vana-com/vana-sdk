@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     );
 
     // Use the SDK's chain configuration approach
-    const vana = Vana.fromChain({
+    const vana = await Vana.create({
       chainId,
       account: applicationAccount,
     });

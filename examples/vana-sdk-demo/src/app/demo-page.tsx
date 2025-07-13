@@ -334,254 +334,261 @@ export default function Home() {
   // Initialize Vana SDK when wallet is connected or user IPFS config changes
   useEffect(() => {
     if (isConnected && walletClient && walletClient.account) {
-      try {
-        // Initialize storage providers
-        console.info("🏢 Setting up app-managed IPFS storage");
-        const serverIPFS = new ServerIPFSStorage({
-          uploadEndpoint: "/api/ipfs/upload",
-        });
-
-        const storageProviders: Record<string, StorageProvider> = {
-          "app-ipfs": serverIPFS,
-        };
-
-        // Add user-managed IPFS if configured
-        if (sdkConfig.pinataJwt) {
-          console.info("👤 Adding user-managed Pinata IPFS storage");
-          const pinataStorage = new PinataStorage({
-            jwt: sdkConfig.pinataJwt,
-            gatewayUrl: sdkConfig.pinataGateway,
+      (async () => {
+        try {
+          // Initialize storage providers
+          console.info("🏢 Setting up app-managed IPFS storage");
+          const serverIPFS = new ServerIPFSStorage({
+            uploadEndpoint: "/api/ipfs/upload",
           });
-          storageProviders["user-ipfs"] = pinataStorage;
 
-          // Test the connection
-          pinataStorage
-            .testConnection()
-            .then(
-              (result: {
-                success: boolean;
-                data?: unknown;
-                error?: unknown;
-              }) => {
-                if (result.success) {
-                  console.info(
-                    "✅ User Pinata connection verified:",
-                    result.data,
-                  );
-                } else {
-                  console.warn(
-                    "⚠️ User Pinata connection failed:",
-                    result.error,
-                  );
-                }
-              },
-            );
-        }
+          const storageProviders: Record<string, StorageProvider> = {
+            "app-ipfs": serverIPFS,
+          };
 
-        // Determine the actual default storage provider based on what's available
-        const actualDefaultProvider =
-          sdkConfig.defaultStorageProvider === "user-ipfs" &&
-          !sdkConfig.pinataJwt
-            ? "app-ipfs" // Fallback to app-ipfs if user-ipfs is selected but not configured
-            : sdkConfig.defaultStorageProvider;
-
-        // Initialize Vana SDK with storage configuration
-        const baseUrl = sdkConfig.relayerUrl || `${window.location.origin}`;
-
-        // Helper function to reduce boilerplate in relayer callbacks
-        const relayRequest = async (
-          endpoint: string,
-          payload: unknown,
-        ): Promise<{
-          success: boolean;
-          transactionHash?: string;
-          fileId?: number;
-          url?: string;
-          error?: string;
-        }> => {
-          const response = await fetch(`${baseUrl}/api/${endpoint}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-          if (!response.ok) {
-            throw new Error(`Relayer request failed: ${response.statusText}`);
-          }
-          const result = await response.json();
-          if (!result.success) {
-            throw new Error(result.error || "Failed to submit to relayer");
-          }
-          return result;
-        };
-
-        // Create relayer callbacks for demo app
-        const relayerCallbacks = {
-          async submitPermissionGrant(
-            typedData: PermissionGrantTypedData,
-            signature: Hash,
-          ) {
-            // Create a JSON-safe version for relayer
-            const jsonSafeTypedData = JSON.parse(
-              JSON.stringify(typedData, (_key, value) =>
-                typeof value === "bigint" ? value.toString() : value,
-              ),
-            );
-            const result = await relayRequest("relay", {
-              typedData: jsonSafeTypedData,
-              signature,
+          // Add user-managed IPFS if configured
+          if (sdkConfig.pinataJwt) {
+            console.info("👤 Adding user-managed Pinata IPFS storage");
+            const pinataStorage = new PinataStorage({
+              jwt: sdkConfig.pinataJwt,
+              gatewayUrl: sdkConfig.pinataGateway,
             });
-            return result.transactionHash as Hash;
-          },
+            storageProviders["user-ipfs"] = pinataStorage;
 
-          async submitPermissionRevoke(
-            typedData: GenericTypedData,
-            signature: Hash,
-          ) {
-            // Create a JSON-safe version for relayer
-            const jsonSafeTypedData = JSON.parse(
-              JSON.stringify(typedData, (_key, value) =>
-                typeof value === "bigint" ? value.toString() : value,
-              ),
-            );
-            const result = await relayRequest("relay", {
-              typedData: jsonSafeTypedData,
-              signature,
-            });
-            return result.transactionHash as Hash;
-          },
-
-          async submitTrustServer(
-            typedData: TrustServerTypedData,
-            signature: Hash,
-          ) {
-            // Create a JSON-safe version for relayer
-            const jsonSafeTypedData = JSON.parse(
-              JSON.stringify(typedData, (_key, value) =>
-                typeof value === "bigint" ? value.toString() : value,
-              ),
-            );
-            const result = await relayRequest("relay", {
-              typedData: jsonSafeTypedData,
-              signature,
-            });
-            return result.transactionHash as Hash;
-          },
-
-          async submitUntrustServer(
-            typedData: UntrustServerTypedData,
-            signature: Hash,
-          ) {
-            // Create a JSON-safe version for relayer
-            const jsonSafeTypedData = JSON.parse(
-              JSON.stringify(typedData, (_key, value) =>
-                typeof value === "bigint" ? value.toString() : value,
-              ),
-            );
-            const result = await relayRequest("relay", {
-              typedData: jsonSafeTypedData,
-              signature,
-            });
-            return result.transactionHash as Hash;
-          },
-
-          async submitFileAddition(url: string, userAddress: string) {
-            const result = await relayRequest("relay/addFile", {
-              url,
-              userAddress,
-            });
-            if (result.fileId === undefined) {
-              throw new Error(
-                "File addition failed: no fileId returned from relayer",
-              );
-            }
-            return {
-              fileId: result.fileId,
-              transactionHash: result.transactionHash as Hash,
-            };
-          },
-
-          async submitFileAdditionWithPermissions(
-            url: string,
-            userAddress: string,
-            permissions: Array<{ account: string; key: string }>,
-          ) {
-            const result = await relayRequest("relay/addFileWithPermissions", {
-              url,
-              userAddress,
-              permissions,
-            });
-            if (result.fileId === undefined) {
-              throw new Error(
-                "File addition with permissions failed: no fileId returned from relayer",
-              );
-            }
-            return {
-              fileId: result.fileId,
-              transactionHash: result.transactionHash as Hash,
-            };
-          },
-
-          async storeGrantFile(grantData: GrantFile) {
-            // Store grant file via IPFS upload endpoint
-            try {
-              // Convert grant file to blob and create FormData as expected by /api/ipfs/upload
-              const grantFileBlob = new Blob(
-                [JSON.stringify(grantData, null, 2)],
-                {
-                  type: "application/json",
+            // Test the connection
+            pinataStorage
+              .testConnection()
+              .then(
+                (result: {
+                  success: boolean;
+                  data?: unknown;
+                  error?: unknown;
+                }) => {
+                  if (result.success) {
+                    console.info(
+                      "✅ User Pinata connection verified:",
+                      result.data,
+                    );
+                  } else {
+                    console.warn(
+                      "⚠️ User Pinata connection failed:",
+                      result.error,
+                    );
+                  }
                 },
               );
+          }
 
-              const formData = new FormData();
-              formData.append("file", grantFileBlob, "grant-file.json");
+          // Determine the actual default storage provider based on what's available
+          const actualDefaultProvider =
+            sdkConfig.defaultStorageProvider === "user-ipfs" &&
+            !sdkConfig.pinataJwt
+              ? "app-ipfs" // Fallback to app-ipfs if user-ipfs is selected but not configured
+              : sdkConfig.defaultStorageProvider;
 
-              const response = await fetch(`${baseUrl}/api/ipfs/upload`, {
-                method: "POST",
-                body: formData,
-              });
+          // Initialize Vana SDK with storage configuration
+          const baseUrl = sdkConfig.relayerUrl || `${window.location.origin}`;
 
-              if (!response.ok) {
-                throw new Error(`IPFS upload failed: ${response.statusText}`);
-              }
-
-              const result = await response.json();
-              if (!result.success) {
-                throw new Error(result.error || "IPFS upload failed");
-              }
-              if (!result.url) {
-                throw new Error("IPFS upload did not return a URL");
-              }
-              return result.url;
-            } catch (error) {
-              throw new Error(
-                `Failed to store grant file: ${error instanceof Error ? error.message : "Unknown error"}`,
-              );
+          // Helper function to reduce boilerplate in relayer callbacks
+          const relayRequest = async (
+            endpoint: string,
+            payload: unknown,
+          ): Promise<{
+            success: boolean;
+            transactionHash?: string;
+            fileId?: number;
+            url?: string;
+            error?: string;
+          }> => {
+            const response = await fetch(`${baseUrl}/api/${endpoint}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+            if (!response.ok) {
+              throw new Error(`Relayer request failed: ${response.statusText}`);
             }
-          },
-        };
+            const result = await response.json();
+            if (!result.success) {
+              throw new Error(result.error || "Failed to submit to relayer");
+            }
+            return result;
+          };
 
-        const vanaInstance = new Vana({
-          walletClient: walletClient as WalletClient & { chain: VanaChain }, // Type compatibility with Vana SDK
-          relayerCallbacks,
-          subgraphUrl: sdkConfig.subgraphUrl || undefined,
-          storage: {
-            providers: storageProviders,
-            defaultProvider: actualDefaultProvider,
-          },
-        });
-        setVana(vanaInstance);
-        console.info("✅ Vana SDK initialized:", vanaInstance.getConfig());
+          // Create relayer callbacks for demo app
+          const relayerCallbacks = {
+            async submitPermissionGrant(
+              typedData: PermissionGrantTypedData,
+              signature: Hash,
+            ) {
+              // Create a JSON-safe version for relayer
+              const jsonSafeTypedData = JSON.parse(
+                JSON.stringify(typedData, (_key, value) =>
+                  typeof value === "bigint" ? value.toString() : value,
+                ),
+              );
+              const result = await relayRequest("relay", {
+                typedData: jsonSafeTypedData,
+                signature,
+              });
+              return result.transactionHash as Hash;
+            },
 
-        // Create a separate storage manager for the demo UI (to maintain existing UI functionality)
-        const manager = new StorageManager();
-        for (const [name, provider] of Object.entries(storageProviders)) {
-          manager.register(name, provider, name === "app-ipfs");
+            async submitPermissionRevoke(
+              typedData: GenericTypedData,
+              signature: Hash,
+            ) {
+              // Create a JSON-safe version for relayer
+              const jsonSafeTypedData = JSON.parse(
+                JSON.stringify(typedData, (_key, value) =>
+                  typeof value === "bigint" ? value.toString() : value,
+                ),
+              );
+              const result = await relayRequest("relay", {
+                typedData: jsonSafeTypedData,
+                signature,
+              });
+              return result.transactionHash as Hash;
+            },
+
+            async submitTrustServer(
+              typedData: TrustServerTypedData,
+              signature: Hash,
+            ) {
+              // Create a JSON-safe version for relayer
+              const jsonSafeTypedData = JSON.parse(
+                JSON.stringify(typedData, (_key, value) =>
+                  typeof value === "bigint" ? value.toString() : value,
+                ),
+              );
+              const result = await relayRequest("relay", {
+                typedData: jsonSafeTypedData,
+                signature,
+              });
+              return result.transactionHash as Hash;
+            },
+
+            async submitUntrustServer(
+              typedData: UntrustServerTypedData,
+              signature: Hash,
+            ) {
+              // Create a JSON-safe version for relayer
+              const jsonSafeTypedData = JSON.parse(
+                JSON.stringify(typedData, (_key, value) =>
+                  typeof value === "bigint" ? value.toString() : value,
+                ),
+              );
+              const result = await relayRequest("relay", {
+                typedData: jsonSafeTypedData,
+                signature,
+              });
+              return result.transactionHash as Hash;
+            },
+
+            async submitFileAddition(url: string, userAddress: string) {
+              const result = await relayRequest("relay/addFile", {
+                url,
+                userAddress,
+              });
+              if (result.fileId === undefined) {
+                throw new Error(
+                  "File addition failed: no fileId returned from relayer",
+                );
+              }
+              return {
+                fileId: result.fileId,
+                transactionHash: result.transactionHash as Hash,
+              };
+            },
+
+            async submitFileAdditionWithPermissions(
+              url: string,
+              userAddress: string,
+              permissions: Array<{ account: string; key: string }>,
+            ) {
+              const result = await relayRequest(
+                "relay/addFileWithPermissions",
+                {
+                  url,
+                  userAddress,
+                  permissions,
+                },
+              );
+              if (result.fileId === undefined) {
+                throw new Error(
+                  "File addition with permissions failed: no fileId returned from relayer",
+                );
+              }
+              return {
+                fileId: result.fileId,
+                transactionHash: result.transactionHash as Hash,
+              };
+            },
+
+            async storeGrantFile(grantData: GrantFile) {
+              // Store grant file via IPFS upload endpoint
+              try {
+                // Convert grant file to blob and create FormData as expected by /api/ipfs/upload
+                const grantFileBlob = new Blob(
+                  [JSON.stringify(grantData, null, 2)],
+                  {
+                    type: "application/json",
+                  },
+                );
+
+                const formData = new FormData();
+                formData.append("file", grantFileBlob, "grant-file.json");
+
+                const response = await fetch(`${baseUrl}/api/ipfs/upload`, {
+                  method: "POST",
+                  body: formData,
+                });
+
+                if (!response.ok) {
+                  throw new Error(`IPFS upload failed: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                if (!result.success) {
+                  throw new Error(result.error || "IPFS upload failed");
+                }
+                if (!result.url) {
+                  throw new Error("IPFS upload did not return a URL");
+                }
+                return result.url;
+              } catch (error) {
+                throw new Error(
+                  `Failed to store grant file: ${error instanceof Error ? error.message : "Unknown error"}`,
+                );
+              }
+            },
+          };
+
+          const vanaInstance = await Vana.create({
+            walletClient: walletClient as WalletClient & { chain: VanaChain }, // Type compatibility with Vana SDK
+            relayerCallbacks,
+            subgraphUrl: sdkConfig.subgraphUrl || undefined,
+            storage: {
+              providers: storageProviders,
+              defaultProvider: actualDefaultProvider,
+            },
+          });
+          setVana(vanaInstance);
+          console.info("✅ Vana SDK initialized:", vanaInstance.getConfig());
+
+          // Create a separate storage manager for the demo UI (to maintain existing UI functionality)
+          const manager = new StorageManager();
+          for (const [name, provider] of Object.entries(storageProviders)) {
+            manager.register(name, provider, name === "app-ipfs");
+          }
+          setStorageManager(manager);
+          console.info(
+            "✅ Storage manager initialized with both IPFS patterns",
+          );
+        } catch (error) {
+          console.error("❌ Failed to initialize Vana SDK:", error);
         }
-        setStorageManager(manager);
-        console.info("✅ Storage manager initialized with both IPFS patterns");
-      } catch (error) {
-        console.error("❌ Failed to initialize Vana SDK:", error);
-      }
+      })();
     } else {
       setVana(null);
       setStorageManager(null);

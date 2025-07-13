@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
 
     // Submit to blockchain using SDK
     console.info("⛓️ Submitting to blockchain via SDK...");
-    const vana = createRelayerVana();
+    const vana = await createRelayerVana();
 
     let txHash: Hash;
 

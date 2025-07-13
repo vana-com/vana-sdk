@@ -74,6 +74,9 @@ interface YourDataCardProps {
   promptText: string;
   onPromptTextChange: (text: string) => void;
 
+  // Application info
+  applicationAddress: string;
+
   // User info
   _userAddress: string | undefined;
   chainId: number;
@@ -106,6 +109,7 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
   grantTxHash,
   promptText,
   onPromptTextChange,
+  applicationAddress,
   _userAddress,
   chainId,
 }) => {
@@ -451,6 +455,26 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
                 maxRows={6}
               />
             </div>
+
+            {/* Application Address Display */}
+            {applicationAddress && (
+              <div className="mb-4 p-3 bg-primary/10 rounded-lg">
+                <p className="text-sm font-medium text-primary-700 mb-2">
+                  Permission Grantee (Application):
+                </p>
+                <AddressDisplay
+                  address={applicationAddress}
+                  showCopy={true}
+                  showExternalLink={true}
+                  truncate={false}
+                  className="text-sm"
+                />
+                <p className="text-xs text-primary-600 mt-1">
+                  Permissions will be granted to this application address
+                  derived from the server's private key.
+                </p>
+              </div>
+            )}
 
             {grantStatus && (
               <StatusMessage

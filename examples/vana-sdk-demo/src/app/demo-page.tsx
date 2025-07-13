@@ -171,6 +171,9 @@ export default function Home() {
   const [lastUsedPermissionId, setLastUsedPermissionId] = useState<string>("");
   const [lastUsedPrompt, setLastUsedPrompt] = useState<string>("");
 
+  // Application address for permission granting
+  const [applicationAddress, setApplicationAddress] = useState<string>("");
+
   // Schema selection for file upload
   const [selectedUploadSchemaId, setSelectedUploadSchemaId] =
     useState<string>("");
@@ -596,6 +599,23 @@ export default function Home() {
           setVana(vanaInstance);
           console.info("✅ Vana SDK initialized:", vanaInstance.getConfig());
 
+          // Fetch application address for permission granting
+          try {
+            const appAddressResponse = await fetch("/api/application-address");
+            if (appAddressResponse.ok) {
+              const appAddressData = await appAddressResponse.json();
+              if (appAddressData.success) {
+                setApplicationAddress(appAddressData.data.applicationAddress);
+                console.info(
+                  "✅ Application address fetched:",
+                  appAddressData.data.applicationAddress,
+                );
+              }
+            }
+          } catch (error) {
+            console.warn("⚠️ Failed to fetch application address:", error);
+          }
+
           // Create a separate storage manager for the demo UI (to maintain existing UI functionality)
           const manager = new StorageManager();
           for (const [name, provider] of Object.entries(storageProviders)) {
@@ -614,6 +634,7 @@ export default function Home() {
       setStorageManager(null);
       setUserFiles([]);
       setSelectedFiles([]);
+      setApplicationAddress("");
     }
   }, [isConnected, walletClient, sdkConfig]);
 
@@ -718,6 +739,13 @@ export default function Home() {
   const handleGrantPermission = async () => {
     if (!vana || selectedFiles.length === 0) return;
 
+    if (!applicationAddress) {
+      setGrantStatus(
+        "❌ Application address not available. Please refresh the page.",
+      );
+      return;
+    }
+
     setIsGranting(true);
     setGrantStatus("Preparing permission grant...");
     setGrantTxHash("");
@@ -725,7 +753,7 @@ export default function Home() {
     try {
       // Create clear, unencrypted parameters for the grant
       const params: GrantPermissionParams = {
-        to: "0x1234567890123456789012345678901234567890", // Demo DLP address
+        to: applicationAddress as `0x${string}`, // Use dynamically fetched application address
         operation: "llm_inference",
         files: selectedFiles,
         parameters: {
@@ -2112,6 +2140,7 @@ export default function Home() {
                       grantTxHash={grantTxHash}
                       promptText={promptText}
                       onPromptTextChange={setPromptText}
+                      applicationAddress={applicationAddress}
                       _userAddress={address}
                       chainId={chainId || 14800}
                     />

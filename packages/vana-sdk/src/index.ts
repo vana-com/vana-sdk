@@ -10,9 +10,20 @@ import type { VanaConfig } from "./types";
 import type { VanaPlatformAdapter } from "./platform/interface";
 
 /**
+ * NOTE on Platform Adapter Imports:
+ * Both NodePlatformAdapter and BrowserPlatformAdapter are statically imported here
+ * to create a universal Vana class that works in any environment via runtime
+ * detection. While this may seem to bundle unnecessary code, it acts as a
+ * robust fallback for environments (like some Next.js configurations) that
+ * do not properly handle the 'exports' field in package.json for conditional
+ * exports. Modern bundlers with effective tree-shaking should eliminate the
+ * unused adapter from the final bundle.
+ */
+
+/**
  * Universal Vana SDK class with automatic platform detection.
  * Detects the runtime environment and uses the appropriate platform adapter.
- * 
+ *
  * For better performance and explicit control, prefer importing from:
  * - Node.js: Use the environment-specific entry points via conditional exports
  * - Browser: Use the environment-specific entry points via conditional exports
@@ -26,8 +37,11 @@ export class Vana extends VanaCore {
 
   private static createPlatformAdapter(): VanaPlatformAdapter {
     // Runtime environment detection
-    const isNode = typeof window === 'undefined' && typeof global !== 'undefined' && typeof process !== 'undefined';
-    
+    const isNode =
+      typeof window === "undefined" &&
+      typeof global !== "undefined" &&
+      typeof process !== "undefined";
+
     if (isNode) {
       return new NodePlatformAdapter();
     } else {

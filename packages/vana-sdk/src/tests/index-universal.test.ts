@@ -3,6 +3,7 @@ import { Vana, VanaCore } from "../index";
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { mokshaTestnet } from "../config/chains";
+import type { VanaChain } from "../types";
 
 // Mock platform adapters
 vi.mock("../platform/node", () => ({
@@ -62,7 +63,9 @@ describe("Universal Index Entry Point", () => {
     "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
   );
 
-  let validWalletClient: ReturnType<typeof createWalletClient>;
+  let validWalletClient: ReturnType<typeof createWalletClient> & {
+    chain: VanaChain;
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -71,7 +74,7 @@ describe("Universal Index Entry Point", () => {
       account: testAccount,
       chain: mokshaTestnet,
       transport: http("https://rpc.moksha.vana.org"),
-    });
+    }) as typeof validWalletClient;
   });
 
   describe("Universal Vana Class", () => {
@@ -114,13 +117,13 @@ describe("Universal Index Entry Point", () => {
 
     it("should detect browser environment", () => {
       // Mock browser environment
-      const originalWindow = global.window;
-      const originalGlobal = global.global;
-      const originalProcess = global.process;
+      const originalWindow = globalThis.window;
+      const originalGlobal = globalThis.global;
+      const originalProcess = globalThis.process;
 
-      delete (global as any).global;
-      delete (global as any).process;
-      (global as any).window = {};
+      delete (globalThis as any).global;
+      delete (globalThis as any).process;
+      (globalThis as any).window = {};
 
       const vana = new Vana({
         walletClient: validWalletClient,
@@ -129,9 +132,9 @@ describe("Universal Index Entry Point", () => {
       expect(vana).toBeInstanceOf(Vana);
 
       // Restore globals
-      global.window = originalWindow;
-      global.global = originalGlobal;
-      global.process = originalProcess;
+      globalThis.window = originalWindow;
+      globalThis.global = originalGlobal;
+      globalThis.process = originalProcess;
     });
 
     it("should detect Node.js environment", () => {
@@ -152,7 +155,8 @@ describe("Universal Index Entry Point", () => {
         walletClient: validWalletClient,
       });
 
-      // Verify instance is created successfully\n      expect(true).toBe(true); // Simple test placeholder
+      // Verify instance is created successfully
+      expect(true).toBe(true); // Simple test placeholder
     });
 
     it("should handle platform adapter creation", () => {

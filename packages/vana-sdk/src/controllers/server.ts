@@ -20,7 +20,7 @@ export class ServerController {
   private readonly REPLICATE_API_URL =
     "https://api.replicate.com/v1/predictions";
   private readonly PERSONAL_SERVER_VERSION =
-    "vana-com/personal-server:292be297c333019e800e85bc32a9f431c9667898a0d88b802f5887843cb42023";
+    "vana-com/personal-server:6dae0fead4017557a2e6bd020643359ac1769228a9cfe3bd2365eeeb9711610e";
   private readonly IDENTITY_SERVER_VERSION =
     "vana-com/identity-server:8e357fbeb87c0558b545809cabd0ef2f311082d8ce1f12b93cb8ad2f38cfbfd2";
 
@@ -281,20 +281,7 @@ export class ServerController {
    * Validates the post request parameters.
    */
   private validatePostRequestParams(params: PostRequestParams): void {
-    if (!params.userAddress || typeof params.userAddress !== "string") {
-      throw new PersonalServerError(
-        "User address is required and must be a valid string",
-      );
-    }
-
     // Basic address validation
-    if (
-      !params.userAddress.startsWith("0x") ||
-      params.userAddress.length !== 42
-    ) {
-      throw new PersonalServerError("User address must be a valid EVM address");
-    }
-
     if (typeof params.permissionId !== "number" || params.permissionId <= 0) {
       throw new PersonalServerError(
         "Permission ID is required and must be a valid positive number",
@@ -331,7 +318,6 @@ export class ServerController {
   private createRequestJson(params: PostRequestParams): string {
     try {
       const requestData = {
-        user_address: params.userAddress,
         permission_id: params.permissionId,
       };
 
@@ -671,27 +657,5 @@ export class ServerController {
     throw new PersonalServerError(
       "Personal server initialization timed out after 60 seconds",
     );
-  }
-
-  /**
-   * Gets the user's address from the wallet client.
-   */
-  private async getApplicationAddress(): Promise<Address> {
-    try {
-      // Use applicationClient if available, fallback to walletClient
-      const client =
-        this.context.applicationClient || this.context.walletClient;
-      const addresses = await client.getAddresses();
-      if (!addresses || addresses.length === 0) {
-        throw new PersonalServerError(
-          "No addresses available from wallet client",
-        );
-      }
-      return addresses[0];
-    } catch (error) {
-      throw new PersonalServerError(
-        `Failed to get user address: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-    }
   }
 }

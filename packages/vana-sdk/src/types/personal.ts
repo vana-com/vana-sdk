@@ -2,9 +2,6 @@
  * Parameters for the `vana.personal.postRequest` method.
  */
 export interface PostRequestParams {
-  /** The user's wallet address */
-  userAddress: string;
-
   /** The permission ID */
   permissionId: number;
 }

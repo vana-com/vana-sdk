@@ -64,92 +64,92 @@ interface SubgraphPermissionsResponse {
 }
 
 /**
- * Shared configuration and services passed to all SDK controllers.
+ * Provides shared configuration and services for all SDK controllers.
  *
- * This interface provides the foundational blockchain and storage services that all
- * controllers need to operate. It's automatically created by the main Vana SDK class
- * and passed to each controller during initialization.
+ * @remarks
+ * This interface defines the foundational blockchain and storage services that all
+ * controllers require for operation. The main Vana SDK class automatically creates
+ * this context during initialization and passes it to each controller.
  *
  * @category Configuration
- * @example
- * ```typescript
- * // Context is automatically created when initializing the SDK
- * const vana = new Vana({
- *   account: privateKeyToAccount('0x...'), // Creates walletClient
- *   network: 'moksha', // Creates publicClient for network
- *   relayerCallbacks: { // Optional gasless transactions
- *     submitPermissionGrant: async (typedData, signature) => {
- *       return await myRelayer.submit(typedData, signature);
- *     }
- *   },
- *   storage: { // Optional custom storage
- *     defaultProvider: 'ipfs',
- *     providers: { ipfs: new IPFSStorage() }
- *   }
- * });
- * ```
  */
 export interface ControllerContext {
-  /** Primary wallet client for signing transactions and messages */
+  /** Signs transactions and messages using the user's private key. */
   walletClient: WalletClient;
-  /** Read-only client for querying blockchain state and contracts */
+  /** Queries blockchain state and smart contracts without signing. */
   publicClient: PublicClient;
-  /** Optional separate wallet for application-specific operations */
+  /** Signs application-specific operations when different from primary wallet. */
   applicationClient?: WalletClient;
-  /**
-   * Optional relayer callback functions for handling gasless transactions.
-   */
+  /** Handles gasless transaction submission through relayer services. */
   relayerCallbacks?: RelayerCallbacks;
-  /** Optional storage manager for file upload/download operations */
+  /** Manages file upload and download operations across storage providers. */
   storageManager?: StorageManager;
-  /** Optional subgraph URL for querying user files and permissions */
+  /** Provides subgraph endpoint for querying indexed blockchain data. */
   subgraphUrl?: string;
-  /** Platform adapter for environment-specific operations */
+  /** Adapts SDK functionality to the current runtime environment. */
   platform: VanaPlatformAdapter;
 }
 
 /**
- * Controller for granting, revoking, and managing gasless data access permissions.
+ * Manages gasless data access permissions and trusted server registry operations.
  *
- * The PermissionsController enables users to grant applications access to their data
- * without paying gas fees. It handles the complete EIP-712 permission flow including
- * signature creation, IPFS storage of permission details, and relayer submission.
+ * @remarks
+ * This controller enables users to grant applications access to their data without
+ * paying gas fees. It handles the complete EIP-712 permission flow including signature
+ * creation, IPFS storage of permission details, and gasless transaction submission.
  *
- * **Common workflows:**
- * - Grant data access: `grant()` (complete end-to-end flow)
- * - Revoke permissions: `revoke()`
- * - Query permissions: `getUserPermissions()`
- * - Trust/untrust servers: `trustServer()`, `untrustServer()`
- *
- * @category Permissions
  * @example
  * ```typescript
  * // Grant permission for an app to access your data
  * const txHash = await vana.permissions.grant({
- *   to: '0x...', // Application address
- *   operation: 'llm_inference',
- *   parameters: { model: 'gpt-4', maxTokens: 1000 }
+ *   to: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+ *   operation: "llm_inference",
+ *   parameters: { model: "gpt-4", maxTokens: 1000 },
  * });
  *
- * // Revoke a permission
- * await vana.permissions.revoke({
- *   to: '0x...', // Application address
- *   operation: 'llm_inference'
+ * // Trust a server for data processing
+ * await vana.permissions.trustServer({
+ *   serverAddress: "0x123...",
+ *   serverUrl: "https://trusted-server.example.com",
  * });
  *
- * // Check current permissions
+ * // Query current permissions
  * const permissions = await vana.permissions.getUserPermissions();
  * ```
+ *
+ * @category Permissions
  */
 export class PermissionsController {
   constructor(private readonly context: ControllerContext) {}
 
   /**
-   * Grants permission for an application to access user data.
-   * Combines createAndSign + submitSignedGrant for a complete end-to-end flow.
+   * Grants permission for an application to access user data with gasless transactions.
    *
-   * @param params - The permission grant parameters
-   * @returns Promise resolving to the transaction hash
+   * @remarks
+   * This method combines signature creation and gasless submission for a complete
+   * end-to-end permission grant flow. It creates the grant file, stores it on IPFS,
+   * generates an EIP-712 signature, and submits via relayer.
+   *
+   * @param params - The permission grant configuration
+   * @returns A Promise that resolves to the transaction hash when successfully submitted
+   * @throws {RelayerError} When gasless transaction submission fails
+   * @throws {SignatureError} When user rejects the signature request
+   * @throws {SerializationError} When grant data cannot be serialized
+   *
+   * @example
+   * ```typescript
+   * const txHash = await vana.permissions.grant({
+   *   to: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+   *   operation: "llm_inference",
+   *   parameters: {
+   *     model: "gpt-4",
+   *     maxTokens: 1000,
+   *     temperature: 0.7,
+   *   },
+   * });
+   *
+   * console.log(`Permission granted: ${txHash}`);
+   * ```
    */
   async grant(params: GrantPermissionParams): Promise<Hash> {
     const { typedData, signature } = await this.createAndSign(params);
@@ -157,11 +157,29 @@ export class PermissionsController {
   }
 
   /**
-   * Creates typed data and signature for a permission grant.
-   * This is the first step in the permission grant process.
+   * Creates typed data and signature for a permission grant without submitting.
    *
-   * @param params - The permission grant parameters
-   * @returns Promise resolving to typed data and signature
+   * @remarks
+   * This method handles the first phase of permission granting: creating the grant file,
+   * storing it on IPFS, and generating the user's EIP-712 signature. Use this when you
+   * want to handle submission separately or batch multiple operations.
+   *
+   * @param params - The permission grant configuration
+   * @returns A Promise with the typed data structure and signature for gasless submission
+   * @throws {SignatureError} When the user rejects the signature request
+   * @throws {SerializationError} When grant data cannot be properly formatted
+   *
+   * @example
+   * ```typescript
+   * const { typedData, signature } = await vana.permissions.createAndSign({
+   *   to: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+   *   operation: "data_analysis",
+   *   parameters: { analysisType: "sentiment" },
+   * });
+   *
+   * // Later submit via custom relayer logic
+   * await customRelayer.submit(typedData, signature);
+   * ```
    */
   async createAndSign(params: GrantPermissionParams): Promise<{
     typedData: PermissionGrantTypedData;

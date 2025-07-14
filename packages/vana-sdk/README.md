@@ -6,7 +6,7 @@ The Vana SDK is a comprehensive TypeScript library for building applications on 
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue)](https://www.typescriptlang.org/)
 [![License: ISC](https://img.shields.io/badge/License-ISC-green.svg)](https://opensource.org/licenses/ISC)
 
-[Documentation](./docs) • [Examples](#examples) • [API Reference](#api-reference)
+[Documentation](https://vana-com.github.io/vana-sdk) • [Examples](#examples) • [API Reference](https://vana-com.github.io/vana-sdk)
 
 ## Why Vana SDK?
 
@@ -545,7 +545,7 @@ vana.data.validateDataAgainstSchema(userData, instagramSchema);
 
 ## Contributing
 
-We welcome contributions to the Vana SDK! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+We welcome contributions to the Vana SDK! Please see our [Contributing Guide](../../CONTRIBUTING.md) for details.
 
 ### Development Setup
 
@@ -567,15 +567,15 @@ npm run dev
 
 ## Documentation
 
-- [📚 API Documentation](./docs) - Complete TypeDoc API reference
-- [🚀 Getting Started Guide](./docs/getting-started.md) - Step-by-step setup
-- [🏗️ Architecture Guide](./docs/architecture.md) - SDK design and patterns
-- [🔧 Configuration Guide](./docs/configuration.md) - All configuration options
-- [🔒 Security Guide](./docs/security.md) - Best practices and security
+- [📚 API Documentation](https://vana-com.github.io/vana-sdk) - Complete TypeDoc API reference
+- [🚀 Getting Started Guide](https://docs.vana.org/vana-sdk) - Step-by-step setup
+- [🏗️ Architecture Guide](https://docs.vana.org/vana-sdk/architecture) - SDK design and patterns
+- [🔧 Configuration Guide](https://docs.vana.org/vana-sdk/configuration) - All configuration options
+- [🔒 Security Guide](https://docs.vana.org/vana-sdk/security) - Best practices and security
 
 ## Support
 
-- **📖 Documentation**: [docs](./docs)
+- **📖 Documentation**: [API Reference](https://vana-com.github.io/vana-sdk)
 - **💬 Discord**: [Join our community](https://discord.gg/vana)
 - **🐛 Issues**: [GitHub Issues](https://github.com/vana-com/vana-sdk/issues)
 - **📧 Email**: [support@vana.org](mailto:support@vana.org)

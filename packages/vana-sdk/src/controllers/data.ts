@@ -87,35 +87,32 @@ interface SubgraphResponse {
 }
 
 /**
- * Controller for uploading, registering, and managing encrypted files on the Vana network.
+ * Manages encrypted user data files and their blockchain registration on the Vana network.
  *
- * The DataController handles the complete file lifecycle from encrypted upload to blockchain
- * registration and decryption. It provides methods for querying user files, uploading new
- * encrypted content, and managing file permissions.
+ * @remarks
+ * This controller handles the complete file lifecycle from encrypted upload to
+ * blockchain registration and decryption. It provides methods for querying user files,
+ * uploading new encrypted content, and managing file schemas.
  *
- * **Common workflows:**
- * - Upload encrypted files: `uploadEncryptedFile()`
- * - Query user's files: `getUserFiles()`
- * - Decrypt accessible files: `decryptFile()`
- * - Register external file URLs: `registerFileWithSchema()`
- *
- * @category Data Management
  * @example
  * ```typescript
- * // Upload an encrypted file
- * const result = await vana.data.uploadEncryptedFile(
- *   encryptedBlob,
- *   'mydata.json'
- * );
- *
- * // Get files associated with user
- * const files = await vana.data.getUserFiles({
- *   owner: userAddress
+ * // Upload an encrypted file with automatic schema validation
+ * const result = await vana.data.uploadEncryptedFile({
+ *   data: fileBlob,
+ *   filename: "personal-data.json",
+ *   schemaId: "0x123...",
  * });
  *
- * // Decrypt a file you have access to
- * const decrypted = await vana.data.decryptFile(files[0]);
+ * // Query files owned by a user
+ * const files = await vana.data.getUserFiles({
+ *   owner: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+ * });
+ *
+ * // Decrypt accessible file content
+ * const decryptedData = await vana.data.decryptFile(files[0]);
  * ```
+ *
+ * @category Data Management
  */
 export class DataController {
   private readonly serverController: ServerController;
@@ -125,34 +122,28 @@ export class DataController {
   }
 
   /**
-   * Retrieves a list of data files owned by a user.
+   * Retrieves all data files owned by a specific user address.
    *
-   * This method queries the Vana subgraph to find files directly owned by the user
-   * using the new File entity. It efficiently handles millions of files by:
-   * 1. Querying the subgraph for user's directly owned files
-   * 2. Returning complete file information including schema metadata
-   * 3. No need for additional contract calls as all data comes from subgraph
+   * @remarks
+   * This method queries the Vana subgraph to find files directly owned by the user.
+   * It efficiently handles large datasets by using the File entity's owner field
+   * and returns complete file metadata without additional contract calls.
    *
-   * @remarks The subgraph now tracks direct file ownership through the File entity.
-   * Files are associated with users through the owner field.
-   *
-   * @param params - Object containing the owner address and optional subgraph URL
-   * @param params.owner - The wallet address of the user to query files for
-   * @param params.subgraphUrl - Optional subgraph URL to override the default configured in Vana constructor. If not provided, uses the subgraphUrl from the Vana instance configuration or the default for the current chain.
-   * @returns Promise resolving to an array of UserFile objects
-   * @throws Error if subgraph is unavailable or returns invalid data
+   * @param params - The query parameters object
+   * @param params.owner - The wallet address of the file owner to query
+   * @param params.subgraphUrl - Optional subgraph URL to override the default endpoint
+   * @returns A Promise that resolves to an array of UserFile objects with metadata
+   * @throws {Error} When the subgraph is unavailable or returns invalid data
    *
    * @example
    * ```typescript
-   * // Using default subgraph URL configured in Vana constructor
+   * // Query files for a specific user
    * const files = await vana.data.getUserFiles({
-   *   owner: "0x123..."
+   *   owner: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
    * });
    *
-   * // Overriding subgraph URL for this call
-   * const files = await vana.data.getUserFiles({
-   *   owner: "0x123...",
-   *   subgraphUrl: "https://api.goldsky.com/api/public/..."
+   * files.forEach(file => {
+   *   console.log(`File ${file.id}: ${file.url} (Schema: ${file.schemaId})`);
    * });
    * ```
    */

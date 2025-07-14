@@ -4,10 +4,10 @@
   <h3>Complete Reference Implementation</h3>
   <p>A production-quality example showcasing all Vana SDK features with real blockchain interactions, encryption, and storage providers.</p>
 
-  <img src="https://img.shields.io/badge/Next.js-14.x-blue" alt="Next.js 14" />
+  <img src="https://img.shields.io/badge/Next.js-15.x-blue" alt="Next.js 15" />
   <img src="https://img.shields.io/badge/TypeScript-5.x-blue" alt="TypeScript" />
   <img src="https://img.shields.io/badge/Vana%20SDK-1.x-purple" alt="Vana SDK" />
-  <img src="https://img.shields.io/badge/shadcn%2Fui-Latest-green" alt="shadcn/ui" />
+  <img src="https://img.shields.io/badge/HeroUI-Latest-green" alt="HeroUI" />
 </div>
 
 ---
@@ -21,7 +21,10 @@ This is **not a toy example**—it's a comprehensive reference implementation th
 - **Gasless Permissions** - Real EIP-712 signatures and blockchain transactions
 - **Data Management** - Live subgraph integration for file discovery
 - **Encryption Protocol** - Complete encrypt-upload-decrypt workflows
-- **Storage Integration** - Multiple providers (IPFS, Google Drive)
+- **Storage Integration** - Multiple providers (IPFS, decentralized storage)
+- **Data Schemas** - Schema validation and management
+- **Trusted Servers** - Trust and verify server integrations
+- **Refiners** - Data refinement and transformation
 - **Error Handling** - Production-grade error states and user feedback
 
 ### 🏗️ **Production Infrastructure**
@@ -33,7 +36,7 @@ This is **not a toy example**—it's a comprehensive reference implementation th
 
 ### 🎨 **Professional UI/UX**
 
-- **Modern Design** - shadcn/ui components with dark theme
+- **Modern Design** - HeroUI components with dark theme
 - **Responsive Layout** - Mobile-first design approach
 - **Loading States** - Proper UX feedback during async operations
 - **Interactive Elements** - Real-time data updates and user interactions
@@ -91,8 +94,12 @@ PINATA_GATEWAY_URL=https://gateway.pinata.cloud
 ### Optional Configuration
 
 ```bash
-# Custom styling (optional)
-NEXT_PUBLIC_THEME=dark
+# WalletConnect Project ID (for mobile wallet support)
+NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID=your_project_id_here
+
+# Personal Server Configuration (for advanced features)
+APPLICATION_PRIVATE_KEY=your_application_private_key_here
+REPLICATE_API_TOKEN=your_replicate_api_token_here
 ```
 
 ---
@@ -112,10 +119,12 @@ src/
 │   ├── demo-page.tsx      # Main demo application
 │   └── providers.tsx      # React context providers
 ├── components/            # UI components
-│   ├── ui/                # shadcn/ui base components
-│   ├── AddressDisplay.tsx # Blockchain address display
+│   ├── ui/                # HeroUI-based custom components
 │   ├── FileCard.tsx       # Interactive file management
-│   └── PermissionDisplay.tsx # Permission visualization
+│   ├── PermissionsTable.tsx # Permission management
+│   ├── EncryptionTestCard.tsx # Encryption testing
+│   ├── YourDataCard.tsx   # User data display
+│   └── TrustedServerManagementCard.tsx # Server management
 └── lib/                   # Utility libraries
     ├── blockchain.ts      # Blockchain helper functions
     ├── chains.ts          # Network configurations
@@ -182,7 +191,7 @@ const storageProviders = {
 - Network validation and chain switching
 - Relayer service health monitoring
 
-**Code location:** `src/app/demo-page.tsx:136-208`
+**Code location:** `src/app/demo-page.tsx`
 
 **Key features:**
 
@@ -205,7 +214,7 @@ const storageProviders = {
 - Real blockchain data display
 - Interactive file selection interface
 
-**Code location:** `src/app/demo-page.tsx:230-246`
+**Code location:** `src/app/demo-page.tsx`
 
 **Key features:**
 
@@ -228,7 +237,7 @@ const storageProviders = {
 - Live blockchain transaction submission
 - Transaction status monitoring
 
-**Code location:** `src/app/demo-page.tsx:280-399`
+**Code location:** `src/app/demo-page.tsx`
 
 **Key features:**
 
@@ -252,7 +261,7 @@ const storageProviders = {
 - File and text encryption/decryption
 - Storage provider integration
 
-**Code location:** `src/app/demo-page.tsx:432-523`
+**Code location:** `src/app/demo-page.tsx`
 
 **Key features:**
 
@@ -276,7 +285,7 @@ const storageProviders = {
 - File upload to blockchain registration
 - Storage provider configuration
 
-**Code location:** `src/app/demo-page.tsx:577-717`
+**Code location:** `src/app/demo-page.tsx`
 
 **Key features:**
 
@@ -285,6 +294,69 @@ const storageProviders = {
 - Storage provider selection UI
 - Blockchain file registration
 - Real storage URLs and file IDs
+
+</details>
+
+### 6. **Data Schema Management**
+
+<details>
+<summary>Click to expand</summary>
+
+**What it demonstrates:**
+
+- Schema creation and validation
+- JSON Schema integration
+- Data validation against schemas
+- Schema management UI
+
+**Key features:**
+
+- Create and manage data schemas
+- Validate data against schemas
+- View schema details and metadata
+- Interactive schema testing
+
+</details>
+
+### 7. **Trusted Server Integration**
+
+<details>
+<summary>Click to expand</summary>
+
+**What it demonstrates:**
+
+- Server trust management
+- Trust and untrust operations
+- Server verification workflows
+- Multi-server management
+
+**Key features:**
+
+- Add/remove trusted servers
+- View server trust status
+- Manage multiple server relationships
+- Real blockchain transactions for trust operations
+
+</details>
+
+### 8. **Data Refiners**
+
+<details>
+<summary>Click to expand</summary>
+
+**What it demonstrates:**
+
+- Data refinement protocols
+- Refiner discovery and integration
+- Data transformation workflows
+- Refiner management
+
+**Key features:**
+
+- List available refiners
+- Submit data for refinement
+- Track refinement status
+- View refiner metadata and capabilities
 
 </details>
 
@@ -358,12 +430,19 @@ NEXT_PUBLIC_SUBGRAPH_URL=your_subgraph_endpoint
 
 The demo includes a complete backend implementation:
 
-| Endpoint                  | Purpose           | Description                      |
-| ------------------------- | ----------------- | -------------------------------- |
-| `GET /api/health`         | Service health    | Relayer and blockchain status    |
-| `POST /api/ipfs/upload`   | File storage      | Server-managed IPFS uploads      |
-| `POST /api/relay`         | Permission relay  | Submit gasless permission grants |
-| `POST /api/relay/addFile` | File registration | Register file URLs on blockchain |
+| Endpoint                                 | Purpose               | Description                                     |
+| ---------------------------------------- | --------------------- | ----------------------------------------------- |
+| `GET /api/health`                        | Service health        | Relayer and blockchain status                   |
+| `GET /api/application-address`           | Application identity  | Get application address for personal server     |
+| `POST /api/identity`                     | Identity management   | Generate application identity                   |
+| `POST /api/ipfs/upload`                  | File storage          | Server-managed IPFS uploads                     |
+| `POST /api/proxy`                        | Personal server proxy | Proxy requests to personal server               |
+| `POST /api/relay`                        | Permission relay      | Submit gasless permission grants                |
+| `POST /api/relay/addFile`                | File registration     | Register file URLs on blockchain                |
+| `POST /api/relay/addFileWithPermissions` | File + permissions    | Register file with permissions in one operation |
+| `GET /api/trusted-server`                | Server info           | Get trusted server information                  |
+| `POST /api/trusted-server/setup`         | Server setup          | Setup trusted server configuration              |
+| `POST /api/trusted-server/poll`          | Server polling        | Poll trusted server for updates                 |
 
 ---
 
@@ -404,7 +483,7 @@ The demo includes a complete backend implementation:
 
 ### UI System
 
-Built with **shadcn/ui** for professional, accessible components:
+Built with **HeroUI** for professional, accessible components:
 
 - Consistent design system
 - Dark theme support
@@ -500,7 +579,7 @@ curl -X POST -H "Content-Type: application/json" \
 - **[Vana Network Overview](https://docs.vana.org)**
 - **[viem Documentation](https://viem.sh)**
 - **[Next.js Documentation](https://nextjs.org/docs)**
-- **[shadcn/ui Components](https://ui.shadcn.com)**
+- **[HeroUI Components](https://heroui.com)**
 
 ---
 

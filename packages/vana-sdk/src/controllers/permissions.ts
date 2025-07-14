@@ -434,7 +434,7 @@ export class PermissionsController {
           signature,
         );
       } else {
-        return await this.submitDirectUntrustTransaction(typedData, signature);
+        return await this.submitSignedUntrustTransaction(typedData, signature);
       }
     } catch (error) {
       if (
@@ -854,7 +854,7 @@ export class PermissionsController {
             operation: operation || "",
             parameters: (parameters as Record<string, unknown>) || {},
             grant: permission.grant,
-            grantor: userAddress, // Current user is the grantor
+            grantor: userAddress.toLowerCase() as Address, // Current user is the grantor
             grantee: (granteeAddress as Address) || userAddress, // Application that received permission
             active: true, // Default to active if not specified
             grantedAt: Number(permission.addedAtBlock),
@@ -1134,12 +1134,11 @@ export class PermissionsController {
   }
 
   /**
-   * Untrusts a server.
-   *
-   * @param params - Parameters for untrusting the server
-   * @returns Promise resolving to transaction hash
+   * Submits a direct untrust server transaction (without signature).
    */
-  async untrustServer(params: UntrustServerParams): Promise<Hash> {
+  private async submitDirectUntrustTransaction(
+    params: UntrustServerInput,
+  ): Promise<Hash> {
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPermissionsAddress = getContractAddress(
@@ -1169,6 +1168,23 @@ export class PermissionsController {
         error as Error,
       );
     }
+  }
+
+  /**
+   * Untrusts a server.
+   *
+   * @param params - Parameters for untrusting the server
+   * @returns Promise resolving to transaction hash
+   */
+  async untrustServer(params: UntrustServerParams): Promise<Hash> {
+    // Convert UntrustServerParams to UntrustServerInput by adding nonce
+    const nonce = await this.getUserNonce();
+    const untrustServerInput: UntrustServerInput = {
+      nonce,
+      serverId: params.serverId,
+    };
+
+    return await this.submitDirectUntrustTransaction(untrustServerInput);
   }
 
   /**
@@ -1203,8 +1219,8 @@ export class PermissionsController {
           signature,
         );
       } else {
-        return await this.submitUntrustServerTransaction(
-          untrustServerInput,
+        return await this.submitSignedUntrustTransaction(
+          typedData as unknown as GenericTypedData,
           signature,
         );
       }
@@ -1616,39 +1632,6 @@ export class PermissionsController {
   }
 
   /**
-   * Submits an untrust server transaction directly to the blockchain.
-   */
-  private async submitUntrustServerTransaction(
-    untrustServerInput: UntrustServerInput,
-    signature: Hash,
-  ): Promise<Hash> {
-    const chainId = await this.context.walletClient.getChainId();
-    const DataPermissionsAddress = getContractAddress(
-      chainId,
-      "DataPermissions",
-    );
-    const DataPermissionsAbi = getAbi("DataPermissions");
-
-    const txHash = await this.context.walletClient.writeContract({
-      address: DataPermissionsAddress,
-      abi: DataPermissionsAbi,
-      functionName: "untrustServerWithSignature",
-      args: [
-        {
-          nonce: untrustServerInput.nonce,
-          serverId: untrustServerInput.serverId,
-        },
-        signature,
-      ],
-      account:
-        this.context.walletClient.account || (await this.getUserAddress()),
-      chain: this.context.walletClient.chain || null,
-    });
-
-    return txHash;
-  }
-
-  /**
    * Submits a revoke transaction directly to the blockchain with signature.
    */
   private async submitDirectRevokeTransaction(
@@ -1677,9 +1660,9 @@ export class PermissionsController {
   }
 
   /**
-   * Submits an untrust server transaction directly to the blockchain with signature.
+   * Submits an untrust server transaction with signature.
    */
-  private async submitDirectUntrustTransaction(
+  private async submitSignedUntrustTransaction(
     typedData: GenericTypedData,
     signature: Hash,
   ): Promise<Hash> {

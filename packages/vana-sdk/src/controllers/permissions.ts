@@ -434,7 +434,7 @@ export class PermissionsController {
           signature,
         );
       } else {
-        return await this.submitDirectUntrustTransaction(typedData);
+        return await this.submitDirectUntrustTransaction(typedData, signature);
       }
     } catch (error) {
       if (
@@ -768,6 +768,17 @@ export class PermissionsController {
         }
       `;
 
+      console.info("Query:", query);
+      console.info(
+        "Body:",
+        JSON.stringify({
+          query,
+          variables: {
+            userId: userAddress.toLowerCase(),
+          },
+        }),
+      );
+
       const response = await fetch(graphqlEndpoint, {
         method: "POST",
         headers: {
@@ -788,6 +799,8 @@ export class PermissionsController {
       }
 
       const result = (await response.json()) as SubgraphPermissionsResponse;
+
+      console.info("Result:", result);
 
       if (result.errors) {
         throw new BlockchainError(
@@ -812,11 +825,13 @@ export class PermissionsController {
           let operation: string | undefined;
           let files: number[] = [];
           let parameters: unknown | undefined;
+          let granteeAddress: string | undefined;
 
           try {
             const grantFile = await retrieveGrantFile(permission.grant);
             operation = grantFile.operation;
             parameters = grantFile.parameters;
+            granteeAddress = grantFile.grantee;
           } catch {
             // Failed to retrieve grant file - using basic permission data
             // Continue with basic permission data even if grant file can't be retrieved
@@ -839,13 +854,18 @@ export class PermissionsController {
             operation: operation || "",
             parameters: (parameters as Record<string, unknown>) || {},
             grant: permission.grant,
-            grantor: permission.user.id as Address, // The user field contains the grantor address
-            grantee: userAddress, // Current user is the grantee in this context
+            grantor: userAddress, // Current user is the grantor
+            grantee: (granteeAddress as Address) || userAddress, // Application that received permission
             active: true, // Default to active if not specified
             grantedAt: Number(permission.addedAtBlock),
             nonce: Number(permission.nonce),
           });
-        } catch {
+        } catch (error) {
+          console.error(
+            "SDK Error: Failed to process permission:",
+            permission.id,
+            error,
+          );
           // Failed to process permission - skipping
         }
       }
@@ -1657,11 +1677,11 @@ export class PermissionsController {
   }
 
   /**
-   * Submits an untrust server transaction directly to the blockchain.
-   * Note: This bypasses the signature verification and submits directly.
+   * Submits an untrust server transaction directly to the blockchain with signature.
    */
   private async submitDirectUntrustTransaction(
     typedData: GenericTypedData,
+    signature: Hash,
   ): Promise<Hash> {
     const chainId = await this.context.walletClient.getChainId();
     const DataPermissionsAddress = getContractAddress(
@@ -1670,16 +1690,13 @@ export class PermissionsController {
     );
     const DataPermissionsAbi = getAbi("DataPermissions");
 
-    // Extract serverId from typed data message
-    const serverId = (typedData.message as { serverId: `0x${string}` })
-      .serverId;
-
-    // Submit directly to the contract
+    // Submit with signature to verify user authorization
     const txHash = await this.context.walletClient.writeContract({
       address: DataPermissionsAddress,
       abi: DataPermissionsAbi,
-      functionName: "untrustServer",
-      args: [serverId],
+      functionName: "untrustServerWithSignature",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      args: [typedData.message as any, signature],
       account:
         this.context.walletClient.account || (await this.getUserAddress()),
       chain: this.context.walletClient.chain || null,

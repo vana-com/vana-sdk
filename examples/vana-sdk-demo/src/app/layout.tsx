@@ -7,9 +7,8 @@ import { Providers } from "./providers";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Vana SDK Demo - Data Wallet (shadcn/ui)",
-  description:
-    "Demonstrate data portability with Vana SDK using shadcn/ui components",
+  title: "Vana SDK Demo",
+  description: "Demonstrate usage of the Vana SDK",
 };
 
 export default function RootLayout({

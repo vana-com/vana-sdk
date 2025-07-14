@@ -17,15 +17,9 @@
   "dependencies": {
     "@heroui/react": "^2.8.0-beta.13",
     "@heroui/theme": "^2.4.18-beta.5",
-    "@radix-ui/react-checkbox": "^1.0.4",
-    "@radix-ui/react-label": "^2.0.2",
-    "@radix-ui/react-separator": "^1.0.3",
-    "@radix-ui/react-slot": "^1.0.2",
     "@rainbow-me/rainbowkit": "^2.1.0",
     "@tanstack/react-query": "^5.51.0",
     "buffer": "^6.0.3",
-    "class-variance-authority": "^0.7.0",
-    "clsx": "^2.1.0",
     "crypto-browserify": "^3.12.0",
     "framer-motion": "^12.23.0",
     "lucide-react": "^0.525.0",
@@ -38,7 +32,6 @@
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
     "stream-browserify": "^3.0.0",
-    "tailwind-merge": "^3.3.1",
     "url": "^0.11.4",
     "vana-sdk": "*",
     "wagmi": "^2.12.0"

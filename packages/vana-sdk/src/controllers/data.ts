@@ -62,21 +62,10 @@ interface SubgraphPermission {
   };
 }
 
-interface SubgraphTrustedServer {
-  id: string;
-  serverAddress: string;
-  serverUrl: string;
-  trustedAt: string;
-  user: {
-    id: string;
-  };
-}
-
 interface SubgraphUser {
   id: string;
   files: SubgraphFile[];
   permissions: SubgraphPermission[];
-  trustedServers: SubgraphTrustedServer[];
 }
 
 interface SubgraphResponse {
@@ -525,75 +514,16 @@ export class DataController {
       );
     }
 
-    const query = `
-      query GetUserTrustedServers($userId: ID!) {
-        user(id: $userId) {
-          id
-          trustedServers {
-            id
-            serverAddress
-            serverUrl
-            trustedAt
-            user {
-              id
-            }
-          }
-        }
-      }
-    `;
-    console.info("GraphQL Endpoint:", graphqlEndpoint);
-    console.info(
-      "Body:",
-      JSON.stringify({
-        query,
-        variables: {
-          userId: user.toLowerCase(),
-        },
-      }),
+    // Note: trustedServers field is not available in the current subgraph schema
+    // Fall back to direct contract calls
+    console.warn(
+      "Subgraph mode not available for trusted servers - using direct contract calls",
     );
-
-    const response = await fetch(graphqlEndpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        query,
-        variables: {
-          userId: user.toLowerCase(),
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(
-        `Subgraph request failed: ${response.status} ${response.statusText}`,
-      );
-    }
-
-    const result = (await response.json()) as SubgraphResponse;
-
-    if (result.errors) {
-      throw new Error(
-        `Subgraph errors: ${result.errors.map((e) => e.message).join(", ")}`,
-      );
-    }
-
-    const userData = result.data?.user;
-    if (!userData || !userData.trustedServers?.length) {
-      return [];
-    }
-
-    // Convert subgraph data to unified format
-    return userData.trustedServers
-      .map((server) => ({
-        id: server.id,
-        serverAddress: server.serverAddress as Address,
-        serverUrl: server.serverUrl,
-        trustedAt: BigInt(server.trustedAt),
-        user: server.user.id as Address,
-      }))
-      .sort((a, b) => Number(b.trustedAt - a.trustedAt));
+    return await this._getUserTrustedServersViaRpc({
+      user,
+      limit: 50, // Default limit for subgraph fallback
+      offset: 0, // Default offset for subgraph fallback
+    }).then((result) => result.servers);
   }
 
   /**

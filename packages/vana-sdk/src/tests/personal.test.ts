@@ -99,7 +99,6 @@ describe("ServerController", () => {
 
   describe("postRequest", () => {
     const validParams: PostRequestParams = {
-      userAddress: mockUserAddress,
       permissionId: 12345,
     };
 
@@ -956,7 +955,6 @@ describe("ServerController", () => {
   describe("private method coverage through public methods", () => {
     it("should validate and create request JSON properly", async () => {
       const validParams: PostRequestParams = {
-        userAddress: mockUserAddress,
         permissionId: 12345,
       };
 
@@ -983,7 +981,6 @@ describe("ServerController", () => {
 
     it("should use correct Replicate versions", async () => {
       const postParams: PostRequestParams = {
-        userAddress: mockUserAddress,
         permissionId: 123,
       };
       const initParams: InitPersonalServerParams = {

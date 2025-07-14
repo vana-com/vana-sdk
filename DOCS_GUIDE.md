@@ -31,10 +31,11 @@ Adhere to this structure for all public-facing members. Consistency is key.
  *
  * @remarks
  * (A more detailed paragraph on the class's role and key responsibilities.
- * Explain *what* it enables the developer to do.)
+ * Explain *what* it enables the developer to do. If a core Vana concept is mentioned,
+ * provide a brief, self-contained explanation.)
  *
- * @see For a conceptual overview, read [Conceptual Docs Link](doc:page-slug).
  * @category (A category for the TypeDoc sidebar, e.g., "Permissions")
+ * @see For a conceptual overview, consider visiting https://docs.vana.org.
  */
 export class MyController {
   /* ... */
@@ -45,7 +46,7 @@ export class MyController {
 
 The order of tags must be: summary, `@remarks`, `@param`, `@returns`, `@throws`, `@example`, `@see`.
 
-````typescript
+```typescript
   /**
    * (Summary: A concise, active-verb phrase describing what the method does.)
    *
@@ -64,7 +65,8 @@ The order of tags must be: summary, `@remarks`, `@param`, `@returns`, `@throws`,
    *
    * @see (Optional: Link to a conceptual doc page for more context.)
    */
-  public async myMethod(params: MyParams): Promise<MyResult> { /* ... */ }```
+  public async myMethod(params: MyParams): Promise<MyResult> { /* ... */ }
+```
 
 ### **For Types and Interfaces**
 
@@ -78,7 +80,7 @@ export interface MyType {
   /** (A comment for *every* public property explaining its purpose.) */
   readonly someProperty: string;
 }
-````
+```
 
 ## 4. Voice & Style
 
@@ -99,7 +101,7 @@ export interface MyType {
 - **DataDAO:** The user-facing term for a data collective. Use this in most high-level descriptions.
 - **Data Liquidity Pool (DLP):** The technical, smart-contract-level term. Use only when referring specifically to the contract type or its address.
 - **Gasless Transaction:** The preferred user-facing term.
-- **Meta-Transaction:** The underlying technical term. Use sparingly, and link to conceptual docs if necessary.
+- **Meta-Transaction:** The underlying technical term. Use sparingly.
 
 ## 5. Examples are Non-Negotiable
 
@@ -124,19 +126,28 @@ A good example is the most critical part of the documentation.
  */
 ````
 
-## 6. Linking to Conceptual Docs (`@see`)
+## 6. Explaining Core Concepts
 
-The API reference must not explain complex concepts. It must **link** to them. Use the `@see` tag to bridge the gap between the "What" (SDK) and the "Why" (docs.vana.org).
+While the API reference should be concise, it's crucial to provide enough context for developers to understand core Vana concepts without leaving their editor.
 
-- **Use Case:** When you mention a core Vana concept like `Proof of Contribution`, `Data Refinement`, or `VRC-20`.
-- **Format:** `* @see For more on [Concept Name], see the [conceptual docs](doc:page-slug).`
+- **Use `@remarks` for brief explanations:** When a method or class introduces a core concept (e.g., `Data Refinement`, `Proof of Contribution`), provide a one or two-sentence explanation within the `@remarks` block.
+- **Prioritize clarity and self-containment:** The goal is to give the developer just enough information to use the API effectively. Avoid deep dives that are better suited for `docs.vana.org`.
+- **Use `@see` for further reading:** If a concept warrants more detailed explanation, use the `@see` tag to point developers to the main documentation website as a resource for further learning.
 
 **Correct Usage:**
 
 ```typescript
 /**
- * ...
- * @see For a detailed explanation of data refinement, see the [Data Refinement & Publishing](doc:data-refinement-publishing) guide.
+ * Initiates a data refinement process on a set of user files.
+ *
+ * @remarks
+ * Data refinement is the process of transforming raw data into a structured and
+ * privacy-preserving format using a predefined "refiner."
+ *
+ * @param refinerId - The ID of the refiner to use for processing.
+ * @param fileIds - An array of file IDs to be refined.
+ * @returns A promise that resolves with the ID of the refinement job.
+ * @see For a detailed explanation of data refinement, see the [Data Refinement & Publishing](https://docs.vana.org/docs/data-refinement) guide.
  */
 ```
 
@@ -145,10 +156,7 @@ The API reference must not explain complex concepts. It must **link** to them. U
 ```typescript
 /**
  * @remarks
- * Data refinement is the process of safely transforming raw input data into
- * encrypted, normalized, and queryable datasets. This is accomplished through
- * publicly documented "data refiners" defined by DataDAOs... (and so on).
+ * Data refinement is a multi-stage process involving several smart contracts...
+ * (This is too detailed for the API reference and will become stale.)
  */
 ```
-
-_(This is a duplication of content from `docs.vana.org` and will become stale.)_

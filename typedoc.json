@@ -1,8 +1,8 @@
 {
   "entryPoints": [
-    "packages/vana-sdk/src/vana.ts",
+    "packages/vana-sdk/src/index.ts",
     "packages/vana-sdk/src/controllers/data.ts",
-    "packages/vana-sdk/src/controllers/permissions.ts", 
+    "packages/vana-sdk/src/controllers/permissions.ts",
     "packages/vana-sdk/src/controllers/protocol.ts",
     "packages/vana-sdk/src/storage/index.ts",
     "packages/vana-sdk/src/config/chains.ts",
@@ -20,7 +20,7 @@
   "defaultCategory": "Reference",
   "categoryOrder": [
     "Core SDK",
-    "Data Management", 
+    "Data Management",
     "Permissions",
     "Storage",
     "Configuration",
@@ -29,12 +29,7 @@
     "*"
   ],
   "sort": ["source-order"],
-  "kindSortOrder": [
-    "Class",
-    "Function",
-    "Variable",
-    "TypeAlias"
-  ],
+  "kindSortOrder": ["Class", "Function", "Variable", "TypeAlias"],
   "searchInComments": true,
   "includeVersion": true,
   "validation": {

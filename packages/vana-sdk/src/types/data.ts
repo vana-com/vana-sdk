@@ -1,101 +1,118 @@
 import type { Address, Hash } from "viem";
 
 /**
- * Represents a user's registered data file in the Vana network.
+ * Represents a registered data file in the Vana network with complete blockchain metadata.
  *
- * This interface describes a file that has been uploaded and registered on-chain,
- * including its storage location, ownership, and metadata. Used when querying
- * user files or working with file references.
+ * @remarks
+ * This interface describes files that have been uploaded to storage and registered
+ * on the Vana blockchain, including their storage location, ownership, and blockchain
+ * tracking information. Each file receives a unique ID and is linked to the owner's
+ * address for permission management. Used throughout the SDK for file operations
+ * and access control workflows.
  *
  * @category Data Management
  */
 export interface UserFile {
-  /** Unique identifier for the file */
+  /** Unique identifier assigned by the Data Registry contract. */
   id: number;
-  /** URL where the file is stored */
+  /** Storage URL where the encrypted file content is hosted. */
   url: string;
-  /** EVM address of the file owner */
+  /** Wallet address of the user who owns this file. */
   ownerAddress: Address;
-  /** Block number when the file was added to the registry */
+  /** Block number when this file was registered on-chain. */
   addedAtBlock: bigint;
-  /** The schema ID associated with this file, if any */
+  /** Schema identifier for data validation and structure definition. */
   schemaId?: number;
-  /** The timestamp when the file was added */
+  /** Unix timestamp when the file was registered on-chain. */
   addedAtTimestamp?: bigint;
-  /** The transaction hash of the file addition */
+  /** Transaction hash of the on-chain file registration. */
   transactionHash?: Address;
-  /** Optional file metadata */
+  /** Additional file properties and custom application data. */
   metadata?: FileMetadata;
 }
 
 /**
- * File metadata structure for uploaded files.
+ * Provides optional metadata for uploaded files and content description.
  *
- * Contains optional metadata that can be associated with uploaded files,
- * including file properties and custom application-specific data.
+ * @remarks
+ * This interface contains descriptive information about uploaded files, including
+ * file properties and custom application-specific data that can be used for
+ * organization, validation, and display purposes.
  *
  * @category Data Management
  */
 export interface FileMetadata {
-  /** Original filename */
+  /** Original filename as provided by the user or application. */
   name?: string;
-  /** File size in bytes */
+  /** Total file size in bytes for storage tracking. */
   size?: number;
-  /** MIME type */
+  /** MIME type identifier for content type recognition. */
   mimeType?: string;
-  /** File checksum */
+  /** Hash value for file integrity verification. */
   checksum?: string;
-  /** Upload timestamp */
+  /** ISO 8601 timestamp when the file was uploaded. */
   uploadedAt?: string;
-  /** Additional custom metadata */
+  /** Application-specific metadata for custom use cases. */
   custom?: Record<string, unknown>;
 }
 
 /**
- * Parameters for uploading a file to a storage provider.
+ * Defines parameters for uploading files to storage providers with encryption options.
  *
- * Used with `DataController.uploadEncryptedFile()` and storage operations.
- * Files can be uploaded with optional metadata and encryption settings.
+ * @remarks
+ * Used with DataController upload methods and storage operations. Supports multiple
+ * content formats, optional encryption, and custom storage provider selection with
+ * comprehensive metadata tracking.
  *
- * @category Data Management
  * @example
  * ```typescript
  * const uploadParams: UploadFileParams = {
- *   content: new Uint8Array([1, 2, 3]), // File data
+ *   content: new TextEncoder().encode(JSON.stringify(userData)),
  *   metadata: {
- *     name: 'my-data.json',
- *     mimeType: 'application/json',
- *     size: 1024
+ *     name: "personal-profile.json",
+ *     mimeType: "application/json",
+ *     size: 2048,
  *   },
- *   storageProvider: 'ipfs',
- *   encrypt: true
+ *   storageProvider: "ipfs",
+ *   encrypt: true,
  * };
+ *
+ * const result = await vana.data.uploadFile(uploadParams);
  * ```
+ *
+ * @category Data Management
  */
 export interface UploadFileParams {
-  /** File content or buffer */
+  /** Raw file data in bytes, buffer, or string format. */
   content: Uint8Array | Buffer | string;
-  /** Optional file metadata */
+  /** Descriptive metadata for file organization and tracking. */
   metadata?: FileMetadata;
-  /** Storage provider to use (defaults to configured default) */
+  /** Storage provider name or uses configured default if unspecified. */
   storageProvider?: string;
-  /** Whether to encrypt the file */
+  /** Enables automatic encryption before upload to storage. */
   encrypt?: boolean;
-  /** Optional encryption key */
+  /** Custom encryption key or generates one automatically if encryption enabled. */
   encryptionKey?: string;
 }
 
 /**
- * Result of uploading a file
+ * Contains the result of a successful file upload operation.
+ *
+ * @remarks
+ * This interface provides the essential information returned after uploading
+ * a file to a storage provider, including access URL, size verification,
+ * and encryption details when applicable.
+ *
+ * @category Data Management
  */
 export interface UploadFileResult {
-  /** The storage URL where the file is stored */
+  /** Public URL where the uploaded file can be accessed. */
   url: string;
-  /** Size of the file in bytes */
+  /** Actual file size in bytes after upload processing. */
   size: number;
-  /** File checksum */
+  /** Hash value for verifying file integrity after upload. */
   checksum?: string;
-  /** Optional encryption information */
+  /** Encryption metadata when file was encrypted before storage. */
   encryption?: EncryptionInfo;
 }
 

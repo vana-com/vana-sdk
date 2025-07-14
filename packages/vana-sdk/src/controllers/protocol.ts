@@ -11,40 +11,45 @@ import { ControllerContext } from "./permissions";
 import type { GetContractReturnType } from "viem";
 
 /**
- * **⚠️ ADVANCED API - Most developers should use DataController and PermissionsController instead**
- * 
- * Controller providing direct, low-level access to all Vana protocol smart contracts.
- * This serves as the designated "escape hatch" for advanced developers who need to
- * interact directly with the underlying blockchain contracts.
+ * Provides direct, low-level access to all Vana protocol smart contracts.
+ *
+ * @remarks
+ * This controller serves as the designated "escape hatch" for advanced developers who need
+ * to interact directly with the underlying blockchain contracts. It provides access to
+ * contract addresses, ABIs, and factory methods for creating typed contract instances.
+ * Most developers should use the higher-level DataController and PermissionsController
+ * instead of this advanced API.
+ *
+ * The controller automatically handles chain detection and provides only contracts that
+ * are deployed on the current network. All contract instances are fully typed for
+ * enhanced developer experience and type safety.
  *
  * **Use this controller when:**
- * - The high-level controllers don't provide needed functionality
- * - You need direct contract method calls
+ * - High-level controllers don't provide needed functionality
+ * - You need direct contract method calls or event access
  * - You're building custom integrations or tooling
- * - You need access to contract events or advanced querying
+ * - You need advanced querying capabilities
  *
  * **Most developers should use instead:**
- * - `vana.data.*` for file management
- * - `vana.permissions.*` for access control
+ * - `vana.data.*` for file management operations
+ * - `vana.permissions.*` for access control workflows
  *
- * @category Advanced
- * @internal
  * @example
  * ```typescript
  * // Get contract info for direct interaction
- * const registry = vana.protocol.getContract('DataRegistry');
- * 
- * // Access contract address and ABI
+ * const registry = vana.protocol.getContract("DataRegistry" as const);
+ *
+ * // Access contract address and ABI with full typing
  * console.log(registry.address); // Contract address on current chain
  * console.log(registry.abi);     // Fully typed contract ABI
- * 
- * // Use with viem for direct contract calls
- * const contract = getContract({
- *   address: registry.address,
- *   abi: registry.abi,
- *   publicClient: myPublicClient
- * });
+ *
+ * // Create a typed contract instance
+ * const contract = vana.protocol.createContract("DataRegistry" as const);
+ * const fileCount = await contract.read.filesCount();
  * ```
+ *
+ * @category Advanced
+ * @see {@link [URL_PLACEHOLDER] | Vana Protocol Contracts} for contract specifications
  */
 export class ProtocolController {
   private readonly contractFactory: ContractFactory;
@@ -54,17 +59,26 @@ export class ProtocolController {
   }
 
   /**
-   * Provides direct, low-level access to the addresses and ABIs of Vana's canonical smart contracts.
+   * Retrieves the address and ABI for a specific Vana protocol contract.
+   *
+   * @remarks
+   * This method provides direct access to contract addresses and ABIs for the current
+   * chain. It includes full TypeScript type inference when using const assertions,
+   * enabling type-safe contract interactions. The method only returns contracts that
+   * are actually deployed on the current network.
    *
    * @param contractName - The name of the Vana contract to retrieve (use const assertion for full typing)
-   * @returns Object containing the contract's address and ABI with full type inference
-   * @throws ContractNotFoundError if the contract is not found on the current chain
+   * @returns An object containing the contract's address and fully typed ABI
+   * @throws {ContractNotFoundError} When the contract is not deployed on the current chain
    *
    * @example
    * ```typescript
    * // Get contract info with full type inference
-   * const dataRegistry = protocol.getContract("DataRegistry" as const);
-   * // Now dataRegistry.abi is fully typed
+   * const dataRegistry = vana.protocol.getContract("DataRegistry" as const);
+   *
+   * // Now dataRegistry.abi is fully typed for the DataRegistry contract
+   * console.log(dataRegistry.address); // "0x123..."
+   * console.log(dataRegistry.abi.length); // Full ABI array
    * ```
    */
   getContract<T extends VanaContract>(
@@ -100,21 +114,29 @@ export class ProtocolController {
   }
 
   /**
-   * Creates a fully typed contract instance ready for interaction.
-   * This provides complete type safety for all contract methods.
+   * Creates a fully typed contract instance ready for blockchain interaction.
+   *
+   * @remarks
+   * This method creates a contract instance with complete type safety for all contract
+   * methods including read operations, write operations, and event handling. The instance
+   * is pre-configured with the correct address, ABI, and wallet client for immediate use.
+   * All method parameters and return types are fully typed based on the contract ABI.
    *
    * @param contractName - The name of the Vana contract (use const assertion for full typing)
-   * @returns Fully typed contract instance with read/write methods
-   * @throws ContractNotFoundError if the contract is not found on the current chain
+   * @returns A fully typed contract instance with read/write methods and event handling
+   * @throws {ContractNotFoundError} When the contract is not deployed on the current chain
    *
    * @example
    * ```typescript
    * // Create typed contract instance
-   * const dataRegistry = protocol.createContract("DataRegistry" as const);
+   * const dataRegistry = vana.protocol.createContract("DataRegistry" as const);
    *
-   * // Full type safety for all methods
-   * const fileCount = await dataRegistry.read.getFileCount(); // Type: bigint
-   * await dataRegistry.write.addFile([url, proof]); // Typed parameters
+   * // Full type safety for all operations
+   * const fileCount = await dataRegistry.read.filesCount(); // Type: bigint
+   * const txHash = await dataRegistry.write.addFile(["ipfs://..."]); // Typed parameters
+   *
+   * // Listen to events with full typing
+   * const logs = await dataRegistry.getEvents.FileAdded();
    * ```
    */
   createContract<T extends VanaContract>(

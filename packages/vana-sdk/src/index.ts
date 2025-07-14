@@ -19,16 +19,40 @@ import type { VanaPlatformAdapter } from "./platform/interface";
  */
 
 /**
- * Universal Vana SDK class with automatic platform detection.
- * Uses dynamic imports to ensure platform-specific code is only loaded in the correct environment.
- * This prevents SSR issues where browser-only APIs are bundled in server environments.
+ * Provides the main SDK interface with automatic platform detection and isomorphic support.
  *
- * BREAKING CHANGE: The constructor is now private. Use the async static create() method instead.
+ * @remarks
+ * This class uses dynamic imports to ensure platform-specific code is only loaded in the
+ * correct environment, preventing SSR issues where browser-only APIs would be bundled
+ * in server environments. The constructor is private to enforce async initialization.
+ *
+ * @example
+ * ```typescript
+ * // Initialize with wallet configuration
+ * const vana = await Vana.create({
+ *   network: "moksha",
+ *   wallet: {
+ *     privateKey: "0x...",
+ *   },
+ * });
+ *
+ * // Initialize with chain configuration
+ * const vana = await Vana.create({
+ *   network: "mainnet",
+ *   chain: {
+ *     providerUrl: "https://rpc.vana.org",
+ *   },
+ * });
+ * ```
+ *
+ * @category Core SDK
  */
 export class Vana extends VanaCore {
   /**
-   * Private constructor to enforce async initialization.
-   * Use Vana.create() instead of new Vana().
+   * Enforces async initialization pattern.
+   *
+   * @remarks
+   * Use `Vana.create()` instead of direct instantiation to ensure proper platform detection.
    */
   private constructor(config: VanaConfig, platform: VanaPlatformAdapter) {
     super(config, platform);
@@ -36,10 +60,26 @@ export class Vana extends VanaCore {
 
   /**
    * Creates a new Vana instance with automatic platform detection.
-   * This is the new official way to initialize the SDK.
    *
-   * @param config - Configuration object (WalletConfig or ChainConfig)
-   * @returns Promise resolving to a Vana instance
+   * @remarks
+   * This method detects the runtime environment (Node.js or browser) and loads the
+   * appropriate platform adapter using dynamic imports for optimal bundle size.
+   *
+   * @param config - The configuration object specifying network and authentication settings
+   * @returns A Promise that resolves to a fully initialized Vana instance
+   * @throws {Error} When platform detection fails or configuration is invalid
+   *
+   * @example
+   * ```typescript
+   * const vana = await Vana.create({
+   *   network: "moksha",
+   *   wallet: {
+   *     privateKey: process.env.VANA_PRIVATE_KEY,
+   *   },
+   * });
+   *
+   * console.log(`Connected to ${vana.network}`);
+   * ```
    */
   public static async create(config: VanaConfig): Promise<Vana> {
     const platformAdapter = await Vana.createPlatformAdapter();

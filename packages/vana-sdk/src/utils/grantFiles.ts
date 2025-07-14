@@ -81,7 +81,7 @@ export async function storeGrantFile(
  * Retrieves a grant file from IPFS.
  *
  * @param grantUrl - The IPFS URL (e.g., "ipfs://QmHash...")
- * @param relayerUrl - URL of the relayer service (optional)
+ * @param _relayerUrl - URL of the relayer service (optional)
  * @returns Promise resolving to the grant file
  */
 export async function retrieveGrantFile(

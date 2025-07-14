@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
       data: {
         userAddress,
         publicKey,
+        applicationAddress: applicationAccount.address,
       },
     });
   } catch (error) {

@@ -45,22 +45,13 @@ export const GrantPreviewModalContent: React.FC<
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 text-sm">
-        <div>
-          <span className="font-medium">Operation:</span>
-          <p className="text-muted-foreground">
-            {grantPreview.grantFile.operation}
-          </p>
-        </div>
-      </div>
-
       <div>
-        <span className="text-sm font-medium">Parameters:</span>
+        <span className="text-sm font-medium">Complete Grant File:</span>
         <CodeDisplay
-          code={JSON.stringify(grantPreview.grantFile.parameters, null, 2)}
+          code={JSON.stringify(grantPreview.grantFile, null, 2)}
           language="json"
           size="xs"
-          maxHeight="max-h-28"
+          maxHeight="max-h-64"
           className="mt-2"
         />
       </div>

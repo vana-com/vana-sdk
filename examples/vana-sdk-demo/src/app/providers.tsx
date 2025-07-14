@@ -43,7 +43,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           enableSystem
         >
           <HeroUIProvider>
-            <ToastProvider placement="top-right" />
+            <ToastProvider placement="bottom-right" />
             <RainbowKitProvider theme={darkTheme()}>
               {children}
             </RainbowKitProvider>

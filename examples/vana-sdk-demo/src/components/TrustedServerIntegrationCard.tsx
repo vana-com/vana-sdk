@@ -1,6 +1,7 @@
 import React from "react";
 import { Input, Button } from "@heroui/react";
-import { Brain, Key, Lock, RotateCcw, Copy } from "lucide-react";
+import { Brain, Key, Lock, RotateCcw, Copy, FileText } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import { SectionHeader } from "./ui/SectionHeader";
 import { ActionButton } from "./ui/ActionButton";
 import { StatusMessage } from "./ui/StatusMessage";
@@ -30,6 +31,10 @@ interface TrustedServerIntegrationCardProps {
   personalError: string;
   personalResult: unknown;
 
+  // Execution context
+  lastUsedPermissionId: string;
+  lastUsedPrompt: string;
+
   // Utility functions
   onCopyToClipboard: (text: string, label: string) => Promise<void>;
 }
@@ -58,6 +63,8 @@ export const TrustedServerIntegrationCard: React.FC<
   isPolling,
   personalError,
   personalResult,
+  lastUsedPermissionId,
+  lastUsedPrompt,
   onCopyToClipboard,
 }) => {
   return (
@@ -224,13 +231,57 @@ export const TrustedServerIntegrationCard: React.FC<
         )}
 
         {Boolean(personalResult) && (
-          <div className="space-y-4">
-            <h4 className="font-medium">Computation Result:</h4>
-            <CodeDisplay
-              code={JSON.stringify(personalResult, null, 2)}
-              language="json"
-              size="sm"
-            />
+          <div className="space-y-6">
+            <div className="space-y-4">
+              <h4 className="font-medium">Computation Result:</h4>
+              {typeof personalResult === "string" ? (
+                <div className="p-4 bg-default-50 border border-default-200 rounded-lg prose prose-sm max-w-none">
+                  <ReactMarkdown>{personalResult}</ReactMarkdown>
+                </div>
+              ) : (
+                <CodeDisplay
+                  code={JSON.stringify(personalResult, null, 2)}
+                  language="json"
+                  size="sm"
+                />
+              )}
+            </div>
+
+            {/* Execution Context */}
+            {lastUsedPermissionId && (
+              <div className="space-y-4 border-t pt-4">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  <h4 className="font-medium">Execution Context</h4>
+                </div>
+
+                <div className="space-y-3 bg-default-50 p-4 rounded-lg">
+                  <div>
+                    <span className="text-sm font-medium text-default-700">
+                      Permission ID Used:
+                    </span>
+                    <p className="text-sm text-default-600 mt-1">
+                      {lastUsedPermissionId}
+                    </p>
+                  </div>
+
+                  {lastUsedPrompt && (
+                    <div>
+                      <span className="text-sm font-medium text-default-700">
+                        Prompt Used:
+                      </span>
+                      <CodeDisplay
+                        code={lastUsedPrompt}
+                        language="text"
+                        size="xs"
+                        maxHeight="max-h-32"
+                        className="mt-2"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

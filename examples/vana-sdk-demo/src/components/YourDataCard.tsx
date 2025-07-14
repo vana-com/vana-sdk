@@ -12,6 +12,7 @@ import {
   Checkbox,
   Chip,
   Pagination,
+  Textarea,
 } from "@heroui/react";
 import {
   Database,
@@ -69,6 +70,13 @@ interface YourDataCardProps {
   grantStatus: string;
   grantTxHash: string;
 
+  // Prompt customization
+  promptText: string;
+  onPromptTextChange: (text: string) => void;
+
+  // Application info
+  applicationAddress: string;
+
   // User info
   _userAddress: string | undefined;
   chainId: number;
@@ -99,6 +107,9 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
   isGranting,
   grantStatus,
   grantTxHash,
+  promptText,
+  onPromptTextChange,
+  applicationAddress,
   _userAddress,
   chainId,
 }) => {
@@ -431,6 +442,39 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
                 Grant Permissions
               </Button>
             </div>
+
+            {/* Prompt Customization */}
+            <div className="mb-4">
+              <Textarea
+                label="LLM Prompt"
+                placeholder="Enter your custom prompt for the LLM"
+                value={promptText}
+                onChange={(e) => onPromptTextChange(e.target.value)}
+                description="Customize the prompt that will be used by the LLM when processing your data. Use {{data}} as a placeholder for your file contents."
+                minRows={3}
+                maxRows={6}
+              />
+            </div>
+
+            {/* Application Address Display */}
+            {applicationAddress && (
+              <div className="mb-4 p-3 bg-primary/10 rounded-lg">
+                <p className="text-sm font-medium text-primary-700 mb-2">
+                  Permission Grantee (Application):
+                </p>
+                <AddressDisplay
+                  address={applicationAddress}
+                  showCopy={true}
+                  showExternalLink={true}
+                  truncate={false}
+                  className="text-sm"
+                />
+                <p className="text-xs text-primary-600 mt-1">
+                  Permissions will be granted to this application address
+                  derived from the server's private key.
+                </p>
+              </div>
+            )}
 
             {grantStatus && (
               <StatusMessage

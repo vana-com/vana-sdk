@@ -162,6 +162,18 @@ export default function Home() {
   );
   const [ipfsMode] = useState<"app-managed" | "user-managed">("app-managed");
 
+  // Prompt state for customizable LLM prompt
+  const [promptText, setPromptText] = useState<string>(
+    "Create a comprehensive Digital DNA profile from this data that captures the essence of this person's digital footprint: {{data}}",
+  );
+
+  // Execution context state for displaying permission details
+  const [lastUsedPermissionId, setLastUsedPermissionId] = useState<string>("");
+  const [lastUsedPrompt, setLastUsedPrompt] = useState<string>("");
+
+  // Application address for permission granting
+  const [applicationAddress, setApplicationAddress] = useState<string>("");
+
   // Schema selection for file upload
   const [selectedUploadSchemaId, setSelectedUploadSchemaId] =
     useState<string>("");
@@ -587,6 +599,23 @@ export default function Home() {
           setVana(vanaInstance);
           console.info("✅ Vana SDK initialized:", vanaInstance.getConfig());
 
+          // Fetch application address for permission granting
+          try {
+            const appAddressResponse = await fetch("/api/application-address");
+            if (appAddressResponse.ok) {
+              const appAddressData = await appAddressResponse.json();
+              if (appAddressData.success) {
+                setApplicationAddress(appAddressData.data.applicationAddress);
+                console.info(
+                  "✅ Application address fetched:",
+                  appAddressData.data.applicationAddress,
+                );
+              }
+            }
+          } catch (error) {
+            console.warn("⚠️ Failed to fetch application address:", error);
+          }
+
           // Create a separate storage manager for the demo UI (to maintain existing UI functionality)
           const manager = new StorageManager();
           for (const [name, provider] of Object.entries(storageProviders)) {
@@ -605,6 +634,7 @@ export default function Home() {
       setStorageManager(null);
       setUserFiles([]);
       setSelectedFiles([]);
+      setApplicationAddress("");
     }
   }, [isConnected, walletClient, sdkConfig]);
 
@@ -709,6 +739,13 @@ export default function Home() {
   const handleGrantPermission = async () => {
     if (!vana || selectedFiles.length === 0) return;
 
+    if (!applicationAddress) {
+      setGrantStatus(
+        "❌ Application address not available. Please refresh the page.",
+      );
+      return;
+    }
+
     setIsGranting(true);
     setGrantStatus("Preparing permission grant...");
     setGrantTxHash("");
@@ -716,11 +753,11 @@ export default function Home() {
     try {
       // Create clear, unencrypted parameters for the grant
       const params: GrantPermissionParams = {
-        to: "0x1234567890123456789012345678901234567890", // Demo DLP address
+        to: applicationAddress as `0x${string}`, // Use dynamically fetched application address
         operation: "llm_inference",
         files: selectedFiles,
         parameters: {
-          prompt: "Analyze this data: {{data}}",
+          prompt: promptText,
         },
       };
 
@@ -1334,6 +1371,29 @@ export default function Home() {
 
       const result = await response.json();
       setPersonalResult(result.data);
+
+      // Fetch and store permission context for display
+      if (vana) {
+        try {
+          const permissionInfo = await vana.permissions.getPermissionInfo(
+            BigInt(permissionId),
+          );
+          const { retrieveGrantFile } = await import("vana-sdk");
+          const grantFile = await retrieveGrantFile(permissionInfo.grant);
+
+          setLastUsedPermissionId(permissionId.toString());
+          setLastUsedPrompt(
+            typeof grantFile.parameters?.prompt === "string"
+              ? grantFile.parameters.prompt
+              : "",
+          );
+        } catch (error) {
+          console.warn("Failed to fetch permission context:", error);
+          // Don't fail the main operation if context fetching fails
+          setLastUsedPermissionId(permissionId.toString());
+          setLastUsedPrompt("");
+        }
+      }
     } catch (error) {
       setPersonalError(
         error instanceof Error ? error.message : "Unknown error",
@@ -2078,6 +2138,9 @@ export default function Home() {
                       isGranting={isGranting}
                       grantStatus={grantStatus}
                       grantTxHash={grantTxHash}
+                      promptText={promptText}
+                      onPromptTextChange={setPromptText}
+                      applicationAddress={applicationAddress}
                       _userAddress={address}
                       chainId={chainId || 14800}
                     />
@@ -2311,6 +2374,8 @@ export default function Home() {
                       isPolling={isPolling}
                       personalError={personalError}
                       personalResult={personalResult}
+                      lastUsedPermissionId={lastUsedPermissionId}
+                      lastUsedPrompt={lastUsedPrompt}
                       onCopyToClipboard={copyToClipboard}
                     />
                   </div>

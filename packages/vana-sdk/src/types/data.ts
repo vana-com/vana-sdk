@@ -1,12 +1,14 @@
 import type { Address, Hash } from "viem";
 
 /**
- * Represents a registered data file in the Vana network with blockchain metadata.
+ * Represents a registered data file in the Vana network with complete blockchain metadata.
  *
  * @remarks
  * This interface describes files that have been uploaded to storage and registered
- * on-chain, including their storage location, ownership, and blockchain tracking
- * information. Used when querying user files or managing file permissions.
+ * on the Vana blockchain, including their storage location, ownership, and blockchain
+ * tracking information. Each file receives a unique ID and is linked to the owner's
+ * address for permission management. Used throughout the SDK for file operations
+ * and access control workflows.
  *
  * @category Data Management
  */

@@ -7,46 +7,69 @@ import {
 } from "./index";
 
 /**
- * Unified interface for managing multiple storage providers (IPFS, Google Drive, Pinata, etc.).
+ * Manages multiple storage providers with a unified interface for file operations.
  *
- * The StorageManager allows you to register different storage backends and provides
- * a consistent API for uploading, downloading, and managing files across providers.
- * Used internally by DataController but can also be used directly for custom storage workflows.
+ * @remarks
+ * The StorageManager provides a consistent API for uploading, downloading, and managing
+ * files across different storage backends including IPFS, Pinata, Google Drive, and
+ * server-managed storage. It handles provider registration, default provider selection,
+ * and automatic fallback scenarios for robust file operations.
  *
- * **Common workflows:**
- * - Register providers: `register()`
- * - Upload files: `upload()`
- * - Download files: `download()`
- * - List files: `list()`
- * - Switch between providers for different use cases
+ * Used internally by DataController for encrypted file storage, but can also be used
+ * directly for custom storage workflows. Each provider implements the `StorageProvider`
+ * interface to ensure consistent behavior across different storage backends.
  *
- * @category Storage
+ * The manager supports provider-specific configurations and features while maintaining
+ * a uniform API surface for applications.
+ *
  * @example
  * ```typescript
  * import { StorageManager, IPFSStorage, PinataStorage } from 'vana-sdk/storage';
- * 
+ *
  * const storage = new StorageManager();
- * 
+ *
  * // Register multiple providers
- * storage.register('ipfs', new IPFSStorage({ gateway: 'https://gateway.pinata.cloud' }), true);
- * storage.register('pinata', new PinataStorage({ apiKey: 'your-key', secretKey: 'your-secret' }));
- * 
+ * storage.register('ipfs', new IPFSStorage({
+ *   apiEndpoint: 'https://api.pinata.cloud/pinning/pinFileToIPFS'
+ * }), true);
+ * storage.register('pinata', new PinataStorage({
+ *   jwt: 'your-pinata-jwt-token'
+ * }));
+ *
  * // Upload to default provider
  * const result = await storage.upload(fileBlob, 'myfile.json');
- * 
+ *
  * // Upload to specific provider
  * const result2 = await storage.upload(fileBlob, 'myfile.json', 'pinata');
  * ```
+ *
+ * @category Storage
+ * @see {@link [URL_PLACEHOLDER] | Storage Providers Guide} for configuration details
  */
 export class StorageManager {
   private providers: Map<string, StorageProvider> = new Map();
   private defaultProvider: string | null = null;
 
   /**
-   * Register a storage provider
-   * @param name - Provider identifier
-   * @param provider - Storage provider instance
-   * @param isDefault - Whether this should be the default provider
+   * Registers a storage provider with the manager.
+   *
+   * @remarks
+   * This method adds a new storage provider to the manager's registry and optionally
+   * sets it as the default provider for subsequent operations. If no default provider
+   * is currently set, the first registered provider automatically becomes the default.
+   *
+   * @param name - Unique identifier for the provider
+   * @param provider - The storage provider instance implementing the `StorageProvider` interface
+   * @param isDefault - Whether this provider should be set as the default (defaults to `false`)
+   *
+   * @example
+   * ```typescript
+   * const pinata = new PinataStorage({ jwt: 'your-jwt-token' });
+   * storage.register('pinata', pinata, true); // Set as default
+   *
+   * const ipfs = new IPFSStorage({ apiEndpoint: 'https://...' });
+   * storage.register('ipfs', ipfs); // Not default
+   * ```
    */
   register(name: string, provider: StorageProvider, isDefault = false): void {
     this.providers.set(name, provider);
@@ -116,11 +139,28 @@ export class StorageManager {
   }
 
   /**
-   * Upload a file using the specified or default provider
-   * @param file - The file to upload
-   * @param filename - Optional custom filename
-   * @param providerName - Optional provider to use
-   * @returns Promise with storage upload result
+   * Uploads a file using the specified or default storage provider.
+   *
+   * @remarks
+   * This method uploads a file to the specified provider or falls back to the default
+   * provider if none is specified. The upload result includes the storage URL, file size,
+   * content type, and provider-specific metadata that can be used for subsequent operations.
+   *
+   * @param file - The file blob to upload
+   * @param filename - Optional custom filename (defaults to auto-generated name)
+   * @param providerName - Optional provider identifier (uses default if not specified)
+   * @returns A Promise that resolves to the storage upload result with URL and metadata
+   * @throws {StorageError} When no provider is available or upload fails
+   *
+   * @example
+   * ```typescript
+   * // Upload to default provider
+   * const result = await storage.upload(fileBlob, 'data.json');
+   * console.log(`Uploaded to: ${result.url}`);
+   *
+   * // Upload to specific provider
+   * const result2 = await storage.upload(fileBlob, 'data.json', 'pinata');
+   * ```
    */
   async upload(
     file: Blob,

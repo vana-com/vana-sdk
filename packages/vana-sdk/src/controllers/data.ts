@@ -92,16 +92,22 @@ interface SubgraphResponse {
  * @remarks
  * This controller handles the complete file lifecycle from encrypted upload to
  * blockchain registration and decryption. It provides methods for querying user files,
- * uploading new encrypted content, and managing file schemas.
+ * uploading new encrypted content, managing file schemas, and handling permissions for
+ * secure data sharing. All operations respect the user's privacy through client-side
+ * encryption before any data leaves the user's device.
+ *
+ * The controller integrates with multiple storage providers (IPFS, Pinata, Google Drive)
+ * and supports both gasless transactions via relayers and direct blockchain interaction.
+ * File metadata and access permissions are stored on the Vana blockchain while encrypted
+ * file content is stored on decentralized storage networks.
  *
  * @example
  * ```typescript
  * // Upload an encrypted file with automatic schema validation
- * const result = await vana.data.uploadEncryptedFile({
- *   data: fileBlob,
- *   filename: "personal-data.json",
- *   schemaId: "0x123...",
- * });
+ * const result = await vana.data.uploadEncryptedFile(
+ *   encryptedBlob,
+ *   "personal-data.json"
+ * );
  *
  * // Query files owned by a user
  * const files = await vana.data.getUserFiles({
@@ -113,6 +119,7 @@ interface SubgraphResponse {
  * ```
  *
  * @category Data Management
+ * @see {@link [URL_PLACEHOLDER] | Vana Data Registry Documentation} for conceptual overview
  */
 export class DataController {
   private readonly serverController: ServerController;

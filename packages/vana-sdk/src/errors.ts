@@ -1,5 +1,14 @@
 /**
- * Base error class for all Vana SDK errors.
+ * Base error class for all Vana SDK errors with structured error codes.
+ *
+ * @remarks
+ * This abstract base class provides a foundation for all SDK-specific errors with
+ * consistent error codes and stack trace handling. All Vana SDK errors extend this
+ * class to provide structured error information that applications can handle
+ * programmatically. The error code enables differentiation between error types
+ * without relying on string matching.
+ *
+ * @category Error Handling
  */
 export class VanaError extends Error {
   constructor(
@@ -17,7 +26,14 @@ export class VanaError extends Error {
 }
 
 /**
- * Error thrown when there's an issue with the relayer service.
+ * Thrown when gasless transaction submission via relayer fails.
+ *
+ * @remarks
+ * This error occurs when the relayer service is unavailable, returns an error,
+ * or fails to process a gasless transaction. It includes the HTTP status code
+ * and response details when available to help with debugging relayer issues.
+ *
+ * @category Error Handling
  */
 export class RelayerError extends VanaError {
   constructor(
@@ -30,7 +46,14 @@ export class RelayerError extends VanaError {
 }
 
 /**
- * Error thrown when the user rejects a signature request.
+ * Thrown when the user rejects a wallet signature request.
+ *
+ * @remarks
+ * This error occurs when users decline to sign transactions or typed data through
+ * their wallet interface. It's a normal part of user interaction and should be
+ * handled gracefully by applications without treating it as a system error.
+ *
+ * @category Error Handling
  */
 export class UserRejectedRequestError extends VanaError {
   constructor(message: string = "User rejected the signature request") {
@@ -48,7 +71,14 @@ export class InvalidConfigurationError extends VanaError {
 }
 
 /**
- * Error thrown when a required contract is not found.
+ * Thrown when a required Vana protocol contract is not deployed on the current chain.
+ *
+ * @remarks
+ * This error occurs when attempting to interact with contracts that are not
+ * available on the connected blockchain network. It includes the contract name
+ * and chain ID to help identify deployment issues or incorrect network configuration.
+ *
+ * @category Error Handling
  */
 export class ContractNotFoundError extends VanaError {
   constructor(contractName: string, chainId: number) {

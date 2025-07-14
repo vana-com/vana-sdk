@@ -27,7 +27,7 @@ export async function GET() {
     chain: relayerConfig.chainId,
     chainRpcUrl: relayerConfig.chainRpcUrl,
     timestamp: new Date().toISOString(),
-    service: "Vana SDK Demo Relayer (Next.js + shadcn/ui)",
+    service: "Vana SDK Demo Relayer (Next.js + HeroUI)",
     storage: {
       ipfs: {
         enabled: pinataTest.success,

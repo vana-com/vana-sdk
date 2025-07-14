@@ -34,7 +34,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.debug("🔍 Debug - applicationPrivateKey", applicationPrivateKey);
     // Create wallet client with private key (server-side only)
     const applicationAccount = privateKeyToAccount(
       applicationPrivateKey as `0x${string}`,

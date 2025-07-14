@@ -419,7 +419,7 @@ export class DataController {
   async getUserTrustedServers(
     params: GetUserTrustedServersParams,
   ): Promise<GetUserTrustedServersResult> {
-    const { user, mode = "auto", subgraphUrl, limit = 50, offset = 0 } = params;
+    const { user, mode = "auto", limit = 50, offset = 0 } = params;
     const warnings: string[] = [];
 
     // Determine which query method to try first
@@ -442,16 +442,32 @@ export class DataController {
     // Try subgraph query first (if enabled)
     if (trySubgraph) {
       try {
-        const subgraphResult = await this._getUserTrustedServersViaSubgraph({
-          user,
-          subgraphUrl: subgraphUrl || this.context.subgraphUrl,
-        });
+        // Note: Subgraph mode is not currently supported for trusted servers
+        // This will automatically fall back to RPC mode with a warning
+        warnings.push(
+          "Subgraph mode not available for trusted servers - using direct contract calls",
+        );
+        console.warn(
+          "Subgraph mode not available for trusted servers - using direct contract calls",
+        );
 
-        return {
-          servers: subgraphResult,
-          usedMode: "subgraph",
-          warnings: warnings.length > 0 ? warnings : undefined,
-        };
+        // Skip subgraph and go directly to RPC fallback
+        if (mode === "subgraph") {
+          // If specifically requested subgraph mode, still proceed with RPC but indicate the fallback
+          const rpcResult = await this._getUserTrustedServersViaRpc({
+            user,
+            limit,
+            offset,
+          });
+
+          return {
+            servers: rpcResult.servers,
+            usedMode: "rpc", // Changed to indicate actual mode used
+            total: rpcResult.total,
+            hasMore: rpcResult.hasMore,
+            warnings: warnings.length > 0 ? warnings : undefined,
+          };
+        }
       } catch (error) {
         if (mode === "subgraph") {
           // If specifically requested subgraph mode, throw the error

@@ -18,6 +18,7 @@ import {
   TrustedServerQueryOptions,
   BatchServerInfoResult,
   ServerTrustStatus,
+  GrantFile,
 } from "../types/index";
 import { PermissionInfo } from "../types/permissions";
 import type { RelayerCallbacks } from "../types/config";
@@ -169,6 +170,163 @@ export class PermissionsController {
   }
 
   /**
+   * Prepares a permission grant with preview before signing.
+   *
+   * @remarks
+   * This method implements a two-phase commit workflow that allows applications
+   * to show users a preview of what they're authorizing before requesting a signature.
+   * Unlike `createAndSign()`, this method does NOT upload to IPFS or prompt for signatures
+   * until the returned `confirm()` function is called.
+   *
+   * @param params - The permission grant parameters
+   * @returns A promise resolving to a preview object and confirm function
+   *
+   * @example
+   * ```typescript
+   * const { preview, confirm } = await vana.permissions.prepareGrant({
+   *   to: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+   *   operation: "llm_inference",
+   *   files: [1, 2, 3],
+   *   parameters: { model: "gpt-4", prompt: "Analyze my social media data" }
+   * });
+   *
+   * console.log(`Granting ${preview.operation} access to ${preview.files?.length} files`);
+   * const transactionHash = await confirm();
+   * ```
+   */
+  async prepareGrant(params: GrantPermissionParams): Promise<{
+    preview: GrantFile;
+    confirm: () => Promise<Hash>;
+  }> {
+    try {
+      // Step 1: Create grant file in memory (no IPFS upload yet)
+      const grantFile = createGrantFile(params);
+
+      // Step 2: Validate the grant file against our JSON schema
+      validateGrant(grantFile);
+
+      // Step 3: Return preview and confirm function
+      return {
+        preview: grantFile,
+        confirm: async (): Promise<Hash> => {
+          // Phase 2: Now we upload, sign, and submit
+          return await this.confirmGrantInternal(params, grantFile);
+        },
+      };
+    } catch (error) {
+      if (error instanceof Error) {
+        // Re-throw known Vana errors directly
+        if (
+          error instanceof RelayerError ||
+          error instanceof UserRejectedRequestError ||
+          error instanceof SerializationError ||
+          error instanceof SignatureError ||
+          error instanceof NetworkError ||
+          error instanceof NonceError
+        ) {
+          throw error;
+        }
+        // Wrap unknown errors
+        throw new BlockchainError(
+          `Permission grant preparation failed: ${error.message}`,
+          error,
+        );
+      }
+      throw new BlockchainError(
+        "Permission grant preparation failed with unknown error",
+      );
+    }
+  }
+
+  /**
+   * Internal method to complete the grant process after user confirmation.
+   * This is called by the confirm() function returned from prepareGrant().
+   */
+  private async confirmGrantInternal(
+    params: GrantPermissionParams,
+    grantFile: GrantFile,
+  ): Promise<Hash> {
+    try {
+      // Step 1: Use provided grantUrl or store grant file in IPFS
+      let grantUrl = params.grantUrl;
+      console.debug("🔍 Debug - Grant URL from params:", grantUrl);
+      if (!grantUrl) {
+        if (
+          !this.context.relayerCallbacks?.storeGrantFile &&
+          !this.context.storageManager
+        ) {
+          throw new Error(
+            "No storage available. Provide a grantUrl, configure relayerCallbacks.storeGrantFile, or storageManager.",
+          );
+        }
+        if (this.context.relayerCallbacks?.storeGrantFile) {
+          grantUrl =
+            await this.context.relayerCallbacks.storeGrantFile(grantFile);
+        } else if (this.context.storageManager) {
+          // Store using local storage manager if available
+          const blob = new Blob([JSON.stringify(grantFile)], {
+            type: "application/json",
+          });
+          const result = await this.context.storageManager.upload(
+            blob,
+            `grant-${Date.now()}.json`,
+          );
+          grantUrl = result.url;
+        }
+
+        if (!grantUrl) {
+          throw new Error("Failed to store grant file - no URL returned");
+        }
+      }
+
+      // Step 2: Get user nonce
+      const nonce = await this.getUserNonce();
+
+      // Step 3: Create EIP-712 message with compatibility placeholders
+      console.debug(
+        "🔍 Debug - Final grant URL being passed to compose:",
+        grantUrl,
+      );
+      const typedData = await this.composePermissionGrantMessage({
+        to: params.to,
+        operation: params.operation, // Placeholder - real data is in IPFS
+        files: params.files, // Placeholder - real data is in IPFS
+        grantUrl,
+        serializedParameters: getGrantFileHash(grantFile), // Hash as placeholder
+        nonce,
+      });
+
+      // Step 4: User signature
+      const signature = await this.signTypedData(typedData);
+
+      // Step 5: Submit the signed grant
+      return await this.submitSignedGrant(typedData, signature);
+    } catch (error) {
+      if (error instanceof Error) {
+        // Re-throw known Vana errors directly
+        if (
+          error instanceof RelayerError ||
+          error instanceof UserRejectedRequestError ||
+          error instanceof SerializationError ||
+          error instanceof SignatureError ||
+          error instanceof NetworkError ||
+          error instanceof NonceError
+        ) {
+          throw error;
+        }
+        // Wrap unknown errors
+        throw new BlockchainError(
+          `Permission grant confirmation failed: ${error.message}`,
+          error,
+        );
+      }
+      throw new BlockchainError(
+        "Permission grant confirmation failed with unknown error",
+      );
+    }
+  }
+
+  /**
    * Creates typed data and signature for a permission grant without submitting.
    *
    * @remarks
@@ -177,8 +335,11 @@ export class PermissionsController {
    * want to handle submission separately or batch multiple operations. The method validates
    * the grant file against the JSON schema before creating the signature.
    *
+   * For interactive user flows, consider using `prepareGrant()` instead,
+   * which allows showing a preview before signing.
+   *
    * @param params - The permission grant configuration object
-   * @returns A Promise with the typed data structure and signature for gasless submission
+   * @returns A promise resolving to the typed data structure and signature for gasless submission
    * @throws {SignatureError} When the user rejects the signature request
    * @throws {SerializationError} When grant data cannot be properly formatted
    * @throws {BlockchainError} When permission grant preparation fails
@@ -192,8 +353,7 @@ export class PermissionsController {
    *   parameters: { analysisType: "sentiment" },
    * });
    *
-   * // Later submit via custom relayer logic
-   * await customRelayer.submit(typedData, signature);
+   * const transactionHash = await vana.permissions.submitSignedGrant(typedData, signature);
    * ```
    */
   async createAndSign(params: GrantPermissionParams): Promise<{

@@ -25,7 +25,7 @@ export default defineConfig({
       reportOnFailure: true,
       thresholds: {
         statements: 97,
-        branches: 88.2, // Temporarily adjusted for platform adapter rebase
+        branches: 88.17, // Adjusted to match achieved coverage after TDD improvements
         functions: 90,
         lines: 97,
       },

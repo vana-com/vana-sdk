@@ -452,36 +452,56 @@ export class DataController {
 
     // Try subgraph query first (if enabled)
     if (trySubgraph) {
-      try {
-        // Query trusted servers via subgraph
-        const servers = await this._getUserTrustedServersViaSubgraph({
-          user,
-          subgraphUrl: params.subgraphUrl || this.context.subgraphUrl,
-        });
+      const subgraphUrl = params.subgraphUrl || this.context.subgraphUrl;
 
-        // Apply pagination if provided
-        const paginatedServers = limit
-          ? servers.slice(offset, offset + limit)
-          : servers;
-
-        return {
-          servers: paginatedServers,
-          usedMode: "subgraph",
-          total: servers.length,
-          hasMore: limit ? offset + limit < servers.length : false,
-          warnings: warnings.length > 0 ? warnings : undefined,
-        };
-      } catch (error) {
+      // Check if subgraph URL is available
+      if (!subgraphUrl) {
         if (mode === "subgraph") {
-          // If specifically requested subgraph mode, throw the error
-          throw error;
+          // If specifically requested subgraph mode, throw error
+          throw new Error(
+            "subgraphUrl is required for subgraph mode. Please provide a valid subgraph endpoint or configure it in Vana constructor.",
+          );
         }
 
-        // In auto mode, log the warning and try RPC fallback
+        // In auto mode, add warning and skip to RPC
         warnings.push(
-          `Subgraph query failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+          "Subgraph mode not available for trusted servers - using direct contract calls",
         );
-        console.warn("Subgraph query failed, falling back to RPC mode:", error);
+      } else {
+        try {
+          // Query trusted servers via subgraph
+          const servers = await this._getUserTrustedServersViaSubgraph({
+            user,
+            subgraphUrl,
+          });
+
+          // Apply pagination if provided
+          const paginatedServers = limit
+            ? servers.slice(offset, offset + limit)
+            : servers;
+
+          return {
+            servers: paginatedServers,
+            usedMode: "subgraph",
+            total: servers.length,
+            hasMore: limit ? offset + limit < servers.length : false,
+            warnings: warnings.length > 0 ? warnings : undefined,
+          };
+        } catch (error) {
+          if (mode === "subgraph") {
+            // If specifically requested subgraph mode, throw the error
+            throw error;
+          }
+
+          // In auto mode, log the warning and try RPC fallback
+          warnings.push(
+            `Subgraph query failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+          );
+          console.warn(
+            "Subgraph query failed, falling back to RPC mode:",
+            error,
+          );
+        }
       }
     }
 

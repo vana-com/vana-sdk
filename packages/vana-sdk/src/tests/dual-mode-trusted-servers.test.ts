@@ -92,6 +92,11 @@ describe("Dual-Mode Trusted Server Queries", () => {
 
   describe("Mode: subgraph", () => {
     it("should fallback to RPC when subgraph mode is requested", async () => {
+      // Mock fetch to fail so subgraph mode falls back to RPC
+      (global.fetch as any).mockRejectedValueOnce(
+        new Error("Subgraph not available"),
+      );
+
       // Mock RPC calls since subgraph mode now always falls back to RPC
       mockPublicClient.readContract
         .mockResolvedValueOnce(2n) // userServerIdsLength
@@ -102,14 +107,14 @@ describe("Dual-Mode Trusted Server Queries", () => {
 
       const result = await dataController.getUserTrustedServers({
         user: userAddress,
-        mode: "subgraph",
+        mode: "auto",
         subgraphUrl: "https://subgraph.example.com",
       });
 
       expect(result.usedMode).toBe("rpc"); // Changed from "subgraph" to "rpc"
       expect(result.servers).toHaveLength(2);
       expect(result.warnings).toContain(
-        "Subgraph mode not available for trusted servers - using direct contract calls",
+        "Subgraph query failed: Subgraph not available",
       );
     });
 
@@ -128,7 +133,7 @@ describe("Dual-Mode Trusted Server Queries", () => {
 
       const result = await dataControllerNoSubgraph.getUserTrustedServers({
         user: userAddress,
-        mode: "subgraph",
+        mode: "auto",
         // subgraphUrl not provided
       });
 
@@ -140,36 +145,42 @@ describe("Dual-Mode Trusted Server Queries", () => {
     });
 
     it("should fallback to RPC instead of throwing subgraph errors", async () => {
+      // Mock fetch to fail so subgraph mode falls back to RPC
+      (global.fetch as any).mockRejectedValueOnce(new Error("Subgraph error"));
+
       // Mock RPC calls since we now always fall back to RPC
       mockPublicClient.readContract.mockResolvedValueOnce(0n); // userServerIdsLength (empty)
 
       const result = await dataController.getUserTrustedServers({
         user: userAddress,
-        mode: "subgraph",
+        mode: "auto",
         subgraphUrl: "https://subgraph.example.com",
       });
 
       expect(result.usedMode).toBe("rpc");
       expect(result.servers).toHaveLength(0);
       expect(result.warnings).toContain(
-        "Subgraph mode not available for trusted servers - using direct contract calls",
+        "Subgraph query failed: Subgraph error",
       );
     });
 
     it("should handle empty RPC results in fallback mode", async () => {
+      // Mock fetch to fail so subgraph mode falls back to RPC
+      (global.fetch as any).mockRejectedValueOnce(new Error("Subgraph failed"));
+
       // Mock RPC calls returning empty results
       mockPublicClient.readContract.mockResolvedValueOnce(0n); // userServerIdsLength (empty)
 
       const result = await dataController.getUserTrustedServers({
         user: userAddress,
-        mode: "subgraph",
+        mode: "auto",
         subgraphUrl: "https://subgraph.example.com",
       });
 
       expect(result.servers).toHaveLength(0);
       expect(result.usedMode).toBe("rpc");
       expect(result.warnings).toContain(
-        "Subgraph mode not available for trusted servers - using direct contract calls",
+        "Subgraph query failed: Subgraph failed",
       );
     });
   });
@@ -263,6 +274,11 @@ describe("Dual-Mode Trusted Server Queries", () => {
 
   describe("Mode: auto (fallback)", () => {
     it("should fallback to RPC in auto mode", async () => {
+      // Mock fetch to fail so subgraph mode falls back to RPC
+      (global.fetch as any).mockRejectedValueOnce(
+        new Error("Subgraph failure"),
+      );
+
       // Mock RPC calls since subgraph mode always falls back to RPC
       mockPublicClient.readContract
         .mockResolvedValueOnce(2n) // userServerIdsLength
@@ -280,7 +296,7 @@ describe("Dual-Mode Trusted Server Queries", () => {
       expect(result.usedMode).toBe("rpc");
       expect(result.servers).toHaveLength(2);
       expect(result.warnings).toContain(
-        "Subgraph mode not available for trusted servers - using direct contract calls",
+        "Subgraph query failed: Subgraph failure",
       );
     });
 
@@ -304,9 +320,7 @@ describe("Dual-Mode Trusted Server Queries", () => {
 
       expect(result.usedMode).toBe("rpc");
       expect(result.servers).toHaveLength(2);
-      expect(result.warnings).toContain(
-        "Subgraph mode not available for trusted servers - using direct contract calls",
-      );
+      expect(result.warnings).toContain("Subgraph query failed: Network error");
       expect(result.total).toBe(2);
     });
 
@@ -354,7 +368,7 @@ describe("Dual-Mode Trusted Server Queries", () => {
           subgraphUrl: "https://subgraph.example.com",
         }),
       ).rejects.toThrow(
-        "Both query methods failed. Subgraph: Subgraph mode not available for trusted servers - using direct contract calls. RPC: RPC query failed: RPC error",
+        "Both query methods failed. Subgraph: Subgraph query failed: Subgraph down. RPC: RPC query failed: RPC error",
       );
     });
   });
@@ -379,6 +393,11 @@ describe("Dual-Mode Trusted Server Queries", () => {
     });
 
     it("should maintain result structure compatibility", async () => {
+      // Mock fetch to fail so subgraph mode falls back to RPC
+      (global.fetch as any).mockRejectedValueOnce(
+        new Error("Subgraph unavailable"),
+      );
+
       // Mock RPC calls since subgraph mode now falls back to RPC
       mockPublicClient.readContract
         .mockResolvedValueOnce(1n) // userServerIdsLength
@@ -387,7 +406,7 @@ describe("Dual-Mode Trusted Server Queries", () => {
 
       const result = await dataController.getUserTrustedServers({
         user: userAddress,
-        mode: "subgraph",
+        mode: "auto",
       });
 
       // Since subgraph mode now falls back to RPC, expect RPC structure
@@ -465,9 +484,164 @@ describe("Dual-Mode Trusted Server Queries", () => {
       });
 
       expect(result.usedMode).toBe("rpc");
-      expect(result.warnings).toContain(
-        "Subgraph mode not available for trusted servers - using direct contract calls",
+      expect(result.warnings).toContain("Subgraph query failed: Timeout");
+    });
+  });
+
+  describe("Edge cases and error handling", () => {
+    it("should throw error for invalid query mode", async () => {
+      await expect(
+        dataController.getUserTrustedServers({
+          user: userAddress,
+          mode: "invalid" as any,
+        }),
+      ).rejects.toThrow("Invalid query mode specified");
+    });
+
+    it("should throw error in RPC-only mode when RPC fails", async () => {
+      // RPC fails
+      mockPublicClient.readContract.mockRejectedValueOnce(
+        new Error("RPC connection failed"),
       );
+
+      await expect(
+        dataController.getUserTrustedServers({
+          user: userAddress,
+          mode: "rpc",
+        }),
+      ).rejects.toThrow("RPC connection failed");
+    });
+
+    it("should throw error in subgraph-only mode when subgraph URL is missing", async () => {
+      // Create a context without subgraphUrl
+      const contextWithoutSubgraph = {
+        ...context,
+        subgraphUrl: undefined,
+      };
+      const dataControllerNoSubgraph = new DataController(
+        contextWithoutSubgraph,
+      );
+
+      await expect(
+        dataControllerNoSubgraph.getUserTrustedServers({
+          user: userAddress,
+          mode: "subgraph",
+        }),
+      ).rejects.toThrow(
+        "subgraphUrl is required for subgraph mode. Please provide a valid subgraph endpoint or configure it in Vana constructor.",
+      );
+    });
+
+    it("should throw error in subgraph-only mode when fetch fails", async () => {
+      // Mock fetch to fail
+      (global.fetch as any).mockRejectedValueOnce(new Error("Network failure"));
+
+      await expect(
+        dataController.getUserTrustedServers({
+          user: userAddress,
+          mode: "subgraph",
+          subgraphUrl: "https://subgraph.example.com",
+        }),
+      ).rejects.toThrow("Network failure");
+    });
+
+    it("should handle successful RPC query without warnings", async () => {
+      // Mock RPC calls with successful response
+      mockPublicClient.readContract
+        .mockResolvedValueOnce(1n) // userServerIdsLength
+        .mockResolvedValueOnce(serverAddresses[0]) // userServerIdsAt
+        .mockResolvedValueOnce({ url: "https://server1.example.com" }); // servers
+
+      const result = await dataController.getUserTrustedServers({
+        user: userAddress,
+        mode: "rpc",
+      });
+
+      expect(result.usedMode).toBe("rpc");
+      expect(result.servers).toHaveLength(1);
+      expect(result.warnings).toBeUndefined();
+    });
+
+    it("should handle successful subgraph query", async () => {
+      // Mock successful subgraph response
+      (global.fetch as any).mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              user: {
+                id: userAddress.toLowerCase(),
+                trustedServers: [
+                  {
+                    id: "subgraph-server-1",
+                    serverAddress: serverAddresses[0],
+                    serverUrl: "https://server1.example.com",
+                    trustedAt: "1234567890",
+                  },
+                ],
+              },
+            },
+          }),
+      });
+
+      const result = await dataController.getUserTrustedServers({
+        user: userAddress,
+        mode: "subgraph",
+        subgraphUrl: "https://subgraph.example.com",
+      });
+
+      expect(result.usedMode).toBe("subgraph");
+      expect(result.servers).toHaveLength(1);
+      expect(result.warnings).toBeUndefined();
+    });
+
+    it("should handle subgraph query with pagination", async () => {
+      // Mock successful subgraph response with multiple servers
+      (global.fetch as any).mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              user: {
+                id: userAddress.toLowerCase(),
+                trustedServers: [
+                  {
+                    id: "subgraph-server-1",
+                    serverAddress: serverAddresses[0],
+                    serverUrl: "https://server1.example.com",
+                    trustedAt: "1234567890",
+                  },
+                  {
+                    id: "subgraph-server-2",
+                    serverAddress: serverAddresses[1],
+                    serverUrl: "https://server2.example.com",
+                    trustedAt: "1234567891",
+                  },
+                  {
+                    id: "subgraph-server-3",
+                    serverAddress: serverAddresses[2],
+                    serverUrl: "https://server3.example.com",
+                    trustedAt: "1234567892",
+                  },
+                ],
+              },
+            },
+          }),
+      });
+
+      const result = await dataController.getUserTrustedServers({
+        user: userAddress,
+        mode: "subgraph",
+        subgraphUrl: "https://subgraph.example.com",
+        limit: 2,
+        offset: 1,
+      });
+
+      expect(result.usedMode).toBe("subgraph");
+      expect(result.servers).toHaveLength(2); // limit applied
+      expect(result.total).toBe(3);
+      expect(result.hasMore).toBe(false); // offset 1 + limit 2 = 3, no more
+      expect(result.warnings).toBeUndefined();
     });
   });
 });

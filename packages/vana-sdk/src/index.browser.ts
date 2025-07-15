@@ -5,29 +5,39 @@ import type { VanaConfig } from "./types";
 /**
  * The Vana SDK class pre-configured for browser environments.
  * Automatically uses the browser platform adapter.
+ *
+ * Use the static `create()` method to initialize:
+ * ```typescript
+ * const vana = await Vana.create({ walletClient });
+ * ```
  */
 export class Vana extends VanaCore {
-  constructor(config: VanaConfig) {
+  private constructor(config: VanaConfig, _allowConstruction = false) {
+    if (!_allowConstruction) {
+      throw new Error(
+        "Cannot instantiate Vana directly. Use Vana.create() instead.",
+      );
+    }
     // Automatically inject the browser platform adapter
     super(config, new BrowserPlatformAdapter());
   }
 
   /**
-   * Creates a Vana SDK instance from a chain configuration.
-   * @param config - Chain configuration object
-   * @returns Vana SDK instance configured for browser
+   * Creates a Vana SDK instance configured for browser environments.
+   * @param config - SDK configuration object (wallet client or chain config)
+   * @returns Promise resolving to Vana SDK instance
+   *
+   * @example
+   * ```typescript
+   * // With wallet client
+   * const vana = await Vana.create({ walletClient });
+   *
+   * // With chain configuration
+   * const vana = await Vana.create({ chainId: 14800, account });
+   * ```
    */
-  static override fromChain(config: VanaConfig) {
-    return new Vana(config);
-  }
-
-  /**
-   * Creates a Vana SDK instance from a wallet client configuration.
-   * @param config - Wallet client configuration object
-   * @returns Vana SDK instance configured for browser
-   */
-  static override fromWallet(config: VanaConfig) {
-    return new Vana(config);
+  static async create(config: VanaConfig): Promise<Vana> {
+    return new Vana(config, true);
   }
 }
 

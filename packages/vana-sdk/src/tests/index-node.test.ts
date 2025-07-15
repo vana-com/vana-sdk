@@ -62,45 +62,61 @@ describe("Node.js Index Entry Point", () => {
     validChain = mokshaTestnet;
   });
 
-  describe("Vana class instantiation", () => {
-    it("should create a Vana instance with wallet client config", () => {
-      const vana = new Vana({
+  describe("Async Vana.create() factory method", () => {
+    it("should create a Vana instance with wallet client config", async () => {
+      const vana = await Vana.create({
         walletClient: validWalletClient as any,
       });
 
       expect(vana).toBeInstanceOf(Vana);
       expect(vana).toBeDefined();
+      expect(vana.permissions).toBeDefined();
+      expect(vana.data).toBeDefined();
+      expect(vana.server).toBeDefined();
+      expect(vana.protocol).toBeDefined();
     });
 
-    it("should create a Vana instance with chain-only config", () => {
-      const vana = new Vana({
+    it("should create a Vana instance with chain-only config", async () => {
+      const vana = await Vana.create({
         chainId: validChain.id,
         account: testAccount,
       });
 
       expect(vana).toBeInstanceOf(Vana);
       expect(vana).toBeDefined();
+      expect(vana.permissions).toBeDefined();
+      expect(vana.data).toBeDefined();
+      expect(vana.server).toBeDefined();
+      expect(vana.protocol).toBeDefined();
+    });
+
+    it("should create instance with full configuration", async () => {
+      const vana = await Vana.create({
+        walletClient: validWalletClient as any,
+        relayerCallbacks: {
+          submitPermissionGrant: async (_typedData, _signature) => "0xtxhash",
+          submitPermissionRevoke: async (_typedData, _signature) => "0xtxhash",
+        },
+      });
+
+      expect(vana).toBeInstanceOf(Vana);
+      expect(vana).toBeDefined();
+      expect(vana.getConfig().relayerCallbacks).toBeDefined();
+    });
+
+    it("should reject with error for invalid configuration", async () => {
+      await expect(Vana.create({} as any)).rejects.toThrow();
     });
   });
 
-  describe("Static factory methods", () => {
-    it("should create instance using fromChain static method", () => {
-      const vana = Vana.fromChain({
-        chainId: validChain.id,
-        account: testAccount,
-      });
-
-      expect(vana).toBeInstanceOf(Vana);
-      expect(vana).toBeDefined();
-    });
-
-    it("should create instance using fromWallet static method", () => {
-      const vana = Vana.fromWallet({
-        walletClient: validWalletClient as any,
-      });
-
-      expect(vana).toBeInstanceOf(Vana);
-      expect(vana).toBeDefined();
+  describe("Constructor access", () => {
+    it("should not allow direct constructor access", () => {
+      // TypeScript should prevent this, but let's test the runtime behavior
+      expect(() => {
+        // This should fail since constructor is private
+        // @ts-expect-error Testing private constructor
+        new Vana({ walletClient: validWalletClient as any });
+      }).toThrow();
     });
   });
 
@@ -199,14 +215,15 @@ describe("Node.js Index Entry Point", () => {
   });
 
   describe("Node.js specific functionality", () => {
-    it("should use NodePlatformAdapter by default", () => {
-      const vana = new Vana({
+    it("should use NodePlatformAdapter by default", async () => {
+      const vana = await Vana.create({
         chainId: validChain.id,
         account: testAccount,
       });
 
-      // The constructor should have been called with NodePlatformAdapter
+      // The NodePlatformAdapter should have been injected automatically
       expect(vana).toBeDefined();
+      expect(vana.chainId).toBe(validChain.id);
     });
 
     it("should be the default export", async () => {

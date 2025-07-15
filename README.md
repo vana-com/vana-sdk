@@ -26,7 +26,7 @@ import { createWalletClient, http } from "viem";
 import { mokshaTestnet } from "vana-sdk/chains";
 
 // 1. Initialize with your wallet
-const vana = new Vana({
+const vana = await Vana.create({
   walletClient: createWalletClient({
     chain: mokshaTestnet,
     transport: http(),

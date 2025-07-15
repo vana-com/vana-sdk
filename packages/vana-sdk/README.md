@@ -55,7 +55,7 @@ const walletClient = createWalletClient({
 });
 
 // Initialize Vana SDK
-const vana = new Vana({
+const vana = await Vana.create({
   walletClient,
   // Optional: configure gasless relayer
   relayerUrl: "https://relayer.moksha.vana.org",
@@ -136,7 +136,7 @@ The Vana SDK follows a resource-oriented architecture with five main controllers
 ### Configuration Options
 
 ```typescript
-const vana = new Vana({
+const vana = await Vana.create({
   // Required: Wallet client for signing
   walletClient,
 
@@ -239,7 +239,7 @@ vana.data.validateDataAgainstSchema(userData, schema);
 Configure gasless transactions using callbacks instead of fixed HTTP APIs:
 
 ```typescript
-const vana = new Vana({
+const vana = await Vana.create({
   walletClient,
   relayerCallbacks: {
     // Custom permission grant relaying
@@ -465,7 +465,7 @@ import { Vana, generateEncryptionKey, encryptUserData } from "vana-sdk";
 
 async function completePermissionFlow() {
   // 1. Initialize SDK
-  const vana = new Vana({ walletClient });
+  const vana = await Vana.create({ walletClient });
 
   // 2. Encrypt user data
   const encryptionKey = await generateEncryptionKey(walletClient);

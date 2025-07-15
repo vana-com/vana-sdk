@@ -95,6 +95,10 @@ export {
   CircuitBreaker,
 } from "./core/generics";
 
+// Server-side utilities
+export { handleRelayerRequest } from "./server/handler";
+export type { RelayerRequestPayload } from "./server/handler";
+
 export { ApiClient } from "./core/apiClient";
 
 export type {

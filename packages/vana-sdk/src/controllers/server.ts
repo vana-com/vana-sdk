@@ -14,23 +14,79 @@ import {
 import { ControllerContext } from "./permissions";
 
 /**
- * Controller for managing server interactions including personal servers and trusted server registry.
+ * Manages interactions with Vana personal servers and identity infrastructure.
+ *
+ * @remarks
+ * This controller handles communication with personal servers for data processing
+ * and identity servers for public key derivation. It provides methods for posting
+ * computation requests to personal servers, polling for results, and retrieving
+ * cryptographic keys for secure data sharing. All server interactions use the
+ * Replicate API infrastructure with proper authentication and error handling.
+ *
+ * Personal servers enable privacy-preserving computation on user data, while identity
+ * servers provide deterministic key derivation for secure communication without
+ * requiring servers to be online during key retrieval.
+ *
+ * @example
+ * ```typescript
+ * // Post a request to a personal server
+ * const response = await vana.server.postRequest({
+ *   userAddress: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+ *   permissionId: 123,
+ * });
+ *
+ * // Get a server's public key for encryption
+ * const publicKey = await vana.server.getTrustedServerPublicKey(
+ *   "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36"
+ * );
+ *
+ * // Poll for computation results
+ * const result = await vana.server.pollStatus(response.urls.get);
+ * ```
+ *
+ * @category Server Management
+ * @see {@link [URL_PLACEHOLDER] | Vana Personal Servers} for conceptual overview
  */
 export class ServerController {
   private readonly REPLICATE_API_URL =
     "https://api.replicate.com/v1/predictions";
   private readonly PERSONAL_SERVER_VERSION =
-    "vana-com/personal-server:292be297c333019e800e85bc32a9f431c9667898a0d88b802f5887843cb42023";
+    "vana-com/personal-server:6dae0fead4017557a2e6bd020643359ac1769228a9cfe3bd2365eeeb9711610e";
   private readonly IDENTITY_SERVER_VERSION =
     "vana-com/identity-server:8e357fbeb87c0558b545809cabd0ef2f311082d8ce1f12b93cb8ad2f38cfbfd2";
 
   constructor(private readonly context: ControllerContext) {}
 
   /**
-   * Posts a computation request to the personal server.
+   * Posts a computation request to a user's personal server.
    *
-   * @param params - The request parameters
-   * @returns Promise resolving to the response with links to get results or cancel computation
+   * @remarks
+   * This method submits a computation request to the specified user's personal server
+   * via the Replicate API. It creates a signed request with the user address and
+   * permission ID, then submits it for processing. The response includes URLs for
+   * polling results and canceling the computation if needed.
+   *
+   * The method requires a valid Replicate API token and uses the application's
+   * wallet client for request signing to ensure authenticity.
+   *
+   * @param params - The request parameters object
+   * @param params.userAddress - The address of the user whose server will process the request
+   * @param params.permissionId - The permission ID authorizing this computation
+   * @returns A Promise that resolves to a prediction response with status and control URLs
+   * @throws {PersonalServerError} When server request fails or parameters are invalid
+   * @throws {SignatureError} When request signing fails
+   * @throws {NetworkError} When Replicate API communication fails
+   *
+   * @example
+   * ```typescript
+   * const response = await vana.server.postRequest({
+   *   userAddress: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+   *   permissionId: 123,
+   * });
+   *
+   * console.log(`Request submitted: ${response.id}`);
+   * console.log(`Poll for results: ${response.urls.get}`);
+   * ```
    */
   async postRequest(
     params: PostRequestParams,
@@ -123,14 +179,33 @@ export class ServerController {
   }
 
   /**
-   * Gets the trusted server's public key for a given user address.
+   * Retrieves the public key for a user's personal server via the Identity Server.
    *
-   * Uses the Identity Server to deterministically derive the personal server's
-   * public key from the user's EVM address. This allows anyone to encrypt
-   * data for a specific user's server without that server needing to be online.
+   * @remarks
+   * This method uses the Identity Server to deterministically derive the personal server's
+   * public key from the user's EVM address. This enables anyone to encrypt data for a
+   * specific user's server without requiring that server to be online. The Identity Server
+   * provides a reliable way to obtain encryption keys for secure data sharing across the
+   * Vana network.
    *
-   * @param userAddress - The user's EVM address
-   * @returns Promise resolving to the server's public key (hex string)
+   * The derived public key is deterministic and consistent, allowing for predictable
+   * encryption workflows in decentralized applications.
+   *
+   * @param userAddress - The user's EVM address to derive the server public key for
+   * @returns A Promise that resolves to the server's public key as a hex string
+   * @throws {PersonalServerError} When user address is invalid or server lookup fails
+   * @throws {NetworkError} When Identity Server API request fails
+   *
+   * @example
+   * ```typescript
+   * // Get public key for encrypting data to a user's server
+   * const publicKey = await vana.server.getTrustedServerPublicKey(
+   *   "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36"
+   * );
+   *
+   * // Use the public key for encryption
+   * const encryptedData = await encryptForServer(data, publicKey);
+   * ```
    */
   async getTrustedServerPublicKey(userAddress: Address): Promise<string> {
     try {
@@ -222,10 +297,34 @@ export class ServerController {
   }
 
   /**
-   * Polls the status of a computation request using the get URL.
+   * Polls the status of a computation request for updates and results.
    *
-   * @param getUrl - The URL to poll for status updates
-   * @returns Promise resolving to the current status and results
+   * @remarks
+   * This method checks the current status of a computation request by querying
+   * the Replicate API using the provided polling URL. It returns the current
+   * status, any available output, and error information. The method should be
+   * called periodically until the computation completes or fails.
+   *
+   * Common status values include: `starting`, `processing`, `succeeded`, `failed`, `canceled`.
+   *
+   * @param getUrl - The polling URL returned from the initial request submission
+   * @returns A Promise that resolves to the current prediction response with status and results
+   * @throws {NetworkError} When the polling request fails or returns invalid data
+   *
+   * @example
+   * ```typescript
+   * // Poll until completion
+   * let result = await vana.server.pollStatus(response.urls.get);
+   *
+   * while (result.status === "processing") {
+   *   await new Promise(resolve => setTimeout(resolve, 1000));
+   *   result = await vana.server.pollStatus(response.urls.get);
+   * }
+   *
+   * if (result.status === "succeeded") {
+   *   console.log("Computation completed:", result.output);
+   * }
+   * ```
    */
   async pollStatus(getUrl: string): Promise<ReplicatePredictionResponse> {
     try {
@@ -281,20 +380,7 @@ export class ServerController {
    * Validates the post request parameters.
    */
   private validatePostRequestParams(params: PostRequestParams): void {
-    if (!params.userAddress || typeof params.userAddress !== "string") {
-      throw new PersonalServerError(
-        "User address is required and must be a valid string",
-      );
-    }
-
     // Basic address validation
-    if (
-      !params.userAddress.startsWith("0x") ||
-      params.userAddress.length !== 42
-    ) {
-      throw new PersonalServerError("User address must be a valid EVM address");
-    }
-
     if (typeof params.permissionId !== "number" || params.permissionId <= 0) {
       throw new PersonalServerError(
         "Permission ID is required and must be a valid positive number",
@@ -331,7 +417,6 @@ export class ServerController {
   private createRequestJson(params: PostRequestParams): string {
     try {
       const requestData = {
-        user_address: params.userAddress,
         permission_id: params.permissionId,
       };
 
@@ -671,27 +756,5 @@ export class ServerController {
     throw new PersonalServerError(
       "Personal server initialization timed out after 60 seconds",
     );
-  }
-
-  /**
-   * Gets the user's address from the wallet client.
-   */
-  private async getApplicationAddress(): Promise<Address> {
-    try {
-      // Use applicationClient if available, fallback to walletClient
-      const client =
-        this.context.applicationClient || this.context.walletClient;
-      const addresses = await client.getAddresses();
-      if (!addresses || addresses.length === 0) {
-        throw new PersonalServerError(
-          "No addresses available from wallet client",
-        );
-      }
-      return addresses[0];
-    } catch (error) {
-      throw new PersonalServerError(
-        `Failed to get user address: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-    }
   }
 }

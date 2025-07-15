@@ -31,7 +31,6 @@ import { ControllerContext } from "./permissions";
  * ```typescript
  * // Post a request to a personal server
  * const response = await vana.server.postRequest({
- *   userAddress: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
  *   permissionId: 123,
  * });
  *
@@ -70,7 +69,6 @@ export class ServerController {
    * wallet client for request signing to ensure authenticity.
    *
    * @param params - The request parameters object
-   * @param params.userAddress - The address of the user whose server will process the request
    * @param params.permissionId - The permission ID authorizing this computation
    * @returns A Promise that resolves to a prediction response with status and control URLs
    * @throws {PersonalServerError} When server request fails or parameters are invalid
@@ -80,7 +78,6 @@ export class ServerController {
    * @example
    * ```typescript
    * const response = await vana.server.postRequest({
-   *   userAddress: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
    *   permissionId: 123,
    * });
    *

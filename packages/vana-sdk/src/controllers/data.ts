@@ -62,10 +62,21 @@ interface SubgraphPermission {
   };
 }
 
+interface SubgraphTrustedServer {
+  id: string;
+  serverAddress: string;
+  serverUrl: string;
+  trustedAt: string;
+  user: {
+    id: string;
+  };
+}
+
 interface SubgraphUser {
   id: string;
   files: SubgraphFile[];
   permissions: SubgraphPermission[];
+  trustedServers: SubgraphTrustedServer[];
 }
 
 interface SubgraphResponse {
@@ -442,32 +453,24 @@ export class DataController {
     // Try subgraph query first (if enabled)
     if (trySubgraph) {
       try {
-        // Note: Subgraph mode is not currently supported for trusted servers
-        // This will automatically fall back to RPC mode with a warning
-        warnings.push(
-          "Subgraph mode not available for trusted servers - using direct contract calls",
-        );
-        console.warn(
-          "Subgraph mode not available for trusted servers - using direct contract calls",
-        );
+        // Query trusted servers via subgraph
+        const servers = await this._getUserTrustedServersViaSubgraph({
+          user,
+          subgraphUrl: params.subgraphUrl || this.context.subgraphUrl,
+        });
 
-        // Skip subgraph and go directly to RPC fallback
-        if (mode === "subgraph") {
-          // If specifically requested subgraph mode, still proceed with RPC but indicate the fallback
-          const rpcResult = await this._getUserTrustedServersViaRpc({
-            user,
-            limit,
-            offset,
-          });
+        // Apply pagination if provided
+        const paginatedServers = limit
+          ? servers.slice(offset, offset + limit)
+          : servers;
 
-          return {
-            servers: rpcResult.servers,
-            usedMode: "rpc", // Changed to indicate actual mode used
-            total: rpcResult.total,
-            hasMore: rpcResult.hasMore,
-            warnings: warnings.length > 0 ? warnings : undefined,
-          };
-        }
+        return {
+          servers: paginatedServers,
+          usedMode: "subgraph",
+          total: servers.length,
+          hasMore: limit ? offset + limit < servers.length : false,
+          warnings: warnings.length > 0 ? warnings : undefined,
+        };
       } catch (error) {
         if (mode === "subgraph") {
           // If specifically requested subgraph mode, throw the error
@@ -530,16 +533,66 @@ export class DataController {
       );
     }
 
-    // Note: trustedServers field is not available in the current subgraph schema
-    // Fall back to direct contract calls
-    console.warn(
-      "Subgraph mode not available for trusted servers - using direct contract calls",
-    );
-    return await this._getUserTrustedServersViaRpc({
-      user,
-      limit: 50, // Default limit for subgraph fallback
-      offset: 0, // Default offset for subgraph fallback
-    }).then((result) => result.servers);
+    try {
+      // Query the subgraph for user's trusted servers
+      const query = `
+        query GetUserTrustedServers($userId: ID!) {
+          user(id: $userId) {
+            id
+            trustedServers {
+              id
+              serverAddress
+              serverUrl
+              trustedAt
+            }
+          }
+        }
+      `;
+
+      const response = await fetch(graphqlEndpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          query,
+          variables: {
+            userId: user.toLowerCase(), // Subgraph stores addresses in lowercase
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Subgraph request failed: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      const result = (await response.json()) as SubgraphResponse;
+
+      if (result.errors) {
+        throw new Error(
+          `Subgraph query errors: ${result.errors.map((e) => e.message).join(", ")}`,
+        );
+      }
+
+      if (!result.data?.user) {
+        // User not found in subgraph, return empty array
+        return [];
+      }
+
+      // Map subgraph results to TrustedServer format
+      return (result.data.user.trustedServers || []).map((server) => ({
+        id: server.id,
+        serverAddress: server.serverAddress as Address,
+        serverUrl: server.serverUrl,
+        trustedAt: BigInt(server.trustedAt),
+        user,
+      }));
+    } catch (error) {
+      console.error("Failed to query trusted servers from subgraph:", error);
+      throw error;
+    }
   }
 
   /**

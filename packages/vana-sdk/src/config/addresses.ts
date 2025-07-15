@@ -287,6 +287,24 @@ export const LEGACY_ADDRESSES = {
 
 import type { VanaContract } from "../abi";
 
+/**
+ * Retrieves the deployed contract address for a specific contract on a given chain.
+ *
+ * @param chainId - The chain ID to look up the contract on
+ * @param contract - The contract name to get the address for
+ * @returns The contract address as a hex string
+ * @throws {Error} When contract address not found for the specified contract and chain
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   const dataRegistryAddress = getContractAddress(1480, 'DataRegistry');
+ *   console.log('DataRegistry address:', dataRegistryAddress);
+ * } catch (error) {
+ *   console.error('Contract not deployed on this chain:', error.message);
+ * }
+ * ```
+ */
 export const getContractAddress = (
   chainId: keyof typeof CONTRACT_ADDRESSES,
   contract: VanaContract,

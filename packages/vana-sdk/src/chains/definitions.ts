@@ -8,6 +8,7 @@
 import type { Chain } from "viem";
 
 export interface VanaChainConfig extends Chain {
+  /** URL for the subgraph API endpoint used to query on-chain data */
   subgraphUrl: string;
 }
 
@@ -64,7 +65,19 @@ export const moksha: VanaChainConfig = {
 };
 
 /**
- * Get chain configuration by chain ID
+ * Retrieves the chain configuration for a given chain ID.
+ *
+ * @param chainId - The numeric chain ID to look up
+ * @returns The chain configuration if found, undefined otherwise
+ *
+ * @example
+ * ```typescript
+ * const config = getChainConfig(1480);
+ * if (config) {
+ *   console.log('Chain name:', config.name);
+ *   console.log('Subgraph URL:', config.subgraphUrl);
+ * }
+ * ```
  */
 export function getChainConfig(chainId: number): VanaChainConfig | undefined {
   switch (chainId) {
@@ -78,7 +91,18 @@ export function getChainConfig(chainId: number): VanaChainConfig | undefined {
 }
 
 /**
- * Get all available chain configurations
+ * Retrieves all available Vana chain configurations.
+ *
+ * @returns Array of all supported Vana chain configurations
+ *
+ * @example
+ * ```typescript
+ * const chains = getAllChains();
+ * console.log('Supported chains:');
+ * chains.forEach(chain => {
+ *   console.log(`- ${chain.name} (ID: ${chain.id})`);
+ * });
+ * ```
  */
 export function getAllChains(): VanaChainConfig[] {
   return [vanaMainnet, moksha];

@@ -2,6 +2,8 @@ import type { Address, Hash } from "viem";
 
 /**
  * Generic request pattern for all SDK operations
+ *
+ * @category Reference
  */
 export interface GenericRequest<TParams = unknown, TOptions = unknown> {
   /** Request parameters */
@@ -12,6 +14,8 @@ export interface GenericRequest<TParams = unknown, TOptions = unknown> {
 
 /**
  * Generic response pattern for all SDK operations
+ *
+ * @category Reference
  */
 export interface GenericResponse<TData = unknown, TMeta = unknown> {
   /** Response data */
@@ -30,6 +34,8 @@ export interface GenericResponse<TData = unknown, TMeta = unknown> {
 
 /**
  * Generic async operation result
+ *
+ * @category Reference
  */
 export interface AsyncResult<T> {
   /** Operation result */
@@ -44,6 +50,8 @@ export interface AsyncResult<T> {
 
 /**
  * Generic contract interaction parameters
+ *
+ * @category Reference
  */
 export interface ContractCall<
   TArgs extends readonly unknown[] = readonly unknown[],
@@ -65,6 +73,8 @@ export interface ContractCall<
 
 /**
  * Generic contract event filter
+ *
+ * @category Reference
  */
 export interface EventFilter<TEventArgs = unknown> {
   /** Event name */
@@ -81,6 +91,8 @@ export interface EventFilter<TEventArgs = unknown> {
 
 /**
  * Generic event log
+ *
+ * @category Reference
  */
 export interface EventLog<TArgs = unknown> {
   /** Event name */
@@ -101,6 +113,8 @@ export interface EventLog<TArgs = unknown> {
 
 /**
  * Generic controller context for dependency injection
+ *
+ * @category Reference
  */
 export interface ControllerContext<TClient = unknown, TConfig = unknown> {
   /** Client instance */
@@ -113,6 +127,8 @@ export interface ControllerContext<TClient = unknown, TConfig = unknown> {
 
 /**
  * Generic controller interface
+ *
+ * @category Reference
  */
 export interface Controller<TContext = unknown> {
   /** Controller context */
@@ -121,6 +137,8 @@ export interface Controller<TContext = unknown> {
 
 /**
  * Generic storage provider interface
+ *
+ * @category Reference
  */
 export interface StorageProvider<TConfig = unknown, TOptions = unknown> {
   /** Provider name */
@@ -157,6 +175,8 @@ export interface StorageProvider<TConfig = unknown, TOptions = unknown> {
 
 /**
  * Generic cache interface
+ *
+ * @category Reference
  */
 export interface Cache<TKey = string, TValue = unknown> {
   /** Get value from cache */
@@ -177,6 +197,8 @@ export interface Cache<TKey = string, TValue = unknown> {
 
 /**
  * Generic retry configuration
+ *
+ * @category Reference
  */
 export interface RetryConfig<TError = Error> {
   /** Maximum retry attempts */
@@ -195,6 +217,8 @@ export interface RetryConfig<TError = Error> {
 
 /**
  * Generic rate limiter configuration
+ *
+ * @category Reference
  */
 export interface RateLimiterConfig {
   /** Requests per time window */
@@ -207,6 +231,8 @@ export interface RateLimiterConfig {
 
 /**
  * Generic middleware interface
+ *
+ * @category Reference
  */
 export interface Middleware<TRequest = unknown, TResponse = unknown> {
   /** Middleware name */
@@ -224,6 +250,8 @@ export interface Middleware<TRequest = unknown, TResponse = unknown> {
 
 /**
  * Generic plugin interface
+ *
+ * @category Reference
  */
 export interface Plugin<TConfig = unknown> {
   /** Plugin name */
@@ -242,6 +270,8 @@ export interface Plugin<TConfig = unknown> {
 
 /**
  * Generic factory interface
+ *
+ * @category Reference
  */
 export interface Factory<T, TParams = unknown> {
   /** Create instance */
@@ -256,6 +286,8 @@ export interface Factory<T, TParams = unknown> {
 
 /**
  * Generic repository interface for data access
+ *
+ * @category Reference
  */
 export interface Repository<TEntity, TKey = string | number> {
   /** Find by ID */
@@ -288,6 +320,8 @@ export interface Repository<TEntity, TKey = string | number> {
 
 /**
  * Generic validator interface
+ *
+ * @category Reference
  */
 export interface Validator<T> {
   /** Validate value */
@@ -302,6 +336,8 @@ export interface Validator<T> {
 
 /**
  * Generic transformer interface
+ *
+ * @category Reference
  */
 export interface Transformer<TInput, TOutput> {
   /** Transform input to output */
@@ -313,6 +349,8 @@ export interface Transformer<TInput, TOutput> {
 
 /**
  * Generic service interface
+ *
+ * @category Reference
  */
 export interface Service<TConfig = unknown> {
   /** Service name */
@@ -346,6 +384,8 @@ export interface Service<TConfig = unknown> {
 
 /**
  * Generic observer pattern
+ *
+ * @category Reference
  */
 export interface Observer<TEvent = unknown> {
   /** Handle event */
@@ -354,6 +394,8 @@ export interface Observer<TEvent = unknown> {
 
 /**
  * Generic observable pattern
+ *
+ * @category Reference
  */
 export interface Observable<TEvent = unknown> {
   /** Subscribe to events */
@@ -368,6 +410,8 @@ export interface Observable<TEvent = unknown> {
 
 /**
  * Generic state machine interface
+ *
+ * @category Reference
  */
 export interface StateMachine<TState, TEvent> {
   /** Current state */
@@ -385,6 +429,8 @@ export interface StateMachine<TState, TEvent> {
 
 /**
  * Helper type to make properties optional conditionally
+ *
+ * @category Reference
  */
 export type ConditionalOptional<
   T,
@@ -394,16 +440,22 @@ export type ConditionalOptional<
 
 /**
  * Helper type to extract promise result type
+ *
+ * @category Reference
  */
 export type PromiseResult<T> = T extends Promise<infer U> ? U : T;
 
 /**
  * Helper type to create a union of all possible keys
+ *
+ * @category Reference
  */
 export type AllKeys<T> = T extends unknown ? keyof T : never;
 
 /**
  * Helper type to create a deep partial type
+ *
+ * @category Reference
  */
 export type DeepPartial<T> = {
   [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
@@ -411,6 +463,8 @@ export type DeepPartial<T> = {
 
 /**
  * Helper type to create a deep readonly type
+ *
+ * @category Reference
  */
 export type DeepReadonly<T> = {
   readonly [P in keyof T]: T[P] extends object ? DeepReadonly<T[P]> : T[P];
@@ -418,23 +472,31 @@ export type DeepReadonly<T> = {
 
 /**
  * Helper type to create a required type with specific keys
+ *
+ * @category Reference
  */
 export type RequireKeys<T, K extends keyof T> = Required<Pick<T, K>> &
   Omit<T, K>;
 
 /**
  * Helper type to create an optional type with specific keys
+ *
+ * @category Reference
  */
 export type OptionalKeys<T, K extends keyof T> = Partial<Pick<T, K>> &
   Omit<T, K>;
 
 /**
  * Helper type to exclude null and undefined
+ *
+ * @category Reference
  */
 export type NonNullable<T> = T extends null | undefined ? never : T;
 
 /**
  * Helper type to create a type with only specific keys
+ *
+ * @category Reference
  */
 export type PickByType<T, U> = {
   [K in keyof T as T[K] extends U ? K : never]: T[K];
@@ -442,6 +504,8 @@ export type PickByType<T, U> = {
 
 /**
  * Helper type to omit keys by type
+ *
+ * @category Reference
  */
 export type OmitByType<T, U> = {
   [K in keyof T as T[K] extends U ? never : K]: T[K];
@@ -449,10 +513,14 @@ export type OmitByType<T, U> = {
 
 /**
  * Helper type for branded types
+ *
+ * @category Reference
  */
 export type Brand<T, B> = T & { readonly __brand: B };
 
 /**
  * Helper type for nominal types
+ *
+ * @category Reference
  */
 export type Nominal<T, N extends string> = T & { readonly __nominal: N };

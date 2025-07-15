@@ -130,6 +130,8 @@ export interface CheckPermissionParams {
 
 /**
  * Permission check result
+ *
+ * @category Permissions
  */
 export interface PermissionCheckResult {
   /** Whether the permission exists and is valid */
@@ -142,6 +144,8 @@ export interface PermissionCheckResult {
 
 /**
  * EIP-712 domain definition for PermissionGrant signatures
+ *
+ * @category Permissions
  */
 export interface PermissionGrantDomain {
   /** Domain name */
@@ -156,6 +160,8 @@ export interface PermissionGrantDomain {
 
 /**
  * EIP-712 Permission message structure (current contract format)
+ *
+ * @category Permissions
  */
 export interface PermissionGrantMessage {
   /** Application address */
@@ -174,6 +180,8 @@ export interface PermissionGrantMessage {
 
 /**
  * EIP-712 PermissionInput message structure (new simplified format)
+ *
+ * @category Permissions
  */
 export interface PermissionInputMessage {
   /** Nonce */
@@ -186,6 +194,8 @@ export interface PermissionInputMessage {
 
 /**
  * Contract PermissionInput structure
+ *
+ * @category Permissions
  */
 export interface PermissionInput {
   /** Nonce */
@@ -198,6 +208,8 @@ export interface PermissionInput {
 
 /**
  * Contract RevokePermissionInput structure
+ *
+ * @category Permissions
  */
 export interface RevokePermissionInput {
   /** Nonce */
@@ -208,6 +220,8 @@ export interface RevokePermissionInput {
 
 /**
  * Contract Permission Info structure returned from the contract
+ *
+ * @category Permissions
  */
 export interface PermissionInfo {
   /** Permission ID */
@@ -228,6 +242,8 @@ export interface PermissionInfo {
 
 /**
  * EIP-712 Permission message structure (simplified future format)
+ *
+ * @category Permissions
  */
 export interface SimplifiedPermissionMessage {
   /** Application address */
@@ -273,6 +289,8 @@ export interface GrantFile {
 
 /**
  * EIP-712 typed data structure for Permission
+ *
+ * @category Permissions
  */
 export interface PermissionGrantTypedData {
   /** EIP-712 domain */
@@ -292,6 +310,8 @@ export interface PermissionGrantTypedData {
 
 /**
  * Generic EIP-712 typed data structure
+ *
+ * @category Permissions
  */
 export interface GenericTypedData {
   /** EIP-712 domain */
@@ -306,6 +326,8 @@ export interface GenericTypedData {
 
 /**
  * Permission operation types
+ *
+ * @category Permissions
  */
 export type PermissionOperation =
   | "llm_inference"
@@ -317,11 +339,15 @@ export type PermissionOperation =
 
 /**
  * Permission status
+ *
+ * @category Permissions
  */
 export type PermissionStatus = "active" | "revoked" | "expired" | "pending";
 
 /**
  * Parameters for querying permissions
+ *
+ * @category Permissions
  */
 export interface QueryPermissionsParams {
   /** Filter by grantor address */
@@ -346,6 +372,8 @@ export interface QueryPermissionsParams {
 
 /**
  * Permission query result
+ *
+ * @category Permissions
  */
 export interface PermissionQueryResult {
   /** Array of permissions matching the query */
@@ -358,6 +386,8 @@ export interface PermissionQueryResult {
 
 /**
  * Permission analytics data
+ *
+ * @category Permissions
  */
 export interface PermissionAnalytics {
   /** Total number of permissions granted */
@@ -382,6 +412,8 @@ export interface PermissionAnalytics {
 
 /**
  * Server information
+ *
+ * @category Permissions
  */
 export interface Server {
   /** Server URL */
@@ -390,6 +422,8 @@ export interface Server {
 
 /**
  * Parameters for trusting a server
+ *
+ * @category Permissions
  */
 export interface TrustServerParams {
   /** Server ID (address) */
@@ -400,6 +434,8 @@ export interface TrustServerParams {
 
 /**
  * Parameters for untrusting a server
+ *
+ * @category Permissions
  */
 export interface UntrustServerParams {
   /** Server ID (address) */
@@ -408,6 +444,8 @@ export interface UntrustServerParams {
 
 /**
  * Input for trusting a server with signature (gasless)
+ *
+ * @category Permissions
  */
 export interface TrustServerInput {
   /** User nonce */
@@ -420,6 +458,8 @@ export interface TrustServerInput {
 
 /**
  * Input for untrusting a server with signature (gasless)
+ *
+ * @category Permissions
  */
 export interface UntrustServerInput {
   /** User nonce */
@@ -430,6 +470,8 @@ export interface UntrustServerInput {
 
 /**
  * EIP-712 typed data for TrustServer
+ *
+ * @category Permissions
  */
 export interface TrustServerTypedData {
   /** EIP-712 domain */
@@ -449,6 +491,8 @@ export interface TrustServerTypedData {
 
 /**
  * EIP-712 typed data for UntrustServer
+ *
+ * @category Permissions
  */
 export interface UntrustServerTypedData {
   /** EIP-712 domain */
@@ -468,6 +512,8 @@ export interface UntrustServerTypedData {
 
 /**
  * Permission event data
+ *
+ * @category Permissions
  */
 export interface PermissionEvent {
   /** Event type */
@@ -484,6 +530,8 @@ export interface PermissionEvent {
 
 /**
  * Enhanced trusted server information with trust status
+ *
+ * @category Permissions
  */
 export interface TrustedServerInfo {
   /** Server ID (address) */
@@ -498,6 +546,8 @@ export interface TrustedServerInfo {
 
 /**
  * Paginated result for trusted server queries
+ *
+ * @category Permissions
  */
 export interface PaginatedTrustedServers {
   /** Array of server addresses */
@@ -514,6 +564,8 @@ export interface PaginatedTrustedServers {
 
 /**
  * Options for querying trusted servers
+ *
+ * @category Permissions
  */
 export interface TrustedServerQueryOptions {
   /** User address to query (defaults to current user) */
@@ -528,6 +580,8 @@ export interface TrustedServerQueryOptions {
 
 /**
  * Result of batch server info requests
+ *
+ * @category Permissions
  */
 export interface BatchServerInfoResult {
   /** Successfully retrieved server info */
@@ -538,6 +592,8 @@ export interface BatchServerInfoResult {
 
 /**
  * Server trust status information
+ *
+ * @category Permissions
  */
 export interface ServerTrustStatus {
   /** Server ID being checked */

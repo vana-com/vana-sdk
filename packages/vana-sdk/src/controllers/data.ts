@@ -1,4 +1,5 @@
 import { Address, getContract, decodeEventLog } from "viem";
+
 import {
   UserFile,
   UploadEncryptedFileResult,
@@ -723,6 +724,17 @@ export class DataController {
    * Gets the total number of files in the registry from the contract.
    *
    * @returns Promise resolving to the total file count
+   *
+   * @example
+   * ```typescript
+   * const totalFiles = await vana.data.getTotalFilesCount();
+   * console.log(`Total files in registry: ${totalFiles}`);
+   *
+   * // Use for pagination calculations
+   * const filesPerPage = 20;
+   * const totalPages = Math.ceil(totalFiles / filesPerPage);
+   * console.log(`Total pages: ${totalPages}`);
+   * ```
    */
   async getTotalFilesCount(): Promise<number> {
     try {
@@ -762,6 +774,21 @@ export class DataController {
    *
    * @param fileId - The file ID to look up
    * @returns Promise resolving to UserFile object
+   *
+   * @example
+   * ```typescript
+   * try {
+   *   const file = await vana.data.getFileById(123);
+   *   console.log('File details:', {
+   *     id: file.id,
+   *     url: file.url,
+   *     owner: file.ownerAddress,
+   *     addedAt: file.addedAtBlock
+   *   });
+   * } catch (error) {
+   *   console.error('File not found or error retrieving file:', error);
+   * }
+   * ```
    *
    * This method queries the DataRegistry contract directly
    * to get file details for any file ID, regardless of user ownership.

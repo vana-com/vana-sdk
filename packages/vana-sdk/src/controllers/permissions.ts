@@ -712,6 +712,19 @@ export class PermissionsController {
    *
    * @param params - Parameters for revoking the permission
    * @returns Promise resolving to transaction hash
+   *
+   * @example
+   * ```typescript
+   * // Revoke a permission by its ID
+   * const txHash = await vana.permissions.revoke({
+   *   permissionId: 123n
+   * });
+   * console.log('Permission revoked in transaction:', txHash);
+   *
+   * // Wait for confirmation if needed
+   * const receipt = await vana.core.waitForTransaction(txHash);
+   * console.log('Revocation confirmed in block:', receipt.blockNumber);
+   * ```
    */
   async revoke(params: RevokePermissionParams): Promise<Hash> {
     try {
@@ -1268,6 +1281,20 @@ export class PermissionsController {
    *
    * @param params - Parameters for trusting the server
    * @returns Promise resolving to transaction hash
+   *
+   * @example
+   * ```typescript
+   * // Trust a server by providing its ID and URL
+   * const txHash = await vana.permissions.trustServer({
+   *   serverId: '0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6',
+   *   serverUrl: 'https://myserver.example.com'
+   * });
+   * console.log('Server trusted in transaction:', txHash);
+   *
+   * // Verify the server was added to trusted list
+   * const trustedServers = await vana.permissions.getTrustedServers();
+   * console.log('Trusted servers:', trustedServers.length);
+   * ```
    */
   async trustServer(params: TrustServerParams): Promise<Hash> {
     try {

@@ -27,6 +27,16 @@ export const DEFAULT_ENCRYPTION_SEED =
  * @param wallet The user's wallet client for signing
  * @param seed Optional custom encryption seed (defaults to Vana standard)
  * @returns The signature that serves as the encryption key
+ * @throws {Error} When wallet account is required but not provided
+ *
+ * @example
+ * ```typescript
+ * const encryptionKey = await generateEncryptionKey(walletClient);
+ * console.log('Generated encryption key:', encryptionKey);
+ *
+ * // Use with custom seed
+ * const customKey = await generateEncryptionKey(walletClient, 'my-custom-seed');
+ * ```
  */
 export async function generateEncryptionKey(
   wallet: WalletClient,

@@ -24,37 +24,79 @@ export interface PinataConfig {
 }
 
 interface PinataPin {
+  /** IPFS hash of the pinned content */
   ipfs_pin_hash: string;
+  /** Size of the pinned content in bytes */
   size: number;
+  /** Date when content was pinned (ISO string) */
   date_pinned: string;
+  /** Optional metadata associated with the pin */
   metadata?: {
+    /** Optional name for the pinned content */
     name?: string;
+    /** Additional metadata properties */
     [key: string]: unknown;
   };
 }
 
 interface PinataUploadResponse {
+  /** IPFS hash of the uploaded content */
   IpfsHash: string;
+  /** Size of the uploaded content in bytes */
   PinSize: number;
+  /** Upload timestamp (ISO string) */
   Timestamp: string;
 }
 
 interface PinataListResponse {
+  /** Total number of pins matching the query */
   count: number;
+  /** Array of pin objects */
   rows: Array<{
+    /** Unique pin identifier */
     id: string;
+    /** IPFS hash of the pinned content */
     ipfs_pin_hash: string;
+    /** Size in bytes */
     size: number;
+    /** User ID that owns the pin */
     user_id: string;
+    /** Date when content was pinned */
     date_pinned: string;
+    /** Date when content was unpinned (if applicable) */
     date_unpinned?: string;
+    /** Pin metadata */
     metadata: {
+      /** Optional name for the pin */
       name?: string;
+      /** Additional key-value metadata */
       keyvalues?: Record<string, unknown>;
     };
   }>;
 }
 
+/**
+ * Pinata IPFS Storage Provider
+ *
+ * Direct browser integration with Pinata for IPFS storage.
+ * This provider uploads files directly from the browser to Pinata's IPFS service.
+ *
+ * @throws {StorageError} When Pinata JWT token is missing from configuration
+ *
+ * @example
+ * ```typescript
+ * const pinataStorage = new PinataStorage({
+ *   jwt: 'your-pinata-jwt-token',
+ *   gatewayUrl: 'https://gateway.pinata.cloud'
+ * });
+ *
+ * const file = new Blob(['Hello Pinata'], { type: 'text/plain' });
+ * const result = await pinataStorage.upload(file, 'hello.txt');
+ * console.log('File pinned to IPFS:', result.metadata?.ipfsHash);
+ * ```
+ *
+ * @category Storage
+ */
 export class PinataStorage implements StorageProvider {
   private readonly apiUrl: string;
   private readonly gatewayUrl: string;

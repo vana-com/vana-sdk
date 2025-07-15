@@ -24,7 +24,7 @@ import {
  *
  * @example
  * ```typescript
- * import { StorageManager, IPFSStorage, PinataStorage } from 'vana-sdk/storage';
+ * import { StorageManager, IPFSStorage, PinataStorage } from 'vana-sdk';
  *
  * const storage = new StorageManager();
  *

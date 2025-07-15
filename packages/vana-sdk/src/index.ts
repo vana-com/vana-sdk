@@ -147,6 +147,21 @@ export * from "./storage";
 
 // Configuration
 export { getContractAddress } from "./config/addresses";
+
+/**
+ * Pre-configured chain definitions for all supported Vana networks.
+ *
+ * @example
+ * ```typescript
+ * import { vanaMainnet, moksha } from 'vana-sdk';
+ *
+ * // Use in wallet client configuration
+ * const client = createWalletClient({
+ *   chain: vanaMainnet,
+ *   transport: http()
+ * });
+ * ```
+ */
 export { chains, mokshaTestnet, vanaMainnet } from "./config/chains";
 
 // Chain configurations with subgraph URLs

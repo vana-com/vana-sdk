@@ -6,6 +6,8 @@ import grantFileSchema from "../schemas/grantFile.schema.json";
 
 /**
  * Base error class for grant validation failures
+ *
+ * @category Permissions
  */
 export class GrantValidationError extends Error {
   constructor(
@@ -19,6 +21,8 @@ export class GrantValidationError extends Error {
 
 /**
  * Error thrown when a grant has expired
+ *
+ * @category Permissions
  */
 export class GrantExpiredError extends GrantValidationError {
   constructor(
@@ -33,6 +37,8 @@ export class GrantExpiredError extends GrantValidationError {
 
 /**
  * Error thrown when grantee doesn't match requesting address
+ *
+ * @category Permissions
  */
 export class GranteeMismatchError extends GrantValidationError {
   constructor(
@@ -47,6 +53,8 @@ export class GranteeMismatchError extends GrantValidationError {
 
 /**
  * Error thrown when operation is not allowed by grant
+ *
+ * @category Permissions
  */
 export class OperationNotAllowedError extends GrantValidationError {
   constructor(
@@ -61,6 +69,8 @@ export class OperationNotAllowedError extends GrantValidationError {
 
 /**
  * Error thrown when grant file structure is invalid
+ *
+ * @category Permissions
  */
 export class GrantSchemaError extends GrantValidationError {
   constructor(
@@ -93,6 +103,8 @@ const validateGrantFileSchema: ValidateFunction = ajv.compile(grantFileSchema);
 
 /**
  * Options for grant validation
+ *
+ * @category Permissions
  */
 export interface GrantValidationOptions {
   /** Enable JSON schema validation (default: true) */
@@ -109,6 +121,8 @@ export interface GrantValidationOptions {
 
 /**
  * Detailed validation result
+ *
+ * @category Permissions
  */
 export interface GrantValidationResult {
   /** Whether validation passed */

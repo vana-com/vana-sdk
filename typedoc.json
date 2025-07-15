@@ -1,12 +1,9 @@
 {
-  "entryPoints": [
-    "packages/vana-sdk/src/index.ts",
-    "packages/vana-sdk/src/controllers/data.ts",
-    "packages/vana-sdk/src/controllers/permissions.ts",
-    "packages/vana-sdk/src/controllers/protocol.ts",
-    "packages/vana-sdk/src/storage/index.ts",
-    "packages/vana-sdk/src/config/chains.ts",
-    "packages/vana-sdk/src/types/index.ts"
+  "entryPoints": ["packages/vana-sdk/src"],
+  "entryPointStrategy": "expand",
+  "exclude": [
+    "packages/vana-sdk/src/abi/**/*",
+    "packages/vana-sdk/src/contracts/**/*"
   ],
   "out": "docs",
   "name": "Vana SDK Developer Guide",

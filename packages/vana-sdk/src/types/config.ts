@@ -142,6 +142,8 @@ export interface RelayerCallbacks {
 
 /**
  * Base configuration interface
+ *
+ * @category Configuration
  */
 export interface BaseConfig {
   /**
@@ -162,6 +164,8 @@ export interface BaseConfig {
 
 /**
  * Configuration with wallet client
+ *
+ * @category Configuration
  */
 export interface WalletConfig extends BaseConfig {
   /** The viem WalletClient instance used for signing transactions */
@@ -172,6 +176,8 @@ export interface WalletConfig extends BaseConfig {
 
 /**
  * Configuration with chain and account details
+ *
+ * @category Configuration
  */
 export interface ChainConfig extends BaseConfig {
   /** The chain ID for Vana network */
@@ -224,6 +230,8 @@ export type VanaConfig = WalletConfig | ChainConfig;
 
 /**
  * Runtime configuration information
+ *
+ * @category Configuration
  */
 export interface RuntimeConfig {
   /** Current chain ID */
@@ -239,14 +247,39 @@ export interface RuntimeConfig {
 }
 
 /**
- * Type guard to check if config is WalletConfig
+ * Validates whether a configuration object is a WalletConfig.
+ *
+ * @param config - The configuration object to check
+ * @returns True if the config is a WalletConfig (contains walletClient)
+ *
+ * @example
+ * ```typescript
+ * if (isWalletConfig(config)) {
+ *   console.log('Using wallet client:', config.walletClient.account?.address);
+ * } else {
+ *   console.log('Using chain config with chain ID:', config.chainId);
+ * }
+ * ```
  */
 export function isWalletConfig(config: VanaConfig): config is WalletConfig {
   return "walletClient" in config;
 }
 
 /**
- * Type guard to check if config is ChainConfig
+ * Validates whether a configuration object is a ChainConfig.
+ *
+ * @param config - The configuration object to check
+ * @returns True if the config is a ChainConfig (contains chainId but not walletClient)
+ *
+ * @example
+ * ```typescript
+ * if (isChainConfig(config)) {
+ *   console.log('Chain ID:', config.chainId);
+ *   console.log('RPC URL:', config.rpcUrl);
+ * } else {
+ *   console.log('Using pre-configured wallet client');
+ * }
+ * ```
  */
 export function isChainConfig(config: VanaConfig): config is ChainConfig {
   return "chainId" in config && !("walletClient" in config);
@@ -254,6 +287,8 @@ export function isChainConfig(config: VanaConfig): config is ChainConfig {
 
 /**
  * Configuration validation options
+ *
+ * @category Configuration
  */
 export interface ConfigValidationOptions {
   /** Whether to validate storage providers */
@@ -266,6 +301,8 @@ export interface ConfigValidationOptions {
 
 /**
  * Configuration validation result
+ *
+ * @category Configuration
  */
 export interface ConfigValidationResult {
   /** Whether the configuration is valid */

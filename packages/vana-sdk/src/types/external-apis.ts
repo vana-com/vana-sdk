@@ -170,7 +170,23 @@ export interface APIResponse<T = unknown> {
  * Type Guards for Runtime Validation
  */
 
-/** Type guard to check if a value is a ReplicateAPIResponse */
+/**
+ * Validates whether a value is a valid ReplicateAPIResponse.
+ *
+ * @param value - The value to check
+ * @returns True if the value matches the ReplicateAPIResponse structure
+ *
+ * @example
+ * ```typescript
+ * const response = await fetch('/api/replicate');
+ * const data = await response.json();
+ *
+ * if (isReplicateAPIResponse(data)) {
+ *   console.log('Status:', data.status);
+ *   console.log('Output:', data.output);
+ * }
+ * ```
+ */
 export function isReplicateAPIResponse(
   value: unknown,
 ): value is ReplicateAPIResponse {
@@ -188,7 +204,22 @@ export function isReplicateAPIResponse(
   );
 }
 
-/** Type guard to check if output is IdentityServerOutput */
+/**
+ * Validates whether a value is a valid IdentityServerOutput.
+ *
+ * @param value - The value to check
+ * @returns True if the value matches the IdentityServerOutput structure
+ *
+ * @example
+ * ```typescript
+ * const output = response.output;
+ *
+ * if (isIdentityServerOutput(output)) {
+ *   console.log('User address:', output.user_address);
+ *   console.log('Server address:', output.personal_server.address);
+ * }
+ * ```
+ */
 export function isIdentityServerOutput(
   value: unknown,
 ): value is IdentityServerOutput {
@@ -243,7 +274,22 @@ export function isIdentityServerOutput(
   return hasAddress && hasPublicKey;
 }
 
-/** Type guard to check if output is PersonalServerOutput */
+/**
+ * Validates whether a value is a valid PersonalServerOutput.
+ *
+ * @param value - The value to check
+ * @returns True if the value matches the PersonalServerOutput structure
+ *
+ * @example
+ * ```typescript
+ * const output = response.output;
+ *
+ * if (isPersonalServerOutput(output)) {
+ *   console.log('User address:', output.user_address);
+ *   console.log('Identity metadata:', output.identity.metadata);
+ * }
+ * ```
+ */
 export function isPersonalServerOutput(
   value: unknown,
 ): value is PersonalServerOutput {
@@ -258,7 +304,26 @@ export function isPersonalServerOutput(
   );
 }
 
-/** Type guard to check if response is an APIResponse */
+/**
+ * Validates whether a value is a valid APIResponse.
+ *
+ * @param value - The value to check
+ * @returns True if the value matches the APIResponse structure
+ *
+ * @example
+ * ```typescript
+ * const response = await fetch('/api/data');
+ * const data = await response.json();
+ *
+ * if (isAPIResponse(data)) {
+ *   if (data.success) {
+ *     console.log('Data:', data.data);
+ *   } else {
+ *     console.error('Error:', data.error);
+ *   }
+ * }
+ * ```
+ */
 export function isAPIResponse<T>(value: unknown): value is APIResponse<T> {
   if (typeof value !== "object" || value === null) return false;
 
@@ -270,7 +335,25 @@ export function isAPIResponse<T>(value: unknown): value is APIResponse<T> {
  * Utility Functions for Safe JSON Parsing
  */
 
-/** Safely parse JSON with type validation */
+/**
+ * Safely parses JSON string with type validation.
+ *
+ * @param jsonString - The JSON string to parse
+ * @param typeGuard - Type guard function to validate the parsed value
+ * @returns The parsed and validated value, or null if parsing/validation fails
+ *
+ * @example
+ * ```typescript
+ * const jsonStr = '{"user_address": "0x123...", "identity": {}}';
+ * const result = safeParseJSON(jsonStr, isPersonalServerOutput);
+ *
+ * if (result) {
+ *   console.log('Parsed server output:', result.user_address);
+ * } else {
+ *   console.log('Invalid JSON or type mismatch');
+ * }
+ * ```
+ */
 export function safeParseJSON<T>(
   jsonString: string,
   typeGuard: (value: unknown) => value is T,
@@ -283,7 +366,25 @@ export function safeParseJSON<T>(
   }
 }
 
-/** Parse Replicate output with type safety */
+/**
+ * Parses Replicate API response output with type safety.
+ *
+ * @param response - The Replicate API response
+ * @param typeGuard - Type guard function to validate the output
+ * @returns The parsed and validated output, or null if validation fails
+ *
+ * @example
+ * ```typescript
+ * const response = await replicateClient.get(predictionId);
+ * const output = parseReplicateOutput(response, isIdentityServerOutput);
+ *
+ * if (output) {
+ *   console.log('Identity server result:', output.user_address);
+ * } else {
+ *   console.log('Output not available or invalid format');
+ * }
+ * ```
+ */
 export function parseReplicateOutput<T>(
   response: ReplicateAPIResponse,
   typeGuard: (value: unknown) => value is T,

@@ -1,10 +1,4 @@
-import type {
-  VanaConfig,
-  WalletConfig,
-  ChainConfig,
-  RuntimeConfig,
-  VanaChainId,
-} from "./types";
+import type { VanaConfig, RuntimeConfig, VanaChainId } from "./types";
 import { isWalletConfig, isChainConfig, isVanaChainId } from "./types";
 import type { RelayerCallbacks } from "./types/config";
 import { InvalidConfigurationError } from "./errors";
@@ -29,17 +23,14 @@ import type { VanaPlatformAdapter } from "./platform/interface";
  * adapter to handle environment-specific operations. It initializes all controllers
  * and manages shared context between them.
  *
+ * For public usage, use the platform-specific Vana classes that extend this core:
+ * - Use `await Vana.create(config)` from the main package import
+ *
  * @example
  * ```typescript
- * // Create from wallet configuration
- * const core = VanaCore.fromWallet({
+ * // Direct instantiation (typically used internally)
+ * const core = new VanaCore({
  *   walletClient: myWalletClient,
- * }, platformAdapter);
- *
- * // Create from chain configuration
- * const core = VanaCore.fromChain({
- *   chainId: 14800,
- *   account: myAccount,
  * }, platformAdapter);
  * ```
  *
@@ -63,66 +54,6 @@ export class VanaCore {
 
   private readonly relayerCallbacks?: RelayerCallbacks;
   private readonly storageManager?: StorageManager;
-
-  /**
-   * Creates a VanaCore instance from chain configuration parameters.
-   *
-   * @remarks
-   * This factory method is ideal when you want to specify chain details directly
-   * rather than providing a pre-configured wallet client.
-   *
-   * @param config - The chain configuration specifying network and account details
-   * @param platform - The platform adapter for environment-specific operations
-   * @returns A VanaCore instance configured for the specified chain
-   * @throws {InvalidConfigurationError} When the chain configuration is invalid
-   *
-   * @example
-   * ```typescript
-   * const vanaCore = VanaCore.fromChain({
-   *   chainId: 14800,
-   *   account: privateKeyToAccount("0x..."),
-   *   rpcUrl: "https://rpc.moksha.vana.org",
-   * }, platformAdapter);
-   * ```
-   */
-  static fromChain(
-    config: ChainConfig,
-    platform: VanaPlatformAdapter,
-  ): VanaCore {
-    return new VanaCore(config, platform);
-  }
-
-  /**
-   * Creates a VanaCore instance from an existing wallet client.
-   *
-   * @remarks
-   * This is the recommended approach when you already have a configured viem wallet client
-   * with the desired chain and account settings.
-   *
-   * @param config - The wallet configuration containing a pre-configured wallet client
-   * @param platform - The platform adapter for environment-specific operations
-   * @returns A VanaCore instance using the provided wallet client
-   * @throws {InvalidConfigurationError} When the wallet configuration is invalid
-   *
-   * @example
-   * ```typescript
-   * const walletClient = createWalletClient({
-   *   chain: mokshaTestnet,
-   *   transport: http(),
-   *   account: privateKeyToAccount("0x..."),
-   * });
-   *
-   * const vanaCore = VanaCore.fromWallet({
-   *   walletClient,
-   * }, platformAdapter);
-   * ```
-   */
-  static fromWallet(
-    config: WalletConfig,
-    platform: VanaPlatformAdapter,
-  ): VanaCore {
-    return new VanaCore(config, platform);
-  }
 
   /**
    * Initializes a new VanaCore client instance with the provided configuration.

@@ -4,13 +4,21 @@ import dataSchemaSchema from "../schemas/dataContract.schema.json";
 
 /**
  * Data schema interface following the Vana schema specification
+ *
+ * @category Configuration
  */
 export interface DataSchema {
+  /** The name of the data schema */
   name: string;
+  /** The version of the data schema */
   version: string;
+  /** Optional description of the data schema */
   description?: string;
+  /** The dialect type - either SQLite or JSON */
   dialect: "sqlite" | "json";
+  /** Optional version of the dialect */
   dialectVersion?: string;
+  /** The actual schema definition as string or object */
   schema: string | object;
 }
 

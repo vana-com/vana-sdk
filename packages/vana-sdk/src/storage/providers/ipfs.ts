@@ -31,6 +31,28 @@ interface IPFSUploadResponse {
   hash?: string;
 }
 
+/**
+ * IPFS Storage Provider
+ *
+ * Direct connection to IPFS nodes for decentralized storage.
+ * Supports both public and private IPFS endpoints.
+ *
+ * @throws {StorageError} When IPFS API endpoint is missing from configuration
+ *
+ * @example
+ * ```typescript
+ * const ipfsStorage = new IPFSStorage({
+ *   apiEndpoint: 'https://ipfs.infura.io:5001/api/v0',
+ *   gatewayUrl: 'https://ipfs.infura.io/ipfs'
+ * });
+ *
+ * const file = new Blob(['Hello IPFS'], { type: 'text/plain' });
+ * const result = await ipfsStorage.upload(file, 'hello.txt');
+ * console.log('File uploaded to:', result.url);
+ * ```
+ *
+ * @category Storage
+ */
 export class IPFSStorage implements StorageProvider {
   constructor(private config: IPFSConfig) {
     if (!config.apiEndpoint) {

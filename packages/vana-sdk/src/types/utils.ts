@@ -2,27 +2,37 @@ import type { Address, Hash } from "viem";
 
 /**
  * Makes all properties in T optional except for those in K
+ *
+ * @category Reference
  */
 export type PartialExcept<T, K extends keyof T> = Partial<T> & Pick<T, K>;
 
 /**
  * Makes all properties in T required except for those in K
+ *
+ * @category Reference
  */
 export type RequiredExcept<T, K extends keyof T> = Required<T> &
   Partial<Pick<T, K>>;
 
 /**
  * Extracts the return type of a promise
+ *
+ * @category Reference
  */
 export type Awaited<T> = T extends Promise<infer U> ? U : T;
 
 /**
  * Creates a type that accepts either T or a Promise<T>
+ *
+ * @category Reference
  */
 export type MaybePromise<T> = T | Promise<T>;
 
 /**
  * Creates a type that accepts either T or an array of T
+ *
+ * @category Reference
  */
 export type MaybeArray<T> = T | T[];
 
@@ -40,10 +50,10 @@ export type MaybeArray<T> = T | T[];
  *   offset: 40, // Skip first 40 items (page 3)
  *   cursor: 'eyJpZCI6MTIzfQ==' // Or use cursor-based pagination
  * };
- * 
- * const files = await vana.data.getUserFiles({ 
- *   owner: userAddress, 
- *   pagination 
+ *
+ * const files = await vana.data.getUserFiles({
+ *   owner: userAddress,
+ *   pagination
  * });
  * ```
  */
@@ -58,6 +68,8 @@ export interface PaginationParams {
 
 /**
  * Pagination result
+ *
+ * @category Reference
  */
 export interface PaginationResult<T> {
   /** Array of items */
@@ -74,6 +86,8 @@ export interface PaginationResult<T> {
 
 /**
  * Block range parameters
+ *
+ * @category Reference
  */
 export interface BlockRange {
   /** Starting block number */
@@ -84,6 +98,8 @@ export interface BlockRange {
 
 /**
  * Transaction options
+ *
+ * @category Reference
  */
 export interface TransactionOptions {
   /** Gas limit */
@@ -102,6 +118,8 @@ export interface TransactionOptions {
 
 /**
  * Transaction receipt with additional metadata
+ *
+ * @category Reference
  */
 export interface TransactionReceipt {
   /** Transaction hash */
@@ -126,6 +144,8 @@ export interface TransactionReceipt {
 
 /**
  * Response wrapper for API results
+ *
+ * @category Reference
  */
 export interface ApiResponse<T> {
   /** Response data */
@@ -140,6 +160,8 @@ export interface ApiResponse<T> {
 
 /**
  * Retry configuration
+ *
+ * @category Reference
  */
 export interface RetryConfig {
   /** Number of retry attempts */
@@ -156,6 +178,8 @@ export interface RetryConfig {
 
 /**
  * Cache configuration
+ *
+ * @category Reference
  */
 export interface CacheConfig {
   /** Cache TTL in milliseconds */
@@ -168,6 +192,8 @@ export interface CacheConfig {
 
 /**
  * Validation result
+ *
+ * @category Reference
  */
 export interface ValidationResult {
   /** Whether validation passed */
@@ -180,6 +206,8 @@ export interface ValidationResult {
 
 /**
  * Status information
+ *
+ * @category Reference
  */
 export interface StatusInfo {
   /** Whether the service is healthy */
@@ -194,6 +222,8 @@ export interface StatusInfo {
 
 /**
  * Rate limit information
+ *
+ * @category Reference
  */
 export interface RateLimitInfo {
   /** Current request count */
@@ -208,6 +238,8 @@ export interface RateLimitInfo {
 
 /**
  * File upload progress
+ *
+ * @category Reference
  */
 export interface UploadProgress {
   /** Bytes uploaded */
@@ -224,6 +256,8 @@ export interface UploadProgress {
 
 /**
  * Network information
+ *
+ * @category Reference
  */
 export interface NetworkInfo {
   /** Chain ID */
@@ -242,6 +276,8 @@ export interface NetworkInfo {
 
 /**
  * Gas estimate information
+ *
+ * @category Reference
  */
 export interface GasEstimate {
   /** Gas limit */
@@ -269,7 +305,7 @@ export interface GasEstimate {
  *   from: Date.now() - (7 * 24 * 60 * 60 * 1000), // 7 days ago
  *   to: Date.now()
  * };
- * 
+ *
  * const permissions = await vana.permissions.getUserPermissions({
  *   timeRange: lastWeek
  * });

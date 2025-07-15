@@ -49,6 +49,14 @@ interface GoogleDriveTokenResponse {
   access_token: string;
 }
 
+/**
+ * Google Drive Storage Provider
+ *
+ * Implements storage interface for Google Drive using OAuth2 authentication.
+ * Based on patterns from dlp-ui-template with NextAuth integration.
+ *
+ * @category Storage
+ */
 export class GoogleDriveStorage implements StorageProvider {
   private readonly baseUrl = "https://www.googleapis.com/drive/v3";
   private readonly uploadUrl = "https://www.googleapis.com/upload/drive/v3";

@@ -215,10 +215,7 @@ describe("DataController Error Handling", () => {
       expect(result).toBe(mockDecryptedBlob);
 
       // Verify all mocks were called with correct parameters
-      expect(dataController.getFilePermission).toHaveBeenCalledWith(
-        "test-id",
-        "0x123",
-      );
+      expect(dataController.getFilePermission).toHaveBeenCalledWith(1, "0x123");
       expect(global.fetch).toHaveBeenCalledWith(
         "https://ipfs.io/ipfs/QmTestHash",
       );

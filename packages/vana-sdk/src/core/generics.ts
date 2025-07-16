@@ -91,7 +91,7 @@ export abstract class BaseController<
    * Validate parameters with optional custom validator
    * @param params - The parameters to validate
    * @param validator - Optional function to validate parameter types
-   * @returns Void (throws if validation fails, asserts type if successful)
+   * @throws Error if validation fails, asserts type if successful
    */
   protected validateParams<T>(
     params: unknown,

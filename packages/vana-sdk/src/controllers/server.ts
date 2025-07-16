@@ -15,7 +15,6 @@ import { ControllerContext } from "./permissions";
 
 /**
  * Manages interactions with Vana personal servers and identity infrastructure.
- *
  * @remarks
  * This controller handles communication with personal servers for data processing
  * and identity servers for public key derivation. It provides methods for posting
@@ -26,7 +25,6 @@ import { ControllerContext } from "./permissions";
  * Personal servers enable privacy-preserving computation on user data, while identity
  * servers provide deterministic key derivation for secure communication without
  * requiring servers to be online during key retrieval.
- *
  * @example
  * ```typescript
  * // Post a request to a personal server
@@ -42,7 +40,6 @@ import { ControllerContext } from "./permissions";
  * // Poll for computation results
  * const result = await vana.server.pollStatus(response.urls.get);
  * ```
- *
  * @category Server Management
  * @see {@link [URL_PLACEHOLDER] | Vana Personal Servers} for conceptual overview
  */
@@ -58,7 +55,6 @@ export class ServerController {
 
   /**
    * Posts a computation request to a user's personal server.
-   *
    * @remarks
    * This method submits a computation request to the specified user's personal server
    * via the Replicate API. It creates a signed request with the user address and
@@ -67,14 +63,12 @@ export class ServerController {
    *
    * The method requires a valid Replicate API token and uses the application's
    * wallet client for request signing to ensure authenticity.
-   *
    * @param params - The request parameters object
    * @param params.permissionId - The permission ID authorizing this computation
    * @returns A Promise that resolves to a prediction response with status and control URLs
    * @throws {PersonalServerError} When server request fails or parameters are invalid
    * @throws {SignatureError} When request signing fails
    * @throws {NetworkError} When Replicate API communication fails
-   *
    * @example
    * ```typescript
    * const response = await vana.server.postRequest({
@@ -135,7 +129,6 @@ export class ServerController {
 
   /**
    * Initializes the personal server and fetches user identity.
-   *
    * @param params - The request parameters containing user address
    * @returns Promise resolving to the user's identity information
    */
@@ -177,7 +170,6 @@ export class ServerController {
 
   /**
    * Retrieves the public key for a user's personal server via the Identity Server.
-   *
    * @remarks
    * This method uses the Identity Server to deterministically derive the personal server's
    * public key from the user's EVM address. This enables anyone to encrypt data for a
@@ -187,12 +179,10 @@ export class ServerController {
    *
    * The derived public key is deterministic and consistent, allowing for predictable
    * encryption workflows in decentralized applications.
-   *
    * @param userAddress - The user's EVM address to derive the server public key for
    * @returns A Promise that resolves to the server's public key as a hex string
    * @throws {PersonalServerError} When user address is invalid or server lookup fails
    * @throws {NetworkError} When Identity Server API request fails
-   *
    * @example
    * ```typescript
    * // Get public key for encrypting data to a user's server
@@ -295,7 +285,6 @@ export class ServerController {
 
   /**
    * Polls the status of a computation request for updates and results.
-   *
    * @remarks
    * This method checks the current status of a computation request by querying
    * the Replicate API using the provided polling URL. It returns the current
@@ -303,11 +292,9 @@ export class ServerController {
    * called periodically until the computation completes or fails.
    *
    * Common status values include: `starting`, `processing`, `succeeded`, `failed`, `canceled`.
-   *
    * @param getUrl - The polling URL returned from the initial request submission
    * @returns A Promise that resolves to the current prediction response with status and results
    * @throws {NetworkError} When the polling request fails or returns invalid data
-   *
    * @example
    * ```typescript
    * // Poll until completion
@@ -375,6 +362,7 @@ export class ServerController {
 
   /**
    * Validates the post request parameters.
+   * @param params - The post request parameters to validate
    */
   private validatePostRequestParams(params: PostRequestParams): void {
     // Basic address validation
@@ -387,6 +375,7 @@ export class ServerController {
 
   /**
    * Validates the init personal server parameters.
+   * @param params - The initialization parameters to validate
    */
   private validateInitPersonalServerParams(
     params: InitPersonalServerParams,
@@ -410,6 +399,8 @@ export class ServerController {
 
   /**
    * Creates the request JSON string for the personal server.
+   * @param params - The post request parameters to serialize
+   * @returns JSON string representation of the request data
    */
   private createRequestJson(params: PostRequestParams): string {
     try {
@@ -427,6 +418,8 @@ export class ServerController {
 
   /**
    * Creates a signature for the request JSON.
+   * @param requestJson - The JSON string to sign
+   * @returns Promise resolving to the cryptographic signature
    */
   private async createSignature(requestJson: string): Promise<string> {
     try {
@@ -467,6 +460,7 @@ export class ServerController {
 
   /**
    * Gets the Replicate API token from environment.
+   * @returns The Replicate API token from environment variables
    */
   private getReplicateApiToken(): string {
     // Try server-side env var first, fallback to public for backwards compatibility
@@ -483,6 +477,8 @@ export class ServerController {
 
   /**
    * Makes the request to the Replicate API.
+   * @param input - The input parameters for the Replicate API request
+   * @returns Promise resolving to the Replicate prediction response
    */
   private async makeReplicateRequest(
     input: Record<string, unknown>,
@@ -552,6 +548,8 @@ export class ServerController {
 
   /**
    * Makes the request to the personal server.
+   * @param params - The initialization parameters for the personal server
+   * @returns Promise resolving to the Replicate prediction response
    */
   private async makePersonalServerRequest(
     params: InitPersonalServerParams,
@@ -623,6 +621,8 @@ export class ServerController {
 
   /**
    * Polls the identity server result until completion and extracts the public key.
+   * @param initialResponse - The initial response from the identity server
+   * @returns Promise resolving to the extracted public key
    */
   private async pollIdentityServerResult(
     initialResponse: ReplicatePredictionResponse,
@@ -687,6 +687,8 @@ export class ServerController {
 
   /**
    * Polls the personal server result until completion.
+   * @param initialResponse - The initial response from the personal server
+   * @returns Promise resolving to the personal server response data
    */
   private async pollPersonalServerResult(
     initialResponse: ReplicatePredictionResponse,

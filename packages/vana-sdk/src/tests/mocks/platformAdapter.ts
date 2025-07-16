@@ -4,6 +4,7 @@ import type { VanaPlatformAdapter } from "../../platform/interface";
 /**
  * Shared mock platform adapter for test files
  * This provides a consistent mock implementation across all tests
+ * @returns A mock VanaPlatformAdapter instance with mocked methods
  */
 export const createMockPlatformAdapter = (): VanaPlatformAdapter => ({
   crypto: {
@@ -13,24 +14,32 @@ export const createMockPlatformAdapter = (): VanaPlatformAdapter => ({
       publicKey: `${Math.random().toString(36).substr(2, 20)}-mock-public-key`,
       privateKey: `${Math.random().toString(36).substr(2, 40)}-mock-private-key`,
     })),
-    encryptWithWalletPublicKey: vi.fn().mockImplementation(async (data: string | Blob) => {
-      // For round-trip testing, just return the data as a hex string
-      const text = data instanceof Blob ? await data.text() : data;
-      return Buffer.from(text).toString('hex');
-    }),
-    decryptWithWalletPrivateKey: vi.fn().mockImplementation(async (encryptedData: string) => {
-      // For round-trip testing, convert hex string back to original data
-      return Buffer.from(encryptedData, 'hex').toString();
-    }),
-    encryptWithPassword: vi.fn().mockImplementation(async (data: Uint8Array) => {
-      // Return the data as-is for round-trip testing, but as a string
-      return new TextDecoder().decode(data);
-    }),
-    decryptWithPassword: vi.fn().mockImplementation(async (encryptedData: Uint8Array) => {
-      // Convert the encrypted data back to string, then back to Uint8Array for round-trip testing
-      const dataString = new TextDecoder().decode(encryptedData);
-      return new TextEncoder().encode(dataString);
-    }),
+    encryptWithWalletPublicKey: vi
+      .fn()
+      .mockImplementation(async (data: string | Blob) => {
+        // For round-trip testing, just return the data as a hex string
+        const text = data instanceof Blob ? await data.text() : data;
+        return Buffer.from(text).toString("hex");
+      }),
+    decryptWithWalletPrivateKey: vi
+      .fn()
+      .mockImplementation(async (encryptedData: string) => {
+        // For round-trip testing, convert hex string back to original data
+        return Buffer.from(encryptedData, "hex").toString();
+      }),
+    encryptWithPassword: vi
+      .fn()
+      .mockImplementation(async (data: Uint8Array) => {
+        // Return the data as-is for round-trip testing, but as a string
+        return new TextDecoder().decode(data);
+      }),
+    decryptWithPassword: vi
+      .fn()
+      .mockImplementation(async (encryptedData: Uint8Array) => {
+        // Convert the encrypted data back to string, then back to Uint8Array for round-trip testing
+        const dataString = new TextDecoder().decode(encryptedData);
+        return new TextEncoder().encode(dataString);
+      }),
   },
   pgp: {
     encrypt: vi.fn().mockImplementation(async (data: string | Blob) => {

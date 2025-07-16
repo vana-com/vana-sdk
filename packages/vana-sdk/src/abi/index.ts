@@ -90,6 +90,11 @@ export type ContractAbis = typeof contractAbis;
 
 export type VanaContract = keyof ContractAbis;
 
+/**
+ * Retrieves the ABI for a specific Vana contract
+ * @param contract - The name of the contract to get the ABI for
+ * @returns The ABI array for the specified contract
+ */
 export function getAbi<T extends VanaContract>(contract: T): ContractAbis[T] {
   const abi = contractAbis[contract];
   if (!abi) {

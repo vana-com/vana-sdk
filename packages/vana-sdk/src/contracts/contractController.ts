@@ -19,6 +19,9 @@ export const __contractCache = contractCache;
 
 /**
  * Creates a cache key for contract instances
+ * @param contract - The contract name to create a cache key for
+ * @param chainId - The chain ID to include in the cache key
+ * @returns A string cache key combining contract name and chain ID
  */
 function createCacheKey(contract: VanaContract, chainId: number): string {
   return `${contract}:${chainId}`;
@@ -27,11 +30,9 @@ function createCacheKey(contract: VanaContract, chainId: number): string {
 /**
  * Gets a typed contract instance for the specified contract name with full type inference.
  * This function provides complete type safety following viem's patterns.
- *
  * @param contract - Name of the contract to instantiate (must be a const assertion for full typing)
  * @param client - Optional viem client instance
  * @returns A fully typed contract instance with methods corresponding to the contract's ABI
- *
  * @example
  * ```typescript
  * // Full type inference with const assertion
@@ -70,11 +71,9 @@ export function getContractController<T extends VanaContract>(
 /**
  * Gets contract information (address and ABI) without creating a contract instance.
  * Useful for cases where you need contract details but don't want to create a client connection.
- *
  * @param contract - Name of the contract
  * @param chainId - Chain ID (defaults to Vana mainnet)
  * @returns Contract information with typed ABI
- *
  * @example
  * ```typescript
  * const info = getContractInfo("DataRegistry" as const, 14800);
@@ -116,7 +115,6 @@ export class ContractFactory {
 
   /**
    * Creates a typed contract instance
-   *
    * @param contract - Contract name (use const assertion for full typing)
    * @returns Fully typed contract instance
    */
@@ -128,7 +126,6 @@ export class ContractFactory {
 
   /**
    * Gets contract information without creating an instance
-   *
    * @param contract - Contract name
    * @returns Contract information with typed ABI
    */
@@ -138,7 +135,6 @@ export class ContractFactory {
 
   /**
    * Lists all available contracts for the current chain
-   *
    * @returns Array of contract names available on this chain
    */
   getAvailableContracts(): VanaContract[] {
@@ -152,7 +148,6 @@ export class ContractFactory {
 
 /**
  * Clears the contract cache. Useful for testing or when chain configurations change.
- *
  * @param contract - Optional specific contract to clear, or clear all if not provided
  * @param chainId - Optional specific chain to clear, or clear all if not provided
  */

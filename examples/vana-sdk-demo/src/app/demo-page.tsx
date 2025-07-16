@@ -12,8 +12,6 @@ import {
   RevokePermissionParams,
   GrantedPermission,
   generateEncryptionKey,
-  encryptUserData,
-  decryptUserData,
   DEFAULT_ENCRYPTION_SEED,
   StorageManager,
   StorageProvider,
@@ -31,9 +29,9 @@ import {
   UntrustServerTypedData,
   GrantFile,
   Hash,
+  retrieveGrantFile,
 } from "vana-sdk";
 import { privateKeyToAccount } from "viem/accounts";
-import { BrowserPlatformAdapter } from "vana-sdk/platform";
 
 // Types for demo app state
 
@@ -93,9 +91,6 @@ export default function Home() {
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
   const chainId = useChainId();
-
-  // Create platform adapter instance once for reuse
-  const platformAdapter = new BrowserPlatformAdapter();
 
   const [vana, setVana] = useState<Vana | null>(null);
   const [userFiles, setUserFiles] = useState<
@@ -587,7 +582,7 @@ export default function Home() {
             },
           };
 
-          const vanaInstance = await Vana.create({
+          const vanaInstance = new Vana({
             walletClient: walletClient as WalletClient & { chain: VanaChain }, // Type compatibility with Vana SDK
             relayerCallbacks,
             subgraphUrl: sdkConfig.subgraphUrl || undefined,
@@ -786,8 +781,7 @@ export default function Home() {
       // The SDK stores the grant file in IPFS and puts the URL in typedData.message.grant
       const grantUrl = typedData.message.grant;
 
-      // Import the grant utilities to retrieve the stored grant file
-      const { retrieveGrantFile } = await import("vana-sdk");
+      // Retrieve the stored grant file
       const grantFile = await retrieveGrantFile(grantUrl);
 
       // Show preview to user
@@ -929,6 +923,11 @@ export default function Home() {
       return;
     }
 
+    if (!vana) {
+      setEncryptionStatus("❌ Please connect your wallet first");
+      return;
+    }
+
     setIsEncrypting(true);
     setEncryptionStatus("Encrypting data...");
 
@@ -946,10 +945,9 @@ export default function Home() {
         setOriginalFileName(fileName);
       }
 
-      const encrypted = await encryptUserData(
+      const encrypted = await vana.encryptUserData(
         dataBlob,
         generatedEncryptionKey,
-        platformAdapter,
       );
       setEncryptedData(encrypted);
       setEncryptionStatus("✅ Data encrypted successfully!");
@@ -969,14 +967,18 @@ export default function Home() {
       return;
     }
 
+    if (!vana) {
+      setEncryptionStatus("❌ Please connect your wallet first");
+      return;
+    }
+
     setIsEncrypting(true);
     setEncryptionStatus("Decrypting data...");
 
     try {
-      const decrypted = await decryptUserData(
+      const decrypted = await vana.decryptUserData(
         encryptedData,
         generatedEncryptionKey,
-        platformAdapter,
       );
       const decryptedText = await decrypted.text();
       setDecryptedData(decryptedText);
@@ -1378,7 +1380,6 @@ export default function Home() {
           const permissionInfo = await vana.permissions.getPermissionInfo(
             BigInt(permissionId),
           );
-          const { retrieveGrantFile } = await import("vana-sdk");
           const grantFile = await retrieveGrantFile(permissionInfo.grant);
 
           setLastUsedPermissionId(permissionId.toString());

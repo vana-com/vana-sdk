@@ -3,6 +3,8 @@ import type { GrantFile, PermissionGrantTypedData } from "./permissions";
 
 /**
  * Response from the relayer service for grant file storage
+ *
+ * @category Advanced
  */
 export interface RelayerStorageResponse {
   /** The IPFS URL where the grant file is stored */
@@ -24,6 +26,8 @@ export interface RelayerStorageResponse {
 
 /**
  * Response from the relayer service for transaction submission
+ *
+ * @category Advanced
  */
 export interface RelayerTransactionResponse {
   /** The transaction hash of the submitted transaction */
@@ -47,6 +51,8 @@ export interface RelayerTransactionResponse {
 
 /**
  * Parameters for storing a grant file via relayer
+ *
+ * @category Advanced
  */
 export interface RelayerStoreParams {
   /** The grant file to store */
@@ -64,6 +70,8 @@ export interface RelayerStoreParams {
 
 /**
  * Parameters for submitting a transaction via relayer
+ *
+ * @category Advanced
  */
 export interface RelayerSubmitParams {
   /** The signed typed data */
@@ -83,6 +91,8 @@ export interface RelayerSubmitParams {
 
 /**
  * Relayer service status
+ *
+ * @category Advanced
  */
 export interface RelayerStatus {
   /** Whether the relayer is online */
@@ -118,6 +128,8 @@ export interface RelayerStatus {
 
 /**
  * Relayer configuration
+ *
+ * @category Advanced
  */
 export interface RelayerConfig {
   /** Relayer service URL */
@@ -139,6 +151,8 @@ export interface RelayerConfig {
 
 /**
  * Relayer request options
+ *
+ * @category Advanced
  */
 export interface RelayerRequestOptions {
   /** Request timeout in milliseconds */
@@ -153,6 +167,8 @@ export interface RelayerRequestOptions {
 
 /**
  * Relayer error response
+ *
+ * @category Advanced
  */
 export interface RelayerErrorResponse {
   /** Error code */
@@ -169,6 +185,8 @@ export interface RelayerErrorResponse {
 
 /**
  * Relayer queue information
+ *
+ * @category Advanced
  */
 export interface RelayerQueueInfo {
   /** Current queue size */
@@ -190,6 +208,8 @@ export interface RelayerQueueInfo {
 
 /**
  * Relayer transaction status
+ *
+ * @category Advanced
  */
 export interface RelayerTransactionStatus {
   /** Transaction hash */
@@ -215,6 +235,8 @@ export interface RelayerTransactionStatus {
 
 /**
  * Relayer metrics
+ *
+ * @category Advanced
  */
 export interface RelayerMetrics {
   /** Total transactions processed */
@@ -242,6 +264,8 @@ export interface RelayerMetrics {
 
 /**
  * Relayer webhook configuration
+ *
+ * @category Advanced
  */
 export interface RelayerWebhookConfig {
   /** Webhook URL */
@@ -258,6 +282,8 @@ export interface RelayerWebhookConfig {
 
 /**
  * Relayer webhook payload
+ *
+ * @category Advanced
  */
 export interface RelayerWebhookPayload {
   /** Event type */

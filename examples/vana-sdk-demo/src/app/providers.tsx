@@ -13,12 +13,13 @@ import "@rainbow-me/rainbowkit/styles.css";
 import { HeroUIProvider, ToastProvider } from "@heroui/react";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 
-// Configure wagmi
+// Configure wagmi with SSR support
 const config = getDefaultConfig({
   appName: "Vana SDK Next.js Demo",
   projectId:
     process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || "demo-project-id",
   chains: [mokshaTestnet, vanaMainnet],
+  ssr: true,
 });
 
 const queryClient = new QueryClient();

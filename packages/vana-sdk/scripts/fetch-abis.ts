@@ -32,6 +32,13 @@ const UTILITY_CONTRACTS = new Set([
   "VanaTreasury", // Safe/multisig wallet address
 ]);
 
+/**
+ * Fetches contract information from the blockchain explorer API
+ *
+ * @param address - The contract address to fetch information for
+ * @param network - The network to fetch from (moksha or mainnet)
+ * @returns Promise resolving to the contract information object
+ */
 async function fetchContractInfo(
   address: string,
   network: "moksha" | "mainnet" = "moksha",
@@ -51,6 +58,13 @@ async function fetchContractInfo(
   }
 }
 
+/**
+ * Gets the implementation address for a proxy contract
+ *
+ * @param proxyAddress - The proxy contract address
+ * @param network - The network to query (moksha or mainnet)
+ * @returns Promise resolving to the implementation contract address
+ */
 async function getImplementationAddress(
   proxyAddress: string,
   network: "moksha" | "mainnet" = "moksha",
@@ -64,6 +78,13 @@ async function getImplementationAddress(
   return contractInfo.implementations[0].address;
 }
 
+/**
+ * Fetches the ABI for a contract from the blockchain explorer
+ *
+ * @param address - The contract address to fetch ABI for
+ * @param network - The network to fetch from (moksha or mainnet)
+ * @returns Promise resolving to the contract ABI array
+ */
 async function fetchABI(
   address: string,
   network: "moksha" | "mainnet" = "moksha",
@@ -77,6 +98,13 @@ async function fetchABI(
   return contractInfo.abi;
 }
 
+/**
+ * Generates a TypeScript file containing the ABI export
+ *
+ * @param contractName - The name of the contract for the export
+ * @param abi - The ABI array to export
+ * @returns The generated TypeScript file content as a string
+ */
 function generateABIFile(contractName: string, abi: unknown[]): string {
   // Format ABI as JavaScript object literal instead of JSON string
   // This ensures compatibility with Prettier's formatting rules
@@ -117,6 +145,12 @@ export default ${contractName}ABI;
 `;
 }
 
+/**
+ * Ensures a directory exists, creating it if necessary
+ *
+ * @param dirPath - The path to the directory to ensure exists
+ * @returns Promise that resolves when directory exists
+ */
 async function ensureDirectoryExists(dirPath: string): Promise<void> {
   try {
     await access(dirPath);
@@ -125,6 +159,12 @@ async function ensureDirectoryExists(dirPath: string): Promise<void> {
   }
 }
 
+/**
+ * Updates the index.ts file with exports for the generated ABI files
+ *
+ * @param contractNames - Array of contract names to add exports for
+ * @returns Promise that resolves when index file is updated
+ */
 async function updateIndexFile(contractNames: string[]): Promise<void> {
   const abiDir = path.join(process.cwd(), "src", "abi");
   const indexPath = path.join(abiDir, "index.ts");
@@ -160,6 +200,12 @@ async function updateIndexFile(contractNames: string[]): Promise<void> {
   console.log(`✅ Updated ${indexPath}`);
 }
 
+/**
+ * Main function to fetch and save all contract ABIs for a network
+ *
+ * @param network - The network to fetch ABIs for (moksha or mainnet)
+ * @returns Promise that resolves when all ABIs are fetched and saved
+ */
 async function fetchAndSaveABIs(
   network: "moksha" | "mainnet" = "moksha",
 ): Promise<void> {
@@ -237,6 +283,11 @@ async function fetchAndSaveABIs(
 }
 
 // CLI interface
+/**
+ * Main entry point for the ABI fetching script
+ *
+ * @returns Promise that resolves when script execution completes
+ */
 async function main(): Promise<void> {
   const network = (process.argv[2] as "moksha" | "mainnet") || "moksha";
 

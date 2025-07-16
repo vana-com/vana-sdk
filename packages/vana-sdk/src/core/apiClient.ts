@@ -95,6 +95,8 @@ export class ApiClient {
 
   /**
    * Add middleware to the request pipeline
+   *
+   * @param middleware - The middleware function to add to the pipeline
    */
   use(middleware: Middleware): void {
     this.middleware.use(middleware);
@@ -102,6 +104,10 @@ export class ApiClient {
 
   /**
    * Make a generic HTTP request
+   *
+   * @param url - The URL to make the request to
+   * @param options - Request options including method, headers, body, etc.
+   * @returns Promise resolving to the response data
    */
   async request<TData = unknown>(
     url: string,
@@ -138,6 +144,10 @@ export class ApiClient {
 
   /**
    * Make a GET request
+   *
+   * @param url - The URL to make the GET request to
+   * @param options - Request options (excluding method)
+   * @returns Promise resolving to the response data
    */
   async get<TData = unknown>(
     url: string,
@@ -148,6 +158,11 @@ export class ApiClient {
 
   /**
    * Make a POST request
+   *
+   * @param url - The URL to make the POST request to
+   * @param data - The data to send in the request body
+   * @param options - Request options (excluding method)
+   * @returns Promise resolving to the response data
    */
   async post<TData = unknown>(
     url: string,
@@ -166,6 +181,11 @@ export class ApiClient {
 
   /**
    * Make a PUT request
+   *
+   * @param url - The URL to make the PUT request to
+   * @param data - The data to send in the request body
+   * @param options - Request options (excluding method)
+   * @returns Promise resolving to the response data
    */
   async put<TData = unknown>(
     url: string,
@@ -184,6 +204,10 @@ export class ApiClient {
 
   /**
    * Make a DELETE request
+   *
+   * @param url - The URL to make the DELETE request to
+   * @param options - Request options (excluding method)
+   * @returns Promise resolving to the response data
    */
   async delete<TData = unknown>(
     url: string,
@@ -194,6 +218,11 @@ export class ApiClient {
 
   /**
    * Make a PATCH request
+   *
+   * @param url - The URL to make the PATCH request to
+   * @param data - The data to send in the request body
+   * @param options - Request options (excluding method)
+   * @returns Promise resolving to the response data
    */
   async patch<TData = unknown>(
     url: string,
@@ -212,6 +241,9 @@ export class ApiClient {
 
   /**
    * Execute the actual HTTP request with middleware and retry
+   *
+   * @param request - The generic request object containing URL and options
+   * @returns Promise resolving to the generic response with data
    */
   private async executeRequest<TData>(
     request: GenericRequest<{ url: string; options: RequestOptions }>,
@@ -267,6 +299,10 @@ export class ApiClient {
 
   /**
    * Make the actual HTTP request using fetch API
+   *
+   * @param url - The URL to make the request to
+   * @param options - The request options including method, headers, body, etc.
+   * @returns Promise resolving to the generic response with data
    */
   private async makeHttpRequest<TData>(
     url: string,
@@ -347,6 +383,9 @@ export class ApiClient {
 
   /**
    * Build the full URL
+   *
+   * @param url - The URL or path to build the full URL from
+   * @returns The complete URL string
    */
   private buildUrl(url: string): string {
     if (url.startsWith("http")) {
@@ -363,6 +402,9 @@ export class ApiClient {
 
   /**
    * Build request options with defaults
+   *
+   * @param options - The request options to merge with defaults
+   * @returns The merged request options with defaults applied
    */
   private buildRequestOptions(options: RequestOptions): RequestOptions {
     return {
@@ -375,6 +417,8 @@ export class ApiClient {
 
   /**
    * Get client statistics
+   *
+   * @returns Object containing client statistics and performance metrics
    */
   getStats() {
     return {

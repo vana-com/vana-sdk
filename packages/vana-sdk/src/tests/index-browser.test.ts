@@ -3,7 +3,7 @@ import { Vana } from "../index.browser";
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { mokshaTestnet } from "../config/chains";
-import type { VanaChain } from "../types";
+import type { VanaChain, VanaConfig } from "../types";
 
 // Mock browser platform adapter
 vi.mock("../platform/browser", () => ({
@@ -66,34 +66,50 @@ describe("Browser Index Entry Point", () => {
     expect(typeof Vana).toBe("function");
   });
 
-  it("should create Vana instance", () => {
-    const vana = new Vana({
-      walletClient: validWalletClient,
+  describe("Async new Vana() factory method", () => {
+    it("should create Vana instance with wallet client config", async () => {
+      const vana = new Vana({
+        walletClient: validWalletClient,
+      });
+
+      expect(vana).toBeInstanceOf(Vana);
+      expect(vana.permissions).toBeDefined();
+      expect(vana.data).toBeDefined();
+      expect(vana.server).toBeDefined();
+      expect(vana.protocol).toBeDefined();
     });
 
-    expect(vana).toBeInstanceOf(Vana);
-    expect(vana.permissions).toBeDefined();
-    expect(vana.data).toBeDefined();
-    expect(vana.server).toBeDefined();
-    expect(vana.protocol).toBeDefined();
-  });
+    it("should create instance from chain config", async () => {
+      const vana = new Vana({
+        chainId: 14800,
+        account: testAccount,
+      });
 
-  it("should create instance from chain config", () => {
-    const vana = Vana.fromChain({
-      chainId: 14800,
-      account: testAccount,
+      expect(vana).toBeInstanceOf(Vana);
+      expect(vana.permissions).toBeDefined();
+      expect(vana.data).toBeDefined();
+      expect(vana.server).toBeDefined();
+      expect(vana.protocol).toBeDefined();
     });
 
-    expect(vana).toBeInstanceOf(Vana);
-  });
+    it("should create instance with full configuration", async () => {
+      const vana = new Vana({
+        walletClient: validWalletClient,
+        relayerCallbacks: {
+          submitPermissionGrant: async (_typedData, _signature) => "0xtxhash",
+          submitPermissionRevoke: async (_typedData, _signature) => "0xtxhash",
+        },
+      });
 
-  it("should create instance from wallet config", () => {
-    const vana = Vana.fromWallet({
-      walletClient: validWalletClient,
+      expect(vana).toBeInstanceOf(Vana);
+      expect(vana.getConfig().relayerCallbacks).toBeDefined();
     });
 
-    expect(vana).toBeInstanceOf(Vana);
+    it("should throw error for invalid configuration", () => {
+      expect(() => new Vana({} as VanaConfig)).toThrow();
+    });
   });
+
 
   it("should have default export", async () => {
     const module = await import("../index.browser");

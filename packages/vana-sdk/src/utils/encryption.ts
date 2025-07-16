@@ -9,8 +9,8 @@
  * encryption functionality across Node.js and browser environments.
  */
 
-import type { VanaPlatformAdapter } from "../platform/interface";
 import type { WalletClient } from "viem";
+import type { VanaPlatformAdapter } from "../platform/interface";
 
 /**
  * Default encryption seed message used throughout Vana protocol
@@ -27,6 +27,15 @@ export const DEFAULT_ENCRYPTION_SEED =
  * @param wallet The user's wallet client for signing
  * @param seed Optional custom encryption seed (defaults to Vana standard)
  * @returns The signature that serves as the encryption key
+ * @throws {Error} When wallet account is required but not provided
+ * @example
+ * ```typescript
+ * const encryptionKey = await generateEncryptionKey(walletClient);
+ * console.log('Generated encryption key:', encryptionKey);
+ *
+ * // Use with custom seed
+ * const customKey = await generateEncryptionKey(walletClient, 'my-custom-seed');
+ * ```
  */
 export async function generateEncryptionKey(
   wallet: WalletClient,
@@ -47,9 +56,10 @@ export async function generateEncryptionKey(
 
 /**
  * Encrypt data with a wallet's public key using platform-appropriate cryptography
+ *
  * @param data The data to encrypt (as string or Blob)
  * @param publicKey The public key for encryption
- * @param platformAdapter The platform adapter to use for encryption
+ * @param platformAdapter - The platform adapter for crypto operations
  * @returns The encrypted data
  */
 export async function encryptWithWalletPublicKey(
@@ -70,9 +80,10 @@ export async function encryptWithWalletPublicKey(
 
 /**
  * Decrypt data with a wallet's private key using platform-appropriate cryptography
+ *
  * @param encryptedData The encrypted data
  * @param privateKey The private key for decryption
- * @param platformAdapter The platform adapter to use for decryption
+ * @param platformAdapter - The platform adapter for crypto operations
  * @returns The decrypted data as string
  */
 export async function decryptWithWalletPrivateKey(
@@ -92,9 +103,10 @@ export async function decryptWithWalletPrivateKey(
 
 /**
  * Encrypt a file key with a DLP's public key using platform-appropriate cryptography
+ *
  * @param fileKey The symmetric key used to encrypt the file
  * @param publicKey The DLP's public key
- * @param platformAdapter The platform adapter to use for encryption
+ * @param platformAdapter - The platform adapter for crypto operations
  * @returns The encrypted key that can be stored on-chain
  */
 export async function encryptFileKey(
@@ -114,7 +126,8 @@ export async function encryptFileKey(
 
 /**
  * Generate encryption parameters for secure file storage
- * @param platformAdapter The platform adapter to use for key generation
+ *
+ * @param platformAdapter - The platform adapter for crypto operations
  * @returns An object containing the initialization vector and encryption key
  */
 export async function getEncryptionParameters(
@@ -140,9 +153,10 @@ export async function getEncryptionParameters(
 
 /**
  * Decrypt data that was encrypted with the DLP's public key using platform-appropriate cryptography
+ *
  * @param encryptedData The encrypted data
  * @param privateKey The private key corresponding to the public key used for encryption
- * @param platformAdapter The platform adapter to use for decryption
+ * @param platformAdapter - The platform adapter for crypto operations
  * @returns The decrypted data
  */
 export async function decryptWithPrivateKey(
@@ -162,9 +176,10 @@ export async function decryptWithPrivateKey(
 
 /**
  * Encrypt user data using PGP with platform-appropriate configuration
+ *
  * @param data The data to encrypt (string or Blob)
  * @param walletSignature The wallet signature to use as password
- * @param platformAdapter The platform adapter to use for encryption
+ * @param platformAdapter - The platform adapter for crypto operations
  * @returns The encrypted data as Blob
  */
 export async function encryptUserData(
@@ -196,9 +211,10 @@ export async function encryptUserData(
 
 /**
  * Decrypt user data using PGP with platform-appropriate configuration
+ *
  * @param encryptedData The encrypted data (string or Blob)
  * @param walletSignature The wallet signature to use as password
- * @param platformAdapter The platform adapter to use for decryption
+ * @param platformAdapter - The platform adapter for crypto operations
  * @returns The decrypted data as Blob
  */
 export async function decryptUserData(
@@ -229,7 +245,8 @@ export async function decryptUserData(
 
 /**
  * Generate a new key pair for asymmetric encryption
- * @param platformAdapter The platform adapter to use for key generation
+ *
+ * @param platformAdapter - The platform adapter for crypto operations
  * @returns Promise resolving to public and private key pair
  */
 export async function generateEncryptionKeyPair(
@@ -247,8 +264,12 @@ export async function generateEncryptionKeyPair(
 
 /**
  * Generate a new PGP key pair with platform-appropriate configuration
- * @param platformAdapter The platform adapter to use for key generation
- * @param options Key generation options
+ *
+ * @param platformAdapter - The platform adapter for crypto operations
+ * @param options - Key generation options
+ * @param options.name - The name for the PGP key
+ * @param options.email - The email for the PGP key
+ * @param options.passphrase - Optional passphrase to protect the private key
  * @returns Promise resolving to public and private key pair
  */
 export async function generatePGPKeyPair(

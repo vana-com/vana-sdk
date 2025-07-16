@@ -49,6 +49,14 @@ interface GoogleDriveTokenResponse {
   access_token: string;
 }
 
+/**
+ * Google Drive Storage Provider
+ *
+ * Implements storage interface for Google Drive using OAuth2 authentication.
+ * Based on patterns from dlp-ui-template with NextAuth integration.
+ *
+ * @category Storage
+ */
 export class GoogleDriveStorage implements StorageProvider {
   private readonly baseUrl = "https://www.googleapis.com/drive/v3";
   private readonly uploadUrl = "https://www.googleapis.com/upload/drive/v3";
@@ -309,6 +317,7 @@ export class GoogleDriveStorage implements StorageProvider {
 
   /**
    * Make a Google Drive file publicly readable
+   *
    * @param fileId - Google Drive file ID
    */
   private async makeFilePublic(fileId: string): Promise<void> {
@@ -332,6 +341,7 @@ export class GoogleDriveStorage implements StorageProvider {
 
   /**
    * Extract file ID from various Google Drive URL formats
+   *
    * @param url - Google Drive URL
    * @returns File ID or null if not found
    */
@@ -355,6 +365,7 @@ export class GoogleDriveStorage implements StorageProvider {
 
   /**
    * Refresh the access token using refresh token
+   *
    * @returns Promise with new access token
    */
   async refreshAccessToken(): Promise<string> {

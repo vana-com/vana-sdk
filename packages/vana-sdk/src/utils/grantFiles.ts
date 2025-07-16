@@ -10,6 +10,9 @@ interface GrantFileStorageResponse {
 
 /**
  * Creates a grant file structure from permission parameters.
+ *
+ * @param params - The permission parameters to create the grant file from
+ * @returns The constructed grant file object
  */
 export function createGrantFile(params: GrantPermissionParams): GrantFile {
   const grantFile: GrantFile = {
@@ -145,6 +148,9 @@ export async function retrieveGrantFile(
 /**
  * Generates a content hash for a grant file.
  * This can be used for integrity verification.
+ *
+ * @param grantFile - The grant file to generate a hash for
+ * @returns The keccak256 hash of the grant file as a hex string
  */
 export function getGrantFileHash(grantFile: GrantFile): string {
   try {
@@ -175,6 +181,9 @@ export function getGrantFileHash(grantFile: GrantFile): string {
 
 /**
  * Recursively sorts object keys for stable serialization.
+ *
+ * @param obj - The object to sort keys recursively
+ * @returns The object with all keys sorted recursively
  */
 function sortObjectKeys(obj: unknown): unknown {
   if (obj === null || typeof obj !== "object") {
@@ -197,6 +206,9 @@ function sortObjectKeys(obj: unknown): unknown {
 
 /**
  * Validates that a grant file has the required structure.
+ *
+ * @param data - The data to validate as a grant file
+ * @returns True if the data is a valid grant file, false otherwise
  */
 export function validateGrantFile(data: unknown): data is GrantFile {
   if (!data || typeof data !== "object") {

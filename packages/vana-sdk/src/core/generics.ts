@@ -26,6 +26,11 @@ export abstract class BaseController<
 
   /**
    * Execute a request with optional middleware pipeline
+   *
+   * @param request - The generic request object containing parameters and metadata
+   * @param handler - The function that processes the request parameters
+   * @param middleware - Optional array of middleware functions to apply
+   * @returns Promise resolving to a generic response object
    */
   protected async executeRequest<TParams, TResponse>(
     request: GenericRequest<TParams>,
@@ -85,6 +90,10 @@ export abstract class BaseController<
 
   /**
    * Validate parameters with optional custom validator
+   *
+   * @param params - The parameters to validate
+   * @param validator - Optional function to validate parameter types
+   * @throws Error if validation fails, asserts type if successful
    */
   protected validateParams<T>(
     params: unknown,

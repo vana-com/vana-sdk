@@ -138,6 +138,12 @@ class BrowserECDH {
 }
 
 // Utility functions for browser crypto
+/**
+ * Converts a hexadecimal string to a Uint8Array
+ *
+ * @param hex - The hexadecimal string to convert
+ * @returns Uint8Array representation of the hex string
+ */
 function hexToUint8Array(hex: string): Uint8Array {
   const result = new Uint8Array(hex.length / 2);
   for (let i = 0; i < hex.length; i += 2) {

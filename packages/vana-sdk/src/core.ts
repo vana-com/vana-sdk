@@ -1,10 +1,4 @@
-import type {
-  VanaConfig,
-  WalletConfig,
-  ChainConfig,
-  RuntimeConfig,
-  VanaChainId,
-} from "./types";
+import type { VanaConfig, RuntimeConfig, VanaChainId } from "./types";
 import { isWalletConfig, isChainConfig, isVanaChainId } from "./types";
 import type { RelayerCallbacks } from "./types/config";
 import { InvalidConfigurationError } from "./errors";
@@ -20,6 +14,7 @@ import { createWalletClient, createPublicClient, http } from "viem";
 import { chains } from "./config/chains";
 import { getChainConfig } from "./chains";
 import type { VanaPlatformAdapter } from "./platform/interface";
+import { encryptUserData, decryptUserData } from "./utils/encryption";
 
 /**
  * Provides the core SDK functionality for interacting with the Vana network.
@@ -29,20 +24,15 @@ import type { VanaPlatformAdapter } from "./platform/interface";
  * adapter to handle environment-specific operations. It initializes all controllers
  * and manages shared context between them.
  *
+ * For public usage, use the platform-specific Vana classes that extend this core:
+ * - Use `new Vana(config)` from the main package import
  * @example
  * ```typescript
- * // Create from wallet configuration
- * const core = VanaCore.fromWallet({
+ * // Direct instantiation (typically used internally)
+ * const core = new VanaCore({
  *   walletClient: myWalletClient,
  * }, platformAdapter);
- *
- * // Create from chain configuration
- * const core = VanaCore.fromChain({
- *   chainId: 14800,
- *   account: myAccount,
- * }, platformAdapter);
  * ```
- *
  * @category Core SDK
  */
 export class VanaCore {
@@ -59,70 +49,10 @@ export class VanaCore {
   public readonly protocol: ProtocolController;
 
   /** Handles environment-specific operations like encryption and file systems. */
-  protected readonly platform: VanaPlatformAdapter;
+  protected platform: VanaPlatformAdapter;
 
   private readonly relayerCallbacks?: RelayerCallbacks;
   private readonly storageManager?: StorageManager;
-
-  /**
-   * Creates a VanaCore instance from chain configuration parameters.
-   *
-   * @remarks
-   * This factory method is ideal when you want to specify chain details directly
-   * rather than providing a pre-configured wallet client.
-   *
-   * @param config - The chain configuration specifying network and account details
-   * @param platform - The platform adapter for environment-specific operations
-   * @returns A VanaCore instance configured for the specified chain
-   * @throws {InvalidConfigurationError} When the chain configuration is invalid
-   *
-   * @example
-   * ```typescript
-   * const vanaCore = VanaCore.fromChain({
-   *   chainId: 14800,
-   *   account: privateKeyToAccount("0x..."),
-   *   rpcUrl: "https://rpc.moksha.vana.org",
-   * }, platformAdapter);
-   * ```
-   */
-  static fromChain(
-    config: ChainConfig,
-    platform: VanaPlatformAdapter,
-  ): VanaCore {
-    return new VanaCore(config, platform);
-  }
-
-  /**
-   * Creates a VanaCore instance from an existing wallet client.
-   *
-   * @remarks
-   * This is the recommended approach when you already have a configured viem wallet client
-   * with the desired chain and account settings.
-   *
-   * @param config - The wallet configuration containing a pre-configured wallet client
-   * @param platform - The platform adapter for environment-specific operations
-   * @returns A VanaCore instance using the provided wallet client
-   * @throws {InvalidConfigurationError} When the wallet configuration is invalid
-   *
-   * @example
-   * ```typescript
-   * const walletClient = createWalletClient({
-   *   chain: mokshaTestnet,
-   *   transport: http(),
-   *   account: privateKeyToAccount("0x..."),
-   * });
-   *
-   * const vanaCore = VanaCore.fromWallet({
-   *   walletClient,
-   * }, platformAdapter);
-   * ```
-   */
-  static fromWallet(
-    config: WalletConfig,
-    platform: VanaPlatformAdapter,
-  ): VanaCore {
-    return new VanaCore(config, platform);
-  }
 
   /**
    * Initializes a new VanaCore client instance with the provided configuration.
@@ -130,20 +60,18 @@ export class VanaCore {
    * @remarks
    * The constructor validates the configuration, initializes storage providers if configured,
    * creates wallet and public clients, and sets up all SDK controllers with shared context.
-   *
-   * @param config - The configuration object specifying wallet or chain settings
    * @param platform - The platform adapter for environment-specific operations
+   * @param config - The configuration object specifying wallet or chain settings
    * @throws {InvalidConfigurationError} When the configuration is invalid or incomplete
-   *
    * @example
    * ```typescript
    * // Direct instantiation (consider using factory methods instead)
-   * const vanaCore = new VanaCore({
+   * const vanaCore = new VanaCore(platformAdapter, {
    *   walletClient: myWalletClient,
-   * }, platformAdapter);
+   * });
    * ```
    */
-  constructor(config: VanaConfig, platform: VanaPlatformAdapter) {
+  constructor(platform: VanaPlatformAdapter, config: VanaConfig) {
     // Store the platform adapter
     this.platform = platform;
 
@@ -243,7 +171,6 @@ export class VanaCore {
    * @remarks
    * This method performs comprehensive validation of wallet client configuration,
    * chain configuration, storage providers, and relayer callbacks.
-   *
    * @param config - The configuration object to validate
    * @throws {InvalidConfigurationError} When any configuration parameter is invalid
    */
@@ -362,7 +289,6 @@ export class VanaCore {
    * Gets the current chain ID from the wallet client.
    *
    * @returns The numeric chain ID of the connected network
-   *
    * @example
    * ```typescript
    * const chainId = vana.chainId;
@@ -377,7 +303,6 @@ export class VanaCore {
    * Gets the current chain name from the wallet client.
    *
    * @returns The human-readable name of the connected network
-   *
    * @example
    * ```typescript
    * const chainName = vana.chainName;
@@ -392,7 +317,6 @@ export class VanaCore {
    * Retrieves the user's wallet address from the connected client.
    *
    * @returns A Promise that resolves to the user's Ethereum address
-   *
    * @example
    * ```typescript
    * const address = await vana.getUserAddress();
@@ -408,7 +332,6 @@ export class VanaCore {
    * Retrieves comprehensive runtime configuration information.
    *
    * @returns The current runtime configuration including chain, storage, and relayer settings
-   *
    * @example
    * ```typescript
    * const config = vana.getConfig();
@@ -424,5 +347,86 @@ export class VanaCore {
       storageProviders: this.storageManager?.getStorageProviders() || [],
       defaultStorageProvider: this.storageManager?.getDefaultStorageProvider(),
     };
+  }
+
+  /**
+   * Sets the platform adapter for environment-specific operations.
+   * This is useful for testing and advanced use cases where you need
+   * to override the default platform detection.
+   *
+   * @param adapter - The platform adapter to use
+   * @example
+   * ```typescript
+   * // For testing with a mock adapter
+   * const mockAdapter = new MockPlatformAdapter();
+   * vana.setPlatformAdapter(mockAdapter);
+   *
+   * // For advanced use cases with custom adapters
+   * const customAdapter = new CustomPlatformAdapter();
+   * vana.setPlatformAdapter(customAdapter);
+   * ```
+   */
+  setPlatformAdapter(adapter: VanaPlatformAdapter): void {
+    this.platform = adapter;
+
+    // Note: Controllers will use the new platform adapter on their next operation
+    // since they access this.platform from the shared context
+  }
+
+  /**
+   * Gets the current platform adapter.
+   * This is useful for advanced use cases where you need to access
+   * the platform adapter directly.
+   *
+   * @returns The current platform adapter
+   * @example
+   * ```typescript
+   * const adapter = vana.getPlatformAdapter();
+   * const encrypted = await adapter.encrypt(data, key);
+   * ```
+   */
+  getPlatformAdapter(): VanaPlatformAdapter {
+    return this.platform;
+  }
+
+  /**
+   * Encrypts user data using the Vana protocol standard encryption.
+   * This method automatically uses the correct platform adapter for the current environment.
+   *
+   * @param data The data to encrypt (string or Blob)
+   * @param walletSignature The wallet signature to use as encryption key
+   * @returns The encrypted data as Blob
+   * @example
+   * ```typescript
+   * const encryptionKey = await generateEncryptionKey(walletClient);
+   * const encrypted = await vana.encryptUserData("sensitive data", encryptionKey);
+   * ```
+   */
+  public async encryptUserData(
+    data: string | Blob,
+    walletSignature: string,
+  ): Promise<Blob> {
+    return encryptUserData(data, walletSignature, this.platform);
+  }
+
+  /**
+   * Decrypts user data using the Vana protocol standard decryption.
+   * This method automatically uses the correct platform adapter for the current environment.
+   *
+   * @param encryptedData The encrypted data (string or Blob)
+   * @param walletSignature The wallet signature to use as decryption key
+   * @returns The decrypted data as Blob
+   * @example
+   * ```typescript
+   * const encryptionKey = await generateEncryptionKey(walletClient);
+   * const decrypted = await vana.decryptUserData(encryptedData, encryptionKey);
+   * const text = await decrypted.text();
+   * ```
+   */
+  public async decryptUserData(
+    encryptedData: string | Blob,
+    walletSignature: string,
+  ): Promise<Blob> {
+    return decryptUserData(encryptedData, walletSignature, this.platform);
   }
 }

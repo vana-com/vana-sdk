@@ -21,10 +21,9 @@ import {
  *
  * The manager supports provider-specific configurations and features while maintaining
  * a uniform API surface for applications.
- *
  * @example
  * ```typescript
- * import { StorageManager, IPFSStorage, PinataStorage } from 'vana-sdk/storage';
+ * import { StorageManager, IPFSStorage, PinataStorage } from 'vana-sdk';
  *
  * const storage = new StorageManager();
  *
@@ -42,7 +41,6 @@ import {
  * // Upload to specific provider
  * const result2 = await storage.upload(fileBlob, 'myfile.json', 'pinata');
  * ```
- *
  * @category Storage
  * @see {@link [URL_PLACEHOLDER] | Storage Providers Guide} for configuration details
  */
@@ -57,11 +55,9 @@ export class StorageManager {
    * This method adds a new storage provider to the manager's registry and optionally
    * sets it as the default provider for subsequent operations. If no default provider
    * is currently set, the first registered provider automatically becomes the default.
-   *
    * @param name - Unique identifier for the provider
    * @param provider - The storage provider instance implementing the `StorageProvider` interface
    * @param isDefault - Whether this provider should be set as the default (defaults to `false`)
-   *
    * @example
    * ```typescript
    * const pinata = new PinataStorage({ jwt: 'your-jwt-token' });
@@ -81,6 +77,7 @@ export class StorageManager {
 
   /**
    * Get a registered storage provider
+   *
    * @param name - Provider identifier, uses default if not specified
    * @returns Storage provider instance
    */
@@ -109,6 +106,7 @@ export class StorageManager {
 
   /**
    * List all registered providers
+   *
    * @returns Array of provider names
    */
   listProviders(): string[] {
@@ -117,6 +115,7 @@ export class StorageManager {
 
   /**
    * Get the default provider name
+   *
    * @returns Default provider name or null
    */
   getDefaultProvider(): string | null {
@@ -125,6 +124,7 @@ export class StorageManager {
 
   /**
    * Set the default provider
+   *
    * @param name - Provider identifier
    */
   setDefaultProvider(name: string): void {
@@ -145,13 +145,11 @@ export class StorageManager {
    * This method uploads a file to the specified provider or falls back to the default
    * provider if none is specified. The upload result includes the storage URL, file size,
    * content type, and provider-specific metadata that can be used for subsequent operations.
-   *
    * @param file - The file blob to upload
    * @param filename - Optional custom filename (defaults to auto-generated name)
    * @param providerName - Optional provider identifier (uses default if not specified)
    * @returns A Promise that resolves to the storage upload result with URL and metadata
    * @throws {StorageError} When no provider is available or upload fails
-   *
    * @example
    * ```typescript
    * // Upload to default provider
@@ -173,6 +171,7 @@ export class StorageManager {
 
   /**
    * Download a file using the specified or default provider
+   *
    * @param url - The storage URL
    * @param providerName - Optional provider to use
    * @returns Promise with file blob
@@ -184,6 +183,7 @@ export class StorageManager {
 
   /**
    * List files using the specified or default provider
+   *
    * @param options - Optional filtering and pagination
    * @param providerName - Optional provider to use
    * @returns Promise with file list
@@ -198,6 +198,7 @@ export class StorageManager {
 
   /**
    * Delete a file using the specified or default provider
+   *
    * @param url - The storage URL
    * @param providerName - Optional provider to use
    * @returns Promise with success status
@@ -209,6 +210,7 @@ export class StorageManager {
 
   /**
    * Get list of registered storage provider names
+   *
    * @returns Array of provider names
    */
   getStorageProviders(): string[] {
@@ -217,6 +219,7 @@ export class StorageManager {
 
   /**
    * Get the default storage provider name
+   *
    * @returns Default provider name or undefined
    */
   getDefaultStorageProvider(): string | undefined {

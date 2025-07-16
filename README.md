@@ -1,16 +1,12 @@
 # Vana SDK
 
-<div align="center">
-  <h3>TypeScript SDK for User-Owned Data</h3>
-  <p>Build applications on the Vana Network with gasless permissions, privacy-preserving storage, and seamless data ownership.</p>
+TypeScript SDK for building applications on the Vana Network with gasless permissions, privacy-preserving storage, and user-owned data.
 
 [![npm version](https://img.shields.io/npm/v/vana-sdk)](https://www.npmjs.com/package/vana-sdk)
 [![Downloads](https://img.shields.io/npm/dm/vana-sdk)](https://www.npmjs.com/package/vana-sdk)
 [![License](https://img.shields.io/npm/l/vana-sdk)](./LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
 [![semantic-release: conventionalcommits](https://img.shields.io/badge/semantic--release-conventionalcommits-e10079?logo=semantic-release)](https://github.com/semantic-release/semantic-release)
-
-</div>
 
 ---
 
@@ -23,7 +19,7 @@ npm install vana-sdk
 ```typescript
 import { Vana } from "vana-sdk";
 import { createWalletClient, http } from "viem";
-import { mokshaTestnet } from "vana-sdk/chains";
+import { mokshaTestnet } from "vana-sdk";
 
 // 1. Initialize with your wallet
 const vana = new Vana({
@@ -45,145 +41,71 @@ const txHash = await vana.permissions.grant({
 const files = await vana.data.getUserFiles({ owner: userAddress });
 ```
 
-**🎯 Result:** Your app now supports user-owned data with privacy-preserving permissions—no gas fees required for users.
-
 ---
 
-## Why Vana SDK?
+## Features
 
-### 🔐 **Privacy-First Data Ownership**
+**Privacy-First Data Ownership:** Users own their data while applications access it with explicit permissions.
 
-Enable users to truly own their data while allowing applications to access it with explicit permissions.
+**Gasless Transactions:** Permission granting and data management without user transaction fees via relayer network.
 
-### ⚡ **Gasless User Experience**
+**Developer-Friendly:** Built on [viem](https://viem.sh) with TypeScript-first design and comprehensive error handling.
 
-Users grant permissions and manage data without paying transaction fees—powered by our relayer network.
-
-### 🛠️ **Developer-Friendly**
-
-Built on [viem](https://viem.sh) with TypeScript-first design, comprehensive error handling, and familiar patterns.
-
-### 🔌 **Extensible Architecture**
-
-Modular storage providers, custom relayers, and low-level contract access for advanced use cases.
+**Extensible Architecture:** Modular storage providers, custom relayers, and direct contract access.
 
 ---
 
 ## Core Features
 
-<table>
-<tr>
-<td width="50%">
+**Available:**
 
-### ✅ **Available Now**
+- Gasless Permissions (EIP-712 based permission granting)
+- Data File Management (query and organize user data)
+- Storage Abstraction (IPFS, Google Drive, custom providers)
+- Encryption Protocol (canonical Vana encryption/decryption)
+- Type-Safe Contracts (direct access to protocol contracts)
 
-- **Gasless Permissions** - EIP-712 based permission granting
-- **Data File Management** - Query and organize user data
-- **Storage Abstraction** - IPFS, Google Drive, and custom providers
-- **Encryption Protocol** - Canonical Vana encryption/decryption
-- **Type-Safe Contracts** - Direct access to all protocol contracts
+**Coming Soon:**
 
-</td>
-<td width="50%">
-
-### 🔄 **Coming Soon**
-
-- **DataDAO Management** - Create and operate Data Liquidity Pools
-- **TEE Integration** - Trusted execution environment workflows
-- **Advanced Querying** - Sophisticated data access patterns
-- **Framework Hooks** - React, Vue, and Svelte integrations
-- **Multi-Chain Support** - Deploy across EVM networks
-
-</td>
-</tr>
-</table>
+- DataDAO Management
+- TEE Integration
+- Advanced Querying
+- Framework Hooks (React, Vue, Svelte)
+- Multi-Chain Support
 
 ---
 
-## What You Can Build
+## Use Cases
 
-<details>
-<summary><strong>🤖 AI Training DataDAOs</strong></summary>
+**AI Training DataDAOs:** Pool user data for AI model training with privacy preservation and incentives.
 
-```typescript
-// Enable users to pool data for AI model training
-const dataDAO = await vana.dataDAOs.create({
-  name: "Medical Research DAO",
-  purpose: "Train privacy-preserving medical AI models",
-  incentives: { rewardPerContribution: "100" },
-});
+**Privacy-Preserving Analytics:** Analyze user data without compromising individual privacy.
 
-await vana.data.contribute({
-  dataDAOId: dataDAO.id,
-  files: encryptedMedicalData,
-  metadata: { dataType: "anonymized_patient_records" },
-});
-```
+**Personal Data Wallets:** Comprehensive data management applications with encryption and storage.
 
-</details>
-
-<details>
-<summary><strong>📊 Privacy-Preserving Analytics</strong></summary>
-
-```typescript
-// Analyze user data without compromising privacy
-const insights = await vana.analytics.computeInsights({
-  query: "demographics_summary",
-  permissions: await vana.permissions.getUserPermissions(),
-  privacyLevel: "k_anonymity_5",
-});
-```
-
-</details>
-
-<details>
-<summary><strong>💾 Personal Data Wallets</strong></summary>
-
-```typescript
-// Build comprehensive data management applications
-const userData = await vana.data.getUserFiles({ owner: userAddress });
-const encrypted = await vana.encryption.encryptFile(userData[0]);
-const stored = await vana.storage.upload(encrypted, "personal-data.enc");
-```
-
-</details>
-
-<details>
-<summary><strong>🔐 Secure Data Marketplaces</strong></summary>
-
-```typescript
-// Create data trading platforms with built-in privacy
-const listing = await vana.marketplace.createListing({
-  dataFiles: selectedFiles,
-  price: ethers.parseEther("0.1"),
-  accessRules: { duration: "30_days", usageType: "research_only" },
-});
-```
-
-</details>
+**Secure Data Marketplaces:** Data trading platforms with built-in privacy controls and access rules.
 
 ---
 
 ## Architecture
 
-The Vana SDK uses a **resource-oriented architecture** that maps to logical concepts in the Vana ecosystem:
+Resource-oriented architecture mapping to Vana ecosystem concepts:
 
 ```typescript
 const vana = new Vana({ walletClient });
 
-// Resource controllers
 vana.permissions.*  // Manage data access permissions
 vana.data.*         // Handle user data files and encryption
 vana.storage.*      // Abstract storage providers (IPFS, Google Drive, etc.)
-vana.protocol.*     // Low-level contract access (escape hatch)
+vana.protocol.*     // Low-level contract access
 ```
 
-**Design Philosophy:**
+**Design Principles:**
 
-- **Progressive Disclosure:** Simple by default, powerful when needed
-- **Type Safety:** Full TypeScript support with comprehensive error handling
-- **Modularity:** Plug in custom storage, relayers, and providers
-- **Compatibility:** Built on viem, works with existing web3 tooling
+- Progressive disclosure (simple by default, powerful when needed)
+- Type safety (full TypeScript support with comprehensive error handling)
+- Modularity (custom storage, relayers, and providers)
+- Compatibility (built on viem, works with existing web3 tooling)
 
 ---
 
@@ -214,7 +136,7 @@ pnpm add vana-sdk
 import { Vana } from 'vana-sdk';
 import { createWalletClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { mokshaTestnet } from 'vana-sdk/chains';
+import { mokshaTestnet } from 'vana-sdk';
 
 // 1. Set up your wallet client (using viem)
 const account = privateKeyToAccount('0x...');
@@ -414,7 +336,7 @@ try {
 
 ## Demo Application
 
-Explore the complete reference implementation in [`/examples/vana-sdk-demo`](./examples/vana-sdk-demo):
+Reference implementation in [`/examples/vana-sdk-demo`](./examples/vana-sdk-demo):
 
 ```bash
 cd examples/vana-sdk-demo
@@ -424,29 +346,82 @@ npm run dev
 
 **Features demonstrated:**
 
-- 🔐 Wallet connection and SDK initialization
-- ⚡ Gasless permission granting and management
-- 📁 File upload, encryption, and decryption
-- 🏪 Storage provider integration (IPFS, Google Drive)
-- 🔍 Real-time data querying and management
-- ⚠️ Comprehensive error handling and user feedback
+- Wallet connection and SDK initialization
+- Gasless permission granting and management
+- File upload, encryption, and decryption
+- Storage provider integration (IPFS, Google Drive)
+- Real-time data querying and management
+- Comprehensive error handling and user feedback
+
+---
+
+## Development Workflow
+
+Professional monorepo with clean architectural boundaries. The SDK compiles itself, demo apps consume the compiled output.
+
+### Two-Terminal Setup
+
+**Terminal 1: SDK Watcher**
+
+```bash
+cd packages/vana-sdk
+npm run dev
+```
+
+**Terminal 2: Demo App Server**
+
+```bash
+npm run dev:demo
+```
+
+### How It Works
+
+1. Edit SDK code in `packages/vana-sdk/src/`
+2. Terminal 1 rebuilds `packages/vana-sdk/dist/`
+3. Terminal 2 detects changes via symlink in `node_modules/vana-sdk`
+4. HMR triggers, changes appear in browser
+
+### Benefits
+
+- Development environment mirrors production builds
+- Prevents Node.js code imports in browser applications
+- Eliminates "works in dev, breaks in production" bugs
+- Demo app tests actual compiled SDK output
+
+### Commands
+
+| Command                 | Description                          |
+| ----------------------- | ------------------------------------ |
+| `npm run dev:demo`      | Start demo app development server    |
+| `npm run build`         | Build all packages                   |
+| `npm run test:coverage` | Run tests with coverage              |
+| `npm run lint`          | ESLint check                         |
+| `npm run typecheck`     | TypeScript validation                |
+| `npm run validate`      | Run lint + typecheck + test:coverage |
+
+### Project Structure
+
+```
+packages/vana-sdk/     # Core SDK package
+  src/                 # Source code
+  dist/                # Compiled output
+examples/vana-sdk-demo/ # Demo application
+```
 
 ---
 
 ## Community & Support
 
-### 💬 Get Help
+### Get Help
 
-- **Discord:** [Join our developer community](https://discord.gg/vana)
+- **Discord:** [Join our developer community](https://discord.gg/vanabuilders)
 - **GitHub Issues:** [Report bugs and request features](https://github.com/vana-com/vana-sdk/issues)
 - **Documentation:** [docs.vana.org](https://docs.vana.org)
 - **Email:** developers@vana.org
 
-### 🤝 Contributing
+### Contributing
 
-We welcome contributions! Please see our [Contributing Guide](./CONTRIBUTING.md) and [Code of Conduct](./CODE_OF_CONDUCT.md).
-
-**Quick start for contributors:**
+Contributions welcome. See [Contributing Guide](./CONTRIBUTING.md) and [Code of Conduct](./CODE_OF_CONDUCT.md).
 
 ```bash
 git clone https://github.com/vana-com/vana-sdk.git
@@ -456,26 +431,19 @@ npm run build
 npm test
 ```
 
-### 🏗️ Built With
+### Built With
 
-- **[viem](https://viem.sh)** - TypeScript interface for EVM blockchains
-- **[TypeScript](https://www.typescriptlang.org/)** - Type-safe development
-- **[OpenPGP.js](https://openpgpjs.org/)** - Encryption protocol implementation
-- **[Vitest](https://vitest.dev/)** - Fast unit testing
+- [viem](https://viem.sh) - TypeScript interface for EVM blockchains
+- [TypeScript](https://www.typescriptlang.org/) - Type-safe development
+- [OpenPGP.js](https://openpgpjs.org/) - Encryption protocol implementation
+- [Vitest](https://vitest.dev/) - Fast unit testing
 
 ---
 
 ## License
 
-[ISC License](./LICENSE) - feel free to use this in your projects!
+[ISC License](./LICENSE)
 
 ---
 
-<div align="center">
-  <p>
-    <strong>Ready to build the future of user-owned data?</strong><br>
-    <a href="https://docs.vana.org/vana-sdk/getting-started">Get started with the docs</a> •
-    <a href="./examples/vana-sdk-demo">Try the demo</a> •
-    <a href="https://discord.gg/vana">Join our community</a>
-  </p>
-</div>
+[Get started with the docs](https://docs.vana.org/vana-sdk/getting-started) • [Try the demo](./examples/vana-sdk-demo) • [Join our community](https://discord.gg/vanabuilders)

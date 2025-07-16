@@ -37,7 +37,6 @@ export function isIpfsUrl(url: string): boolean {
  * @param url - The IPFS URL to convert (e.g., "ipfs://QmHash...")
  * @param gateway - Optional gateway URL (defaults to DEFAULT_IPFS_GATEWAY)
  * @returns The HTTP gateway URL or original URL if not an IPFS URL
- *
  * @example
  * ```ts
  * convertIpfsUrl("ipfs://QmHash123")
@@ -63,7 +62,6 @@ export function convertIpfsUrl(
  *
  * @param url - The URL to extract hash from
  * @returns The IPFS hash or null if not found
- *
  * @example
  * ```ts
  * extractIpfsHash("ipfs://QmHash123") // Returns: "QmHash123"

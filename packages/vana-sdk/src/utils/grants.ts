@@ -13,6 +13,9 @@ import { validateGrant, GrantValidationError } from "./grantValidation";
 
 /**
  * Creates and validates a grant file from permission parameters
+ *
+ * @param params - The permission parameters to create and validate the grant from
+ * @returns The validated grant file object
  */
 export function createValidatedGrant(params: GrantPermissionParams): GrantFile {
   const grantFile = createGrantFile(params);
@@ -36,6 +39,10 @@ export function createValidatedGrant(params: GrantPermissionParams): GrantFile {
 
 /**
  * Creates a grant file and stores it in IPFS
+ *
+ * @param params - The permission parameters to create the grant from
+ * @param relayerUrl - The URL of the relayer service for IPFS storage
+ * @returns Promise resolving to an object containing the grant file and its IPFS URL
  */
 export async function createAndStoreGrant(
   params: GrantPermissionParams,
@@ -49,6 +56,10 @@ export async function createAndStoreGrant(
 
 /**
  * Retrieves and validates a grant file from IPFS
+ *
+ * @param grantUrl - The IPFS URL of the grant file to retrieve
+ * @param relayerUrl - Optional URL of the relayer service
+ * @returns Promise resolving to the validated grant file
  */
 export async function retrieveAndValidateGrant(
   grantUrl: string,
@@ -62,6 +73,13 @@ export async function retrieveAndValidateGrant(
 
 /**
  * Checks if a grant allows access for a specific request
+ *
+ * @param grantUrl - The IPFS URL of the grant file to check
+ * @param requestingAddress - The address making the access request
+ * @param operation - The operation being requested
+ * @param fileIds - Array of file IDs being accessed (currently unused but part of interface)
+ * @param relayerUrl - Optional URL of the relayer service
+ * @returns Promise resolving to access result with allowed status, reason, and grant file
  */
 export async function checkGrantAccess(
   grantUrl: string,
@@ -98,6 +116,9 @@ export async function checkGrantAccess(
 
 /**
  * Utility to check if a grant has expired
+ *
+ * @param grantFile - The grant file to check for expiration
+ * @returns True if the grant has expired, false otherwise
  */
 export function isGrantExpired(grantFile: GrantFile): boolean {
   if (!grantFile.expires) {
@@ -110,6 +131,9 @@ export function isGrantExpired(grantFile: GrantFile): boolean {
 
 /**
  * Utility to get the time remaining before grant expires (in seconds)
+ *
+ * @param grantFile - The grant file to check time remaining for
+ * @returns Number of seconds remaining, or null if no expiration is set
  */
 export function getGrantTimeRemaining(grantFile: GrantFile): number | null {
   if (!grantFile.expires) {
@@ -123,6 +147,9 @@ export function getGrantTimeRemaining(grantFile: GrantFile): number | null {
 
 /**
  * Creates a human-readable summary of a grant
+ *
+ * @param grantFile - The grant file to create a summary for
+ * @returns A human-readable string describing the grant
  */
 export function summarizeGrant(grantFile: GrantFile): string {
   const expiration = grantFile.expires

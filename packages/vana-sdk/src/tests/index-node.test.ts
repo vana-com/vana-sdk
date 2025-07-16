@@ -3,7 +3,7 @@ import { Vana } from "../index.node";
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { mokshaTestnet } from "../config/chains";
-import type { VanaChain } from "../types";
+import type { VanaChain, WalletConfig, VanaConfig } from "../types";
 
 // Mock node platform adapter
 vi.mock("../platform/node", () => ({
@@ -62,17 +62,21 @@ describe("Node.js Index Entry Point", () => {
     validChain = mokshaTestnet;
   });
 
-  describe("Vana class instantiation", () => {
-    it("should create a Vana instance with wallet client config", () => {
+  describe("Vana constructor", () => {
+    it("should create a Vana instance with wallet client config", async () => {
       const vana = new Vana({
-        walletClient: validWalletClient as any,
+        walletClient: validWalletClient as WalletConfig["walletClient"],
       });
 
       expect(vana).toBeInstanceOf(Vana);
       expect(vana).toBeDefined();
+      expect(vana.permissions).toBeDefined();
+      expect(vana.data).toBeDefined();
+      expect(vana.server).toBeDefined();
+      expect(vana.protocol).toBeDefined();
     });
 
-    it("should create a Vana instance with chain-only config", () => {
+    it("should create a Vana instance with chain-only config", async () => {
       const vana = new Vana({
         chainId: validChain.id,
         account: testAccount,
@@ -80,29 +84,31 @@ describe("Node.js Index Entry Point", () => {
 
       expect(vana).toBeInstanceOf(Vana);
       expect(vana).toBeDefined();
+      expect(vana.permissions).toBeDefined();
+      expect(vana.data).toBeDefined();
+      expect(vana.server).toBeDefined();
+      expect(vana.protocol).toBeDefined();
     });
-  });
 
-  describe("Static factory methods", () => {
-    it("should create instance using fromChain static method", () => {
-      const vana = Vana.fromChain({
-        chainId: validChain.id,
-        account: testAccount,
+    it("should create instance with full configuration", async () => {
+      const vana = new Vana({
+        walletClient: validWalletClient as WalletConfig["walletClient"],
+        relayerCallbacks: {
+          submitPermissionGrant: async (_typedData, _signature) => "0xtxhash",
+          submitPermissionRevoke: async (_typedData, _signature) => "0xtxhash",
+        },
       });
 
       expect(vana).toBeInstanceOf(Vana);
       expect(vana).toBeDefined();
+      expect(vana.getConfig().relayerCallbacks).toBeDefined();
     });
 
-    it("should create instance using fromWallet static method", () => {
-      const vana = Vana.fromWallet({
-        walletClient: validWalletClient as any,
-      });
-
-      expect(vana).toBeInstanceOf(Vana);
-      expect(vana).toBeDefined();
+    it("should reject with error for invalid configuration", async () => {
+      expect(() => new Vana({} as VanaConfig)).toThrow();
     });
   });
+
 
   describe("Export verification", () => {
     it("should export all expected modules and types", () => {
@@ -199,14 +205,15 @@ describe("Node.js Index Entry Point", () => {
   });
 
   describe("Node.js specific functionality", () => {
-    it("should use NodePlatformAdapter by default", () => {
+    it("should use NodePlatformAdapter by default", async () => {
       const vana = new Vana({
         chainId: validChain.id,
         account: testAccount,
       });
 
-      // The constructor should have been called with NodePlatformAdapter
+      // The NodePlatformAdapter should have been injected automatically
       expect(vana).toBeDefined();
+      expect(vana.chainId).toBe(validChain.id);
     });
 
     it("should be the default export", async () => {

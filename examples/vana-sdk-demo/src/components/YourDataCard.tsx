@@ -22,7 +22,7 @@ import {
   RefreshCw,
   Key,
 } from "lucide-react";
-import type { UserFile } from "vana-sdk/types/data";
+import type { UserFile } from "vana-sdk";
 import { SectionHeader } from "./ui/SectionHeader";
 import { ActionButton } from "./ui/ActionButton";
 import { EmptyState } from "./ui/EmptyState";

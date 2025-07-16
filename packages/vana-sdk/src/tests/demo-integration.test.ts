@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi } from "vitest";
-import { BrowserPlatformAdapter } from "../platform/browser";
 import {
   generateEncryptionKey,
   encryptUserData,
   decryptUserData,
 } from "../utils/encryption";
+import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 /**
  * Test that verifies the demo is using the correct wallet-based encryption architecture
@@ -20,7 +20,6 @@ describe("Demo Integration - Correct Wallet-Based Encryption", () => {
       signTypedData: vi.fn().mockResolvedValue("0xsignature123"),
     };
 
-    const platformAdapter = new BrowserPlatformAdapter();
     const encryptionSeed = "Please sign to retrieve your encryption key";
 
     // Step 1: Generate encryption key from wallet signature (like demo's handleGenerateKey)
@@ -41,7 +40,7 @@ describe("Demo Integration - Correct Wallet-Based Encryption", () => {
     const encryptedData = await encryptUserData(
       dataBlob,
       encryptionKey,
-      platformAdapter,
+      mockPlatformAdapter,
     );
     expect(encryptedData).toBeInstanceOf(Blob);
 
@@ -49,7 +48,7 @@ describe("Demo Integration - Correct Wallet-Based Encryption", () => {
     const decryptedData = await decryptUserData(
       encryptedData,
       encryptionKey,
-      platformAdapter,
+      mockPlatformAdapter,
     );
     const decryptedText = await decryptedData.text();
 
@@ -61,8 +60,6 @@ describe("Demo Integration - Correct Wallet-Based Encryption", () => {
       account: { address: "0x123456789abcdef" },
       signMessage: vi.fn().mockResolvedValue("0xdefaultkeysignature"),
     };
-
-    const platformAdapter = new BrowserPlatformAdapter();
 
     // Use the same default seed as the demo
     const defaultSeed = "Please sign to retrieve your encryption key";
@@ -83,12 +80,12 @@ describe("Demo Integration - Correct Wallet-Based Encryption", () => {
     const encrypted = await encryptUserData(
       testData,
       encryptionKey,
-      platformAdapter,
+      mockPlatformAdapter,
     );
     const decrypted = await decryptUserData(
       encrypted,
       encryptionKey,
-      platformAdapter,
+      mockPlatformAdapter,
     );
 
     const originalText = await testData.text();
@@ -102,7 +99,6 @@ describe("Demo Integration - Correct Wallet-Based Encryption", () => {
       signMessage: vi.fn().mockResolvedValue("0xfiletestsignature"),
     };
 
-    const platformAdapter = new BrowserPlatformAdapter();
     const encryptionKey = await generateEncryptionKey(mockWallet as any);
 
     // Test with JSON data (like demo's test data)
@@ -115,12 +111,12 @@ describe("Demo Integration - Correct Wallet-Based Encryption", () => {
     const encryptedJson = await encryptUserData(
       jsonBlob,
       encryptionKey,
-      platformAdapter,
+      mockPlatformAdapter,
     );
     const decryptedJson = await decryptUserData(
       encryptedJson,
       encryptionKey,
-      platformAdapter,
+      mockPlatformAdapter,
     );
     const decryptedJsonText = await decryptedJson.text();
 
@@ -133,12 +129,12 @@ describe("Demo Integration - Correct Wallet-Based Encryption", () => {
     const encryptedFile = await encryptUserData(
       fileBlob,
       encryptionKey,
-      platformAdapter,
+      mockPlatformAdapter,
     );
     const decryptedFile = await decryptUserData(
       encryptedFile,
       encryptionKey,
-      platformAdapter,
+      mockPlatformAdapter,
     );
     const decryptedFileText = await decryptedFile.text();
 

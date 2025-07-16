@@ -17,7 +17,10 @@ export const STANDARD_PGP_CONFIG = {
 /**
  * Process PGP key generation options with sensible defaults
  *
- * @param options Optional key generation parameters
+ * @param options - Optional key generation parameters
+ * @param options.name - The name for the PGP key (defaults to "Vana User")
+ * @param options.email - The email for the PGP key (defaults to "user@vana.org")
+ * @param options.passphrase - Optional passphrase to protect the private key
  * @returns Processed options with defaults applied
  */
 export function processPGPKeyOptions(options?: {
@@ -36,7 +39,10 @@ export function processPGPKeyOptions(options?: {
  * Get standard PGP key generation parameters
  * Combines default values with standard configuration
  *
- * @param options Optional key generation parameters
+ * @param options - Optional key generation parameters
+ * @param options.name - The name for the PGP key (defaults to "Vana User")
+ * @param options.email - The email for the PGP key (defaults to "user@vana.org")
+ * @param options.passphrase - Optional passphrase to protect the private key
  * @returns Complete key generation parameters object
  */
 export function getPGPKeyGenParams(options?: {

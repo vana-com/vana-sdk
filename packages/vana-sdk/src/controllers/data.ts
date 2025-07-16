@@ -89,7 +89,6 @@ interface SubgraphResponse {
 
 /**
  * Manages encrypted user data files and their blockchain registration on the Vana network.
- *
  * @remarks
  * This controller handles the complete file lifecycle from encrypted upload to
  * blockchain registration and decryption. It provides methods for querying user files,
@@ -101,7 +100,6 @@ interface SubgraphResponse {
  * and supports both gasless transactions via relayers and direct blockchain interaction.
  * File metadata and access permissions are stored on the Vana blockchain while encrypted
  * file content is stored on decentralized storage networks.
- *
  * @example
  * ```typescript
  * // Upload an encrypted file with automatic schema validation
@@ -118,7 +116,6 @@ interface SubgraphResponse {
  * // Decrypt accessible file content
  * const decryptedData = await vana.data.decryptFile(files[0]);
  * ```
- *
  * @category Data Management
  * @see {@link [URL_PLACEHOLDER] | Vana Data Registry Documentation} for conceptual overview
  */
@@ -131,18 +128,15 @@ export class DataController {
 
   /**
    * Retrieves all data files owned by a specific user address.
-   *
    * @remarks
    * This method queries the Vana subgraph to find files directly owned by the user.
    * It efficiently handles large datasets by using the File entity's owner field
    * and returns complete file metadata without additional contract calls.
-   *
    * @param params - The query parameters object
    * @param params.owner - The wallet address of the file owner to query
    * @param params.subgraphUrl - Optional subgraph URL to override the default endpoint
    * @returns A Promise that resolves to an array of UserFile objects with metadata
    * @throws {Error} When the subgraph is unavailable or returns invalid data
-   *
    * @example
    * ```typescript
    * // Query files for a specific user
@@ -276,7 +270,6 @@ export class DataController {
    * 1. Querying the subgraph for user's directly granted permissions
    * 2. Returning complete permission information from subgraph
    * 3. No need for additional contract calls as all data comes from subgraph
-   *
    * @param params - Object containing the user address and optional subgraph URL
    * @param params.user - The wallet address of the user to query permissions for
    * @param params.subgraphUrl - Optional subgraph URL to override the default
@@ -398,11 +391,9 @@ export class DataController {
    * - 'subgraph': Fast query via subgraph (requires subgraphUrl)
    * - 'rpc': Direct contract queries (slower but no external dependencies)
    * - 'auto': Try subgraph first, fallback to RPC if unavailable
-   *
    * @param params - Query parameters including user address and mode selection
    * @returns Promise resolving to trusted servers with metadata about the query
    * @throws Error if query fails in both modes (when using 'auto')
-   *
    * @example
    * ```typescript
    * // Use subgraph for fast queries
@@ -538,6 +529,10 @@ export class DataController {
 
   /**
    * Internal method: Query trusted servers via subgraph
+   * @param params - Query parameters object
+   * @param params.user - The user address to query trusted servers for
+   * @param params.subgraphUrl - The subgraph URL endpoint to query
+   * @returns Promise resolving to an array of trusted server objects
    */
   private async _getUserTrustedServersViaSubgraph(params: {
     user: Address;
@@ -616,6 +611,11 @@ export class DataController {
 
   /**
    * Internal method: Query trusted servers via direct RPC
+   * @param params - Query parameters object
+   * @param params.user - The user address to query trusted servers for
+   * @param params.limit - Maximum number of results to return
+   * @param params.offset - Number of results to skip for pagination
+   * @returns Promise resolving to pagination result with servers, total count, and hasMore flag
    */
   private async _getUserTrustedServersViaRpc(params: {
     user: Address;
@@ -722,9 +722,7 @@ export class DataController {
 
   /**
    * Gets the total number of files in the registry from the contract.
-   *
    * @returns Promise resolving to the total file count
-   *
    * @example
    * ```typescript
    * const totalFiles = await vana.data.getTotalFilesCount();
@@ -771,10 +769,8 @@ export class DataController {
 
   /**
    * Retrieves details for a specific file by its ID.
-   *
    * @param fileId - The file ID to look up
    * @returns Promise resolving to UserFile object
-   *
    * @example
    * ```typescript
    * try {
@@ -852,7 +848,6 @@ export class DataController {
 
   /**
    * Uploads an encrypted file to storage and registers it on the blockchain.
-   *
    * @param encryptedFile - The encrypted file blob to upload
    * @param filename - Optional filename for the upload
    * @param providerName - Optional storage provider to use
@@ -962,7 +957,6 @@ export class DataController {
 
   /**
    * Uploads an encrypted file to storage and registers it on the blockchain with a schema.
-   *
    * @param encryptedFile - The encrypted file blob to upload
    * @param schemaId - The schema ID to associate with the file
    * @param filename - Optional filename for the upload
@@ -1066,7 +1060,6 @@ export class DataController {
 
   /**
    * Decrypts a file that was encrypted using the Vana protocol.
-   *
    * @param file - The UserFile object containing the file URL and metadata
    * @param encryptionSeed - Optional custom encryption seed (defaults to Vana standard)
    * @returns Promise resolving to the decrypted file as a Blob
@@ -1159,7 +1152,6 @@ export class DataController {
 
   /**
    * Registers a file URL directly on the blockchain with a schema ID.
-   *
    * @param url - The URL of the file to register
    * @param schemaId - The schema ID to associate with the file
    * @returns Promise resolving to the file ID and transaction hash
@@ -1231,6 +1223,8 @@ export class DataController {
 
   /**
    * Converts IPFS URLs to HTTP gateway URLs for fetching.
+   * @param ipfsUrl - The IPFS URL to convert to an HTTP gateway URL
+   * @returns The converted HTTP gateway URL or the original URL if not an IPFS URL
    */
   private convertIpfsUrl(ipfsUrl: string): string {
     if (ipfsUrl.startsWith("ipfs://")) {
@@ -1242,6 +1236,7 @@ export class DataController {
 
   /**
    * Gets the user's address from the wallet client.
+   * @returns Promise resolving to the user's wallet address
    */
   private async getUserAddress(): Promise<Address> {
     const addresses = await this.context.walletClient.getAddresses();
@@ -1253,7 +1248,6 @@ export class DataController {
 
   /**
    * Adds a file with permissions to the DataRegistry contract.
-   *
    * @param url - The file URL to register
    * @param ownerAddress - The address of the file owner
    * @param permissions - Array of permissions to set for the file
@@ -1332,7 +1326,6 @@ export class DataController {
 
   /**
    * Adds a new schema to the DataRefinerRegistry.
-   *
    * @param params - Schema parameters including name, type, and definition URL
    * @returns Promise resolving to the new schema ID and transaction hash
    */
@@ -1398,7 +1391,6 @@ export class DataController {
 
   /**
    * Retrieves a schema by its ID.
-   *
    * @param schemaId - The schema ID to retrieve
    * @returns Promise resolving to the schema information
    */
@@ -1445,7 +1437,6 @@ export class DataController {
 
   /**
    * Gets the total number of schemas in the registry.
-   *
    * @returns Promise resolving to the total schema count
    */
   async getSchemasCount(): Promise<number> {
@@ -1477,7 +1468,6 @@ export class DataController {
 
   /**
    * Adds a new refiner to the DataRefinerRegistry.
-   *
    * @param params - Refiner parameters including DLP ID, name, schema ID, and instruction URL
    * @returns Promise resolving to the new refiner ID and transaction hash
    */
@@ -1548,7 +1538,6 @@ export class DataController {
 
   /**
    * Retrieves a refiner by its ID.
-   *
    * @param refinerId - The refiner ID to retrieve
    * @returns Promise resolving to the refiner information
    */
@@ -1597,7 +1586,6 @@ export class DataController {
 
   /**
    * Validates if a schema ID exists in the registry.
-   *
    * @param schemaId - The schema ID to validate
    * @returns Promise resolving to boolean indicating if the schema ID is valid
    */
@@ -1632,7 +1620,6 @@ export class DataController {
 
   /**
    * Gets the total number of refiners in the registry.
-   *
    * @returns Promise resolving to the total refiner count
    */
   async getRefinersCount(): Promise<number> {
@@ -1664,7 +1651,6 @@ export class DataController {
 
   /**
    * Updates the schema ID for an existing refiner.
-   *
    * @param params - Parameters including refiner ID and new schema ID
    * @returns Promise resolving to the transaction hash
    */
@@ -1717,7 +1703,6 @@ export class DataController {
    * 2. Uploads the encrypted file to storage
    * 3. Encrypts the user's encryption key with the provided public key
    * 4. Registers the file with permissions
-   *
    * @param data - The file data to encrypt and upload
    * @param permissions - Array of permissions to grant, each with account address and public key
    * @param filename - Optional filename for the upload
@@ -1815,7 +1800,6 @@ export class DataController {
    * 1. Gets the user's encryption key
    * 2. Encrypts the user's encryption key with the provided public key
    * 3. Adds the permission to the file
-   *
    * @param fileId - The ID of the file to add permissions for
    * @param account - The address of the account to grant permission to
    * @param publicKey - The public key to encrypt the user's encryption key with
@@ -1870,7 +1854,6 @@ export class DataController {
 
   /**
    * Gets the encrypted key for a specific account's permission to access a file.
-   *
    * @param fileId - The ID of the file
    * @param account - The account address to get the permission for
    * @returns Promise resolving to the encrypted key for that account
@@ -1908,7 +1891,6 @@ export class DataController {
   /**
    * Gets the trusted server public key for a given server address.
    * This method reads from the permissions contract to find servers and their public keys.
-   *
    * @param serverAddress - The address of the trusted server
    * @returns Promise resolving to the server's public key
    */
@@ -1935,7 +1917,6 @@ export class DataController {
    * 1. Gets the encrypted encryption key from file permissions
    * 2. Decrypts the encryption key using the provided private key
    * 3. Downloads and decrypts the file data
-   *
    * @param file - The file to decrypt
    * @param privateKey - The private key to decrypt the user's encryption key
    * @param account - The account address that has permission (defaults to current wallet account)
@@ -1994,11 +1975,9 @@ export class DataController {
 
   /**
    * Validates a data schema against the Vana meta-schema.
-   *
    * @param schema - The data schema to validate
-   * @returns true if valid
+   * @returns Assertion that schema is valid (throws if invalid)
    * @throws SchemaValidationError if invalid
-   *
    * @example
    * ```typescript
    * const schema = {
@@ -2023,11 +2002,10 @@ export class DataController {
 
   /**
    * Validates data against a JSON Schema from a data schema.
-   *
    * @param data - The data to validate
    * @param schema - The data schema containing the schema
+   * @returns Void (throws if validation fails)
    * @throws SchemaValidationError if invalid
-   *
    * @example
    * ```typescript
    * const schema = {
@@ -2054,11 +2032,9 @@ export class DataController {
 
   /**
    * Fetches and validates a schema from a URL, then returns the parsed data schema.
-   *
    * @param url - The URL to fetch the schema from
    * @returns The validated data schema
    * @throws SchemaValidationError if invalid or fetch fails
-   *
    * @example
    * ```typescript
    * // Fetch and validate a schema from IPFS or HTTP
@@ -2077,11 +2053,9 @@ export class DataController {
 
   /**
    * Retrieves a schema by ID and fetches its definition URL to get the full data schema.
-   *
    * @param schemaId - The schema ID to retrieve and validate
    * @returns The validated data schema
    * @throws SchemaValidationError if schema is invalid
-   *
    * @example
    * ```typescript
    * // Get schema from registry and validate its schema

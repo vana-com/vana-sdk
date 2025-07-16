@@ -40,9 +40,6 @@ export class VanaBrowser extends VanaCore {
   }
 }
 
-// Export the browser-specific class as the main 'Vana' for this entry point.
-export { VanaBrowser as Vana };
-
 // Re-export everything that was in index.ts (avoiding circular dependency)
 // Types - modular exports
 export type * from "./types";

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { handleRelayerRequest } from "../server/handler";
 import { SignatureError } from "../errors";
-import type { Vana } from "../index.node";
+import type { VanaNode } from "../index.node";
 import type { GenericTypedData } from "../types";
 import { recoverTypedDataAddress } from "viem";
 
@@ -15,7 +15,7 @@ vi.mock("viem", async () => {
 });
 
 describe("handleRelayerRequest", () => {
-  let mockVana: Vana;
+  let mockVana: VanaNode;
   let mockTypedData: GenericTypedData;
   const mockSignature = "0x1234567890abcdef" as const;
   const mockUserAddress = "0xuser123" as const;
@@ -30,7 +30,7 @@ describe("handleRelayerRequest", () => {
         submitSignedTrustServer: vi.fn().mockResolvedValue(mockTxHash),
         submitSignedUntrustServer: vi.fn().mockResolvedValue(mockTxHash),
       },
-    } as unknown as Vana;
+    } as unknown as VanaNode;
 
     // Mock typed data
     mockTypedData = {

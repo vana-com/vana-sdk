@@ -40,9 +40,6 @@ export class VanaNode extends VanaCore {
   }
 }
 
-// Export the node-specific class as the main 'Vana' for this entry point.
-export { VanaNode as Vana };
-
 // Re-export everything that was in index.ts (avoiding circular dependency)
 // Core class
 export { VanaCore } from "./core";

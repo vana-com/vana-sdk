@@ -408,16 +408,16 @@ describe("Correct Vana Encryption Implementation", () => {
   describe("Level 1: High-Level Client", () => {
     it("should provide async new Vana() for initialization", async () => {
       // Test that Vana client provides simple high-level API
-      const { Vana } = await import("../index.node");
+      const { VanaNode } = await import("../index.node");
 
       // Check that the Vana class exists and can be instantiated
-      expect(Vana).toBeDefined();
-      expect(typeof Vana).toBe("function");
+      expect(VanaNode).toBeDefined();
+      expect(typeof VanaNode).toBe("function");
     });
 
     it("should provide high-level data controller methods through Vana client", async () => {
       // Test that Vana client exposes the data controller with correct architecture
-      const { Vana } = await import("../index.node");
+            const { VanaNode } = await import("../index.node");
 
       // Mock wallet configuration for testing
       const mockWalletClient = createMockWalletClient();
@@ -434,7 +434,7 @@ describe("Correct Vana Encryption Implementation", () => {
       };
 
       // Create Vana instance
-      const vana = new Vana(config);
+      const vana = new VanaNode(config);
 
       // Verify that the data controller methods are accessible
       expect(vana.data).toBeDefined();
@@ -446,7 +446,7 @@ describe("Correct Vana Encryption Implementation", () => {
 
     it("should provide one-liner file upload with permissions", async () => {
       // Test the high-level uploadFileWithPermissions method that combines all steps
-      const { Vana } = await import("../index.node");
+            const { VanaNode } = await import("../index.node");
 
       // Mock wallet configuration
       const mockWalletClient = createMockWalletClient();
@@ -470,7 +470,7 @@ describe("Correct Vana Encryption Implementation", () => {
         },
       };
 
-      const vana = new Vana(config);
+      const vana = new VanaNode(config);
 
       // Mock the blockchain interaction
       vana.data.addFileWithPermissions = vi.fn().mockResolvedValue({
@@ -501,7 +501,7 @@ describe("Correct Vana Encryption Implementation", () => {
 
     it("should provide one-liner permission granting", async () => {
       // Test the high-level addPermissionToFile method
-      const { Vana } = await import("../index.node");
+            const { VanaNode } = await import("../index.node");
 
       const mockWalletClient = createMockWalletClient();
       (mockWalletClient.signMessage as any).mockResolvedValue("0xsignature123");
@@ -517,7 +517,7 @@ describe("Correct Vana Encryption Implementation", () => {
         walletClient: mockWalletClient,
       };
 
-      const vana = new Vana(config);
+      const vana = new VanaNode(config);
 
       const validatorPublicKey =
         "04c68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";

@@ -1,7 +1,12 @@
 // Centralized storage configuration for the demo app
 // This reduces duplication and provides consistent storage setup
 
-import { StorageManager, PinataStorage, ServerIPFSStorage } from "vana-sdk";
+import {
+  StorageManager,
+  PinataStorage,
+  ServerProxyStorage,
+  GoogleDriveStorage,
+} from "vana-sdk";
 
 /**
  * Get the Pinata gateway URL with fallback
@@ -21,23 +26,46 @@ function createPinataStorageWithJWT(jwt: string): PinataStorage {
 }
 
 /**
+ * Create a Google Drive storage provider with the given configuration
+ */
+function createGoogleDriveStorageWithConfig(config: {
+  accessToken: string;
+  refreshToken?: string;
+  clientId?: string;
+  clientSecret?: string;
+}): GoogleDriveStorage {
+  return new GoogleDriveStorage(config);
+}
+
+/**
  * Create a configured storage manager with available providers
  * This centralizes storage configuration across the demo app
  */
 export function createStorageManager(): StorageManager {
   const storageManager = new StorageManager();
 
-  // Always provide server-managed IPFS as fallback
-  const serverIPFS = new ServerIPFSStorage({
-    uploadEndpoint: "/upload",
-    baseUrl: "/api/ipfs",
+  // Always provide server-managed storage as fallback
+  const serverProxy = new ServerProxyStorage({
+    uploadUrl: "/api/ipfs/upload",
+    downloadUrl: "/api/ipfs/download", // Not actually used in demo
   });
-  storageManager.register("app-ipfs", serverIPFS);
+  storageManager.register("app-ipfs", serverProxy);
 
   // Add Pinata if configured
   if (process.env.PINATA_JWT) {
     const pinataProvider = createPinataStorageWithJWT(process.env.PINATA_JWT);
     storageManager.register("pinata", pinataProvider);
+  }
+
+  // Add Google Drive if configured
+  if (process.env.GOOGLE_DRIVE_ACCESS_TOKEN) {
+    const googleDriveProvider = createGoogleDriveStorageWithConfig({
+      accessToken: process.env.GOOGLE_DRIVE_ACCESS_TOKEN,
+      refreshToken: process.env.GOOGLE_DRIVE_REFRESH_TOKEN,
+      clientId: process.env.GOOGLE_DRIVE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_DRIVE_CLIENT_SECRET,
+    });
+    storageManager.register("google-drive", googleDriveProvider);
   }
 
   return storageManager;

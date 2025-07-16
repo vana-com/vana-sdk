@@ -473,5 +473,52 @@ describe("ProtocolController", () => {
         "Chain ID access failed",
       );
     });
+
+    it("should use chainId 0 fallback when chain.id throws during ContractNotFoundError handling", () => {
+      // Create wallet client with chain object that works initially but fails in catch block
+      let getContractInfoCalled = false;
+      const walletClientWithConditionalThrow = {
+        ...mockWalletClient,
+        chain: {
+          get id() {
+            // First access (line 84) succeeds to pass initial check
+            if (!getContractInfoCalled) {
+              return 14800;
+            } else {
+              // Second access (line 99 in catch block) throws to trigger the inner catch block
+              throw new Error("Chain ID access failed");
+            }
+          },
+          name: "Test Chain",
+        } as unknown as typeof mockWalletClient.chain,
+      };
+
+      const controller = new ProtocolController({
+        walletClient:
+          walletClientWithConditionalThrow as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
+      });
+
+      // Mock getContractAddress to throw "Contract address not found" error
+      // This will trigger the catch block that tries to access this.context.walletClient.chain?.id
+      mockGetContractAddress.mockImplementation(() => {
+        getContractInfoCalled = true;
+        throw new Error(
+          "Contract address not found for DataRegistry on chain 14800",
+        );
+      });
+
+      try {
+        controller.getContract("DataRegistry");
+        expect.fail("Expected error to be thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(ContractNotFoundError);
+        expect((error as ContractNotFoundError).message).toContain(
+          "on chain 0",
+        );
+      }
+    });
   });
 });

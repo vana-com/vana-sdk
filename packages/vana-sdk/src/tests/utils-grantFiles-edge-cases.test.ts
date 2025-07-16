@@ -17,7 +17,7 @@ describe("Grant Files Edge Cases Coverage", () => {
 
   describe("retrieveGrantFile edge cases", () => {
     it("should handle non-ipfs URLs (line 88)", async () => {
-      const directUrl = "QmTestHashWithoutPrefix";
+      const directUrl = "QmTestHashWithoutPrefix12345678901234567890123456";
 
       // Mock successful response from the first gateway
       mockFetch.mockResolvedValueOnce({
@@ -54,7 +54,7 @@ describe("Grant Files Edge Cases Coverage", () => {
       } catch (error) {
         expect(error).toBeInstanceOf(NetworkError);
         expect((error as NetworkError).message).toContain(
-          "Failed to retrieve grant file from any IPFS gateway",
+          "Failed to retrieve grant file from ipfs://QmTestHash. Tried direct fetch and IPFS gateways",
         );
       }
     });
@@ -149,7 +149,7 @@ describe("Grant Files Edge Cases Coverage", () => {
     });
 
     it("should correctly process URLs that don't start with ipfs://", async () => {
-      const hashOnly = "QmTestHashWithoutPrefix";
+      const hashOnly = "QmTestHashWithoutPrefix12345678901234567890123456";
 
       mockFetch.mockResolvedValueOnce({
         ok: true,

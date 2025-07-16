@@ -17,10 +17,15 @@ export async function POST(request: NextRequest) {
     const blob = new Blob([await file.arrayBuffer()], { type: file.type });
     const result = await pinataProvider.upload(blob, file.name);
 
+    // Extract CID from gateway URL
+    const urlParts = result.url.split("/ipfs/");
+    const ipfsHash = urlParts[1];
+
     return NextResponse.json({
       success: true,
-      url: result.metadata?.ipfsUrl || `ipfs://${result.metadata?.ipfsHash}`,
-      ipfsHash: result.metadata?.ipfsHash,
+      identifier: ipfsHash,
+      url: result.url,
+      ipfsHash: ipfsHash,
       size: result.size,
     });
   } catch (error) {

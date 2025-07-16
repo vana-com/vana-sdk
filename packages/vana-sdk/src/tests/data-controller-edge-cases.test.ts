@@ -1,0 +1,178 @@
+import { describe, it, expect, vi } from "vitest";
+import { DataController } from "../controllers/data";
+import { ControllerContext } from "../controllers/permissions";
+import { mokshaTestnet } from "../config/chains";
+import { mockPlatformAdapter } from "./mocks/platformAdapter";
+
+// Mock external dependencies
+vi.mock("../utils/encryption", () => ({
+  generateEncryptionKey: vi.fn(),
+  decryptUserData: vi.fn(),
+  encryptUserData: vi.fn(),
+  DEFAULT_ENCRYPTION_SEED: "Please sign to retrieve your encryption key",
+}));
+
+vi.mock("../storage", () => ({
+  StorageManager: vi.fn().mockImplementation(() => ({
+    upload: vi.fn().mockResolvedValue({
+      url: "https://ipfs.io/ipfs/QmTestHash",
+      size: 1024,
+      contentType: "application/octet-stream",
+    }),
+  })),
+}));
+
+vi.mock("../utils/schemaValidation", () => ({
+  validateDataSchema: vi.fn(),
+  validateDataAgainstSchema: vi.fn(),
+  fetchAndValidateSchema: vi.fn(),
+  SchemaValidationError: Error,
+}));
+
+vi.mock("viem", () => ({
+  createPublicClient: vi.fn(() => ({
+    readContract: vi.fn(),
+  })),
+  getContract: vi.fn(() => ({
+    read: {
+      filesCount: vi.fn().mockResolvedValue(BigInt(42)),
+    },
+  })),
+  http: vi.fn(),
+  decodeEventLog: vi.fn(),
+  defineChain: vi.fn((config) => config),
+}));
+
+/**
+ * Tests to improve coverage for specific uncovered lines in data.ts
+ * These target lines 2044, 2074-2075 which are wrapper functions
+ */
+
+describe("DataController Edge Cases Coverage", () => {
+  const context: ControllerContext = {
+    walletClient: {
+      account: { address: "0x123" },
+      chain: mokshaTestnet,
+    } as unknown as ControllerContext["walletClient"],
+    publicClient: {
+      readContract: vi.fn(),
+    } as unknown as ControllerContext["publicClient"],
+    platform: mockPlatformAdapter,
+  };
+
+  describe("Schema validation wrapper methods", () => {
+    it("should call validateDataSchema utility function (line 2044)", () => {
+      const dataController = new DataController(context);
+      const mockSchema = {
+        name: "Test Schema",
+        version: "1.0.0",
+        dialect: "json",
+        schema: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+          },
+        },
+      };
+
+      // This should call the utility function and not throw
+      expect((): void => {
+        (dataController as any).validateDataSchema(mockSchema);
+      }).not.toThrow();
+    });
+
+    it("should call validateDataAgainstSchema utility function (lines 2074-2075)", () => {
+      const dataController = new DataController(context);
+      const mockData = { name: "Alice", age: 30 };
+      const mockSchema = {
+        name: "Test Schema",
+        version: "1.0.0",
+        dialect: "json" as const,
+        schema: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            age: { type: "number" },
+          },
+          required: ["name"],
+        },
+      };
+
+      // This should call the utility function and not throw
+      expect((): void => {
+        dataController.validateDataAgainstSchema(mockData, mockSchema);
+      }).not.toThrow();
+    });
+
+    it("should call validateDataSchema with proper arguments", async () => {
+      const schemaValidationModule = await import("../utils/schemaValidation");
+      const validateDataSchemaMock = vi.mocked(
+        schemaValidationModule.validateDataSchema,
+      );
+
+      const dataController = new DataController(context);
+      const mockSchema = {
+        name: "Test Schema",
+        version: "1.0.0",
+        dialect: "json" as const,
+        schema: { type: "object" },
+      };
+
+      (dataController as any).validateDataSchema(mockSchema);
+
+      expect(validateDataSchemaMock as any).toHaveBeenCalledWith(mockSchema);
+    });
+
+    it("should call validateDataAgainstSchema with proper arguments", async () => {
+      const schemaValidationModule = await import("../utils/schemaValidation");
+      const validateDataAgainstSchemaMock = vi.mocked(
+        schemaValidationModule.validateDataAgainstSchema,
+      );
+
+      const dataController = new DataController(context);
+      const mockData = { name: "Alice" };
+      const mockSchema = {
+        name: "Test Schema",
+        version: "1.0.0",
+        dialect: "json" as const,
+        schema: { type: "object" },
+      };
+
+      dataController.validateDataAgainstSchema(mockData, mockSchema);
+
+      expect(validateDataAgainstSchemaMock).toHaveBeenCalledWith(
+        mockData,
+        mockSchema,
+      );
+    });
+  });
+
+  describe("Error handling in decryptFileWithPermission", () => {
+    it("should handle errors in decryptFileWithPermission method", async () => {
+      const dataController = new DataController(context);
+      const mockFile = {
+        id: 123,
+        url: "ipfs://QmTestHash",
+        size: 1024,
+        contentType: "text/plain",
+        owner: "0x123",
+        addedAtBlock: BigInt(123),
+        addedAtTimestamp: BigInt(1234567890),
+        transactionHash: "0xhash" as `0x${string}`,
+        schemaId: 123,
+        ownerAddress: "0x123" as `0x${string}`,
+      };
+
+      // Mock the getUserAddress method to throw an error
+      vi.spyOn(dataController as any, "getUserAddress").mockRejectedValue(
+        new Error("User address error"),
+      );
+
+      await expect(
+        dataController.decryptFileWithPermission(mockFile, "private-key"),
+      ).rejects.toThrow(
+        "Failed to decrypt file with permission: User address error",
+      );
+    });
+  });
+});

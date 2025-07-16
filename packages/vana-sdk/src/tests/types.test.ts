@@ -974,8 +974,8 @@ describe("TypeScript Types", () => {
           account: account2,
         });
 
-        expect(vanaWithWallet).toBeInstanceOf(Vana);
-        expect(vanaWithChain).toBeInstanceOf(Vana);
+        expect(vanaWithWallet).toBeInstanceOf(VanaNode);
+        expect(vanaWithChain).toBeInstanceOf(VanaNode);
       });
     });
   });

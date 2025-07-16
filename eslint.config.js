@@ -88,6 +88,12 @@ export default [
       "jsdoc/check-param-names": "error",
       "jsdoc/require-param-type": "off", // TypeScript handles types
       "jsdoc/no-types": "error", // Don't duplicate TypeScript types in JSDoc
+      "jsdoc/check-tag-names": [
+        "error",
+        {
+          definedTags: ["remarks", "category", "see"],
+        },
+      ],
     },
   },
 

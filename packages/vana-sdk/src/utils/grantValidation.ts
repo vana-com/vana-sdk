@@ -6,7 +6,6 @@ import grantFileSchema from "../schemas/grantFile.schema.json";
 
 /**
  * Base error class for grant validation failures
- *
  * @category Permissions
  */
 export class GrantValidationError extends Error {
@@ -21,7 +20,6 @@ export class GrantValidationError extends Error {
 
 /**
  * Error thrown when a grant has expired
- *
  * @category Permissions
  */
 export class GrantExpiredError extends GrantValidationError {
@@ -37,7 +35,6 @@ export class GrantExpiredError extends GrantValidationError {
 
 /**
  * Error thrown when grantee doesn't match requesting address
- *
  * @category Permissions
  */
 export class GranteeMismatchError extends GrantValidationError {
@@ -53,7 +50,6 @@ export class GranteeMismatchError extends GrantValidationError {
 
 /**
  * Error thrown when operation is not allowed by grant
- *
  * @category Permissions
  */
 export class OperationNotAllowedError extends GrantValidationError {
@@ -69,7 +65,6 @@ export class OperationNotAllowedError extends GrantValidationError {
 
 /**
  * Error thrown when grant file structure is invalid
- *
  * @category Permissions
  */
 export class GrantSchemaError extends GrantValidationError {
@@ -103,7 +98,6 @@ const validateGrantFileSchema: ValidateFunction = ajv.compile(grantFileSchema);
 
 /**
  * Options for grant validation
- *
  * @category Permissions
  */
 export interface GrantValidationOptions {
@@ -121,7 +115,6 @@ export interface GrantValidationOptions {
 
 /**
  * Detailed validation result
- *
  * @category Permissions
  */
 export interface GrantValidationResult {
@@ -144,16 +137,13 @@ export interface GrantValidationResult {
  * This function provides flexible validation with TypeScript overloads:
  * - When `throwOnError` is false (or `{ throwOnError: false }`), returns a detailed validation result
  * - When `throwOnError` is true (default), throws specific errors or returns the validated grant
- *
  * @param data - The grant file data to validate (unknown type for safety)
  * @param options - Validation options including grantee, operation, files, etc.
  * @returns Either a GrantFile (when throwing) or GrantValidationResult (when not throwing)
- *
  * @throws {GrantSchemaError} When the grant file structure is invalid
  * @throws {GrantExpiredError} When the grant has expired
  * @throws {GranteeMismatchError} When the grantee doesn't match the requesting address
  * @throws {OperationNotAllowedError} When the requested operation is not allowed
- *
  * @example
  * ```typescript
  * // Throwing mode (default) - returns GrantFile or throws
@@ -187,6 +177,12 @@ export function validateGrant(
     | (GrantValidationOptions & { throwOnError?: true }),
 ): GrantFile;
 
+/**
+ * Implementation function for grant validation with flexible return types
+ * @param data - The grant file data to validate
+ * @param options - Validation configuration options
+ * @returns Either a GrantFile or GrantValidationResult depending on throwOnError setting
+ */
 export function validateGrant(
   data: unknown,
   options: GrantValidationOptions = {},
@@ -319,6 +315,8 @@ export function validateGrant(
 
 /**
  * Helper function to extract field name from business validation errors
+ * @param error - The validation error to extract field information from
+ * @returns The field name associated with the error, or undefined if not applicable
  */
 function extractFieldFromBusinessError(error: unknown): string | undefined {
   if (error instanceof GrantExpiredError) return "expires";
@@ -329,6 +327,8 @@ function extractFieldFromBusinessError(error: unknown): string | undefined {
 
 /**
  * Validates that a grant file allows access for a specific grantee
+ * @param grantFile - The grant file to validate access for
+ * @param requestingAddress - The address requesting access to check against the grantee
  */
 export function validateGranteeAccess(
   grantFile: GrantFile,
@@ -345,6 +345,8 @@ export function validateGranteeAccess(
 
 /**
  * Validates that a grant has not expired (if expiry is set)
+ * @param grantFile - The grant file to check expiration for
+ * @param currentTime - Optional override for current time (Unix timestamp)
  */
 export function validateGrantExpiry(
   grantFile: GrantFile,
@@ -365,6 +367,8 @@ export function validateGrantExpiry(
 
 /**
  * Validates that a grant allows a specific operation
+ * @param grantFile - The grant file to validate operation access for
+ * @param requestedOperation - The operation being requested to validate against the grant
  */
 export function validateOperationAccess(
   grantFile: GrantFile,

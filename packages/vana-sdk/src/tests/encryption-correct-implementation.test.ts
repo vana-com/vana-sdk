@@ -1,18 +1,55 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import {
+  createWalletClient,
+  createPublicClient,
+  http,
+  type WalletClient,
+  type PublicClient,
+} from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import { withConsole } from "./setup";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
+import { mokshaTestnet } from "../config/chains";
+import type { VanaChain } from "../types";
 
 /**
  * Tests for the CORRECT Vana encryption implementation
  * This tests the architecture as it should be, based on the reference implementation
  */
 
-// Mock wallet for testing
-const mockWallet = {
-  account: { address: "0x123456789abcdef" },
-  signMessage: vi.fn(),
+// Create a test account
+const testAccount = privateKeyToAccount(
+  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+);
+
+// Create proper wallet client for testing
+const createMockWalletClient = (): WalletClient & { chain: VanaChain } => {
+  const baseClient = createWalletClient({
+    account: testAccount,
+    chain: mokshaTestnet,
+    transport: http("https://rpc.moksha.vana.org"),
+  }) as WalletClient & { chain: VanaChain };
+
+  // Add mock implementations for the methods we need in tests
+  baseClient.signMessage = vi.fn();
+  baseClient.signTypedData = vi.fn();
+  baseClient.writeContract = vi.fn();
+  baseClient.getAddresses = vi.fn().mockResolvedValue([testAccount.address]);
+
+  return baseClient;
 };
+
+// Create proper public client for testing
+const _createMockPublicClient = (): PublicClient => {
+  return createPublicClient({
+    chain: mokshaTestnet,
+    transport: http("https://rpc.moksha.vana.org"),
+  });
+};
+
+// Mock wallet for testing
+const mockWallet = createMockWalletClient();
 
 describe("Correct Vana Encryption Implementation", () => {
   describe("Level 3: Raw Utilities", () => {
@@ -50,11 +87,19 @@ describe("Correct Vana Encryption Implementation", () => {
           "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
 
         // This should use password-based PGP encryption
-        const encrypted = await encryptUserData(testData, walletSignature, mockPlatformAdapter);
+        const encrypted = await encryptUserData(
+          testData,
+          walletSignature,
+          mockPlatformAdapter,
+        );
         expect(encrypted).toBeInstanceOf(Blob);
 
         // Should be able to decrypt with same signature
-        const decrypted = await decryptUserData(encrypted, walletSignature, mockPlatformAdapter);
+        const decrypted = await decryptUserData(
+          encrypted,
+          walletSignature,
+          mockPlatformAdapter,
+        );
         expect(decrypted).toBeInstanceOf(Blob);
 
         const decryptedText = await decrypted.text();
@@ -70,8 +115,16 @@ describe("Correct Vana Encryption Implementation", () => {
         const signature =
           "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
 
-        const encrypted = await encryptUserData(testData, signature, mockPlatformAdapter);
-        const decrypted = await decryptUserData(encrypted, signature, mockPlatformAdapter);
+        const encrypted = await encryptUserData(
+          testData,
+          signature,
+          mockPlatformAdapter,
+        );
+        const decrypted = await decryptUserData(
+          encrypted,
+          signature,
+          mockPlatformAdapter,
+        );
 
         const decryptedText = await decrypted.text();
         expect(decryptedText).toBe(originalText);
@@ -87,8 +140,16 @@ describe("Correct Vana Encryption Implementation", () => {
         const password =
           "-----BEGIN PGP PUBLIC KEY BLOCK-----\nTest\n-----END PGP PUBLIC KEY BLOCK-----";
 
-        const encrypted = await encryptUserData(testData, password, mockPlatformAdapter);
-        const decrypted = await decryptUserData(encrypted, password, mockPlatformAdapter);
+        const encrypted = await encryptUserData(
+          testData,
+          password,
+          mockPlatformAdapter,
+        );
+        const decrypted = await decryptUserData(
+          encrypted,
+          password,
+          mockPlatformAdapter,
+        );
 
         const decryptedText = await decrypted.text();
         expect(decryptedText).toBe(originalText);
@@ -106,7 +167,11 @@ describe("Correct Vana Encryption Implementation", () => {
         const publicKey =
           "04c68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";
 
-        const encrypted = await encryptWithWalletPublicKey(testData, publicKey, mockPlatformAdapter);
+        const encrypted = await encryptWithWalletPublicKey(
+          testData,
+          publicKey,
+          mockPlatformAdapter,
+        );
         expect(typeof encrypted).toBe("string");
         expect(encrypted).toMatch(/^[0-9a-fA-F]+$/); // Should be hex string
       });
@@ -122,7 +187,11 @@ describe("Correct Vana Encryption Implementation", () => {
         const publicKey =
           "04c68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";
 
-        const encrypted = await encryptWithWalletPublicKey(testData, publicKey, mockPlatformAdapter);
+        const encrypted = await encryptWithWalletPublicKey(
+          testData,
+          publicKey,
+          mockPlatformAdapter,
+        );
         const decrypted = await decryptWithWalletPrivateKey(
           encrypted,
           privateKey,
@@ -142,10 +211,8 @@ describe("Correct Vana Encryption Implementation", () => {
     it("should generate encryption keys through controller methods", async () => {
       // Test that data controller's internal encryption key generation works
       const { generateEncryptionKey } = await import("../utils/encryption");
-      const mockWallet = {
-        account: { address: "0x123456789abcdef" },
-        signMessage: vi.fn().mockResolvedValue("0xsignature123"),
-      };
+      const mockWallet = createMockWalletClient();
+      mockWallet.signMessage = vi.fn().mockResolvedValue("0xsignature123");
 
       // This should use the fixed utility function for deterministic key generation
       const key = await generateEncryptionKey(mockWallet, "test seed");
@@ -161,19 +228,15 @@ describe("Correct Vana Encryption Implementation", () => {
       const { DataController } = await import("../controllers/data");
 
       // Mock the wallet and storage manager for the test
-      const mockWallet = {
-        account: { address: "0x123456789abcdef" },
-        signMessage: vi.fn().mockResolvedValue("0xsignature123"),
-        getAddresses: vi.fn().mockResolvedValue(["0x123456789abcdef"]),
-        chain: {
-          id: 14800,
-          rpcUrls: {
-            default: {
-              http: ["https://rpc.moksha.vana.org"],
-            },
-          },
-        },
-      };
+      const mockWalletClient = createMockWalletClient();
+      mockWalletClient.signMessage = vi
+        .fn()
+        .mockResolvedValue("0xsignature123");
+      mockWalletClient.getAddresses = vi
+        .fn()
+        .mockResolvedValue([testAccount.address]);
+
+      const mockPublicClient = _createMockPublicClient();
 
       const mockStorageManager = {
         upload: vi.fn().mockResolvedValue({
@@ -183,9 +246,9 @@ describe("Correct Vana Encryption Implementation", () => {
       };
 
       const mockContext = {
-        walletClient: mockWallet,
-        publicClient: {},
-        applicationClient: mockWallet,
+        walletClient: mockWalletClient,
+        publicClient: mockPublicClient,
+        applicationClient: mockWalletClient,
         platform: mockPlatformAdapter,
         storageManager: mockStorageManager,
       };

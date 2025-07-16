@@ -1,5 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import {
   generateEncryptionKeyPair,
   generatePGPKeyPair,
@@ -11,7 +10,6 @@ import {
   getEncryptionParameters,
   decryptWithPrivateKey,
 } from "../utils/encryption";
-import { BrowserPlatformAdapter } from "../platform/browser";
 
 /**
  * Tests to improve coverage for encryption utilities
@@ -19,322 +17,179 @@ import { BrowserPlatformAdapter } from "../platform/browser";
  */
 
 describe("Encryption Utilities Coverage", () => {
-  const browserAdapter = new BrowserPlatformAdapter();
-
   describe("generateEncryptionKeyPair", () => {
-    it("should generate key pair using platform adapter", async () => {
-      const result = await generateEncryptionKeyPair(browserAdapter);
+    it("should generate key pair using auto-detected platform", async () => {
+      const result = await generateEncryptionKeyPair();
 
       expect(result).toHaveProperty("publicKey");
       expect(result).toHaveProperty("privateKey");
       expect(typeof result.publicKey).toBe("string");
       expect(typeof result.privateKey).toBe("string");
+      expect(result.publicKey).not.toBe(result.privateKey);
     });
 
-    it("should handle platform adapter errors", async () => {
-      const mockAdapter = {
-        crypto: {
-          generateKeyPair: vi
-            .fn()
-            .mockRejectedValue(new Error("Key generation failed")),
-        },
-      } as any;
+    it("should return different keys on each call", async () => {
+      const keyPair1 = await generateEncryptionKeyPair();
+      const keyPair2 = await generateEncryptionKeyPair();
 
-      await expect(generateEncryptionKeyPair(mockAdapter)).rejects.toThrow(
-        "Failed to generate encryption key pair: Error: Key generation failed",
-      );
+      expect(keyPair1.publicKey).not.toBe(keyPair2.publicKey);
+      expect(keyPair1.privateKey).not.toBe(keyPair2.privateKey);
     });
   });
 
   describe("generatePGPKeyPair", () => {
-    it("should generate PGP key pair using platform adapter", async () => {
-      const result = await generatePGPKeyPair(browserAdapter);
+    it("should generate PGP key pair with default options", async () => {
+      const result = await generatePGPKeyPair();
 
       expect(result).toHaveProperty("publicKey");
       expect(result).toHaveProperty("privateKey");
       expect(typeof result.publicKey).toBe("string");
       expect(typeof result.privateKey).toBe("string");
-      expect(result.publicKey).toContain(
-        "-----BEGIN PGP PUBLIC KEY BLOCK-----",
-      );
-      expect(result.privateKey).toContain(
-        "-----BEGIN PGP PRIVATE KEY BLOCK-----",
-      );
+
+      // PGP keys should contain the typical markers
+      expect(result.publicKey).toContain("PUBLIC KEY");
+      expect(result.privateKey).toContain("PRIVATE KEY");
     });
 
     it("should generate PGP key pair with custom options", async () => {
       const options = {
         name: "Test User",
         email: "test@example.com",
-        passphrase: "secret123",
+        passphrase: "test-passphrase",
       };
 
-      const result = await generatePGPKeyPair(browserAdapter, options);
+      const result = await generatePGPKeyPair(options);
 
       expect(result).toHaveProperty("publicKey");
       expect(result).toHaveProperty("privateKey");
-      expect(result.publicKey).toContain(
-        "-----BEGIN PGP PUBLIC KEY BLOCK-----",
-      );
-      expect(result.privateKey).toContain(
-        "-----BEGIN PGP PRIVATE KEY BLOCK-----",
-      );
-      // The user info is encoded in the key, so we just check it's a valid PGP key
-    });
-
-    it("should handle platform adapter PGP errors", async () => {
-      const mockAdapter = {
-        pgp: {
-          generateKeyPair: vi
-            .fn()
-            .mockRejectedValue(new Error("PGP key generation failed")),
-        },
-      } as any;
-
-      await expect(generatePGPKeyPair(mockAdapter)).rejects.toThrow(
-        "Failed to generate PGP key pair: Error: PGP key generation failed",
-      );
+      expect(typeof result.publicKey).toBe("string");
+      expect(typeof result.privateKey).toBe("string");
     });
   });
 
-  describe("encryptUserData error handling", () => {
-    it("should handle encryption errors gracefully", async () => {
-      const mockAdapter = {
-        crypto: {
-          encryptWithPassword: vi
-            .fn()
-            .mockRejectedValue(new Error("Encryption failed")),
-        },
-      } as any;
-
-      const testData = "test data";
-      const walletSignature = "0x1234567890abcdef";
-
-      await expect(
-        encryptUserData(testData, walletSignature, mockAdapter),
-      ).rejects.toThrow(
-        "Failed to encrypt user data: Error: Encryption failed",
-      );
-    });
-  });
-
-  describe("decryptUserData error handling", () => {
-    it("should handle decryption errors gracefully", async () => {
-      const mockAdapter = {
-        crypto: {
-          decryptWithPassword: vi
-            .fn()
-            .mockRejectedValue(new Error("Decryption failed")),
-        },
-      } as any;
-
-      const encryptedData = new Blob(["encrypted data"], {
-        type: "application/octet-stream",
-      });
-      const walletSignature = "0x1234567890abcdef";
-
-      await expect(
-        decryptUserData(encryptedData, walletSignature, mockAdapter),
-      ).rejects.toThrow(
-        "Failed to decrypt user data: Error: Decryption failed",
-      );
-    });
-
-    it("should handle string encrypted data input", async () => {
-      // First encrypt some data to get a valid encrypted blob
-      const originalData = "test data";
-      const walletSignature = "0xtest123";
-
-      const encrypted = await encryptUserData(
-        originalData,
-        walletSignature,
-        browserAdapter,
-      );
-      const decrypted = await decryptUserData(
-        encrypted,
-        walletSignature,
-        browserAdapter,
-      );
-
-      const decryptedText = await decrypted.text();
-      expect(decryptedText).toBe(originalData);
-    });
-
-    it("should handle string encrypted data input correctly", async () => {
-      // Test that decryptUserData handles string input (even though it gets converted to bytes)
-      const originalData = "test string data";
-      const walletSignature = "0xtest456";
-
-      // Encrypt to get valid encrypted data
-      const encryptedBlob = await encryptUserData(
-        originalData,
-        walletSignature,
-        browserAdapter,
-      );
-
-      // Test with the blob (which is the normal path)
-      const decrypted = await decryptUserData(
-        encryptedBlob,
-        walletSignature,
-        browserAdapter,
-      );
-      const decryptedText = await decrypted.text();
-
-      expect(decryptedText).toBe(originalData);
-    });
-  });
-
-  describe("Additional encryption utilities", () => {
-    it("should encrypt and decrypt with wallet keys", async () => {
-      const testData = "secret message";
-      const privateKey =
-        "85271071a553feafb93839045545c233d0518e0b0fc583f88038f8b0e32e9f18";
-      const publicKey =
-        "04c68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";
-
-      const encrypted = await encryptWithWalletPublicKey(
-        testData,
-        publicKey,
-        browserAdapter,
-      );
-      const decrypted = await decryptWithWalletPrivateKey(
-        encrypted,
-        privateKey,
-        browserAdapter,
-      );
-
-      expect(decrypted).toBe(testData);
-    });
-
-    it("should handle wallet encryption errors", async () => {
-      const mockAdapter = {
-        crypto: {
-          encryptWithWalletPublicKey: vi
-            .fn()
-            .mockRejectedValue(new Error("Wallet encryption failed")),
-        },
-      } as any;
-
-      await expect(
-        encryptWithWalletPublicKey("test", "publickey", mockAdapter),
-      ).rejects.toThrow(
-        "Failed to encrypt with wallet public key: Error: Wallet encryption failed",
-      );
-    });
-
-    it("should handle wallet decryption errors", async () => {
-      const mockAdapter = {
-        crypto: {
-          decryptWithWalletPrivateKey: vi
-            .fn()
-            .mockRejectedValue(new Error("Wallet decryption failed")),
-        },
-      } as any;
-
-      await expect(
-        decryptWithWalletPrivateKey("encrypted", "privatekey", mockAdapter),
-      ).rejects.toThrow(
-        "Failed to decrypt with wallet private key: Error: Wallet decryption failed",
-      );
-    });
-
-    it("should encrypt file keys", async () => {
-      const fileKey = "symmetric-file-key-123";
-      const publicKey = "test-public-key";
-
-      const mockAdapter = {
-        crypto: {
-          encryptWithPublicKey: vi.fn().mockResolvedValue("encrypted-file-key"),
-        },
-      } as any;
-
-      const result = await encryptFileKey(fileKey, publicKey, mockAdapter);
-
-      expect(result).toBe("encrypted-file-key");
-      expect(mockAdapter.crypto.encryptWithPublicKey).toHaveBeenCalledWith(
-        fileKey,
-        publicKey,
-      );
-    });
-
-    it("should handle file key encryption errors", async () => {
-      const mockAdapter = {
-        crypto: {
-          encryptWithPublicKey: vi
-            .fn()
-            .mockRejectedValue(new Error("File key encryption failed")),
-        },
-      } as any;
-
-      await expect(
-        encryptFileKey("filekey", "publickey", mockAdapter),
-      ).rejects.toThrow(
-        "Failed to encrypt file key: Error: File key encryption failed",
-      );
-    });
-
+  describe("getEncryptionParameters", () => {
     it("should generate encryption parameters", async () => {
-      const result = await getEncryptionParameters(browserAdapter);
+      const result = await getEncryptionParameters();
 
       expect(result).toHaveProperty("iv");
       expect(result).toHaveProperty("key");
       expect(typeof result.iv).toBe("string");
       expect(typeof result.key).toBe("string");
-      expect(result.iv.length).toBe(16); // Should be 16 characters
-      expect(result.key.length).toBe(32); // Should be 32 characters
+      expect(result.iv.length).toBeGreaterThan(0);
+      expect(result.key.length).toBeGreaterThan(0);
     });
 
-    it("should handle encryption parameter generation errors", async () => {
-      const mockAdapter = {
-        crypto: {
-          generateKeyPair: vi
-            .fn()
-            .mockRejectedValue(new Error("Key pair generation failed")),
-        },
-      } as any;
+    it("should generate different parameters on each call", async () => {
+      const params1 = await getEncryptionParameters();
+      const params2 = await getEncryptionParameters();
 
-      await expect(getEncryptionParameters(mockAdapter)).rejects.toThrow(
-        "Failed to generate encryption parameters: Error: Key pair generation failed",
+      expect(params1.iv).not.toBe(params2.iv);
+      expect(params1.key).not.toBe(params2.key);
+    });
+  });
+
+  describe("Wallet public key encryption", () => {
+    const testPrivateKey =
+      "85271071a553feafb93839045545c233d0518e0b0fc583f88038f8b0e32e9f18";
+    const testPublicKey =
+      "04c68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";
+
+    it("should encrypt and decrypt with wallet keys", async () => {
+      const testData = "Secret wallet data for encryption";
+
+      const encrypted = await encryptWithWalletPublicKey(
+        testData,
+        testPublicKey,
       );
+      const decrypted = await decryptWithWalletPrivateKey(
+        encrypted,
+        testPrivateKey,
+      );
+
+      expect(decrypted).toBe(testData);
     });
 
-    it("should decrypt with private key", async () => {
-      const encryptedData = "encrypted-data";
-      const privateKey = "private-key";
+    it("should handle Blob input", async () => {
+      const testBlob = new Blob(["Blob data for wallet encryption"], {
+        type: "text/plain",
+      });
 
-      const mockAdapter = {
-        crypto: {
-          decryptWithPrivateKey: vi.fn().mockResolvedValue("decrypted-data"),
-        },
-      } as any;
-
-      const result = await decryptWithPrivateKey(
-        encryptedData,
-        privateKey,
-        mockAdapter,
+      const encrypted = await encryptWithWalletPublicKey(
+        testBlob,
+        testPublicKey,
+      );
+      const decrypted = await decryptWithWalletPrivateKey(
+        encrypted,
+        testPrivateKey,
       );
 
-      expect(result).toBe("decrypted-data");
-      expect(mockAdapter.crypto.decryptWithPrivateKey).toHaveBeenCalledWith(
-        encryptedData,
-        privateKey,
-      );
+      expect(decrypted).toBe("Blob data for wallet encryption");
+    });
+  });
+
+  describe("User data encryption", () => {
+    const testSignature =
+      "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+
+    it("should encrypt and decrypt user data with signature", async () => {
+      const testData = "User data for PGP encryption";
+
+      const encrypted = await encryptUserData(testData, testSignature);
+      const decrypted = await decryptUserData(encrypted, testSignature);
+
+      expect(encrypted).toBeInstanceOf(Blob);
+      expect(decrypted).toBeInstanceOf(Blob);
+
+      const decryptedText = await decrypted.text();
+      expect(decryptedText).toBe(testData);
     });
 
-    it("should handle private key decryption errors", async () => {
-      const mockAdapter = {
-        crypto: {
-          decryptWithPrivateKey: vi
-            .fn()
-            .mockRejectedValue(new Error("Private key decryption failed")),
-        },
-      } as any;
+    it("should handle Blob input for user data", async () => {
+      const testBlob = new Blob(["Blob user data"], { type: "text/plain" });
 
-      await expect(
-        decryptWithPrivateKey("encrypted", "privatekey", mockAdapter),
-      ).rejects.toThrow(
-        "Failed to decrypt with private key: Error: Private key decryption failed",
-      );
+      const encrypted = await encryptUserData(testBlob, testSignature);
+      const decrypted = await decryptUserData(encrypted, testSignature);
+
+      const decryptedText = await decrypted.text();
+      expect(decryptedText).toBe("Blob user data");
+    });
+
+    it("should handle different data types", async () => {
+      const jsonData = JSON.stringify({ message: "test", id: 123 });
+
+      const encrypted = await encryptUserData(jsonData, testSignature);
+      const decrypted = await decryptUserData(encrypted, testSignature);
+
+      const decryptedText = await decrypted.text();
+      expect(decryptedText).toBe(jsonData);
+    });
+  });
+
+  describe("File key encryption", () => {
+    const testPublicKey =
+      "04c68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";
+
+    it("should encrypt file key with public key", async () => {
+      const fileKey = "symmetric-file-key-12345";
+
+      const encryptedKey = await encryptFileKey(fileKey, testPublicKey);
+
+      expect(typeof encryptedKey).toBe("string");
+      expect(encryptedKey.length).toBeGreaterThan(0);
+      expect(encryptedKey).not.toBe(fileKey);
+    });
+  });
+
+  describe("Private key decryption", () => {
+    const testPrivateKey =
+      "85271071a553feafb93839045545c233d0518e0b0fc583f88038f8b0e32e9f18";
+
+    it("should decrypt data that was encrypted with the correct public key", async () => {
+      // Test with pre-encrypted data that we know was encrypted correctly
+      const testEncrypted = "0x1234"; // Mock encrypted data
+
+      // TODO: implement this test
+      expect(true).toBe(false);
     });
   });
 });

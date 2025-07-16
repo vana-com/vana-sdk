@@ -3,7 +3,7 @@ import { Vana } from "../index.browser";
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { mokshaTestnet } from "../config/chains";
-import type { VanaChain } from "../types";
+import type { VanaChain, VanaConfig } from "../types";
 
 // Mock browser platform adapter
 vi.mock("../platform/browser", () => ({
@@ -66,9 +66,9 @@ describe("Browser Index Entry Point", () => {
     expect(typeof Vana).toBe("function");
   });
 
-  describe("Async Vana.create() factory method", () => {
+  describe("Async new Vana() factory method", () => {
     it("should create Vana instance with wallet client config", async () => {
-      const vana = await Vana.create({
+      const vana = new Vana({
         walletClient: validWalletClient,
       });
 
@@ -80,7 +80,7 @@ describe("Browser Index Entry Point", () => {
     });
 
     it("should create instance from chain config", async () => {
-      const vana = await Vana.create({
+      const vana = new Vana({
         chainId: 14800,
         account: testAccount,
       });
@@ -93,7 +93,7 @@ describe("Browser Index Entry Point", () => {
     });
 
     it("should create instance with full configuration", async () => {
-      const vana = await Vana.create({
+      const vana = new Vana({
         walletClient: validWalletClient,
         relayerCallbacks: {
           submitPermissionGrant: async (_typedData, _signature) => "0xtxhash",
@@ -105,21 +105,11 @@ describe("Browser Index Entry Point", () => {
       expect(vana.getConfig().relayerCallbacks).toBeDefined();
     });
 
-    it("should reject with error for invalid configuration", async () => {
-      await expect(Vana.create({} as any)).rejects.toThrow();
+    it("should throw error for invalid configuration", () => {
+      expect(() => new Vana({} as VanaConfig)).toThrow();
     });
   });
 
-  describe("Constructor access", () => {
-    it("should not allow direct constructor access", () => {
-      // TypeScript should prevent this, but let's test the runtime behavior
-      expect(() => {
-        // This should fail since constructor is private
-        // @ts-expect-error Testing private constructor
-        new Vana({ walletClient: validWalletClient });
-      }).toThrow();
-    });
-  });
 
   it("should have default export", async () => {
     const module = await import("../index.browser");

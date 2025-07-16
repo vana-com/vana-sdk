@@ -6,38 +6,28 @@ import type { VanaConfig } from "./types";
  * The Vana SDK class pre-configured for browser environments.
  * Automatically uses the browser platform adapter.
  *
- * Use the static `create()` method to initialize:
+ * @example
  * ```typescript
- * const vana = await Vana.create({ walletClient });
+ * const vana = new Vana({ walletClient });
  * ```
  */
 export class Vana extends VanaCore {
-  private constructor(config: VanaConfig, _allowConstruction = false) {
-    if (!_allowConstruction) {
-      throw new Error(
-        "Cannot instantiate Vana directly. Use Vana.create() instead.",
-      );
-    }
-    // Automatically inject the browser platform adapter
-    super(config, new BrowserPlatformAdapter());
-  }
-
   /**
    * Creates a Vana SDK instance configured for browser environments.
    * @param config - SDK configuration object (wallet client or chain config)
-   * @returns Promise resolving to Vana SDK instance
    *
    * @example
    * ```typescript
    * // With wallet client
-   * const vana = await Vana.create({ walletClient });
+   * const vana = new Vana({ walletClient });
    *
    * // With chain configuration
-   * const vana = await Vana.create({ chainId: 14800, account });
+   * const vana = new Vana({ chainId: 14800, account });
    * ```
    */
-  static async create(config: VanaConfig): Promise<Vana> {
-    return new Vana(config, true);
+  constructor(config: VanaConfig) {
+    // Automatically inject the browser platform adapter
+    super(config, new BrowserPlatformAdapter());
   }
 }
 
@@ -104,6 +94,10 @@ export {
   AsyncQueue,
   CircuitBreaker,
 } from "./core/generics";
+
+// Platform adapters  
+export { BrowserPlatformAdapter } from "./platform/browser";
+export type { NodePlatformAdapter } from "./platform/node";
 
 export { ApiClient } from "./core/apiClient";
 

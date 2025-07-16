@@ -1119,7 +1119,6 @@ export class DataController {
       const decryptedBlob = await decryptUserData(
         encryptedBlob,
         encryptionKey,
-        this.context.platform,
       );
 
       return decryptedBlob;
@@ -1741,7 +1740,6 @@ export class DataController {
       const encryptedData = await encryptUserData(
         data,
         userEncryptionKey,
-        this.context.platform,
       );
 
       // 3. Upload the encrypted file
@@ -1766,7 +1764,6 @@ export class DataController {
           const encryptedKey = await encryptWithWalletPublicKey(
             userEncryptionKey,
             permission.publicKey,
-            this.context.platform,
           );
           return {
             account: permission.account,
@@ -1837,7 +1834,6 @@ export class DataController {
       const encryptedKey = await encryptWithWalletPublicKey(
         userEncryptionKey,
         publicKey,
-        this.context.platform,
       );
 
       // 3. Add permission to the file
@@ -1966,7 +1962,6 @@ export class DataController {
       const userEncryptionKey = await decryptWithWalletPrivateKey(
         encryptedKey,
         privateKey,
-        this.context.platform,
       );
 
       // 3. Download the encrypted file
@@ -1980,7 +1975,6 @@ export class DataController {
       const decryptedData = await decryptUserData(
         encryptedData,
         userEncryptionKey,
-        this.context.platform,
       );
 
       return decryptedData;

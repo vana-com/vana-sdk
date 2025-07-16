@@ -24,7 +24,7 @@ import type { VanaPlatformAdapter } from "./platform/interface";
  * and manages shared context between them.
  *
  * For public usage, use the platform-specific Vana classes that extend this core:
- * - Use `await Vana.create(config)` from the main package import
+ * - Use `new Vana(config)` from the main package import
  *
  * @example
  * ```typescript
@@ -50,7 +50,7 @@ export class VanaCore {
   public readonly protocol: ProtocolController;
 
   /** Handles environment-specific operations like encryption and file systems. */
-  protected readonly platform: VanaPlatformAdapter;
+  protected platform: VanaPlatformAdapter;
 
   private readonly relayerCallbacks?: RelayerCallbacks;
   private readonly storageManager?: StorageManager;
@@ -355,5 +355,47 @@ export class VanaCore {
       storageProviders: this.storageManager?.getStorageProviders() || [],
       defaultStorageProvider: this.storageManager?.getDefaultStorageProvider(),
     };
+  }
+
+  /**
+   * Sets the platform adapter for environment-specific operations.
+   * This is useful for testing and advanced use cases where you need
+   * to override the default platform detection.
+   *
+   * @param adapter - The platform adapter to use
+   *
+   * @example
+   * ```typescript
+   * // For testing with a mock adapter
+   * const mockAdapter = new MockPlatformAdapter();
+   * vana.setPlatformAdapter(mockAdapter);
+   * 
+   * // For advanced use cases with custom adapters
+   * const customAdapter = new CustomPlatformAdapter();
+   * vana.setPlatformAdapter(customAdapter);
+   * ```
+   */
+  setPlatformAdapter(adapter: VanaPlatformAdapter): void {
+    this.platform = adapter;
+    
+    // Note: Controllers will use the new platform adapter on their next operation
+    // since they access this.platform from the shared context
+  }
+
+  /**
+   * Gets the current platform adapter.
+   * This is useful for advanced use cases where you need to access
+   * the platform adapter directly.
+   *
+   * @returns The current platform adapter
+   *
+   * @example
+   * ```typescript
+   * const adapter = vana.getPlatformAdapter();
+   * const encrypted = await adapter.encrypt(data, key);
+   * ```
+   */
+  getPlatformAdapter(): VanaPlatformAdapter {
+    return this.platform;
   }
 }

@@ -23,10 +23,10 @@ npm install vana-sdk
 ```typescript
 import { Vana } from "vana-sdk";
 import { createWalletClient, http } from "viem";
-import { mokshaTestnet } from "vana-sdk/chains";
+import { mokshaTestnet } from "vana-sdk";
 
 // 1. Initialize with your wallet
-const vana = await Vana.create({
+const vana = new Vana({
   walletClient: createWalletClient({
     chain: mokshaTestnet,
     transport: http(),
@@ -214,7 +214,7 @@ pnpm add vana-sdk
 import { Vana } from 'vana-sdk';
 import { createWalletClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { mokshaTestnet } from 'vana-sdk/chains';
+import { mokshaTestnet } from 'vana-sdk';
 
 // 1. Set up your wallet client (using viem)
 const account = privateKeyToAccount('0x...');

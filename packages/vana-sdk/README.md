@@ -44,7 +44,7 @@ npm install viem@^2.31.7
 import { Vana } from "vana-sdk";
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { mokshaTestnet } from "vana-sdk/chains";
+import { mokshaTestnet } from "vana-sdk";
 
 // Create wallet client
 const account = privateKeyToAccount("0x...");
@@ -55,7 +55,7 @@ const walletClient = createWalletClient({
 });
 
 // Initialize Vana SDK
-const vana = await Vana.create({
+const vana = new Vana({
   walletClient,
   // Optional: configure gasless relayer
   relayerUrl: "https://relayer.moksha.vana.org",
@@ -136,7 +136,7 @@ The Vana SDK follows a resource-oriented architecture with five main controllers
 ### Configuration Options
 
 ```typescript
-const vana = await Vana.create({
+const vana = new Vana({
   // Required: Wallet client for signing
   walletClient,
 
@@ -239,7 +239,7 @@ vana.data.validateDataAgainstSchema(userData, schema);
 Configure gasless transactions using callbacks instead of fixed HTTP APIs:
 
 ```typescript
-const vana = await Vana.create({
+const vana = new Vana({
   walletClient,
   relayerCallbacks: {
     // Custom permission grant relaying
@@ -465,7 +465,7 @@ import { Vana, generateEncryptionKey, encryptUserData } from "vana-sdk";
 
 async function completePermissionFlow() {
   // 1. Initialize SDK
-  const vana = await Vana.create({ walletClient });
+  const vana = new Vana({ walletClient });
 
   // 2. Encrypt user data
   const encryptionKey = await generateEncryptionKey(walletClient);

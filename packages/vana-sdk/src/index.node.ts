@@ -6,42 +6,35 @@ import type { VanaConfig } from "./types";
  * The Vana SDK class pre-configured for Node.js environments.
  * Automatically uses the Node.js platform adapter.
  *
- * Use the static `create()` method to initialize:
+ * @example
  * ```typescript
- * const vana = await Vana.create({ walletClient });
+ * const vana = new Vana({ walletClient });
  * ```
  */
 export class Vana extends VanaCore {
-  private constructor(config: VanaConfig, _allowConstruction = false) {
-    if (!_allowConstruction) {
-      throw new Error(
-        "Cannot instantiate Vana directly. Use Vana.create() instead.",
-      );
-    }
-    // Automatically inject the Node.js platform adapter
-    super(config, new NodePlatformAdapter());
-  }
-
   /**
    * Creates a Vana SDK instance configured for Node.js environments.
    * @param config - SDK configuration object (wallet client or chain config)
-   * @returns Promise resolving to Vana SDK instance
    *
    * @example
    * ```typescript
    * // With wallet client
-   * const vana = await Vana.create({ walletClient });
+   * const vana = new Vana({ walletClient });
    *
    * // With chain configuration
-   * const vana = await Vana.create({ chainId: 14800, account });
+   * const vana = new Vana({ chainId: 14800, account });
    * ```
    */
-  static async create(config: VanaConfig): Promise<Vana> {
-    return new Vana(config, true);
+  constructor(config: VanaConfig) {
+    // Automatically inject the Node.js platform adapter
+    super(config, new NodePlatformAdapter());
   }
 }
 
 // Re-export everything that was in index.ts (avoiding circular dependency)
+// Core class
+export { VanaCore } from "./core";
+
 // Types - modular exports
 export type * from "./types";
 
@@ -108,6 +101,10 @@ export {
 // Server-side utilities
 export { handleRelayerRequest } from "./server/handler";
 export type { RelayerRequestPayload } from "./server/handler";
+
+// Platform adapters
+export { NodePlatformAdapter } from "./platform/node";
+export type { BrowserPlatformAdapter } from "./platform/browser";
 
 export { ApiClient } from "./core/apiClient";
 

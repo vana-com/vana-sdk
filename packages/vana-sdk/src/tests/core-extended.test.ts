@@ -261,9 +261,9 @@ describe("VanaCore Extended Tests", () => {
     });
   });
 
-  describe("Factory Methods", () => {
-    it("should create instance from ChainConfig with fromChain", () => {
-      const vana = VanaCore.fromChain(
+  describe("Direct Instantiation", () => {
+    it("should create instance from ChainConfig via constructor", () => {
+      const vana = new VanaCore(
         {
           chainId: 14800,
           account: testAccount,
@@ -275,8 +275,8 @@ describe("VanaCore Extended Tests", () => {
       expect(vana.chainId).toBe(14800);
     });
 
-    it("should create instance from WalletConfig with fromWallet", () => {
-      const vana = VanaCore.fromWallet(
+    it("should create instance from WalletConfig via constructor", () => {
+      const vana = new VanaCore(
         {
           walletClient: validWalletClient,
         },
@@ -377,6 +377,16 @@ describe("VanaCore Extended Tests", () => {
           mockPlatformAdapter,
         );
       }).toThrow(InvalidConfigurationError);
+    });
+  });
+
+  describe("Legacy API Removal", () => {
+    it("should not expose legacy fromChain method", () => {
+      expect((VanaCore as unknown as { fromChain?: unknown }).fromChain).toBeUndefined();
+    });
+
+    it("should not expose legacy fromWallet method", () => {
+      expect((VanaCore as unknown as { fromWallet?: unknown }).fromWallet).toBeUndefined();
     });
   });
 });

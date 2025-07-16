@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { BrowserPlatformAdapter } from "../platform/browser";
 import { withConsole } from "./setup";
 
 /**
@@ -25,14 +24,8 @@ describe("Correct Vana Encryption Implementation", () => {
           "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
         );
 
-        const key1 = await generateEncryptionKey(
-          mockWallet as any,
-          "test seed",
-        );
-        const key2 = await generateEncryptionKey(
-          mockWallet as any,
-          "test seed",
-        );
+        const key1 = await generateEncryptionKey(mockWallet, "test seed");
+        const key2 = await generateEncryptionKey(mockWallet, "test seed");
 
         // Should be deterministic - same wallet + seed = same key
         expect(key1).toBe(key2);
@@ -51,26 +44,16 @@ describe("Correct Vana Encryption Implementation", () => {
         const { encryptUserData, decryptUserData } = await import(
           "../utils/encryption"
         );
-        const platformAdapter = new BrowserPlatformAdapter();
-
         const testData = new Blob(["Hello Vana!"], { type: "text/plain" });
         const walletSignature =
           "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
 
         // This should use password-based PGP encryption
-        const encrypted = await encryptUserData(
-          testData,
-          walletSignature,
-          platformAdapter,
-        );
+        const encrypted = await encryptUserData(testData, walletSignature);
         expect(encrypted).toBeInstanceOf(Blob);
 
         // Should be able to decrypt with same signature
-        const decrypted = await decryptUserData(
-          encrypted,
-          walletSignature,
-          platformAdapter,
-        );
+        const decrypted = await decryptUserData(encrypted, walletSignature);
         expect(decrypted).toBeInstanceOf(Blob);
 
         const decryptedText = await decrypted.text();
@@ -81,23 +64,13 @@ describe("Correct Vana Encryption Implementation", () => {
         const { encryptUserData, decryptUserData } = await import(
           "../utils/encryption"
         );
-        const platformAdapter = new BrowserPlatformAdapter();
-
         const originalText = "Hello Vana!";
         const testData = new Blob([originalText], { type: "text/plain" });
         const signature =
           "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
 
-        const encrypted = await encryptUserData(
-          testData,
-          signature,
-          platformAdapter,
-        );
-        const decrypted = await decryptUserData(
-          encrypted,
-          signature,
-          platformAdapter,
-        );
+        const encrypted = await encryptUserData(testData, signature);
+        const decrypted = await decryptUserData(encrypted, signature);
 
         const decryptedText = await decrypted.text();
         expect(decryptedText).toBe(originalText);
@@ -107,24 +80,14 @@ describe("Correct Vana Encryption Implementation", () => {
         const { encryptUserData, decryptUserData } = await import(
           "../utils/encryption"
         );
-        const platformAdapter = new BrowserPlatformAdapter();
-
         const originalText = "Hello Vana!";
         const testData = new Blob([originalText], { type: "text/plain" });
         // Even an armored key can be used as a password in password-based encryption
         const password =
           "-----BEGIN PGP PUBLIC KEY BLOCK-----\nTest\n-----END PGP PUBLIC KEY BLOCK-----";
 
-        const encrypted = await encryptUserData(
-          testData,
-          password,
-          platformAdapter,
-        );
-        const decrypted = await decryptUserData(
-          encrypted,
-          password,
-          platformAdapter,
-        );
+        const encrypted = await encryptUserData(testData, password);
+        const decrypted = await decryptUserData(encrypted, password);
 
         const decryptedText = await decrypted.text();
         expect(decryptedText).toBe(originalText);
@@ -136,18 +99,13 @@ describe("Correct Vana Encryption Implementation", () => {
         const { encryptWithWalletPublicKey } = await import(
           "../utils/encryption"
         );
-        const platformAdapter = new BrowserPlatformAdapter();
 
         // Use a valid secp256k1 public key format (65 bytes with 0x04 prefix)
         const testData = "secret signature";
         const publicKey =
           "04c68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";
 
-        const encrypted = await encryptWithWalletPublicKey(
-          testData,
-          publicKey,
-          platformAdapter,
-        );
+        const encrypted = await encryptWithWalletPublicKey(testData, publicKey);
         expect(typeof encrypted).toBe("string");
         expect(encrypted).toMatch(/^[0-9a-fA-F]+$/); // Should be hex string
       });
@@ -155,7 +113,6 @@ describe("Correct Vana Encryption Implementation", () => {
       it("should round-trip encrypt/decrypt with wallet keys", async () => {
         const { encryptWithWalletPublicKey, decryptWithWalletPrivateKey } =
           await import("../utils/encryption");
-        const platformAdapter = new BrowserPlatformAdapter();
 
         // Use a valid test key pair from eccrypto-js generation
         const testData = "0x1234567890abcdef"; // simulating a signature
@@ -164,15 +121,10 @@ describe("Correct Vana Encryption Implementation", () => {
         const publicKey =
           "04c68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";
 
-        const encrypted = await encryptWithWalletPublicKey(
-          testData,
-          publicKey,
-          platformAdapter,
-        );
+        const encrypted = await encryptWithWalletPublicKey(testData, publicKey);
         const decrypted = await decryptWithWalletPrivateKey(
           encrypted,
           privateKey,
-          platformAdapter,
         );
 
         expect(decrypted).toBe(testData);
@@ -194,7 +146,7 @@ describe("Correct Vana Encryption Implementation", () => {
       };
 
       // This should use the fixed utility function for deterministic key generation
-      const key = await generateEncryptionKey(mockWallet as any, "test seed");
+      const key = await generateEncryptionKey(mockWallet, "test seed");
       expect(key).toBe("0xsignature123");
       expect(mockWallet.signMessage).toHaveBeenCalledWith({
         account: mockWallet.account,
@@ -205,7 +157,6 @@ describe("Correct Vana Encryption Implementation", () => {
     it("should orchestrate file encryption through controller uploadFileWithPermissions", async () => {
       // Test that controller methods orchestrate the Level 3 utilities correctly
       const { DataController } = await import("../controllers/data");
-      const { BrowserPlatformAdapter } = await import("../platform/browser");
 
       // Mock the wallet and storage manager for the test
       const mockWallet = {
@@ -233,11 +184,11 @@ describe("Correct Vana Encryption Implementation", () => {
         walletClient: mockWallet,
         publicClient: {},
         applicationClient: mockWallet,
-        platform: new BrowserPlatformAdapter(),
+        platform: null as any, // Platform is now handled internally
         storageManager: mockStorageManager,
       };
 
-      const controller = new DataController(mockContext as any);
+      const controller = new DataController(mockContext);
 
       // Mock the addFileWithPermissions method since we don't want to hit the blockchain
       controller.addFileWithPermissions = vi.fn().mockResolvedValue({
@@ -270,7 +221,6 @@ describe("Correct Vana Encryption Implementation", () => {
     it("should orchestrate permission granting through controller addPermissionToFile", async () => {
       // Test that the controller can grant permissions using the correct encryption architecture
       const { DataController } = await import("../controllers/data");
-      const { BrowserPlatformAdapter } = await import("../platform/browser");
 
       const mockWallet = {
         account: { address: "0x123456789abcdef" },
@@ -291,10 +241,10 @@ describe("Correct Vana Encryption Implementation", () => {
         walletClient: mockWallet,
         publicClient: {},
         applicationClient: mockWallet,
-        platform: new BrowserPlatformAdapter(),
+        platform: null as any, // Platform is now handled internally
       };
 
-      const controller = new DataController(mockContext as any);
+      const controller = new DataController(mockContext);
 
       const validatorPublicKey =
         "04c68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";
@@ -317,7 +267,6 @@ describe("Correct Vana Encryption Implementation", () => {
     it("should decrypt files through controller methods using wallet signatures", async () => {
       // Test that the controller can decrypt files using the correct architecture
       const { DataController } = await import("../controllers/data");
-      const { BrowserPlatformAdapter } = await import("../platform/browser");
       const { encryptUserData } = await import("../utils/encryption");
 
       const mockWallet = {
@@ -327,17 +276,16 @@ describe("Correct Vana Encryption Implementation", () => {
 
       const mockContext = {
         walletClient: mockWallet,
-        platform: new BrowserPlatformAdapter(),
+        platform: null as any, // Platform is now handled internally
       };
 
-      const controller = new DataController(mockContext as any);
+      const controller = new DataController(mockContext);
 
       // First encrypt some test data with the same signature
       const originalData = new Blob(["Hello Vana!"], { type: "text/plain" });
       const encryptedData = await encryptUserData(
         originalData,
         "0xsignature123",
-        mockContext.platform,
       );
 
       // Mock fetch to return our encrypted data
@@ -366,18 +314,18 @@ describe("Correct Vana Encryption Implementation", () => {
   });
 
   describe("Level 1: High-Level Client", () => {
-    it("should provide async Vana.create() for initialization", async () => {
+    it("should provide async new Vana() for initialization", async () => {
       // Test that Vana client provides simple high-level API
-      const { Vana } = await import("../index");
+      const { Vana } = await import("../index.node");
 
       // Check that the Vana class exists and can be instantiated
       expect(Vana).toBeDefined();
-      expect(typeof Vana.create).toBe("function");
+      expect(typeof Vana).toBe("function");
     });
 
     it("should provide high-level data controller methods through Vana client", async () => {
       // Test that Vana client exposes the data controller with correct architecture
-      const { Vana } = await import("../index");
+      const { Vana } = await import("../index.node");
 
       // Mock wallet configuration for testing
       const mockWallet = {
@@ -400,7 +348,7 @@ describe("Correct Vana Encryption Implementation", () => {
       };
 
       // Create Vana instance
-      const vana = await Vana.create(config as any);
+      const vana = await new Vana(config);
 
       // Verify that the data controller methods are accessible
       expect(vana.data).toBeDefined();
@@ -412,7 +360,7 @@ describe("Correct Vana Encryption Implementation", () => {
 
     it("should provide one-liner file upload with permissions", async () => {
       // Test the high-level uploadFileWithPermissions method that combines all steps
-      const { Vana } = await import("../index");
+      const { Vana } = await import("../index.node");
 
       // Mock wallet configuration
       const mockWallet = {
@@ -447,7 +395,7 @@ describe("Correct Vana Encryption Implementation", () => {
         },
       };
 
-      const vana = await Vana.create(config as any);
+      const vana = await new Vana(config);
 
       // Mock the blockchain interaction
       vana.data.addFileWithPermissions = vi.fn().mockResolvedValue({
@@ -478,7 +426,7 @@ describe("Correct Vana Encryption Implementation", () => {
 
     it("should provide one-liner permission granting", async () => {
       // Test the high-level addPermissionToFile method
-      const { Vana } = await import("../index");
+      const { Vana } = await import("../index.node");
 
       const mockWallet = {
         account: { address: "0x123456789abcdef" },
@@ -500,7 +448,7 @@ describe("Correct Vana Encryption Implementation", () => {
         walletClient: mockWallet,
       };
 
-      const vana = await Vana.create(config as any);
+      const vana = await new Vana(config);
 
       const validatorPublicKey =
         "04c68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";
@@ -532,7 +480,6 @@ describe("Correct Vana Encryption Implementation", () => {
           encryptUserData,
           encryptWithWalletPublicKey,
         } = await import("../utils/encryption");
-        const platformAdapter = new BrowserPlatformAdapter();
 
         mockWallet.signMessage.mockResolvedValue(
           "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
@@ -541,11 +488,10 @@ describe("Correct Vana Encryption Implementation", () => {
         const originalData = new Blob(["Private user data"], {
           type: "text/plain",
         });
-        const encryptionKey = await generateEncryptionKey(mockWallet as any);
+        const encryptionKey = await generateEncryptionKey(mockWallet);
         const encryptedData = await encryptUserData(
           originalData,
           encryptionKey,
-          platformAdapter,
         );
 
         console.log("Data encrypted with wallet signature");
@@ -556,7 +502,6 @@ describe("Correct Vana Encryption Implementation", () => {
         const encryptedKey = await encryptWithWalletPublicKey(
           encryptionKey,
           validatorPublicKey,
-          platformAdapter,
         );
 
         console.log("Encryption key shared with validator");

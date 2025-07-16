@@ -22,8 +22,6 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "vana-sdk": ["../../packages/vana-sdk/src"],
-      "vana-sdk/*": ["../../packages/vana-sdk/src/*"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx", "next-env.d.ts", ".next/types/**/*.ts"],

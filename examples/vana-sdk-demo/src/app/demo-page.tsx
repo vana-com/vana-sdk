@@ -31,9 +31,9 @@ import {
   UntrustServerTypedData,
   GrantFile,
   Hash,
+  retrieveGrantFile,
 } from "vana-sdk";
 import { privateKeyToAccount } from "viem/accounts";
-import { BrowserPlatformAdapter } from "vana-sdk/platform";
 
 // Types for demo app state
 
@@ -94,8 +94,6 @@ export default function Home() {
   const { data: walletClient } = useWalletClient();
   const chainId = useChainId();
 
-  // Create platform adapter instance once for reuse
-  const platformAdapter = new BrowserPlatformAdapter();
 
   const [vana, setVana] = useState<Vana | null>(null);
   const [userFiles, setUserFiles] = useState<
@@ -587,7 +585,7 @@ export default function Home() {
             },
           };
 
-          const vanaInstance = await Vana.create({
+          const vanaInstance = new Vana({
             walletClient: walletClient as WalletClient & { chain: VanaChain }, // Type compatibility with Vana SDK
             relayerCallbacks,
             subgraphUrl: sdkConfig.subgraphUrl || undefined,
@@ -786,8 +784,7 @@ export default function Home() {
       // The SDK stores the grant file in IPFS and puts the URL in typedData.message.grant
       const grantUrl = typedData.message.grant;
 
-      // Import the grant utilities to retrieve the stored grant file
-      const { retrieveGrantFile } = await import("vana-sdk");
+      // Retrieve the stored grant file
       const grantFile = await retrieveGrantFile(grantUrl);
 
       // Show preview to user
@@ -949,7 +946,6 @@ export default function Home() {
       const encrypted = await encryptUserData(
         dataBlob,
         generatedEncryptionKey,
-        platformAdapter,
       );
       setEncryptedData(encrypted);
       setEncryptionStatus("✅ Data encrypted successfully!");
@@ -976,7 +972,6 @@ export default function Home() {
       const decrypted = await decryptUserData(
         encryptedData,
         generatedEncryptionKey,
-        platformAdapter,
       );
       const decryptedText = await decrypted.text();
       setDecryptedData(decryptedText);
@@ -1378,7 +1373,6 @@ export default function Home() {
           const permissionInfo = await vana.permissions.getPermissionInfo(
             BigInt(permissionId),
           );
-          const { retrieveGrantFile } = await import("vana-sdk");
           const grantFile = await retrieveGrantFile(permissionInfo.grant);
 
           setLastUsedPermissionId(permissionId.toString());

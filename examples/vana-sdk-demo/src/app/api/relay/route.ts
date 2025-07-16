@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Hash } from "viem";
 import { createRelayerVana } from "@/lib/relayer";
-import { handleRelayerRequest } from "vana-sdk/index.node";
+import { handleRelayerRequest } from "vana-sdk";
 import type { GenericTypedData } from "vana-sdk";
 
 export async function POST(request: NextRequest) {
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
       "🔍 Debug - Received typed data:",
       JSON.stringify(
         typedData,
-        (key, value) => (typeof value === "bigint" ? value.toString() : value),
+        (_key, value) => (typeof value === "bigint" ? value.toString() : value),
         2,
       ),
     );

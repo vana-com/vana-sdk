@@ -3,7 +3,7 @@ import { Vana } from "../index.node";
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { mokshaTestnet } from "../config/chains";
-import type { VanaChain } from "../types";
+import type { VanaChain, WalletConfig, VanaConfig } from "../types";
 
 // Mock node platform adapter
 vi.mock("../platform/node", () => ({
@@ -62,10 +62,10 @@ describe("Node.js Index Entry Point", () => {
     validChain = mokshaTestnet;
   });
 
-  describe("Async Vana.create() factory method", () => {
+  describe("Vana constructor", () => {
     it("should create a Vana instance with wallet client config", async () => {
-      const vana = await Vana.create({
-        walletClient: validWalletClient as any,
+      const vana = new Vana({
+        walletClient: validWalletClient as WalletConfig["walletClient"],
       });
 
       expect(vana).toBeInstanceOf(Vana);
@@ -77,7 +77,7 @@ describe("Node.js Index Entry Point", () => {
     });
 
     it("should create a Vana instance with chain-only config", async () => {
-      const vana = await Vana.create({
+      const vana = new Vana({
         chainId: validChain.id,
         account: testAccount,
       });
@@ -91,8 +91,8 @@ describe("Node.js Index Entry Point", () => {
     });
 
     it("should create instance with full configuration", async () => {
-      const vana = await Vana.create({
-        walletClient: validWalletClient as any,
+      const vana = new Vana({
+        walletClient: validWalletClient as WalletConfig["walletClient"],
         relayerCallbacks: {
           submitPermissionGrant: async (_typedData, _signature) => "0xtxhash",
           submitPermissionRevoke: async (_typedData, _signature) => "0xtxhash",
@@ -105,20 +105,10 @@ describe("Node.js Index Entry Point", () => {
     });
 
     it("should reject with error for invalid configuration", async () => {
-      await expect(Vana.create({} as any)).rejects.toThrow();
+      expect(() => new Vana({} as VanaConfig)).toThrow();
     });
   });
 
-  describe("Constructor access", () => {
-    it("should not allow direct constructor access", () => {
-      // TypeScript should prevent this, but let's test the runtime behavior
-      expect(() => {
-        // This should fail since constructor is private
-        // @ts-expect-error Testing private constructor
-        new Vana({ walletClient: validWalletClient as any });
-      }).toThrow();
-    });
-  });
 
   describe("Export verification", () => {
     it("should export all expected modules and types", () => {
@@ -216,7 +206,7 @@ describe("Node.js Index Entry Point", () => {
 
   describe("Node.js specific functionality", () => {
     it("should use NodePlatformAdapter by default", async () => {
-      const vana = await Vana.create({
+      const vana = new Vana({
         chainId: validChain.id,
         account: testAccount,
       });

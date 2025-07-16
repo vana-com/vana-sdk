@@ -92,7 +92,6 @@ export default function Home() {
   const { data: walletClient } = useWalletClient();
   const chainId = useChainId();
 
-
   const [vana, setVana] = useState<Vana | null>(null);
   const [userFiles, setUserFiles] = useState<
     (UserFile & { source?: "discovered" | "looked-up" | "uploaded" })[]
@@ -924,6 +923,11 @@ export default function Home() {
       return;
     }
 
+    if (!vana) {
+      setEncryptionStatus("❌ Please connect your wallet first");
+      return;
+    }
+
     setIsEncrypting(true);
     setEncryptionStatus("Encrypting data...");
 
@@ -941,7 +945,7 @@ export default function Home() {
         setOriginalFileName(fileName);
       }
 
-      const encrypted = await vana!.encryptUserData(
+      const encrypted = await vana.encryptUserData(
         dataBlob,
         generatedEncryptionKey,
       );
@@ -963,11 +967,16 @@ export default function Home() {
       return;
     }
 
+    if (!vana) {
+      setEncryptionStatus("❌ Please connect your wallet first");
+      return;
+    }
+
     setIsEncrypting(true);
     setEncryptionStatus("Decrypting data...");
 
     try {
-      const decrypted = await vana!.decryptUserData(
+      const decrypted = await vana.decryptUserData(
         encryptedData,
         generatedEncryptionKey,
       );

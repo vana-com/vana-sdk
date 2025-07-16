@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Table,
   TableHeader,
@@ -11,6 +11,7 @@ import {
   Chip,
   Spinner,
   Pagination,
+  SortDescriptor,
 } from "@heroui/react";
 import { GrantedPermission, convertIpfsUrl } from "vana-sdk";
 import { Shield, ExternalLink, Eye, RefreshCw } from "lucide-react";
@@ -57,14 +58,41 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
 
   // Pagination state
   const [currentPage, setCurrentPage] = React.useState(1);
+  const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({
+    column: "id",
+    direction: "descending",
+  });
   const ITEMS_PER_PAGE = 10;
 
-  // Calculate paginated items
+  // Calculate sorted and paginated items
   const paginatedPermissions = useMemo(() => {
+    const sortedPermissions = [...userPermissions];
+
+    // Sort permissions based on sortDescriptor
+    if (sortDescriptor.column) {
+      sortedPermissions.sort((a, b) => {
+        const aValue = a[sortDescriptor.column as keyof typeof a];
+        const bValue = b[sortDescriptor.column as keyof typeof b];
+
+        let comparison = 0;
+        if (typeof aValue === "number" && typeof bValue === "number") {
+          comparison = aValue - bValue;
+        } else if (typeof aValue === "bigint" && typeof bValue === "bigint") {
+          comparison = aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+        } else {
+          comparison = String(aValue).localeCompare(String(bValue));
+        }
+
+        return sortDescriptor.direction === "descending"
+          ? -comparison
+          : comparison;
+      });
+    }
+
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
-    return userPermissions.slice(startIndex, endIndex);
-  }, [userPermissions, currentPage, ITEMS_PER_PAGE]);
+    return sortedPermissions.slice(startIndex, endIndex);
+  }, [userPermissions, currentPage, ITEMS_PER_PAGE, sortDescriptor]);
 
   const totalPages = Math.ceil(userPermissions.length / ITEMS_PER_PAGE);
 
@@ -105,11 +133,11 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
   };
 
   const columns = [
-    { key: "permissionId", label: "Permission ID" },
-    { key: "operation", label: "Operation" },
-    { key: "files", label: "Files" },
-    { key: "parameters", label: "Parameters" },
-    { key: "actions", label: "Actions" },
+    { key: "id", label: "Permission ID", allowsSorting: true },
+    { key: "operation", label: "Operation", allowsSorting: true },
+    { key: "files", label: "Files", allowsSorting: false },
+    { key: "parameters", label: "Parameters", allowsSorting: false },
+    { key: "actions", label: "Actions", allowsSorting: false },
   ];
 
   if (isLoading) {
@@ -171,6 +199,8 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
       <Table
         aria-label="Permissions table"
         removeWrapper
+        sortDescriptor={sortDescriptor}
+        onSortChange={setSortDescriptor}
         classNames={{
           th: "bg-default-100 text-default-700",
           td: "py-4",
@@ -178,7 +208,11 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
       >
         <TableHeader columns={columns}>
           {(column) => (
-            <TableColumn key={column.key} className="text-left">
+            <TableColumn
+              key={column.key}
+              className="text-left"
+              allowsSorting={column.allowsSorting}
+            >
               {column.label}
             </TableColumn>
           )}

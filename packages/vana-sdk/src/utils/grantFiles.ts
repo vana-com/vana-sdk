@@ -81,9 +81,9 @@ export async function storeGrantFile(
 }
 
 /**
- * Retrieves a grant file from IPFS.
+ * Retrieves a grant file from any URL.
  *
- * @param grantUrl - The IPFS URL (e.g., "ipfs://QmHash...")
+ * @param grantUrl - The grant file URL (supports HTTP/HTTPS, ipfs:// protocol, or IPFS gateway URLs)
  * @param _relayerUrl - URL of the relayer service (optional)
  * @returns Promise resolving to the grant file
  */
@@ -92,30 +92,23 @@ export async function retrieveGrantFile(
   _relayerUrl?: string,
 ): Promise<GrantFile> {
   try {
-    // Extract IPFS hash from URL
-    const ipfsHash = grantUrl.startsWith("ipfs://")
-      ? grantUrl.replace("ipfs://", "")
-      : grantUrl;
+    // Check if the URL is a gateway URL instead of ipfs:// protocol
+    if (grantUrl.startsWith("http") && grantUrl.includes("/ipfs/")) {
+      console.warn(
+        `⚠️  Grant URL uses HTTP gateway format instead of ipfs:// protocol. ` +
+          `Found: ${grantUrl}. ` +
+          `Consider using ipfs:// format for better protocol-agnostic storage.`,
+      );
+    }
 
-    // Try multiple IPFS gateways
-    const gateways = [
-      `https://gateway.pinata.cloud/ipfs/${ipfsHash}`,
-      `https://ipfs.io/ipfs/${ipfsHash}`,
-      `https://dweb.link/ipfs/${ipfsHash}`,
-    ];
-
-    for (const gatewayUrl of gateways) {
+    // Try direct fetch first (works for any HTTP/HTTPS URL)
+    if (grantUrl.startsWith("http")) {
       try {
-        // Create a timeout promise
         const timeoutPromise = new Promise<never>((_, reject) => {
           setTimeout(() => reject(new Error("Request timeout")), 10000);
         });
 
-        // Race between fetch and timeout
-        const response = await Promise.race([
-          fetch(gatewayUrl),
-          timeoutPromise,
-        ]);
+        const response = await Promise.race([fetch(grantUrl), timeoutPromise]);
 
         if (response.ok) {
           const text = await response.text();
@@ -125,14 +118,52 @@ export async function retrieveGrantFile(
             return grantFile;
           }
         }
-      } catch (gatewayError) {
-        console.warn(`Gateway ${gatewayUrl} failed:`, gatewayError);
-        continue; // Try next gateway
+      } catch (directFetchError) {
+        console.warn(`Direct fetch failed for ${grantUrl}:`, directFetchError);
+        // Continue to IPFS fallback if this might be an IPFS URL
+      }
+    }
+
+    // Try IPFS gateways as fallback (for ipfs:// URLs or failed gateway URLs)
+    const { extractIpfsHash } = await import("./ipfs");
+    const ipfsHash = extractIpfsHash(grantUrl);
+
+    if (ipfsHash) {
+      // Try multiple IPFS gateways
+      const gateways = [
+        `https://gateway.pinata.cloud/ipfs/${ipfsHash}`,
+        `https://ipfs.io/ipfs/${ipfsHash}`,
+        `https://dweb.link/ipfs/${ipfsHash}`,
+      ];
+
+      for (const gatewayUrl of gateways) {
+        try {
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error("Request timeout")), 10000);
+          });
+
+          const response = await Promise.race([
+            fetch(gatewayUrl),
+            timeoutPromise,
+          ]);
+
+          if (response.ok) {
+            const text = await response.text();
+            const grantFile = JSON.parse(text);
+
+            if (validateGrantFile(grantFile)) {
+              return grantFile;
+            }
+          }
+        } catch (gatewayError) {
+          console.warn(`Gateway ${gatewayUrl} failed:`, gatewayError);
+          continue; // Try next gateway
+        }
       }
     }
 
     throw new NetworkError(
-      `Failed to retrieve grant file from any IPFS gateway: ${grantUrl}`,
+      `Failed to retrieve grant file from ${grantUrl}. Tried direct fetch${ipfsHash ? " and IPFS gateways" : ""}.`,
     );
   } catch (error) {
     if (error instanceof NetworkError) {

@@ -16,7 +16,8 @@ import {
   StorageManager,
   StorageProvider,
   PinataStorage,
-  ServerIPFSStorage,
+  ServerProxyStorage,
+  GoogleDriveStorage,
   WalletClient,
   Schema,
   Refiner,
@@ -286,6 +287,9 @@ export default function Home() {
     pinataJwt: "",
     pinataGateway: "https://gateway.pinata.cloud",
     defaultStorageProvider: "app-ipfs",
+    googleDriveAccessToken: "",
+    googleDriveRefreshToken: "",
+    googleDriveExpiresAt: null as number | null,
   });
 
   // App Configuration state
@@ -298,11 +302,16 @@ export default function Home() {
     if (
       (sdkConfig.defaultStorageProvider === "user-ipfs" &&
         !sdkConfig.pinataJwt) ||
-      sdkConfig.defaultStorageProvider === "google-drive" // Google Drive not implemented yet
+      (sdkConfig.defaultStorageProvider === "google-drive" &&
+        !sdkConfig.googleDriveAccessToken)
     ) {
       setSdkConfig((prev) => ({ ...prev, defaultStorageProvider: "app-ipfs" }));
     }
-  }, [sdkConfig.pinataJwt, sdkConfig.defaultStorageProvider]);
+  }, [
+    sdkConfig.pinataJwt,
+    sdkConfig.defaultStorageProvider,
+    sdkConfig.googleDriveAccessToken,
+  ]);
 
   // Set up fetch interceptor for CORS-restricted URLs
   useEffect(() => {
@@ -345,6 +354,109 @@ export default function Home() {
     };
   }, []);
 
+  // Google Drive OAuth message listener
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data.type === "GOOGLE_DRIVE_AUTH_SUCCESS") {
+        const { tokens } = event.data;
+        setSdkConfig((prev) => ({
+          ...prev,
+          googleDriveAccessToken: tokens.accessToken,
+          googleDriveRefreshToken: tokens.refreshToken || "",
+          googleDriveExpiresAt: tokens.expiresAt,
+        }));
+        console.info("✅ Google Drive authentication successful");
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, []);
+
+  // Google Drive authentication handlers
+  const handleGoogleDriveAuth = () => {
+    const authWindow = window.open(
+      "/api/auth/google-drive/authorize",
+      "google-drive-auth",
+      "width=600,height=700,scrollbars=yes,resizable=yes",
+    );
+
+    // Optional: Monitor auth window closure
+    const checkClosed = setInterval(() => {
+      if (authWindow?.closed) {
+        clearInterval(checkClosed);
+        console.info("Google Drive auth window closed");
+      }
+    }, 1000);
+  };
+
+  const handleGoogleDriveDisconnect = () => {
+    setSdkConfig((prev) => ({
+      ...prev,
+      googleDriveAccessToken: "",
+      googleDriveRefreshToken: "",
+      googleDriveExpiresAt: null,
+      defaultStorageProvider:
+        prev.defaultStorageProvider === "google-drive"
+          ? "app-ipfs"
+          : prev.defaultStorageProvider,
+    }));
+    console.info("Google Drive disconnected");
+  };
+
+  // Auto-refresh Google Drive token when expired
+  useEffect(() => {
+    if (
+      !sdkConfig.googleDriveAccessToken ||
+      !sdkConfig.googleDriveRefreshToken
+    ) {
+      return;
+    }
+
+    const checkTokenExpiry = async () => {
+      const now = Date.now();
+      const expiresAt = sdkConfig.googleDriveExpiresAt || 0;
+      const timeToExpiry = expiresAt - now;
+
+      // Refresh 5 minutes before expiry
+      if (timeToExpiry > 0 && timeToExpiry < 5 * 60 * 1000) {
+        try {
+          const response = await fetch("/api/auth/google-drive/refresh", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              refreshToken: sdkConfig.googleDriveRefreshToken,
+            }),
+          });
+
+          if (response.ok) {
+            const { accessToken, expiresAt: newExpiresAt } =
+              await response.json();
+            setSdkConfig((prev) => ({
+              ...prev,
+              googleDriveAccessToken: accessToken,
+              googleDriveExpiresAt: newExpiresAt,
+            }));
+            console.info("✅ Google Drive token refreshed");
+          } else {
+            console.warn("Failed to refresh Google Drive token");
+            handleGoogleDriveDisconnect();
+          }
+        } catch (error) {
+          console.error("Error refreshing Google Drive token:", error);
+          handleGoogleDriveDisconnect();
+        }
+      }
+    };
+
+    const interval = setInterval(checkTokenExpiry, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, [
+    sdkConfig.googleDriveAccessToken,
+    sdkConfig.googleDriveRefreshToken,
+    sdkConfig.googleDriveExpiresAt,
+  ]);
+
   // Initialize Vana SDK when wallet is connected or user IPFS config changes
   useEffect(() => {
     if (isConnected && walletClient && walletClient.account) {
@@ -352,12 +464,13 @@ export default function Home() {
         try {
           // Initialize storage providers
           console.info("🏢 Setting up app-managed IPFS storage");
-          const serverIPFS = new ServerIPFSStorage({
-            uploadEndpoint: "/api/ipfs/upload",
+          const serverProxy = new ServerProxyStorage({
+            uploadUrl: "/api/ipfs/upload",
+            downloadUrl: "/api/ipfs/download", // Not actually used in demo
           });
 
           const storageProviders: Record<string, StorageProvider> = {
-            "app-ipfs": serverIPFS,
+            "app-ipfs": serverProxy,
           };
 
           // Add user-managed IPFS if configured
@@ -369,36 +482,35 @@ export default function Home() {
             });
             storageProviders["user-ipfs"] = pinataStorage;
 
-            // Test the connection
-            pinataStorage
-              .testConnection()
-              .then(
-                (result: {
-                  success: boolean;
-                  data?: unknown;
-                  error?: unknown;
-                }) => {
-                  if (result.success) {
-                    console.info(
-                      "✅ User Pinata connection verified:",
-                      result.data,
-                    );
-                  } else {
-                    console.warn(
-                      "⚠️ User Pinata connection failed:",
-                      result.error,
-                    );
-                  }
-                },
-              );
+            // Pinata storage configured (testConnection method not available)
+          }
+
+          // Add Google Drive if configured
+          if (sdkConfig.googleDriveAccessToken) {
+            console.info("🔗 Adding Google Drive storage");
+            const googleDriveStorage = new GoogleDriveStorage({
+              accessToken: sdkConfig.googleDriveAccessToken,
+              refreshToken: sdkConfig.googleDriveRefreshToken,
+              // Client credentials not needed for storage operations
+              // Token refresh is handled by our API endpoint
+            });
+            storageProviders["google-drive"] = googleDriveStorage;
           }
 
           // Determine the actual default storage provider based on what's available
-          const actualDefaultProvider =
+          let actualDefaultProvider = sdkConfig.defaultStorageProvider;
+
+          if (
             sdkConfig.defaultStorageProvider === "user-ipfs" &&
             !sdkConfig.pinataJwt
-              ? "app-ipfs" // Fallback to app-ipfs if user-ipfs is selected but not configured
-              : sdkConfig.defaultStorageProvider;
+          ) {
+            actualDefaultProvider = "app-ipfs"; // Fallback to app-ipfs if user-ipfs is selected but not configured
+          } else if (
+            sdkConfig.defaultStorageProvider === "google-drive" &&
+            !sdkConfig.googleDriveAccessToken
+          ) {
+            actualDefaultProvider = "app-ipfs"; // Fallback to app-ipfs if google-drive is selected but not configured
+          }
 
           // Initialize Vana SDK with storage configuration
           const baseUrl = sdkConfig.relayerUrl || `${window.location.origin}`;
@@ -1187,8 +1299,11 @@ export default function Home() {
           return [...prev, { ...file, source: "looked-up" as const }];
         }
       });
-      setFileLookupStatus(""); // Clear status since file appearance provides feedback
+      setFileLookupStatus("✅ File found and added to the list!"); // Show success message
       setFileLookupId(""); // Clear the input
+
+      // Clear success message after 2 seconds
+      setTimeout(() => setFileLookupStatus(""), 2000);
     } catch (error) {
       console.error("❌ Error looking up file:", error);
       let userMessage = "❌ Failed to lookup file: ";
@@ -1210,8 +1325,11 @@ export default function Home() {
     }
 
     // Check if Google Drive is selected but not configured
-    if (sdkConfig.defaultStorageProvider === "google-drive") {
-      console.error("Google Drive storage is not yet implemented");
+    if (
+      sdkConfig.defaultStorageProvider === "google-drive" &&
+      !sdkConfig.googleDriveAccessToken
+    ) {
+      console.error("Google Drive storage selected but not authenticated");
       return;
     }
 
@@ -1235,7 +1353,9 @@ export default function Home() {
         ? "App-Managed IPFS"
         : providerName === "user-ipfs"
           ? "User-Managed IPFS"
-          : String(providerName).toUpperCase();
+          : providerName === "google-drive"
+            ? "Google Drive"
+            : String(providerName).toUpperCase();
 
     setIsUploadingToChain(true);
     console.info(`📤 Uploading encrypted data via ${displayName}...`);
@@ -2425,6 +2545,8 @@ export default function Home() {
               onAppConfigChange={(config) =>
                 setAppConfig((prev) => ({ ...prev, ...config }))
               }
+              onGoogleDriveAuth={handleGoogleDriveAuth}
+              onGoogleDriveDisconnect={handleGoogleDriveDisconnect}
             />
           </div>
         )}

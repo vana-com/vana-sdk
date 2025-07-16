@@ -281,7 +281,7 @@ describe("Grant Files Utils", () => {
       });
 
       await expect(retrieveGrantFile("ipfs://QmMissing")).rejects.toThrow(
-        "Failed to retrieve grant file from any IPFS gateway",
+        "Failed to retrieve grant file from ipfs://QmMissing. Tried direct fetch and IPFS gateways",
       );
     });
 
@@ -291,7 +291,7 @@ describe("Grant Files Utils", () => {
       mockFetch.mockRejectedValue(new Error("Request timeout"));
 
       await expect(retrieveGrantFile("ipfs://QmTimeout")).rejects.toThrow(
-        "Failed to retrieve grant file from any IPFS gateway",
+        "Failed to retrieve grant file from ipfs://QmTimeout. Tried direct fetch and IPFS gateways",
       );
     });
 
@@ -303,7 +303,65 @@ describe("Grant Files Utils", () => {
       });
 
       await expect(retrieveGrantFile("ipfs://QmBadJSON")).rejects.toThrow(
-        "Failed to retrieve grant file from any IPFS gateway",
+        "Failed to retrieve grant file from ipfs://QmBadJSON",
+      );
+    });
+
+    it("should retrieve grant file from regular HTTP URL", async () => {
+      const mockFetch = fetch as Mock;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockGrantFile),
+        text: () => Promise.resolve(JSON.stringify(mockGrantFile)),
+      });
+
+      const result = await retrieveGrantFile(
+        "https://example.com/grants/grant123.json",
+      );
+
+      expect(result).toEqual(mockGrantFile);
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://example.com/grants/grant123.json",
+      );
+    });
+
+    it("should try IPFS gateways as fallback when direct HTTP fetch fails", async () => {
+      const mockFetch = fetch as Mock;
+
+      // First call (direct fetch) fails
+      mockFetch.mockRejectedValueOnce(new Error("Direct fetch failed"));
+
+      // Second call (IPFS gateway) succeeds
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockGrantFile),
+        text: () => Promise.resolve(JSON.stringify(mockGrantFile)),
+      });
+
+      const result = await retrieveGrantFile(
+        "https://gateway.pinata.cloud/ipfs/QmGrantFile123",
+      );
+
+      expect(result).toEqual(mockGrantFile);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        1,
+        "https://gateway.pinata.cloud/ipfs/QmGrantFile123",
+      );
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        2,
+        "https://gateway.pinata.cloud/ipfs/QmGrantFile123",
+      );
+    });
+
+    it("should fail gracefully for non-IPFS URLs when direct fetch fails", async () => {
+      const mockFetch = fetch as Mock;
+      mockFetch.mockRejectedValueOnce(new Error("Server error"));
+
+      await expect(
+        retrieveGrantFile("https://example.com/grants/missing.json"),
+      ).rejects.toThrow(
+        "Failed to retrieve grant file from https://example.com/grants/missing.json. Tried direct fetch",
       );
     });
   });

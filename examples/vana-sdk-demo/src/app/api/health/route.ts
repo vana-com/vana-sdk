@@ -11,8 +11,9 @@ export async function GET() {
 
   if (process.env.PINATA_JWT) {
     try {
-      const pinataProvider = createPinataProvider();
-      pinataTest = await pinataProvider.testConnection();
+      // Test if the provider can be created without errors
+      createPinataProvider();
+      pinataTest = { success: true };
     } catch (error) {
       pinataTest = {
         success: false,

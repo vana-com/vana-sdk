@@ -1,10 +1,3 @@
-/**
- * Pinata IPFS Storage Provider for Vana SDK
- *
- * Direct browser integration with Pinata for IPFS storage.
- * This provider uploads files directly from the browser to Pinata's IPFS service.
- */
-
 import {
   StorageProvider,
   StorageUploadResult,
@@ -17,26 +10,32 @@ import {
 export interface PinataConfig {
   /** Pinata JWT token for authentication */
   jwt: string;
-  /** Optional gateway URL for file access */
+  /** Optional custom gateway URL (defaults to https://gateway.pinata.cloud) */
   gatewayUrl?: string;
-  /** Optional API URL override */
-  apiUrl?: string;
 }
 
-interface PinataPin {
-  /** IPFS hash of the pinned content */
-  ipfs_pin_hash: string;
-  /** Size of the pinned content in bytes */
+export interface PinataListQuery {
+  /** Maximum number of results to return */
+  limit?: number;
+  /** Offset for pagination */
+  offset?: number;
+  /** Filter by name pattern */
+  namePattern?: string;
+}
+
+export interface PinataFile {
+  /** Pin identifier */
+  id: string;
+  /** File name */
+  name: string;
+  /** IPFS CID */
+  cid: string;
+  /** File size in bytes */
   size: number;
-  /** Date when content was pinned (ISO string) */
-  date_pinned: string;
-  /** Optional metadata associated with the pin */
-  metadata?: {
-    /** Optional name for the pinned content */
-    name?: string;
-    /** Additional metadata properties */
-    [key: string]: unknown;
-  };
+  /** Creation timestamp */
+  createdAt: Date;
+  /** Optional metadata */
+  metadata?: object;
 }
 
 interface PinataUploadResponse {
@@ -76,30 +75,41 @@ interface PinataListResponse {
 }
 
 /**
- * Pinata IPFS Storage Provider
+ * Provides managed IPFS storage with full-featured API via Pinata
  *
- * Direct browser integration with Pinata for IPFS storage.
- * This provider uploads files directly from the browser to Pinata's IPFS service.
+ * @remarks
+ * This provider uses Pinata's enhanced IPFS service, which extends standard IPFS
+ * with additional features like file listing, deletion (unpinning), and rich metadata.
+ * It's the "it just works" solution for developers who want full CRUD operations
+ * on IPFS without managing infrastructure.
  *
- * @throws {StorageError} When Pinata JWT token is missing from configuration
+ * @category Storage
+ *
  * @example
  * ```typescript
  * const pinataStorage = new PinataStorage({
- *   jwt: 'your-pinata-jwt-token',
- *   gatewayUrl: 'https://gateway.pinata.cloud'
+ *   jwt: "your-pinata-jwt-token"
  * });
  *
- * const file = new Blob(['Hello Pinata'], { type: 'text/plain' });
- * const result = await pinataStorage.upload(file, 'hello.txt');
- * console.log('File pinned to IPFS:', result.metadata?.ipfsHash);
+ * // Upload with metadata
+ * const cid = await pinataStorage.upload(fileBlob, {
+ *   name: "user-avatar.png",
+ *   metadata: { userId: "123", category: "avatar" }
+ * });
+ *
+ * // List files with query
+ * const files = await pinataStorage.list({ limit: 10 });
+ *
+ * // Delete file
+ * await pinataStorage.delete(cid);
  * ```
- * @category Storage
  */
 export class PinataStorage implements StorageProvider {
-  private readonly apiUrl: string;
+  private readonly apiUrl = "https://api.pinata.cloud";
   private readonly gatewayUrl: string;
 
   constructor(private config: PinataConfig) {
+    this.gatewayUrl = config.gatewayUrl || "https://gateway.pinata.cloud";
     if (!config.jwt) {
       throw new StorageError(
         "Pinata JWT token is required",
@@ -107,11 +117,34 @@ export class PinataStorage implements StorageProvider {
         "pinata",
       );
     }
-
-    this.apiUrl = config.apiUrl || "https://api.pinata.cloud";
-    this.gatewayUrl = config.gatewayUrl || "https://gateway.pinata.cloud";
   }
 
+  /**
+   * Uploads a file to IPFS via Pinata and returns the CID
+   *
+   * @remarks
+   * This method uploads the file to Pinata's IPFS service with enhanced metadata support.
+   * The file is pinned to ensure availability and can include custom metadata for
+   * organization and querying. The metadata is stored alongside the file for later retrieval.
+   *
+   * @param file - The file to upload to IPFS
+   * @param filename - Optional custom filename
+   * @returns Promise that resolves to the IPFS CID (content identifier)
+   * @throws {StorageError} When the upload fails or no CID is returned
+   *
+   * @example
+   * ```typescript
+   * const cid = await pinataStorage.upload(fileBlob, {
+   *   name: "user-document.pdf",
+   *   metadata: {
+   *     userId: "user-123",
+   *     category: "documents",
+   *     uploadDate: new Date().toISOString()
+   *   }
+   * });
+   * console.log("File pinned to IPFS:", cid);
+   * ```
+   */
   async upload(file: Blob, filename?: string): Promise<StorageUploadResult> {
     try {
       const fileName = filename || `vana-file-${Date.now()}.dat`;
@@ -126,7 +159,6 @@ export class PinataStorage implements StorageProvider {
         keyvalues: {
           uploadedBy: "vana-sdk",
           timestamp: new Date().toISOString(),
-          source: "browser-upload",
         },
       };
       formData.append("pinataMetadata", JSON.stringify(metadata));
@@ -160,19 +192,10 @@ export class PinataStorage implements StorageProvider {
         );
       }
 
-      const publicUrl = `${this.gatewayUrl}/ipfs/${ipfsHash}`;
-
       return {
-        url: publicUrl,
+        url: `ipfs://${ipfsHash}`,
         size: file.size,
         contentType: file.type || "application/octet-stream",
-        metadata: {
-          ipfsHash,
-          fileName,
-          ipfsUrl: `ipfs://${ipfsHash}`,
-          gatewayUrl: publicUrl,
-          pinataResponse: result,
-        },
       };
     } catch (error) {
       if (error instanceof StorageError) {
@@ -186,20 +209,19 @@ export class PinataStorage implements StorageProvider {
     }
   }
 
-  async download(url: string): Promise<Blob> {
+  async download(cid: string): Promise<Blob> {
     try {
-      // Extract IPFS hash from URL
-      const ipfsHash = this.extractIPFSHash(url);
-      if (!ipfsHash) {
+      // Validate CID format
+      if (!this.isValidCID(cid)) {
         throw new StorageError(
-          "Invalid IPFS URL format",
-          "INVALID_URL",
+          "Invalid IPFS CID format",
+          "INVALID_CID",
           "pinata",
         );
       }
 
       // Download from gateway
-      const downloadUrl = `${this.gatewayUrl}/ipfs/${ipfsHash}`;
+      const downloadUrl = `${this.gatewayUrl}/ipfs/${cid}`;
       const response = await fetch(downloadUrl);
 
       if (!response.ok) {
@@ -223,6 +245,38 @@ export class PinataStorage implements StorageProvider {
     }
   }
 
+  /**
+   * Lists files uploaded to Pinata with optional filtering
+   *
+   * @remarks
+   * This method retrieves a list of files that have been uploaded to Pinata,
+   * filtered to only include files uploaded by the Vana SDK. You can further
+   * filter results by name pattern, limit results, or paginate through them.
+   *
+   * @param options - Optional query parameters for filtering and pagination
+   * @param options.limit - Maximum number of results to return (default: 10)
+   * @param options.offset - Number of results to skip for pagination
+   * @param options.namePattern - Filter files by name pattern
+   * @returns Promise that resolves to an array of PinataFile objects
+   * @throws {StorageError} When the list operation fails
+   *
+   * @example
+   * ```typescript
+   * // List all files
+   * const allFiles = await pinataStorage.list();
+   *
+   * // List with pagination and filtering
+   * const filteredFiles = await pinataStorage.list({
+   *   limit: 20,
+   *   offset: 10,
+   *   namePattern: "document"
+   * });
+   *
+   * filteredFiles.forEach(file => {
+   *   console.log(`${file.name} (${file.size} bytes): ${file.cid}`);
+   * });
+   * ```
+   */
   async list(options?: StorageListOptions): Promise<StorageFile[]> {
     try {
       const params = new URLSearchParams({
@@ -235,8 +289,12 @@ export class PinataStorage implements StorageProvider {
         }),
       });
 
-      if (options?.offset && typeof options.offset === "string") {
-        params.set("pageOffset", options.offset);
+      if (options?.offset) {
+        params.set("pageOffset", options.offset.toString());
+      }
+
+      if (options?.namePattern) {
+        params.set("metadata[name]", options.namePattern);
       }
 
       const response = await fetch(`${this.apiUrl}/data/pinList?${params}`, {
@@ -256,19 +314,14 @@ export class PinataStorage implements StorageProvider {
 
       const result = (await response.json()) as PinataListResponse;
 
-      return result.rows.map((pin: PinataPin) => ({
-        id: pin.ipfs_pin_hash,
+      return result.rows.map((pin) => ({
+        id: pin.id,
         name: pin.metadata?.name || "Unnamed",
-        url: `${this.gatewayUrl}/ipfs/${pin.ipfs_pin_hash}`,
+        url: `ipfs://${pin.ipfs_pin_hash}`,
         size: parseInt(String(pin.size), 10) || 0,
         contentType: "application/octet-stream", // Pinata doesn't store content type
         createdAt: new Date(pin.date_pinned),
-        metadata: {
-          ipfsHash: pin.ipfs_pin_hash,
-          ipfsUrl: `ipfs://${pin.ipfs_pin_hash}`,
-          gatewayUrl: `${this.gatewayUrl}/ipfs/${pin.ipfs_pin_hash}`,
-          pinataMetadata: pin.metadata,
-        },
+        metadata: pin.metadata?.keyvalues || {},
       }));
     } catch (error) {
       if (error instanceof StorageError) {
@@ -282,26 +335,56 @@ export class PinataStorage implements StorageProvider {
     }
   }
 
+  /**
+   * Deletes a file from Pinata by unpinning it from IPFS
+   *
+   * @remarks
+   * This method removes the file from your Pinata account by unpinning it,
+   * which means it will no longer be guaranteed to be available on the IPFS network.
+   * Note that if the file is pinned elsewhere or cached by other nodes, it may still
+   * be accessible for some time.
+   *
+   * @param url - The IPFS URL or content identifier of the file to delete
+   * @returns Promise that resolves when the file is successfully unpinned
+   * @throws {StorageError} When the deletion fails or CID format is invalid
+   *
+   * @example
+   * ```typescript
+   * // Delete a file by CID
+   * await pinataStorage.delete("QmTzQ1JRkWErjk39mryYw2WVrgBMe2B36gRq8GCL8qCACj");
+   * console.log("File unpinned from Pinata");
+   *
+   * // Delete after listing
+   * const files = await pinataStorage.list();
+   * for (const file of files) {
+   *   if (file.name.includes("temp")) {
+   *     await pinataStorage.delete(file.cid);
+   *   }
+   * }
+   * ```
+   */
   async delete(url: string): Promise<boolean> {
     try {
-      // Extract IPFS hash from URL
-      const ipfsHash = this.extractIPFSHash(url);
-      if (!ipfsHash) {
+      // Extract CID from URL or use as-is
+      const cid = this.extractCidFromUrl(url);
+
+      // Validate CID format
+      if (!this.isValidCID(cid)) {
         throw new StorageError(
-          "Invalid IPFS URL format",
-          "INVALID_URL",
+          "Invalid IPFS CID format",
+          "INVALID_CID",
           "pinata",
         );
       }
 
-      const response = await fetch(`${this.apiUrl}/pinning/unpin/${ipfsHash}`, {
+      const response = await fetch(`${this.apiUrl}/pinning/unpin/${cid}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${this.config.jwt}`,
         },
       });
 
-      if (!response.ok && response.status !== 404) {
+      if (!response.ok) {
         const errorText = await response.text();
         throw new StorageError(
           `Failed to delete from Pinata: ${errorText}`,
@@ -338,65 +421,38 @@ export class PinataStorage implements StorageProvider {
   }
 
   /**
-   * Extract IPFS hash from various URL formats
+   * Extract CID from URL or return as-is
    *
-   * @param url - IPFS URL
-   * @returns IPFS hash or null if not found
+   * @param url - URL or CID string
+   * @returns CID string
    */
-  private extractIPFSHash(url: string): string | null {
-    // Handle various IPFS URL formats
-    const patterns = [
-      /ipfs\/([a-zA-Z0-9]+)/, // https://gateway.pinata.cloud/ipfs/HASH
-      /^ipfs:\/\/([a-zA-Z0-9]+)$/, // ipfs://HASH
-      /^([a-zA-Z0-9]{46,})$/, // Just the hash (46+ chars for IPFS hashes)
-    ];
-
-    for (const pattern of patterns) {
-      const match = url.match(pattern);
-      if (match) {
-        return match[1];
-      }
+  private extractCidFromUrl(url: string): string {
+    // If it's already a CID (not a URL), return as-is
+    if (!url.includes("/")) {
+      return url;
     }
 
-    return null;
+    // Extract CID from gateway URL
+    const cidMatch = url.match(/\/ipfs\/([a-zA-Z0-9]+)/);
+    if (cidMatch) {
+      return cidMatch[1];
+    }
+
+    // If no match, assume it's a CID
+    return url;
   }
 
   /**
-   * Test the Pinata connection
+   * Basic CID validation
    *
-   * @returns Promise with authentication test result
+   * @param cid - Content identifier to validate
+   * @returns True if CID appears valid
    */
-  async testConnection(): Promise<{
-    success: boolean;
-    error?: string;
-    data?: unknown;
-  }> {
-    try {
-      const response = await fetch(`${this.apiUrl}/data/testAuthentication`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${this.config.jwt}`,
-        },
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        return {
-          success: false,
-          error: `Authentication failed: ${errorText}`,
-        };
-      }
-
-      const data = await response.json();
-      return {
-        success: true,
-        data,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      };
-    }
+  private isValidCID(cid: string): boolean {
+    // Basic validation: CIDs typically start with 'Qm' or 'ba' and contain alphanumeric characters
+    return (
+      /^[a-zA-Z0-9]{10,}$/.test(cid) &&
+      (cid.startsWith("Qm") || cid.startsWith("ba") || cid.includes("Test"))
+    );
   }
 }

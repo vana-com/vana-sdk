@@ -383,6 +383,21 @@ storageManager.register("ipfs", pinataStorage, true); // Default provider
 const result = await storageManager.upload(encryptedBlob, "encrypted-data.bin");
 ```
 
+### Google Drive Storage
+
+```typescript
+import { StorageManager, GoogleDriveStorage } from "vana-sdk";
+
+const googleDriveStorage = new GoogleDriveStorage({
+  accessToken: process.env.GOOGLE_DRIVE_ACCESS_TOKEN,
+  refreshToken: process.env.GOOGLE_DRIVE_REFRESH_TOKEN,
+  clientId: process.env.GOOGLE_DRIVE_CLIENT_ID,
+  clientSecret: process.env.GOOGLE_DRIVE_CLIENT_SECRET,
+});
+
+storageManager.register("google-drive", googleDriveStorage);
+```
+
 ### Custom Storage Provider
 
 ```typescript

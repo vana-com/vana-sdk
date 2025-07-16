@@ -89,18 +89,18 @@ describe("SDK Node Entry Point", () => {
       const {
         StorageManager,
         StorageError,
-        IPFSStorage,
+        IpfsStorage,
         PinataStorage,
         GoogleDriveStorage,
-        ServerIPFSStorage,
+        ServerProxyStorage,
       } = await import("../index.node");
 
       expect(StorageManager).toBeDefined();
       expect(StorageError).toBeDefined();
-      expect(IPFSStorage).toBeDefined();
+      expect(IpfsStorage).toBeDefined();
       expect(PinataStorage).toBeDefined();
       expect(GoogleDriveStorage).toBeDefined();
-      expect(ServerIPFSStorage).toBeDefined();
+      expect(ServerProxyStorage).toBeDefined();
     });
   });
 

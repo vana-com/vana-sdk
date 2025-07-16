@@ -5,6 +5,7 @@ import {
   encryptUserData,
   decryptUserData,
 } from "../utils/encryption";
+import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 /**
  * Test that verifies the demo is using the correct wallet-based encryption architecture
@@ -39,6 +40,7 @@ describe("Demo Integration - Correct Wallet-Based Encryption", () => {
     const encryptedData = await encryptUserData(
       dataBlob,
       encryptionKey,
+      mockPlatformAdapter,
     );
     expect(encryptedData).toBeInstanceOf(Blob);
 
@@ -46,6 +48,7 @@ describe("Demo Integration - Correct Wallet-Based Encryption", () => {
     const decryptedData = await decryptUserData(
       encryptedData,
       encryptionKey,
+      mockPlatformAdapter,
     );
     const decryptedText = await decryptedData.text();
 
@@ -77,10 +80,12 @@ describe("Demo Integration - Correct Wallet-Based Encryption", () => {
     const encrypted = await encryptUserData(
       testData,
       encryptionKey,
+      mockPlatformAdapter,
     );
     const decrypted = await decryptUserData(
       encrypted,
       encryptionKey,
+      mockPlatformAdapter,
     );
 
     const originalText = await testData.text();
@@ -106,10 +111,12 @@ describe("Demo Integration - Correct Wallet-Based Encryption", () => {
     const encryptedJson = await encryptUserData(
       jsonBlob,
       encryptionKey,
+      mockPlatformAdapter,
     );
     const decryptedJson = await decryptUserData(
       encryptedJson,
       encryptionKey,
+      mockPlatformAdapter,
     );
     const decryptedJsonText = await decryptedJson.text();
 
@@ -122,10 +129,12 @@ describe("Demo Integration - Correct Wallet-Based Encryption", () => {
     const encryptedFile = await encryptUserData(
       fileBlob,
       encryptionKey,
+      mockPlatformAdapter,
     );
     const decryptedFile = await decryptUserData(
       encryptedFile,
       encryptionKey,
+      mockPlatformAdapter,
     );
     const decryptedFileText = await decryptedFile.text();
 

@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { mockPlatformAdapter } from "./mocks/platformAdapter";
 import {
   encryptWithWalletPublicKey,
   decryptWithWalletPrivateKey,
@@ -26,6 +27,7 @@ describe("Updated Encryption Utilities", () => {
         const encrypted = await encryptWithWalletPublicKey(
           testData,
           testPublicKey,
+          mockPlatformAdapter,
         );
         expect(typeof encrypted).toBe("string");
         expect(encrypted).toMatch(/^[0-9a-fA-F]+$/); // Should be hex string
@@ -33,6 +35,7 @@ describe("Updated Encryption Utilities", () => {
         const decrypted = await decryptWithWalletPrivateKey(
           encrypted,
           testPrivateKey,
+          mockPlatformAdapter,
         );
         expect(decrypted).toBe(testData);
       });
@@ -43,12 +46,14 @@ describe("Updated Encryption Utilities", () => {
         const encrypted = await encryptWithWalletPublicKey(
           testData,
           testPublicKey,
+          mockPlatformAdapter,
         );
         expect(typeof encrypted).toBe("string");
 
         const decrypted = await decryptWithWalletPrivateKey(
           encrypted,
           testPrivateKey,
+          mockPlatformAdapter,
         );
         expect(decrypted).toBe("test blob data");
       });
@@ -61,6 +66,7 @@ describe("Updated Encryption Utilities", () => {
         const encrypted = await encryptUserData(
           testData,
           testWalletSignature,
+          mockPlatformAdapter,
         );
         expect(encrypted).toBeInstanceOf(Blob);
         expect(encrypted.type).toBe("application/octet-stream");
@@ -68,6 +74,7 @@ describe("Updated Encryption Utilities", () => {
         const decrypted = await decryptUserData(
           encrypted,
           testWalletSignature,
+          mockPlatformAdapter,
         );
         expect(decrypted).toBeInstanceOf(Blob);
         expect(decrypted.type).toBe("text/plain");
@@ -84,12 +91,14 @@ describe("Updated Encryption Utilities", () => {
         const encrypted = await encryptUserData(
           testData,
           testWalletSignature,
+          mockPlatformAdapter,
         );
         expect(encrypted).toBeInstanceOf(Blob);
 
         const decrypted = await decryptUserData(
           encrypted,
           testWalletSignature,
+          mockPlatformAdapter,
         );
         const decryptedText = await decrypted.text();
         expect(decryptedText).toBe("blob user data");

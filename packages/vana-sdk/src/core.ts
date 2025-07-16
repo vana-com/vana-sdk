@@ -14,6 +14,7 @@ import { createWalletClient, createPublicClient, http } from "viem";
 import { chains } from "./config/chains";
 import { getChainConfig } from "./chains";
 import type { VanaPlatformAdapter } from "./platform/interface";
+import { encryptUserData, decryptUserData } from "./utils/encryption";
 
 /**
  * Provides the core SDK functionality for interacting with the Vana network.
@@ -62,19 +63,19 @@ export class VanaCore {
    * The constructor validates the configuration, initializes storage providers if configured,
    * creates wallet and public clients, and sets up all SDK controllers with shared context.
    *
-   * @param config - The configuration object specifying wallet or chain settings
    * @param platform - The platform adapter for environment-specific operations
+   * @param config - The configuration object specifying wallet or chain settings
    * @throws {InvalidConfigurationError} When the configuration is invalid or incomplete
    *
    * @example
    * ```typescript
    * // Direct instantiation (consider using factory methods instead)
-   * const vanaCore = new VanaCore({
+   * const vanaCore = new VanaCore(platformAdapter, {
    *   walletClient: myWalletClient,
-   * }, platformAdapter);
+   * });
    * ```
    */
-  constructor(config: VanaConfig, platform: VanaPlatformAdapter) {
+  constructor(platform: VanaPlatformAdapter, config: VanaConfig) {
     // Store the platform adapter
     this.platform = platform;
 
@@ -397,5 +398,42 @@ export class VanaCore {
    */
   getPlatformAdapter(): VanaPlatformAdapter {
     return this.platform;
+  }
+
+  /**
+   * Encrypts user data using the Vana protocol standard encryption.
+   * This method automatically uses the correct platform adapter for the current environment.
+   *
+   * @param data The data to encrypt (string or Blob)
+   * @param walletSignature The wallet signature to use as encryption key
+   * @returns The encrypted data as Blob
+   *
+   * @example
+   * ```typescript
+   * const encryptionKey = await generateEncryptionKey(walletClient);
+   * const encrypted = await vana.encryptUserData("sensitive data", encryptionKey);
+   * ```
+   */
+  public async encryptUserData(data: string | Blob, walletSignature: string): Promise<Blob> {
+    return encryptUserData(data, walletSignature, this.platform);
+  }
+
+  /**
+   * Decrypts user data using the Vana protocol standard decryption.
+   * This method automatically uses the correct platform adapter for the current environment.
+   *
+   * @param encryptedData The encrypted data (string or Blob)
+   * @param walletSignature The wallet signature to use as decryption key
+   * @returns The decrypted data as Blob
+   *
+   * @example
+   * ```typescript
+   * const encryptionKey = await generateEncryptionKey(walletClient);
+   * const decrypted = await vana.decryptUserData(encryptedData, encryptionKey);
+   * const text = await decrypted.text();
+   * ```
+   */
+  public async decryptUserData(encryptedData: string | Blob, walletSignature: string): Promise<Blob> {
+    return decryptUserData(encryptedData, walletSignature, this.platform);
   }
 }

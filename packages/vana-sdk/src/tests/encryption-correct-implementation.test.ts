@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { withConsole } from "./setup";
+import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 /**
  * Tests for the CORRECT Vana encryption implementation
@@ -49,11 +50,11 @@ describe("Correct Vana Encryption Implementation", () => {
           "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
 
         // This should use password-based PGP encryption
-        const encrypted = await encryptUserData(testData, walletSignature);
+        const encrypted = await encryptUserData(testData, walletSignature, mockPlatformAdapter);
         expect(encrypted).toBeInstanceOf(Blob);
 
         // Should be able to decrypt with same signature
-        const decrypted = await decryptUserData(encrypted, walletSignature);
+        const decrypted = await decryptUserData(encrypted, walletSignature, mockPlatformAdapter);
         expect(decrypted).toBeInstanceOf(Blob);
 
         const decryptedText = await decrypted.text();
@@ -69,8 +70,8 @@ describe("Correct Vana Encryption Implementation", () => {
         const signature =
           "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
 
-        const encrypted = await encryptUserData(testData, signature);
-        const decrypted = await decryptUserData(encrypted, signature);
+        const encrypted = await encryptUserData(testData, signature, mockPlatformAdapter);
+        const decrypted = await decryptUserData(encrypted, signature, mockPlatformAdapter);
 
         const decryptedText = await decrypted.text();
         expect(decryptedText).toBe(originalText);
@@ -86,8 +87,8 @@ describe("Correct Vana Encryption Implementation", () => {
         const password =
           "-----BEGIN PGP PUBLIC KEY BLOCK-----\nTest\n-----END PGP PUBLIC KEY BLOCK-----";
 
-        const encrypted = await encryptUserData(testData, password);
-        const decrypted = await decryptUserData(encrypted, password);
+        const encrypted = await encryptUserData(testData, password, mockPlatformAdapter);
+        const decrypted = await decryptUserData(encrypted, password, mockPlatformAdapter);
 
         const decryptedText = await decrypted.text();
         expect(decryptedText).toBe(originalText);
@@ -105,7 +106,7 @@ describe("Correct Vana Encryption Implementation", () => {
         const publicKey =
           "04c68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";
 
-        const encrypted = await encryptWithWalletPublicKey(testData, publicKey);
+        const encrypted = await encryptWithWalletPublicKey(testData, publicKey, mockPlatformAdapter);
         expect(typeof encrypted).toBe("string");
         expect(encrypted).toMatch(/^[0-9a-fA-F]+$/); // Should be hex string
       });
@@ -121,10 +122,11 @@ describe("Correct Vana Encryption Implementation", () => {
         const publicKey =
           "04c68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";
 
-        const encrypted = await encryptWithWalletPublicKey(testData, publicKey);
+        const encrypted = await encryptWithWalletPublicKey(testData, publicKey, mockPlatformAdapter);
         const decrypted = await decryptWithWalletPrivateKey(
           encrypted,
           privateKey,
+          mockPlatformAdapter,
         );
 
         expect(decrypted).toBe(testData);
@@ -184,7 +186,7 @@ describe("Correct Vana Encryption Implementation", () => {
         walletClient: mockWallet,
         publicClient: {},
         applicationClient: mockWallet,
-        platform: null as any, // Platform is now handled internally
+        platform: mockPlatformAdapter,
         storageManager: mockStorageManager,
       };
 
@@ -241,7 +243,7 @@ describe("Correct Vana Encryption Implementation", () => {
         walletClient: mockWallet,
         publicClient: {},
         applicationClient: mockWallet,
-        platform: null as any, // Platform is now handled internally
+        platform: mockPlatformAdapter,
       };
 
       const controller = new DataController(mockContext);
@@ -276,7 +278,7 @@ describe("Correct Vana Encryption Implementation", () => {
 
       const mockContext = {
         walletClient: mockWallet,
-        platform: null as any, // Platform is now handled internally
+        platform: mockPlatformAdapter,
       };
 
       const controller = new DataController(mockContext);
@@ -286,6 +288,7 @@ describe("Correct Vana Encryption Implementation", () => {
       const encryptedData = await encryptUserData(
         originalData,
         "0xsignature123",
+        mockPlatformAdapter,
       );
 
       // Mock fetch to return our encrypted data
@@ -492,6 +495,7 @@ describe("Correct Vana Encryption Implementation", () => {
         const encryptedData = await encryptUserData(
           originalData,
           encryptionKey,
+          mockPlatformAdapter,
         );
 
         console.log("Data encrypted with wallet signature");
@@ -502,6 +506,7 @@ describe("Correct Vana Encryption Implementation", () => {
         const encryptedKey = await encryptWithWalletPublicKey(
           encryptionKey,
           validatorPublicKey,
+          mockPlatformAdapter,
         );
 
         console.log("Encryption key shared with validator");

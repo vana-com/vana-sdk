@@ -1,17 +1,27 @@
-import { VanaCore } from "./core";
 import { NodePlatformAdapter } from "./platform/node";
+import { VanaCore } from "./core";
 import type { VanaConfig } from "./types";
 
 /**
  * The Vana SDK class pre-configured for Node.js environments.
- * Automatically uses the Node.js platform adapter.
+ * Automatically uses the Node.js platform adapter for crypto operations and file systems.
  *
  * @example
  * ```typescript
  * const vana = new Vana({ walletClient });
+ * 
+ * // Upload and encrypt user data
+ * const file = await vana.data.uploadAndStoreFile(dataBlob, schema);
+ * 
+ * // Grant permissions to DLPs
+ * await vana.permissions.grantPermission({
+ *   account: dlpAddress,
+ *   fileId: file.id,
+ *   permissions: ['read']
+ * });
  * ```
  */
-export class Vana extends VanaCore {
+export class VanaNode extends VanaCore {
   /**
    * Creates a Vana SDK instance configured for Node.js environments.
    * @param config - SDK configuration object (wallet client or chain config)
@@ -26,10 +36,12 @@ export class Vana extends VanaCore {
    * ```
    */
   constructor(config: VanaConfig) {
-    // Automatically inject the Node.js platform adapter
-    super(config, new NodePlatformAdapter());
+    super(new NodePlatformAdapter(), config);
   }
 }
+
+// Export the node-specific class as the main 'Vana' for this entry point.
+export { VanaNode as Vana };
 
 // Re-export everything that was in index.ts (avoiding circular dependency)
 // Core class
@@ -115,4 +127,4 @@ export type {
 } from "./core/apiClient";
 
 // Re-export the SDK as both named and default export
-export default Vana;
+export default VanaNode;

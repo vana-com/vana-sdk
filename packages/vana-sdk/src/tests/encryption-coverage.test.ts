@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { mockPlatformAdapter } from "./mocks/platformAdapter";
 import {
   generateEncryptionKeyPair,
   generatePGPKeyPair,
@@ -8,7 +9,6 @@ import {
   decryptWithWalletPrivateKey,
   encryptFileKey,
   getEncryptionParameters,
-  decryptWithPrivateKey,
 } from "../utils/encryption";
 
 /**
@@ -19,7 +19,7 @@ import {
 describe("Encryption Utilities Coverage", () => {
   describe("generateEncryptionKeyPair", () => {
     it("should generate key pair using auto-detected platform", async () => {
-      const result = await generateEncryptionKeyPair();
+      const result = await generateEncryptionKeyPair(mockPlatformAdapter);
 
       expect(result).toHaveProperty("publicKey");
       expect(result).toHaveProperty("privateKey");
@@ -29,8 +29,8 @@ describe("Encryption Utilities Coverage", () => {
     });
 
     it("should return different keys on each call", async () => {
-      const keyPair1 = await generateEncryptionKeyPair();
-      const keyPair2 = await generateEncryptionKeyPair();
+      const keyPair1 = await generateEncryptionKeyPair(mockPlatformAdapter);
+      const keyPair2 = await generateEncryptionKeyPair(mockPlatformAdapter);
 
       expect(keyPair1.publicKey).not.toBe(keyPair2.publicKey);
       expect(keyPair1.privateKey).not.toBe(keyPair2.privateKey);
@@ -39,7 +39,7 @@ describe("Encryption Utilities Coverage", () => {
 
   describe("generatePGPKeyPair", () => {
     it("should generate PGP key pair with default options", async () => {
-      const result = await generatePGPKeyPair();
+      const result = await generatePGPKeyPair(mockPlatformAdapter);
 
       expect(result).toHaveProperty("publicKey");
       expect(result).toHaveProperty("privateKey");
@@ -58,7 +58,7 @@ describe("Encryption Utilities Coverage", () => {
         passphrase: "test-passphrase",
       };
 
-      const result = await generatePGPKeyPair(options);
+      const result = await generatePGPKeyPair(mockPlatformAdapter, options);
 
       expect(result).toHaveProperty("publicKey");
       expect(result).toHaveProperty("privateKey");
@@ -69,7 +69,7 @@ describe("Encryption Utilities Coverage", () => {
 
   describe("getEncryptionParameters", () => {
     it("should generate encryption parameters", async () => {
-      const result = await getEncryptionParameters();
+      const result = await getEncryptionParameters(mockPlatformAdapter);
 
       expect(result).toHaveProperty("iv");
       expect(result).toHaveProperty("key");
@@ -80,8 +80,8 @@ describe("Encryption Utilities Coverage", () => {
     });
 
     it("should generate different parameters on each call", async () => {
-      const params1 = await getEncryptionParameters();
-      const params2 = await getEncryptionParameters();
+      const params1 = await getEncryptionParameters(mockPlatformAdapter);
+      const params2 = await getEncryptionParameters(mockPlatformAdapter);
 
       expect(params1.iv).not.toBe(params2.iv);
       expect(params1.key).not.toBe(params2.key);
@@ -100,10 +100,12 @@ describe("Encryption Utilities Coverage", () => {
       const encrypted = await encryptWithWalletPublicKey(
         testData,
         testPublicKey,
+        mockPlatformAdapter,
       );
       const decrypted = await decryptWithWalletPrivateKey(
         encrypted,
         testPrivateKey,
+        mockPlatformAdapter,
       );
 
       expect(decrypted).toBe(testData);
@@ -117,10 +119,12 @@ describe("Encryption Utilities Coverage", () => {
       const encrypted = await encryptWithWalletPublicKey(
         testBlob,
         testPublicKey,
+        mockPlatformAdapter,
       );
       const decrypted = await decryptWithWalletPrivateKey(
         encrypted,
         testPrivateKey,
+        mockPlatformAdapter,
       );
 
       expect(decrypted).toBe("Blob data for wallet encryption");
@@ -134,8 +138,8 @@ describe("Encryption Utilities Coverage", () => {
     it("should encrypt and decrypt user data with signature", async () => {
       const testData = "User data for PGP encryption";
 
-      const encrypted = await encryptUserData(testData, testSignature);
-      const decrypted = await decryptUserData(encrypted, testSignature);
+      const encrypted = await encryptUserData(testData, testSignature, mockPlatformAdapter);
+      const decrypted = await decryptUserData(encrypted, testSignature, mockPlatformAdapter);
 
       expect(encrypted).toBeInstanceOf(Blob);
       expect(decrypted).toBeInstanceOf(Blob);
@@ -147,8 +151,8 @@ describe("Encryption Utilities Coverage", () => {
     it("should handle Blob input for user data", async () => {
       const testBlob = new Blob(["Blob user data"], { type: "text/plain" });
 
-      const encrypted = await encryptUserData(testBlob, testSignature);
-      const decrypted = await decryptUserData(encrypted, testSignature);
+      const encrypted = await encryptUserData(testBlob, testSignature, mockPlatformAdapter);
+      const decrypted = await decryptUserData(encrypted, testSignature, mockPlatformAdapter);
 
       const decryptedText = await decrypted.text();
       expect(decryptedText).toBe("Blob user data");
@@ -157,8 +161,8 @@ describe("Encryption Utilities Coverage", () => {
     it("should handle different data types", async () => {
       const jsonData = JSON.stringify({ message: "test", id: 123 });
 
-      const encrypted = await encryptUserData(jsonData, testSignature);
-      const decrypted = await decryptUserData(encrypted, testSignature);
+      const encrypted = await encryptUserData(jsonData, testSignature, mockPlatformAdapter);
+      const decrypted = await decryptUserData(encrypted, testSignature, mockPlatformAdapter);
 
       const decryptedText = await decrypted.text();
       expect(decryptedText).toBe(jsonData);
@@ -172,7 +176,7 @@ describe("Encryption Utilities Coverage", () => {
     it("should encrypt file key with public key", async () => {
       const fileKey = "symmetric-file-key-12345";
 
-      const encryptedKey = await encryptFileKey(fileKey, testPublicKey);
+      const encryptedKey = await encryptFileKey(fileKey, testPublicKey, mockPlatformAdapter);
 
       expect(typeof encryptedKey).toBe("string");
       expect(encryptedKey.length).toBeGreaterThan(0);
@@ -181,15 +185,30 @@ describe("Encryption Utilities Coverage", () => {
   });
 
   describe("Private key decryption", () => {
-    const testPrivateKey =
+    const _testPrivateKey =
       "85271071a553feafb93839045545c233d0518e0b0fc583f88038f8b0e32e9f18";
 
     it("should decrypt data that was encrypted with the correct public key", async () => {
-      // Test with pre-encrypted data that we know was encrypted correctly
-      const testEncrypted = "0x1234"; // Mock encrypted data
+      // Test with a proper encrypt/decrypt cycle
+      const testData = "Secret message for public key encryption";
+      const testPublicKey = "04abc123..."; // Mock public key
 
-      // TODO: implement this test
-      expect(true).toBe(false);
+      // First encrypt the data
+      const encrypted = await encryptWithWalletPublicKey(
+        testData,
+        testPublicKey,
+        mockPlatformAdapter,
+      );
+      
+      // Then decrypt it with the corresponding private key
+      const testPrivateKey = "0x456def..."; // Mock private key
+      const decrypted = await decryptWithWalletPrivateKey(
+        encrypted,
+        testPrivateKey,
+        mockPlatformAdapter,
+      );
+
+      expect(decrypted).toBe(testData);
     });
   });
 });

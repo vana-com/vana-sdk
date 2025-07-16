@@ -19,22 +19,6 @@
         "import": "./dist/index.node.js",
         "types": "./dist/index.node.d.ts"
       }
-    },
-    "./platform/*": {
-      "import": "./dist/platform/*.js",
-      "types": "./dist/platform/*.d.ts"
-    },
-    "./types": {
-      "import": "./dist/types.js",
-      "types": "./dist/types.d.ts"
-    },
-    "./chains": {
-      "import": "./dist/chains.js",
-      "types": "./dist/chains.d.ts"
-    },
-    "./errors": {
-      "import": "./dist/errors.js",
-      "types": "./dist/errors.d.ts"
     }
   },
   "files": [
@@ -43,16 +27,16 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsup",
     "clean": "rimraf dist",
+    "build:types": "tsup src/index.ts --dts-only --out-dir dist --no-clean",
+    "build:node": "tsup src/index.node.ts --platform node --format esm,cjs --target node18 --out-dir dist --no-clean",
+    "build:browser": "tsup src/index.browser.ts --platform browser --format esm --target es2020 --out-dir dist --dts --no-clean",
+    "build": "npm run clean && npm run build:types && npm run build:node && npm run build:browser",
+    "dev": "npm run build -- --watch",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "fetch-abis": "tsx scripts/fetch-abis.ts",
-    "prepublishOnly": "npm run build"
+    "test": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "keywords": [
     "vana",

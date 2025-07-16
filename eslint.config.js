@@ -4,6 +4,7 @@ import tsparser from "@typescript-eslint/parser";
 import prettierConfig from "eslint-config-prettier";
 import globals from "globals";
 import nextPlugin from "@next/eslint-plugin-next";
+import jsdoc from "eslint-plugin-jsdoc";
 
 export default [
   // Global ignore patterns
@@ -71,6 +72,22 @@ export default [
       "no-var": "error",
       eqeqeq: ["error", "always"],
       curly: ["error", "all"],
+    },
+  },
+
+  // SDK package JSDoc configuration
+  {
+    files: ["packages/vana-sdk/**/*.ts"],
+    plugins: {
+      jsdoc,
+    },
+    rules: {
+      ...jsdoc.configs["flat/recommended-typescript"].rules,
+      "jsdoc/require-param": "error",
+      "jsdoc/require-param-description": "warn",
+      "jsdoc/check-param-names": "error",
+      "jsdoc/require-param-type": "off", // TypeScript handles types
+      "jsdoc/no-types": "error", // Don't duplicate TypeScript types in JSDoc
     },
   },
 

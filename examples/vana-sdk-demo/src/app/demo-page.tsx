@@ -12,8 +12,6 @@ import {
   RevokePermissionParams,
   GrantedPermission,
   generateEncryptionKey,
-  encryptUserData,
-  decryptUserData,
   DEFAULT_ENCRYPTION_SEED,
   StorageManager,
   StorageProvider,
@@ -943,7 +941,7 @@ export default function Home() {
         setOriginalFileName(fileName);
       }
 
-      const encrypted = await encryptUserData(
+      const encrypted = await vana!.encryptUserData(
         dataBlob,
         generatedEncryptionKey,
       );
@@ -969,7 +967,7 @@ export default function Home() {
     setEncryptionStatus("Decrypting data...");
 
     try {
-      const decrypted = await decryptUserData(
+      const decrypted = await vana!.decryptUserData(
         encryptedData,
         generatedEncryptionKey,
       );

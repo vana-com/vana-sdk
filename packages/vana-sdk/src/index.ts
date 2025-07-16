@@ -74,4 +74,3 @@ export type {
 
 // Core types
 export type { VanaCore } from "./core";
-export type { Vana } from "./index.node"; // Type reference to the Node.js implementation

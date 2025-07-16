@@ -102,15 +102,13 @@ describe("GoogleDriveStorage", () => {
       const result = await storage.upload(testFile, "test.txt");
 
       expect(result).toEqual({
-        url: "https://drive.google.com/file/d/test-file-id-123/view",
+        url: "https://drive.google.com/uc?id=test-file-id-123&export=download",
         size: 12,
         contentType: "text/plain",
         metadata: {
           id: "test-file-id-123",
           name: "test.txt",
           driveUrl: "https://drive.google.com/file/d/test-file-id-123/view",
-          downloadUrl:
-            "https://drive.google.com/uc?id=test-file-id-123&export=download",
         },
       });
 
@@ -245,7 +243,7 @@ describe("GoogleDriveStorage", () => {
       const result = await storage.upload(testFile, "test.txt");
 
       expect(result.url).toBe(
-        "https://drive.google.com/file/d/test-file-id-123/view",
+        "https://drive.google.com/uc?id=test-file-id-123&export=download",
       );
       expect(consoleSpy).toHaveBeenCalledWith(
         "Failed to make Google Drive file public:",
@@ -407,6 +405,27 @@ describe("GoogleDriveStorage", () => {
         storage.download("https://drive.google.com/file/d/test-id/view"),
       ).rejects.toThrow("Google Drive download error: Connection timeout");
     });
+
+    it("should handle HTML content instead of file data", async () => {
+      const htmlBlob = new Blob(
+        ["<html><body>Sign in required</body></html>"],
+        {
+          type: "text/html",
+        },
+      );
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        blob: () => Promise.resolve(htmlBlob),
+      });
+
+      await expect(
+        storage.download("https://drive.google.com/file/d/test-id/view"),
+      ).rejects.toThrow(StorageError);
+      await expect(
+        storage.download("https://drive.google.com/file/d/test-id/view"),
+      ).rejects.toThrow("Received HTML content instead of file data");
+    });
   });
 
   describe("List", () => {
@@ -443,14 +462,13 @@ describe("GoogleDriveStorage", () => {
       expect(files[0]).toEqual({
         id: "file-1",
         name: "document1.txt",
-        url: "https://drive.google.com/file/d/file-1/view",
+        url: "https://drive.google.com/uc?id=file-1&export=download",
         size: 1024,
         contentType: "text/plain",
         createdAt: new Date("2023-01-01T00:00:00Z"),
         metadata: {
           id: "file-1",
           driveUrl: "https://drive.google.com/file/d/file-1/view",
-          downloadUrl: "https://drive.google.com/uc?id=file-1&export=download",
         },
       });
 
@@ -865,6 +883,54 @@ describe("GoogleDriveStorage", () => {
         expect.objectContaining({
           headers: {
             Authorization: "Bearer updated-access-token",
+          },
+        }),
+      );
+    });
+  });
+
+  describe("Backward Compatibility", () => {
+    it("should handle legacy view URLs in download operations", async () => {
+      const expectedBlob = new Blob(["legacy content"], { type: "text/plain" });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        blob: () => Promise.resolve(expectedBlob),
+      });
+
+      // Test that old view URLs still work
+      const result = await storage.download(
+        "https://drive.google.com/file/d/legacy-file-id/view",
+      );
+
+      expect(result).toBe(expectedBlob);
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://www.googleapis.com/drive/v3/files/legacy-file-id?alt=media",
+        expect.objectContaining({
+          headers: {
+            Authorization: "Bearer test-access-token",
+          },
+        }),
+      );
+    });
+
+    it("should handle legacy view URLs in delete operations", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({}),
+      });
+
+      const result = await storage.delete(
+        "https://drive.google.com/file/d/legacy-file-id/view",
+      );
+
+      expect(result).toBe(true);
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://www.googleapis.com/drive/v3/files/legacy-file-id",
+        expect.objectContaining({
+          method: "DELETE",
+          headers: {
+            Authorization: "Bearer test-access-token",
           },
         }),
       );

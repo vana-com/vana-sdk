@@ -881,6 +881,22 @@ export class PermissionsController {
       params.grantUrl,
     );
 
+    // Warn if using HTTP gateway URL instead of ipfs:// protocol for on-chain storage
+    if (
+      !params.grantUrl.startsWith("ipfs://") &&
+      params.grantUrl.includes("/ipfs/")
+    ) {
+      const { extractIpfsHash } = await import("../utils/ipfs");
+      const hash = extractIpfsHash(params.grantUrl);
+      if (hash) {
+        console.warn(
+          `⚠️  Storing HTTP gateway URL on-chain instead of ipfs:// protocol. ` +
+            `Found: ${params.grantUrl}. ` +
+            `Consider using ipfs://${hash} for better protocol-agnostic on-chain storage.`,
+        );
+      }
+    }
+
     return {
       domain,
       types: {

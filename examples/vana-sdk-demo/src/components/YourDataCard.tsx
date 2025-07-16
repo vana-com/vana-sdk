@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Input,
   Button,
@@ -13,6 +13,7 @@ import {
   Chip,
   Pagination,
   Textarea,
+  SortDescriptor,
 } from "@heroui/react";
 import {
   Database,
@@ -115,14 +116,39 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
 }) => {
   // Pagination state
   const [currentPage, setCurrentPage] = React.useState(1);
+  const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({
+    column: "id",
+    direction: "descending",
+  });
   const ITEMS_PER_PAGE = 10;
 
-  // Calculate paginated items
+  // Calculate sorted and paginated items
   const paginatedFiles = useMemo(() => {
+    const sortedFiles = [...userFiles];
+
+    // Sort files based on sortDescriptor
+    if (sortDescriptor.column) {
+      sortedFiles.sort((a, b) => {
+        const aValue = a[sortDescriptor.column as keyof typeof a];
+        const bValue = b[sortDescriptor.column as keyof typeof b];
+
+        let comparison = 0;
+        if (typeof aValue === "number" && typeof bValue === "number") {
+          comparison = aValue - bValue;
+        } else {
+          comparison = String(aValue).localeCompare(String(bValue));
+        }
+
+        return sortDescriptor.direction === "descending"
+          ? -comparison
+          : comparison;
+      });
+    }
+
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
-    return userFiles.slice(startIndex, endIndex);
-  }, [userFiles, currentPage, ITEMS_PER_PAGE]);
+    return sortedFiles.slice(startIndex, endIndex);
+  }, [userFiles, currentPage, ITEMS_PER_PAGE, sortDescriptor]);
 
   const totalPages = Math.ceil(userFiles.length / ITEMS_PER_PAGE);
 
@@ -211,13 +237,15 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
               <Table
                 aria-label="Data files table"
                 removeWrapper
+                sortDescriptor={sortDescriptor}
+                onSortChange={setSortDescriptor}
                 classNames={{
                   th: "bg-default-100 text-default-700",
                   td: "py-4",
                 }}
               >
                 <TableHeader>
-                  <TableColumn>
+                  <TableColumn key="select" allowsSorting={false}>
                     <Checkbox
                       isSelected={
                         paginatedFiles.length > 0 &&
@@ -252,11 +280,21 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
                       }}
                     />
                   </TableColumn>
-                  <TableColumn>File ID</TableColumn>
-                  <TableColumn>Owner</TableColumn>
-                  <TableColumn>URL</TableColumn>
-                  <TableColumn>Source</TableColumn>
-                  <TableColumn>Actions</TableColumn>
+                  <TableColumn key="id" allowsSorting>
+                    File ID
+                  </TableColumn>
+                  <TableColumn key="owner" allowsSorting>
+                    Owner
+                  </TableColumn>
+                  <TableColumn key="url" allowsSorting>
+                    URL
+                  </TableColumn>
+                  <TableColumn key="source" allowsSorting>
+                    Source
+                  </TableColumn>
+                  <TableColumn key="actions" allowsSorting={false}>
+                    Actions
+                  </TableColumn>
                 </TableHeader>
                 <TableBody>
                   {paginatedFiles.map((file) => {

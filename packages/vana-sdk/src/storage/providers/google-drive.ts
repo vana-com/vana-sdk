@@ -50,12 +50,29 @@ interface GoogleDriveTokenResponse {
 }
 
 /**
- * Google Drive Storage Provider
+ * Google Drive Storage Provider with folder management capabilities
  *
+ * @remarks
  * Implements storage interface for Google Drive using OAuth2 authentication.
- * Based on patterns from dlp-ui-template with NextAuth integration.
+ * Provides file upload/download operations and advanced folder management
+ * including search, creation, and nested folder structures. Requires the
+ * `https://www.googleapis.com/auth/drive.file` OAuth scope for full functionality.
  *
  * @category Storage
+ *
+ * @example
+ * ```typescript
+ * const googleDriveStorage = new GoogleDriveStorage({
+ *   accessToken: "your-oauth-access-token",
+ *   refreshToken: "your-oauth-refresh-token",
+ *   clientId: "your-oauth-client-id",
+ *   clientSecret: "your-oauth-client-secret",
+ * });
+ *
+ * // Create folder structure and upload file
+ * const folderId = await googleDriveStorage.findOrCreateFolder("screenshots");
+ * const result = await googleDriveStorage.upload(fileBlob, "image.png");
+ * ```
  */
 export class GoogleDriveStorage implements StorageProvider {
   private readonly baseUrl = "https://www.googleapis.com/drive/v3";
@@ -129,14 +146,13 @@ export class GoogleDriveStorage implements StorageProvider {
       await this.makeFilePublic(result.id);
 
       return {
-        url: `https://drive.google.com/file/d/${result.id}/view`,
+        url: `https://drive.google.com/uc?id=${result.id}&export=download`,
         size: file.size,
         contentType: file.type || "application/octet-stream",
         metadata: {
           id: result.id,
           name: result.name,
           driveUrl: `https://drive.google.com/file/d/${result.id}/view`,
-          downloadUrl: `https://drive.google.com/uc?id=${result.id}&export=download`,
         },
       };
     } catch (error) {
@@ -181,7 +197,18 @@ export class GoogleDriveStorage implements StorageProvider {
         );
       }
 
-      return await response.blob();
+      const blob = await response.blob();
+
+      // Check if we got HTML content instead of the actual file (authentication issue)
+      if (blob.type === "text/html") {
+        throw new StorageError(
+          "Received HTML content instead of file data. This suggests an authentication or URL formatting issue with Google Drive.",
+          "AUTHENTICATION_ERROR",
+          "google-drive",
+        );
+      }
+
+      return blob;
     } catch (error) {
       if (error instanceof StorageError) {
         throw error;
@@ -238,14 +265,13 @@ export class GoogleDriveStorage implements StorageProvider {
       return result.files.map((file: GoogleDriveFile) => ({
         id: file.id,
         name: file.name,
-        url: file.webViewLink,
+        url: `https://drive.google.com/uc?id=${file.id}&export=download`,
         size: parseInt(file.size) || 0,
         contentType: file.mimeType,
         createdAt: new Date(file.createdTime),
         metadata: {
           id: file.id,
           driveUrl: file.webViewLink,
-          downloadUrl: `https://drive.google.com/uc?id=${file.id}&export=download`,
         },
       }));
     } catch (error) {
@@ -361,6 +387,191 @@ export class GoogleDriveStorage implements StorageProvider {
     }
 
     return null;
+  }
+
+  /**
+   * Searches for an existing folder by name within a specified parent folder
+   *
+   * @remarks
+   * This method queries the Google Drive API to find a folder with the exact name
+   * within the specified parent directory. Only searches for folders (not files)
+   * and excludes trashed items.
+   *
+   * @param name - The exact name of the folder to search for
+   * @param parentId - The ID of the parent folder to search within (defaults to 'root')
+   * @returns Promise that resolves to the folder ID if found, or `null` if not found
+   * @throws {StorageError} When the Google Drive API request fails
+   *
+   * @example
+   * ```typescript
+   * // Search for a folder in the root directory
+   * const folderId = await googleDriveStorage.findFolder("screenshots");
+   * if (folderId) {
+   *   console.log("Found folder:", folderId);
+   * } else {
+   *   console.log("Folder not found");
+   * }
+   *
+   * // Search for a subfolder within another folder
+   * const subFolderId = await googleDriveStorage.findFolder("roasts", parentFolderId);
+   * ```
+   */
+  async findFolder(
+    name: string,
+    parentId: string = "root",
+  ): Promise<string | null> {
+    try {
+      const query = `name='${name}' and '${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed = false`;
+
+      const params = new URLSearchParams({
+        q: query,
+        fields: "files(id,name,mimeType)",
+      });
+
+      const response = await fetch(`${this.baseUrl}/files?${params}`, {
+        headers: {
+          Authorization: `Bearer ${this.config.accessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new StorageError(
+          `Failed to search Google Drive folders: ${error}`,
+          "FIND_FOLDER_FAILED",
+          "google-drive",
+        );
+      }
+
+      const result = (await response.json()) as GoogleDriveListResponse;
+
+      if (result.files && result.files.length > 0) {
+        return result.files[0].id;
+      }
+
+      return null;
+    } catch (error) {
+      if (error instanceof StorageError) {
+        throw error;
+      }
+      throw new StorageError(
+        `Google Drive findFolder error: ${error instanceof Error ? error.message : "Unknown error"}`,
+        "FIND_FOLDER_ERROR",
+        "google-drive",
+      );
+    }
+  }
+
+  /**
+   * Creates a new folder within a specified parent folder
+   *
+   * @remarks
+   * This method creates a new folder using the Google Drive API. The folder will be
+   * created with the specified name as a child of the parent folder. Requires the
+   * `https://www.googleapis.com/auth/drive.file` OAuth scope.
+   *
+   * @param name - The name for the new folder
+   * @param parentId - The ID of the parent folder where the new folder will be created (defaults to 'root')
+   * @returns Promise that resolves to the ID of the newly created folder
+   * @throws {StorageError} When the Google Drive API request fails or folder creation is denied
+   *
+   * @example
+   * ```typescript
+   * // Create a folder in the root directory
+   * const folderId = await googleDriveStorage.createFolder("my-documents");
+   * console.log("Created folder:", folderId);
+   *
+   * // Create a subfolder within another folder
+   * const subFolderId = await googleDriveStorage.createFolder("reports", parentFolderId);
+   * ```
+   */
+  async createFolder(name: string, parentId: string = "root"): Promise<string> {
+    try {
+      const metadata = {
+        name: name,
+        mimeType: "application/vnd.google-apps.folder",
+        parents: [parentId],
+      };
+
+      const response = await fetch(`${this.baseUrl}/files`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.config.accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(metadata),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new StorageError(
+          `Failed to create Google Drive folder: ${error}`,
+          "CREATE_FOLDER_FAILED",
+          "google-drive",
+        );
+      }
+
+      const result = (await response.json()) as GoogleDriveUploadResponse;
+      return result.id;
+    } catch (error) {
+      if (error instanceof StorageError) {
+        throw error;
+      }
+      throw new StorageError(
+        `Google Drive createFolder error: ${error instanceof Error ? error.message : "Unknown error"}`,
+        "CREATE_FOLDER_ERROR",
+        "google-drive",
+      );
+    }
+  }
+
+  /**
+   * Finds an existing folder by name, or creates it if it doesn't exist
+   *
+   * @remarks
+   * This is a convenience method that combines `findFolder` and `createFolder`.
+   * It first searches for an existing folder with the specified name. If found,
+   * it returns the existing folder's ID. If not found, it creates a new folder
+   * and returns the new folder's ID.
+   *
+   * @param name - The name of the folder to find or create
+   * @param parentId - The ID of the parent folder to search within or create the folder in (defaults to 'root')
+   * @returns Promise that resolves to the folder ID (either existing or newly created)
+   * @throws {StorageError} When the Google Drive API request fails
+   *
+   * @example
+   * ```typescript
+   * // Ensure a folder exists, creating it if necessary
+   * const folderId = await googleDriveStorage.findOrCreateFolder("screenshots");
+   * console.log("Folder ID:", folderId); // Will be same ID if folder already existed
+   *
+   * // Create nested folder structure
+   * const parentId = await googleDriveStorage.findOrCreateFolder("projects");
+   * const childId = await googleDriveStorage.findOrCreateFolder("vana-app", parentId);
+   * ```
+   */
+  async findOrCreateFolder(
+    name: string,
+    parentId: string = "root",
+  ): Promise<string> {
+    try {
+      const existingFolderId = await this.findFolder(name, parentId);
+
+      if (existingFolderId) {
+        return existingFolderId;
+      }
+
+      return await this.createFolder(name, parentId);
+    } catch (error) {
+      if (error instanceof StorageError) {
+        throw error;
+      }
+      throw new StorageError(
+        `Google Drive findOrCreateFolder error: ${error instanceof Error ? error.message : "Unknown error"}`,
+        "FIND_OR_CREATE_FOLDER_ERROR",
+        "google-drive",
+      );
+    }
   }
 
   /**

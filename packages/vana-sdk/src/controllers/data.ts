@@ -1092,8 +1092,10 @@ export class DataController {
       );
 
       // Step 2: Fetch the encrypted file from the URL
-      const fetchUrl = this.convertIpfsUrl(file.url);
-      // Fetching file from storage
+      const fetchUrl = this.convertToDownloadUrl(file.url);
+      console.debug(
+        `Fetching encrypted file from URL: ${fetchUrl} (original: ${file.url})`,
+      );
 
       const response = await fetch(fetchUrl);
       if (!response.ok) {
@@ -1113,6 +1115,9 @@ export class DataController {
       }
 
       const encryptedBlob = await response.blob();
+      console.debug(
+        `Retrieved blob of size: ${encryptedBlob.size} bytes, type: ${encryptedBlob.type}`,
+      );
 
       // Check if we got actual content
       if (encryptedBlob.size === 0) {
@@ -1150,7 +1155,10 @@ export class DataController {
           throw new Error(
             "File not found: The encrypted file is no longer available at the stored URL.",
           );
-        } else if (error.message.includes("not a valid OpenPGP message")) {
+        } else if (
+          error.message.includes("not a valid OpenPGP message") ||
+          error.message.includes("does not conform to a valid OpenPGP format")
+        ) {
           throw new Error(
             "Invalid file format: This file doesn't appear to be encrypted with the Vana protocol.",
           );
@@ -1234,17 +1242,28 @@ export class DataController {
   }
 
   /**
-   * Converts IPFS URLs to HTTP gateway URLs for fetching.
+   * Converts IPFS and Google Drive URLs to direct download URLs for fetching.
    *
-   * @param ipfsUrl - The IPFS URL to convert to an HTTP gateway URL
-   * @returns The converted HTTP gateway URL or the original URL if not an IPFS URL
+   * @param url - The URL to convert to a direct download URL
+   * @returns The converted direct download URL or the original URL if not a special URL
    */
-  private convertIpfsUrl(ipfsUrl: string): string {
-    if (ipfsUrl.startsWith("ipfs://")) {
-      const hash = ipfsUrl.replace("ipfs://", "");
+  private convertToDownloadUrl(url: string): string {
+    // Handle IPFS URLs
+    if (url.startsWith("ipfs://")) {
+      const hash = url.replace("ipfs://", "");
       return `https://ipfs.io/ipfs/${hash}`;
     }
-    return ipfsUrl;
+
+    // Handle Google Drive URLs
+    if (url.includes("drive.google.com/file/d/")) {
+      const fileIdMatch = url.match(/\/file\/d\/([a-zA-Z0-9-_]+)/);
+      if (fileIdMatch) {
+        const fileId = fileIdMatch[1];
+        return `https://drive.google.com/uc?id=${fileId}&export=download`;
+      }
+    }
+
+    return url;
   }
 
   /**
@@ -1979,7 +1998,7 @@ export class DataController {
       );
 
       // 3. Download the encrypted file
-      const response = await fetch(this.convertIpfsUrl(file.url));
+      const response = await fetch(this.convertToDownloadUrl(file.url));
       if (!response.ok) {
         throw new Error(`Failed to download file: ${response.statusText}`);
       }

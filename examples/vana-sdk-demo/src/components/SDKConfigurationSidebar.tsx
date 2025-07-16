@@ -1,5 +1,5 @@
 import React from "react";
-import { Input, Select, SelectItem, Switch } from "@heroui/react";
+import { Input, Select, SelectItem, Switch, Button } from "@heroui/react";
 
 interface SDKConfig {
   relayerUrl: string;
@@ -8,6 +8,9 @@ interface SDKConfig {
   pinataJwt: string;
   pinataGateway: string;
   defaultStorageProvider: string;
+  googleDriveAccessToken: string;
+  googleDriveRefreshToken: string;
+  googleDriveExpiresAt: number | null;
 }
 
 export interface AppConfig {
@@ -19,6 +22,8 @@ interface SDKConfigurationSidebarProps {
   onConfigChange: (config: Partial<SDKConfig>) => void;
   appConfig: AppConfig;
   onAppConfigChange: (config: Partial<AppConfig>) => void;
+  onGoogleDriveAuth: () => void;
+  onGoogleDriveDisconnect: () => void;
 }
 
 /**
@@ -27,7 +32,14 @@ interface SDKConfigurationSidebarProps {
  */
 export const SDKConfigurationSidebar: React.FC<
   SDKConfigurationSidebarProps
-> = ({ sdkConfig, onConfigChange, appConfig, onAppConfigChange }) => {
+> = ({
+  sdkConfig,
+  onConfigChange,
+  appConfig,
+  onAppConfigChange,
+  onGoogleDriveAuth,
+  onGoogleDriveDisconnect,
+}) => {
   return (
     <div className="w-80 border-l border-divider bg-content1 sticky top-0 self-start max-h-screen overflow-y-auto">
       <div className="p-4">
@@ -100,6 +112,51 @@ export const SDKConfigurationSidebar: React.FC<
                 size="sm"
               />
 
+              {/* Google Drive Configuration */}
+              <div className="space-y-3">
+                <div className="text-sm font-medium">
+                  Google Drive Integration
+                </div>
+                {sdkConfig.googleDriveAccessToken ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm text-green-600">✅ Connected</div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        color="danger"
+                        onPress={onGoogleDriveDisconnect}
+                      >
+                        Disconnect
+                      </Button>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Token expires:{" "}
+                      {sdkConfig.googleDriveExpiresAt
+                        ? new Date(
+                            sdkConfig.googleDriveExpiresAt,
+                          ).toLocaleString()
+                        : "Unknown"}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="text-sm text-gray-500">Not connected</div>
+                    <Button
+                      size="sm"
+                      color="primary"
+                      onPress={onGoogleDriveAuth}
+                      className="w-full"
+                    >
+                      Connect Google Drive
+                    </Button>
+                    <div className="text-xs text-gray-500">
+                      Requires OAuth authentication
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <Select
                 label="Default Storage Provider"
                 selectedKeys={[sdkConfig.defaultStorageProvider]}
@@ -123,10 +180,14 @@ export const SDKConfigurationSidebar: React.FC<
                 </SelectItem>
                 <SelectItem
                   key="google-drive"
-                  isDisabled={true}
-                  description="Coming soon - Google Drive integration"
+                  isDisabled={!sdkConfig.googleDriveAccessToken}
+                  description={
+                    !sdkConfig.googleDriveAccessToken
+                      ? "Requires Google Drive authentication"
+                      : undefined
+                  }
                 >
-                  Google Drive (Soon)
+                  Google Drive
                 </SelectItem>
               </Select>
             </div>

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { Vana } from "../index.node";
+import { VanaNode } from "../index.node";
 import type { VanaConfig, WalletConfig, ChainConfig } from "../types/config";
 import type { UserFile, UploadEncryptedFileResult } from "../types/data";
 import type {
@@ -936,12 +936,12 @@ describe("TypeScript Types", () => {
     describe("Factory Methods", () => {
       it("should create Vana from ChainConfig", async () => {
         const account = privateKeyToAccount(testPrivateKey);
-        const vana = await new Vana({
+        const vana = await new VanaNode({
           chainId: 14800,
           rpcUrl: "https://rpc.moksha.vana.org",
           account,
         });
-        expect(vana).toBeInstanceOf(Vana);
+        expect(vana).toBeInstanceOf(VanaNode);
       });
 
       it("should create Vana from WalletConfig", async () => {
@@ -952,8 +952,8 @@ describe("TypeScript Types", () => {
           transport: http(),
         });
 
-        const vana = await new Vana({ walletClient });
-        expect(vana).toBeInstanceOf(Vana);
+        const vana = await new VanaNode({ walletClient });
+        expect(vana).toBeInstanceOf(VanaNode);
       });
     });
 
@@ -966,9 +966,9 @@ describe("TypeScript Types", () => {
           transport: http(),
         });
 
-        const vanaWithWallet = await new Vana({ walletClient });
+        const vanaWithWallet = await new VanaNode({ walletClient });
         const account2 = privateKeyToAccount(testPrivateKey);
-        const vanaWithChain = await new Vana({
+        const vanaWithChain = await new VanaNode({
           chainId: 14800,
           rpcUrl: "https://rpc.moksha.vana.org",
           account: account2,

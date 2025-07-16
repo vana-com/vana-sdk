@@ -4,9 +4,9 @@ import { describe, it, expect } from "vitest";
 describe("SDK Node Entry Point", () => {
   describe("Core exports", () => {
     it("should export Vana class", async () => {
-      const { Vana } = await import("../index.node");
-      expect(Vana).toBeDefined();
-      expect(typeof Vana).toBe("function");
+      const { VanaNode } = await import("../index.node");
+      expect(VanaNode).toBeDefined();
+      expect(typeof VanaNode).toBe("function");
     });
 
     it("should export VanaCore class", async () => {

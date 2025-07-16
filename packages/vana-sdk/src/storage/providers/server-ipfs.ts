@@ -30,6 +30,14 @@ export interface ServerIPFSConfig {
   baseUrl?: string;
 }
 
+/**
+ * Server-Managed IPFS Storage Provider
+ *
+ * Uses a server-side IPFS handler instead of direct IPFS node access.
+ * Provides simplified IPFS operations through API endpoints.
+ *
+ * @category Storage
+ */
 export class ServerIPFSStorage implements StorageProvider {
   private readonly uploadUrl: string;
 

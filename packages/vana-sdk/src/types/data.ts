@@ -38,7 +38,6 @@ export interface UserFile {
  * This interface contains descriptive information about uploaded files, including
  * file properties and custom application-specific data that can be used for
  * organization, validation, and display purposes.
- *
  * @category Data Management
  */
 export interface FileMetadata {
@@ -63,7 +62,6 @@ export interface FileMetadata {
  * Used with DataController upload methods and storage operations. Supports multiple
  * content formats, optional encryption, and custom storage provider selection with
  * comprehensive metadata tracking.
- *
  * @example
  * ```typescript
  * const uploadParams: UploadFileParams = {
@@ -79,7 +77,6 @@ export interface FileMetadata {
  *
  * const result = await vana.data.uploadFile(uploadParams);
  * ```
- *
  * @category Data Management
  */
 export interface UploadFileParams {
@@ -102,7 +99,6 @@ export interface UploadFileParams {
  * This interface provides the essential information returned after uploading
  * a file to a storage provider, including access URL, size verification,
  * and encryption details when applicable.
- *
  * @category Data Management
  */
 export interface UploadFileResult {
@@ -118,6 +114,8 @@ export interface UploadFileResult {
 
 /**
  * Result of uploading an encrypted file to storage and blockchain
+ *
+ * @category Data Management
  */
 export interface UploadEncryptedFileResult extends UploadFileResult {
   /** The new file ID assigned by the DataRegistry */
@@ -128,6 +126,8 @@ export interface UploadEncryptedFileResult extends UploadFileResult {
 
 /**
  * Encryption information for a file
+ *
+ * @category Data Management
  */
 export interface EncryptionInfo {
   /** Encryption algorithm used */
@@ -144,6 +144,8 @@ export interface EncryptionInfo {
 
 /**
  * Parameters for getting user files
+ *
+ * @category Data Management
  */
 export interface GetUserFilesParams {
   /** Owner address to filter by */
@@ -160,6 +162,8 @@ export interface GetUserFilesParams {
 
 /**
  * Parameters for getting a specific file
+ *
+ * @category Data Management
  */
 export interface GetFileParams {
   /** File ID to retrieve */
@@ -170,6 +174,8 @@ export interface GetFileParams {
 
 /**
  * Parameters for downloading a file
+ *
+ * @category Data Management
  */
 export interface DownloadFileParams {
   /** File URL or ID to download */
@@ -182,6 +188,8 @@ export interface DownloadFileParams {
 
 /**
  * Result of downloading a file
+ *
+ * @category Data Management
  */
 export interface DownloadFileResult {
   /** File content */
@@ -194,6 +202,8 @@ export interface DownloadFileResult {
 
 /**
  * Parameters for deleting a file
+ *
+ * @category Data Management
  */
 export interface DeleteFileParams {
   /** File ID to delete */
@@ -206,6 +216,8 @@ export interface DeleteFileParams {
 
 /**
  * Result of deleting a file
+ *
+ * @category Data Management
  */
 export interface DeleteFileResult {
   /** Whether the file was successfully deleted from the registry */
@@ -218,6 +230,8 @@ export interface DeleteFileResult {
 
 /**
  * File access permissions
+ *
+ * @category Data Management
  */
 export interface FileAccessPermissions {
   /** Whether the file can be read */
@@ -232,6 +246,8 @@ export interface FileAccessPermissions {
 
 /**
  * File sharing configuration
+ *
+ * @category Data Management
  */
 export interface FileSharingConfig {
   /** Addresses that can access the file */
@@ -244,6 +260,8 @@ export interface FileSharingConfig {
 
 /**
  * Batch upload parameters
+ *
+ * @category Data Management
  */
 export interface BatchUploadParams {
   /** Array of files to upload */
@@ -258,6 +276,8 @@ export interface BatchUploadParams {
 
 /**
  * Batch upload result
+ *
+ * @category Data Management
  */
 export interface BatchUploadResult {
   /** Results for each uploaded file */
@@ -300,6 +320,8 @@ export interface Schema {
 
 /**
  * Represents a refiner with schema information
+ *
+ * @category Data Management
  */
 export interface Refiner {
   /** Refiner ID */
@@ -318,6 +340,8 @@ export interface Refiner {
 
 /**
  * Parameters for adding a new schema
+ *
+ * @category Data Management
  */
 export interface AddSchemaParams {
   /** Schema name */
@@ -330,6 +354,8 @@ export interface AddSchemaParams {
 
 /**
  * Result of adding a schema
+ *
+ * @category Data Management
  */
 export interface AddSchemaResult {
   /** The new schema ID assigned by the contract */
@@ -369,6 +395,8 @@ export interface AddRefinerParams {
 
 /**
  * Result of adding a refiner
+ *
+ * @category Data Management
  */
 export interface AddRefinerResult {
   /** The new refiner ID assigned by the contract */
@@ -379,6 +407,8 @@ export interface AddRefinerResult {
 
 /**
  * Parameters for updating a refiner's schema ID
+ *
+ * @category Data Management
  */
 export interface UpdateSchemaIdParams {
   /** Refiner ID to update */
@@ -389,6 +419,8 @@ export interface UpdateSchemaIdParams {
 
 /**
  * Result of updating a refiner's schema ID
+ *
+ * @category Data Management
  */
 export interface UpdateSchemaIdResult {
   /** Transaction hash of the update */
@@ -397,11 +429,15 @@ export interface UpdateSchemaIdResult {
 
 /**
  * Query mode for trusted server retrieval
+ *
+ * @category Data Management
  */
 export type TrustedServerQueryMode = "subgraph" | "rpc" | "auto";
 
 /**
  * Trusted server data structure (unified format for both subgraph and RPC modes)
+ *
+ * @category Data Management
  */
 export interface TrustedServer {
   /** Unique identifier for the trusted server relationship */
@@ -420,6 +456,8 @@ export interface TrustedServer {
 
 /**
  * Parameters for getUserTrustedServers with dual-mode support
+ *
+ * @category Data Management
  */
 export interface GetUserTrustedServersParams {
   /** User address to query */
@@ -436,6 +474,8 @@ export interface GetUserTrustedServersParams {
 
 /**
  * Result of getUserTrustedServers query
+ *
+ * @category Data Management
  */
 export interface GetUserTrustedServersResult {
   /** Array of trusted servers */

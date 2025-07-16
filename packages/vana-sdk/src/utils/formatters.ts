@@ -2,6 +2,7 @@ import { formatEther, formatUnits } from "viem";
 
 /**
  * Format a bigint or BigNumber to a regular number
+ *
  * @param value BigInt, BigNumber or numeric string to convert
  * @returns Regular JavaScript number
  */
@@ -11,6 +12,7 @@ export function formatNumber(value: bigint | string | number): number {
 
 /**
  * Format wei value to ETH with specified decimal places
+ *
  * @param wei Value in wei (as bigint, string, or number)
  * @param decimals Number of decimal places to display (default: 4)
  * @returns Formatted ETH value as string
@@ -21,6 +23,7 @@ export function formatEth(wei: bigint | string | number, decimals = 4): string {
 
 /**
  * Format a token amount based on its decimals
+ *
  * @param amount Raw token amount
  * @param decimals Token decimals (default: 18)
  * @param displayDecimals Decimals to show in formatted output (default: 4)
@@ -43,6 +46,7 @@ export function formatToken(
 
 /**
  * Format an address for display (showing first 6 and last 4 characters)
+ *
  * @param address EVM address
  * @returns Shortened address string
  */

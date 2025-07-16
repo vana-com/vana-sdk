@@ -89,5 +89,5 @@ export async function createRelayerVana(
   chainId: number = 14800,
 ): Promise<Vana> {
   const config = createRelayerConfig(chainId);
-  return await Vana.create({ walletClient: config.walletClient });
+  return new Vana({ walletClient: config.walletClient });
 }

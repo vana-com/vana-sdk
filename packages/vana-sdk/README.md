@@ -44,7 +44,7 @@ npm install viem@^2.31.7
 import { Vana } from "vana-sdk";
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { mokshaTestnet } from "vana-sdk/chains";
+import { mokshaTestnet } from "vana-sdk";
 
 // Create wallet client
 const account = privateKeyToAccount("0x...");
@@ -576,7 +576,7 @@ npm run dev
 ## Support
 
 - **📖 Documentation**: [API Reference](https://vana-com.github.io/vana-sdk)
-- **💬 Discord**: [Join our community](https://discord.gg/vana)
+- **💬 Discord**: [Join our community](https://discord.gg/vanabuilders)
 - **🐛 Issues**: [GitHub Issues](https://github.com/vana-com/vana-sdk/issues)
 - **📧 Email**: [support@vana.org](mailto:support@vana.org)
 

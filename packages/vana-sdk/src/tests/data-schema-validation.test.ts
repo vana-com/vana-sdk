@@ -4,6 +4,7 @@ import { ControllerContext } from "../controllers/permissions";
 import type { StorageManager } from "../storage/manager";
 import { SchemaValidationError } from "../utils/schemaValidation";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
+import type { VanaChain } from "../types";
 
 // Mock viem getContract to return a mocked contract object
 vi.mock("viem", () => ({
@@ -396,7 +397,7 @@ describe("DataController - Schema Validation Methods", () => {
 
     it("should handle missing chainId in getValidatedSchema", async () => {
       // Mock missing chain
-      mockWalletClient.chain = undefined as any;
+      mockWalletClient.chain = undefined as unknown as VanaChain;
 
       await expect(controller.getValidatedSchema(123)).rejects.toThrow(
         SchemaValidationError,

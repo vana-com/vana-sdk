@@ -8,39 +8,17 @@
   "exports": {
     ".": {
       "node": {
-        "types": "./dist/index.node.d.ts",
         "import": "./dist/index.node.js",
-        "require": "./dist/index.node.cjs"
+        "types": "./dist/index.node.d.ts"
       },
       "browser": {
-        "types": "./dist/index.browser.d.ts",
         "import": "./dist/index.browser.js",
-        "require": "./dist/index.browser.cjs"
+        "types": "./dist/index.browser.d.ts"
       },
       "default": {
-        "types": "./dist/index.node.d.ts",
-        "import": "./dist/index.node.js"
+        "import": "./dist/index.node.js",
+        "types": "./dist/index.node.d.ts"
       }
-    },
-    "./platform": {
-      "types": "./dist/platform.d.ts",
-      "import": "./dist/platform.js",
-      "require": "./dist/platform.cjs"
-    },
-    "./chains": {
-      "types": "./dist/chains.d.ts",
-      "import": "./dist/chains.js",
-      "require": "./dist/chains.cjs"
-    },
-    "./types": {
-      "types": "./dist/types.d.ts",
-      "import": "./dist/types.js",
-      "require": "./dist/types.cjs"
-    },
-    "./errors": {
-      "types": "./dist/errors.d.ts",
-      "import": "./dist/errors.js",
-      "require": "./dist/errors.cjs"
     }
   },
   "files": [
@@ -49,16 +27,17 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsup",
     "clean": "rimraf dist",
+    "build:types": "tsup src/index.ts --dts-only --out-dir dist --no-clean",
+    "build:node": "tsup src/index.node.ts --platform node --format esm,cjs --target node18 --out-dir dist --no-clean",
+    "build:browser": "tsup src/index.browser.ts --platform browser --format esm --target es2020 --out-dir dist --dts --no-clean",
+    "build": "npm run clean && npm run build:types && npm run build:node && npm run build:browser",
+    "dev": "npm run build -- --watch",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "fetch-abis": "tsx scripts/fetch-abis.ts",
-    "prepublishOnly": "npm run build"
+    "test": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "keywords": [
     "vana",

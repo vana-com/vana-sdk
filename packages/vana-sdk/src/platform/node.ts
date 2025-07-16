@@ -48,6 +48,11 @@ let eccrypto: {
 } | null = null;
 
 // Lazy load eccrypto
+/**
+ * Lazy loads the eccrypto library for Node.js crypto operations
+ *
+ * @returns Promise resolving to the eccrypto library instance
+ */
 async function getEccrypto() {
   if (!eccrypto) {
     try {

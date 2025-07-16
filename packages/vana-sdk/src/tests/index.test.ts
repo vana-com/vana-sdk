@@ -1,16 +1,16 @@
 import { describe, it, expect } from "vitest";
 
-// Test that all main exports are available
-describe("SDK Entry Point", () => {
+// Test that all main exports are available from Node.js entry point
+describe("SDK Node Entry Point", () => {
   describe("Core exports", () => {
     it("should export Vana class", async () => {
-      const { Vana } = await import("../index");
+      const { Vana } = await import("../index.node");
       expect(Vana).toBeDefined();
       expect(typeof Vana).toBe("function");
     });
 
     it("should export VanaCore class", async () => {
-      const { VanaCore } = await import("../index");
+      const { VanaCore } = await import("../index.node");
       expect(VanaCore).toBeDefined();
       expect(typeof VanaCore).toBe("function");
     });
@@ -18,19 +18,19 @@ describe("SDK Entry Point", () => {
 
   describe("Controller exports", () => {
     it("should export PermissionsController", async () => {
-      const { PermissionsController } = await import("../index");
+      const { PermissionsController } = await import("../index.node");
       expect(PermissionsController).toBeDefined();
       expect(typeof PermissionsController).toBe("function");
     });
 
     it("should export DataController", async () => {
-      const { DataController } = await import("../index");
+      const { DataController } = await import("../index.node");
       expect(DataController).toBeDefined();
       expect(typeof DataController).toBe("function");
     });
 
     it("should export ProtocolController", async () => {
-      const { ProtocolController } = await import("../index");
+      const { ProtocolController } = await import("../index.node");
       expect(ProtocolController).toBeDefined();
       expect(typeof ProtocolController).toBe("function");
     });
@@ -38,7 +38,7 @@ describe("SDK Entry Point", () => {
 
   describe("Contract exports", () => {
     it("should export getContractController", async () => {
-      const { getContractController } = await import("../index");
+      const { getContractController } = await import("../index.node");
       expect(getContractController).toBeDefined();
       expect(typeof getContractController).toBe("function");
     });
@@ -51,7 +51,7 @@ describe("SDK Entry Point", () => {
         encryptUserData,
         decryptUserData,
         DEFAULT_ENCRYPTION_SEED,
-      } = await import("../index");
+      } = await import("../index.node");
 
       expect(generateEncryptionKey).toBeDefined();
       expect(encryptUserData).toBeDefined();
@@ -61,7 +61,7 @@ describe("SDK Entry Point", () => {
 
     it("should export formatter utilities", async () => {
       const { formatNumber, formatEth, formatToken, shortenAddress } =
-        await import("../index");
+        await import("../index.node");
 
       expect(formatNumber).toBeDefined();
       expect(formatEth).toBeDefined();
@@ -75,7 +75,7 @@ describe("SDK Entry Point", () => {
         storeGrantFile,
         retrieveGrantFile,
         getGrantFileHash,
-      } = await import("../index");
+      } = await import("../index.node");
 
       expect(createGrantFile).toBeDefined();
       expect(storeGrantFile).toBeDefined();
@@ -93,7 +93,7 @@ describe("SDK Entry Point", () => {
         PinataStorage,
         GoogleDriveStorage,
         ServerIPFSStorage,
-      } = await import("../index");
+      } = await import("../index.node");
 
       expect(StorageManager).toBeDefined();
       expect(StorageError).toBeDefined();
@@ -106,7 +106,7 @@ describe("SDK Entry Point", () => {
 
   describe("Config exports", () => {
     it("should export configuration utilities", async () => {
-      const { getContractAddress, chains } = await import("../index");
+      const { getContractAddress, chains } = await import("../index.node");
 
       expect(getContractAddress).toBeDefined();
       expect(chains).toBeDefined();
@@ -115,7 +115,7 @@ describe("SDK Entry Point", () => {
     });
 
     it("should export ABI utilities", async () => {
-      const { getAbi } = await import("../index");
+      const { getAbi } = await import("../index.node");
 
       expect(getAbi).toBeDefined();
       expect(typeof getAbi).toBe("function");
@@ -133,7 +133,7 @@ describe("SDK Entry Point", () => {
         SerializationError,
         NonceError,
         StorageError,
-      } = await import("../index");
+      } = await import("../index.node");
 
       expect(NetworkError).toBeDefined();
       expect(BlockchainError).toBeDefined();
@@ -149,7 +149,7 @@ describe("SDK Entry Point", () => {
   describe("Type exports", () => {
     it("should be able to import types", async () => {
       // Just verify the import doesn't throw - types don't exist at runtime
-      const module = await import("../index");
+      const module = await import("../index.node");
       expect(module).toBeDefined();
     });
   });

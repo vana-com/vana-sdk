@@ -1,4 +1,5 @@
 import { Address, getContract, decodeEventLog } from "viem";
+
 import {
   UserFile,
   UploadEncryptedFileResult,
@@ -100,7 +101,6 @@ interface SubgraphResponse {
  * and supports both gasless transactions via relayers and direct blockchain interaction.
  * File metadata and access permissions are stored on the Vana blockchain while encrypted
  * file content is stored on decentralized storage networks.
- *
  * @example
  * ```typescript
  * // Upload an encrypted file with automatic schema validation
@@ -117,7 +117,6 @@ interface SubgraphResponse {
  * // Decrypt accessible file content
  * const decryptedData = await vana.data.decryptFile(files[0]);
  * ```
- *
  * @category Data Management
  * @see {@link [URL_PLACEHOLDER] | Vana Data Registry Documentation} for conceptual overview
  */
@@ -135,13 +134,11 @@ export class DataController {
    * This method queries the Vana subgraph to find files directly owned by the user.
    * It efficiently handles large datasets by using the File entity's owner field
    * and returns complete file metadata without additional contract calls.
-   *
    * @param params - The query parameters object
    * @param params.owner - The wallet address of the file owner to query
    * @param params.subgraphUrl - Optional subgraph URL to override the default endpoint
    * @returns A Promise that resolves to an array of UserFile objects with metadata
    * @throws {Error} When the subgraph is unavailable or returns invalid data
-   *
    * @example
    * ```typescript
    * // Query files for a specific user
@@ -401,7 +398,6 @@ export class DataController {
    * @param params - Query parameters including user address and mode selection
    * @returns Promise resolving to trusted servers with metadata about the query
    * @throws Error if query fails in both modes (when using 'auto')
-   *
    * @example
    * ```typescript
    * // Use subgraph for fast queries
@@ -537,6 +533,11 @@ export class DataController {
 
   /**
    * Internal method: Query trusted servers via subgraph
+   *
+   * @param params - Query parameters object
+   * @param params.user - The user address to query trusted servers for
+   * @param params.subgraphUrl - The subgraph URL endpoint to query
+   * @returns Promise resolving to an array of trusted server objects
    */
   private async _getUserTrustedServersViaSubgraph(params: {
     user: Address;
@@ -615,6 +616,12 @@ export class DataController {
 
   /**
    * Internal method: Query trusted servers via direct RPC
+   *
+   * @param params - Query parameters object
+   * @param params.user - The user address to query trusted servers for
+   * @param params.limit - Maximum number of results to return
+   * @param params.offset - Number of results to skip for pagination
+   * @returns Promise resolving to pagination result with servers, total count, and hasMore flag
    */
   private async _getUserTrustedServersViaRpc(params: {
     user: Address;
@@ -723,6 +730,16 @@ export class DataController {
    * Gets the total number of files in the registry from the contract.
    *
    * @returns Promise resolving to the total file count
+   * @example
+   * ```typescript
+   * const totalFiles = await vana.data.getTotalFilesCount();
+   * console.log(`Total files in registry: ${totalFiles}`);
+   *
+   * // Use for pagination calculations
+   * const filesPerPage = 20;
+   * const totalPages = Math.ceil(totalFiles / filesPerPage);
+   * console.log(`Total pages: ${totalPages}`);
+   * ```
    */
   async getTotalFilesCount(): Promise<number> {
     try {
@@ -762,6 +779,20 @@ export class DataController {
    *
    * @param fileId - The file ID to look up
    * @returns Promise resolving to UserFile object
+   * @example
+   * ```typescript
+   * try {
+   *   const file = await vana.data.getFileById(123);
+   *   console.log('File details:', {
+   *     id: file.id,
+   *     url: file.url,
+   *     owner: file.ownerAddress,
+   *     addedAt: file.addedAtBlock
+   *   });
+   * } catch (error) {
+   *   console.error('File not found or error retrieving file:', error);
+   * }
+   * ```
    *
    * This method queries the DataRegistry contract directly
    * to get file details for any file ID, regardless of user ownership.
@@ -1204,6 +1235,9 @@ export class DataController {
 
   /**
    * Converts IPFS URLs to HTTP gateway URLs for fetching.
+   *
+   * @param ipfsUrl - The IPFS URL to convert to an HTTP gateway URL
+   * @returns The converted HTTP gateway URL or the original URL if not an IPFS URL
    */
   private convertIpfsUrl(ipfsUrl: string): string {
     if (ipfsUrl.startsWith("ipfs://")) {
@@ -1215,6 +1249,8 @@ export class DataController {
 
   /**
    * Gets the user's address from the wallet client.
+   *
+   * @returns Promise resolving to the user's wallet address
    */
   private async getUserAddress(): Promise<Address> {
     const addresses = await this.context.walletClient.getAddresses();
@@ -1969,9 +2005,8 @@ export class DataController {
    * Validates a data schema against the Vana meta-schema.
    *
    * @param schema - The data schema to validate
-   * @returns true if valid
+   * @returns Assertion that schema is valid (throws if invalid)
    * @throws SchemaValidationError if invalid
-   *
    * @example
    * ```typescript
    * const schema = {
@@ -1999,8 +2034,8 @@ export class DataController {
    *
    * @param data - The data to validate
    * @param schema - The data schema containing the schema
+   * @returns Void (throws if validation fails)
    * @throws SchemaValidationError if invalid
-   *
    * @example
    * ```typescript
    * const schema = {
@@ -2031,7 +2066,6 @@ export class DataController {
    * @param url - The URL to fetch the schema from
    * @returns The validated data schema
    * @throws SchemaValidationError if invalid or fetch fails
-   *
    * @example
    * ```typescript
    * // Fetch and validate a schema from IPFS or HTTP
@@ -2054,7 +2088,6 @@ export class DataController {
    * @param schemaId - The schema ID to retrieve and validate
    * @returns The validated data schema
    * @throws SchemaValidationError if schema is invalid
-   *
    * @example
    * ```typescript
    * // Get schema from registry and validate its schema

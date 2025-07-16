@@ -4,13 +4,21 @@ import dataSchemaSchema from "../schemas/dataContract.schema.json";
 
 /**
  * Data schema interface following the Vana schema specification
+ *
+ * @category Configuration
  */
 export interface DataSchema {
+  /** The name of the data schema */
   name: string;
+  /** The version of the data schema */
   version: string;
+  /** Optional description of the data schema */
   description?: string;
+  /** The dialect type - either SQLite or JSON */
   dialect: "sqlite" | "json";
+  /** Optional version of the dialect */
   dialectVersion?: string;
+  /** The actual schema definition as string or object */
   schema: string | object;
 }
 
@@ -58,9 +66,7 @@ export class SchemaValidator {
    * Validates a data schema against the Vana meta-schema
    *
    * @param schema - The data schema to validate
-   * @returns true if valid
    * @throws SchemaValidationError if invalid
-   *
    * @example
    * ```typescript
    * const validator = new SchemaValidator();
@@ -117,9 +123,7 @@ export class SchemaValidator {
    *
    * @param data - The data to validate
    * @param schema - The data schema containing the schema
-   * @returns true if valid
    * @throws SchemaValidationError if invalid
-   *
    * @example
    * ```typescript
    * const validator = new SchemaValidator();
@@ -177,7 +181,6 @@ export class SchemaValidator {
    *
    * @param ddl - The DDL string to validate
    * @param dialectVersion - Optional SQLite version (e.g., "3" for SQLite v3)
-   * @returns true if basic validation passes
    * @throws SchemaValidationError if invalid
    */
   validateSQLiteDDL(ddl: string, dialectVersion?: string): void {
@@ -235,7 +238,6 @@ export class SchemaValidator {
    * @param url - The URL to fetch the schema from
    * @returns The validated data schema
    * @throws SchemaValidationError if invalid or fetch fails
-   *
    * @example
    * ```typescript
    * const validator = new SchemaValidator();
@@ -280,7 +282,7 @@ export const schemaValidator = new SchemaValidator();
  * Convenience function to validate a data schema
  *
  * @param schema - The data schema to validate
- * @returns true if valid
+ * @returns void - Assertion function that doesn't return a value
  * @throws SchemaValidationError if invalid
  */
 export function validateDataSchema(
@@ -294,6 +296,7 @@ export function validateDataSchema(
  *
  * @param data - The data to validate
  * @param schema - The data schema containing the schema
+ * @returns void - Function doesn't return a value
  * @throws SchemaValidationError if invalid
  */
 export function validateDataAgainstSchema(

@@ -1,35 +1,47 @@
-import { VanaCore } from "./core";
 import { BrowserPlatformAdapter } from "./platform/browser";
+import { VanaCore } from "./core";
 import type { VanaConfig } from "./types";
 
 /**
  * The Vana SDK class pre-configured for browser environments.
- * Automatically uses the browser platform adapter.
+ * Automatically uses the browser platform adapter for crypto operations and file systems.
+ *
+ * @example
+ * ```typescript
+ * const vana = new Vana({ walletClient });
+ *
+ * // Upload and encrypt user data
+ * const file = await vana.data.uploadAndStoreFile(dataBlob, schema);
+ *
+ * // Grant permissions to DLPs
+ * await vana.permissions.grantPermission({
+ *   account: dlpAddress,
+ *   fileId: file.id,
+ *   permissions: ['read']
+ * });
+ * ```
  */
-export class Vana extends VanaCore {
+export class VanaBrowser extends VanaCore {
+  /**
+   * Creates a Vana SDK instance configured for browser environments.
+   *
+   * @param config - SDK configuration object (wallet client or chain config)
+   * @example
+   * ```typescript
+   * // With wallet client
+   * const vana = new Vana({ walletClient });
+   *
+   * // With chain configuration
+   * const vana = new Vana({ chainId: 14800, account });
+   * ```
+   */
   constructor(config: VanaConfig) {
-    // Automatically inject the browser platform adapter
-    super(config, new BrowserPlatformAdapter());
-  }
-
-  /**
-   * Creates a Vana SDK instance from a chain configuration.
-   * @param config - Chain configuration object
-   * @returns Vana SDK instance configured for browser
-   */
-  static override fromChain(config: VanaConfig) {
-    return new Vana(config);
-  }
-
-  /**
-   * Creates a Vana SDK instance from a wallet client configuration.
-   * @param config - Wallet client configuration object
-   * @returns Vana SDK instance configured for browser
-   */
-  static override fromWallet(config: VanaConfig) {
-    return new Vana(config);
+    super(new BrowserPlatformAdapter(), config);
   }
 }
+
+// Export the browser-specific class as the main 'Vana' for this entry point.
+export { VanaBrowser as Vana };
 
 // Re-export everything that was in index.ts (avoiding circular dependency)
 // Types - modular exports
@@ -95,6 +107,10 @@ export {
   CircuitBreaker,
 } from "./core/generics";
 
+// Platform adapters
+export { BrowserPlatformAdapter } from "./platform/browser";
+export type { NodePlatformAdapter } from "./platform/node";
+
 export { ApiClient } from "./core/apiClient";
 
 export type {
@@ -104,4 +120,4 @@ export type {
 } from "./core/apiClient";
 
 // Re-export the SDK as both named and default export
-export default Vana;
+export default VanaBrowser;

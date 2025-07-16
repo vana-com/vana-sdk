@@ -73,7 +73,6 @@ interface SubgraphPermissionsResponse {
  * this context during initialization and passes it to each controller. It includes
  * wallet clients for transaction signing, storage managers for file operations,
  * and platform adapters for environment-specific functionality.
- *
  * @category Configuration
  */
 export interface ControllerContext {
@@ -106,7 +105,6 @@ export interface ControllerContext {
  * All permission operations support both gasless transactions via relayers and direct
  * blockchain transactions. Grant files containing detailed permission parameters are
  * stored on IPFS while permission references are recorded on the blockchain.
- *
  * @example
  * ```typescript
  * // Grant permission for an app to access your data
@@ -125,7 +123,6 @@ export interface ControllerContext {
  * // Query current permissions
  * const permissions = await vana.permissions.getUserPermissions();
  * ```
- *
  * @category Permissions
  * @see {@link [URL_PLACEHOLDER] | Vana Permissions System} for conceptual overview
  */
@@ -141,14 +138,12 @@ export class PermissionsController {
    * generates an EIP-712 signature, and submits via relayer. The grant file contains
    * detailed parameters while the blockchain stores only a reference to enable
    * efficient permission queries.
-   *
    * @param params - The permission grant configuration object
    * @returns A Promise that resolves to the transaction hash when successfully submitted
    * @throws {RelayerError} When gasless transaction submission fails
    * @throws {SignatureError} When user rejects the signature request
    * @throws {SerializationError} When grant data cannot be serialized
    * @throws {BlockchainError} When permission grant preparation fails
-   *
    * @example
    * ```typescript
    * const txHash = await vana.permissions.grant({
@@ -177,10 +172,8 @@ export class PermissionsController {
    * to show users a preview of what they're authorizing before requesting a signature.
    * Unlike `createAndSign()`, this method does NOT upload to IPFS or prompt for signatures
    * until the returned `confirm()` function is called.
-   *
    * @param params - The permission grant parameters
    * @returns A promise resolving to a preview object and confirm function
-   *
    * @example
    * ```typescript
    * const { preview, confirm } = await vana.permissions.prepareGrant({
@@ -241,6 +234,10 @@ export class PermissionsController {
   /**
    * Internal method to complete the grant process after user confirmation.
    * This is called by the confirm() function returned from prepareGrant().
+   *
+   * @param params - The permission grant parameters containing user and operation details
+   * @param grantFile - The prepared grant file with permissions and metadata
+   * @returns Promise resolving to the transaction hash
    */
   private async confirmGrantInternal(
     params: GrantPermissionParams,
@@ -337,14 +334,12 @@ export class PermissionsController {
    *
    * For interactive user flows, consider using `prepareGrant()` instead,
    * which allows showing a preview before signing.
-   *
    * @param params - The permission grant configuration object
    * @returns A promise resolving to the typed data structure and signature for gasless submission
    * @throws {SignatureError} When the user rejects the signature request
    * @throws {SerializationError} When grant data cannot be properly formatted
    * @throws {BlockchainError} When permission grant preparation fails
    * @throws {NetworkError} When storage operations fail
-   *
    * @example
    * ```typescript
    * const { typedData, signature } = await vana.permissions.createAndSign({
@@ -452,14 +447,12 @@ export class PermissionsController {
    * This method supports both relayer-based gasless transactions and direct transactions.
    * It automatically converts `bigint` values to JSON-safe strings when using relayer
    * callbacks and handles transaction submission with proper error handling and retry logic.
-   *
    * @param typedData - The EIP-712 typed data structure for the permission grant
    * @param signature - The user's signature as a hex string
    * @returns A Promise that resolves to the transaction hash
    * @throws {RelayerError} When gasless transaction submission fails
    * @throws {BlockchainError} When permission submission fails
    * @throws {NetworkError} When network communication fails
-   *
    * @example
    * ```typescript
    * const txHash = await vana.permissions.submitSignedGrant(
@@ -663,6 +656,10 @@ export class PermissionsController {
 
   /**
    * Submits a signed transaction directly to the blockchain.
+   *
+   * @param typedData - The typed data structure for the permission grant
+   * @param signature - The cryptographic signature authorizing the transaction
+   * @returns Promise resolving to the transaction hash
    */
   private async submitDirectTransaction(
     typedData: PermissionGrantTypedData,
@@ -712,6 +709,18 @@ export class PermissionsController {
    *
    * @param params - Parameters for revoking the permission
    * @returns Promise resolving to transaction hash
+   * @example
+   * ```typescript
+   * // Revoke a permission by its ID
+   * const txHash = await vana.permissions.revoke({
+   *   permissionId: 123n
+   * });
+   * console.log('Permission revoked in transaction:', txHash);
+   *
+   * // Wait for confirmation if needed
+   * const receipt = await vana.core.waitForTransaction(txHash);
+   * console.log('Revocation confirmed in block:', receipt.blockNumber);
+   * ```
    */
   async revoke(params: RevokePermissionParams): Promise<Hash> {
     try {
@@ -816,6 +825,8 @@ export class PermissionsController {
 
   /**
    * Retrieves the user's current nonce from the DataPermissions contract.
+   *
+   * @returns Promise resolving to the user's current nonce value
    */
   private async getUserNonce(): Promise<bigint> {
     try {
@@ -845,6 +856,15 @@ export class PermissionsController {
 
   /**
    * Composes the EIP-712 typed data for PermissionGrant (new simplified format).
+   *
+   * @param params - The parameters for composing the permission grant message
+   * @param params.to - The recipient address for the permission grant
+   * @param params.operation - The type of operation being granted permission for
+   * @param params.files - Array of file IDs that the permission applies to
+   * @param params.grantUrl - URL where the grant details are stored
+   * @param params.serializedParameters - Serialized parameters for the operation
+   * @param params.nonce - Unique number to prevent replay attacks
+   * @returns Promise resolving to the typed data structure
    */
   private async composePermissionGrantMessage(params: {
     to: Address;
@@ -881,6 +901,8 @@ export class PermissionsController {
 
   /**
    * Gets the EIP-712 domain for PermissionGrant signatures.
+   *
+   * @returns Promise resolving to the EIP-712 domain configuration
    */
   private async getPermissionDomain() {
     const chainId = await this.context.walletClient.getChainId();
@@ -899,6 +921,9 @@ export class PermissionsController {
 
   /**
    * Signs typed data using the wallet client.
+   *
+   * @param typedData - The EIP-712 typed data structure to sign
+   * @returns Promise resolving to the cryptographic signature
    */
   private async signTypedData(
     typedData: PermissionGrantTypedData | GenericTypedData,
@@ -923,6 +948,8 @@ export class PermissionsController {
 
   /**
    * Gets the user's address from the wallet client.
+   *
+   * @returns Promise resolving to the user's wallet address
    */
   private async getUserAddress(): Promise<Address> {
     const addresses = await this.context.walletClient.getAddresses();
@@ -941,13 +968,11 @@ export class PermissionsController {
    * indexed subgraph data instead of scanning contract logs. The method fetches complete
    * grant files from IPFS to provide detailed permission information including operation
    * parameters and grantee details.
-   *
    * @param params - Optional query parameters
    * @param params.limit - Maximum number of permissions to return (default: 50)
    * @param params.subgraphUrl - Optional subgraph URL to override the default endpoint
    * @returns A Promise that resolves to an array of `GrantedPermission` objects
    * @throws {BlockchainError} When subgraph is unavailable or returns invalid data
-   *
    * @example
    * ```typescript
    * // Get all permissions granted by current user
@@ -1268,6 +1293,19 @@ export class PermissionsController {
    *
    * @param params - Parameters for trusting the server
    * @returns Promise resolving to transaction hash
+   * @example
+   * ```typescript
+   * // Trust a server by providing its ID and URL
+   * const txHash = await vana.permissions.trustServer({
+   *   serverId: '0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6',
+   *   serverUrl: 'https://myserver.example.com'
+   * });
+   * console.log('Server trusted in transaction:', txHash);
+   *
+   * // Verify the server was added to trusted list
+   * const trustedServers = await vana.permissions.getTrustedServers();
+   * console.log('Trusted servers:', trustedServers.length);
+   * ```
    */
   async trustServer(params: TrustServerParams): Promise<Hash> {
     try {
@@ -1362,6 +1400,9 @@ export class PermissionsController {
 
   /**
    * Submits a direct untrust server transaction (without signature).
+   *
+   * @param params - The untrust server parameters containing server details
+   * @returns Promise resolving to the transaction hash
    */
   private async submitDirectUntrustTransaction(
     params: UntrustServerInput,
@@ -1783,6 +1824,9 @@ export class PermissionsController {
 
   /**
    * Composes EIP-712 typed data for TrustServer.
+   *
+   * @param input - The trust server input data containing server details
+   * @returns Promise resolving to the typed data structure for server trust
    */
   private async composeTrustServerMessage(
     input: TrustServerInput,
@@ -1805,6 +1849,9 @@ export class PermissionsController {
 
   /**
    * Composes EIP-712 typed data for UntrustServer.
+   *
+   * @param input - The untrust server input data containing server details
+   * @returns Promise resolving to the typed data structure for server untrust
    */
   private async composeUntrustServerMessage(
     input: UntrustServerInput,
@@ -1826,6 +1873,10 @@ export class PermissionsController {
 
   /**
    * Submits a trust server transaction directly to the blockchain.
+   *
+   * @param trustServerInput - The trust server input data containing server details
+   * @param signature - The cryptographic signature for the transaction
+   * @returns Promise resolving to the transaction hash
    */
   private async submitTrustServerTransaction(
     trustServerInput: TrustServerInput,
@@ -1860,6 +1911,10 @@ export class PermissionsController {
 
   /**
    * Submits a revoke transaction directly to the blockchain with signature.
+   *
+   * @param typedData - The EIP-712 typed data structure for the revoke operation
+   * @param signature - The cryptographic signature authorizing the revoke
+   * @returns Promise resolving to the transaction hash
    */
   private async submitDirectRevokeTransaction(
     typedData: GenericTypedData,
@@ -1888,6 +1943,10 @@ export class PermissionsController {
 
   /**
    * Submits an untrust server transaction with signature.
+   *
+   * @param typedData - The EIP-712 typed data structure for the untrust operation
+   * @param signature - The cryptographic signature authorizing the untrust
+   * @returns Promise resolving to the transaction hash
    */
   private async submitSignedUntrustTransaction(
     typedData: GenericTypedData,

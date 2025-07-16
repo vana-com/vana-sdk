@@ -7,7 +7,6 @@
  * class to provide structured error information that applications can handle
  * programmatically. The error code enables differentiation between error types
  * without relying on string matching.
- *
  * @category Error Handling
  */
 export class VanaError extends Error {
@@ -32,7 +31,6 @@ export class VanaError extends Error {
  * This error occurs when the relayer service is unavailable, returns an error,
  * or fails to process a gasless transaction. It includes the HTTP status code
  * and response details when available to help with debugging relayer issues.
- *
  * @category Error Handling
  */
 export class RelayerError extends VanaError {
@@ -52,7 +50,6 @@ export class RelayerError extends VanaError {
  * This error occurs when users decline to sign transactions or typed data through
  * their wallet interface. It's a normal part of user interaction and should be
  * handled gracefully by applications without treating it as a system error.
- *
  * @category Error Handling
  */
 export class UserRejectedRequestError extends VanaError {
@@ -77,7 +74,6 @@ export class InvalidConfigurationError extends VanaError {
  * This error occurs when attempting to interact with contracts that are not
  * available on the connected blockchain network. It includes the contract name
  * and chain ID to help identify deployment issues or incorrect network configuration.
- *
  * @category Error Handling
  */
 export class ContractNotFoundError extends VanaError {

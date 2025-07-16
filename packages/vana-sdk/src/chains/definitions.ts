@@ -69,7 +69,6 @@ export const moksha: VanaChainConfig = {
  *
  * @param chainId - The numeric chain ID to look up
  * @returns The chain configuration if found, undefined otherwise
- *
  * @example
  * ```typescript
  * const config = getChainConfig(1480);
@@ -94,7 +93,6 @@ export function getChainConfig(chainId: number): VanaChainConfig | undefined {
  * Retrieves all available Vana chain configurations.
  *
  * @returns Array of all supported Vana chain configurations
- *
  * @example
  * ```typescript
  * const chains = getAllChains();

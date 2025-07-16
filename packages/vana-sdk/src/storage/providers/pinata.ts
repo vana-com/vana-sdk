@@ -82,7 +82,6 @@ interface PinataListResponse {
  * This provider uploads files directly from the browser to Pinata's IPFS service.
  *
  * @throws {StorageError} When Pinata JWT token is missing from configuration
- *
  * @example
  * ```typescript
  * const pinataStorage = new PinataStorage({
@@ -94,7 +93,6 @@ interface PinataListResponse {
  * const result = await pinataStorage.upload(file, 'hello.txt');
  * console.log('File pinned to IPFS:', result.metadata?.ipfsHash);
  * ```
- *
  * @category Storage
  */
 export class PinataStorage implements StorageProvider {
@@ -341,6 +339,7 @@ export class PinataStorage implements StorageProvider {
 
   /**
    * Extract IPFS hash from various URL formats
+   *
    * @param url - IPFS URL
    * @returns IPFS hash or null if not found
    */
@@ -364,6 +363,7 @@ export class PinataStorage implements StorageProvider {
 
   /**
    * Test the Pinata connection
+   *
    * @returns Promise with authentication test result
    */
   async testConnection(): Promise<{

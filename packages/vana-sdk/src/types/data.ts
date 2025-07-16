@@ -38,7 +38,6 @@ export interface UserFile {
  * This interface contains descriptive information about uploaded files, including
  * file properties and custom application-specific data that can be used for
  * organization, validation, and display purposes.
- *
  * @category Data Management
  */
 export interface FileMetadata {
@@ -63,7 +62,6 @@ export interface FileMetadata {
  * Used with DataController upload methods and storage operations. Supports multiple
  * content formats, optional encryption, and custom storage provider selection with
  * comprehensive metadata tracking.
- *
  * @example
  * ```typescript
  * const uploadParams: UploadFileParams = {
@@ -79,7 +77,6 @@ export interface FileMetadata {
  *
  * const result = await vana.data.uploadFile(uploadParams);
  * ```
- *
  * @category Data Management
  */
 export interface UploadFileParams {
@@ -102,7 +99,6 @@ export interface UploadFileParams {
  * This interface provides the essential information returned after uploading
  * a file to a storage provider, including access URL, size verification,
  * and encryption details when applicable.
- *
  * @category Data Management
  */
 export interface UploadFileResult {

@@ -14,18 +14,18 @@
  *     // Custom upload logic
  *     return { url: 'https://my-storage.com/file.dat', size: file.size };
  *   }
- *   
+ *
  *   async download(url: string): Promise<Blob> {
  *     // Custom download logic
  *     const response = await fetch(url);
  *     return response.blob();
  *   }
- *   
+ *
  *   async list(options?: StorageListOptions): Promise<StorageFile[]> {
  *     // Return list of files
  *     return [];
  *   }
- *   
+ *
  *   async delete(url: string): Promise<void> {
  *     // Delete file implementation
  *   }
@@ -35,6 +35,7 @@
 export interface StorageProvider {
   /**
    * Upload a file to the storage provider
+   *
    * @param file - The file to upload
    * @param filename - Optional custom filename
    * @returns Promise with storage URL and metadata
@@ -43,6 +44,7 @@ export interface StorageProvider {
 
   /**
    * Download a file from the storage provider
+   *
    * @param url - The storage URL
    * @returns Promise with file blob
    */
@@ -50,6 +52,7 @@ export interface StorageProvider {
 
   /**
    * List files from the storage provider
+   *
    * @param options - Optional filtering and pagination
    * @returns Promise with file list
    */
@@ -57,6 +60,7 @@ export interface StorageProvider {
 
   /**
    * Delete a file from the storage provider
+   *
    * @param url - The storage URL
    * @returns Promise with success status
    */
@@ -64,6 +68,7 @@ export interface StorageProvider {
 
   /**
    * Get provider-specific configuration
+   *
    * @returns Provider configuration object
    */
   getConfig(): StorageProviderConfig;

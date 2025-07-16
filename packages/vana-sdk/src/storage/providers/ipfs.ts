@@ -38,7 +38,6 @@ interface IPFSUploadResponse {
  * Supports both public and private IPFS endpoints.
  *
  * @throws {StorageError} When IPFS API endpoint is missing from configuration
- *
  * @example
  * ```typescript
  * const ipfsStorage = new IPFSStorage({
@@ -50,7 +49,6 @@ interface IPFSUploadResponse {
  * const result = await ipfsStorage.upload(file, 'hello.txt');
  * console.log('File uploaded to:', result.url);
  * ```
- *
  * @category Storage
  */
 export class IPFSStorage implements StorageProvider {
@@ -224,6 +222,7 @@ export class IPFSStorage implements StorageProvider {
 
   /**
    * Extract IPFS hash from various URL formats
+   *
    * @param url - IPFS URL
    * @returns IPFS hash or null if not found
    */

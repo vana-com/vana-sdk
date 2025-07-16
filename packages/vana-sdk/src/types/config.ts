@@ -66,6 +66,7 @@ export interface StorageConfig {
 export interface RelayerCallbacks {
   /**
    * Submit a signed permission grant transaction for relay
+   *
    * @param typedData - The EIP-712 typed data that was signed
    * @param signature - The user's signature
    * @returns Promise resolving to the transaction hash
@@ -77,6 +78,7 @@ export interface RelayerCallbacks {
 
   /**
    * Submit a signed permission revocation transaction for relay
+   *
    * @param typedData - The EIP-712 typed data that was signed
    * @param signature - The user's signature
    * @returns Promise resolving to the transaction hash
@@ -88,6 +90,7 @@ export interface RelayerCallbacks {
 
   /**
    * Submit a signed trust server transaction for relay
+   *
    * @param typedData - The EIP-712 typed data that was signed
    * @param signature - The user's signature
    * @returns Promise resolving to the transaction hash
@@ -99,6 +102,7 @@ export interface RelayerCallbacks {
 
   /**
    * Submit a signed untrust server transaction for relay
+   *
    * @param typedData - The EIP-712 typed data that was signed
    * @param signature - The user's signature
    * @returns Promise resolving to the transaction hash
@@ -110,6 +114,7 @@ export interface RelayerCallbacks {
 
   /**
    * Submit a file addition for relay
+   *
    * @param url - The file URL to register
    * @param userAddress - The user's address
    * @returns Promise resolving to object with fileId and transactionHash
@@ -121,6 +126,7 @@ export interface RelayerCallbacks {
 
   /**
    * Submit a file addition with permissions for relay
+   *
    * @param url - The file URL to register
    * @param userAddress - The user's address
    * @param permissions - Array of encrypted permissions
@@ -134,6 +140,7 @@ export interface RelayerCallbacks {
 
   /**
    * Store a grant file for relay (e.g., upload to IPFS)
+   *
    * @param grantData - The grant file data
    * @returns Promise resolving to the storage URL
    */
@@ -251,7 +258,6 @@ export interface RuntimeConfig {
  *
  * @param config - The configuration object to check
  * @returns True if the config is a WalletConfig (contains walletClient)
- *
  * @example
  * ```typescript
  * if (isWalletConfig(config)) {
@@ -270,7 +276,6 @@ export function isWalletConfig(config: VanaConfig): config is WalletConfig {
  *
  * @param config - The configuration object to check
  * @returns True if the config is a ChainConfig (contains chainId but not walletClient)
- *
  * @example
  * ```typescript
  * if (isChainConfig(config)) {

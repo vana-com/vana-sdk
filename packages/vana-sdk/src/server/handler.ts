@@ -42,7 +42,6 @@ export interface RelayerRequestPayload {
  * @returns Promise resolving to the transaction hash
  * @throws {SignatureError} When signature verification fails or signer mismatch occurs
  * @throws {Error} When primaryType is unsupported or SDK operations fail
- *
  * @category Server
  * @example
  * ```typescript

@@ -10,6 +10,7 @@ interface GrantFileStorageResponse {
 
 /**
  * Creates a grant file structure from permission parameters.
+ *
  * @param params - The permission parameters to create the grant file from
  * @returns The constructed grant file object
  */
@@ -30,6 +31,7 @@ export function createGrantFile(params: GrantPermissionParams): GrantFile {
 
 /**
  * Stores a grant file in IPFS via the relayer service.
+ *
  * @param grantFile - The grant file to store
  * @param relayerUrl - URL of the relayer service
  * @returns Promise resolving to the IPFS URL
@@ -80,6 +82,7 @@ export async function storeGrantFile(
 
 /**
  * Retrieves a grant file from IPFS.
+ *
  * @param grantUrl - The IPFS URL (e.g., "ipfs://QmHash...")
  * @param _relayerUrl - URL of the relayer service (optional)
  * @returns Promise resolving to the grant file
@@ -145,6 +148,7 @@ export async function retrieveGrantFile(
 /**
  * Generates a content hash for a grant file.
  * This can be used for integrity verification.
+ *
  * @param grantFile - The grant file to generate a hash for
  * @returns The keccak256 hash of the grant file as a hex string
  */
@@ -177,6 +181,7 @@ export function getGrantFileHash(grantFile: GrantFile): string {
 
 /**
  * Recursively sorts object keys for stable serialization.
+ *
  * @param obj - The object to sort keys recursively
  * @returns The object with all keys sorted recursively
  */
@@ -201,6 +206,7 @@ function sortObjectKeys(obj: unknown): unknown {
 
 /**
  * Validates that a grant file has the required structure.
+ *
  * @param data - The data to validate as a grant file
  * @returns True if the data is a valid grant file, false otherwise
  */

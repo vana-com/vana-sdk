@@ -33,7 +33,6 @@ import type { GetContractReturnType } from "viem";
  * **Most developers should use instead:**
  * - `vana.data.*` for file management operations
  * - `vana.permissions.*` for access control workflows
- *
  * @example
  * ```typescript
  * // Get contract info for direct interaction
@@ -47,7 +46,6 @@ import type { GetContractReturnType } from "viem";
  * const contract = vana.protocol.createContract("DataRegistry" as const);
  * const fileCount = await contract.read.filesCount();
  * ```
- *
  * @category Advanced
  * @see {@link [URL_PLACEHOLDER] | Vana Protocol Contracts} for contract specifications
  */
@@ -66,11 +64,9 @@ export class ProtocolController {
    * chain. It includes full TypeScript type inference when using const assertions,
    * enabling type-safe contract interactions. The method only returns contracts that
    * are actually deployed on the current network.
-   *
    * @param contractName - The name of the Vana contract to retrieve (use const assertion for full typing)
    * @returns An object containing the contract's address and fully typed ABI
    * @throws {ContractNotFoundError} When the contract is not deployed on the current chain
-   *
    * @example
    * ```typescript
    * // Get contract info with full type inference
@@ -121,11 +117,9 @@ export class ProtocolController {
    * methods including read operations, write operations, and event handling. The instance
    * is pre-configured with the correct address, ABI, and wallet client for immediate use.
    * All method parameters and return types are fully typed based on the contract ABI.
-   *
    * @param contractName - The name of the Vana contract (use const assertion for full typing)
    * @returns A fully typed contract instance with read/write methods and event handling
    * @throws {ContractNotFoundError} When the contract is not deployed on the current chain
-   *
    * @example
    * ```typescript
    * // Create typed contract instance

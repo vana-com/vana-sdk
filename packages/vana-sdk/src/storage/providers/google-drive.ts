@@ -317,6 +317,7 @@ export class GoogleDriveStorage implements StorageProvider {
 
   /**
    * Make a Google Drive file publicly readable
+   *
    * @param fileId - Google Drive file ID
    */
   private async makeFilePublic(fileId: string): Promise<void> {
@@ -340,6 +341,7 @@ export class GoogleDriveStorage implements StorageProvider {
 
   /**
    * Extract file ID from various Google Drive URL formats
+   *
    * @param url - Google Drive URL
    * @returns File ID or null if not found
    */
@@ -363,6 +365,7 @@ export class GoogleDriveStorage implements StorageProvider {
 
   /**
    * Refresh the access token using refresh token
+   *
    * @returns Promise with new access token
    */
   async refreshAccessToken(): Promise<string> {

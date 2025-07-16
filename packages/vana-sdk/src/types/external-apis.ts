@@ -175,7 +175,6 @@ export interface APIResponse<T = unknown> {
  *
  * @param value - The value to check
  * @returns True if the value matches the ReplicateAPIResponse structure
- *
  * @example
  * ```typescript
  * const response = await fetch('/api/replicate');
@@ -209,7 +208,6 @@ export function isReplicateAPIResponse(
  *
  * @param value - The value to check
  * @returns True if the value matches the IdentityServerOutput structure
- *
  * @example
  * ```typescript
  * const output = response.output;
@@ -279,7 +277,6 @@ export function isIdentityServerOutput(
  *
  * @param value - The value to check
  * @returns True if the value matches the PersonalServerOutput structure
- *
  * @example
  * ```typescript
  * const output = response.output;
@@ -309,7 +306,6 @@ export function isPersonalServerOutput(
  *
  * @param value - The value to check
  * @returns True if the value matches the APIResponse structure
- *
  * @example
  * ```typescript
  * const response = await fetch('/api/data');
@@ -341,7 +337,6 @@ export function isAPIResponse<T>(value: unknown): value is APIResponse<T> {
  * @param jsonString - The JSON string to parse
  * @param typeGuard - Type guard function to validate the parsed value
  * @returns The parsed and validated value, or null if parsing/validation fails
- *
  * @example
  * ```typescript
  * const jsonStr = '{"user_address": "0x123...", "identity": {}}';
@@ -372,7 +367,6 @@ export function safeParseJSON<T>(
  * @param response - The Replicate API response
  * @param typeGuard - Type guard function to validate the output
  * @returns The parsed and validated output, or null if validation fails
- *
  * @example
  * ```typescript
  * const response = await replicateClient.get(predictionId);

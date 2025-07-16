@@ -83,8 +83,9 @@ export default [
     },
     rules: {
       ...jsdoc.configs["flat/recommended-typescript"].rules,
+
       "jsdoc/require-param": "error",
-      "jsdoc/require-param-description": "warn",
+      "jsdoc/require-param-description": "error",
       "jsdoc/check-param-names": "error",
       "jsdoc/require-param-type": "off", // TypeScript handles types
       "jsdoc/no-types": "error", // Don't duplicate TypeScript types in JSDoc
@@ -94,6 +95,8 @@ export default [
           definedTags: ["remarks", "category", "see"],
         },
       ],
+
+      "jsdoc/tag-lines": ["error", "any", { startLines: 1 }],
     },
   },
 

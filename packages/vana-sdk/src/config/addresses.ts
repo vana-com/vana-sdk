@@ -294,7 +294,6 @@ import type { VanaContract } from "../abi";
  * @param contract - The contract name to get the address for
  * @returns The contract address as a hex string
  * @throws {Error} When contract address not found for the specified contract and chain
- *
  * @example
  * ```typescript
  * try {

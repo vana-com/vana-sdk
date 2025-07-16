@@ -92,6 +92,7 @@ export type VanaContract = keyof ContractAbis;
 
 /**
  * Retrieves the ABI for a specific Vana contract
+ *
  * @param contract - The name of the contract to get the ABI for
  * @returns The ABI array for the specified contract
  */

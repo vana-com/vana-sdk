@@ -9,10 +9,10 @@ import type { VanaConfig } from "./types";
  * @example
  * ```typescript
  * const vana = new Vana({ walletClient });
- * 
+ *
  * // Upload and encrypt user data
  * const file = await vana.data.uploadAndStoreFile(dataBlob, schema);
- * 
+ *
  * // Grant permissions to DLPs
  * await vana.permissions.grantPermission({
  *   account: dlpAddress,
@@ -24,8 +24,8 @@ import type { VanaConfig } from "./types";
 export class VanaNode extends VanaCore {
   /**
    * Creates a Vana SDK instance configured for Node.js environments.
-   * @param config - SDK configuration object (wallet client or chain config)
    *
+   * @param config - SDK configuration object (wallet client or chain config)
    * @example
    * ```typescript
    * // With wallet client

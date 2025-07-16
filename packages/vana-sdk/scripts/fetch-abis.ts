@@ -34,6 +34,7 @@ const UTILITY_CONTRACTS = new Set([
 
 /**
  * Fetches contract information from the blockchain explorer API
+ *
  * @param address - The contract address to fetch information for
  * @param network - The network to fetch from (moksha or mainnet)
  * @returns Promise resolving to the contract information object
@@ -59,6 +60,7 @@ async function fetchContractInfo(
 
 /**
  * Gets the implementation address for a proxy contract
+ *
  * @param proxyAddress - The proxy contract address
  * @param network - The network to query (moksha or mainnet)
  * @returns Promise resolving to the implementation contract address
@@ -78,6 +80,7 @@ async function getImplementationAddress(
 
 /**
  * Fetches the ABI for a contract from the blockchain explorer
+ *
  * @param address - The contract address to fetch ABI for
  * @param network - The network to fetch from (moksha or mainnet)
  * @returns Promise resolving to the contract ABI array
@@ -97,6 +100,7 @@ async function fetchABI(
 
 /**
  * Generates a TypeScript file containing the ABI export
+ *
  * @param contractName - The name of the contract for the export
  * @param abi - The ABI array to export
  * @returns The generated TypeScript file content as a string
@@ -143,6 +147,7 @@ export default ${contractName}ABI;
 
 /**
  * Ensures a directory exists, creating it if necessary
+ *
  * @param dirPath - The path to the directory to ensure exists
  * @returns Promise that resolves when directory exists
  */
@@ -156,6 +161,7 @@ async function ensureDirectoryExists(dirPath: string): Promise<void> {
 
 /**
  * Updates the index.ts file with exports for the generated ABI files
+ *
  * @param contractNames - Array of contract names to add exports for
  * @returns Promise that resolves when index file is updated
  */
@@ -196,6 +202,7 @@ async function updateIndexFile(contractNames: string[]): Promise<void> {
 
 /**
  * Main function to fetch and save all contract ABIs for a network
+ *
  * @param network - The network to fetch ABIs for (moksha or mainnet)
  * @returns Promise that resolves when all ABIs are fetched and saved
  */
@@ -278,6 +285,7 @@ async function fetchAndSaveABIs(
 // CLI interface
 /**
  * Main entry point for the ABI fetching script
+ *
  * @returns Promise that resolves when script execution completes
  */
 async function main(): Promise<void> {

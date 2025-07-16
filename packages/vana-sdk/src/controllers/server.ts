@@ -15,6 +15,7 @@ import { ControllerContext } from "./permissions";
 
 /**
  * Manages interactions with Vana personal servers and identity infrastructure.
+ *
  * @remarks
  * This controller handles communication with personal servers for data processing
  * and identity servers for public key derivation. It provides methods for posting
@@ -55,6 +56,7 @@ export class ServerController {
 
   /**
    * Posts a computation request to a user's personal server.
+   *
    * @remarks
    * This method submits a computation request to the specified user's personal server
    * via the Replicate API. It creates a signed request with the user address and
@@ -129,6 +131,7 @@ export class ServerController {
 
   /**
    * Initializes the personal server and fetches user identity.
+   *
    * @param params - The request parameters containing user address
    * @returns Promise resolving to the user's identity information
    */
@@ -170,6 +173,7 @@ export class ServerController {
 
   /**
    * Retrieves the public key for a user's personal server via the Identity Server.
+   *
    * @remarks
    * This method uses the Identity Server to deterministically derive the personal server's
    * public key from the user's EVM address. This enables anyone to encrypt data for a
@@ -285,6 +289,7 @@ export class ServerController {
 
   /**
    * Polls the status of a computation request for updates and results.
+   *
    * @remarks
    * This method checks the current status of a computation request by querying
    * the Replicate API using the provided polling URL. It returns the current
@@ -362,6 +367,7 @@ export class ServerController {
 
   /**
    * Validates the post request parameters.
+   *
    * @param params - The post request parameters to validate
    */
   private validatePostRequestParams(params: PostRequestParams): void {
@@ -375,6 +381,7 @@ export class ServerController {
 
   /**
    * Validates the init personal server parameters.
+   *
    * @param params - The initialization parameters to validate
    */
   private validateInitPersonalServerParams(
@@ -399,6 +406,7 @@ export class ServerController {
 
   /**
    * Creates the request JSON string for the personal server.
+   *
    * @param params - The post request parameters to serialize
    * @returns JSON string representation of the request data
    */
@@ -418,6 +426,7 @@ export class ServerController {
 
   /**
    * Creates a signature for the request JSON.
+   *
    * @param requestJson - The JSON string to sign
    * @returns Promise resolving to the cryptographic signature
    */
@@ -460,6 +469,7 @@ export class ServerController {
 
   /**
    * Gets the Replicate API token from environment.
+   *
    * @returns The Replicate API token from environment variables
    */
   private getReplicateApiToken(): string {
@@ -477,6 +487,7 @@ export class ServerController {
 
   /**
    * Makes the request to the Replicate API.
+   *
    * @param input - The input parameters for the Replicate API request
    * @returns Promise resolving to the Replicate prediction response
    */
@@ -548,6 +559,7 @@ export class ServerController {
 
   /**
    * Makes the request to the personal server.
+   *
    * @param params - The initialization parameters for the personal server
    * @returns Promise resolving to the Replicate prediction response
    */
@@ -621,6 +633,7 @@ export class ServerController {
 
   /**
    * Polls the identity server result until completion and extracts the public key.
+   *
    * @param initialResponse - The initial response from the identity server
    * @returns Promise resolving to the extracted public key
    */
@@ -687,6 +700,7 @@ export class ServerController {
 
   /**
    * Polls the personal server result until completion.
+   *
    * @param initialResponse - The initial response from the personal server
    * @returns Promise resolving to the personal server response data
    */

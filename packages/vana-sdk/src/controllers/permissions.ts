@@ -66,6 +66,7 @@ interface SubgraphPermissionsResponse {
 
 /**
  * Provides shared configuration and services for all SDK controllers.
+ *
  * @remarks
  * This interface defines the foundational blockchain and storage services that all
  * controllers require for operation. The main Vana SDK class automatically creates
@@ -93,6 +94,7 @@ export interface ControllerContext {
 
 /**
  * Manages gasless data access permissions and trusted server registry operations.
+ *
  * @remarks
  * This controller enables users to grant applications access to their data without
  * paying gas fees. It handles the complete EIP-712 permission flow including signature
@@ -129,6 +131,7 @@ export class PermissionsController {
 
   /**
    * Grants permission for an application to access user data with gasless transactions.
+   *
    * @remarks
    * This method combines signature creation and gasless submission for a complete
    * end-to-end permission grant flow. It creates the grant file, stores it on IPFS,
@@ -163,6 +166,7 @@ export class PermissionsController {
 
   /**
    * Prepares a permission grant with preview before signing.
+   *
    * @remarks
    * This method implements a two-phase commit workflow that allows applications
    * to show users a preview of what they're authorizing before requesting a signature.
@@ -230,6 +234,7 @@ export class PermissionsController {
   /**
    * Internal method to complete the grant process after user confirmation.
    * This is called by the confirm() function returned from prepareGrant().
+   *
    * @param params - The permission grant parameters containing user and operation details
    * @param grantFile - The prepared grant file with permissions and metadata
    * @returns Promise resolving to the transaction hash
@@ -320,6 +325,7 @@ export class PermissionsController {
 
   /**
    * Creates typed data and signature for a permission grant without submitting.
+   *
    * @remarks
    * This method handles the first phase of permission granting: creating the grant file,
    * storing it on IPFS, and generating the user's EIP-712 signature. Use this when you
@@ -436,6 +442,7 @@ export class PermissionsController {
 
   /**
    * Submits an already-signed permission grant to the blockchain.
+   *
    * @remarks
    * This method supports both relayer-based gasless transactions and direct transactions.
    * It automatically converts `bigint` values to JSON-safe strings when using relayer
@@ -505,6 +512,7 @@ export class PermissionsController {
   /**
    * Submits an already-signed trust server transaction to the blockchain.
    * This method extracts the trust server input from typed data and submits it directly.
+   *
    * @param typedData - The EIP-712 typed data for TrustServer
    * @param signature - The user's signature
    * @returns Promise resolving to the transaction hash
@@ -565,6 +573,7 @@ export class PermissionsController {
   /**
    * Submits an already-signed permission revoke transaction to the blockchain.
    * This method handles the revocation of previously granted permissions.
+   *
    * @param typedData - The EIP-712 typed data for PermissionRevoke
    * @param signature - The user's signature
    * @returns Promise resolving to the transaction hash
@@ -609,6 +618,7 @@ export class PermissionsController {
   /**
    * Submits an already-signed untrust server transaction to the blockchain.
    * This method handles the removal of trusted servers.
+   *
    * @param typedData - The EIP-712 typed data for UntrustServer
    * @param signature - The user's signature
    * @returns Promise resolving to the transaction hash
@@ -646,6 +656,7 @@ export class PermissionsController {
 
   /**
    * Submits a signed transaction directly to the blockchain.
+   *
    * @param typedData - The typed data structure for the permission grant
    * @param signature - The cryptographic signature authorizing the transaction
    * @returns Promise resolving to the transaction hash
@@ -695,6 +706,7 @@ export class PermissionsController {
 
   /**
    * Revokes a previously granted permission.
+   *
    * @param params - Parameters for revoking the permission
    * @returns Promise resolving to transaction hash
    * @example
@@ -760,6 +772,7 @@ export class PermissionsController {
 
   /**
    * Revokes a permission with a signature (gasless transaction).
+   *
    * @param params - Parameters for revoking the permission
    * @returns Promise resolving to transaction hash
    */
@@ -812,6 +825,7 @@ export class PermissionsController {
 
   /**
    * Retrieves the user's current nonce from the DataPermissions contract.
+   *
    * @returns Promise resolving to the user's current nonce value
    */
   private async getUserNonce(): Promise<bigint> {
@@ -842,6 +856,7 @@ export class PermissionsController {
 
   /**
    * Composes the EIP-712 typed data for PermissionGrant (new simplified format).
+   *
    * @param params - The parameters for composing the permission grant message
    * @param params.to - The recipient address for the permission grant
    * @param params.operation - The type of operation being granted permission for
@@ -886,6 +901,7 @@ export class PermissionsController {
 
   /**
    * Gets the EIP-712 domain for PermissionGrant signatures.
+   *
    * @returns Promise resolving to the EIP-712 domain configuration
    */
   private async getPermissionDomain() {
@@ -905,6 +921,7 @@ export class PermissionsController {
 
   /**
    * Signs typed data using the wallet client.
+   *
    * @param typedData - The EIP-712 typed data structure to sign
    * @returns Promise resolving to the cryptographic signature
    */
@@ -931,6 +948,7 @@ export class PermissionsController {
 
   /**
    * Gets the user's address from the wallet client.
+   *
    * @returns Promise resolving to the user's wallet address
    */
   private async getUserAddress(): Promise<Address> {
@@ -943,6 +961,7 @@ export class PermissionsController {
 
   /**
    * Retrieves all permissions granted by the current user using subgraph queries.
+   *
    * @remarks
    * This method queries the Vana subgraph to find permissions directly granted by the user
    * using the Permission entity. It efficiently handles millions of permissions by leveraging
@@ -1119,6 +1138,7 @@ export class PermissionsController {
 
   /**
    * Gets all permission IDs for a specific file.
+   *
    * @param fileId - The file ID to query permissions for
    * @returns Promise resolving to array of permission IDs
    */
@@ -1149,6 +1169,7 @@ export class PermissionsController {
 
   /**
    * Gets all file IDs associated with a permission.
+   *
    * @param permissionId - The permission ID to query files for
    * @returns Promise resolving to array of file IDs
    */
@@ -1179,6 +1200,7 @@ export class PermissionsController {
 
   /**
    * Checks if a permission is active.
+   *
    * @param permissionId - The permission ID to check
    * @returns Promise resolving to boolean indicating if permission is active
    */
@@ -1209,6 +1231,7 @@ export class PermissionsController {
 
   /**
    * Gets permission details from the contract.
+   *
    * @param permissionId - The permission ID to query
    * @returns Promise resolving to permission info
    */
@@ -1240,6 +1263,7 @@ export class PermissionsController {
   /**
    * Normalizes grant ID to hex format.
    * Handles conversion from permission ID (bigint/number/string) to proper hex hash format.
+   *
    * @param grantId - Permission ID or grant hash in various formats
    * @returns Normalized hex hash
    */
@@ -1266,6 +1290,7 @@ export class PermissionsController {
 
   /**
    * Trusts a server for data processing.
+   *
    * @param params - Parameters for trusting the server
    * @returns Promise resolving to transaction hash
    * @example
@@ -1316,6 +1341,7 @@ export class PermissionsController {
 
   /**
    * Trusts a server using a signature (gasless transaction).
+   *
    * @param params - Parameters for trusting the server
    * @returns Promise resolving to transaction hash
    */
@@ -1374,6 +1400,7 @@ export class PermissionsController {
 
   /**
    * Submits a direct untrust server transaction (without signature).
+   *
    * @param params - The untrust server parameters containing server details
    * @returns Promise resolving to the transaction hash
    */
@@ -1413,6 +1440,7 @@ export class PermissionsController {
 
   /**
    * Untrusts a server.
+   *
    * @param params - Parameters for untrusting the server
    * @returns Promise resolving to transaction hash
    */
@@ -1429,6 +1457,7 @@ export class PermissionsController {
 
   /**
    * Untrusts a server using a signature (gasless transaction).
+   *
    * @param params - Parameters for untrusting the server
    * @returns Promise resolving to transaction hash
    */
@@ -1487,6 +1516,7 @@ export class PermissionsController {
 
   /**
    * Gets all servers trusted by a user.
+   *
    * @param userAddress - Optional user address (defaults to current user)
    * @returns Promise resolving to array of trusted server addresses
    */
@@ -1518,6 +1548,7 @@ export class PermissionsController {
 
   /**
    * Gets server information by server ID.
+   *
    * @param serverId - Server address
    * @returns Promise resolving to server information
    */
@@ -1548,6 +1579,7 @@ export class PermissionsController {
 
   /**
    * Gets the total count of trusted servers for a user.
+   *
    * @param userAddress - Optional user address (defaults to current user)
    * @returns Promise resolving to the number of trusted servers
    */
@@ -1579,6 +1611,7 @@ export class PermissionsController {
 
   /**
    * Gets trusted servers with pagination support.
+   *
    * @param options - Query options including pagination parameters
    * @returns Promise resolving to paginated trusted servers
    */
@@ -1652,6 +1685,7 @@ export class PermissionsController {
 
   /**
    * Gets trusted servers with their complete information.
+   *
    * @param options - Query options
    * @returns Promise resolving to array of trusted server info
    */
@@ -1696,6 +1730,7 @@ export class PermissionsController {
 
   /**
    * Gets server information for multiple servers efficiently.
+   *
    * @param serverIds - Array of server IDs to query
    * @returns Promise resolving to batch result with successes and failures
    */
@@ -1757,6 +1792,7 @@ export class PermissionsController {
 
   /**
    * Checks whether a specific server is trusted by a user.
+   *
    * @param serverId - Server ID to check
    * @param userAddress - Optional user address (defaults to current user)
    * @returns Promise resolving to server trust status
@@ -1788,6 +1824,7 @@ export class PermissionsController {
 
   /**
    * Composes EIP-712 typed data for TrustServer.
+   *
    * @param input - The trust server input data containing server details
    * @returns Promise resolving to the typed data structure for server trust
    */
@@ -1812,6 +1849,7 @@ export class PermissionsController {
 
   /**
    * Composes EIP-712 typed data for UntrustServer.
+   *
    * @param input - The untrust server input data containing server details
    * @returns Promise resolving to the typed data structure for server untrust
    */
@@ -1835,6 +1873,7 @@ export class PermissionsController {
 
   /**
    * Submits a trust server transaction directly to the blockchain.
+   *
    * @param trustServerInput - The trust server input data containing server details
    * @param signature - The cryptographic signature for the transaction
    * @returns Promise resolving to the transaction hash
@@ -1872,6 +1911,7 @@ export class PermissionsController {
 
   /**
    * Submits a revoke transaction directly to the blockchain with signature.
+   *
    * @param typedData - The EIP-712 typed data structure for the revoke operation
    * @param signature - The cryptographic signature authorizing the revoke
    * @returns Promise resolving to the transaction hash
@@ -1903,6 +1943,7 @@ export class PermissionsController {
 
   /**
    * Submits an untrust server transaction with signature.
+   *
    * @param typedData - The EIP-712 typed data structure for the untrust operation
    * @param signature - The cryptographic signature authorizing the untrust
    * @returns Promise resolving to the transaction hash

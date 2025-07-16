@@ -26,7 +26,6 @@ import { encryptUserData, decryptUserData } from "./utils/encryption";
  *
  * For public usage, use the platform-specific Vana classes that extend this core:
  * - Use `new Vana(config)` from the main package import
- *
  * @example
  * ```typescript
  * // Direct instantiation (typically used internally)
@@ -34,7 +33,6 @@ import { encryptUserData, decryptUserData } from "./utils/encryption";
  *   walletClient: myWalletClient,
  * }, platformAdapter);
  * ```
- *
  * @category Core SDK
  */
 export class VanaCore {
@@ -62,11 +60,9 @@ export class VanaCore {
    * @remarks
    * The constructor validates the configuration, initializes storage providers if configured,
    * creates wallet and public clients, and sets up all SDK controllers with shared context.
-   *
    * @param platform - The platform adapter for environment-specific operations
    * @param config - The configuration object specifying wallet or chain settings
    * @throws {InvalidConfigurationError} When the configuration is invalid or incomplete
-   *
    * @example
    * ```typescript
    * // Direct instantiation (consider using factory methods instead)
@@ -175,7 +171,6 @@ export class VanaCore {
    * @remarks
    * This method performs comprehensive validation of wallet client configuration,
    * chain configuration, storage providers, and relayer callbacks.
-   *
    * @param config - The configuration object to validate
    * @throws {InvalidConfigurationError} When any configuration parameter is invalid
    */
@@ -294,7 +289,6 @@ export class VanaCore {
    * Gets the current chain ID from the wallet client.
    *
    * @returns The numeric chain ID of the connected network
-   *
    * @example
    * ```typescript
    * const chainId = vana.chainId;
@@ -309,7 +303,6 @@ export class VanaCore {
    * Gets the current chain name from the wallet client.
    *
    * @returns The human-readable name of the connected network
-   *
    * @example
    * ```typescript
    * const chainName = vana.chainName;
@@ -324,7 +317,6 @@ export class VanaCore {
    * Retrieves the user's wallet address from the connected client.
    *
    * @returns A Promise that resolves to the user's Ethereum address
-   *
    * @example
    * ```typescript
    * const address = await vana.getUserAddress();
@@ -340,7 +332,6 @@ export class VanaCore {
    * Retrieves comprehensive runtime configuration information.
    *
    * @returns The current runtime configuration including chain, storage, and relayer settings
-   *
    * @example
    * ```typescript
    * const config = vana.getConfig();
@@ -364,13 +355,12 @@ export class VanaCore {
    * to override the default platform detection.
    *
    * @param adapter - The platform adapter to use
-   *
    * @example
    * ```typescript
    * // For testing with a mock adapter
    * const mockAdapter = new MockPlatformAdapter();
    * vana.setPlatformAdapter(mockAdapter);
-   * 
+   *
    * // For advanced use cases with custom adapters
    * const customAdapter = new CustomPlatformAdapter();
    * vana.setPlatformAdapter(customAdapter);
@@ -378,7 +368,7 @@ export class VanaCore {
    */
   setPlatformAdapter(adapter: VanaPlatformAdapter): void {
     this.platform = adapter;
-    
+
     // Note: Controllers will use the new platform adapter on their next operation
     // since they access this.platform from the shared context
   }
@@ -389,7 +379,6 @@ export class VanaCore {
    * the platform adapter directly.
    *
    * @returns The current platform adapter
-   *
    * @example
    * ```typescript
    * const adapter = vana.getPlatformAdapter();
@@ -407,14 +396,16 @@ export class VanaCore {
    * @param data The data to encrypt (string or Blob)
    * @param walletSignature The wallet signature to use as encryption key
    * @returns The encrypted data as Blob
-   *
    * @example
    * ```typescript
    * const encryptionKey = await generateEncryptionKey(walletClient);
    * const encrypted = await vana.encryptUserData("sensitive data", encryptionKey);
    * ```
    */
-  public async encryptUserData(data: string | Blob, walletSignature: string): Promise<Blob> {
+  public async encryptUserData(
+    data: string | Blob,
+    walletSignature: string,
+  ): Promise<Blob> {
     return encryptUserData(data, walletSignature, this.platform);
   }
 
@@ -425,7 +416,6 @@ export class VanaCore {
    * @param encryptedData The encrypted data (string or Blob)
    * @param walletSignature The wallet signature to use as decryption key
    * @returns The decrypted data as Blob
-   *
    * @example
    * ```typescript
    * const encryptionKey = await generateEncryptionKey(walletClient);
@@ -433,7 +423,10 @@ export class VanaCore {
    * const text = await decrypted.text();
    * ```
    */
-  public async decryptUserData(encryptedData: string | Blob, walletSignature: string): Promise<Blob> {
+  public async decryptUserData(
+    encryptedData: string | Blob,
+    walletSignature: string,
+  ): Promise<Blob> {
     return decryptUserData(encryptedData, walletSignature, this.platform);
   }
 }

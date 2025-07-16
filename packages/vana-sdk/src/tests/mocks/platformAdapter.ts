@@ -4,6 +4,7 @@ import type { VanaPlatformAdapter } from "../../platform/interface";
 /**
  * Shared mock platform adapter for test files
  * This provides a consistent mock implementation across all tests
+ *
  * @returns A mock VanaPlatformAdapter instance with mocked methods
  */
 export const createMockPlatformAdapter = (): VanaPlatformAdapter => ({

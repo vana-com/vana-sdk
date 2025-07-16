@@ -16,6 +16,7 @@ export type PlatformType = "node" | "browser";
 export interface VanaCryptoAdapter {
   /**
    * Encrypt data with a public key using asymmetric cryptography
+   *
    * @param data The data to encrypt
    * @param publicKey The public key for encryption
    * @returns Promise resolving to encrypted data
@@ -24,6 +25,7 @@ export interface VanaCryptoAdapter {
 
   /**
    * Decrypt data with a private key using asymmetric cryptography
+   *
    * @param encryptedData The encrypted data
    * @param privateKey The private key for decryption
    * @returns Promise resolving to decrypted data
@@ -35,6 +37,7 @@ export interface VanaCryptoAdapter {
 
   /**
    * Generate a new key pair for asymmetric cryptography
+   *
    * @returns Promise resolving to public and private key pair
    */
   generateKeyPair(): Promise<{ publicKey: string; privateKey: string }>;
@@ -42,6 +45,7 @@ export interface VanaCryptoAdapter {
   /**
    * Encrypt data with a wallet's public key using ECDH cryptography
    * Uses platform-appropriate ECDH implementation (eccrypto vs eccrypto-js)
+   *
    * @param data The data to encrypt (string)
    * @param publicKey The wallet's public key (secp256k1)
    * @returns Promise resolving to encrypted data as hex string
@@ -51,6 +55,7 @@ export interface VanaCryptoAdapter {
   /**
    * Decrypt data with a wallet's private key using ECDH cryptography
    * Uses platform-appropriate ECDH implementation (eccrypto vs eccrypto-js)
+   *
    * @param encryptedData The encrypted data as hex string
    * @param privateKey The wallet's private key (secp256k1)
    * @returns Promise resolving to decrypted data as string
@@ -63,6 +68,7 @@ export interface VanaCryptoAdapter {
   /**
    * Encrypt data with a password using PGP password-based encryption
    * Uses platform-appropriate OpenPGP implementation with consistent format
+   *
    * @param data The data to encrypt as Uint8Array
    * @param password The password for encryption (typically wallet signature)
    * @returns Promise resolving to encrypted data as Uint8Array
@@ -72,6 +78,7 @@ export interface VanaCryptoAdapter {
   /**
    * Decrypt data with a password using PGP password-based decryption
    * Uses platform-appropriate OpenPGP implementation with consistent format
+   *
    * @param encryptedData The encrypted data as Uint8Array
    * @param password The password for decryption (typically wallet signature)
    * @returns Promise resolving to decrypted data as Uint8Array
@@ -88,6 +95,7 @@ export interface VanaCryptoAdapter {
 export interface VanaPGPAdapter {
   /**
    * Encrypt data using PGP with proper platform configuration
+   *
    * @param data The data to encrypt
    * @param publicKey The PGP public key
    * @returns Promise resolving to encrypted data
@@ -96,6 +104,7 @@ export interface VanaPGPAdapter {
 
   /**
    * Decrypt data using PGP with proper platform configuration
+   *
    * @param encryptedData The encrypted data
    * @param privateKey The PGP private key
    * @returns Promise resolving to decrypted data
@@ -104,7 +113,11 @@ export interface VanaPGPAdapter {
 
   /**
    * Generate a new PGP key pair with platform-appropriate configuration
-   * @param options Key generation options
+   *
+   * @param options - Key generation options
+   * @param options.name - The name for the PGP key
+   * @param options.email - The email for the PGP key
+   * @param options.passphrase - Optional passphrase to protect the private key
    * @returns Promise resolving to public and private key pair
    */
   generateKeyPair(options?: {
@@ -120,6 +133,7 @@ export interface VanaPGPAdapter {
 export interface VanaHttpAdapter {
   /**
    * Perform HTTP request with platform-appropriate fetch implementation
+   *
    * @param url The URL to request
    * @param options Request options
    * @returns Promise resolving to response

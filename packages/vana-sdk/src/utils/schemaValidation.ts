@@ -1,6 +1,6 @@
 import Ajv, { type ValidateFunction } from "ajv";
 import addFormats from "ajv-formats";
-import dataSchemaSchema from "../schemas/dataContract.schema.json";
+import dataSchemaSchema from "../schemas/dataSchema.schema.json";
 
 /**
  * Data schema interface following the Vana schema specification

@@ -12,6 +12,8 @@ A TypeScript SDK for building data-driven applications on the Vana Network. Enab
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue)](https://www.typescriptlang.org/)
 [![License: ISC](https://img.shields.io/badge/License-ISC-green.svg)](https://opensource.org/licenses/ISC)
 
+[API Documentation](https://vana-com.github.io/vana-sdk) • [Examples](#examples) • [Configuration](#configuration)
+
 ## Installation
 
 ```bash
@@ -84,7 +86,7 @@ Upload, query, and manage encrypted user data files with built-in schema validat
 ```typescript
 // Query user files
 const files = await vana.data.getUserFiles({
-  user: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+  owner: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
 });
 
 // Upload encrypted file
@@ -114,7 +116,7 @@ storageManager.register(
 
 ## Architecture
 
-The SDK provides five main controllers:
+The SDK provides four main controllers:
 
 | Controller    | Purpose                        | Key Methods                                                       |
 | ------------- | ------------------------------ | ----------------------------------------------------------------- |
@@ -273,7 +275,7 @@ await vana.permissions.revoke({
 
 // Get user permissions
 await vana.permissions.getUserPermissions({
-  user: Address
+  owner: Address
 }): Promise<GrantedPermission[]>
 ```
 
@@ -282,7 +284,7 @@ await vana.permissions.getUserPermissions({
 ```typescript
 // Get user files
 await vana.data.getUserFiles({
-  user: Address
+  owner: Address
 }): Promise<UserFile[]>
 
 // Upload encrypted file
@@ -298,6 +300,20 @@ vana.data.validateDataSchema(schema: unknown): void
 // Validate data against schema
 vana.data.validateDataAgainstSchema(data: unknown, schema: DataSchema): void
 ```
+
+## Documentation
+
+- [API Documentation](https://vana-com.github.io/vana-sdk) - Complete TypeDoc API reference
+- [Getting Started](https://vana-com.github.io/vana-sdk/getting-started) - Step-by-step setup guide
+- [Architecture](https://vana-com.github.io/vana-sdk/architecture) - SDK design and patterns
+- [Configuration](https://vana-com.github.io/vana-sdk/configuration) - All configuration options
+- [Security](https://vana-com.github.io/vana-sdk/security) - Best practices and security
+
+## Support
+
+- **Documentation**: [vana-com.github.io/vana-sdk](https://vana-com.github.io/vana-sdk)
+- **Issues**: [GitHub Issues](https://github.com/vana-com/vana-sdk/issues)
+- **Discord**: [Join our community](https://discord.gg/vanabuilders)
 
 ## Development
 

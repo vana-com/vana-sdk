@@ -36,7 +36,12 @@ import {
   Trash2,
   Server,
 } from "lucide-react";
-import type { UserFile, GrantedPermission } from "@opendatalabs/vana-sdk";
+import type {
+  UserFile,
+  GrantedPermission,
+  Schema,
+  Vana,
+} from "@opendatalabs/vana-sdk";
 import { convertIpfsUrl } from "@opendatalabs/vana-sdk";
 import { ActionButton } from "../ui/ActionButton";
 import { EmptyState } from "../ui/EmptyState";
@@ -134,6 +139,7 @@ export interface UserDashboardViewProps {
   // User info
   userAddress: string | undefined;
   chainId: number;
+  vana: Vana;
 }
 
 /**
@@ -203,6 +209,7 @@ export function UserDashboardView({
   onQueryModeChange,
   userAddress: _userAddress,
   chainId,
+  vana,
 }: UserDashboardViewProps) {
   const [activeTab, setActiveTab] = useState("files");
 
@@ -223,6 +230,43 @@ export function UserDashboardView({
       direction: "descending",
     });
   const PERMISSIONS_PER_PAGE = 10;
+
+  // Schema state for files
+  const [fileSchemas, setFileSchemas] = useState<Map<number, Schema>>(
+    new Map(),
+  );
+
+  // Fetch schema information for files that have schema IDs
+  React.useEffect(() => {
+    const fetchSchemas = async () => {
+      const schemaMap = new Map<number, Schema>();
+
+      for (const file of userFiles) {
+        const schemaId =
+          "schemaId" in file ? (file.schemaId as number) : undefined;
+        if (
+          schemaId &&
+          typeof schemaId === "number" &&
+          !fileSchemas.has(schemaId)
+        ) {
+          try {
+            const schema = await vana.data.getSchema(schemaId);
+            schemaMap.set(schemaId, schema);
+          } catch (error) {
+            console.warn(`Failed to fetch schema ${schemaId}:`, error);
+          }
+        }
+      }
+
+      if (schemaMap.size > 0) {
+        setFileSchemas((prev) => new Map([...prev, ...schemaMap]));
+      }
+    };
+
+    if (userFiles.length > 0) {
+      fetchSchemas();
+    }
+  }, [userFiles, vana, fileSchemas]);
 
   /**
    * Calculate sorted and paginated files
@@ -512,6 +556,9 @@ export function UserDashboardView({
                   <TableColumn key="source" allowsSorting>
                     Source
                   </TableColumn>
+                  <TableColumn key="schema" allowsSorting>
+                    Schema
+                  </TableColumn>
                   <TableColumn key="actions" allowsSorting={false}>
                     Actions
                   </TableColumn>
@@ -583,6 +630,39 @@ export function UserDashboardView({
                               {file.source}
                             </Chip>
                           )}
+                        </TableCell>
+                        <TableCell>
+                          {(() => {
+                            const schemaId =
+                              "schemaId" in file
+                                ? (file.schemaId as number)
+                                : undefined;
+                            const schema =
+                              schemaId && typeof schemaId === "number"
+                                ? fileSchemas.get(schemaId)
+                                : null;
+
+                            if (schema) {
+                              return (
+                                <Chip
+                                  size="sm"
+                                  variant="flat"
+                                  color="secondary"
+                                  startContent={
+                                    <Database className="h-3 w-3" />
+                                  }
+                                >
+                                  {schema.name}
+                                </Chip>
+                              );
+                            }
+
+                            return (
+                              <span className="text-sm text-default-500">
+                                None
+                              </span>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-2">

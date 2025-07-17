@@ -107,9 +107,28 @@ export {
   CircuitBreaker,
 } from "./core/generics";
 
-// Platform adapters
+// Platform adapters - browser-safe exports
 export { BrowserPlatformAdapter } from "./platform/browser";
-export type { NodePlatformAdapter } from "./platform/node";
+export type { VanaPlatformAdapter } from "./platform/interface";
+
+// Browser-safe platform adapter utilities
+export {
+  createNodePlatformAdapter,
+  createBrowserPlatformAdapter,
+  createPlatformAdapterSafe,
+} from "./platform/browser-safe";
+
+// NodePlatformAdapter is available through dynamic import to avoid bundling Node.js dependencies
+// Use createNodePlatformAdapter() for dynamic import
+
+// Platform utilities
+export {
+  detectPlatform,
+  createPlatformAdapter,
+  createPlatformAdapterFor,
+  isPlatformSupported,
+  getPlatformCapabilities,
+} from "./platform/utils";
 
 export { ApiClient } from "./core/apiClient";
 

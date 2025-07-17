@@ -1,6 +1,20 @@
 // This file exports only types for editor intellisense and type-checking compatibility
 // All runtime code should be imported from index.node.ts or index.browser.ts
 
+// Platform adapters - export both types and runtime implementations
+export type { VanaPlatformAdapter } from "./platform/interface";
+export type { BrowserPlatformAdapter } from "./platform/browser";
+export type { NodePlatformAdapter } from "./platform/node";
+
+// Platform utilities - type-only exports
+export type {
+  detectPlatform,
+  createPlatformAdapter,
+  createPlatformAdapterFor,
+  isPlatformSupported,
+  getPlatformCapabilities,
+} from "./platform/utils";
+
 // Types - modular exports
 export type * from "./types";
 

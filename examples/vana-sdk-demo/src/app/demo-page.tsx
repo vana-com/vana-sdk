@@ -41,11 +41,11 @@ interface GrantPreview {
     operation: string;
     parameters: unknown;
     expires?: number;
-  };
+  } | null;
   grantUrl: string;
   params: GrantPermissionParams & { expiresAt?: number };
-  typedData?: PermissionGrantTypedData;
-  signature?: string;
+  typedData?: PermissionGrantTypedData | null;
+  signature?: string | null;
 }
 import {
   Card,
@@ -864,39 +864,55 @@ export default function Home() {
       return;
     }
 
+    // Create clear, unencrypted parameters for the grant
+    const params: GrantPermissionParams = {
+      to: applicationAddress as `0x${string}`, // Use dynamically fetched application address
+      operation: "llm_inference",
+      files: selectedFiles,
+      parameters: {
+        prompt: promptText,
+      },
+    };
+
+    console.debug("🔍 Debug - Permission params:", {
+      selectedFiles,
+      paramsFiles: params.files,
+      filesLength: params.files.length,
+      operation: params.operation,
+    });
+
+    // Add expiration to params (24 hours from now)
+    const paramsWithExpiry = {
+      ...params,
+      expiresAt: Math.floor(Date.now() / 1000) + 86400,
+    };
+
+    // Show preview to user BEFORE signing
+    setGrantPreview({
+      grantFile: null, // Will be populated after signing
+      grantUrl: "",
+      params: paramsWithExpiry,
+      typedData: null,
+      signature: null,
+    });
+    onOpenGrant();
+    setGrantStatus("Review the grant details before signing...");
+  };
+
+  const handleConfirmGrant = async () => {
+    if (!grantPreview || !vana) return;
+
     setIsGranting(true);
-    setGrantStatus("Preparing permission grant...");
     setGrantTxHash("");
 
     try {
-      // Create clear, unencrypted parameters for the grant
-      const params: GrantPermissionParams = {
-        to: applicationAddress as `0x${string}`, // Use dynamically fetched application address
-        operation: "llm_inference",
-        files: selectedFiles,
-        parameters: {
-          prompt: promptText,
-        },
-      };
-
-      console.debug("🔍 Debug - Permission params:", {
-        selectedFiles,
-        paramsFiles: params.files,
-        filesLength: params.files.length,
-        operation: params.operation,
-      });
-
-      // Add expiration to params (24 hours from now)
-      const paramsWithExpiry = {
-        ...params,
-        expiresAt: Math.floor(Date.now() / 1000) + 86400,
-      };
-
+      // Now create and sign the grant after user confirmation
       setGrantStatus("Creating grant file via SDK...");
 
       // Use the SDK to create and sign the grant
-      const { typedData, signature } =
-        await vana.permissions.createAndSign(paramsWithExpiry);
+      const { typedData, signature } = await vana.permissions.createAndSign(
+        grantPreview.params,
+      );
 
       // Extract grant file for preview from the files array in typedData
       setGrantStatus("Retrieving grant file for preview...");
@@ -907,46 +923,22 @@ export default function Home() {
       // Retrieve the stored grant file
       const grantFile = await retrieveGrantFile(grantUrl);
 
-      // Show preview to user
+      // Update grant preview with signed data
       setGrantPreview({
         grantFile,
         grantUrl,
-        params: paramsWithExpiry,
+        params: grantPreview.params,
         typedData,
         signature,
       });
-      onOpenGrant();
-      setGrantStatus(
-        "Review the grant file before submitting to blockchain...",
-      );
-    } catch (error) {
-      console.error("Failed to prepare grant:", error);
-      setGrantStatus(
-        `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-      setIsGranting(false);
-    }
-  };
 
-  const handleConfirmGrant = async () => {
-    if (!grantPreview || !vana) return;
-
-    try {
       setGrantStatus("Submitting to blockchain...");
 
-      // Use the pre-signed data to submit the grant
-      let txHash: string;
-
-      if (grantPreview.typedData && grantPreview.signature) {
-        // Submit the already-signed grant
-        txHash = await vana.permissions.submitSignedGrant(
-          grantPreview.typedData,
-          grantPreview.signature as `0x${string}`,
-        );
-      } else {
-        // Fallback to full grant flow (shouldn't happen with new flow)
-        txHash = await vana.permissions.grant(grantPreview.params);
-      }
+      // Submit the signed grant
+      const txHash = await vana.permissions.submitSignedGrant(
+        typedData,
+        signature as `0x${string}`,
+      );
 
       setGrantStatus(""); // Clear status since permission will appear in list
       setGrantTxHash(txHash);

@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     console.debug("🔍 Debug - vana", vana);
 
     // Initialize trusted server
-    const response = await vana.server.initPersonalServer({
+    const response = await vana.server.getPersonalServerIdentity({
       userAddress,
     });
 

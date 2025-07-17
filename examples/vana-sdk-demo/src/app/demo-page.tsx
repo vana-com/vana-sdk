@@ -1673,12 +1673,15 @@ export default function Home() {
 
       // Extract server information from the SDK response
       // The SDK now returns: { userAddress, identity: { metadata: { derivedAddress, publicKey } }, timestamp }
-      const derivedAddress = result.data?.identity?.metadata?.derivedAddress;
-      const publicKey = result.data?.identity?.metadata?.publicKey;
+      const derivedAddress = result.data?.personal_server?.address;
+      const publicKey = result.data?.personal_server?.public_key;
 
       // Debug: Log extraction results
       console.debug("🔍 SDK Response data:", result.data);
-      console.debug("🔍 Identity metadata:", result.data?.identity?.metadata);
+      console.debug(
+        "🔍 Identity metadata:",
+        result.data?.personal_server?.public_key,
+      );
       console.debug("🔍 Derived address:", derivedAddress);
       console.debug("🔍 Public key:", publicKey);
 

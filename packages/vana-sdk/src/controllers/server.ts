@@ -12,7 +12,7 @@ import {
   PersonalServerError,
 } from "../errors";
 import { ControllerContext } from "./permissions";
-import { PersonalServerInfo as PersonalServerIdentity } from "../types/personal";
+import { PersonalServerIdentity } from "../types/personal";
 
 /**
  * Manages interactions with Vana personal servers and identity infrastructure.
@@ -34,8 +34,8 @@ import { PersonalServerInfo as PersonalServerIdentity } from "../types/personal"
  *   permissionId: 123,
  * });
  *
- * // Get a server's public key for encryption
- * const publicKey = await vana.server.getTrustedServerPublicKey(
+ * // Get a server's identity including public key for encryption
+ * const identity = await vana.server.getIdentity(
  *   "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36"
  * );
  *
@@ -46,7 +46,7 @@ import { PersonalServerInfo as PersonalServerIdentity } from "../types/personal"
  * @see {@link [URL_PLACEHOLDER] | Vana Personal Servers} for conceptual overview
  */
 export class ServerController {
-  private readonly PERSONAL_SERVER_BASE_URL =
+  public readonly PERSONAL_SERVER_BASE_URL =
     process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL;
 
   constructor(private readonly context: ControllerContext) {}
@@ -128,9 +128,7 @@ export class ServerController {
 
       const requestBody = {
         app_signature: signature,
-        operation: {
-          permission_id: params.permissionId,
-        },
+        operation_request_json: requestJson,
       };
 
       // Step 5: Make request to personal server API
@@ -339,6 +337,7 @@ export class ServerController {
         );
       }
 
+      console.debug("🔍 Debug - createSignature account", account);
       // Sign locally using the account's signMessage method
       const signature = await account.signMessage({
         message: requestJson,

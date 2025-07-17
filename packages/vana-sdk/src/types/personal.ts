@@ -7,6 +7,14 @@ export interface PostRequestParams {
 }
 
 /**
+ * Parameters for the `vana.server.createOperation` method.
+ */
+export interface CreateOperationParams {
+  /** The permission ID */
+  permissionId: number;
+}
+
+/**
  * Parameters for personal server operations.
  */
 export interface InitPersonalServerParams {
@@ -15,22 +23,29 @@ export interface InitPersonalServerParams {
 }
 
 /**
- * Response from the personal server containing a link to get results or cancel computation.
+ * Response from creating an operation via the personal server API.
  */
-export interface ReplicatePredictionResponse {
-  /** The prediction ID for tracking the computation */
+export interface CreateOperationResponse {
+  /** The operation ID for tracking the computation */
   id: string;
-  /** The status of the computation */
-  status: "starting" | "processing" | "succeeded" | "failed" | "canceled";
-  /** URL to check the status and get results */
-  urls: {
-    get: string;
-    cancel: string;
-  };
-  /** The input parameters used for the computation */
-  input: Record<string, unknown>;
-  /** Optional output if computation is complete */
-  output?: unknown;
-  /** Optional error if computation failed */
-  error?: string;
+  /** The timestamp when the operation was created */
+  created_at: string;
+}
+
+/**
+ * Response from getting operation status via the personal server API.
+ */
+export interface GetOperationResponse {
+  /** The operation ID */
+  id: string;
+  /** The status of the operation */
+  status: string;
+  /** Optional timestamp when the operation started */
+  started_at?: string;
+  /** Optional timestamp when the operation finished */
+  finished_at?: string;
+  /** Optional result data if operation completed successfully */
+  result?: unknown;
+  /** The prediction ID (same as id) */
+  prediction_id: string;
 }

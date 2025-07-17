@@ -3,7 +3,7 @@ import { Address } from "viem";
 import { ServerController } from "../controllers/server";
 import { ControllerContext } from "../controllers/permissions";
 import { NetworkError, SignatureError, PersonalServerError } from "../errors";
-import { PostRequestParams } from "../types";
+import { PostRequestParams, CreateOperationParams } from "../types";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock global fetch
@@ -279,6 +279,115 @@ describe("ServerController", () => {
       );
       await expect(serverController.postRequest(validParams)).rejects.toThrow(
         "Failed to make Replicate API request: Network connection failed",
+      );
+    });
+  });
+
+  describe("createOperation", () => {
+    const validParams: CreateOperationParams = {
+      permissionId: 12345,
+    };
+
+    const mockOperationResponse = {
+      id: "operation-123",
+      created_at: "2025-01-01T12:00:00.000Z",
+      links: {
+        self: "/api/v1/operations/operation-123",
+        cancel: "/api/v1/operations/operation-123/cancel",
+        stream: "/api/v1/operations/operation-123/stream",
+      },
+    };
+
+    it("should successfully create an operation", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue(mockOperationResponse),
+      });
+
+      const result = await serverController.createOperation(validParams);
+
+      expect(result).toEqual(mockOperationResponse);
+      expect(mockAccount.signMessage).toHaveBeenCalled();
+      expect(mockFetch).toHaveBeenCalledWith(
+        "http://localhost:8000/api/v1/operations",
+        expect.objectContaining({
+          method: "POST",
+          headers: expect.objectContaining({
+            "Content-Type": "application/json",
+          }),
+        }),
+      );
+    });
+
+    it("should throw PersonalServerError for invalid permission ID", async () => {
+      const invalidParams = {
+        permissionId: 0,
+      };
+
+      await expect(
+        serverController.createOperation(invalidParams),
+      ).rejects.toThrow(PersonalServerError);
+      await expect(
+        serverController.createOperation(invalidParams),
+      ).rejects.toThrow(
+        "Permission ID is required and must be a valid positive number",
+      );
+    });
+
+    it("should throw PersonalServerError for negative permission ID", async () => {
+      const invalidParams = {
+        permissionId: -1,
+      };
+
+      await expect(
+        serverController.createOperation(invalidParams),
+      ).rejects.toThrow(PersonalServerError);
+    });
+
+    it("should throw NetworkError when personal server request fails", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: "Internal Server Error",
+        text: vi.fn().mockResolvedValue("Server error"),
+      });
+
+      await expect(
+        serverController.createOperation(validParams),
+      ).rejects.toThrow(NetworkError);
+      await expect(
+        serverController.createOperation(validParams),
+      ).rejects.toThrow(
+        "Personal server API request failed: 500 Internal Server Error - Server error",
+      );
+    });
+
+    it("should use custom personal server URL from environment", async () => {
+      process.env.PERSONAL_SERVER_URL = "https://custom-server.com";
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue(mockOperationResponse),
+      });
+
+      await serverController.createOperation(validParams);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://custom-server.com/api/v1/operations",
+        expect.any(Object),
+      );
+    });
+
+    it("should handle unknown errors", async () => {
+      mockFetch.mockRejectedValueOnce(new Error("Unknown error"));
+
+      await expect(
+        serverController.createOperation(validParams),
+      ).rejects.toThrow(PersonalServerError);
+      await expect(
+        serverController.createOperation(validParams),
+      ).rejects.toThrow(
+        "Personal server operation creation failed: Unknown error",
       );
     });
   });
@@ -662,7 +771,7 @@ describe("ServerController", () => {
         json: vi.fn().mockResolvedValue(mockStatusResponse),
       });
 
-      const result = await serverController.pollStatus(getUrl);
+      const result = await serverController.getOperationStatus(getUrl);
 
       expect(result).toEqual(mockStatusResponse);
       expect(mockFetch).toHaveBeenCalledWith(getUrl, {
@@ -684,10 +793,10 @@ describe("ServerController", () => {
         }),
       );
 
-      await expect(serverController.pollStatus(getUrl)).rejects.toThrow(
+      await expect(serverController.getOperationStatus(getUrl)).rejects.toThrow(
         NetworkError,
       );
-      await expect(serverController.pollStatus(getUrl)).rejects.toThrow(
+      await expect(serverController.getOperationStatus(getUrl)).rejects.toThrow(
         "Status polling failed: 404 Not Found - Prediction not found",
       );
     });
@@ -703,7 +812,7 @@ describe("ServerController", () => {
         json: vi.fn().mockResolvedValue(responseWithoutUrls),
       });
 
-      const result = await serverController.pollStatus(getUrl);
+      const result = await serverController.getOperationStatus(getUrl);
 
       expect(result.urls.get).toBe(getUrl);
       expect(result.urls.cancel).toBe("");
@@ -712,10 +821,10 @@ describe("ServerController", () => {
     it("should wrap unknown errors in NetworkError", async () => {
       mockFetch.mockRejectedValue(new Error("Unknown network error"));
 
-      await expect(serverController.pollStatus(getUrl)).rejects.toThrow(
+      await expect(serverController.getOperationStatus(getUrl)).rejects.toThrow(
         NetworkError,
       );
-      await expect(serverController.pollStatus(getUrl)).rejects.toThrow(
+      await expect(serverController.getOperationStatus(getUrl)).rejects.toThrow(
         "Failed to poll status: Unknown network error",
       );
     });
@@ -723,10 +832,10 @@ describe("ServerController", () => {
     it("should handle non-Error exceptions", async () => {
       mockFetch.mockRejectedValue("String error");
 
-      await expect(serverController.pollStatus(getUrl)).rejects.toThrow(
+      await expect(serverController.getOperationStatus(getUrl)).rejects.toThrow(
         NetworkError,
       );
-      await expect(serverController.pollStatus(getUrl)).rejects.toThrow(
+      await expect(serverController.getOperationStatus(getUrl)).rejects.toThrow(
         "Failed to poll status: Unknown error",
       );
     });

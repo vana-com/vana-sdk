@@ -2381,7 +2381,7 @@ export default function Home() {
                           : handleTrustServer
                       }
                       isTrustingServer={isTrustingServer}
-                      onDiscoverReplicateServer={handleDiscoverReplicateServer}
+                      onDiscoverHostedServer={handleDiscoverReplicateServer}
                       isDiscoveringServer={isDiscoveringServer}
                       trustServerError={trustServerError}
                       trustedServers={trustedServers.map((server) => ({

@@ -116,7 +116,24 @@ export type { RelayerRequestPayload } from "./server/handler";
 
 // Platform adapters
 export { NodePlatformAdapter } from "./platform/node";
-export type { BrowserPlatformAdapter } from "./platform/browser";
+export { BrowserPlatformAdapter } from "./platform/browser";
+export type { VanaPlatformAdapter } from "./platform/interface";
+
+// Platform utilities
+export {
+  detectPlatform,
+  createPlatformAdapter,
+  createPlatformAdapterFor,
+  isPlatformSupported,
+  getPlatformCapabilities,
+} from "./platform/utils";
+
+// Browser-safe platform utilities
+export {
+  createNodePlatformAdapter,
+  createBrowserPlatformAdapter,
+  createPlatformAdapterSafe,
+} from "./platform/browser-safe";
 
 export { ApiClient } from "./core/apiClient";
 

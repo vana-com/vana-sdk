@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { addToast } from "@heroui/react";
-import type { VanaChain } from "@opendatalabs/vana-sdk";
+import type { VanaChain } from "@opendatalabs/vana-sdk/browser";
 import { useAccount, useWalletClient, useChainId } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import {
@@ -30,7 +30,7 @@ import {
   GrantFile,
   Hash,
   retrieveGrantFile,
-} from "@opendatalabs/vana-sdk";
+} from "@opendatalabs/vana-sdk/browser";
 
 // Types for demo app state
 
@@ -2037,6 +2037,7 @@ export default function Home() {
     isLoadingRefiners,
     onRefreshRefiners: loadRefiners,
     chainId: chainId || 14800,
+    vana: vana!,
   };
 
   const demoExperienceProps: DemoExperienceViewProps = {

@@ -13,7 +13,10 @@ import {
   Pagination,
   SortDescriptor,
 } from "@heroui/react";
-import { GrantedPermission, convertIpfsUrl } from "@opendatalabs/vana-sdk";
+import {
+  GrantedPermission,
+  convertIpfsUrl,
+} from "@opendatalabs/vana-sdk/browser";
 import { Shield, ExternalLink, Eye, RefreshCw } from "lucide-react";
 import { PermissionDisplay } from "./ui/PermissionDisplay";
 import { CopyButton } from "./ui/CopyButton";

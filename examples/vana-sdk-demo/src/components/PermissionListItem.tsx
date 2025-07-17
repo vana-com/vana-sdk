@@ -1,5 +1,8 @@
 import React from "react";
-import { GrantedPermission, convertIpfsUrl } from "@opendatalabs/vana-sdk";
+import {
+  GrantedPermission,
+  convertIpfsUrl,
+} from "@opendatalabs/vana-sdk/browser";
 import { ActionButton } from "./ui/ActionButton";
 import { PermissionDisplay } from "./ui/PermissionDisplay";
 

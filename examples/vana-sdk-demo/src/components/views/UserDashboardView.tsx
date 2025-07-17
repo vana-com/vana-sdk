@@ -41,8 +41,8 @@ import type {
   GrantedPermission,
   Schema,
   Vana,
-} from "@opendatalabs/vana-sdk";
-import { convertIpfsUrl } from "@opendatalabs/vana-sdk";
+} from "@opendatalabs/vana-sdk/browser";
+import { convertIpfsUrl } from "@opendatalabs/vana-sdk/browser";
 import { ActionButton } from "../ui/ActionButton";
 import { EmptyState } from "../ui/EmptyState";
 import { StatusDisplay } from "../ui/StatusDisplay";

@@ -8,8 +8,8 @@ import type {
   ReplicateAPIResponse,
   IdentityServerOutput,
   PersonalServerOutput,
-} from "@opendatalabs/vana-sdk";
-import { PersonalServerIdentity } from "@opendatalabs/vana-sdk";
+  PersonalServerResponse,
+} from "@opendatalabs/vana-sdk/browser";
 
 /**
  * Internal API Endpoints Response Types
@@ -20,7 +20,7 @@ export type TrustedServerAPIResponse = APIResponse<ReplicateAPIResponse>;
 
 /** Response from /api/trusted-server/setup */
 export type TrustedServerIdentityAPIResponse =
-  APIResponse<PersonalServerIdentity>;
+  APIResponse<PersonalServerResponse>;
 
 /** Response from /api/trusted-server/poll */
 export type TrustedServerPollAPIResponse = APIResponse<ReplicateAPIResponse>;

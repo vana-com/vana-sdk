@@ -1,7 +1,7 @@
 import { createWalletClient, createPublicClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { createHash } from "crypto";
-import { mokshaTestnet, vanaMainnet, Vana } from "@opendatalabs/vana-sdk";
+import { mokshaTestnet, vanaMainnet, Vana } from "@opendatalabs/vana-sdk/node";
 
 // Simple in-memory storage for demo purposes
 const parameterStorage = new Map<string, string>();

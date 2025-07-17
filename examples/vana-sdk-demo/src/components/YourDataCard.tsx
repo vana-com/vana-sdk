@@ -23,7 +23,7 @@ import {
   RefreshCw,
   Key,
 } from "lucide-react";
-import type { UserFile, Schema, Vana } from "@opendatalabs/vana-sdk";
+import type { UserFile, Schema, Vana } from "@opendatalabs/vana-sdk/browser";
 import { SectionHeader } from "./ui/SectionHeader";
 import { ActionButton } from "./ui/ActionButton";
 import { EmptyState } from "./ui/EmptyState";

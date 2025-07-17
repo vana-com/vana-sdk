@@ -9,21 +9,14 @@
   "main": "dist/index.node.js",
   "types": "dist/index.node.d.ts",
   "exports": {
-    ".": {
-      "node": {
-        "types": "./dist/index.node.d.ts",
-        "import": "./dist/index.node.js",
-        "require": "./dist/index.node.cjs"
-      },
-      "browser": {
-        "import": "./dist/index.browser.js",
-        "types": "./dist/index.browser.d.ts"
-      },
-      "default": {
-        "types": "./dist/index.node.d.ts",
-        "import": "./dist/index.node.js",
-        "require": "./dist/index.node.cjs"
-      }
+    "./browser": {
+      "types": "./dist/index.browser.d.ts",
+      "import": "./dist/index.browser.js"
+    },
+    "./node": {
+      "types": "./dist/index.node.d.ts",
+      "import": "./dist/index.node.js",
+      "require": "./dist/index.node.cjs"
     },
     "./chains": {
       "node": {

@@ -89,6 +89,9 @@ export function getChainConfig(chainId: number): VanaChainConfig | undefined {
   }
 }
 
+// Backwards compatibility alias
+export const mokshaTestnet = moksha;
+
 /**
  * Retrieves all available Vana chain configurations.
  *

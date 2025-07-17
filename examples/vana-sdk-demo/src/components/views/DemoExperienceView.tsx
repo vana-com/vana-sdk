@@ -25,7 +25,7 @@ import {
   Server,
   Database,
 } from "lucide-react";
-import type { UserFile, Schema, Vana } from "@opendatalabs/vana-sdk";
+import type { UserFile, Schema, Vana } from "@opendatalabs/vana-sdk/browser";
 import { StatusMessage } from "../ui/StatusMessage";
 import { AddressDisplay } from "../ui/AddressDisplay";
 import { FileIdDisplay } from "../ui/FileIdDisplay";

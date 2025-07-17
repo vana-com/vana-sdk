@@ -8,7 +8,7 @@ import {
   Textarea,
 } from "@heroui/react";
 import { Plus, CheckCircle, AlertCircle, Database, Shield } from "lucide-react";
-import type { Vana } from "@opendatalabs/vana-sdk";
+import type { Vana } from "@opendatalabs/vana-sdk/browser";
 import { validateSchemaDefinition } from "../../utils/schemaValidation";
 import { SchemaIdDisplay } from "./SchemaIdDisplay";
 

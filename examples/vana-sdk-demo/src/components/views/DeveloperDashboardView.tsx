@@ -23,7 +23,7 @@ import {
   RotateCcw,
   ExternalLink,
 } from "lucide-react";
-import { Schema, Refiner, Vana } from "@opendatalabs/vana-sdk";
+import { Schema, Refiner, Vana } from "@opendatalabs/vana-sdk/browser";
 import { FormBuilder } from "../ui/FormBuilder";
 import { EmptyState } from "../ui/EmptyState";
 import { SchemaIdDisplay } from "../ui/SchemaIdDisplay";

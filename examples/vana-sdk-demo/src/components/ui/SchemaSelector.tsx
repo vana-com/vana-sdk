@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Fragment } from "react";
 import {
   Select,
   SelectItem,
@@ -9,7 +9,7 @@ import {
   Button,
 } from "@heroui/react";
 import { Database, ExternalLink, Info } from "lucide-react";
-import type { Schema, Vana } from "@opendatalabs/vana-sdk";
+import type { Schema, Vana } from "@opendatalabs/vana-sdk/browser";
 
 interface SchemaSelectorProps {
   /** Vana SDK instance for loading schemas */
@@ -101,8 +101,9 @@ export const SchemaSelector: React.FC<SchemaSelectorProps> = ({
     }
   }, [selectedSchemaId, schemas]);
 
-  const handleSelectionChange = (keys: Set<React.Key>) => {
-    const selectedKey = Array.from(keys)[0];
+  const handleSelectionChange = (keys: any) => {
+    const keySet = new Set(typeof keys === 'string' ? [keys] : Array.from(keys));
+    const selectedKey = Array.from(keySet)[0];
 
     if (selectedKey === "none") {
       onSchemaChange(null, null);
@@ -135,8 +136,8 @@ export const SchemaSelector: React.FC<SchemaSelectorProps> = ({
         <Select
           label="Schema"
           placeholder={isLoading ? "Loading schemas..." : placeholder}
-          selectedKeys={getSelectedKeys()}
-          onSelectionChange={handleSelectionChange}
+          selectedKeys={getSelectedKeys() as any}
+          onSelectionChange={handleSelectionChange as any}
           isDisabled={disabled || isLoading}
           startContent={
             isLoading ? <Spinner size="sm" /> : <Database className="h-4 w-4" />
@@ -147,37 +148,37 @@ export const SchemaSelector: React.FC<SchemaSelectorProps> = ({
               : "Select a schema to validate data against"
           }
         >
-          {includeNoneOption && (
-            <SelectItem
-              key="none"
-              value="none"
-              textValue="None - No validation"
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-default-500">None</span>
-                <span className="text-xs text-default-400">
-                  (no validation)
-                </span>
-              </div>
-            </SelectItem>
-          )}
-          {schemas.map((schema) => (
-            <SelectItem
-              key={schema.id.toString()}
-              value={schema.id.toString()}
-              textValue={`${schema.name} - ${schema.type}`}
-            >
-              <div className="flex items-center justify-between w-full">
-                <div>
-                  <div className="font-medium">{schema.name}</div>
-                  <div className="text-xs text-default-500">{schema.type}</div>
+          <Fragment>
+            {includeNoneOption && (
+              <SelectItem
+                key="none"
+                textValue="None - No validation"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-default-500">None</span>
+                  <span className="text-xs text-default-400">
+                    (no validation)
+                  </span>
                 </div>
-                <Chip size="sm" variant="flat" color="secondary">
-                  ID: {schema.id}
-                </Chip>
-              </div>
-            </SelectItem>
-          ))}
+              </SelectItem>
+            )}
+            {schemas.map((schema) => (
+              <SelectItem
+                key={schema.id.toString()}
+                textValue={`${schema.name} - ${schema.type}`}
+              >
+                <div className="flex items-center justify-between w-full">
+                  <div>
+                    <div className="font-medium">{schema.name}</div>
+                    <div className="text-xs text-default-500">{schema.type}</div>
+                  </div>
+                  <Chip size="sm" variant="flat" color="secondary">
+                    ID: {schema.id}
+                  </Chip>
+                </div>
+              </SelectItem>
+            ))}
+          </Fragment>
         </Select>
       </div>
 

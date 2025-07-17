@@ -15,7 +15,7 @@ import {
   Database,
   Code,
 } from "lucide-react";
-import type { Vana } from "@opendatalabs/vana-sdk";
+import type { Vana, Schema } from "@opendatalabs/vana-sdk/browser";
 import { SchemaSelector } from "./SchemaSelector";
 import { validateDataAgainstSchema } from "../../utils/schemaValidation";
 
@@ -46,7 +46,7 @@ export const SchemaValidationTab: React.FC<SchemaValidationTabProps> = ({
   className = "",
 }) => {
   const [selectedSchemaId, setSelectedSchemaId] = useState<number | null>(null);
-  const [selectedSchema, setSelectedSchema] = useState<unknown>(null);
+  const [selectedSchema, setSelectedSchema] = useState<Schema | null>(null);
   const [testData, setTestData] = useState("");
   const [isValidating, setIsValidating] = useState(false);
   const [validationResult, setValidationResult] = useState<{
@@ -196,7 +196,7 @@ export const SchemaValidationTab: React.FC<SchemaValidationTabProps> = ({
             selectedSchemaId={selectedSchemaId}
             onSchemaChange={(schemaId, schema) => {
               setSelectedSchemaId(schemaId);
-              setSelectedSchema(schema);
+              setSelectedSchema(schema || null);
               setValidationResult(null);
             }}
             showSchemaInfo={true}

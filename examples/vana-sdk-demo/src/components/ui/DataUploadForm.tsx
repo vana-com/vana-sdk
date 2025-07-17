@@ -19,7 +19,7 @@ import {
   Shield,
   Database,
 } from "lucide-react";
-import type { Vana, Schema } from "@opendatalabs/vana-sdk";
+import type { Vana, Schema } from "@opendatalabs/vana-sdk/browser";
 import { SchemaSelector } from "./SchemaSelector";
 import { InputModeToggle } from "./InputModeToggle";
 import { ExplorerLink } from "./ExplorerLink";
@@ -275,7 +275,7 @@ export const DataUploadForm: React.FC<DataUploadFormProps> = ({
                 selectedSchemaId={selectedSchemaId}
                 onSchemaChange={(schemaId, schema) => {
                   onSchemaChange(schemaId);
-                  setSelectedSchema(schema);
+                  setSelectedSchema(schema || null);
                   setValidationResult(null);
                 }}
                 showSchemaInfo={true}

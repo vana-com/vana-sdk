@@ -264,25 +264,22 @@ export class SchemaController {
         BigInt(schemaId),
       ]);
 
-      if (
-        !schemaData ||
-        !Array.isArray(schemaData) ||
-        schemaData.length === 0
-      ) {
+      if (!schemaData) {
         throw new Error(`Schema with ID ${schemaId} not found`);
       }
 
-      const [name, schemaType, definitionUrl] = schemaData as unknown as [
-        string,
-        string,
-        string,
-      ];
+      // Contract returns an object with {name, typ, definitionUrl}
+      const schemaObj = schemaData as any;
+      
+      if (!schemaObj.name || !schemaObj.typ || !schemaObj.definitionUrl) {
+        throw new Error("Incomplete schema data");
+      }
 
       return {
         id: schemaId,
-        name,
-        type: schemaType,
-        definitionUrl,
+        name: schemaObj.name,
+        type: schemaObj.typ,
+        definitionUrl: schemaObj.definitionUrl,
       };
     } catch (error) {
       throw new Error(

@@ -1696,11 +1696,18 @@ export class DataController {
         throw new Error("Schema not found");
       }
 
+      // Contract returns an object with {name, typ, definitionUrl}
+      const schemaObj = schemaData as any;
+      
+      if (!schemaObj.name || !schemaObj.typ || !schemaObj.definitionUrl) {
+        throw new Error("Incomplete schema data");
+      }
+
       return {
         id: schemaId,
-        name: schemaData.name,
-        type: schemaData.typ,
-        definitionUrl: schemaData.definitionUrl,
+        name: schemaObj.name,
+        type: schemaObj.typ,
+        definitionUrl: schemaObj.definitionUrl,
       };
     } catch (error) {
       console.error("Failed to get schema:", error);

@@ -14,7 +14,13 @@ import {
   Divider,
 } from "@heroui/react";
 import { Lock, Key, Database, TestTube, Wrench } from "lucide-react";
-import type { Vana, Schema } from "@opendatalabs/vana-sdk";
+import type { Vana, Schema } from "@opendatalabs/vana-sdk/browser";
+import {
+  generateEncryptionKey as sdkGenerateEncryptionKey,
+  encryptUserData as sdkEncryptUserData,
+  decryptUserData as sdkDecryptUserData,
+  DEFAULT_ENCRYPTION_SEED,
+} from "@opendatalabs/vana-sdk/browser";
 import { InputModeToggle } from "./InputModeToggle";
 import { CodeDisplay } from "./CodeDisplay";
 
@@ -81,8 +87,9 @@ export const AdvancedToolsTab: React.FC<AdvancedToolsTabProps> = ({
     setEncryptionStatus("Generating encryption key...");
 
     try {
-      const key = await vana.data.generateEncryptionKey(
-        encryptionSeed || undefined,
+      const key = await sdkGenerateEncryptionKey(
+        (vana as any).data.context.walletClient,
+        encryptionSeed || DEFAULT_ENCRYPTION_SEED,
       );
       setEncryptionKey(key);
       setEncryptionStatus("Encryption key generated successfully!");
@@ -107,7 +114,12 @@ export const AdvancedToolsTab: React.FC<AdvancedToolsTabProps> = ({
     try {
       const data =
         inputMode === "text" ? testData : (await selectedFile?.text()) || "";
-      const encrypted = await vana.data.encryptUserData(data, encryptionKey);
+      const blob = new Blob([data], { type: "text/plain" });
+      const encrypted = await sdkEncryptUserData(
+        blob,
+        encryptionKey,
+        (vana as any).platform,
+      );
       setEncryptedData(encrypted);
       setEncryptionStatus("Data encrypted successfully!");
     } catch (error) {
@@ -129,11 +141,13 @@ export const AdvancedToolsTab: React.FC<AdvancedToolsTabProps> = ({
     setEncryptionStatus("Decrypting data...");
 
     try {
-      const decrypted = await vana.data.decryptUserData(
+      const decrypted = await sdkDecryptUserData(
         encryptedData,
         encryptionKey,
+        (vana as any).platform,
       );
-      setDecryptedData(decrypted);
+      const text = await decrypted.text();
+      setDecryptedData(text);
       setEncryptionStatus("Data decrypted successfully!");
     } catch (error) {
       setEncryptionStatus(

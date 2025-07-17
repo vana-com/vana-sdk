@@ -1,8 +1,8 @@
 import {
   validateDataAgainstSchema as sdkValidateDataAgainstSchema,
   type DataSchema,
-} from "@opendatalabs/vana-sdk";
-import type { Schema } from "@opendatalabs/vana-sdk";
+  type Schema,
+} from "@opendatalabs/vana-sdk/browser";
 
 /**
  * Validation result interface
@@ -56,7 +56,7 @@ export async function validateDataAgainstSchema(
       version: "1.0.0", // Default version since it's not provided in Schema interface
       description: `Schema for ${schema.name}`,
       dialect: "json",
-      schema: schemaDefinition,
+      schema: schemaDefinition as string | object,
     };
 
     // Use SDK validation
@@ -96,7 +96,7 @@ export function validateSchemaDefinition(
       name,
       version,
       dialect: "json",
-      schema: schemaDefinition,
+      schema: schemaDefinition as string | object,
     };
 
     // This will throw if invalid

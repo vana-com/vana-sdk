@@ -6,7 +6,7 @@ import {
   PinataStorage,
   ServerProxyStorage,
   GoogleDriveStorage,
-} from "@opendatalabs/vana-sdk";
+} from "@opendatalabs/vana-sdk/browser";
 
 /**
  * Get the Pinata gateway URL with fallback

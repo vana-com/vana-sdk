@@ -1,7 +1,7 @@
 "use client";
 
 import { getDefaultConfig } from "@rainbow-me/rainbowkit";
-import { mokshaTestnet, vanaMainnet } from "@opendatalabs/vana-sdk";
+import { mokshaTestnet, vanaMainnet } from "@opendatalabs/vana-sdk/browser";
 
 // Configure wagmi with SSR support
 export const config = getDefaultConfig({

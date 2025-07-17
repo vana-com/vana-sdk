@@ -28,11 +28,38 @@ npm install viem@^2.31.7
 
 ## Quick Start
 
+The Vana SDK supports both browser and Node.js environments with explicit entry points:
+
+### Browser Applications (React, Vue, etc.)
+
 ```typescript
-import { Vana } from "@opendatalabs/vana-sdk";
+// For browser-based applications (React, Vue, etc.)
+import { Vana, mokshaTestnet } from "@opendatalabs/vana-sdk/browser";
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { mokshaTestnet } from "@opendatalabs/vana-sdk";
+
+// Create wallet client
+const account = privateKeyToAccount("0x...");
+const walletClient = createWalletClient({
+  account,
+  chain: mokshaTestnet,
+  transport: http("https://rpc.moksha.vana.org"),
+});
+
+// Initialize SDK
+const vana = new Vana({
+  walletClient,
+  relayerUrl: "https://relayer.moksha.vana.org",
+});
+```
+
+### Server-side Applications (Next.js API routes, Express)
+
+```typescript
+// For server-side applications (Next.js API routes, Express)
+import { Vana, mokshaTestnet } from "@opendatalabs/vana-sdk/node";
+import { createWalletClient, http } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 
 // Create wallet client
 const account = privateKeyToAccount("0x...");
@@ -102,7 +129,10 @@ const result = await vana.data.uploadEncryptedFile({
 Abstract storage layer supporting IPFS, Google Drive, and custom providers.
 
 ```typescript
-import { StorageManager, PinataStorage } from "@opendatalabs/vana-sdk";
+// For browser applications
+import { StorageManager, PinataStorage } from "@opendatalabs/vana-sdk/browser";
+// OR for server-side applications
+// import { StorageManager, PinataStorage } from "@opendatalabs/vana-sdk/node";
 
 const storageManager = new StorageManager();
 storageManager.register(
@@ -164,7 +194,9 @@ import {
   UserRejectedRequestError,
   SchemaValidationError,
   NetworkError,
-} from "@opendatalabs/vana-sdk";
+} from "@opendatalabs/vana-sdk/browser";
+// OR for server-side applications
+// } from "@opendatalabs/vana-sdk/node";
 
 try {
   await vana.permissions.grant(params);
@@ -195,7 +227,9 @@ import {
   Vana,
   generateEncryptionKey,
   encryptUserData,
-} from "@opendatalabs/vana-sdk";
+} from "@opendatalabs/vana-sdk/browser";
+// OR for server-side applications
+// } from "@opendatalabs/vana-sdk/node";
 
 async function grantDataPermission() {
   const vana = new Vana({ walletClient });

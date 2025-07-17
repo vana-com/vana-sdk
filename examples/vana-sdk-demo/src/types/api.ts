@@ -9,6 +9,7 @@ import type {
   IdentityServerOutput,
   PersonalServerOutput,
 } from "@opendatalabs/vana-sdk";
+import { PersonalServerIdentity } from "vana-sdk/types/personal";
 
 /**
  * Internal API Endpoints Response Types
@@ -18,7 +19,8 @@ import type {
 export type TrustedServerAPIResponse = APIResponse<ReplicateAPIResponse>;
 
 /** Response from /api/trusted-server/setup */
-export type TrustedServerSetupAPIResponse = APIResponse<IdentityServerOutput>;
+export type TrustedServerIdentityAPIResponse =
+  APIResponse<PersonalServerIdentity>;
 
 /** Response from /api/trusted-server/poll */
 export type TrustedServerPollAPIResponse = APIResponse<ReplicateAPIResponse>;

@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: identity.personal_server.public_key,
+      data: identity,
     });
   } catch (error) {
     console.error("Identity server request failed:", error);

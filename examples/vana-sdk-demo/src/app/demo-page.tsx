@@ -82,7 +82,7 @@ import {
 import { GrantPreviewModalContent } from "@/components/GrantPreviewModalContent";
 import { Shield, Eye } from "lucide-react";
 import type {
-  TrustedServerSetupAPIResponse,
+  TrustedServerIdentityAPIResponse,
   DiscoveredServerInfo,
 } from "@/types/api";
 import { navigationConfig } from "@/config/navigation";
@@ -1664,7 +1664,7 @@ export default function Home() {
         throw new Error(errorData.error || `HTTP ${response.status}`);
       }
 
-      const result: TrustedServerSetupAPIResponse = await response.json();
+      const result: TrustedServerIdentityAPIResponse = await response.json();
 
       // Debug: Log the full response structure
       console.debug("🔍 Full API Response:", JSON.stringify(result, null, 2));
@@ -1672,15 +1672,12 @@ export default function Home() {
 
       // Extract server information from the SDK response
       // The SDK now returns: { userAddress, identity: { metadata: { derivedAddress, publicKey } }, timestamp }
-      const derivedAddress = result.data?.personal_server?.address;
-      const publicKey = result.data?.personal_server?.public_key;
+      const derivedAddress = result.data?.address;
+      const publicKey = result.data?.public_key;
 
       // Debug: Log extraction results
       console.debug("🔍 SDK Response data:", result.data);
-      console.debug(
-        "🔍 Identity metadata:",
-        result.data?.personal_server?.public_key,
-      );
+      console.debug("🔍 Identity metadata:", result.data?.public_key);
       console.debug("🔍 Derived address:", derivedAddress);
       console.debug("🔍 Public key:", publicKey);
 
@@ -1690,8 +1687,8 @@ export default function Home() {
 
       const serverInfo: DiscoveredServerInfo = {
         serverId: derivedAddress,
-        serverUrl: "https://api.replicate.com/v1/predictions",
-        name: "Replicate",
+        serverUrl: result.data?.base_url || "",
+        name: result.data?.name || "",
         publicKey: publicKey,
       };
 
@@ -1870,8 +1867,13 @@ export default function Home() {
         throw new Error(errorData.error || "Failed to get server public key");
       }
 
-      const identityData = await identityResponse.json();
-      const serverPublicKey = identityData.data.publicKey;
+      const identityData: TrustedServerIdentityAPIResponse =
+        await identityResponse.json();
+
+      if (!identityData.data) {
+        throw new Error("Failed to get server public key");
+      }
+      const serverPublicKey = identityData.data.public_key;
 
       // Create file or blob from input
       let fileToUpload: File;

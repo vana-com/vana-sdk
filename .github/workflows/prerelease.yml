@@ -1,0 +1,42 @@
+name: Vana SDK Pre-release
+
+on:
+  push:
+    branches:
+      - feature/data-portability-sdk-v1
+      - feat/npm-publish
+
+jobs:
+  publish-prerelease:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build SDK
+        run: npm run build --workspace=packages/vana-sdk
+
+      - name: Set pre-release version
+        run: |
+          cd packages/vana-sdk
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          npm version 0.1.0-alpha.${SHORT_SHA} --no-git-tag-version
+
+      - name: Publish alpha pre-release to npm
+        run: |
+          cd packages/vana-sdk
+          npm publish --tag alpha
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN_TIM }}

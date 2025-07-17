@@ -1,8 +1,8 @@
-import { Address } from "viem";
 import {
-  PostRequestParams,
-  ReplicatePredictionResponse,
+  CreateOperationParams,
   InitPersonalServerParams,
+  OperationCreatedResponse,
+  GetOperationResponse,
 } from "../types";
 import { IdentityServerOutput } from "../types/external-apis";
 import {
@@ -45,21 +45,17 @@ import { ControllerContext } from "./permissions";
  * @see {@link [URL_PLACEHOLDER] | Vana Personal Servers} for conceptual overview
  */
 export class ServerController {
-  private readonly REPLICATE_API_URL =
-    "https://api.replicate.com/v1/predictions";
-  private readonly PERSONAL_SERVER_VERSION =
-    "vana-com/personal-server:6dae0fead4017557a2e6bd020643359ac1769228a9cfe3bd2365eeeb9711610e";
-  private readonly IDENTITY_SERVER_VERSION =
-    "vana-com/identity-server:8e357fbeb87c0558b545809cabd0ef2f311082d8ce1f12b93cb8ad2f38cfbfd2";
+  private readonly PERSONAL_SERVER_BASE_URL =
+    process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL;
 
   constructor(private readonly context: ControllerContext) {}
 
-  async getPersonalServerIdentity(
+  async getIdentity(
     request: InitPersonalServerParams,
   ): Promise<IdentityServerOutput> {
     try {
       const response = await fetch(
-        `http://localhost:8000/api/v1/identity?address=${request.userAddress}`,
+        `${this.PERSONAL_SERVER_BASE_URL}/identity?address=${request.userAddress}`,
         {
           method: "GET",
           headers: {
@@ -90,55 +86,47 @@ export class ServerController {
   }
 
   /**
-   * Posts a computation request to a user's personal server.
+   * Creates an operation via the personal server API.
    *
    * @remarks
-   * This method submits a computation request to the specified user's personal server
-   * via the Replicate API. It creates a signed request with the user address and
-   * permission ID, then submits it for processing. The response includes URLs for
-   * polling results and canceling the computation if needed.
-   *
-   * The method requires a valid Replicate API token and uses the application's
-   * wallet client for request signing to ensure authenticity.
+   * This method submits a computation request to the personal server API.
+   * The response includes the operation ID.
    * @param params - The request parameters object
-   * @param params.permissionId - The permission ID authorizing this computation
-   * @returns A Promise that resolves to a prediction response with status and control URLs
+   * @param params.permissionId - The permission ID authorizing this operation
+   * @returns A Promise that resolves to an operation response with status and control URLs
    * @throws {PersonalServerError} When server request fails or parameters are invalid
-   * @throws {SignatureError} When request signing fails
-   * @throws {NetworkError} When Replicate API communication fails
+   * @throws {NetworkError} When personal server API communication fails
    * @example
    * ```typescript
-   * const response = await vana.server.postRequest({
+   * const response = await vana.server.createOperation({
    *   permissionId: 123,
    * });
    *
-   * console.log(`Request submitted: ${response.id}`);
-   * console.log(`Poll for results: ${response.urls.get}`);
+   * console.log(`Operation created: ${response.id}`);
    * ```
    */
-  async postRequest(
-    params: PostRequestParams,
-  ): Promise<ReplicatePredictionResponse> {
+  async createOperation(
+    params: CreateOperationParams,
+  ): Promise<OperationCreatedResponse> {
     try {
-      // Step 1: Validate parameters
-      this.validatePostRequestParams(params);
-
-      // Step 2: Create request JSON using the userAddress from params
-      const requestJson = this.createRequestJson(params);
-
-      // Step 4: Create signature locally
-      const signature = await this.createSignature(requestJson);
-
-      // Step 5: Prepare input for Replicate API
-      const replicateInput = {
-        replicate_api_token: this.getReplicateApiToken(),
-        signature,
-        request_json: requestJson,
+      const requestData = {
+        permission_id: params.permissionId,
       };
 
-      // Step 6: Make request to Replicate API
-      console.debug("🔍 Debug - replicateInput", replicateInput);
-      const response = await this.makeReplicateRequest(replicateInput);
+      const requestJson = JSON.stringify(requestData);
+
+      const signature = await this.createSignature(requestJson);
+
+      const requestBody = {
+        app_signature: signature,
+        operation: {
+          permission_id: params.permissionId,
+        },
+      };
+
+      // Step 5: Make request to personal server API
+      console.debug("🔍 Debug - createOperation requestBody", requestBody);
+      const response = await this.makeRequest(requestBody);
 
       return response;
     } catch (error) {
@@ -154,128 +142,12 @@ export class ServerController {
         }
         // Wrap unknown errors
         throw new PersonalServerError(
-          `Personal server request failed: ${error.message}`,
+          `Personal server operation creation failed: ${error.message}`,
           error,
         );
       }
       throw new PersonalServerError(
-        "Personal server request failed with unknown error",
-      );
-    }
-  }
-
-  /**
-   * Retrieves the public key for a user's personal server via the Identity Server.
-   *
-   * @remarks
-   * This method uses the Identity Server to deterministically derive the personal server's
-   * public key from the user's EVM address. This enables anyone to encrypt data for a
-   * specific user's server without requiring that server to be online. The Identity Server
-   * provides a reliable way to obtain encryption keys for secure data sharing across the
-   * Vana network.
-   *
-   * The derived public key is deterministic and consistent, allowing for predictable
-   * encryption workflows in decentralized applications.
-   * @param userAddress - The user's EVM address to derive the server public key for
-   * @returns A Promise that resolves to the server's public key as a hex string
-   * @throws {PersonalServerError} When user address is invalid or server lookup fails
-   * @throws {NetworkError} When Identity Server API request fails
-   * @example
-   * ```typescript
-   * // Get public key for encrypting data to a user's server
-   * const publicKey = await vana.server.getTrustedServerPublicKey(
-   *   "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36"
-   * );
-   *
-   * // Use the public key for encryption
-   * const encryptedData = await encryptForServer(data, publicKey);
-   * ```
-   */
-  async getTrustedServerPublicKey(userAddress: Address): Promise<string> {
-    try {
-      // Step 1: Validate the user address
-      if (!userAddress || typeof userAddress !== "string") {
-        throw new PersonalServerError(
-          "User address is required and must be a valid string",
-        );
-      }
-
-      // Basic address validation
-      if (!userAddress.startsWith("0x") || userAddress.length !== 42) {
-        throw new PersonalServerError(
-          "User address must be a valid EVM address",
-        );
-      }
-
-      // Step 2: Make request to Identity Server to get public key
-      const requestBody = {
-        version: this.IDENTITY_SERVER_VERSION,
-        input: {
-          user_address: userAddress,
-        },
-      };
-
-      console.debug("Identity Server Request for Public Key:", {
-        url: this.REPLICATE_API_URL,
-        method: "POST",
-        body: requestBody,
-      });
-
-      const response = await fetch(this.REPLICATE_API_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Token ${this.getReplicateApiToken()}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.debug("Identity Server Error Response:", {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorText,
-        });
-        throw new NetworkError(
-          `Identity Server API request failed: ${response.status} ${response.statusText} - ${errorText}`,
-        );
-      }
-
-      const data = (await response.json()) as ReplicatePredictionResponse;
-      console.debug("Identity Server Success Response:", data);
-
-      // Step 3: Poll for results until completion
-      const result = await this.pollIdentityServerResult({
-        id: data.id,
-        status: data.status,
-        urls: {
-          get: data.urls?.get || "",
-          cancel: data.urls?.cancel || "",
-        },
-        input: data.input,
-        output: data.output,
-        error: data.error,
-      });
-
-      return result;
-    } catch (error) {
-      if (error instanceof Error) {
-        // Re-throw known Vana errors directly
-        if (
-          error instanceof NetworkError ||
-          error instanceof PersonalServerError
-        ) {
-          throw error;
-        }
-        // Wrap unknown errors
-        throw new PersonalServerError(
-          `Failed to get trusted server public key: ${error.message}`,
-          error,
-        );
-      }
-      throw new PersonalServerError(
-        "Failed to get trusted server public key with unknown error",
+        "Personal server operation creation failed with unknown error",
       );
     }
   }
@@ -285,22 +157,22 @@ export class ServerController {
    *
    * @remarks
    * This method checks the current status of a computation request by querying
-   * the Replicate API using the provided polling URL. It returns the current
-   * status, any available output, and error information. The method should be
-   * called periodically until the computation completes or fails.
+   * the personal server API using the provided operation ID. It returns the current
+   * status, any available output, and error information. The method can be
+   * called periodically until the operation completes or fails.
    *
    * Common status values include: `starting`, `processing`, `succeeded`, `failed`, `canceled`.
-   * @param getUrl - The polling URL returned from the initial request submission
-   * @returns A Promise that resolves to the current prediction response with status and results
+   * @param operationId - The operation ID returned from the initial request submission
+   * @returns A Promise that resolves to the current operation response with status and results
    * @throws {NetworkError} When the polling request fails or returns invalid data
    * @example
    * ```typescript
    * // Poll until completion
-   * let result = await vana.server.pollStatus(response.urls.get);
+   * let result = await vana.server.getOperation(response.id);
    *
    * while (result.status === "processing") {
    *   await new Promise(resolve => setTimeout(resolve, 1000));
-   *   result = await vana.server.pollStatus(response.urls.get);
+   *   result = await vana.server.getOperation(response.id);
    * }
    *
    * if (result.status === "succeeded") {
@@ -308,17 +180,19 @@ export class ServerController {
    * }
    * ```
    */
-  async pollStatus(getUrl: string): Promise<ReplicatePredictionResponse> {
+  async getOperation(operationId: string): Promise<GetOperationResponse> {
     try {
-      console.debug("Polling Replicate Status:", getUrl);
+      console.debug("Polling Operation Status:", operationId);
 
-      const response = await fetch(getUrl, {
-        method: "GET",
-        headers: {
-          Authorization: `Token ${this.getReplicateApiToken()}`,
-          "Content-Type": "application/json",
+      const response = await fetch(
+        `${this.PERSONAL_SERVER_BASE_URL}/operations/${operationId}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
-      });
+      );
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -332,22 +206,11 @@ export class ServerController {
         );
       }
 
-      const data = (await response.json()) as ReplicatePredictionResponse;
+      const data = (await response.json()) as GetOperationResponse;
 
       console.debug("Polling Success Response:", data);
 
-      // Transform Replicate response to our expected format
-      return {
-        id: data.id,
-        status: data.status,
-        urls: {
-          get: data.urls?.get || getUrl,
-          cancel: data.urls?.cancel || "",
-        },
-        input: data.input,
-        output: data.output,
-        error: data.error,
-      };
+      return data;
     } catch (error) {
       if (error instanceof NetworkError) {
         throw error;
@@ -358,36 +221,84 @@ export class ServerController {
     }
   }
 
-  /**
-   * Validates the post request parameters.
-   *
-   * @param params - The post request parameters to validate
-   */
-  private validatePostRequestParams(params: PostRequestParams): void {
-    // Basic address validation
-    if (typeof params.permissionId !== "number" || params.permissionId <= 0) {
-      throw new PersonalServerError(
-        "Permission ID is required and must be a valid positive number",
+  async cancelOperation(operationId: string): Promise<void> {
+    try {
+      const response = await fetch(
+        `${this.PERSONAL_SERVER_BASE_URL}/operations/${operationId}/cancel`,
+        {
+          method: "POST",
+        },
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new PersonalServerError(
+          `Failed to cancel operation: ${response.status} ${response.statusText} - ${errorText}`,
+        );
+      }
+    } catch (error) {
+      if (error instanceof NetworkError) {
+        throw error;
+      }
+      throw new NetworkError(
+        `Failed to cancel operation: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }
 
   /**
-   * Creates the request JSON string for the personal server.
+   * Makes the request to the personal server API.
    *
    * @param params - The post request parameters to serialize
    * @returns JSON string representation of the request data
    */
-  private createRequestJson(params: PostRequestParams): string {
+  private async makeRequest(
+    requestBody: Record<string, unknown>,
+  ): Promise<OperationCreatedResponse> {
     try {
-      const requestData = {
-        permission_id: params.permissionId,
-      };
+      console.debug("Personal Server Request:", {
+        url: `${this.PERSONAL_SERVER_BASE_URL}/operations`,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: requestBody,
+      });
 
-      return JSON.stringify(requestData);
+      const response = await fetch(
+        `${this.PERSONAL_SERVER_BASE_URL}/operations`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        },
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.debug("Personal Server Error Response:", {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText,
+        });
+        throw new NetworkError(
+          `Personal server API request failed: ${response.status} ${response.statusText} - ${errorText}`,
+        );
+      }
+
+      const data = (await response.json()) as OperationCreatedResponse;
+
+      console.debug("Personal Server Success Response:", data);
+
+      return data;
     } catch (error) {
-      throw new SerializationError(
-        `Failed to create request JSON: ${error instanceof Error ? error.message : "Unknown error"}`,
+      if (error instanceof NetworkError) {
+        throw error;
+      }
+      throw new NetworkError(
+        `Failed to make personal server API request: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }
@@ -433,162 +344,5 @@ export class ServerController {
         `Failed to create signature: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
-  }
-
-  /**
-   * Gets the Replicate API token from environment.
-   *
-   * @returns The Replicate API token from environment variables
-   */
-  private getReplicateApiToken(): string {
-    // Try server-side env var first, fallback to public for backwards compatibility
-    const token =
-      process.env.REPLICATE_API_TOKEN ||
-      process.env.NEXT_PUBLIC_REPLICATE_API_TOKEN;
-    if (!token) {
-      throw new PersonalServerError(
-        "REPLICATE_API_TOKEN environment variable is required",
-      );
-    }
-    return token;
-  }
-
-  /**
-   * Makes the request to the Replicate API.
-   *
-   * @param input - The input parameters for the Replicate API request
-   * @returns Promise resolving to the Replicate prediction response
-   */
-  private async makeReplicateRequest(
-    input: Record<string, unknown>,
-  ): Promise<ReplicatePredictionResponse> {
-    try {
-      const requestBody = {
-        version: this.PERSONAL_SERVER_VERSION,
-        input,
-      };
-
-      console.debug("Replicate Request:", {
-        url: this.REPLICATE_API_URL,
-        method: "POST",
-        headers: {
-          Authorization: `Token ${this.getReplicateApiToken().substring(0, 10)}...`,
-          "Content-Type": "application/json",
-        },
-        body: requestBody,
-      });
-
-      const response = await fetch(this.REPLICATE_API_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Token ${this.getReplicateApiToken()}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.debug("Replicate Error Response:", {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorText,
-        });
-        throw new NetworkError(
-          `Replicate API request failed: ${response.status} ${response.statusText} - ${errorText}`,
-        );
-      }
-
-      const data = (await response.json()) as ReplicatePredictionResponse;
-
-      console.debug("Replicate Success Response:", data);
-
-      // Transform Replicate response to our expected format
-      return {
-        id: data.id,
-        status: data.status,
-        urls: {
-          get: data.urls?.get || "",
-          cancel: data.urls?.cancel || "",
-        },
-        input: data.input,
-        output: data.output,
-        error: data.error,
-      };
-    } catch (error) {
-      if (error instanceof NetworkError) {
-        throw error;
-      }
-      throw new NetworkError(
-        `Failed to make Replicate API request: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-    }
-  }
-
-  /**
-   * Polls the identity server result until completion and extracts the public key.
-   *
-   * @param initialResponse - The initial response from the identity server
-   * @returns Promise resolving to the extracted public key
-   */
-  private async pollIdentityServerResult(
-    initialResponse: ReplicatePredictionResponse,
-  ): Promise<string> {
-    const maxAttempts = 60; // 60 seconds max
-    let attempts = 0;
-    let currentResponse = initialResponse;
-
-    while (attempts < maxAttempts) {
-      if (currentResponse.status === "succeeded") {
-        // Parse the output to extract public key information
-        const output = currentResponse.output;
-
-        // Parse the output string if it's a JSON string
-        let parsedOutput: Record<string, unknown>;
-        if (typeof output === "string") {
-          try {
-            parsedOutput = JSON.parse(output);
-          } catch {
-            throw new PersonalServerError(
-              "Failed to parse Identity Server response as JSON",
-            );
-          }
-        } else {
-          parsedOutput = output as Record<string, unknown>;
-        }
-
-        // Extract the personal server's public key
-        const personalServer = parsedOutput.personal_server as Record<
-          string,
-          unknown
-        >;
-        if (!personalServer || !personalServer.public_key) {
-          throw new PersonalServerError(
-            "Identity Server response missing personal_server.public_key",
-          );
-        }
-
-        return personalServer.public_key as string;
-      } else if (currentResponse.status === "failed") {
-        throw new PersonalServerError(
-          `Identity Server request failed: ${currentResponse.error || "Unknown error"}`,
-        );
-      } else if (currentResponse.status === "canceled") {
-        throw new PersonalServerError("Identity Server request was canceled");
-      }
-
-      // Wait 1 second before next poll
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      attempts++;
-
-      // Poll for updated status
-      if (currentResponse.urls.get) {
-        currentResponse = await this.pollStatus(currentResponse.urls.get);
-      }
-    }
-
-    throw new PersonalServerError(
-      "Identity Server request timed out after 60 seconds",
-    );
   }
 }

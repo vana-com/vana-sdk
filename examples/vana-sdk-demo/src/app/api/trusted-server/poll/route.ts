@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Poll the status
-    const response = await vana.server.pollStatus(getUrl);
+    const response = await vana.server.getOperationStatus(getUrl);
 
     return NextResponse.json({
       success: true,

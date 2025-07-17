@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     console.debug("🔍 Debug - vana", vana);
 
     // Make trusted server request
-    const response = await vana.server.postRequest({
+    const response = await vana.server.createOperation({
       permissionId,
     });
 

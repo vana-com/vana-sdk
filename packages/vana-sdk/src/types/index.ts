@@ -124,8 +124,10 @@ export type {
 // Personal server types
 export type {
   PostRequestParams,
+  CreateOperationParams,
   InitPersonalServerParams,
-  ReplicatePredictionResponse,
+  CreateOperationResponse as OperationCreatedResponse,
+  GetOperationResponse,
 } from "./personal";
 
 // External API types

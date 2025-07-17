@@ -5,9 +5,9 @@ import { Vana } from "@opendatalabs/vana-sdk";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { getUrl, chainId } = body;
+    const { operationId, chainId } = body;
 
-    if (!getUrl || !chainId) {
+    if (!operationId || !chainId) {
       return NextResponse.json(
         { success: false, error: "Missing getUrl or chainId parameter" },
         { status: 400 },
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Poll the status
-    const response = await vana.server.getOperationStatus(getUrl);
+    const response = await vana.server.getOperation(operationId);
 
     return NextResponse.json({
       success: true,

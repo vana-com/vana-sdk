@@ -64,6 +64,7 @@ export class ServerController {
         },
       );
 
+      console.debug("🔍 Debug - getIdentity response", response);
       if (!response.ok) {
         const errorText = await response.text();
         throw new NetworkError(

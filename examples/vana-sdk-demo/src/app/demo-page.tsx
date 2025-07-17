@@ -1480,7 +1480,6 @@ export default function Home() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          userAddress: address,
           permissionId,
           chainId,
         }),
@@ -1525,8 +1524,8 @@ export default function Home() {
   };
 
   const handlePollStatus = async () => {
-    const result = personalResult as { urls?: { get?: string } };
-    if (!result?.urls?.get) return;
+    const result = personalResult as { id?: string };
+    if (!result?.id) return;
 
     if (!chainId) {
       setPersonalError(
@@ -1539,7 +1538,7 @@ export default function Home() {
     setPersonalError("");
     try {
       const requestBody = {
-        getUrl: result.urls.get,
+        operationId: result.id,
         chainId,
       };
 
@@ -1640,7 +1639,7 @@ export default function Home() {
 
   // Trust server handlers
 
-  const handleDiscoverReplicateServer = async () => {
+  const handleDiscoverHostedServer = async () => {
     if (!address) return;
 
     setIsDiscoveringServer(true);
@@ -1649,7 +1648,7 @@ export default function Home() {
 
     try {
       // Call the trusted server setup API to discover/initialize the server identity
-      const response = await fetch("/api/trusted-server/setup", {
+      const response = await fetch("/api/identity", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -2381,7 +2380,7 @@ export default function Home() {
                           : handleTrustServer
                       }
                       isTrustingServer={isTrustingServer}
-                      onDiscoverHostedServer={handleDiscoverReplicateServer}
+                      onDiscoverHostedServer={handleDiscoverHostedServer}
                       isDiscoveringServer={isDiscoveringServer}
                       trustServerError={trustServerError}
                       trustedServers={trustedServers.map((server) => ({

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Hash } from "viem";
 import { createRelayerVana } from "@/lib/relayer";
-import { handleRelayerRequest } from "vana-sdk";
-import type { GenericTypedData } from "vana-sdk";
+import { handleRelayerRequest } from "@opendatalabs/vana-sdk";
+import type { GenericTypedData } from "@opendatalabs/vana-sdk";
 
 export async function POST(request: NextRequest) {
   try {

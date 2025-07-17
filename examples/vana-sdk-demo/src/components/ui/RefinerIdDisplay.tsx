@@ -1,7 +1,7 @@
 import { Button } from "@heroui/react";
 import { ExternalLink } from "lucide-react";
 import { CopyButton } from "./CopyButton";
-import { getContractAddress } from "vana-sdk";
+import { getContractAddress } from "@opendatalabs/vana-sdk";
 import { keccak256, toBytes } from "viem";
 
 interface RefinerIdDisplayProps {

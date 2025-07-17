@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { privateKeyToAccount } from "viem/accounts";
-import { Vana } from "vana-sdk";
+import { Vana } from "@opendatalabs/vana-sdk";
 
 export async function POST(request: NextRequest) {
   console.debug("🔍 Debug - POST /api/trusted-server");

@@ -8,7 +8,7 @@ import {
   Button,
   Chip,
 } from "@heroui/react";
-import { Schema } from "vana-sdk";
+import { Schema } from "@opendatalabs/vana-sdk";
 import { SectionHeader } from "./ui/SectionHeader";
 import { ActionButton } from "./ui/ActionButton";
 import { StatusMessage } from "./ui/StatusMessage";

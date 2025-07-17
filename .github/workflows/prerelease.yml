@@ -25,9 +25,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build SDK
-        run: npm run build --workspace=packages/vana-sdk
-
       - name: Set pre-release version
         run: |
           cd packages/vana-sdk

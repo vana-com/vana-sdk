@@ -20,6 +20,8 @@ import {
   Tabs,
   Tab,
   Tooltip,
+  Select,
+  SelectItem,
 } from "@heroui/react";
 import {
   Database,
@@ -32,6 +34,8 @@ import {
   Eye,
   Users,
   FileText,
+  Trash2,
+  Server,
 } from "lucide-react";
 import type { UserFile, GrantedPermission } from "@opendatalabs/vana-sdk";
 import { convertIpfsUrl } from "@opendatalabs/vana-sdk";
@@ -46,6 +50,7 @@ import { FileIdDisplay } from "../ui/FileIdDisplay";
 import { AddressDisplay } from "../ui/AddressDisplay";
 import { ErrorMessage } from "../ui/ErrorMessage";
 import { PermissionDisplay } from "../ui/PermissionDisplay";
+import { FormBuilder } from "../ui/FormBuilder";
 
 /**
  * Props for the UserDashboardView component
@@ -99,6 +104,28 @@ export interface UserDashboardViewProps {
   isRevoking: boolean;
   onRefreshPermissions: () => void;
 
+  // Trusted server management
+  serverId: string;
+  onServerIdChange: (value: string) => void;
+  serverUrl: string;
+  onServerUrlChange: (value: string) => void;
+  onTrustServer: () => void;
+  isTrustingServer: boolean;
+  onUntrustServer: (serverId: string) => void;
+  isUntrusting: boolean;
+  onDiscoverReplicateServer: () => void;
+  isDiscoveringServer: boolean;
+  trustedServers: Array<{
+    id: string;
+    url?: string;
+    name?: string;
+  }>;
+  isLoadingServers: boolean;
+  onRefreshServers: () => void;
+  trustServerError: string;
+  queryMode: "subgraph" | "rpc" | "auto";
+  onQueryModeChange: (mode: "subgraph" | "rpc" | "auto") => void;
+
   // User info
   userAddress: string | undefined;
   chainId: number;
@@ -147,6 +174,22 @@ export function UserDashboardView({
   onRevokePermission,
   isRevoking,
   onRefreshPermissions,
+  serverId,
+  onServerIdChange,
+  serverUrl,
+  onServerUrlChange,
+  onTrustServer,
+  isTrustingServer,
+  onUntrustServer,
+  isUntrusting,
+  onDiscoverReplicateServer,
+  isDiscoveringServer,
+  trustedServers,
+  isLoadingServers,
+  onRefreshServers,
+  trustServerError,
+  queryMode,
+  onQueryModeChange,
   userAddress: _userAddress,
   chainId,
 }: UserDashboardViewProps) {
@@ -834,6 +877,185 @@ export function UserDashboardView({
     </div>
   );
 
+  /**
+   * Renders the trusted servers tab content
+   */
+  const renderTrustedServersTab = () => (
+    <div className="space-y-6">
+      {/* Trust Server */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Shield className="h-5 w-5" />
+            <h3 className="text-lg font-semibold">Trust New Server</h3>
+          </div>
+        </CardHeader>
+        <CardBody>
+          <FormBuilder
+            title=""
+            singleColumn={true}
+            fields={[
+              {
+                name: "serverId",
+                label: "Server ID",
+                type: "text",
+                value: serverId,
+                onChange: onServerIdChange,
+                placeholder: "0x...",
+                description: "The Ethereum address of the server to trust",
+                required: true,
+              },
+              {
+                name: "serverUrl",
+                label: "Server URL",
+                type: "text",
+                value: serverUrl,
+                onChange: onServerUrlChange,
+                placeholder: "https://...",
+                description: "The API endpoint URL of the server",
+                required: true,
+              },
+            ]}
+            onSubmit={onTrustServer}
+            isSubmitting={isTrustingServer}
+            submitText="Trust Server"
+            submitIcon={<Shield className="h-4 w-4" />}
+            status={trustServerError}
+            additionalButtons={
+              <Button
+                onPress={onDiscoverReplicateServer}
+                isLoading={isDiscoveringServer}
+                variant="bordered"
+                startContent={<Server className="h-4 w-4" />}
+              >
+                Get Hosted Server Details
+              </Button>
+            }
+          />
+        </CardBody>
+      </Card>
+
+      {/* Trusted Servers List */}
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-center w-full">
+            <div className="flex items-center gap-2">
+              <Shield className="h-5 w-5" />
+              <div>
+                <h3 className="text-lg font-semibold">Your Trusted Servers</h3>
+                <p className="text-sm text-default-500">
+                  {trustedServers.length} server
+                  {trustedServers.length !== 1 ? "s" : ""} trusted
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Select
+                size="sm"
+                label="Query Mode"
+                placeholder="Select query mode"
+                selectedKeys={[queryMode]}
+                onSelectionChange={(keys) => {
+                  const mode = Array.from(keys)[0] as
+                    | "subgraph"
+                    | "rpc"
+                    | "auto";
+                  onQueryModeChange(mode);
+                }}
+                className="w-40"
+              >
+                <SelectItem key="auto">Auto (Smart Fallback)</SelectItem>
+                <SelectItem key="subgraph">Subgraph (Fast)</SelectItem>
+                <SelectItem key="rpc">RPC (Direct)</SelectItem>
+              </Select>
+              <Button
+                onPress={onRefreshServers}
+                variant="bordered"
+                size="sm"
+                startContent={
+                  isLoadingServers ? (
+                    <Spinner size="sm" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )
+                }
+                isDisabled={isLoadingServers}
+              >
+                Refresh
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardBody>
+          {trustedServers.length === 0 ? (
+            <EmptyState
+              icon={<Shield className="h-12 w-12" />}
+              title="No trusted servers"
+              description="Trust a server above to see it listed here"
+            />
+          ) : (
+            <Table aria-label="Trusted servers table" removeWrapper>
+              <TableHeader>
+                <TableColumn>Server Address</TableColumn>
+                <TableColumn>URL</TableColumn>
+                <TableColumn>Actions</TableColumn>
+              </TableHeader>
+              <TableBody>
+                {trustedServers.map((server) => (
+                  <TableRow key={server.id}>
+                    <TableCell>
+                      <AddressDisplay
+                        address={server.id}
+                        truncate={true}
+                        showCopy={true}
+                        showExternalLink={true}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {server.url && (
+                        <div className="flex items-center gap-2">
+                          <Button
+                            as="a"
+                            href={server.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            size="sm"
+                            variant="flat"
+                            isIconOnly
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                          </Button>
+                          <CopyButton
+                            value={server.url}
+                            tooltip="Copy server URL"
+                            isInline
+                          />
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        color="danger"
+                        variant="flat"
+                        size="sm"
+                        onPress={() => onUntrustServer(server.id)}
+                        isLoading={isUntrusting}
+                        isDisabled={isUntrusting}
+                        startContent={<Trash2 className="h-3 w-3" />}
+                      >
+                        Untrust
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardBody>
+      </Card>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -845,7 +1067,7 @@ export function UserDashboardView({
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         <Card>
           <CardBody className="text-center">
             <div className="flex items-center justify-center gap-2 mb-2">
@@ -870,6 +1092,17 @@ export function UserDashboardView({
           <CardBody className="text-center">
             <div className="flex items-center justify-center gap-2 mb-2">
               <Shield className="h-5 w-5 text-warning" />
+              <span className="text-2xl font-bold">
+                {trustedServers.length}
+              </span>
+            </div>
+            <p className="text-sm text-default-500">Trusted Servers</p>
+          </CardBody>
+        </Card>
+        <Card>
+          <CardBody className="text-center">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <Key className="h-5 w-5 text-info" />
               <span className="text-2xl font-bold">{selectedFiles.length}</span>
             </div>
             <p className="text-sm text-default-500">Files Selected</p>
@@ -889,6 +1122,9 @@ export function UserDashboardView({
         </Tab>
         <Tab key="permissions" title="Permissions">
           {renderPermissionsTab()}
+        </Tab>
+        <Tab key="servers" title="Trusted Servers">
+          {renderTrustedServersTab()}
         </Tab>
       </Tabs>
     </div>

@@ -155,9 +155,8 @@ export function DemoExperienceView({
     await onDiscoverReplicateServer();
     if (serverId && _serverUrl) {
       await onTrustServer();
-      if (trustedServers.length > 0) {
-        setSelectedTrustedServer(trustedServers[0].id);
-      }
+      // Auto-select the server that was just trusted
+      setSelectedTrustedServer(serverId);
     }
   };
 
@@ -659,11 +658,6 @@ export function DemoExperienceView({
 
       {/* Progress Indicator */}
       <div className="mb-8">
-        <div className="flex justify-center mb-4">
-          <div className="text-sm text-default-500">
-            Step {currentStep} of 4
-          </div>
-        </div>
         <Progress
           value={(currentStep / 4) * 100}
           className="max-w-md mx-auto"
@@ -676,10 +670,10 @@ export function DemoExperienceView({
 
       {/* Steps */}
       <div className="space-y-6 max-w-2xl mx-auto">
-        {renderStep1()}
-        {renderStep2()}
-        {renderStep3()}
-        {renderStep4()}
+        {currentStep >= 1 && renderStep1()}
+        {currentStep >= 2 && renderStep2()}
+        {currentStep >= 3 && renderStep3()}
+        {currentStep >= 4 && renderStep4()}
       </div>
 
       {/* Footer */}

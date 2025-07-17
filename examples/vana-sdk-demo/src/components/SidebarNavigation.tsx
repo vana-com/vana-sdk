@@ -109,14 +109,6 @@ export function SidebarNavigation({
             );
           })}
         </nav>
-
-        <div className="mt-8 p-3 bg-content2 rounded-lg">
-          <div className="text-xs text-default-500 mb-2">Current View</div>
-          <div className="text-sm font-medium">
-            {navigationViews.find((v) => v.id === activeView)?.label ||
-              "Unknown"}
-          </div>
-        </div>
       </div>
     </div>
   );

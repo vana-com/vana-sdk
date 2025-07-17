@@ -1778,6 +1778,28 @@ export default function Home() {
     onRevokePermission: handleRevokePermissionById,
     isRevoking,
     onRefreshPermissions: loadUserPermissions,
+    serverId,
+    onServerIdChange: setServerId,
+    serverUrl,
+    onServerUrlChange: setServerUrl,
+    onTrustServer: appConfig.useGaslessTransactions
+      ? handleTrustServerGasless
+      : handleTrustServer,
+    isTrustingServer,
+    onUntrustServer: handleUntrustServer,
+    isUntrusting,
+    onDiscoverReplicateServer: handleDiscoverHostedServer,
+    isDiscoveringServer,
+    trustedServers: trustedServers.map((server) => ({
+      id: server.serverAddress,
+      url: server.serverUrl,
+      name: server.serverAddress,
+    })),
+    isLoadingServers: isLoadingTrustedServers,
+    onRefreshServers: () => loadUserTrustedServers(trustedServerQueryMode),
+    trustServerError,
+    queryMode: trustedServerQueryMode,
+    onQueryModeChange: setTrustedServerQueryMode,
     userAddress: address,
     chainId: chainId || 14800,
   };
@@ -1820,28 +1842,6 @@ export default function Home() {
     refiners,
     isLoadingRefiners,
     onRefreshRefiners: loadRefiners,
-    serverId,
-    onServerIdChange: setServerId,
-    serverUrl,
-    onServerUrlChange: setServerUrl,
-    onTrustServer: appConfig.useGaslessTransactions
-      ? handleTrustServerGasless
-      : handleTrustServer,
-    isTrustingServer,
-    onUntrustServer: handleUntrustServer,
-    isUntrusting,
-    onDiscoverReplicateServer: handleDiscoverHostedServer,
-    isDiscoveringServer,
-    trustedServers: trustedServers.map((server) => ({
-      id: server.serverAddress,
-      url: server.serverUrl,
-      name: server.serverAddress,
-    })),
-    isLoadingServers: isLoadingTrustedServers,
-    onRefreshServers: () => loadUserTrustedServers(trustedServerQueryMode),
-    trustServerError,
-    queryMode: trustedServerQueryMode,
-    onQueryModeChange: setTrustedServerQueryMode,
     chainId: chainId || 14800,
   };
 

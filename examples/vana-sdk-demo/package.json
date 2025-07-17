@@ -33,7 +33,7 @@
     "react-markdown": "^10.1.0",
     "stream-browserify": "^3.0.0",
     "url": "^0.11.4",
-    "vana-sdk": "*",
+    "@opendatalabs/vana-sdk": "*",
     "wagmi": "^2.12.0"
   },
   "peerDependencies": {

@@ -1,5 +1,5 @@
 import { type Chain } from "viem";
-import { mokshaTestnet, vanaMainnet } from "vana-sdk";
+import { mokshaTestnet, vanaMainnet } from "@opendatalabs/vana-sdk";
 
 /**
  * Get the chain configuration for a given chain ID

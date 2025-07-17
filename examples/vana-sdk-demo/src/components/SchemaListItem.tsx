@@ -1,6 +1,6 @@
 import React from "react";
 import { Chip } from "@heroui/react";
-import { Schema } from "vana-sdk";
+import { Schema } from "@opendatalabs/vana-sdk";
 import { IdChip } from "./ui/IdChip";
 
 interface SchemaListItemProps {

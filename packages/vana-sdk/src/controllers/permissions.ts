@@ -13,12 +13,15 @@ import {
   TrustServerTypedData,
   UntrustServerTypedData,
   Server,
+  Application,
   TrustedServerInfo,
   PaginatedTrustedServers,
   TrustedServerQueryOptions,
   BatchServerInfoResult,
   ServerTrustStatus,
   GrantFile,
+  RegisterApplicationParams,
+  UpdateServerParams,
 } from "../types/index";
 import { PermissionInfo } from "../types/permissions";
 import type { RelayerCallbacks } from "../types/config";
@@ -282,7 +285,10 @@ export class PermissionsController {
       // Step 2: Get user nonce
       const nonce = await this.getUserNonce();
 
-      // Step 3: Create EIP-712 message with compatibility placeholders
+      // Step 3: Get or register application
+      const applicationId = await this.getOrRegisterApplication(params.to);
+
+      // Step 4: Create EIP-712 message with compatibility placeholders
       console.debug(
         "🔍 Debug - Final grant URL being passed to compose:",
         grantUrl,
@@ -294,12 +300,13 @@ export class PermissionsController {
         grantUrl,
         serializedParameters: getGrantFileHash(grantFile), // Hash as placeholder
         nonce,
+        applicationId,
       });
 
-      // Step 4: User signature
+      // Step 5: User signature
       const signature = await this.signTypedData(typedData);
 
-      // Step 5: Submit the signed grant
+      // Step 6: Submit the signed grant
       return await this.submitSignedGrant(typedData, signature);
     } catch (error) {
       if (error instanceof Error) {
@@ -402,7 +409,10 @@ export class PermissionsController {
       // Step 3: Get user nonce
       const nonce = await this.getUserNonce();
 
-      // Step 4: Create EIP-712 message with compatibility placeholders
+      // Step 4: Get or register application
+      const applicationId = await this.getOrRegisterApplication(params.to);
+
+      // Step 5: Create EIP-712 message with compatibility placeholders
       console.debug(
         "🔍 Debug - Final grant URL being passed to compose:",
         grantUrl,
@@ -414,9 +424,10 @@ export class PermissionsController {
         grantUrl,
         serializedParameters: getGrantFileHash(grantFile), // Hash as placeholder
         nonce,
+        applicationId,
       });
 
-      // Step 5: User signature
+      // Step 6: User signature
       const signature = await this.signTypedData(typedData);
 
       return { typedData, signature };
@@ -531,8 +542,10 @@ export class PermissionsController {
     try {
       const trustServerInput: TrustServerInput = {
         nonce: BigInt(typedData.message.nonce),
-        serverId: typedData.message.serverId,
-        serverUrl: typedData.message.serverUrl,
+        owner: typedData.message.owner as Address,
+        serverAddress: typedData.message.serverAddress as Address,
+        publicKey: typedData.message.publicKey as `0x${string}`,
+        serverUrl: typedData.message.serverUrl as string,
       };
 
       return await this.submitTrustServerTransaction(
@@ -565,7 +578,7 @@ export class PermissionsController {
           throw new ServerUrlMismatchError(
             existingUrl,
             providedUrl,
-            typedData.message.serverId,
+            typedData.message.serverAddress,
           );
         }
       }
@@ -678,12 +691,14 @@ export class PermissionsController {
     // Prepare the PermissionInput struct
     const permissionInput = {
       nonce: typedData.message.nonce,
+      applicationId: typedData.message.applicationId,
       grant: typedData.message.grant,
       fileIds: typedData.message.fileIds,
     };
 
     console.debug("🔍 Debug - Permission input being sent to contract:", {
       nonce: permissionInput.nonce.toString(),
+      applicationId: permissionInput.applicationId.toString(),
       grant: permissionInput.grant,
       fileIds: permissionInput.fileIds.map((id) => id.toString()),
     });
@@ -853,6 +868,7 @@ export class PermissionsController {
     grantUrl: string;
     serializedParameters: string;
     nonce: bigint;
+    applicationId: bigint;
   }): Promise<PermissionGrantTypedData> {
     const domain = await this.getPermissionDomain();
 
@@ -866,6 +882,7 @@ export class PermissionsController {
       types: {
         Permission: [
           { name: "nonce", type: "uint256" },
+          { name: "applicationId", type: "uint256" },
           { name: "grant", type: "string" },
           { name: "fileIds", type: "uint256[]" },
         ],
@@ -873,6 +890,7 @@ export class PermissionsController {
       primaryType: "Permission",
       message: {
         nonce: params.nonce,
+        applicationId: params.applicationId,
         grant: params.grantUrl,
         fileIds: params.files.map((fileId) => BigInt(fileId)),
       },
@@ -930,6 +948,72 @@ export class PermissionsController {
       throw new BlockchainError("No addresses available in wallet client");
     }
     return addresses[0];
+  }
+
+  /**
+   * Gets the application ID for a given address, or registers it if it doesn't exist.
+   */
+  private async getOrRegisterApplication(
+    applicationAddress: Address,
+  ): Promise<bigint> {
+    try {
+      const chainId = await this.context.walletClient.getChainId();
+      const DataPermissionsAddress = getContractAddress(
+        chainId,
+        "DataPermissions",
+      );
+      const DataPermissionsAbi = getAbi("DataPermissions");
+
+      // Try to get existing application
+      try {
+        await this.context.publicClient.readContract({
+          address: DataPermissionsAddress,
+          abi: DataPermissionsAbi,
+          functionName: "applicationByAddress",
+          args: [applicationAddress],
+        });
+
+        // If application exists, we need to find its ID
+        // For now, we'll use a simple approach - applications are registered sequentially
+        const applicationsCount = (await this.context.publicClient.readContract(
+          {
+            address: DataPermissionsAddress,
+            abi: DataPermissionsAbi,
+            functionName: "applicationsCount",
+          },
+        )) as bigint;
+
+        // Look for the application ID by checking each application
+        for (let i = 0n; i < applicationsCount; i++) {
+          const app = (await this.context.publicClient.readContract({
+            address: DataPermissionsAddress,
+            abi: DataPermissionsAbi,
+            functionName: "applications",
+            args: [i],
+          })) as Application;
+
+          if (
+            app.applicationAddress.toLowerCase() ===
+            applicationAddress.toLowerCase()
+          ) {
+            return i;
+          }
+        }
+      } catch {
+        // Application doesn't exist, we'll register it
+      }
+
+      // Application doesn't exist, register it
+      // For now, we'll throw an error since we need the application to be registered first
+      throw new BlockchainError(
+        `Application ${applicationAddress} must be registered first. Please use registerApplication() method.`,
+      );
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get or register application: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
   }
 
   /**
@@ -1283,7 +1367,12 @@ export class PermissionsController {
         address: DataPermissionsAddress,
         abi: DataPermissionsAbi,
         functionName: "trustServer",
-        args: [params.serverId, params.serverUrl],
+        args: [
+          params.owner,
+          params.serverAddress,
+          params.publicKey,
+          params.serverUrl,
+        ],
         account:
           this.context.walletClient.account || (await this.getUserAddress()),
         chain: this.context.walletClient.chain || null,
@@ -1314,7 +1403,9 @@ export class PermissionsController {
       // Create trust server message
       const trustServerInput: TrustServerInput = {
         nonce,
-        serverId: params.serverId,
+        owner: params.owner,
+        serverAddress: params.serverAddress,
+        publicKey: params.publicKey as `0x${string}`,
         serverUrl: params.serverUrl,
       };
 
@@ -1477,9 +1568,9 @@ export class PermissionsController {
    * Gets all servers trusted by a user.
    *
    * @param userAddress - Optional user address (defaults to current user)
-   * @returns Promise resolving to array of trusted server addresses
+   * @returns Promise resolving to array of trusted server IDs
    */
-  async getTrustedServers(userAddress?: Address): Promise<Address[]> {
+  async getTrustedServers(userAddress?: Address): Promise<bigint[]> {
     try {
       const user = userAddress || (await this.getUserAddress());
       const chainId = await this.context.walletClient.getChainId();
@@ -1494,7 +1585,7 @@ export class PermissionsController {
         abi: DataPermissionsAbi,
         functionName: "userServerIdsValues",
         args: [user],
-      })) as Address[];
+      })) as bigint[];
 
       return serverIds;
     } catch (error) {
@@ -1508,10 +1599,10 @@ export class PermissionsController {
   /**
    * Gets server information by server ID.
    *
-   * @param serverId - Server address
+   * @param serverId - Server ID (uint256)
    * @returns Promise resolving to server information
    */
-  async getServerInfo(serverId: Address): Promise<Server> {
+  async getServerInfo(serverId: bigint): Promise<Server> {
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPermissionsAddress = getContractAddress(
@@ -1614,14 +1705,14 @@ export class PermissionsController {
       const endIndex = Math.min(offset + limit, total);
 
       // Fetch servers using userServerIdsAt for each index
-      const serverPromises: Promise<Address>[] = [];
+      const serverPromises: Promise<bigint>[] = [];
       for (let i = offset; i < endIndex; i++) {
         const promise = this.context.publicClient.readContract({
           address: DataPermissionsAddress,
           abi: DataPermissionsAbi,
           functionName: "userServerIdsAt",
           args: [user, BigInt(i)],
-        }) as Promise<Address>;
+        }) as Promise<bigint>;
         serverPromises.push(promise);
       }
 
@@ -1694,7 +1785,7 @@ export class PermissionsController {
    * @returns Promise resolving to batch result with successes and failures
    */
   async getServerInfoBatch(
-    serverIds: Address[],
+    serverIds: bigint[],
   ): Promise<BatchServerInfoResult> {
     if (serverIds.length === 0) {
       return {
@@ -1729,8 +1820,8 @@ export class PermissionsController {
       const results = await Promise.all(serverInfoPromises);
 
       // Separate successful and failed requests
-      const servers = new Map<Address, { url: string }>();
-      const failed: Address[] = [];
+      const servers = new Map<bigint, Server>();
+      const failed: bigint[] = [];
 
       for (const result of results) {
         if (result.success && result.server) {
@@ -1757,7 +1848,7 @@ export class PermissionsController {
    * @returns Promise resolving to server trust status
    */
   async checkServerTrustStatus(
-    serverId: Address,
+    serverId: bigint,
     userAddress?: Address,
   ): Promise<ServerTrustStatus> {
     try {
@@ -1765,7 +1856,7 @@ export class PermissionsController {
       const trustedServers = await this.getTrustedServers(user);
 
       const trustIndex = trustedServers.findIndex(
-        (server) => server.toLowerCase() === serverId.toLowerCase(),
+        (server) => server === serverId,
       );
 
       return {
@@ -1794,7 +1885,9 @@ export class PermissionsController {
       types: {
         TrustServer: [
           { name: "nonce", type: "uint256" },
-          { name: "serverId", type: "address" },
+          { name: "owner", type: "address" },
+          { name: "serverAddress", type: "address" },
+          { name: "publicKey", type: "bytes" },
           { name: "serverUrl", type: "string" },
         ],
       },
@@ -1816,7 +1909,7 @@ export class PermissionsController {
       types: {
         UntrustServer: [
           { name: "nonce", type: "uint256" },
-          { name: "serverId", type: "address" },
+          { name: "serverId", type: "uint256" },
         ],
       },
       primaryType: "UntrustServer",
@@ -1845,7 +1938,9 @@ export class PermissionsController {
       args: [
         {
           nonce: trustServerInput.nonce,
-          serverId: trustServerInput.serverId,
+          owner: trustServerInput.owner,
+          serverAddress: trustServerInput.serverAddress,
+          publicKey: trustServerInput.publicKey,
           serverUrl: trustServerInput.serverUrl,
         },
         signature,
@@ -1913,5 +2008,224 @@ export class PermissionsController {
     });
 
     return txHash;
+  }
+
+  /**
+   * Registers an application with the DataPermissions contract.
+   *
+   * @param params - Parameters for registering the application
+   * @returns Promise resolving to the transaction hash
+   */
+  async registerApplication(params: RegisterApplicationParams): Promise<Hash> {
+    try {
+      const chainId = await this.context.walletClient.getChainId();
+      const DataPermissionsAddress = getContractAddress(
+        chainId,
+        "DataPermissions",
+      );
+      const DataPermissionsAbi = getAbi("DataPermissions");
+
+      const txHash = await this.context.walletClient.writeContract({
+        address: DataPermissionsAddress,
+        abi: DataPermissionsAbi,
+        functionName: "registerApplication",
+        args: [params.owner, params.applicationAddress, params.publicKey],
+        account:
+          this.context.walletClient.account || (await this.getUserAddress()),
+        chain: this.context.walletClient.chain || null,
+      });
+
+      return txHash;
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to register application: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Gets application information by application address.
+   *
+   * @param applicationAddress - Application address
+   * @returns Promise resolving to application information
+   */
+  async getApplicationInfo(applicationAddress: Address): Promise<Application> {
+    try {
+      const chainId = await this.context.walletClient.getChainId();
+      const DataPermissionsAddress = getContractAddress(
+        chainId,
+        "DataPermissions",
+      );
+      const DataPermissionsAbi = getAbi("DataPermissions");
+
+      const application = (await this.context.publicClient.readContract({
+        address: DataPermissionsAddress,
+        abi: DataPermissionsAbi,
+        functionName: "applicationByAddress",
+        args: [applicationAddress],
+      })) as Application;
+
+      return application;
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get application info: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Gets application information by application ID.
+   *
+   * @param applicationId - Application ID
+   * @returns Promise resolving to application information
+   */
+  async getApplicationById(applicationId: bigint): Promise<Application> {
+    try {
+      const chainId = await this.context.walletClient.getChainId();
+      const DataPermissionsAddress = getContractAddress(
+        chainId,
+        "DataPermissions",
+      );
+      const DataPermissionsAbi = getAbi("DataPermissions");
+
+      const application = (await this.context.publicClient.readContract({
+        address: DataPermissionsAddress,
+        abi: DataPermissionsAbi,
+        functionName: "applications",
+        args: [applicationId],
+      })) as Application;
+
+      return application;
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get application by ID: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Gets the total number of registered applications.
+   *
+   * @returns Promise resolving to the number of applications
+   */
+  async getApplicationsCount(): Promise<number> {
+    try {
+      const chainId = await this.context.walletClient.getChainId();
+      const DataPermissionsAddress = getContractAddress(
+        chainId,
+        "DataPermissions",
+      );
+      const DataPermissionsAbi = getAbi("DataPermissions");
+
+      const count = (await this.context.publicClient.readContract({
+        address: DataPermissionsAddress,
+        abi: DataPermissionsAbi,
+        functionName: "applicationsCount",
+      })) as bigint;
+
+      return Number(count);
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get applications count: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Gets server information by server address.
+   *
+   * @param serverAddress - Server address
+   * @returns Promise resolving to server information
+   */
+  async getServerByAddress(serverAddress: Address): Promise<Server> {
+    try {
+      const chainId = await this.context.walletClient.getChainId();
+      const DataPermissionsAddress = getContractAddress(
+        chainId,
+        "DataPermissions",
+      );
+      const DataPermissionsAbi = getAbi("DataPermissions");
+
+      const server = (await this.context.publicClient.readContract({
+        address: DataPermissionsAddress,
+        abi: DataPermissionsAbi,
+        functionName: "serverByAddress",
+        args: [serverAddress],
+      })) as Server;
+
+      return server;
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get server by address: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Gets the total number of registered servers.
+   *
+   * @returns Promise resolving to the number of servers
+   */
+  async getServersCount(): Promise<number> {
+    try {
+      const chainId = await this.context.walletClient.getChainId();
+      const DataPermissionsAddress = getContractAddress(
+        chainId,
+        "DataPermissions",
+      );
+      const DataPermissionsAbi = getAbi("DataPermissions");
+
+      const count = (await this.context.publicClient.readContract({
+        address: DataPermissionsAddress,
+        abi: DataPermissionsAbi,
+        functionName: "serversCount",
+      })) as bigint;
+
+      return Number(count);
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get servers count: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Updates a server's URL.
+   *
+   * @param params - Parameters for updating the server
+   * @returns Promise resolving to the transaction hash
+   */
+  async updateServer(params: UpdateServerParams): Promise<Hash> {
+    try {
+      const chainId = await this.context.walletClient.getChainId();
+      const DataPermissionsAddress = getContractAddress(
+        chainId,
+        "DataPermissions",
+      );
+      const DataPermissionsAbi = getAbi("DataPermissions");
+
+      const txHash = await this.context.walletClient.writeContract({
+        address: DataPermissionsAddress,
+        abi: DataPermissionsAbi,
+        functionName: "updateServer",
+        args: [params.serverId, params.url],
+        account:
+          this.context.walletClient.account || (await this.getUserAddress()),
+        chain: this.context.walletClient.chain || null,
+      });
+
+      return txHash;
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to update server: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
   }
 }

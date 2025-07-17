@@ -155,7 +155,9 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
   describe("trustServer", () => {
     it("should successfully trust a server", async () => {
       const params = {
-        serverId: "0x0000000000000000000000000000000000000001" as Address,
+        owner: "0x0000000000000000000000000000000000000001" as Address,
+        serverAddress: "0x0000000000000000000000000000000000000001" as Address,
+        publicKey: "0x1234567890abcdef",
         serverUrl: "https://example.com",
       };
 
@@ -168,6 +170,8 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         functionName: "trustServer",
         args: [
           "0x0000000000000000000000000000000000000001",
+          "0x0000000000000000000000000000000000000001",
+          "0x1234567890abcdef",
           "https://example.com",
         ],
         account: mockWalletClient.account,
@@ -181,7 +185,9 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       );
 
       const params = {
-        serverId: "0x0000000000000000000000000000000000000001" as Address,
+        owner: "0x0000000000000000000000000000000000000001" as Address,
+        serverAddress: "0x0000000000000000000000000000000000000001" as Address,
+        publicKey: "0x1234567890abcdef",
         serverUrl: "https://example.com",
       };
 
@@ -198,7 +204,9 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       };
 
       const params = {
-        serverId: "0x0000000000000000000000000000000000000001" as Address,
+        owner: "0x0000000000000000000000000000000000000001" as Address,
+        serverAddress: "0x0000000000000000000000000000000000000001" as Address,
+        publicKey: "0x1234567890abcdef",
         serverUrl: "https://example.com",
       };
 
@@ -211,7 +219,9 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
     it("should successfully trust server with signature via direct transaction", async () => {
       // No relayer callbacks, should use direct transaction
       const params = {
-        serverId: "0x0000000000000000000000000000000000000001" as Address,
+        owner: "0x0000000000000000000000000000000000000001" as Address,
+        serverAddress: "0x0000000000000000000000000000000000000001" as Address,
+        publicKey: "0x1234567890abcdef",
         serverUrl: "https://example.com",
       };
 
@@ -234,7 +244,9 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       );
 
       const params = {
-        serverId: "0x0000000000000000000000000000000000000001" as Address,
+        owner: "0x0000000000000000000000000000000000000001" as Address,
+        serverAddress: "0x0000000000000000000000000000000000000001" as Address,
+        publicKey: "0x1234567890abcdef",
         serverUrl: "https://example.com",
       };
 
@@ -249,7 +261,9 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       );
 
       const params = {
-        serverId: "0x0000000000000000000000000000000000000001" as Address,
+        owner: "0x0000000000000000000000000000000000000001" as Address,
+        serverAddress: "0x0000000000000000000000000000000000000001" as Address,
+        publicKey: "0x1234567890abcdef",
         serverUrl: "https://example.com",
       };
 
@@ -266,7 +280,9 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       };
 
       const params = {
-        serverId: "0x0000000000000000000000000000000000000001" as Address,
+        owner: "0x0000000000000000000000000000000000000001" as Address,
+        serverAddress: "0x0000000000000000000000000000000000000001" as Address,
+        publicKey: "0x1234567890abcdef",
         serverUrl: "https://example.com",
       };
 
@@ -279,7 +295,9 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       mockWalletClient.signTypedData.mockRejectedValue("String error");
 
       const params = {
-        serverId: "0x0000000000000000000000000000000000000001" as Address,
+        owner: "0x0000000000000000000000000000000000000001" as Address,
+        serverAddress: "0x0000000000000000000000000000000000000001" as Address,
+        publicKey: "0x1234567890abcdef",
         serverUrl: "https://example.com",
       };
 

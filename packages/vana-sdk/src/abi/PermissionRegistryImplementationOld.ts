@@ -41,16 +41,6 @@ export const DataPermissionsABI = [
   },
   {
     inputs: [],
-    name: "ApplicationAlreadyRegistered",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "ApplicationNotFound",
-    type: "error",
-  },
-  {
-    inputs: [],
     name: "ECDSAInvalidSignature",
     type: "error",
   },
@@ -95,11 +85,6 @@ export const DataPermissionsABI = [
   {
     inputs: [],
     name: "EmptyGrant",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "EmptyPublicKey",
     type: "error",
   },
   {
@@ -202,22 +187,6 @@ export const DataPermissionsABI = [
     type: "error",
   },
   {
-    inputs: [
-      {
-        internalType: "address",
-        name: "serverOwner",
-        type: "address",
-      },
-      {
-        internalType: "address",
-        name: "requestor",
-        type: "address",
-      },
-    ],
-    name: "NotServerOwner",
-    type: "error",
-  },
-  {
     inputs: [],
     name: "ServerAlreadyRegistered",
     type: "error",
@@ -271,31 +240,6 @@ export const DataPermissionsABI = [
   },
   {
     anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "uint256",
-        name: "applicationId",
-        type: "uint256",
-      },
-      {
-        indexed: true,
-        internalType: "address",
-        name: "owner",
-        type: "address",
-      },
-      {
-        indexed: true,
-        internalType: "address",
-        name: "applicationAddress",
-        type: "address",
-      },
-    ],
-    name: "ApplicationRegistered",
-    type: "event",
-  },
-  {
-    anonymous: false,
     inputs: [],
     name: "EIP712DomainChanged",
     type: "event",
@@ -340,12 +284,6 @@ export const DataPermissionsABI = [
         internalType: "address",
         name: "user",
         type: "address",
-      },
-      {
-        indexed: true,
-        internalType: "uint256",
-        name: "applicationId",
-        type: "uint256",
       },
       {
         indexed: false,
@@ -456,20 +394,8 @@ export const DataPermissionsABI = [
     inputs: [
       {
         indexed: true,
-        internalType: "uint256",
+        internalType: "address",
         name: "serverId",
-        type: "uint256",
-      },
-      {
-        indexed: true,
-        internalType: "address",
-        name: "owner",
-        type: "address",
-      },
-      {
-        indexed: true,
-        internalType: "address",
-        name: "serverAddress",
         type: "address",
       },
       {
@@ -479,7 +405,7 @@ export const DataPermissionsABI = [
         type: "string",
       },
     ],
-    name: "ServerRegistered",
+    name: "ServerAdded",
     type: "event",
   },
   {
@@ -493,9 +419,9 @@ export const DataPermissionsABI = [
       },
       {
         indexed: true,
-        internalType: "uint256",
+        internalType: "address",
         name: "serverId",
-        type: "uint256",
+        type: "address",
       },
       {
         indexed: false,
@@ -518,31 +444,12 @@ export const DataPermissionsABI = [
       },
       {
         indexed: true,
-        internalType: "uint256",
+        internalType: "address",
         name: "serverId",
-        type: "uint256",
+        type: "address",
       },
     ],
     name: "ServerUntrusted",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "uint256",
-        name: "serverId",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "string",
-        name: "url",
-        type: "string",
-      },
-    ],
-    name: "ServerUpdated",
     type: "event",
   },
   {
@@ -620,11 +527,6 @@ export const DataPermissionsABI = [
             type: "uint256",
           },
           {
-            internalType: "uint256",
-            name: "applicationId",
-            type: "uint256",
-          },
-          {
             internalType: "string",
             name: "grant",
             type: "string",
@@ -654,120 +556,6 @@ export const DataPermissionsABI = [
       },
     ],
     stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "applicationAddress",
-        type: "address",
-      },
-    ],
-    name: "applicationByAddress",
-    outputs: [
-      {
-        components: [
-          {
-            internalType: "address",
-            name: "owner",
-            type: "address",
-          },
-          {
-            internalType: "address",
-            name: "applicationAddress",
-            type: "address",
-          },
-          {
-            internalType: "string",
-            name: "publicKey",
-            type: "string",
-          },
-          {
-            internalType: "uint256[]",
-            name: "permissionIds",
-            type: "uint256[]",
-          },
-        ],
-        internalType: "struct IDataPermissions.ApplicationInfo",
-        name: "",
-        type: "tuple",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "applicationId",
-        type: "uint256",
-      },
-    ],
-    name: "applicationPermissionIds",
-    outputs: [
-      {
-        internalType: "uint256[]",
-        name: "",
-        type: "uint256[]",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "applicationId",
-        type: "uint256",
-      },
-    ],
-    name: "applications",
-    outputs: [
-      {
-        components: [
-          {
-            internalType: "address",
-            name: "owner",
-            type: "address",
-          },
-          {
-            internalType: "address",
-            name: "applicationAddress",
-            type: "address",
-          },
-          {
-            internalType: "string",
-            name: "publicKey",
-            type: "string",
-          },
-          {
-            internalType: "uint256[]",
-            name: "permissionIds",
-            type: "uint256[]",
-          },
-        ],
-        internalType: "struct IDataPermissions.ApplicationInfo",
-        name: "",
-        type: "tuple",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "applicationsCount",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
-    stateMutability: "view",
     type: "function",
   },
   {
@@ -1072,11 +860,6 @@ export const DataPermissionsABI = [
             type: "uint256",
           },
           {
-            internalType: "uint256",
-            name: "applicationId",
-            type: "uint256",
-          },
-          {
             internalType: "string",
             name: "grant",
             type: "string",
@@ -1129,35 +912,6 @@ export const DataPermissionsABI = [
       },
     ],
     stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "owner",
-        type: "address",
-      },
-      {
-        internalType: "address",
-        name: "applicationAddress",
-        type: "address",
-      },
-      {
-        internalType: "string",
-        name: "publicKey",
-        type: "string",
-      },
-    ],
-    name: "registerApplication",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
-    stateMutability: "nonpayable",
     type: "function",
   },
   {
@@ -1243,49 +997,8 @@ export const DataPermissionsABI = [
     inputs: [
       {
         internalType: "address",
-        name: "serverAddress",
-        type: "address",
-      },
-    ],
-    name: "serverByAddress",
-    outputs: [
-      {
-        components: [
-          {
-            internalType: "address",
-            name: "owner",
-            type: "address",
-          },
-          {
-            internalType: "address",
-            name: "serverAddress",
-            type: "address",
-          },
-          {
-            internalType: "string",
-            name: "publicKey",
-            type: "string",
-          },
-          {
-            internalType: "string",
-            name: "url",
-            type: "string",
-          },
-        ],
-        internalType: "struct IDataPermissions.ServerInfo",
-        name: "",
-        type: "tuple",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
         name: "serverId",
-        type: "uint256",
+        type: "address",
       },
     ],
     name: "servers",
@@ -1293,42 +1006,14 @@ export const DataPermissionsABI = [
       {
         components: [
           {
-            internalType: "address",
-            name: "owner",
-            type: "address",
-          },
-          {
-            internalType: "address",
-            name: "serverAddress",
-            type: "address",
-          },
-          {
-            internalType: "string",
-            name: "publicKey",
-            type: "string",
-          },
-          {
             internalType: "string",
             name: "url",
             type: "string",
           },
         ],
-        internalType: "struct IDataPermissions.ServerInfo",
+        internalType: "struct IDataPermissions.Server",
         name: "",
         type: "tuple",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "serversCount",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
       },
     ],
     stateMutability: "view",
@@ -1375,18 +1060,8 @@ export const DataPermissionsABI = [
     inputs: [
       {
         internalType: "address",
-        name: "owner",
+        name: "serverId",
         type: "address",
-      },
-      {
-        internalType: "address",
-        name: "serverAddress",
-        type: "address",
-      },
-      {
-        internalType: "string",
-        name: "publicKey",
-        type: "string",
       },
       {
         internalType: "string",
@@ -1410,18 +1085,8 @@ export const DataPermissionsABI = [
           },
           {
             internalType: "address",
-            name: "owner",
+            name: "serverId",
             type: "address",
-          },
-          {
-            internalType: "address",
-            name: "serverAddress",
-            type: "address",
-          },
-          {
-            internalType: "bytes",
-            name: "publicKey",
-            type: "bytes",
           },
           {
             internalType: "string",
@@ -1467,9 +1132,9 @@ export const DataPermissionsABI = [
   {
     inputs: [
       {
-        internalType: "uint256",
+        internalType: "address",
         name: "serverId",
-        type: "uint256",
+        type: "address",
       },
     ],
     name: "untrustServer",
@@ -1487,9 +1152,9 @@ export const DataPermissionsABI = [
             type: "uint256",
           },
           {
-            internalType: "uint256",
+            internalType: "address",
             name: "serverId",
-            type: "uint256",
+            type: "address",
           },
         ],
         internalType: "struct IDataPermissions.UntrustServerInput",
@@ -1516,24 +1181,6 @@ export const DataPermissionsABI = [
       },
     ],
     name: "updateDataRegistry",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "serverId",
-        type: "uint256",
-      },
-      {
-        internalType: "string",
-        name: "url",
-        type: "string",
-      },
-    ],
-    name: "updateServer",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -1728,9 +1375,9 @@ export const DataPermissionsABI = [
     name: "userServerIdsAt",
     outputs: [
       {
-        internalType: "uint256",
+        internalType: "address",
         name: "",
-        type: "uint256",
+        type: "address",
       },
     ],
     stateMutability: "view",
@@ -1766,9 +1413,9 @@ export const DataPermissionsABI = [
     name: "userServerIdsValues",
     outputs: [
       {
-        internalType: "uint256[]",
+        internalType: "address[]",
         name: "",
-        type: "uint256[]",
+        type: "address[]",
       },
     ],
     stateMutability: "view",

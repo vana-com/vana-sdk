@@ -661,14 +661,14 @@ export class DataController {
       const endIndex = Math.min(offset + limit, total);
 
       // Fetch server IDs using pagination
-      const serverIdPromises: Promise<Address>[] = [];
+      const serverIdPromises: Promise<bigint>[] = [];
       for (let i = offset; i < endIndex; i++) {
         const promise = this.context.publicClient.readContract({
           address: DataPermissionsAddress,
           abi: DataPermissionsAbi,
           functionName: "userServerIdsAt",
           args: [user, BigInt(i)],
-        }) as Promise<Address>;
+        }) as Promise<bigint>;
         serverIdPromises.push(promise);
       }
 
@@ -682,21 +682,27 @@ export class DataController {
             abi: DataPermissionsAbi,
             functionName: "servers",
             args: [serverId],
-          })) as { url: string };
+          })) as {
+            owner: Address;
+            serverAddress: Address;
+            publicKey: string;
+            url: string;
+          };
 
           return {
-            id: `${user.toLowerCase()}-${serverId.toLowerCase()}`,
-            serverAddress: serverId,
+            id: `${user.toLowerCase()}-${serverId.toString()}`,
+            serverAddress: serverInfo.serverAddress,
             serverUrl: serverInfo.url,
             trustedAt: BigInt(Date.now()), // RPC mode doesn't have timestamp, use current time
             user,
             trustIndex: offset + index,
           };
         } catch {
-          // If server info fails, return basic info
+          // If server info fails, return basic info with placeholder address
           return {
-            id: `${user.toLowerCase()}-${serverId.toLowerCase()}`,
-            serverAddress: serverId,
+            id: `${user.toLowerCase()}-${serverId.toString()}`,
+            serverAddress:
+              "0x0000000000000000000000000000000000000000" as Address,
             serverUrl: "",
             trustedAt: BigInt(Date.now()),
             user,

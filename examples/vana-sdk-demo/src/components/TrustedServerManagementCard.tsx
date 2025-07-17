@@ -22,6 +22,8 @@ interface TrustedServerManagementCardProps {
   onServerIdChange: (value: string) => void;
   serverUrl: string;
   onServerUrlChange: (value: string) => void;
+  serverPublicKey?: string;
+  onServerPublicKeyChange?: (value: string) => void;
 
   // Actions
   onTrustServer: () => void;
@@ -58,6 +60,8 @@ export const TrustedServerManagementCard: React.FC<
   onServerIdChange,
   serverUrl,
   onServerUrlChange,
+  serverPublicKey = "",
+  onServerPublicKeyChange,
   onTrustServer,
   isTrustingServer,
   onUntrustServer,
@@ -96,7 +100,7 @@ export const TrustedServerManagementCard: React.FC<
           fields={[
             {
               name: "serverId",
-              label: "Server ID",
+              label: "Server Address",
               type: "text",
               value: serverId,
               onChange: onServerIdChange,
@@ -113,6 +117,17 @@ export const TrustedServerManagementCard: React.FC<
               placeholder: "https://...",
               description: "The API endpoint URL of the server",
               required: true,
+            },
+            {
+              name: "serverPublicKey",
+              label: "Server Public Key",
+              type: "text",
+              value: serverPublicKey,
+              onChange: onServerPublicKeyChange || (() => {}),
+              placeholder: "0x... (optional)",
+              description:
+                "The public key of the server (leave empty if not available)",
+              required: false,
             },
           ]}
           onSubmit={onTrustServer}

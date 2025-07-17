@@ -178,6 +178,8 @@ export interface PermissionGrantMessage {
 export interface PermissionInputMessage {
   /** Nonce */
   nonce: bigint;
+  /** Application ID */
+  applicationId: bigint;
   /** Grant URL */
   grant: string;
   /** File IDs */
@@ -190,6 +192,8 @@ export interface PermissionInputMessage {
 export interface PermissionInput {
   /** Nonce */
   nonce: bigint;
+  /** Application ID */
+  applicationId: bigint;
   /** Grant URL */
   grant: string;
   /** File IDs to grant permission for */
@@ -216,6 +220,8 @@ export interface PermissionInfo {
   grantor: Address;
   /** Nonce used when creating */
   nonce: bigint;
+  /** Application ID */
+  applicationId: bigint;
   /** Grant URL */
   grant: string;
   /** Signature bytes */
@@ -384,16 +390,40 @@ export interface PermissionAnalytics {
  * Server information
  */
 export interface Server {
+  /** Server owner address */
+  owner: Address;
+  /** Server address */
+  serverAddress: Address;
+  /** Server public key */
+  publicKey: string;
   /** Server URL */
   url: string;
+}
+
+/**
+ * Application information
+ */
+export interface Application {
+  /** Application owner address */
+  owner: Address;
+  /** Application address */
+  applicationAddress: Address;
+  /** Application public key */
+  publicKey: string;
+  /** Permission IDs associated with this application */
+  permissionIds: bigint[];
 }
 
 /**
  * Parameters for trusting a server
  */
 export interface TrustServerParams {
-  /** Server ID (address) */
-  serverId: Address;
+  /** Server owner address */
+  owner: Address;
+  /** Server address */
+  serverAddress: Address;
+  /** Server public key */
+  publicKey: string;
   /** Server URL */
   serverUrl: string;
 }
@@ -402,8 +432,8 @@ export interface TrustServerParams {
  * Parameters for untrusting a server
  */
 export interface UntrustServerParams {
-  /** Server ID (address) */
-  serverId: Address;
+  /** Server ID (uint256) */
+  serverId: bigint;
 }
 
 /**
@@ -412,8 +442,12 @@ export interface UntrustServerParams {
 export interface TrustServerInput {
   /** User nonce */
   nonce: bigint;
-  /** Server ID (address) */
-  serverId: Address;
+  /** Server owner address */
+  owner: Address;
+  /** Server address */
+  serverAddress: Address;
+  /** Server public key */
+  publicKey: `0x${string}`;
   /** Server URL */
   serverUrl: string;
 }
@@ -424,8 +458,8 @@ export interface TrustServerInput {
 export interface UntrustServerInput {
   /** User nonce */
   nonce: bigint;
-  /** Server ID (address) */
-  serverId: Address;
+  /** Server ID (uint256) */
+  serverId: bigint;
 }
 
 /**
@@ -486,8 +520,8 @@ export interface PermissionEvent {
  * Enhanced trusted server information with trust status
  */
 export interface TrustedServerInfo {
-  /** Server ID (address) */
-  serverId: Address;
+  /** Server ID (uint256) */
+  serverId: bigint;
   /** Server URL */
   url: string;
   /** Whether this server is trusted by the user */
@@ -500,8 +534,8 @@ export interface TrustedServerInfo {
  * Paginated result for trusted server queries
  */
 export interface PaginatedTrustedServers {
-  /** Array of server addresses */
-  servers: Address[];
+  /** Array of server IDs */
+  servers: bigint[];
   /** Total number of trusted servers */
   total: number;
   /** Offset used for this query */
@@ -531,9 +565,9 @@ export interface TrustedServerQueryOptions {
  */
 export interface BatchServerInfoResult {
   /** Successfully retrieved server info */
-  servers: Map<Address, { url: string }>;
+  servers: Map<bigint, Server>;
   /** Server IDs that failed to retrieve */
-  failed: Address[];
+  failed: bigint[];
 }
 
 /**
@@ -541,9 +575,45 @@ export interface BatchServerInfoResult {
  */
 export interface ServerTrustStatus {
   /** Server ID being checked */
-  serverId: Address;
+  serverId: bigint;
   /** Whether the server is trusted by the user */
   isTrusted: boolean;
   /** Index in user's trusted server list (if trusted) */
   trustIndex?: number;
+}
+
+/**
+ * Parameters for registering an application
+ */
+export interface RegisterApplicationParams {
+  /** Application owner address */
+  owner: Address;
+  /** Application address */
+  applicationAddress: Address;
+  /** Application public key */
+  publicKey: string;
+}
+
+/**
+ * Parameters for registering a server
+ */
+export interface RegisterServerParams {
+  /** Server owner address */
+  owner: Address;
+  /** Server address */
+  serverAddress: Address;
+  /** Server public key */
+  publicKey: string;
+  /** Server URL */
+  url: string;
+}
+
+/**
+ * Parameters for updating a server
+ */
+export interface UpdateServerParams {
+  /** Server ID */
+  serverId: bigint;
+  /** New server URL */
+  url: string;
 }

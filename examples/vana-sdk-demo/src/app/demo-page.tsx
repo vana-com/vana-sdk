@@ -201,6 +201,7 @@ export default function Home() {
   // Trust server state
   const [serverId, setServerId] = useState<string>("");
   const [serverUrl, setServerUrl] = useState<string>("");
+  const [serverPublicKey, setServerPublicKey] = useState<string>("");
   const [trustServerError, setTrustServerError] = useState<string>("");
   const [isTrustingServer, setIsTrustingServer] = useState(false);
   const [trustedServers, setTrustedServers] = useState<
@@ -1612,8 +1613,12 @@ export default function Home() {
     setTrustServerError("");
 
     try {
+      // For the new contract, we need to register the server first if it doesn't exist
+      // For demo purposes, we'll use the current user as the server owner
       await vana.permissions.trustServer({
-        serverId: serverId as `0x${string}`,
+        owner: address as `0x${string}`,
+        serverAddress: serverId as `0x${string}`,
+        publicKey: (serverPublicKey || "0x") as `0x${string}`, // Use provided key or empty
         serverUrl: serverUrl,
       });
 
@@ -1656,7 +1661,9 @@ export default function Home() {
 
     try {
       await vana.permissions.trustServerWithSignature({
-        serverId: serverId as `0x${string}`,
+        owner: address as `0x${string}`,
+        serverAddress: serverId as `0x${string}`,
+        publicKey: (serverPublicKey || "0x") as `0x${string}`, // Use provided key or empty
         serverUrl: serverUrl,
       });
 
@@ -1664,6 +1671,7 @@ export default function Home() {
       // Clear the form fields on success
       setServerId("");
       setServerUrl("");
+      setServerPublicKey("");
       // Refresh trusted servers list
       await loadUserTrustedServers();
     } catch (error) {
@@ -1682,11 +1690,11 @@ export default function Home() {
     try {
       if (appConfig.useGaslessTransactions) {
         await vana.permissions.untrustServerWithSignature({
-          serverId: serverIdToUntrust as `0x${string}`,
+          serverId: BigInt(serverIdToUntrust),
         });
       } else {
         await vana.permissions.untrustServer({
-          serverId: serverIdToUntrust as `0x${string}`,
+          serverId: BigInt(serverIdToUntrust),
         });
       }
 
@@ -2251,6 +2259,8 @@ export default function Home() {
                       onServerIdChange={setServerId}
                       serverUrl={serverUrl}
                       onServerUrlChange={setServerUrl}
+                      serverPublicKey={serverPublicKey}
+                      onServerPublicKeyChange={setServerPublicKey}
                       onTrustServer={
                         appConfig.useGaslessTransactions
                           ? handleTrustServerGasless

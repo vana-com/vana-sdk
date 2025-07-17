@@ -106,6 +106,7 @@ export type {
   PermissionAnalytics,
   PermissionEvent,
   Server,
+  Application,
   TrustServerParams,
   UntrustServerParams,
   TrustServerInput,
@@ -119,6 +120,8 @@ export type {
   TrustedServerQueryOptions,
   BatchServerInfoResult,
   ServerTrustStatus,
+  RegisterApplicationParams,
+  UpdateServerParams,
 } from "./permissions";
 
 // Personal server types

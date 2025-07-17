@@ -67,6 +67,24 @@ vi.mock("../abi", () => ({
       ],
       outputs: [],
     },
+    {
+      name: "applicationByAddress",
+      type: "function",
+      inputs: [{ name: "applicationAddress", type: "address" }],
+      outputs: [{ name: "", type: "tuple" }],
+    },
+    {
+      name: "applicationsCount",
+      type: "function",
+      inputs: [],
+      outputs: [{ name: "", type: "uint256" }],
+    },
+    {
+      name: "applications",
+      type: "function",
+      inputs: [{ name: "applicationId", type: "uint256" }],
+      outputs: [{ name: "", type: "tuple" }],
+    },
   ]),
 }));
 
@@ -143,9 +161,45 @@ describe("PermissionsController", () => {
       writeContract: vi.fn().mockResolvedValue("0xtxhash" as Hash),
     };
 
-    // Create a mock publicClient
+    // Create a mock publicClient with enhanced mocking for application registration
+    // Store the last requested application address for consistent lookups
+    let lastRequestedApplicationAddress = "";
+
     mockPublicClient = {
-      readContract: vi.fn().mockResolvedValue(BigInt(0)),
+      readContract: vi.fn().mockImplementation(async (params) => {
+        // Mock different contract calls based on function name
+        switch (params.functionName) {
+          case "userNonce":
+            return BigInt(0);
+          case "applicationByAddress":
+            // Store the address being looked up for later use
+            lastRequestedApplicationAddress = params.args[0];
+            // Return a mock application to simulate it exists
+            return {
+              owner: params.args[0], // Use the applicationAddress as owner
+              applicationAddress: params.args[0],
+              publicKey: "0x1234567890abcdef",
+              permissionIds: [],
+            };
+          case "applicationsCount":
+            return BigInt(1);
+          case "applications":
+            // Return the same application that was previously requested
+            // This ensures the loop in getOrRegisterApplication will find the matching application
+            return {
+              owner:
+                lastRequestedApplicationAddress ||
+                "0x1234567890123456789012345678901234567890",
+              applicationAddress:
+                lastRequestedApplicationAddress ||
+                "0x1234567890123456789012345678901234567890",
+              publicKey: "0x1234567890abcdef",
+              permissionIds: [],
+            };
+          default:
+            return BigInt(0);
+        }
+      }),
       waitForTransactionReceipt: vi.fn().mockResolvedValue({ logs: [] }),
     };
 
@@ -1011,10 +1065,34 @@ describe("PermissionsController", () => {
         parameters: { someKey: "someValue" },
       };
 
-      // Mock nonce retrieval
+      // Mock nonce retrieval and application registration
       const { createPublicClient } = await import("viem");
       vi.mocked(createPublicClient).mockReturnValueOnce({
-        readContract: vi.fn().mockResolvedValue(BigInt(0)),
+        readContract: vi.fn().mockImplementation(async (params) => {
+          switch (params.functionName) {
+            case "userNonce":
+              return BigInt(0);
+            case "applicationByAddress":
+              return {
+                owner: params.args[0],
+                applicationAddress: params.args[0],
+                publicKey: "0x1234567890abcdef",
+                permissionIds: [],
+              };
+            case "applicationsCount":
+              return BigInt(1);
+            case "applications":
+              return {
+                owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+                applicationAddress:
+                  "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+                publicKey: "0x1234567890abcdef",
+                permissionIds: [],
+              };
+            default:
+              return BigInt(0);
+          }
+        }),
       } as unknown as PublicClient);
 
       await expect(failingController.grant(mockParams)).rejects.toThrow(

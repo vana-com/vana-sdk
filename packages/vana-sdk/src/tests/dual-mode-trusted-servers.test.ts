@@ -102,8 +102,18 @@ describe("Dual-Mode Trusted Server Queries", () => {
         .mockResolvedValueOnce(2n) // userServerIdsLength
         .mockResolvedValueOnce(serverAddresses[0]) // userServerIdsAt
         .mockResolvedValueOnce(serverAddresses[1]) // userServerIdsAt
-        .mockResolvedValueOnce({ url: "https://server1.example.com" }) // servers
-        .mockResolvedValueOnce({ url: "https://server2.example.com" }); // servers
+        .mockResolvedValueOnce({
+          owner: serverAddresses[0],
+          serverAddress: serverAddresses[0],
+          publicKey: "0x123",
+          url: "https://server1.example.com",
+        }) // servers
+        .mockResolvedValueOnce({
+          owner: serverAddresses[1],
+          serverAddress: serverAddresses[1],
+          publicKey: "0x456",
+          url: "https://server2.example.com",
+        }); // servers
 
       const result = await dataController.getUserTrustedServers({
         user: userAddress,
@@ -193,9 +203,24 @@ describe("Dual-Mode Trusted Server Queries", () => {
         .mockResolvedValueOnce(serverAddresses[0]) // userServerIdsAt(0)
         .mockResolvedValueOnce(serverAddresses[1]) // userServerIdsAt(1)
         .mockResolvedValueOnce(serverAddresses[2]) // userServerIdsAt(2)
-        .mockResolvedValueOnce({ url: "https://server1.example.com" }) // servers(serverAddresses[0])
-        .mockResolvedValueOnce({ url: "https://server2.example.com" }) // servers(serverAddresses[1])
-        .mockResolvedValueOnce({ url: "https://server3.example.com" }); // servers(serverAddresses[2])
+        .mockResolvedValueOnce({
+          owner: serverAddresses[0],
+          serverAddress: serverAddresses[0],
+          publicKey: "0x123",
+          url: "https://server1.example.com",
+        }) // servers(serverAddresses[0])
+        .mockResolvedValueOnce({
+          owner: serverAddresses[1],
+          serverAddress: serverAddresses[1],
+          publicKey: "0x456",
+          url: "https://server2.example.com",
+        }) // servers(serverAddresses[1])
+        .mockResolvedValueOnce({
+          owner: serverAddresses[2],
+          serverAddress: serverAddresses[2],
+          publicKey: "0x789",
+          url: "https://server3.example.com",
+        }); // servers(serverAddresses[2])
 
       const result = await dataController.getUserTrustedServers({
         user: userAddress,
@@ -222,8 +247,18 @@ describe("Dual-Mode Trusted Server Queries", () => {
         .mockResolvedValueOnce(10n) // Total count is 10
         .mockResolvedValueOnce(serverAddresses[2]) // userServerIdsAt(2)
         .mockResolvedValueOnce(serverAddresses[0]) // userServerIdsAt(3) (reusing for test)
-        .mockResolvedValueOnce({ url: "https://server3.example.com" })
-        .mockResolvedValueOnce({ url: "https://server1.example.com" });
+        .mockResolvedValueOnce({
+          owner: serverAddresses[2],
+          serverAddress: serverAddresses[2],
+          publicKey: "0x789",
+          url: "https://server3.example.com",
+        })
+        .mockResolvedValueOnce({
+          owner: serverAddresses[0],
+          serverAddress: serverAddresses[0],
+          publicKey: "0x123",
+          url: "https://server1.example.com",
+        });
 
       const result = await dataController.getUserTrustedServers({
         user: userAddress,
@@ -402,7 +437,12 @@ describe("Dual-Mode Trusted Server Queries", () => {
       mockPublicClient.readContract
         .mockResolvedValueOnce(1n) // userServerIdsLength
         .mockResolvedValueOnce(serverAddresses[0]) // userServerIdsAt
-        .mockResolvedValueOnce({ url: "https://server1.example.com" }); // servers
+        .mockResolvedValueOnce({
+          owner: serverAddresses[0],
+          serverAddress: serverAddresses[0],
+          publicKey: "0x123",
+          url: "https://server1.example.com",
+        }); // servers
 
       const result = await dataController.getUserTrustedServers({
         user: userAddress,

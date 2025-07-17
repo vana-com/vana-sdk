@@ -49,3 +49,14 @@ export interface GetOperationResponse {
   /** The prediction ID (same as id) */
   prediction_id: string;
 }
+
+export interface PersonalServerIdentity {
+  /** Derived address for the personal server */
+  address: string;
+  /** Public key for encryption */
+  public_key: string;
+  /** Base URL for the personal server */
+  base_url: string;
+  /** Name of the personal server */
+  name: string;
+}

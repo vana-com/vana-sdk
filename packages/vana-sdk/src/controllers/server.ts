@@ -12,6 +12,7 @@ import {
   PersonalServerError,
 } from "../errors";
 import { ControllerContext } from "./permissions";
+import { PersonalServerInfo as PersonalServerIdentity } from "../types/personal";
 
 /**
  * Manages interactions with Vana personal servers and identity infrastructure.
@@ -52,7 +53,7 @@ export class ServerController {
 
   async getIdentity(
     request: InitPersonalServerParams,
-  ): Promise<IdentityServerOutput> {
+  ): Promise<PersonalServerIdentity> {
     try {
       const response = await fetch(
         `${this.PERSONAL_SERVER_BASE_URL}/identity?address=${request.userAddress}`,
@@ -72,7 +73,14 @@ export class ServerController {
         );
       }
 
-      return (await response.json()) as IdentityServerOutput;
+      const serverResponse = (await response.json()) as IdentityServerOutput;
+
+      return {
+        address: serverResponse.personal_server.address,
+        public_key: serverResponse.personal_server.public_key,
+        base_url: this.PERSONAL_SERVER_BASE_URL || "",
+        name: "Hosted Vana Server",
+      };
     } catch (error) {
       if (
         error instanceof NetworkError ||

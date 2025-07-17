@@ -16,7 +16,6 @@ import {
   GetUserTrustedServersResult,
 } from "../types/index";
 import { ControllerContext } from "./permissions";
-import { ServerController } from "./server";
 import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../abi";
 import {
@@ -121,11 +120,7 @@ interface SubgraphResponse {
  * @see {@link [URL_PLACEHOLDER] | Vana Data Registry Documentation} for conceptual overview
  */
 export class DataController {
-  private readonly serverController: ServerController;
-
-  constructor(private readonly context: ControllerContext) {
-    this.serverController = new ServerController(context);
-  }
+  constructor(private readonly context: ControllerContext) { }
 
   /**
    * Retrieves all data files owned by a specific user address.
@@ -1929,29 +1924,6 @@ export class DataController {
       console.error("Failed to get file permission:", error);
       throw new Error(
         `Failed to get file permission: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-    }
-  }
-
-  /**
-   * Gets the trusted server public key for a given server address.
-   * This method reads from the permissions contract to find servers and their public keys.
-   *
-   * @param serverAddress - The address of the trusted server
-   * @returns Promise resolving to the server's public key
-   */
-  async getTrustedServerPublicKey(serverAddress: Address): Promise<string> {
-    try {
-      // Use the ServerController to get the trusted server's public key
-      // via the Identity Server. The serverAddress represents the user's address
-      // whose personal server we want to encrypt data for.
-      return await this.serverController.getTrustedServerPublicKey(
-        serverAddress,
-      );
-    } catch (error) {
-      console.error("Failed to get trusted server public key:", error);
-      throw new Error(
-        `Failed to get trusted server public key: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }

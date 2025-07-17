@@ -177,28 +177,6 @@ export function DeveloperDashboardView({
    */
   const renderSchemasTab = () => (
     <div className="space-y-6">
-      {/* Schema Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card>
-          <CardBody className="text-center">
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <Database className="h-5 w-5 text-primary" />
-              <span className="text-2xl font-bold">{schemasCount}</span>
-            </div>
-            <p className="text-sm text-default-500">Total Schemas</p>
-          </CardBody>
-        </Card>
-        <Card>
-          <CardBody className="text-center">
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <Brain className="h-5 w-5 text-success" />
-              <span className="text-2xl font-bold">{refinersCount}</span>
-            </div>
-            <p className="text-sm text-default-500">Total Refiners</p>
-          </CardBody>
-        </Card>
-      </div>
-
       {/* Create Schema */}
       <Card>
         <CardHeader>
@@ -266,6 +244,127 @@ export function DeveloperDashboardView({
         </CardBody>
       </Card>
 
+      {/* Schemas List */}
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-center w-full">
+            <div className="flex items-center gap-2">
+              <Database className="h-5 w-5" />
+              <div>
+                <h3 className="text-lg font-semibold">Schemas</h3>
+                <p className="text-sm text-default-500">
+                  {schemas.length} schemas available
+                </p>
+              </div>
+            </div>
+            <Button
+              onPress={onRefreshSchemas}
+              variant="bordered"
+              size="sm"
+              startContent={
+                isLoadingSchemas ? (
+                  <Spinner size="sm" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )
+              }
+              isDisabled={isLoadingSchemas}
+            >
+              Refresh
+            </Button>
+          </div>
+        </CardHeader>
+        <CardBody>
+          {isLoadingSchemas ? (
+            <div className="flex justify-center items-center p-8">
+              <Spinner size="lg" />
+              <span className="ml-3">Loading schemas...</span>
+            </div>
+          ) : schemas.length === 0 ? (
+            <EmptyState
+              icon={<Database className="h-12 w-12" />}
+              title="No schemas found"
+              description="Create a schema above to get started"
+            />
+          ) : (
+            <div className="space-y-4">
+              <Table aria-label="Schemas table" removeWrapper>
+                <TableHeader>
+                  <TableColumn>ID</TableColumn>
+                  <TableColumn>Name</TableColumn>
+                  <TableColumn>Type</TableColumn>
+                  <TableColumn>Source</TableColumn>
+                  <TableColumn>Actions</TableColumn>
+                </TableHeader>
+                <TableBody>
+                  {paginatedSchemas.map((schema) => (
+                    <TableRow key={schema.id}>
+                      <TableCell>
+                        <SchemaIdDisplay
+                          schemaId={schema.id}
+                          chainId={chainId}
+                          showCopy={true}
+                          showExternalLink={true}
+                        />
+                      </TableCell>
+                      <TableCell>{schema.name}</TableCell>
+                      <TableCell>{schema.type}</TableCell>
+                      <TableCell>
+                        {schema.source && (
+                          <Chip
+                            size="sm"
+                            color={
+                              schema.source === "created"
+                                ? "success"
+                                : "default"
+                            }
+                            variant="flat"
+                          >
+                            {schema.source}
+                          </Chip>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          as="a"
+                          href={schema.definitionUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          size="sm"
+                          variant="flat"
+                          startContent={<ExternalLink className="h-3 w-3" />}
+                        >
+                          View Definition
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              {schemas.length > SCHEMAS_PER_PAGE && (
+                <div className="flex justify-center">
+                  <Pagination
+                    total={schemaTotalPages}
+                    page={schemasCurrentPage}
+                    onChange={setSchemasCurrentPage}
+                    showControls={true}
+                    size="sm"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </CardBody>
+      </Card>
+    </div>
+  );
+
+  /**
+   * Renders the refiners tab content
+   */
+  const renderRefinersTab = () => (
+    <div className="space-y-6">
       {/* Create Refiner */}
       <Card>
         <CardHeader>
@@ -383,120 +482,6 @@ export function DeveloperDashboardView({
             submitIcon={<RotateCcw className="h-4 w-4" />}
             status={updateSchemaStatus}
           />
-        </CardBody>
-      </Card>
-
-      {/* Schemas List */}
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center w-full">
-            <div className="flex items-center gap-2">
-              <Database className="h-5 w-5" />
-              <div>
-                <h3 className="text-lg font-semibold">Schemas</h3>
-                <p className="text-sm text-default-500">
-                  {schemas.length} schemas available
-                </p>
-              </div>
-            </div>
-            <Button
-              onPress={onRefreshSchemas}
-              variant="bordered"
-              size="sm"
-              startContent={
-                isLoadingSchemas ? (
-                  <Spinner size="sm" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )
-              }
-              isDisabled={isLoadingSchemas}
-            >
-              Refresh
-            </Button>
-          </div>
-        </CardHeader>
-        <CardBody>
-          {isLoadingSchemas ? (
-            <div className="flex justify-center items-center p-8">
-              <Spinner size="lg" />
-              <span className="ml-3">Loading schemas...</span>
-            </div>
-          ) : schemas.length === 0 ? (
-            <EmptyState
-              icon={<Database className="h-12 w-12" />}
-              title="No schemas found"
-              description="Create a schema above to get started"
-            />
-          ) : (
-            <div className="space-y-4">
-              <Table aria-label="Schemas table" removeWrapper>
-                <TableHeader>
-                  <TableColumn>ID</TableColumn>
-                  <TableColumn>Name</TableColumn>
-                  <TableColumn>Type</TableColumn>
-                  <TableColumn>Source</TableColumn>
-                  <TableColumn>Actions</TableColumn>
-                </TableHeader>
-                <TableBody>
-                  {paginatedSchemas.map((schema) => (
-                    <TableRow key={schema.id}>
-                      <TableCell>
-                        <SchemaIdDisplay
-                          schemaId={schema.id}
-                          chainId={chainId}
-                          showCopy={true}
-                          showExternalLink={true}
-                        />
-                      </TableCell>
-                      <TableCell>{schema.name}</TableCell>
-                      <TableCell>{schema.type}</TableCell>
-                      <TableCell>
-                        {schema.source && (
-                          <Chip
-                            size="sm"
-                            color={
-                              schema.source === "created"
-                                ? "success"
-                                : "default"
-                            }
-                            variant="flat"
-                          >
-                            {schema.source}
-                          </Chip>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          as="a"
-                          href={schema.definitionUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          size="sm"
-                          variant="flat"
-                          startContent={<ExternalLink className="h-3 w-3" />}
-                        >
-                          View Definition
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-
-              {schemas.length > SCHEMAS_PER_PAGE && (
-                <div className="flex justify-center">
-                  <Pagination
-                    total={schemaTotalPages}
-                    page={schemasCurrentPage}
-                    onChange={setSchemasCurrentPage}
-                    showControls={true}
-                    size="sm"
-                  />
-                </div>
-              )}
-            </div>
-          )}
         </CardBody>
       </Card>
 
@@ -673,8 +658,11 @@ export function DeveloperDashboardView({
         onSelectionChange={(key) => setActiveTab(key as string)}
         className="w-full"
       >
-        <Tab key="schemas" title="Schemas & Refiners">
+        <Tab key="schemas" title="Schemas">
           {renderSchemasTab()}
+        </Tab>
+        <Tab key="refiners" title="Refiners">
+          {renderRefinersTab()}
         </Tab>
       </Tabs>
     </div>

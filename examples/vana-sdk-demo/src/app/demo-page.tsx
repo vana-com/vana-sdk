@@ -778,7 +778,7 @@ export default function Home() {
   }, [vana, address]);
 
   const loadUserPermissions = useCallback(async () => {
-    if (!vana) return;
+    if (!vana) return [];
 
     setIsLoadingPermissions(true);
     try {
@@ -786,8 +786,10 @@ export default function Home() {
         limit: 20,
       });
       setUserPermissions(permissions);
+      return permissions;
     } catch (error) {
       console.error("Failed to load user permissions:", error);
+      return [];
     } finally {
       setIsLoadingPermissions(false);
     }
@@ -944,9 +946,34 @@ export default function Home() {
       setGrantTxHash(txHash);
       onCloseGrant();
 
-      // Refresh permissions to show the new grant
-      setTimeout(() => {
-        loadUserPermissions();
+      // Store the grant URL and nonce to identify the newly created permission
+      const grantUrlToMatch = typedData.message.grant;
+      const nonceToMatch = typedData.message.nonce;
+
+      // Refresh permissions to show the new grant and set lastUsedPermissionId
+      setTimeout(async () => {
+        const freshPermissions = await loadUserPermissions();
+
+        // Find the newly created permission by matching grant URL and nonce
+        const newPermission = freshPermissions.find(
+          (p) =>
+            p.grant === grantUrlToMatch && p.nonce === Number(nonceToMatch),
+        );
+
+        if (newPermission) {
+          setLastUsedPermissionId(newPermission.id.toString());
+          console.debug(
+            "✅ Set lastUsedPermissionId to:",
+            newPermission.id.toString(),
+          );
+        } else {
+          console.warn(
+            "⚠️ Could not find newly created permission to set as lastUsedPermissionId",
+          );
+          console.debug("Available permissions:", freshPermissions);
+          console.debug("Looking for grant URL:", grantUrlToMatch);
+          console.debug("Looking for nonce:", nonceToMatch);
+        }
       }, 2000);
     } catch (error) {
       console.error("Failed to grant permission:", error);
@@ -1916,6 +1943,7 @@ export default function Home() {
   };
 
   const demoExperienceProps: DemoExperienceViewProps = {
+    vana: vana!,
     serverId,
     onServerIdChange: setServerId,
     serverUrl,

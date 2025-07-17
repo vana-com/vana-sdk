@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Card,
   CardHeader,
@@ -23,8 +23,9 @@ import {
   Sparkles,
   Lock,
   Server,
+  Database,
 } from "lucide-react";
-import type { UserFile } from "@opendatalabs/vana-sdk";
+import type { UserFile, Schema, Vana } from "@opendatalabs/vana-sdk";
 import { StatusMessage } from "../ui/StatusMessage";
 import { AddressDisplay } from "../ui/AddressDisplay";
 import { FileIdDisplay } from "../ui/FileIdDisplay";
@@ -35,6 +36,9 @@ import { EmptyState } from "../ui/EmptyState";
  * Props for the DemoExperienceView component
  */
 export interface DemoExperienceViewProps {
+  // SDK instance
+  vana: Vana;
+
   // Step 1: Trust server
   serverId: string;
   onServerIdChange: (value: string) => void;
@@ -96,6 +100,7 @@ export interface DemoExperienceViewProps {
  * @returns The rendered demo experience view
  */
 export function DemoExperienceView({
+  vana,
   serverId,
   onServerIdChange: _onServerIdChange,
   serverUrl: _serverUrl,
@@ -130,6 +135,41 @@ export function DemoExperienceView({
   const [dataChoice, setDataChoice] = useState<"new" | "existing">("new");
   const [selectedTrustedServer, setSelectedTrustedServer] =
     useState<string>("");
+  const [fileSchemas, setFileSchemas] = useState<Map<number, Schema>>(
+    new Map(),
+  );
+
+  // Fetch schema information for files that have schema IDs
+  useEffect(() => {
+    const fetchSchemas = async () => {
+      const schemaMap = new Map<number, Schema>();
+
+      for (const file of userFiles) {
+        const schemaId =
+          "schemaId" in file ? (file.schemaId as number) : undefined;
+        if (
+          schemaId &&
+          typeof schemaId === "number" &&
+          !fileSchemas.has(schemaId)
+        ) {
+          try {
+            const schema = await vana.data.getSchema(schemaId);
+            schemaMap.set(schemaId, schema);
+          } catch (error) {
+            console.warn(`Failed to fetch schema ${schemaId}:`, error);
+          }
+        }
+      }
+
+      if (schemaMap.size > 0) {
+        setFileSchemas((prev) => new Map([...prev, ...schemaMap]));
+      }
+    };
+
+    if (userFiles.length > 0) {
+      fetchSchemas();
+    }
+  }, [userFiles, vana, fileSchemas]);
 
   // Determine step completion status
   const isStep1Complete = trustedServers.length > 0 && selectedTrustedServer;
@@ -408,37 +448,65 @@ export function DemoExperienceView({
                     Select files to use ({selectedFiles.length} selected):
                   </div>
                   <div className="max-h-40 overflow-y-auto space-y-1">
-                    {userFiles.slice(0, 5).map((file) => (
-                      <div
-                        key={file.id}
-                        className={`p-2 border rounded cursor-pointer transition-colors ${
-                          selectedFiles.includes(file.id)
-                            ? "border-primary bg-primary/5"
-                            : "border-default-200 hover:bg-default-50"
-                        }`}
-                        onClick={() =>
-                          onFileSelection(
-                            file.id,
-                            !selectedFiles.includes(file.id),
-                          )
-                        }
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <FileText className="h-4 w-4" />
-                            <span className="text-sm">File {file.id}</span>
-                            {file.source && (
-                              <Chip size="sm" variant="flat">
-                                {file.source}
-                              </Chip>
+                    {userFiles.slice(0, 5).map((file) => {
+                      const schemaId =
+                        "schemaId" in file
+                          ? (file.schemaId as number)
+                          : undefined;
+                      const schema =
+                        schemaId && typeof schemaId === "number"
+                          ? fileSchemas.get(schemaId)
+                          : null;
+
+                      return (
+                        <div
+                          key={file.id}
+                          className={`p-2 border rounded cursor-pointer transition-colors ${
+                            selectedFiles.includes(file.id)
+                              ? "border-primary bg-primary/5"
+                              : "border-default-200 hover:bg-default-50"
+                          }`}
+                          onClick={() =>
+                            onFileSelection(
+                              file.id,
+                              !selectedFiles.includes(file.id),
+                            )
+                          }
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <FileText className="h-4 w-4" />
+                              <span className="text-sm">File {file.id}</span>
+                              {file.source && (
+                                <Chip size="sm" variant="flat">
+                                  {file.source}
+                                </Chip>
+                              )}
+                              {schema && (
+                                <Chip
+                                  size="sm"
+                                  variant="flat"
+                                  color="secondary"
+                                  startContent={
+                                    <Database className="h-3 w-3" />
+                                  }
+                                >
+                                  {schema.name}
+                                </Chip>
+                              )}
+                            </div>
+                            {selectedFiles.includes(file.id) && (
+                              <CheckCircle className="h-4 w-4 text-primary" />
                             )}
                           </div>
-                          {selectedFiles.includes(file.id) && (
-                            <CheckCircle className="h-4 w-4 text-primary" />
+                          {schema && (
+                            <div className="mt-1 text-xs text-default-500">
+                              Schema: {schema.type}
+                            </div>
                           )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -662,6 +730,7 @@ export function DemoExperienceView({
           value={(currentStep / 4) * 100}
           className="max-w-md mx-auto"
           color="primary"
+          aria-label={`Demo progress: Step ${currentStep} of 4 (${Math.round((currentStep / 4) * 100)}% complete)`}
         />
       </div>
 

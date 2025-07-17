@@ -15,7 +15,6 @@ import {
   Checkbox,
   Chip,
   Pagination,
-  Textarea,
   SortDescriptor,
   Tabs,
   Tab,
@@ -42,8 +41,6 @@ import { convertIpfsUrl } from "@opendatalabs/vana-sdk";
 import { ActionButton } from "../ui/ActionButton";
 import { EmptyState } from "../ui/EmptyState";
 import { StatusDisplay } from "../ui/StatusDisplay";
-import { StatusMessage } from "../ui/StatusMessage";
-import { ExplorerLink } from "../ui/ExplorerLink";
 import { CopyButton } from "../ui/CopyButton";
 import { FilePreview } from "../FilePreview";
 import { FileIdDisplay } from "../ui/FileIdDisplay";
@@ -164,11 +161,11 @@ export function UserDashboardView({
   onClearFileError,
   onGrantPermission,
   isGranting,
-  grantStatus,
-  grantTxHash,
-  promptText,
-  onPromptTextChange,
-  applicationAddress,
+  grantStatus: _grantStatus,
+  grantTxHash: _grantTxHash,
+  promptText: _promptText,
+  onPromptTextChange: _onPromptTextChange,
+  applicationAddress: _applicationAddress,
   userPermissions,
   isLoadingPermissions,
   onRevokePermission,
@@ -408,6 +405,43 @@ export function UserDashboardView({
             />
           ) : (
             <div className="space-y-4">
+              {/* Bulk Actions Toolbar */}
+              {selectedFiles.length > 0 && (
+                <div className="flex items-center justify-between p-3 bg-primary/10 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium text-primary">
+                      {selectedFiles.length} file
+                      {selectedFiles.length !== 1 ? "s" : ""} selected
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="flat"
+                      onPress={() => {
+                        selectedFiles.forEach((fileId) => {
+                          const file = userFiles.find((f) => f.id === fileId);
+                          if (file) onDecryptFile(file);
+                        });
+                      }}
+                      startContent={<Key className="h-3 w-3" />}
+                    >
+                      Decrypt Selected
+                    </Button>
+                    <Button
+                      size="sm"
+                      color="primary"
+                      onPress={onGrantPermission}
+                      disabled={isGranting}
+                      startContent={<Users className="h-3 w-3" />}
+                    >
+                      {isGranting ? "Granting..." : "Grant Permissions"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <Table
                 aria-label="Data files table"
                 removeWrapper
@@ -606,91 +640,6 @@ export function UserDashboardView({
           )}
         </CardBody>
       </Card>
-
-      {/* Permission Granting Section */}
-      {selectedFiles.length > 0 && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              <h3 className="text-lg font-semibold">Grant Permissions</h3>
-            </div>
-          </CardHeader>
-          <CardBody>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-default-500">
-                    {selectedFiles.length} file
-                    {selectedFiles.length !== 1 ? "s" : ""} selected for
-                    permission granting
-                  </p>
-                </div>
-                <Button
-                  onPress={onGrantPermission}
-                  disabled={selectedFiles.length === 0 || isGranting}
-                  color="primary"
-                  size="md"
-                >
-                  {isGranting && <Spinner size="sm" className="mr-2" />}
-                  Grant Permissions
-                </Button>
-              </div>
-
-              {/* Prompt Customization */}
-              <Textarea
-                label="LLM Prompt"
-                placeholder="Enter your custom prompt for the LLM"
-                value={promptText}
-                onChange={(e) => onPromptTextChange(e.target.value)}
-                description="Customize the prompt that will be used by the LLM when processing your data. Use {{data}} as a placeholder for your file contents."
-                minRows={3}
-                maxRows={6}
-              />
-
-              {/* Application Address Display */}
-              {applicationAddress && (
-                <div className="p-3 bg-primary/10 rounded-lg">
-                  <p className="text-sm font-medium text-primary-700 mb-2">
-                    Permission Grantee (Application):
-                  </p>
-                  <AddressDisplay
-                    address={applicationAddress}
-                    showCopy={true}
-                    showExternalLink={true}
-                    truncate={false}
-                    className="text-sm"
-                  />
-                  <p className="text-xs text-primary-600 mt-1">
-                    Permissions will be granted to this application address
-                    derived from the server's private key.
-                  </p>
-                </div>
-              )}
-
-              {grantStatus && (
-                <StatusMessage
-                  status={grantStatus}
-                  inline={true}
-                  className="mt-2"
-                />
-              )}
-
-              {grantTxHash && (
-                <div className="p-4 bg-muted rounded-lg">
-                  <p className="font-medium mb-2">Transaction Hash:</p>
-                  <ExplorerLink
-                    type="tx"
-                    hash={grantTxHash}
-                    chainId={chainId || 14800}
-                    truncate={true}
-                  />
-                </div>
-              )}
-            </div>
-          </CardBody>
-        </Card>
-      )}
     </div>
   );
 

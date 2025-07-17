@@ -499,13 +499,36 @@ export default function Home() {
           // Add Google Drive if configured
           if (sdkConfig.googleDriveAccessToken) {
             console.info("🔗 Adding Google Drive storage");
-            const googleDriveStorage = new GoogleDriveStorage({
+
+            // Create Google Drive provider with folder support
+            const googleDriveProvider = new GoogleDriveStorage({
               accessToken: sdkConfig.googleDriveAccessToken,
               refreshToken: sdkConfig.googleDriveRefreshToken,
               // Client credentials not needed for storage operations
               // Token refresh is handled by our API endpoint
             });
-            storageProviders["google-drive"] = googleDriveStorage;
+
+            // Create or find the "Vana Data" folder for organization
+            try {
+              const folderId =
+                await googleDriveProvider.findOrCreateFolder("Vana Data");
+              console.info("📁 Using Google Drive folder:", folderId);
+
+              // Create a new provider instance with the folder ID
+              const googleDriveStorage = new GoogleDriveStorage({
+                accessToken: sdkConfig.googleDriveAccessToken,
+                refreshToken: sdkConfig.googleDriveRefreshToken,
+                folderId: folderId,
+              });
+              storageProviders["google-drive"] = googleDriveStorage;
+            } catch (error) {
+              console.warn(
+                "⚠️ Failed to create Google Drive folder, using root:",
+                error,
+              );
+              // Fall back to root folder if folder creation fails
+              storageProviders["google-drive"] = googleDriveProvider;
+            }
           }
 
           // Determine the actual default storage provider based on what's available
@@ -1899,6 +1922,7 @@ export default function Home() {
     onQueryModeChange: setTrustedServerQueryMode,
     userAddress: address,
     chainId: chainId || 14800,
+    vana: vana!,
   };
 
   const developerDashboardProps: DeveloperDashboardViewProps = {

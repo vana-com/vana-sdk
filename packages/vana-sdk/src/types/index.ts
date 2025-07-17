@@ -126,7 +126,6 @@ export type {
   PostRequestParams,
   InitPersonalServerParams,
   ReplicatePredictionResponse,
-  PersonalServerResponse,
 } from "./personal";
 
 // External API types
@@ -136,7 +135,6 @@ export type {
   IdentityServerOutput,
   IdentityServerResponse,
   PersonalServerOutput,
-  PersonalServerResponse as PersonalServerAPIResponse,
   PinataUploadResponse,
   PinataPin,
   PinataListResponse,

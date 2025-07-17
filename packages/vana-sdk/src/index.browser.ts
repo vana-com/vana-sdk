@@ -111,21 +111,20 @@ export {
 export { BrowserPlatformAdapter } from "./platform/browser";
 export type { VanaPlatformAdapter } from "./platform/interface";
 
-// Browser-safe platform adapter utilities
+// Browser-only platform adapter utilities
 export {
-  createNodePlatformAdapter,
   createBrowserPlatformAdapter,
   createPlatformAdapterSafe,
-} from "./platform/browser-safe";
+} from "./platform/browser-only";
+
+// Note: createNodePlatformAdapter is not exported in browser bundle to avoid Node.js dependencies
 
 // NodePlatformAdapter is available through dynamic import to avoid bundling Node.js dependencies
 // Use createNodePlatformAdapter() for dynamic import
 
-// Platform utilities
+// Platform utilities - browser-safe only
 export {
   detectPlatform,
-  createPlatformAdapter,
-  createPlatformAdapterFor,
   isPlatformSupported,
   getPlatformCapabilities,
 } from "./platform/utils";

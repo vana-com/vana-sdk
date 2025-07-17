@@ -26,3 +26,10 @@ export {
   isPlatformSupported,
   getPlatformCapabilities,
 } from "./utils";
+
+// Export browser-safe utilities
+export {
+  createNodePlatformAdapter,
+  createBrowserPlatformAdapter,
+  createPlatformAdapterSafe,
+} from "./browser-safe";

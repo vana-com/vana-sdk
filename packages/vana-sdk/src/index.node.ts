@@ -128,6 +128,13 @@ export {
   getPlatformCapabilities,
 } from "./platform/utils";
 
+// Browser-safe platform utilities
+export {
+  createNodePlatformAdapter,
+  createBrowserPlatformAdapter,
+  createPlatformAdapterSafe,
+} from "./platform/browser-safe";
+
 export { ApiClient } from "./core/apiClient";
 
 export type {

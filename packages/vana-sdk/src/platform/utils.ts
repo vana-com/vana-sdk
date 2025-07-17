@@ -42,6 +42,13 @@ export async function createPlatformAdapter(): Promise<VanaPlatformAdapter> {
 
   try {
     if (platform === "node") {
+      // Check if we're in a browser environment
+      if (typeof window !== "undefined") {
+        throw new Error(
+          "NodePlatformAdapter is not available in browser environments. Use BrowserPlatformAdapter instead.",
+        );
+      }
+
       // Use string concatenation to avoid static analysis
       const moduleName = "./node";
       const { NodePlatformAdapter } = await import(moduleName);
@@ -69,6 +76,13 @@ export async function createPlatformAdapterFor(
 ): Promise<VanaPlatformAdapter> {
   try {
     if (platformType === "node") {
+      // Check if we're in a browser environment
+      if (typeof window !== "undefined") {
+        throw new Error(
+          "NodePlatformAdapter is not available in browser environments. Use BrowserPlatformAdapter instead.",
+        );
+      }
+
       // Use string concatenation to avoid static analysis
       const moduleName = "./node";
       const { NodePlatformAdapter } = await import(moduleName);

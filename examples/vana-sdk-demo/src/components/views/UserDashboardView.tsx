@@ -60,6 +60,14 @@ export interface UserDashboardViewProps {
   isLookingUpFile: boolean;
   fileLookupStatus: string;
 
+  // Permission lookup
+  permissionLookupId: string;
+  onPermissionLookupIdChange: (id: string) => void;
+  onLookupPermission: () => void;
+  isLookingUpPermission: boolean;
+  permissionLookupStatus: string;
+  lookedUpPermission: GrantedPermission | null;
+
   // User files
   userFiles: (UserFile & {
     source?: "discovered" | "looked-up" | "uploaded";
@@ -148,6 +156,12 @@ export function UserDashboardView({
   onLookupFile,
   isLookingUpFile,
   fileLookupStatus,
+  permissionLookupId,
+  onPermissionLookupIdChange,
+  onLookupPermission,
+  isLookingUpPermission,
+  permissionLookupStatus,
+  lookedUpPermission,
   userFiles,
   isLoadingFiles,
   onRefreshFiles,
@@ -648,6 +662,61 @@ export function UserDashboardView({
    */
   const renderPermissionsTab = () => (
     <div className="space-y-6">
+      {/* Permission Lookup */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Search className="h-5 w-5" />
+            <h3 className="text-lg font-semibold">Permission Lookup</h3>
+          </div>
+        </CardHeader>
+        <CardBody>
+          <div className="flex items-center gap-2">
+            <Input
+              placeholder="Enter permission ID"
+              type="text"
+              value={permissionLookupId}
+              onChange={(e) => onPermissionLookupIdChange(e.target.value)}
+              className="max-w-xs"
+              size="sm"
+              description="Search for a specific permission by its numeric ID"
+            />
+            <ActionButton
+              onPress={onLookupPermission}
+              disabled={!permissionLookupId.trim()}
+              loading={isLookingUpPermission}
+              icon={<Search className="h-4 w-4" />}
+              loadingIconOnly={true}
+              size="sm"
+            >
+              Search
+            </ActionButton>
+          </div>
+          {permissionLookupStatus && (
+            <StatusDisplay status={permissionLookupStatus} className="mt-4" />
+          )}
+          {lookedUpPermission && (
+            <div className="mt-4 p-3 bg-success/10 rounded-lg">
+              <p className="text-sm font-medium text-success mb-2">
+                Permission Found:
+              </p>
+              <div className="space-y-1 text-xs">
+                <div>
+                  <strong>ID:</strong> {lookedUpPermission.id.toString()}
+                </div>
+                <div>
+                  <strong>Operation:</strong> {lookedUpPermission.operation}
+                </div>
+                <div>
+                  <strong>Files:</strong> {lookedUpPermission.files.length} file
+                  {lookedUpPermission.files.length !== 1 ? "s" : ""}
+                </div>
+              </div>
+            </div>
+          )}
+        </CardBody>
+      </Card>
+
       <Card>
         <CardHeader>
           <div className="flex justify-between items-center w-full">

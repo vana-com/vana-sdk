@@ -181,6 +181,14 @@ export default function Home() {
   const [isLookingUpFile, setIsLookingUpFile] = useState(false);
   const [fileLookupStatus, setFileLookupStatus] = useState<string>("");
 
+  // Permission lookup state
+  const [permissionLookupId, setPermissionLookupId] = useState<string>("");
+  const [isLookingUpPermission, setIsLookingUpPermission] = useState(false);
+  const [permissionLookupStatus, setPermissionLookupStatus] =
+    useState<string>("");
+  const [lookedUpPermission, setLookedUpPermission] =
+    useState<GrantedPermission | null>(null);
+
   // Personal server state
   const [personalPermissionId, setPersonalPermissionId] = useState<string>("");
   const [personalResult, setPersonalResult] = useState<unknown>(null);
@@ -1187,6 +1195,67 @@ export default function Home() {
     }
   };
 
+  const handleLookupPermission = async () => {
+    if (!permissionLookupId.trim() || !vana || !walletClient) {
+      setPermissionLookupStatus(
+        "❌ Please enter a permission ID and ensure wallet is connected",
+      );
+      return;
+    }
+    setIsLookingUpPermission(true);
+    setPermissionLookupStatus("🔍 Looking up permission...");
+    try {
+      const permissionId = BigInt(permissionLookupId.trim());
+      if (permissionId < 0n) {
+        throw new Error(
+          "Invalid permission ID. Please enter a valid positive number.",
+        );
+      }
+      // Get permission details using SDK method
+      const permissionInfo =
+        await vana.permissions.getPermissionInfo(permissionId);
+      const fileIds = await vana.permissions.getPermissionFileIds(permissionId);
+
+      // Create a GrantedPermission object from the lookup result
+      const permission: GrantedPermission = {
+        id: permissionId,
+        operation: "data_access", // Default operation - this would need to be determined from the grant
+        files: fileIds.map((id) => Number(id)),
+        parameters: undefined,
+        grant: permissionInfo.grant,
+        grantor: permissionInfo.grantor,
+        grantee: address!, // Get the current user's address from useAccount hook
+        active: true, // Assume it's active if we can look it up
+      };
+
+      setLookedUpPermission(permission);
+      // Add to main permissions array if not already present
+      setUserPermissions((prev) => {
+        const exists = prev.find((p) => p.id === permissionId);
+        if (exists) {
+          return prev; // Already exists, no need to add
+        } else {
+          return [...prev, permission];
+        }
+      });
+      setPermissionLookupStatus("✅ Permission found and added to the list!");
+      setPermissionLookupId(""); // Clear the input
+      // Clear success message after 2 seconds
+      setTimeout(() => setPermissionLookupStatus(""), 2000);
+    } catch (error) {
+      console.error("❌ Error looking up permission:", error);
+      let userMessage = "❌ Failed to lookup permission: ";
+      if (error instanceof Error) {
+        userMessage += error.message;
+      } else {
+        userMessage += "Unknown error occurred";
+      }
+      setPermissionLookupStatus(userMessage);
+    } finally {
+      setIsLookingUpPermission(false);
+    }
+  };
+
   // Removed unused blockchain upload handler
 
   // Note: getExplorerUrl function removed - using ExplorerLink component directly
@@ -1755,6 +1824,15 @@ export default function Home() {
     onLookupFile: handleLookupFile,
     isLookingUpFile,
     fileLookupStatus,
+
+    // Permission lookup props
+    permissionLookupId,
+    onPermissionLookupIdChange: setPermissionLookupId,
+    onLookupPermission: handleLookupPermission,
+    isLookingUpPermission,
+    permissionLookupStatus,
+    lookedUpPermission,
+
     userFiles,
     isLoadingFiles,
     onRefreshFiles: loadUserFiles,

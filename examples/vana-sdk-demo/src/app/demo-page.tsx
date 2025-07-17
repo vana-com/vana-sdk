@@ -11,7 +11,6 @@ import {
   GrantPermissionParams,
   RevokePermissionParams,
   GrantedPermission,
-  generateEncryptionKey,
   DEFAULT_ENCRYPTION_SEED,
   StorageManager,
   StorageProvider,
@@ -161,6 +160,26 @@ export default function Home() {
 
   // Active view state for navigation
   const [activeView, setActiveView] = useState<string>("my-data");
+
+  // Upload data functionality state
+  const [uploadInputMode, setUploadInputMode] = useState<"text" | "file">(
+    "text",
+  );
+  const [uploadTextData, setUploadTextData] = useState<string>("");
+  const [uploadSelectedFile, setUploadSelectedFile] = useState<File | null>(
+    null,
+  );
+  const [uploadSelectedSchemaId, setUploadSelectedSchemaId] = useState<
+    number | null
+  >(null);
+  const [isUploadingData, setIsUploadingData] = useState(false);
+  const [uploadResult, setUploadResult] = useState<{
+    fileId: number;
+    transactionHash: string;
+    isValid?: boolean;
+    validationErrors?: string[];
+  } | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Demo experience state
   const [demoNewTextData, setDemoNewTextData] = useState<string>(
@@ -1576,7 +1595,7 @@ export default function Home() {
 
     setIsLoadingSchemas(true);
     try {
-      const count = await vana.data.getSchemasCount();
+      const count = await vana.schemas.count();
       setSchemasCount(count);
 
       // Load first 10 schemas for display
@@ -1585,7 +1604,7 @@ export default function Home() {
 
       for (let i = 1; i <= maxToLoad; i++) {
         try {
-          const schema = await vana.data.getSchema(i);
+          const schema = await vana.schemas.get(i);
           schemaList.push({ ...schema, source: "discovered" });
         } catch (error) {
           console.warn(`Failed to load schema ${i}:`, error);
@@ -1816,18 +1835,11 @@ export default function Home() {
       const blob = new Blob([demoNewTextData], { type: "text/plain" });
       const file = new File([blob], "demo-text.txt", { type: "text/plain" });
 
-      // Upload with encryption
-      const result = await vana.data.uploadEncryptedFile(
-        await vana.encryptUserData(
-          blob,
-          await generateEncryptionKey(
-            walletClient || ({} as Parameters<typeof generateEncryptionKey>[0]),
-            DEFAULT_ENCRYPTION_SEED,
-          ),
-        ),
-        file.name,
-        "app-ipfs",
-      );
+      // Use the new high-level upload method
+      const result = await vana.data.upload({
+        content: blob,
+        filename: file.name,
+      });
 
       setDemoNewTextUploadResult({
         fileId: result.fileId,
@@ -1923,6 +1935,67 @@ export default function Home() {
     userAddress: address,
     chainId: chainId || 14800,
     vana: vana!,
+    // Upload data functionality
+    uploadInputMode,
+    onUploadInputModeChange: setUploadInputMode,
+    uploadTextData,
+    onUploadTextDataChange: setUploadTextData,
+    uploadSelectedFile,
+    onUploadFileSelect: setUploadSelectedFile,
+    uploadSelectedSchemaId,
+    onUploadSchemaChange: setUploadSelectedSchemaId,
+    onUploadData: async (data: {
+      content: string;
+      filename?: string;
+      schemaId?: number;
+      isValid?: boolean;
+      validationErrors?: string[];
+    }) => {
+      if (!vana || !walletClient) {
+        setUploadError("Wallet not connected");
+        return;
+      }
+
+      setIsUploadingData(true);
+      setUploadError(null);
+      setUploadResult(null);
+
+      try {
+        // Use the new high-level upload method
+        const uploadResult = await vana.data.upload({
+          content: data.content,
+          filename: data.filename || "uploaded_data.txt",
+          schemaId: data.schemaId,
+        });
+
+        const result = {
+          fileId: uploadResult.fileId,
+          transactionHash: uploadResult.transactionHash,
+          isValid: data.isValid,
+          validationErrors: data.validationErrors,
+        };
+
+        setUploadResult(result);
+
+        // Refresh the user files list
+        await loadUserFiles();
+
+        // Clear the form
+        setUploadTextData("");
+        setUploadSelectedFile(null);
+        setUploadSelectedSchemaId(null);
+      } catch (error) {
+        console.error("Error uploading data:", error);
+        setUploadError(
+          error instanceof Error ? error.message : "Unknown error",
+        );
+      } finally {
+        setIsUploadingData(false);
+      }
+    },
+    isUploadingData,
+    uploadResult,
+    uploadError,
   };
 
   const developerDashboardProps: DeveloperDashboardViewProps = {

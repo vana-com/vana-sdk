@@ -17,9 +17,9 @@ npm install vana-sdk
 ```
 
 ```typescript
-import { Vana } from "vana-sdk";
+import { Vana } from "@opendatalabs/vana-sdk";
 import { createWalletClient, http } from "viem";
-import { mokshaTestnet } from "vana-sdk";
+import { mokshaTestnet } from "@opendatalabs/vana-sdk";
 
 // 1. Initialize with your wallet
 const vana = new Vana({
@@ -133,10 +133,10 @@ pnpm add vana-sdk
 ### Basic Configuration
 
 ```typescript
-import { Vana } from 'vana-sdk';
+import { Vana } from '@opendatalabs/vana-sdk';
 import { createWalletClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { mokshaTestnet } from 'vana-sdk';
+import { mokshaTestnet } from '@opendatalabs/vana-sdk';
 
 // 1. Set up your wallet client (using viem)
 const account = privateKeyToAccount('0x...');
@@ -280,7 +280,7 @@ import {
   ContractNotFoundError,
   NetworkError,
   EncryptionError,
-} from "vana-sdk";
+} from "@opendatalabs/vana-sdk";
 
 try {
   await vana.permissions.grant(params);

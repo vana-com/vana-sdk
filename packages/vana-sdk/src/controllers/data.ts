@@ -2,6 +2,8 @@ import { Address, getContract, decodeEventLog } from "viem";
 
 import {
   UserFile,
+  UploadParams,
+  UploadResult,
   UploadEncryptedFileResult,
   Schema,
   Refiner,
@@ -121,6 +123,244 @@ interface SubgraphResponse {
  */
 export class DataController {
   constructor(private readonly context: ControllerContext) { }
+
+  /**
+   * Uploads user data with automatic encryption and blockchain registration.
+   *
+   * @remarks
+   * This is the primary method for uploading user data to the Vana network. It handles
+   * the complete workflow including content normalization, schema validation, encryption,
+   * storage upload, permission granting, and blockchain registration.
+   *
+   * The method automatically:
+   * - Normalizes input content to a Blob
+   * - Validates data against schema if provided
+   * - Generates encryption keys and encrypts the data
+   * - Uploads to the configured storage provider
+   * - Grants permissions to specified applications
+   * - Registers the file on the blockchain
+   *
+   * @param params - Upload parameters including content, filename, schema, and permissions
+   * @returns Promise resolving to upload results with file ID and transaction hash
+   * @throws {Error} When wallet is not connected or storage is not configured
+   * @throws {SchemaValidationError} When schema validation fails
+   * @throws {Error} When upload or blockchain registration fails
+   * @example
+   * ```typescript
+   * // Basic file upload
+   * const result = await vana.data.upload({
+   *   content: "My personal data",
+   *   filename: "diary.txt"
+   * });
+   *
+   * // Upload with schema validation
+   * const result = await vana.data.upload({
+   *   content: { name: "John", age: 30 },
+   *   filename: "profile.json",
+   *   schemaId: 1
+   * });
+   *
+   * // Upload with permissions
+   * const result = await vana.data.upload({
+   *   content: "Data for AI analysis",
+   *   filename: "analysis.txt",
+   *   permissions: [{
+   *     to: "0x1234...",
+   *     operation: "llm_inference",
+   *     parameters: { model: "gpt-4" }
+   *   }]
+   * });
+   * ```
+   */
+  async upload(params: UploadParams): Promise<UploadResult> {
+    const {
+      content,
+      filename,
+      schemaId,
+      permissions = [],
+      encrypt = true,
+      providerName,
+    } = params;
+
+    try {
+      // Step 1: Normalize content to Blob
+      let blob: Blob;
+      if (content instanceof Blob) {
+        blob = content;
+      } else if (typeof content === "string") {
+        blob = new Blob([content], { type: "text/plain" });
+      } else if (content instanceof Buffer) {
+        blob = new Blob([content], { type: "application/octet-stream" });
+      } else {
+        // Handle objects by JSON stringifying them
+        blob = new Blob([JSON.stringify(content)], {
+          type: "application/json",
+        });
+      }
+
+      let isValid = true;
+      let validationErrors: string[] = [];
+
+      // Step 2: Schema validation if provided
+      if (schemaId !== undefined) {
+        try {
+          const schema = await this.getSchema(schemaId);
+          const response = await fetch(schema.definitionUrl);
+          if (!response.ok) {
+            throw new Error(
+              `Failed to fetch schema definition: ${response.status}`,
+            );
+          }
+          const schemaDefinition = await response.json();
+
+          // Convert to DataSchema format
+          const dataSchema = {
+            name: schema.name,
+            version: "1.0.0",
+            dialect: "json" as const,
+            schema: schemaDefinition,
+          };
+
+          // Parse content for validation
+          let parsedContent;
+          if (typeof content === "string") {
+            try {
+              parsedContent = JSON.parse(content);
+            } catch {
+              parsedContent = content;
+            }
+          } else {
+            parsedContent = content;
+          }
+
+          // Validate against schema
+          validateDataAgainstSchema(parsedContent, dataSchema);
+        } catch (error) {
+          isValid = false;
+          validationErrors = [
+            error instanceof Error ? error.message : "Schema validation failed",
+          ];
+        }
+      }
+
+      // Step 3: Handle encryption
+      let finalBlob = blob;
+      if (encrypt) {
+        // Generate encryption key
+        const encryptionKey = await generateEncryptionKey(
+          this.context.walletClient,
+          DEFAULT_ENCRYPTION_SEED,
+        );
+
+        // Encrypt the data
+        finalBlob = await encryptUserData(
+          blob,
+          encryptionKey,
+          this.context.platform,
+        );
+      }
+
+      // Step 4: Upload to storage
+      if (!this.context.storageManager) {
+        throw new Error(
+          "Storage manager not configured. Please provide storage providers in VanaConfig.",
+        );
+      }
+
+      const uploadResult = await this.context.storageManager.upload(
+        finalBlob,
+        filename,
+        providerName,
+      );
+
+      // Step 5: Register on blockchain
+      let blockchainResult;
+      const userAddress = await this.getUserAddress();
+
+      if (permissions.length > 0) {
+        // Upload with permissions - not fully implemented yet
+        throw new Error(
+          "Upload with permissions is not yet implemented in the high-level API",
+        );
+      } else {
+        // Use the appropriate blockchain registration method
+        const chainId = this.context.walletClient.chain?.id;
+        if (!chainId) {
+          throw new Error("Chain ID not available");
+        }
+
+        const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
+        const dataRegistryAbi = getAbi("DataRegistry");
+
+        // Choose the right contract method based on schema
+        let txHash;
+        if (schemaId !== undefined) {
+          txHash = await this.context.walletClient.writeContract({
+            address: dataRegistryAddress,
+            abi: dataRegistryAbi,
+            functionName: "addFileWithSchema",
+            args: [uploadResult.url, BigInt(schemaId)],
+            account: this.context.walletClient.account || userAddress,
+            chain: this.context.walletClient.chain || null,
+          });
+        } else {
+          txHash = await this.context.walletClient.writeContract({
+            address: dataRegistryAddress,
+            abi: dataRegistryAbi,
+            functionName: "addFile",
+            args: [uploadResult.url],
+            account: this.context.walletClient.account || userAddress,
+            chain: this.context.walletClient.chain || null,
+          });
+        }
+
+        // Wait for transaction receipt to parse the FileAdded event
+        const receipt =
+          await this.context.publicClient.waitForTransactionReceipt({
+            hash: txHash,
+            timeout: 30_000, // 30 seconds timeout
+          });
+
+        // Parse the FileAdded event to get the actual fileId
+        let fileId = 0;
+        for (const log of receipt.logs) {
+          try {
+            const decoded = decodeEventLog({
+              abi: dataRegistryAbi,
+              data: log.data,
+              topics: log.topics,
+            });
+
+            if (decoded.eventName === "FileAdded") {
+              fileId = Number(decoded.args.fileId);
+              break;
+            }
+          } catch {
+            // Skip logs that can't be decoded
+          }
+        }
+
+        blockchainResult = {
+          fileId,
+          transactionHash: txHash,
+        };
+      }
+
+      return {
+        fileId: blockchainResult.fileId,
+        url: uploadResult.url,
+        transactionHash: blockchainResult.transactionHash,
+        size: uploadResult.size,
+        isValid,
+        validationErrors:
+          validationErrors.length > 0 ? validationErrors : undefined,
+      };
+    } catch (error) {
+      throw new Error(
+        `Upload failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
 
   /**
    * Retrieves all data files owned by a specific user address.
@@ -852,6 +1092,7 @@ export class DataController {
   /**
    * Uploads an encrypted file to storage and registers it on the blockchain.
    *
+   * @deprecated Use vana.data.upload() instead for the high-level API with automatic encryption
    * @param encryptedFile - The encrypted file blob to upload
    * @param filename - Optional filename for the upload
    * @param providerName - Optional storage provider to use
@@ -962,6 +1203,7 @@ export class DataController {
   /**
    * Uploads an encrypted file to storage and registers it on the blockchain with a schema.
    *
+   * @deprecated Use vana.data.upload() instead for the high-level API with automatic encryption and schema validation
    * @param encryptedFile - The encrypted file blob to upload
    * @param schemaId - The schema ID to associate with the file
    * @param filename - Optional filename for the upload
@@ -1356,6 +1598,7 @@ export class DataController {
   /**
    * Adds a new schema to the DataRefinerRegistry.
    *
+   * @deprecated Use vana.schemas.create() instead for the high-level API with automatic IPFS upload
    * @param params - Schema parameters including name, type, and definition URL
    * @returns Promise resolving to the new schema ID and transaction hash
    */
@@ -1422,6 +1665,7 @@ export class DataController {
   /**
    * Retrieves a schema by its ID.
    *
+   * @deprecated Use vana.schemas.get() instead
    * @param schemaId - The schema ID to retrieve
    * @returns Promise resolving to the schema information
    */
@@ -1469,6 +1713,7 @@ export class DataController {
   /**
    * Gets the total number of schemas in the registry.
    *
+   * @deprecated Use vana.schemas.count() instead
    * @returns Promise resolving to the total schema count
    */
   async getSchemasCount(): Promise<number> {

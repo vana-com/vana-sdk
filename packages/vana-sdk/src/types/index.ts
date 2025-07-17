@@ -47,6 +47,9 @@ export { StorageError } from "./storage";
 export type {
   UserFile,
   FileMetadata,
+  UploadParams,
+  PermissionParams,
+  UploadResult,
   UploadFileParams,
   UploadFileResult,
   UploadEncryptedFileResult,
@@ -74,6 +77,12 @@ export type {
   GetUserTrustedServersParams,
   GetUserTrustedServersResult,
 } from "./data";
+
+// Schema types
+export type {
+  CreateSchemaParams,
+  CreateSchemaResult,
+} from "../controllers/schemas";
 
 // Schema validation types
 export type { DataSchema } from "../utils/schemaValidation";

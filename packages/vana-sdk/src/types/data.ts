@@ -56,12 +56,106 @@ export interface FileMetadata {
 }
 
 /**
+ * High-level parameters for uploading user data with automatic encryption and blockchain registration.
+ *
+ * @remarks
+ * This is the primary interface for uploading user data through the simplified `vana.data.upload()` method.
+ * It handles the complete workflow including encryption, storage, and blockchain registration.
+ * @example
+ * ```typescript
+ * // Basic file upload
+ * const result = await vana.data.upload({
+ *   content: "My personal data",
+ *   filename: "diary.txt"
+ * });
+ *
+ * // Upload with schema validation
+ * const result = await vana.data.upload({
+ *   content: { name: "John", age: 30 },
+ *   filename: "profile.json",
+ *   schemaId: 1
+ * });
+ *
+ * // Upload with permissions for an app
+ * const result = await vana.data.upload({
+ *   content: "Data for AI analysis",
+ *   filename: "analysis.txt",
+ *   permissions: [{
+ *     to: "0x1234...",
+ *     operation: "llm_inference",
+ *     parameters: { model: "gpt-4" }
+ *   }]
+ * });
+ * ```
+ * @category Data Management
+ */
+export interface UploadParams {
+  /** Raw file data as string, Blob, or Buffer. */
+  content: string | Blob | Buffer;
+  /** Optional filename for the uploaded file. */
+  filename?: string;
+  /** Optional schema ID for data validation. */
+  schemaId?: number;
+  /** Optional permissions to grant during upload. */
+  permissions?: PermissionParams[];
+  /** Whether to encrypt the data (defaults to true). */
+  encrypt?: boolean;
+  /** Optional storage provider name. */
+  providerName?: string;
+}
+
+/**
+ * Permission parameters for granting access during file upload.
+ *
+ * @remarks
+ * Used within UploadParams to grant permissions to applications during the upload process.
+ * @category Data Management
+ */
+export interface PermissionParams {
+  /** The address of the application to grant permission to. */
+  to: Address;
+  /** The operation type (e.g., "llm_inference"). */
+  operation: string;
+  /** Additional parameters for the permission. */
+  parameters: Record<string, unknown>;
+  /** Optional nonce for the permission. */
+  nonce?: bigint;
+  /** Optional expiration timestamp. */
+  expiresAt?: number;
+}
+
+/**
+ * Result of the high-level upload operation.
+ *
+ * @remarks
+ * Returned by the `vana.data.upload()` method after successful upload and blockchain registration.
+ * @category Data Management
+ */
+export interface UploadResult {
+  /** The file ID assigned by the DataRegistry contract. */
+  fileId: number;
+  /** The storage URL where the file is hosted. */
+  url: string;
+  /** The transaction hash of the blockchain registration. */
+  transactionHash: Hash;
+  /** The actual file size in bytes. */
+  size: number;
+  /** Whether the data passed schema validation (if applicable). */
+  isValid?: boolean;
+  /** Validation errors if schema validation failed. */
+  validationErrors?: string[];
+  /** Permission IDs if permissions were granted during upload. */
+  permissionIds?: bigint[];
+}
+
+/**
  * Defines parameters for uploading files to storage providers with encryption options.
  *
  * @remarks
  * Used with DataController upload methods and storage operations. Supports multiple
  * content formats, optional encryption, and custom storage provider selection with
  * comprehensive metadata tracking.
+ * @deprecated Use UploadParams with vana.data.upload() instead for the high-level API
  * @example
  * ```typescript
  * const uploadParams: UploadFileParams = {

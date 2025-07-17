@@ -71,6 +71,7 @@ export { PermissionsController } from "./controllers/permissions";
 export { DataController } from "./controllers/data";
 export { ServerController } from "./controllers/server";
 export { ProtocolController } from "./controllers/protocol";
+export { SchemaController } from "./controllers/schemas";
 
 // Contract controller
 export * from "./contracts/contractController";

@@ -20,16 +20,18 @@ import {
   Database,
   Brain,
   RefreshCw,
-  Plus,
   RotateCcw,
   ExternalLink,
 } from "lucide-react";
-import { Schema, Refiner } from "@opendatalabs/vana-sdk";
+import { Schema, Refiner, Vana } from "@opendatalabs/vana-sdk";
 import { FormBuilder } from "../ui/FormBuilder";
 import { EmptyState } from "../ui/EmptyState";
 import { SchemaIdDisplay } from "../ui/SchemaIdDisplay";
 import { RefinerIdDisplay } from "../ui/RefinerIdDisplay";
 import { DlpIdDisplay } from "../ui/DlpIdDisplay";
+import { SchemaCreationForm } from "../ui/SchemaCreationForm";
+import { SchemaValidationTab } from "../ui/SchemaValidationTab";
+import { AdvancedToolsTab } from "../ui/AdvancedToolsTab";
 
 /**
  * Props for the DeveloperDashboardView component
@@ -76,6 +78,7 @@ export interface DeveloperDashboardViewProps {
 
   // Chain info
   chainId: number;
+  vana: Vana;
 }
 
 /**
@@ -99,7 +102,7 @@ export function DeveloperDashboardView({
   onSchemaNameChange,
   schemaType,
   onSchemaTypeChange,
-  schemaDefinitionUrl,
+  schemaDefinitionUrl: _schemaDefinitionUrl,
   onSchemaDefinitionUrlChange,
   onCreateSchema,
   isCreatingSchema,
@@ -131,6 +134,7 @@ export function DeveloperDashboardView({
   isLoadingRefiners,
   onRefreshRefiners,
   chainId,
+  vana,
 }: DeveloperDashboardViewProps) {
   const [activeTab, setActiveTab] = React.useState("schemas");
 
@@ -178,71 +182,23 @@ export function DeveloperDashboardView({
   const renderSchemasTab = () => (
     <div className="space-y-6">
       {/* Create Schema */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Plus className="h-5 w-5" />
-            <h3 className="text-lg font-semibold">Create New Schema</h3>
-          </div>
-        </CardHeader>
-        <CardBody>
-          <FormBuilder
-            title=""
-            singleColumn={true}
-            fields={[
-              {
-                name: "schemaName",
-                label: "Schema Name",
-                type: "text",
-                value: schemaName,
-                onChange: onSchemaNameChange,
-                placeholder: "My Data Schema",
-                description: "A descriptive name for your schema",
-                required: true,
-              },
-              {
-                name: "schemaType",
-                label: "Schema Type",
-                type: "text",
-                value: schemaType,
-                onChange: onSchemaTypeChange,
-                placeholder: "user_profile",
-                description: "The type identifier for this schema",
-                required: true,
-              },
-              {
-                name: "schemaDefinitionUrl",
-                label: "Definition URL",
-                type: "text",
-                value: schemaDefinitionUrl,
-                onChange: onSchemaDefinitionUrlChange,
-                placeholder: "https://...",
-                description: "URL to the JSON schema definition",
-                required: true,
-              },
-            ]}
-            onSubmit={onCreateSchema}
-            isSubmitting={isCreatingSchema}
-            submitText="Create Schema"
-            submitIcon={<Database className="h-4 w-4" />}
-            status={schemaStatus}
-          />
-
-          {lastCreatedSchemaId && (
-            <div className="mt-4 p-3 bg-success/10 rounded-lg">
-              <p className="text-sm font-medium text-success-700 mb-1">
-                Schema created successfully!
-              </p>
-              <SchemaIdDisplay
-                schemaId={lastCreatedSchemaId}
-                chainId={chainId}
-                showCopy={true}
-                showExternalLink={true}
-              />
-            </div>
-          )}
-        </CardBody>
-      </Card>
+      <SchemaCreationForm
+        vana={vana}
+        schemaName={schemaName}
+        onSchemaNameChange={onSchemaNameChange}
+        schemaType={schemaType}
+        onSchemaTypeChange={onSchemaTypeChange}
+        onCreateSchema={({ name: _name, type: _type, definitionUrl }) => {
+          // Update the URL field in the parent state
+          onSchemaDefinitionUrlChange(definitionUrl);
+          // Call the existing create schema handler
+          onCreateSchema();
+        }}
+        isCreatingSchema={isCreatingSchema}
+        schemaStatus={schemaStatus}
+        lastCreatedSchemaId={lastCreatedSchemaId}
+        chainId={chainId}
+      />
 
       {/* Schemas List */}
       <Card>
@@ -660,6 +616,12 @@ export function DeveloperDashboardView({
       >
         <Tab key="schemas" title="Schemas">
           {renderSchemasTab()}
+        </Tab>
+        <Tab key="validation" title="Schema Validation">
+          <SchemaValidationTab vana={vana} chainId={chainId} />
+        </Tab>
+        <Tab key="advanced" title="Advanced Tools">
+          <AdvancedToolsTab vana={vana} schemas={schemas} chainId={chainId} />
         </Tab>
         <Tab key="refiners" title="Refiners">
           {renderRefinersTab()}

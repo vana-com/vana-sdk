@@ -153,7 +153,7 @@ export function DemoExperienceView({
           !fileSchemas.has(schemaId)
         ) {
           try {
-            const schema = await vana.data.getSchema(schemaId);
+            const schema = await vana.schemas.get(schemaId);
             schemaMap.set(schemaId, schema);
           } catch (error) {
             console.warn(`Failed to fetch schema ${schemaId}:`, error);
@@ -320,7 +320,10 @@ export function DemoExperienceView({
                 }}
               >
                 {trustedServers.map((server) => (
-                  <SelectItem key={server.id}>
+                  <SelectItem
+                    key={server.id}
+                    textValue={server.name || server.id}
+                  >
                     {server.name || server.id}
                   </SelectItem>
                 ))}

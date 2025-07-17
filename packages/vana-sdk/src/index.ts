@@ -37,6 +37,7 @@ export type * from "./errors";
 // Controller types
 export type { PermissionsController } from "./controllers/permissions";
 export type { DataController } from "./controllers/data";
+export type { SchemaController } from "./controllers/schemas";
 export type { ServerController } from "./controllers/server";
 export type { ProtocolController } from "./controllers/protocol";
 

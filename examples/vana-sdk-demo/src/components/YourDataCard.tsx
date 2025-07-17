@@ -145,7 +145,7 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
           !fileSchemas.has(schemaId)
         ) {
           try {
-            const schema = await vana.data.getSchema(schemaId);
+            const schema = await vana.schemas.get(schemaId);
             schemaMap.set(schemaId, schema);
           } catch (error) {
             console.warn(`Failed to fetch schema ${schemaId}:`, error);

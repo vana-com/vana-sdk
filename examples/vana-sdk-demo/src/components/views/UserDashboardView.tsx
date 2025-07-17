@@ -53,6 +53,7 @@ import { AddressDisplay } from "../ui/AddressDisplay";
 import { ErrorMessage } from "../ui/ErrorMessage";
 import { PermissionDisplay } from "../ui/PermissionDisplay";
 import { FormBuilder } from "../ui/FormBuilder";
+import { DataUploadForm } from "../ui/DataUploadForm";
 
 /**
  * Props for the UserDashboardView component
@@ -140,6 +141,31 @@ export interface UserDashboardViewProps {
   userAddress: string | undefined;
   chainId: number;
   vana: Vana;
+
+  // Upload data functionality
+  uploadInputMode: "text" | "file";
+  onUploadInputModeChange: (mode: "text" | "file") => void;
+  uploadTextData: string;
+  onUploadTextDataChange: (text: string) => void;
+  uploadSelectedFile: File | null;
+  onUploadFileSelect: (file: File | null) => void;
+  uploadSelectedSchemaId: number | null;
+  onUploadSchemaChange: (schemaId: number | null) => void;
+  onUploadData: (data: {
+    content: string;
+    filename?: string;
+    schemaId?: number;
+    isValid?: boolean;
+    validationErrors?: string[];
+  }) => void;
+  isUploadingData: boolean;
+  uploadResult: {
+    fileId: number;
+    transactionHash: string;
+    isValid?: boolean;
+    validationErrors?: string[];
+  } | null;
+  uploadError: string | null;
 }
 
 /**
@@ -210,8 +236,20 @@ export function UserDashboardView({
   userAddress: _userAddress,
   chainId,
   vana,
+  uploadInputMode,
+  onUploadInputModeChange,
+  uploadTextData,
+  onUploadTextDataChange,
+  uploadSelectedFile,
+  onUploadFileSelect,
+  uploadSelectedSchemaId,
+  onUploadSchemaChange,
+  onUploadData,
+  isUploadingData,
+  uploadResult,
+  uploadError,
 }: UserDashboardViewProps) {
-  const [activeTab, setActiveTab] = useState("files");
+  const [activeTab, setActiveTab] = useState("upload");
 
   // Files table state
   const [filesCurrentPage, setFilesCurrentPage] = useState(1);
@@ -250,7 +288,7 @@ export function UserDashboardView({
           !fileSchemas.has(schemaId)
         ) {
           try {
-            const schema = await vana.data.getSchema(schemaId);
+            const schema = await vana.schemas.get(schemaId);
             schemaMap.set(schemaId, schema);
           } catch (error) {
             console.warn(`Failed to fetch schema ${schemaId}:`, error);
@@ -377,6 +415,38 @@ export function UserDashboardView({
       </Tooltip>
     );
   };
+
+  /**
+   * Renders the upload data tab content
+   */
+  const renderUploadDataTab = () => (
+    <div className="space-y-6">
+      <DataUploadForm
+        vana={vana}
+        inputMode={uploadInputMode}
+        onInputModeChange={onUploadInputModeChange}
+        textData={uploadTextData}
+        onTextDataChange={onUploadTextDataChange}
+        selectedFile={uploadSelectedFile}
+        onFileSelect={onUploadFileSelect}
+        selectedSchemaId={uploadSelectedSchemaId}
+        onSchemaChange={(schemaId) => {
+          // Call the parent handler with just the schemaId for backward compatibility
+          onUploadSchemaChange(schemaId);
+        }}
+        onUpload={onUploadData}
+        isUploading={isUploadingData}
+        uploadResult={uploadResult}
+        uploadError={uploadError}
+        chainId={chainId}
+        showSchemaSelector={true}
+        showValidation={true}
+        allowWithoutSchema={true}
+        title="Upload Your Data"
+        description="Upload text or file data to the Vana network with optional schema validation"
+      />
+    </div>
+  );
 
   /**
    * Renders the files tab content
@@ -1062,9 +1132,15 @@ export function UserDashboardView({
                 }}
                 className="w-40"
               >
-                <SelectItem key="auto">Auto (Smart Fallback)</SelectItem>
-                <SelectItem key="subgraph">Subgraph (Fast)</SelectItem>
-                <SelectItem key="rpc">RPC (Direct)</SelectItem>
+                <SelectItem key="auto" textValue="Auto (Smart Fallback)">
+                  Auto (Smart Fallback)
+                </SelectItem>
+                <SelectItem key="subgraph" textValue="Subgraph (Fast)">
+                  Subgraph (Fast)
+                </SelectItem>
+                <SelectItem key="rpc" textValue="RPC (Direct)">
+                  RPC (Direct)
+                </SelectItem>
               </Select>
               <Button
                 onPress={onRefreshServers}
@@ -1215,6 +1291,9 @@ export function UserDashboardView({
         onSelectionChange={(key) => setActiveTab(key as string)}
         className="w-full"
       >
+        <Tab key="upload" title="Upload Data">
+          {renderUploadDataTab()}
+        </Tab>
         <Tab key="files" title="Data Files">
           {renderFilesTab()}
         </Tab>

@@ -42,7 +42,7 @@ interface ServerUploadCardProps {
 
 /**
  * ServerUploadCard component - Complete trusted server file upload workflow
- * Demonstrates uploadFileWithPermissions(), getTrustedServerPublicKey()
+ * Demonstrates uploadFileWithPermissions()
  */
 export const ServerUploadCard: React.FC<ServerUploadCardProps> = ({
   trustedServers,
@@ -68,8 +68,7 @@ export const ServerUploadCard: React.FC<ServerUploadCardProps> = ({
         description={
           <>
             <em>
-              Demonstrates: `uploadFileWithPermissions()`,
-              `getTrustedServerPublicKey()`
+              Demonstrates: `uploadFileWithPermissions()`, `getIdentity()`
             </em>
             <br />
             Complete workflow for securely sharing a file with a designated

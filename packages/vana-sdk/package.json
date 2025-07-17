@@ -24,6 +24,38 @@
         "import": "./dist/index.node.js",
         "require": "./dist/index.node.cjs"
       }
+    },
+    "./chains": {
+      "node": {
+        "types": "./dist/chains.node.d.ts",
+        "import": "./dist/chains.node.js",
+        "require": "./dist/chains.node.cjs"
+      },
+      "browser": {
+        "import": "./dist/chains.browser.js",
+        "types": "./dist/chains.browser.d.ts"
+      },
+      "default": {
+        "types": "./dist/chains.node.d.ts",
+        "import": "./dist/chains.node.js",
+        "require": "./dist/chains.node.cjs"
+      }
+    },
+    "./platform": {
+      "node": {
+        "types": "./dist/platform.node.d.ts",
+        "import": "./dist/platform.node.js",
+        "require": "./dist/platform.node.cjs"
+      },
+      "browser": {
+        "import": "./dist/platform.browser.js",
+        "types": "./dist/platform.browser.d.ts"
+      },
+      "default": {
+        "types": "./dist/platform.node.d.ts",
+        "import": "./dist/platform.node.js",
+        "require": "./dist/platform.node.cjs"
+      }
     }
   },
   "files": [
@@ -36,7 +68,9 @@
     "build:types": "tsup src/index.ts --dts-only --out-dir dist --no-clean",
     "build:node": "tsup src/index.node.ts --platform node --format esm,cjs --target node18 --out-dir dist --no-clean",
     "build:browser": "tsup src/index.browser.ts --platform browser --format esm --target es2020 --out-dir dist --dts --no-clean",
-    "build": "npm run clean && npm run build:types && npm run build:node && npm run build:browser",
+    "build:chains": "tsup src/chains.ts src/chains.node.ts src/chains.browser.ts --platform node --format esm,cjs --target node18 --out-dir dist --dts --no-clean",
+    "build:platform": "tsup src/platform.ts src/platform.node.ts --platform node --format esm,cjs --target node18 --out-dir dist --dts --no-clean && tsup src/platform.browser.ts --platform browser --format esm --target es2020 --out-dir dist --dts --no-clean",
+    "build": "npm run clean && npm run build:types && npm run build:node && npm run build:browser && npm run build:chains && npm run build:platform",
     "prepare": "npm run build",
     "dev": "npm run build -- --watch",
     "lint": "eslint .",

@@ -1,9 +1,8 @@
 /**
  * Platform adapter types and implementations
- * 
+ *
  * This module exports the platform-specific adapters and interfaces
- * without the getPlatformAdapter function, which has been removed
- * in favor of explicit adapter injection.
+ * along with utilities for platform detection and adapter creation.
  */
 
 // Export types
@@ -18,3 +17,19 @@ export type {
 // Export implementations
 export { NodePlatformAdapter } from "./node";
 export { BrowserPlatformAdapter } from "./browser";
+
+// Export utilities
+export {
+  detectPlatform,
+  createPlatformAdapter,
+  createPlatformAdapterFor,
+  isPlatformSupported,
+  getPlatformCapabilities,
+} from "./utils";
+
+// Export browser-safe utilities
+export {
+  createNodePlatformAdapter,
+  createBrowserPlatformAdapter,
+  createPlatformAdapterSafe,
+} from "./browser-safe";

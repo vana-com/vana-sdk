@@ -1,6 +1,6 @@
 import React from "react";
 import { Chip } from "@heroui/react";
-import { Refiner } from "vana-sdk";
+import { Refiner } from "@opendatalabs/vana-sdk";
 import { IdChip } from "./ui/IdChip";
 import { AddressDisplay } from "./ui/AddressDisplay";
 

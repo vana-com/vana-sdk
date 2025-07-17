@@ -1,5 +1,5 @@
 import { AddressDisplay } from "./AddressDisplay";
-import { convertIpfsUrl } from "vana-sdk";
+import { convertIpfsUrl } from "@opendatalabs/vana-sdk";
 
 interface IpfsAddressDisplayProps {
   ipfsUrl: string;

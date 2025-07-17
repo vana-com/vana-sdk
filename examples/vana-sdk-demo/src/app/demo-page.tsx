@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { addToast } from "@heroui/react";
-import type { VanaChain } from "vana-sdk";
+import type { VanaChain } from "@opendatalabs/vana-sdk";
 import { useAccount, useWalletClient, useChainId } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import {
@@ -31,7 +31,7 @@ import {
   GrantFile,
   Hash,
   retrieveGrantFile,
-} from "vana-sdk";
+} from "@opendatalabs/vana-sdk";
 import { privateKeyToAccount } from "viem/accounts";
 
 // Types for demo app state

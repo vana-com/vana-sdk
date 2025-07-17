@@ -23,13 +23,29 @@ jobs:
         with:
           node-version: "lts/*"
           registry-url: "https://registry.npmjs.org"
+          cache: "npm"
       - name: Install dependencies
         run: npm ci --omit=optional
-      - name: Install semantic-release dependencies
-        run: npm install --no-save conventional-changelog-conventionalcommits @semantic-release/npm
-      - name: Release
+      - name: Run semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npx semantic-release
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN_TIM }}
+        run: |
+          cat <<EOF > .releaserc.json
+          {
+            "branches": ["main"],
+            "plugins": [
+              ["@semantic-release/commit-analyzer", {
+                "preset": "conventionalcommits"
+              }],
+              ["@semantic-release/release-notes-generator", {
+                "preset": "conventionalcommits"
+              }],
+              ["@semantic-release/npm", {
+                "pkgRoot": "./packages/vana-sdk"
+              }],
+              ["@semantic-release/github", {}]
+            ]
+          }
+          EOF
+          npx semantic-release

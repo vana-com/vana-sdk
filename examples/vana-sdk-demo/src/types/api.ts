@@ -9,7 +9,7 @@ import type {
   IdentityServerOutput,
   PersonalServerOutput,
   PersonalServerResponse,
-} from "vana-sdk";
+} from "@opendatalabs/vana-sdk";
 
 /**
  * Internal API Endpoints Response Types

@@ -11,7 +11,11 @@ import {
 import { CheckCircle, FileCheck, AlertTriangle } from "lucide-react";
 import { SectionHeader } from "./ui/SectionHeader";
 import { ErrorMessage } from "./ui/ErrorMessage";
-import type { Vana, SchemaValidationError, DataController } from "vana-sdk";
+import type {
+  Vana,
+  SchemaValidationError,
+  DataController,
+} from "@opendatalabs/vana-sdk";
 
 interface SchemaValidationCardProps {
   vana: Vana | null;

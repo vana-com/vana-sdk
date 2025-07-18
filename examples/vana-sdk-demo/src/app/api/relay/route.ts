@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
 
     // Use the new unified relayer handler
     const vana = await createRelayerVana();
-    const txHash = await handleRelayerRequest(vana as any, {
+    const txHash = await handleRelayerRequest(vana, {
       typedData,
       signature,
       expectedUserAddress: expectedUserAddress as `0x${string}` | undefined,

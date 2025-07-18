@@ -15,11 +15,13 @@ import {
 } from "@heroui/react";
 import { Lock, Key, Database, TestTube, Wrench } from "lucide-react";
 import type { Vana, Schema } from "@opendatalabs/vana-sdk/browser";
+import type { WalletClient } from "viem";
 import {
   generateEncryptionKey as sdkGenerateEncryptionKey,
   encryptUserData as sdkEncryptUserData,
   decryptUserData as sdkDecryptUserData,
   DEFAULT_ENCRYPTION_SEED,
+  BrowserPlatformAdapter,
 } from "@opendatalabs/vana-sdk/browser";
 import { InputModeToggle } from "./InputModeToggle";
 import { CodeDisplay } from "./CodeDisplay";
@@ -30,6 +32,9 @@ export interface AdvancedToolsTabProps {
 
   /** Available schemas */
   schemas: (Schema & { source?: "discovered" | "created" })[];
+
+  /** Wallet client for signing operations */
+  walletClient: WalletClient;
 
   /** Chain ID for explorer links */
   chainId: number;
@@ -51,10 +56,14 @@ export interface AdvancedToolsTabProps {
 export const AdvancedToolsTab: React.FC<AdvancedToolsTabProps> = ({
   vana,
   schemas: _schemas,
+  walletClient,
   chainId: _chainId,
   className = "",
 }) => {
   const [activeSubTab, setActiveSubTab] = useState("encryption");
+
+  // Create platform adapter for encryption operations
+  const platformAdapter = new BrowserPlatformAdapter();
 
   // Encryption testing state
   const [encryptionSeed, setEncryptionSeed] = useState("");
@@ -88,7 +97,7 @@ export const AdvancedToolsTab: React.FC<AdvancedToolsTabProps> = ({
 
     try {
       const key = await sdkGenerateEncryptionKey(
-        (vana as any).data.context.walletClient,
+        walletClient,
         encryptionSeed || DEFAULT_ENCRYPTION_SEED,
       );
       setEncryptionKey(key);
@@ -118,7 +127,7 @@ export const AdvancedToolsTab: React.FC<AdvancedToolsTabProps> = ({
       const encrypted = await sdkEncryptUserData(
         blob,
         encryptionKey,
-        (vana as any).platform,
+        platformAdapter,
       );
       setEncryptedData(encrypted);
       setEncryptionStatus("Data encrypted successfully!");
@@ -144,7 +153,7 @@ export const AdvancedToolsTab: React.FC<AdvancedToolsTabProps> = ({
       const decrypted = await sdkDecryptUserData(
         encryptedData,
         encryptionKey,
-        (vana as any).platform,
+        platformAdapter,
       );
       const text = await decrypted.text();
       setDecryptedData(text);

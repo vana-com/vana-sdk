@@ -2038,6 +2038,7 @@ export default function Home() {
     onRefreshRefiners: loadRefiners,
     chainId: chainId || 14800,
     vana: vana!,
+    walletClient: walletClient!,
   };
 
   const demoExperienceProps: DemoExperienceViewProps = {

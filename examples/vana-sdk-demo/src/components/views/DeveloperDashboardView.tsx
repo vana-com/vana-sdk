@@ -24,6 +24,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { Schema, Refiner, Vana } from "@opendatalabs/vana-sdk/browser";
+import type { WalletClient } from "viem";
 import { FormBuilder } from "../ui/FormBuilder";
 import { EmptyState } from "../ui/EmptyState";
 import { SchemaIdDisplay } from "../ui/SchemaIdDisplay";
@@ -79,6 +80,7 @@ export interface DeveloperDashboardViewProps {
   // Chain info
   chainId: number;
   vana: Vana;
+  walletClient: WalletClient;
 }
 
 /**
@@ -135,6 +137,7 @@ export function DeveloperDashboardView({
   onRefreshRefiners,
   chainId,
   vana,
+  walletClient,
 }: DeveloperDashboardViewProps) {
   const [activeTab, setActiveTab] = React.useState("schemas");
 
@@ -621,7 +624,12 @@ export function DeveloperDashboardView({
           <SchemaValidationTab vana={vana} chainId={chainId} />
         </Tab>
         <Tab key="advanced" title="Advanced Tools">
-          <AdvancedToolsTab vana={vana} schemas={schemas} chainId={chainId} />
+          <AdvancedToolsTab
+            vana={vana}
+            schemas={schemas}
+            walletClient={walletClient}
+            chainId={chainId}
+          />
         </Tab>
         <Tab key="refiners" title="Refiners">
           {renderRefinersTab()}

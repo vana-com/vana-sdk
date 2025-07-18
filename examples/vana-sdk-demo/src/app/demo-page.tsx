@@ -1421,14 +1421,15 @@ export default function Home() {
     permissionId: number,
   ) => {
     try {
+      const getUrl = `https://api.replicate.com/v1/predictions/${replicateId}`;
       const response = await fetch("/api/trusted-server/poll", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          replicateId,
-          permissionId,
+          getUrl,
+          chainId,
         }),
       });
 

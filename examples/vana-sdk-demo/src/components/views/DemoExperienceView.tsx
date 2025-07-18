@@ -315,7 +315,7 @@ export function DemoExperienceView({
               >
                 {isDiscoveringServer || isTrustingServer
                   ? "Setting up server..."
-                  : "One-Click Setup: Trust Replicate Server"}
+                  : "One-Click Setup: Trust Vana-Hosted Personal Server"}
               </Button>
 
               {trustServerError && (

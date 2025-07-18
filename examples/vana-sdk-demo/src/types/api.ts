@@ -8,8 +8,8 @@ import type {
   ReplicateAPIResponse,
   IdentityServerOutput,
   PersonalServerOutput,
-} from "@opendatalabs/vana-sdk";
-import { PersonalServerIdentity } from "@opendatalabs/vana-sdk";
+  PersonalServerIdentity,
+} from "@opendatalabs/vana-sdk/browser";
 
 /**
  * Internal API Endpoints Response Types
@@ -25,7 +25,28 @@ export type TrustedServerIdentityAPIResponse =
 /** Response from /api/trusted-server/poll */
 export type TrustedServerPollAPIResponse = APIResponse<ReplicateAPIResponse>;
 
-/** Response from /api/identity */
+/** Response from direct Gateway identity call - matches OpenAPI spec */
+export interface GatewayIdentityResponse {
+  /** Resource type identifier */
+  kind: "Identity";
+  /** User's wallet address */
+  user_address: string;
+  /** Personal server information */
+  personal_server: {
+    /** Resource type identifier */
+    kind: "PersonalServer";
+    /** Derived address for the personal server */
+    address: string;
+    /** Public key for encryption */
+    public_key: string;
+    /** Base URL for the personal server (may be empty) */
+    base_url?: string;
+    /** Name of the personal server (may be empty) */
+    name?: string;
+  };
+}
+
+/** Response from /api/identity (deprecated - use GatewayIdentityResponse) */
 export type IdentityAPIResponse = APIResponse<{
   userAddress: string;
   publicKey: string;

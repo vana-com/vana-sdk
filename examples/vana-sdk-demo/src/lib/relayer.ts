@@ -1,7 +1,13 @@
 import { createWalletClient, createPublicClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { createHash } from "crypto";
-import { mokshaTestnet, vanaMainnet, Vana } from "@opendatalabs/vana-sdk";
+import {
+  mokshaTestnet,
+  vanaMainnet,
+  Vana,
+  type VanaChain,
+  type VanaChainId,
+} from "@opendatalabs/vana-sdk/node";
 
 // Simple in-memory storage for demo purposes
 const parameterStorage = new Map<string, string>();
@@ -16,18 +22,16 @@ const relayerAccount = privateKeyToAccount(
   RELAYER_PRIVATE_KEY as `0x${string}`,
 );
 
-function getChainConfig(chainId: number) {
+function getChainConfig(chainId: VanaChainId): VanaChain {
   switch (chainId) {
     case 14800:
-      return mokshaTestnet;
+      return mokshaTestnet as VanaChain;
     case 1480:
-      return vanaMainnet;
-    default:
-      return mokshaTestnet; // fallback
+      return vanaMainnet as VanaChain;
   }
 }
 
-export function createRelayerConfig(chainId: number) {
+export function createRelayerConfig(chainId: VanaChainId) {
   const chain = getChainConfig(chainId);
 
   const walletClient = createWalletClient({
@@ -86,7 +90,7 @@ export const generateContentId = (parameters: string): string => {
  * Create a pre-configured Vana SDK instance using the relayer wallet
  */
 export async function createRelayerVana(
-  chainId: number = 14800,
+  chainId: VanaChainId = 14800,
 ): Promise<Vana> {
   const config = createRelayerConfig(chainId);
   return new Vana({ walletClient: config.walletClient });

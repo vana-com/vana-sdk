@@ -7,6 +7,7 @@ import {
   ControllerContext,
 } from "./controllers/permissions";
 import { DataController } from "./controllers/data";
+import { SchemaController } from "./controllers/schemas";
 import { ServerController } from "./controllers/server";
 import { ProtocolController } from "./controllers/protocol";
 import { StorageManager, StorageProvider } from "./storage";
@@ -39,8 +40,11 @@ export class VanaCore {
   /** Manages gasless data access permissions and trusted server registry. */
   public readonly permissions: PermissionsController;
 
-  /** Handles user data file operations and schema management. */
+  /** Handles user data file operations. */
   public readonly data: DataController;
+
+  /** Manages data schemas and refiners. */
+  public readonly schemas: SchemaController;
 
   /** Provides personal server setup and trusted server interactions. */
   public readonly server: ServerController;
@@ -161,6 +165,7 @@ export class VanaCore {
     // Initialize controllers
     this.permissions = new PermissionsController(sharedContext);
     this.data = new DataController(sharedContext);
+    this.schemas = new SchemaController(sharedContext);
     this.server = new ServerController(sharedContext);
     this.protocol = new ProtocolController(sharedContext);
   }

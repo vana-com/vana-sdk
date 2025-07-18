@@ -15,7 +15,7 @@ import type {
   Vana,
   SchemaValidationError,
   DataController,
-} from "@opendatalabs/vana-sdk";
+} from "@opendatalabs/vana-sdk/browser";
 
 interface SchemaValidationCardProps {
   vana: Vana | null;

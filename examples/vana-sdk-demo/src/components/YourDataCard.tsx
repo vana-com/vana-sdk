@@ -23,7 +23,7 @@ import {
   RefreshCw,
   Key,
 } from "lucide-react";
-import type { UserFile } from "@opendatalabs/vana-sdk";
+import type { UserFile, Schema, Vana } from "@opendatalabs/vana-sdk/browser";
 import { SectionHeader } from "./ui/SectionHeader";
 import { ActionButton } from "./ui/ActionButton";
 import { EmptyState } from "./ui/EmptyState";
@@ -81,6 +81,9 @@ interface YourDataCardProps {
   // User info
   _userAddress: string | undefined;
   chainId: number;
+
+  // Vana instance for schema fetching
+  vana: Vana;
 }
 
 /**
@@ -113,6 +116,7 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
   applicationAddress,
   _userAddress,
   chainId,
+  vana,
 }) => {
   // Pagination state
   const [currentPage, setCurrentPage] = React.useState(1);
@@ -121,6 +125,43 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
     direction: "descending",
   });
   const ITEMS_PER_PAGE = 10;
+
+  // Schema state for files
+  const [fileSchemas, setFileSchemas] = useState<Map<number, Schema>>(
+    new Map(),
+  );
+
+  // Fetch schema information for files that have schema IDs
+  React.useEffect(() => {
+    const fetchSchemas = async () => {
+      const schemaMap = new Map<number, Schema>();
+
+      for (const file of userFiles) {
+        const schemaId =
+          "schemaId" in file ? (file.schemaId as number) : undefined;
+        if (
+          schemaId &&
+          typeof schemaId === "number" &&
+          !fileSchemas.has(schemaId)
+        ) {
+          try {
+            const schema = await vana.schemas.get(schemaId);
+            schemaMap.set(schemaId, schema);
+          } catch (error) {
+            console.warn(`Failed to fetch schema ${schemaId}:`, error);
+          }
+        }
+      }
+
+      if (schemaMap.size > 0) {
+        setFileSchemas((prev) => new Map([...prev, ...schemaMap]));
+      }
+    };
+
+    if (userFiles.length > 0) {
+      fetchSchemas();
+    }
+  }, [userFiles, vana, fileSchemas]);
 
   // Calculate sorted and paginated items
   const paginatedFiles = useMemo(() => {
@@ -292,6 +333,9 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
                   <TableColumn key="source" allowsSorting>
                     Source
                   </TableColumn>
+                  <TableColumn key="schema" allowsSorting>
+                    Schema
+                  </TableColumn>
                   <TableColumn key="actions" allowsSorting={false}>
                     Actions
                   </TableColumn>
@@ -363,6 +407,39 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
                               {file.source}
                             </Chip>
                           )}
+                        </TableCell>
+                        <TableCell>
+                          {(() => {
+                            const schemaId =
+                              "schemaId" in file
+                                ? (file.schemaId as number)
+                                : undefined;
+                            const schema =
+                              schemaId && typeof schemaId === "number"
+                                ? fileSchemas.get(schemaId)
+                                : null;
+
+                            if (schema) {
+                              return (
+                                <Chip
+                                  size="sm"
+                                  variant="flat"
+                                  color="secondary"
+                                  startContent={
+                                    <Database className="h-3 w-3" />
+                                  }
+                                >
+                                  {schema.name}
+                                </Chip>
+                              );
+                            }
+
+                            return (
+                              <span className="text-sm text-default-500">
+                                None
+                              </span>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-2">
@@ -508,8 +585,7 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
                   className="text-sm"
                 />
                 <p className="text-xs text-primary-600 mt-1">
-                  Permissions will be granted to this application address
-                  derived from the server's private key.
+                  Permissions will be granted to this application's address.
                 </p>
               </div>
             )}

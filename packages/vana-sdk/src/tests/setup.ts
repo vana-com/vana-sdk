@@ -58,26 +58,3 @@ export const consoleMocks = {
     (console.info as unknown as { mock?: { calls: unknown[] } }).mock?.calls ||
     [],
 };
-
-// Utility to temporarily enable console output in specific tests
-export const withConsole = (fn: () => void | Promise<void>) => {
-  return async () => {
-    // Restore console for this test
-    console.log = originalConsole.log;
-    console.warn = originalConsole.warn;
-    console.error = originalConsole.error;
-    console.debug = originalConsole.debug;
-    console.info = originalConsole.info;
-
-    try {
-      await fn();
-    } finally {
-      // Re-mock console after test
-      console.log = vi.fn();
-      console.warn = vi.fn();
-      console.error = vi.fn();
-      console.debug = vi.fn();
-      console.info = vi.fn();
-    }
-  };
-};

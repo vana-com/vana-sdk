@@ -166,7 +166,7 @@ describe("DataController", () => {
       publicClient:
         mockPublicClient as unknown as ControllerContext["publicClient"],
       subgraphUrl:
-        "https://api.goldsky.com/api/public/project_cm168cz887zva010j39il7a6p/subgraphs/moksha/7.0.4/gn",
+        "https://api.goldsky.com/api/public/project_cm168cz887zva010j39il7a6p/subgraphs/moksha/7.0.3/gn",
       platform: mockPlatformAdapter,
     };
 
@@ -866,103 +866,6 @@ describe("DataController", () => {
         "Chain ID not available",
       );
     });
-
-    it.skip("should handle null file details response", async () => {
-      // Import at the top level gets the mocked version
-      const viem = await import("viem");
-      const getContractMock = vi.mocked(viem.getContract);
-
-      getContractMock.mockReturnValueOnce({
-        read: {
-          files: vi.fn().mockResolvedValue(null),
-        },
-      } as unknown as ReturnType<typeof viem.getContract>);
-
-      await expect(controller.getFileById(1)).rejects.toThrow("File not found");
-    });
-
-    it.skip("should handle zero ID in array format", async () => {
-      const viem = await import("viem");
-      const getContractMock = vi.mocked(viem.getContract);
-
-      getContractMock.mockReturnValueOnce({
-        read: {
-          files: vi.fn().mockResolvedValue([
-            BigInt(0), // Zero ID means file not found
-            "ipfs://QmTestFile",
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
-            BigInt(123456),
-          ]),
-        },
-      } as unknown as ReturnType<typeof viem.getContract>);
-
-      await expect(controller.getFileById(1)).rejects.toThrow("File not found");
-    });
-
-    it.skip("should handle zero ID in object format", async () => {
-      const viem = await import("viem");
-      const getContractMock = vi.mocked(viem.getContract);
-
-      getContractMock.mockReturnValueOnce({
-        read: {
-          files: vi.fn().mockResolvedValue({
-            id: BigInt(0), // Zero ID means file not found
-            url: "ipfs://QmTestFile",
-            ownerAddress:
-              "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
-            addedAtBlock: BigInt(123456),
-          }),
-        },
-      } as unknown as ReturnType<typeof viem.getContract>);
-
-      await expect(controller.getFileById(1)).rejects.toThrow("File not found");
-    });
-
-    it.skip("should handle missing ID in object format", async () => {
-      const viem = await import("viem");
-      const getContractMock = vi.mocked(viem.getContract);
-
-      getContractMock.mockReturnValueOnce({
-        read: {
-          files: vi.fn().mockResolvedValue({
-            // Missing id field
-            url: "ipfs://QmTestFile",
-            ownerAddress:
-              "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
-            addedAtBlock: BigInt(123456),
-          }),
-        },
-      } as unknown as ReturnType<typeof viem.getContract>);
-
-      await expect(controller.getFileById(1)).rejects.toThrow("File not found");
-    });
-
-    it.skip("should handle object format response correctly", async () => {
-      const viem = await import("viem");
-      const getContractMock = vi.mocked(viem.getContract);
-
-      getContractMock.mockReturnValueOnce({
-        read: {
-          files: vi.fn().mockResolvedValue({
-            id: BigInt(5),
-            url: "ipfs://QmObjectFormat",
-            ownerAddress:
-              "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
-            addedAtBlock: BigInt(789123),
-          }),
-        },
-      } as unknown as ReturnType<typeof viem.getContract>);
-
-      const result = await controller.getFileById(5);
-
-      expect(result).toEqual({
-        id: 5,
-        url: "ipfs://QmObjectFormat",
-        ownerAddress:
-          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
-        addedAtBlock: BigInt(789123),
-      });
-    });
   });
 
   describe("getTotalFilesCount additional branches", () => {
@@ -1329,25 +1232,6 @@ describe("DataController", () => {
       );
     });
 
-    it.skip("should handle non-Error exceptions in getFileById catch block", async () => {
-      // Create a completely new controller that will trigger the catch block
-      const viem = await import("viem");
-      const getContractMock = vi.mocked(viem.getContract);
-
-      // Make getContract return a mock that throws a non-Error object when calling read.files
-      getContractMock.mockReturnValueOnce({
-        read: {
-          files: vi.fn().mockImplementation(() => {
-            throw { code: 404, message: "Contract not found" }; // Non-Error object
-          }),
-        },
-      } as unknown as ReturnType<typeof viem.getContract>);
-
-      await expect(controller.getFileById(999)).rejects.toThrow(
-        "Failed to fetch file 999: Unknown error",
-      );
-    });
-
     it("should handle non-Error exceptions in uploadEncryptedFile", async () => {
       const { StorageManager } = await import("../storage");
       const mockStorageManager = new StorageManager();
@@ -1578,55 +1462,6 @@ describe("DataController", () => {
       );
     });
 
-    it.skip("should get schema by ID", async () => {
-      const viem = await import("viem");
-      const getContractMock = vi.mocked(viem.getContract);
-
-      getContractMock.mockReturnValueOnce({
-        read: {
-          schemas: vi.fn().mockResolvedValue({
-            name: mockSchema.name,
-            typ: mockSchema.type, // Note: contract uses 'typ' not 'type'
-            definitionUrl: mockSchema.definitionUrl,
-          }),
-        },
-      } as unknown as ReturnType<typeof viem.getContract>);
-
-      const result = await controller.getSchema(mockSchema.id);
-
-      expect(result).toEqual(mockSchema);
-    });
-
-    it.skip("should handle schema not found", async () => {
-      const viem = await import("viem");
-      const getContractMock = vi.mocked(viem.getContract);
-
-      getContractMock.mockReturnValueOnce({
-        read: {
-          schemas: vi.fn().mockResolvedValue(null), // null means not found
-        },
-      } as unknown as ReturnType<typeof viem.getContract>);
-
-      await expect(controller.getSchema(999)).rejects.toThrow(
-        "Schema not found",
-      );
-    });
-
-    it.skip("should get schemas count", async () => {
-      const viem = await import("viem");
-      const getContractMock = vi.mocked(viem.getContract);
-
-      getContractMock.mockReturnValueOnce({
-        read: {
-          schemasCount: vi.fn().mockResolvedValue(BigInt(5)),
-        },
-      } as unknown as ReturnType<typeof viem.getContract>);
-
-      const result = await controller.getSchemasCount();
-
-      expect(result).toBe(5);
-    });
-
     it("should add refiner with schema ID", async () => {
       // Mock decodeEventLog to simulate RefinerAdded event
       const { decodeEventLog } = await import("viem");
@@ -1682,34 +1517,6 @@ describe("DataController", () => {
       );
     });
 
-    it.skip("should get refiner with schema details", async () => {
-      const viem = await import("viem");
-      const getContractMock = vi.mocked(viem.getContract);
-
-      getContractMock.mockReturnValueOnce({
-        read: {
-          refiners: vi.fn().mockResolvedValue({
-            dlpId: BigInt(1),
-            owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-            name: "Test Refiner",
-            schemaId: BigInt(0),
-            refinementInstructionUrl: "https://example.com/instructions",
-          }),
-        },
-      } as unknown as ReturnType<typeof viem.getContract>);
-
-      const result = await controller.getRefiner(1);
-
-      expect(result).toEqual({
-        id: 1,
-        dlpId: 1,
-        owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        name: "Test Refiner",
-        schemaId: 0, // Note: existing refiners may have empty schemaId
-        refinementInstructionUrl: "https://example.com/instructions",
-      });
-    });
-
     it("should handle missing chainId for schema operations", async () => {
       const contextWithoutChain = {
         ...mockContext,
@@ -1736,36 +1543,6 @@ describe("DataController", () => {
       // getSchemasCount catches errors and returns 0, so test that behavior
       const result = await controllerWithoutChain.getSchemasCount();
       expect(result).toBe(0);
-    });
-
-    it.skip("should validate schema ID", async () => {
-      const viem = await import("viem");
-      const getContractMock = vi.mocked(viem.getContract);
-
-      getContractMock.mockReturnValueOnce({
-        read: {
-          isValidSchemaId: vi.fn().mockResolvedValue(true),
-        },
-      } as unknown as ReturnType<typeof viem.getContract>);
-
-      const result = await controller.isValidSchemaId(1);
-      expect(result).toBe(true);
-    });
-
-    it.skip("should handle schema validation error gracefully", async () => {
-      const viem = await import("viem");
-      const getContractMock = vi.mocked(viem.getContract);
-
-      getContractMock.mockReturnValueOnce({
-        read: {
-          isValidSchemaId: vi
-            .fn()
-            .mockRejectedValue(new Error("Contract error")),
-        },
-      } as unknown as ReturnType<typeof viem.getContract>);
-
-      const result = await controller.isValidSchemaId(1);
-      expect(result).toBe(false);
     });
 
     it("should upload encrypted file with schema", async () => {

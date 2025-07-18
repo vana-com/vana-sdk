@@ -31,50 +31,58 @@ describe("GrantValidation Unreachable Branch Coverage", () => {
     // Mock the module to create a version where errors can lack the error property
     const mockValidateGrant = vi
       .fn()
-      .mockImplementation((data: any, options: any = {}) => {
-        const { throwOnError = true } = options;
+      .mockImplementation(
+        (data: unknown, options: Record<string, unknown> = {}) => {
+          const { throwOnError = true } = options;
 
-        // Create errors without error property to simulate the unreachable condition
-        const errors = [
-          {
-            type: "business",
-            field: "grantee",
-            message: "Mock error without error property",
-            // Deliberately omit error property
-          },
-          {
-            type: "business",
-            field: "operation",
-            message: "Another mock error without error property",
-            // Deliberately omit error property
-          },
-        ];
+          // Create errors without error property to simulate the unreachable condition
+          const errors: Array<{
+            type: string;
+            field: string;
+            message: string;
+          }> = [
+            {
+              type: "business",
+              field: "grantee",
+              message: "Mock error without error property",
+              // Deliberately omit error property
+            },
+            {
+              type: "business",
+              field: "operation",
+              message: "Another mock error without error property",
+              // Deliberately omit error property
+            },
+          ];
 
-        // This replicates the exact logic from validateGrant lines 300-312
-        if (errors.length > 0) {
-          if (throwOnError) {
-            // Throw the most specific error we have
-            const firstError = errors[0];
-            if ((firstError as any).error) {
-              throw (firstError as any).error;
-            } else {
-              // This is the exact branch we want to test (lines 307-312)
-              const combinedMessage = errors.map((e) => e.message).join("; ");
-              throw new GrantValidationError(
-                `Grant validation failed: ${combinedMessage}`,
-                { errors, data },
-              );
+          // This replicates the exact logic from validateGrant lines 300-312
+          if (errors.length > 0) {
+            if (throwOnError) {
+              // Throw the most specific error we have
+              const firstError = errors[0];
+              if ((firstError as { error?: Error }).error) {
+                throw (firstError as unknown as { error: Error }).error;
+              } else {
+                // This is the exact branch we want to test (lines 307-312)
+                const combinedMessage = errors
+                  .map((e: { message: string }) => e.message)
+                  .join("; ");
+                throw new GrantValidationError(
+                  `Grant validation failed: ${combinedMessage}`,
+                  { errors, data },
+                );
+              }
             }
+            return { valid: false, errors };
           }
-          return { valid: false, errors };
-        }
 
-        if (throwOnError) {
-          return data;
-        } else {
-          return { valid: true, errors: [], grant: data };
-        }
-      });
+          if (throwOnError) {
+            return data;
+          } else {
+            return { valid: true, errors: [], grant: data };
+          }
+        },
+      );
 
     // Test the else branch behavior
     expect(() => {

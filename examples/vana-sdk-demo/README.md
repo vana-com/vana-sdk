@@ -84,7 +84,7 @@ CHAIN_RPC_URL=https://rpc.moksha.vana.org
 CHAIN_ID=14800
 
 # Data Discovery (Subgraph)
-NEXT_PUBLIC_SUBGRAPH_URL=https://api.goldsky.com/api/public/project_cm168cz887zva010j39il7a6p/subgraphs/vana/7.0.4/gn
+NEXT_PUBLIC_SUBGRAPH_URL=https://api.goldsky.com/api/public/project_cm168cz887zva010j39il7a6p/subgraphs/vana/7.0.3/gn
 
 # IPFS Storage (Pinata)
 PINATA_JWT=your_pinata_jwt_token_here
@@ -99,7 +99,7 @@ NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID=your_project_id_here
 
 # Personal Server Configuration (for advanced features)
 APPLICATION_PRIVATE_KEY=your_application_private_key_here
-REPLICATE_API_TOKEN=your_replicate_api_token_here
+REPLICATE_API_TOKEN=your_replicate_api_token_here  # Only needed for server-side operations
 ```
 
 ---
@@ -379,6 +379,32 @@ npm run typecheck
 
 # Linting
 npm run lint
+```
+
+### Testing Local SDK Changes
+
+To test local SDK changes in the demo:
+
+```bash
+# 1. In the SDK package directory
+cd ../../packages/vana-sdk
+npm link
+
+# 2. In the demo directory
+cd ../../examples/vana-sdk-demo
+npm link @opendatalabs/vana-sdk
+
+# 3. Start the demo
+npm run dev
+```
+
+This creates a symlink so the demo uses your local SDK instead of the published version.
+
+**To revert:**
+
+```bash
+npm unlink @opendatalabs/vana-sdk
+npm install  # Reinstall published version
 ```
 
 ### Environment Setup

@@ -22,33 +22,8 @@ export interface InitPersonalServerParams {
   userAddress: string;
 }
 
-/**
- * Response from creating an operation via the personal server API.
- */
-export interface CreateOperationResponse {
-  /** The operation ID for tracking the computation */
-  id: string;
-  /** The timestamp when the operation was created */
-  created_at: string;
-}
-
-/**
- * Response from getting operation status via the personal server API.
- */
-export interface GetOperationResponse {
-  /** The operation ID */
-  id: string;
-  /** The status of the operation */
-  status: string;
-  /** Optional timestamp when the operation started */
-  started_at?: string;
-  /** Optional timestamp when the operation finished */
-  finished_at?: string;
-  /** Optional result data if operation completed successfully */
-  result?: unknown;
-  /** The prediction ID (same as id) */
-  prediction_id: string;
-}
+// Server response types are now auto-generated from OpenAPI spec in server.d.ts
+// Use components["schemas"]["CreateOperationResponse"] and components["schemas"]["GetOperationResponse"]
 
 export interface PersonalServerIdentity {
   /** Derived address for the personal server */

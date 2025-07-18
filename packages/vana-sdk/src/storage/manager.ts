@@ -23,7 +23,7 @@ import {
  * a uniform API surface for applications.
  * @example
  * ```typescript
- * import { StorageManager, IPFSStorage, PinataStorage } from 'vana-sdk';
+ * import { StorageManager, IPFSStorage, PinataStorage } from '@opendatalabs/vana-sdk';
  *
  * const storage = new StorageManager();
  *

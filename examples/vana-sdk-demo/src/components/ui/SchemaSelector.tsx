@@ -116,7 +116,7 @@ export const SchemaSelector: React.FC<SchemaSelectorProps> = ({
     }
   };
 
-  const getSelectedKeys = () => {
+  const getSelectedKeys = (): Set<string> => {
     if (selectedSchemaId === null || selectedSchemaId === undefined) {
       return includeNoneOption ? new Set(["none"]) : new Set();
     }

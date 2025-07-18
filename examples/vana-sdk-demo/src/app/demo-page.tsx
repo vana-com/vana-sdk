@@ -209,7 +209,7 @@ export default function Home() {
     useState<GrantedPermission | null>(null);
 
   // Personal server state
-  const [personalPermissionId, setPersonalPermissionId] = useState<string>("");
+  const [personalPermissionId, _setPersonalPermissionId] = useState<string>("");
   const [personalResult, setPersonalResult] = useState<unknown>(null);
   const [personalError, setPersonalError] = useState<string>("");
   const [isPersonalLoading, setIsPersonalLoading] = useState(false);
@@ -964,8 +964,23 @@ export default function Home() {
       // The SDK stores the grant file in IPFS and puts the URL in typedData.message.grant
       const grantUrl = typedData.message.grant;
 
-      // Retrieve the stored grant file
-      const grantFile = await retrieveGrantFile(grantUrl);
+      // Try to retrieve the stored grant file, but don't fail if CORS issues occur
+      let grantFile = null;
+      try {
+        grantFile = await retrieveGrantFile(grantUrl);
+      } catch (error) {
+        console.warn(
+          "Failed to retrieve grant file (likely CORS issue):",
+          error,
+        );
+        // Create a minimal grant file from the typedData for preview
+        grantFile = {
+          grantee: grantPreview.params.to,
+          operation: grantPreview.params.operation || "llm_inference",
+          parameters: grantPreview.params.parameters || {},
+          expires: grantPreview.params.expiresAt,
+        };
+      }
 
       // Update grant preview with signed data
       setGrantPreview({
@@ -984,7 +999,6 @@ export default function Home() {
         signature as `0x${string}`,
       );
 
-      setGrantStatus(""); // Clear status since permission will appear in list
       setGrantTxHash(txHash);
       onCloseGrant();
 
@@ -992,8 +1006,14 @@ export default function Home() {
       const grantUrlToMatch = typedData.message.grant;
       const nonceToMatch = typedData.message.nonce;
 
+      // Show status while looking for the new permission
+      setGrantStatus("Finding your new permission...");
+
       // Refresh permissions to show the new grant and set lastUsedPermissionId
-      setTimeout(async () => {
+      // Use retry logic with longer delays for blockchain processing
+      const findNewPermission = async (attempt = 1) => {
+        setGrantStatus(`Finding your new permission... (attempt ${attempt}/3)`);
+
         const freshPermissions = await loadUserPermissions();
 
         // Find the newly created permission by matching grant URL and nonce
@@ -1004,19 +1024,29 @@ export default function Home() {
 
         if (newPermission) {
           setLastUsedPermissionId(newPermission.id.toString());
+          setGrantStatus(""); // Clear status
           console.debug(
             "✅ Set lastUsedPermissionId to:",
             newPermission.id.toString(),
+            `(found on attempt ${attempt})`,
           );
+        } else if (attempt < 3) {
+          console.debug(
+            `🔄 Permission not found on attempt ${attempt}, retrying in ${attempt * 2} seconds...`,
+          );
+          setTimeout(() => findNewPermission(attempt + 1), attempt * 2000);
         } else {
+          setGrantStatus(""); // Clear status even if failed
           console.warn(
-            "⚠️ Could not find newly created permission to set as lastUsedPermissionId",
+            "⚠️ Could not find newly created permission to set as lastUsedPermissionId after 3 attempts",
           );
           console.debug("Available permissions:", freshPermissions);
           console.debug("Looking for grant URL:", grantUrlToMatch);
           console.debug("Looking for nonce:", nonceToMatch);
         }
-      }, 2000);
+      };
+
+      setTimeout(() => findNewPermission(), 3000);
     } catch (error) {
       console.error("Failed to grant permission:", error);
       setGrantStatus(
@@ -1321,7 +1351,7 @@ export default function Home() {
 
   // Note: getExplorerUrl function removed - using ExplorerLink component directly
 
-  const handlePersonalServerCall = async () => {
+  const _handlePersonalServerCall = async () => {
     if (!address) return;
 
     // Parse permission ID
@@ -1366,21 +1396,85 @@ export default function Home() {
       const result = await response.json();
       setPersonalResult(result.data);
 
-      // Fetch and store permission context for display
+      // Store permission context for display
       if (vana) {
         try {
-          const permissionInfo = await vana.permissions.getPermissionInfo(
-            BigInt(permissionId),
-          );
-          const _grantFile = await retrieveGrantFile(permissionInfo.grant);
+          // Note: Grant file retrieval removed to avoid CORS issues
+          // const permissionInfo = await vana.permissions.getPermissionInfo(BigInt(permissionId));
+          // const _grantFile = await retrieveGrantFile(permissionInfo.grant);
 
           setLastUsedPermissionId(permissionId.toString());
-          // Note: lastUsedPrompt removed as it's not used in new layout
         } catch (error) {
-          console.warn("Failed to fetch permission context:", error);
-          // Don't fail the main operation if context fetching fails
+          console.warn("Failed to set permission context:", error);
+          // Don't fail the main operation if context setting fails
           setLastUsedPermissionId(permissionId.toString());
-          // Note: lastUsedPrompt removed as it's not used in new layout
+        }
+      }
+    } catch (error) {
+      setPersonalError(
+        error instanceof Error ? error.message : "Unknown error",
+      );
+    } finally {
+      setIsPersonalLoading(false);
+    }
+  };
+
+  /**
+   * Handle LLM execution for the demo flow with the given permission ID
+   */
+  const handleDemoRunLLM = async (permissionIdString: string) => {
+    if (!address) return;
+
+    // Parse permission ID
+    let permissionId: number;
+    try {
+      permissionId = parseInt(permissionIdString.trim());
+      if (isNaN(permissionId) || permissionId <= 0) {
+        setPersonalError("Permission ID must be a valid positive number");
+        return;
+      }
+    } catch {
+      setPersonalError("Permission ID must be a valid number");
+      return;
+    }
+
+    setIsPersonalLoading(true);
+    setPersonalError("");
+    setPersonalResult(null);
+    try {
+      // Call our API route instead of using the SDK directly
+      const response = await fetch("/api/trusted-server", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userAddress: address,
+          permissionId,
+          chainId,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      setPersonalResult(result.data);
+
+      // Store permission context for display
+      if (vana) {
+        try {
+          // Note: Grant file retrieval removed to avoid CORS issues
+          // const permissionInfo = await vana.permissions.getPermissionInfo(BigInt(permissionId));
+          // const _grantFile = await retrieveGrantFile(permissionInfo.grant);
+
+          setLastUsedPermissionId(permissionId.toString());
+        } catch (error) {
+          console.warn("Failed to set permission context:", error);
+          // Don't fail the main operation if context setting fails
+          setLastUsedPermissionId(permissionId.toString());
         }
       }
     } catch (error) {
@@ -1857,17 +1951,6 @@ export default function Home() {
       console.error("Failed to upload demo text:", error);
     } finally {
       setIsDemoUploadingNewText(false);
-    }
-  };
-
-  const handleDemoRunLLM = async (permissionId: string) => {
-    if (!permissionId) return;
-
-    try {
-      setPersonalPermissionId(permissionId);
-      await handlePersonalServerCall();
-    } catch (error) {
-      console.error("Failed to run LLM:", error);
     }
   };
 

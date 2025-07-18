@@ -17,9 +17,14 @@ export async function POST(request: NextRequest) {
     const blob = new Blob([await file.arrayBuffer()], { type: file.type });
     const result = await pinataProvider.upload(blob, file.name);
 
-    // Extract CID from gateway URL
-    const urlParts = result.url.split("/ipfs/");
-    const ipfsHash = urlParts[1];
+    // Extract CID from IPFS URL (handles both ipfs:// and gateway URLs)
+    let ipfsHash: string;
+    if (result.url.startsWith("ipfs://")) {
+      ipfsHash = result.url.replace("ipfs://", "");
+    } else {
+      const urlParts = result.url.split("/ipfs/");
+      ipfsHash = urlParts[1];
+    }
 
     return NextResponse.json({
       success: true,

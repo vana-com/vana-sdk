@@ -1422,6 +1422,47 @@ export default function Home() {
   /**
    * Handle LLM execution for the demo flow with the given permission ID
    */
+  const pollReplicateStatus = async (
+    replicateId: string,
+    permissionId: number,
+  ) => {
+    try {
+      const response = await fetch("/api/trusted-server/poll", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          replicateId,
+          permissionId,
+        }),
+      });
+
+      if (!response.ok) {
+        console.warn("Failed to poll Replicate status");
+        return;
+      }
+
+      const result = await response.json();
+
+      if (result.data?.status === "succeeded") {
+        // Extract the actual AI response from output
+        const aiResponse = result.data.output || "No output received";
+        setPersonalResult(aiResponse);
+        setIsPersonalLoading(false);
+      } else if (result.data?.status === "failed") {
+        setPersonalError(result.data?.error || "AI processing failed");
+        setIsPersonalLoading(false);
+      } else {
+        // Still processing, poll again in 2 seconds
+        setTimeout(() => pollReplicateStatus(replicateId, permissionId), 2000);
+      }
+    } catch (error) {
+      console.warn("Error polling Replicate status:", error);
+      setIsPersonalLoading(false);
+    }
+  };
+
   const handleDemoRunLLM = async (permissionIdString: string) => {
     if (!address) return;
 
@@ -1461,7 +1502,24 @@ export default function Home() {
       }
 
       const result = await response.json();
-      setPersonalResult(result.data);
+
+      // If Replicate is still processing, start polling
+      if (
+        result.data?.status === "starting" ||
+        result.data?.status === "processing"
+      ) {
+        pollReplicateStatus(result.data.id, permissionId);
+      } else if (result.data?.status === "succeeded") {
+        // Extract the actual AI response from output
+        const aiResponse = result.data.output || "No output received";
+        setPersonalResult(aiResponse);
+        setIsPersonalLoading(false);
+      } else if (result.data?.status === "failed") {
+        setPersonalError(result.data?.error || "AI processing failed");
+        setIsPersonalLoading(false);
+      } else {
+        setIsPersonalLoading(false);
+      }
 
       // Store permission context for display
       if (vana) {
@@ -1481,7 +1539,6 @@ export default function Home() {
       setPersonalError(
         error instanceof Error ? error.message : "Unknown error",
       );
-    } finally {
       setIsPersonalLoading(false);
     }
   };

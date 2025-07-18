@@ -120,7 +120,7 @@ export interface UserDashboardViewProps {
   onServerIdChange: (value: string) => void;
   serverUrl: string;
   onServerUrlChange: (value: string) => void;
-  onTrustServer: () => void;
+  onTrustServer: (serverId?: string, serverUrl?: string) => void;
   isTrustingServer: boolean;
   onUntrustServer: (serverId: string) => void;
   isUntrusting: boolean;

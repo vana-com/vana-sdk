@@ -44,9 +44,14 @@ export interface DemoExperienceViewProps {
   onServerIdChange: (value: string) => void;
   serverUrl: string;
   onServerUrlChange: (value: string) => void;
-  onDiscoverReplicateServer: () => void;
+  onDiscoverReplicateServer: () => Promise<{
+    serverId: string;
+    serverUrl: string;
+    name: string;
+    publicKey?: string;
+  } | null>;
   isDiscoveringServer: boolean;
-  onTrustServer: () => void;
+  onTrustServer: (serverId?: string, serverUrl?: string) => void;
   isTrustingServer: boolean;
   trustServerError: string;
   trustedServers: Array<{
@@ -101,7 +106,7 @@ export interface DemoExperienceViewProps {
  */
 export function DemoExperienceView({
   vana,
-  serverId,
+  serverId: _serverId,
   onServerIdChange: _onServerIdChange,
   serverUrl: _serverUrl,
   onServerUrlChange: _onServerUrlChange,
@@ -192,11 +197,37 @@ export function DemoExperienceView({
    * Handles the trust server action with one-click setup
    */
   const handleTrustServerWithSetup = async () => {
-    await onDiscoverReplicateServer();
-    if (serverId && _serverUrl) {
-      await onTrustServer();
-      // Auto-select the server that was just trusted
-      setSelectedTrustedServer(serverId);
+    try {
+      console.info("🔄 Starting One Click Setup...");
+      const discoveredServer = await onDiscoverReplicateServer();
+      console.info("🔍 Discovered server:", discoveredServer);
+
+      if (
+        discoveredServer &&
+        discoveredServer.serverId &&
+        discoveredServer.serverUrl
+      ) {
+        console.info("✅ Server discovery successful, now trusting server...");
+        await onTrustServer(
+          discoveredServer.serverId,
+          discoveredServer.serverUrl,
+        );
+        console.info("✅ Trust server completed, setting selected server...");
+
+        // Auto-select the server that was just trusted
+        setSelectedTrustedServer(discoveredServer.serverId);
+        console.info("✅ One Click Setup completed successfully!");
+      } else {
+        console.warn(
+          "❌ Server discovery failed or incomplete:",
+          discoveredServer,
+        );
+        console.warn("❌ Missing serverId:", !discoveredServer?.serverId);
+        console.warn("❌ Missing serverUrl:", !discoveredServer?.serverUrl);
+      }
+    } catch (error) {
+      console.error("❌ One Click Setup failed:", error);
+      // Error will be displayed via trustServerError state from parent component
     }
   };
 

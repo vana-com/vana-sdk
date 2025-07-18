@@ -1610,26 +1610,33 @@ export default function Home() {
   // Trust server handlers
 
   const handleDiscoverHostedServer = async () => {
-    if (!address) return;
+    if (!address) {
+      console.error("❌ Server discovery failed: No address provided");
+      return null;
+    }
 
+    console.info("🔄 Starting server discovery for address:", address);
     setIsDiscoveringServer(true);
     setTrustServerError("");
     // Clear any previous discovery state
 
     try {
+      const gatewayUrl = `${process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL}/identity?address=${address}`;
+      console.info("🔍 Calling gateway URL:", gatewayUrl);
+
       // Call the gateway directly to discover the server identity (no authentication required)
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL}/identity?address=${address}`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
+      const response = await fetch(gatewayUrl, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
         },
-      );
+      });
+
+      console.info("🔍 Gateway response status:", response.status);
 
       if (!response.ok) {
         const errorData = await response.json();
+        console.error("❌ Gateway error response:", errorData);
         throw new Error(errorData.error || `HTTP ${response.status}`);
       }
 
@@ -1653,25 +1660,34 @@ export default function Home() {
       console.debug("🔍 Public key:", publicKey);
 
       if (!derivedAddress) {
+        console.error("❌ Could not determine server identity from response");
         throw new Error("Could not determine server identity from response");
       }
 
       const serverInfo: DiscoveredServerInfo = {
         serverId: derivedAddress,
-        serverUrl: result.personal_server?.base_url || "",
-        name: result.personal_server?.name || "",
+        serverUrl:
+          result.personal_server?.base_url ||
+          process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL ||
+          "",
+        name: result.personal_server?.name || "Personal Server",
         publicKey: publicKey,
       };
 
-      // Store discovered server info (functionality simplified for demo)
+      console.info("✅ Server discovery successful:", serverInfo);
 
       // Auto-populate the form fields
       setServerId(serverInfo.serverId);
       setServerUrl(serverInfo.serverUrl);
+
+      // Return the discovered server info
+      return serverInfo;
     } catch (error) {
+      console.error("❌ Server discovery failed:", error);
       setTrustServerError(
         error instanceof Error ? error.message : "Failed to discover server",
       );
+      return null;
     } finally {
       setIsDiscoveringServer(false);
     }
@@ -1720,44 +1736,69 @@ export default function Home() {
     }
   };
 
-  const handleTrustServerGasless = async () => {
-    if (!vana || !address) return;
+  const handleTrustServerGasless = async (
+    clearFieldsOnSuccess = true,
+    overrideServerId?: string,
+    overrideServerUrl?: string,
+  ) => {
+    if (!vana || !address) {
+      console.error("❌ Trust server failed: Missing vana instance or address");
+      return;
+    }
+
+    // Use override values if provided, otherwise use state values
+    const actualServerId = overrideServerId || serverId;
+    const actualServerUrl = overrideServerUrl || serverUrl;
 
     // Validate inputs
-    if (!serverId.trim()) {
+    if (!actualServerId.trim()) {
+      console.error("❌ Trust server failed: Missing server ID");
       setTrustServerError("Please provide a server ID");
       return;
     }
 
-    if (!serverUrl.trim()) {
+    if (!actualServerUrl.trim()) {
+      console.error("❌ Trust server failed: Missing server URL");
       setTrustServerError("Please provide a server URL");
       return;
     }
 
     // Basic URL validation
     try {
-      new URL(serverUrl);
+      new URL(actualServerUrl);
     } catch {
+      console.error("❌ Trust server failed: Invalid URL format");
       setTrustServerError("Please provide a valid URL");
       return;
     }
+
+    console.info("🔄 Starting trust server with signature...", {
+      serverId: actualServerId,
+      serverUrl: actualServerUrl,
+    });
 
     setIsTrustingServer(true);
     setTrustServerError("");
 
     try {
       await vana.permissions.trustServerWithSignature({
-        serverId: serverId as `0x${string}`,
-        serverUrl: serverUrl,
+        serverId: actualServerId as `0x${string}`,
+        serverUrl: actualServerUrl,
       });
 
+      console.info("✅ Trust server with signature completed successfully!");
+
       // Success - form shows success via trustServerError being cleared
-      // Clear the form fields on success
-      setServerId("");
-      setServerUrl("");
+      // Clear the form fields on success only if requested
+      if (clearFieldsOnSuccess) {
+        setServerId("");
+        setServerUrl("");
+      }
       // Refresh trusted servers list
       await loadUserTrustedServers();
+      console.info("✅ Trusted servers list refreshed");
     } catch (error) {
+      console.error("❌ Trust server with signature failed:", error);
       setTrustServerError(
         error instanceof Error ? error.message : "Failed to trust server",
       );
@@ -2120,7 +2161,7 @@ export default function Home() {
     serverUrl,
     onServerUrlChange: setServerUrl,
     onTrustServer: appConfig.useGaslessTransactions
-      ? handleTrustServerGasless
+      ? () => handleTrustServerGasless(true)
       : handleTrustServer,
     isTrustingServer,
     onUntrustServer: handleUntrustServer,
@@ -2260,7 +2301,8 @@ export default function Home() {
     onDiscoverReplicateServer: handleDiscoverHostedServer,
     isDiscoveringServer,
     onTrustServer: appConfig.useGaslessTransactions
-      ? handleTrustServerGasless
+      ? (serverId?: string, serverUrl?: string) =>
+          handleTrustServerGasless(false, serverId, serverUrl)
       : handleTrustServer,
     isTrustingServer,
     trustServerError,

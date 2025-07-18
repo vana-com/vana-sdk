@@ -1010,9 +1010,9 @@ export default function Home() {
       setGrantStatus("Finding your new permission...");
 
       // Refresh permissions to show the new grant and set lastUsedPermissionId
-      // Use retry logic with longer delays for blockchain processing
+      // Use retry logic with exponential backoff for blockchain processing
       const findNewPermission = async (attempt = 1) => {
-        setGrantStatus(`Finding your new permission... (attempt ${attempt}/3)`);
+        setGrantStatus(`Finding your new permission... (attempt ${attempt})`);
 
         const freshPermissions = await loadUserPermissions();
 
@@ -1030,19 +1030,13 @@ export default function Home() {
             newPermission.id.toString(),
             `(found on attempt ${attempt})`,
           );
-        } else if (attempt < 3) {
-          console.debug(
-            `🔄 Permission not found on attempt ${attempt}, retrying in ${attempt * 2} seconds...`,
-          );
-          setTimeout(() => findNewPermission(attempt + 1), attempt * 2000);
         } else {
-          setGrantStatus(""); // Clear status even if failed
-          console.warn(
-            "⚠️ Could not find newly created permission to set as lastUsedPermissionId after 3 attempts",
+          console.debug(
+            `🔄 Permission not found on attempt ${attempt}, retrying in ${Math.min(attempt * 2, 10)} seconds...`,
           );
-          console.debug("Available permissions:", freshPermissions);
-          console.debug("Looking for grant URL:", grantUrlToMatch);
-          console.debug("Looking for nonce:", nonceToMatch);
+          // Exponential backoff with max delay of 10 seconds
+          const delay = Math.min(attempt * 2000, 10000);
+          setTimeout(() => findNewPermission(attempt + 1), delay);
         }
       };
 

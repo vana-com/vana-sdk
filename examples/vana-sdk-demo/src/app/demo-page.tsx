@@ -908,39 +908,86 @@ export default function Home() {
       return;
     }
 
-    // Create clear, unencrypted parameters for the grant
-    const params: GrantPermissionParams = {
-      to: applicationAddress as `0x${string}`, // Use dynamically fetched application address
-      operation: "llm_inference",
-      files: selectedFiles,
-      parameters: {
-        prompt: promptText,
-      },
-    };
+    setIsGranting(true);
+    setGrantStatus("Preparing files for trusted server access...");
 
-    console.debug("🔍 Debug - Permission params:", {
-      selectedFiles,
-      paramsFiles: params.files,
-      filesLength: params.files.length,
-      operation: params.operation,
-    });
+    try {
+      // Get the trusted server address
+      const trustedServer = trustedServers.find((s) => s.serverAddress);
+      if (!trustedServer) {
+        throw new Error(
+          "No trusted server found. Please trust a server first.",
+        );
+      }
 
-    // Add expiration to params (24 hours from now)
-    const paramsWithExpiry = {
-      ...params,
-      expiresAt: Math.floor(Date.now() / 1000) + 86400,
-    };
+      // Ensure server can decrypt all selected files
+      for (const fileId of selectedFiles) {
+        try {
+          setGrantStatus(`Ensuring server can access file ${fileId}...`);
 
-    // Show preview to user BEFORE signing
-    setGrantPreview({
-      grantFile: null, // Will be populated after signing
-      grantUrl: "",
-      params: paramsWithExpiry,
-      typedData: null,
-      signature: null,
-    });
-    onOpenGrant();
-    setGrantStatus("Review the grant details before signing...");
+          // Get server's public key
+          const serverPublicKey = await vana.data.getTrustedServerPublicKey(
+            trustedServer.serverAddress as `0x${string}`,
+          );
+
+          // Add permission for the server to decrypt this file
+          await vana.data.addPermissionToFile(
+            fileId,
+            trustedServer.serverAddress as `0x${string}`,
+            serverPublicKey,
+          );
+
+          console.debug(`✅ Added server permission for file ${fileId}`);
+        } catch (error) {
+          console.warn(
+            `Failed to add server permission for file ${fileId}:`,
+            error,
+          );
+          // Continue anyway - might already have permission
+        }
+      }
+
+      // Create clear, unencrypted parameters for the grant
+      const params: GrantPermissionParams = {
+        to: applicationAddress as `0x${string}`, // Use dynamically fetched application address
+        operation: "llm_inference",
+        files: selectedFiles,
+        parameters: {
+          prompt: promptText,
+        },
+      };
+
+      console.debug("🔍 Debug - Permission params:", {
+        selectedFiles,
+        paramsFiles: params.files,
+        filesLength: params.files.length,
+        operation: params.operation,
+      });
+
+      // Add expiration to params (24 hours from now)
+      const paramsWithExpiry = {
+        ...params,
+        expiresAt: Math.floor(Date.now() / 1000) + 86400,
+      };
+
+      // Show preview to user BEFORE signing
+      setGrantPreview({
+        grantFile: null, // Will be populated after signing
+        grantUrl: "",
+        params: paramsWithExpiry,
+        typedData: null,
+        signature: null,
+      });
+      onOpenGrant();
+      setGrantStatus("Review the grant details before signing...");
+    } catch (error) {
+      console.error("Failed to prepare permission grant:", error);
+      setGrantStatus(
+        `❌ Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    } finally {
+      setIsGranting(false);
+    }
   };
 
   const handleConfirmGrant = async () => {

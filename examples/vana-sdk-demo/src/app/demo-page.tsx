@@ -65,8 +65,8 @@ import { MainLayout } from "@/components/MainLayout";
 import { GrantPreviewModalContent } from "@/components/GrantPreviewModalContent";
 import { Eye } from "lucide-react";
 import type {
-  TrustedServerIdentityAPIResponse,
   DiscoveredServerInfo,
+  GatewayIdentityResponse,
 } from "@/types/api";
 import type { UserDashboardViewProps } from "@/components/views/UserDashboardView";
 import type { DeveloperDashboardViewProps } from "@/components/views/DeveloperDashboardView";
@@ -920,22 +920,30 @@ export default function Home() {
         );
       }
 
-      // Get server's public key via API (server-side call)
+      // Get server's public key from gateway (no API call needed)
       setGrantStatus("Getting server public key...");
-      const keyResponse = await fetch("/api/server/public-key", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          serverAddress: trustedServer.serverAddress,
-          chainId,
-        }),
-      });
+
+      // Call the gateway directly to get the server's public key
+      const keyResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL}/identity?address=${address}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        },
+      );
 
       if (!keyResponse.ok) {
-        throw new Error("Failed to get server public key");
+        throw new Error("Failed to get server identity from gateway");
       }
 
-      const { publicKey } = await keyResponse.json();
+      const keyResult: GatewayIdentityResponse = await keyResponse.json();
+      const publicKey = keyResult.personal_server?.public_key;
+
+      if (!publicKey) {
+        throw new Error("Server public key not found in gateway response");
+      }
 
       // Ensure server can decrypt all selected files
       for (const fileId of selectedFiles) {
@@ -1609,37 +1617,38 @@ export default function Home() {
     // Clear any previous discovery state
 
     try {
-      // Call the trusted server setup API to discover/initialize the server identity
-      const response = await fetch("/api/identity", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      // Call the gateway directly to discover the server identity (no authentication required)
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL}/identity?address=${address}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
-        body: JSON.stringify({
-          userAddress: address,
-          chainId: chainId,
-        }),
-      });
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || `HTTP ${response.status}`);
       }
 
-      const result: TrustedServerIdentityAPIResponse = await response.json();
+      const result: GatewayIdentityResponse = await response.json();
 
       // Debug: Log the full response structure
-      console.debug("🔍 Full API Response:", JSON.stringify(result, null, 2));
-      console.debug("🔍 Response data:", result.data);
+      console.debug(
+        "🔍 Full Gateway Response:",
+        JSON.stringify(result, null, 2),
+      );
+      console.debug("🔍 Personal Server:", result.personal_server);
 
-      // Extract server information from the SDK response
-      // The SDK now returns: { userAddress, identity: { metadata: { derivedAddress, publicKey } }, timestamp }
-      const derivedAddress = result.data?.address;
-      const publicKey = result.data?.public_key;
+      // Extract server information from the direct gateway response
+      // The gateway returns: { personal_server: { address, base_url, name, public_key } }
+      const derivedAddress = result.personal_server?.address;
+      const publicKey = result.personal_server?.public_key;
 
       // Debug: Log extraction results
-      console.debug("🔍 SDK Response data:", result.data);
-      console.debug("🔍 Identity metadata:", result.data?.public_key);
+      console.debug("🔍 Gateway Response data:", result.personal_server);
       console.debug("🔍 Derived address:", derivedAddress);
       console.debug("🔍 Public key:", publicKey);
 
@@ -1649,8 +1658,8 @@ export default function Home() {
 
       const serverInfo: DiscoveredServerInfo = {
         serverId: derivedAddress,
-        serverUrl: result.data?.base_url || "",
-        name: result.data?.name || "",
+        serverUrl: result.personal_server?.base_url || "",
+        name: result.personal_server?.name || "",
         publicKey: publicKey,
       };
 

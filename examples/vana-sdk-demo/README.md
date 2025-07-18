@@ -99,7 +99,7 @@ NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID=your_project_id_here
 
 # Personal Server Configuration (for advanced features)
 APPLICATION_PRIVATE_KEY=your_application_private_key_here
-REPLICATE_API_TOKEN=your_replicate_api_token_here
+REPLICATE_API_TOKEN=your_replicate_api_token_here  # Only needed for server-side operations
 ```
 
 ---

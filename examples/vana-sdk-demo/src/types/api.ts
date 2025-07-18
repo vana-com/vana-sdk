@@ -9,6 +9,7 @@ import type {
   IdentityServerOutput,
   PersonalServerOutput,
   PersonalServerResponse,
+  PersonalServerIdentity,
 } from "@opendatalabs/vana-sdk/browser";
 
 /**
@@ -25,7 +26,13 @@ export type TrustedServerIdentityAPIResponse =
 /** Response from /api/trusted-server/poll */
 export type TrustedServerPollAPIResponse = APIResponse<ReplicateAPIResponse>;
 
-/** Response from /api/identity */
+/** Response from direct Gateway identity call */
+export interface GatewayIdentityResponse {
+  /** Personal server information */
+  personal_server: PersonalServerIdentity;
+}
+
+/** Response from /api/identity (deprecated - use GatewayIdentityResponse) */
 export type IdentityAPIResponse = APIResponse<{
   userAddress: string;
   publicKey: string;

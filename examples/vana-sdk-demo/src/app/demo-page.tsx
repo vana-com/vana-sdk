@@ -1483,19 +1483,18 @@ export default function Home() {
   /**
    * Handle LLM execution for the demo flow with the given permission ID
    */
-  const pollReplicateStatus = async (
-    replicateId: string,
+  const pollOperationStatus = async (
+    operationId: string,
     permissionId: number,
   ) => {
     try {
-      const getUrl = `https://api.replicate.com/v1/predictions/${replicateId}`;
       const response = await fetch("/api/trusted-server/poll", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          getUrl,
+          operationId,
           chainId,
         }),
       });
@@ -1509,15 +1508,23 @@ export default function Home() {
 
       if (result.data?.status === "succeeded") {
         // Extract the actual AI response from output
-        const aiResponse = result.data.output || "No output received";
+        const aiResponse = result.data.result || "No output received";
         setPersonalResult(aiResponse);
         setIsPersonalLoading(false);
       } else if (result.data?.status === "failed") {
         setPersonalError(result.data?.error || "AI processing failed");
         setIsPersonalLoading(false);
-      } else {
+      } else if (
+        result.data?.status === "starting" ||
+        result.data?.status === "processing"
+      ) {
         // Still processing, poll again in 2 seconds
-        setTimeout(() => pollReplicateStatus(replicateId, permissionId), 2000);
+        setTimeout(() => pollOperationStatus(operationId, permissionId), 2000);
+      } else {
+        // Unknown status, stop polling
+        console.warn("Unknown operation status:", result.data?.status);
+        setPersonalError("Unknown operation status");
+        setIsPersonalLoading(false);
       }
     } catch (error) {
       console.warn("Error polling Replicate status:", error);
@@ -1552,7 +1559,6 @@ export default function Home() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          userAddress: address,
           permissionId,
           chainId,
         }),
@@ -1565,21 +1571,14 @@ export default function Home() {
 
       const result = await response.json();
 
-      // If Replicate is still processing, start polling
-      if (
-        result.data?.status === "starting" ||
-        result.data?.status === "processing"
-      ) {
-        pollReplicateStatus(result.data.id, permissionId);
-      } else if (result.data?.status === "succeeded") {
-        // Extract the actual AI response from output
-        const aiResponse = result.data.output || "No output received";
-        setPersonalResult(aiResponse);
-        setIsPersonalLoading(false);
-      } else if (result.data?.status === "failed") {
-        setPersonalError(result.data?.error || "AI processing failed");
-        setIsPersonalLoading(false);
+      // Handle the new OperationCreated response format
+      if (result.data?.id) {
+        // Start polling for the operation status
+        pollOperationStatus(result.data.id, permissionId);
       } else {
+        // Fallback for unexpected response format
+        console.warn("Unexpected response format:", result.data);
+        setPersonalError("Unexpected response format from server");
         setIsPersonalLoading(false);
       }
 

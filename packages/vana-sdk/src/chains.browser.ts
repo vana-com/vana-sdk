@@ -9,6 +9,7 @@ export type { VanaChainConfig } from "./chains/definitions";
 export {
   vanaMainnet,
   moksha,
+  mokshaTestnet,
   getChainConfig,
   getAllChains,
 } from "./chains/definitions";

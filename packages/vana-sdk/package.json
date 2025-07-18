@@ -9,21 +9,14 @@
   "main": "dist/index.node.js",
   "types": "dist/index.node.d.ts",
   "exports": {
-    ".": {
-      "node": {
-        "types": "./dist/index.node.d.ts",
-        "import": "./dist/index.node.js",
-        "require": "./dist/index.node.cjs"
-      },
-      "browser": {
-        "import": "./dist/index.browser.js",
-        "types": "./dist/index.browser.d.ts"
-      },
-      "default": {
-        "types": "./dist/index.node.d.ts",
-        "import": "./dist/index.node.js",
-        "require": "./dist/index.node.cjs"
-      }
+    "./browser": {
+      "types": "./dist/index.browser.d.ts",
+      "import": "./dist/index.browser.js"
+    },
+    "./node": {
+      "types": "./dist/index.node.d.ts",
+      "import": "./dist/index.node.js",
+      "require": "./dist/index.node.cjs"
     },
     "./chains": {
       "node": {
@@ -77,7 +70,11 @@
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:verbose": "vitest --reporter=verbose",
+    "test:coverage": "vitest run --coverage",
+    "test:coverage:verbose": "vitest run --coverage --reporter=verbose --coverage.reporter=text",
+    "fetch-abis": "tsx scripts/fetch-abis.ts",
+    "fetch-server-types": "tsx scripts/fetch-server-types.ts"
   },
   "keywords": [
     "vana",
@@ -106,6 +103,7 @@
     "eslint-config-prettier": "^10.1.5",
     "eslint-plugin-prettier": "^5.4.0",
     "globals": "^16.3.0",
+    "openapi-typescript": "^7.8.0",
     "prettier": "^3.5.3",
     "rimraf": "^6.0.1",
     "tsup": "^8.5.0",

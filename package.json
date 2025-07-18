@@ -23,6 +23,7 @@
     "test:watch": "turbo run test:watch",
     "test:coverage": "turbo run test:coverage",
     "fetch-abis": "turbo run fetch-abis --filter='@opendatalabs/vana-sdk'",
+    "fetch-server-types": "turbo run fetch-server-types --filter='@opendatalabs/vana-sdk'",
     "clean": "turbo run clean",
     "docs": "typedoc",
     "prepare": "husky",

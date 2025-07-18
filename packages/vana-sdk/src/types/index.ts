@@ -47,6 +47,9 @@ export { StorageError } from "./storage";
 export type {
   UserFile,
   FileMetadata,
+  UploadParams,
+  PermissionParams,
+  UploadResult,
   UploadFileParams,
   UploadFileResult,
   UploadEncryptedFileResult,
@@ -74,6 +77,12 @@ export type {
   GetUserTrustedServersParams,
   GetUserTrustedServersResult,
 } from "./data";
+
+// Schema types
+export type {
+  CreateSchemaParams,
+  CreateSchemaResult,
+} from "../controllers/schemas";
 
 // Schema validation types
 export type { DataSchema } from "../utils/schemaValidation";
@@ -126,10 +135,11 @@ export type {
   PostRequestParams,
   CreateOperationParams,
   InitPersonalServerParams,
-  CreateOperationResponse as OperationCreatedResponse,
-  GetOperationResponse,
   PersonalServerIdentity,
 } from "./personal";
+
+// Server API types (auto-generated via fetch-server-types.ts)
+export * from "./server-exports";
 
 // External API types
 export type {

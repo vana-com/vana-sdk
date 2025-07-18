@@ -20,20 +20,22 @@ describe("Platform Adapters - Production Ready", () => {
         const data = "test data for encryption";
 
         // Encrypt
-        const encrypted = await browserPlatformAdapter.crypto.encryptWithPublicKey(
-          data,
-          keyPair.publicKey,
-        );
+        const encrypted =
+          await browserPlatformAdapter.crypto.encryptWithPublicKey(
+            data,
+            keyPair.publicKey,
+          );
 
-        // Should be JSON format (not placeholder)
-        expect(() => JSON.parse(encrypted)).not.toThrow();
+        // Should be hex format
+        expect(/^[0-9a-f]+$/i.test(encrypted)).toBe(true);
         expect(encrypted).not.toBe(data);
 
         // Decrypt
-        const decrypted = await browserPlatformAdapter.crypto.decryptWithPrivateKey(
-          encrypted,
-          keyPair.privateKey,
-        );
+        const decrypted =
+          await browserPlatformAdapter.crypto.decryptWithPrivateKey(
+            encrypted,
+            keyPair.privateKey,
+          );
 
         expect(decrypted).toBe(data);
       });
@@ -64,7 +66,7 @@ describe("Platform Adapters - Production Ready", () => {
           browserPlatformAdapter.crypto.decryptWithPrivateKey(
             "invalid-data",
             keyPair.privateKey,
-          )
+          ),
         ).rejects.toThrow();
       });
     });
@@ -74,7 +76,7 @@ describe("Platform Adapters - Production Ready", () => {
         // Generate real PGP keys
         const keyPair = await browserPlatformAdapter.pgp.generateKeyPair({
           name: "Test User",
-          email: "test@vana.org"
+          email: "test@vana.org",
         });
 
         const data = "sensitive pgp data";
@@ -102,10 +104,18 @@ describe("Platform Adapters - Production Ready", () => {
 
         expect(keyPair).toHaveProperty("publicKey");
         expect(keyPair).toHaveProperty("privateKey");
-        expect(keyPair.publicKey).toContain("-----BEGIN PGP PUBLIC KEY BLOCK-----");
-        expect(keyPair.publicKey).toContain("-----END PGP PUBLIC KEY BLOCK-----");
-        expect(keyPair.privateKey).toContain("-----BEGIN PGP PRIVATE KEY BLOCK-----");
-        expect(keyPair.privateKey).toContain("-----END PGP PRIVATE KEY BLOCK-----");
+        expect(keyPair.publicKey).toContain(
+          "-----BEGIN PGP PUBLIC KEY BLOCK-----",
+        );
+        expect(keyPair.publicKey).toContain(
+          "-----END PGP PUBLIC KEY BLOCK-----",
+        );
+        expect(keyPair.privateKey).toContain(
+          "-----BEGIN PGP PRIVATE KEY BLOCK-----",
+        );
+        expect(keyPair.privateKey).toContain(
+          "-----END PGP PRIVATE KEY BLOCK-----",
+        );
       }, 10000);
 
       it("should generate PGP keys with user options", async () => {
@@ -115,10 +125,15 @@ describe("Platform Adapters - Production Ready", () => {
           passphrase: "secure-passphrase",
         };
 
-        const keyPair = await browserPlatformAdapter.pgp.generateKeyPair(options);
+        const keyPair =
+          await browserPlatformAdapter.pgp.generateKeyPair(options);
 
-        expect(keyPair.publicKey).toContain("-----BEGIN PGP PUBLIC KEY BLOCK-----");
-        expect(keyPair.privateKey).toContain("-----BEGIN PGP PRIVATE KEY BLOCK-----");
+        expect(keyPair.publicKey).toContain(
+          "-----BEGIN PGP PUBLIC KEY BLOCK-----",
+        );
+        expect(keyPair.privateKey).toContain(
+          "-----BEGIN PGP PRIVATE KEY BLOCK-----",
+        );
       }, 10000);
 
       it("should fail to decrypt with wrong private key", async () => {
@@ -126,10 +141,13 @@ describe("Platform Adapters - Production Ready", () => {
         const keyPair2 = await browserPlatformAdapter.pgp.generateKeyPair();
 
         const data = "secret message";
-        const encrypted = await browserPlatformAdapter.pgp.encrypt(data, keyPair1.publicKey);
+        const encrypted = await browserPlatformAdapter.pgp.encrypt(
+          data,
+          keyPair1.publicKey,
+        );
 
         await expect(
-          browserPlatformAdapter.pgp.decrypt(encrypted, keyPair2.privateKey)
+          browserPlatformAdapter.pgp.decrypt(encrypted, keyPair2.privateKey),
         ).rejects.toThrow();
       }, 15000);
     });
@@ -139,28 +157,44 @@ describe("Platform Adapters - Production Ready", () => {
         const mockResponse = new Response("test response", { status: 200 });
         globalThis.fetch = vi.fn().mockResolvedValue(mockResponse);
 
-        const result = await browserPlatformAdapter.http.fetch("https://example.com");
+        const result = await browserPlatformAdapter.http.fetch(
+          "https://example.com",
+        );
 
         expect(result).toBe(mockResponse);
-        expect(globalThis.fetch).toHaveBeenCalledWith("https://example.com", undefined);
+        expect(globalThis.fetch).toHaveBeenCalledWith(
+          "https://example.com",
+          undefined,
+        );
       });
 
       it("should pass options to fetch", async () => {
         const mockResponse = new Response("test response", { status: 200 });
         globalThis.fetch = vi.fn().mockResolvedValue(mockResponse);
 
-        const options = { method: "POST", headers: { "Content-Type": "application/json" } };
-        const result = await browserPlatformAdapter.http.fetch("https://api.example.com", options);
+        const options = {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        };
+        const result = await browserPlatformAdapter.http.fetch(
+          "https://api.example.com",
+          options,
+        );
 
         expect(result).toBe(mockResponse);
-        expect(globalThis.fetch).toHaveBeenCalledWith("https://api.example.com", options);
+        expect(globalThis.fetch).toHaveBeenCalledWith(
+          "https://api.example.com",
+          options,
+        );
       });
 
       it("should handle fetch errors", async () => {
-        globalThis.fetch = vi.fn().mockRejectedValue(new Error("Network error"));
+        globalThis.fetch = vi
+          .fn()
+          .mockRejectedValue(new Error("Network error"));
 
         await expect(
-          browserPlatformAdapter.http.fetch("https://example.com")
+          browserPlatformAdapter.http.fetch("https://example.com"),
         ).rejects.toThrow("Network error");
       });
     });
@@ -177,13 +211,14 @@ describe("Platform Adapters - Production Ready", () => {
           keyPair.publicKey,
         );
 
-        expect(() => JSON.parse(encrypted)).not.toThrow();
+        expect(/^[0-9a-f]+$/i.test(encrypted)).toBe(true);
         expect(encrypted).not.toBe(data);
 
-        const decrypted = await nodePlatformAdapter.crypto.decryptWithPrivateKey(
-          encrypted,
-          keyPair.privateKey,
-        );
+        const decrypted =
+          await nodePlatformAdapter.crypto.decryptWithPrivateKey(
+            encrypted,
+            keyPair.privateKey,
+          );
 
         expect(decrypted).toBe(data);
       });
@@ -202,23 +237,33 @@ describe("Platform Adapters - Production Ready", () => {
       it("should encrypt and decrypt with OpenPGP", async () => {
         const keyPair = await nodePlatformAdapter.pgp.generateKeyPair({
           name: "Node User",
-          email: "node@vana.org"
+          email: "node@vana.org",
         });
 
         const data = "node pgp data";
-        const encrypted = await nodePlatformAdapter.pgp.encrypt(data, keyPair.publicKey);
+        const encrypted = await nodePlatformAdapter.pgp.encrypt(
+          data,
+          keyPair.publicKey,
+        );
 
         expect(encrypted).toContain("-----BEGIN PGP MESSAGE-----");
 
-        const decrypted = await nodePlatformAdapter.pgp.decrypt(encrypted, keyPair.privateKey);
+        const decrypted = await nodePlatformAdapter.pgp.decrypt(
+          encrypted,
+          keyPair.privateKey,
+        );
         expect(decrypted).toBe(data);
       }, 10000);
 
       it("should generate PGP keys", async () => {
         const keyPair = await nodePlatformAdapter.pgp.generateKeyPair();
 
-        expect(keyPair.publicKey).toContain("-----BEGIN PGP PUBLIC KEY BLOCK-----");
-        expect(keyPair.privateKey).toContain("-----BEGIN PGP PRIVATE KEY BLOCK-----");
+        expect(keyPair.publicKey).toContain(
+          "-----BEGIN PGP PUBLIC KEY BLOCK-----",
+        );
+        expect(keyPair.privateKey).toContain(
+          "-----BEGIN PGP PRIVATE KEY BLOCK-----",
+        );
       }, 10000);
     });
 
@@ -227,7 +272,9 @@ describe("Platform Adapters - Production Ready", () => {
         const mockResponse = new Response("node response");
         globalThis.fetch = vi.fn().mockResolvedValue(mockResponse);
 
-        const result = await nodePlatformAdapter.http.fetch("https://node-test.com");
+        const result = await nodePlatformAdapter.http.fetch(
+          "https://node-test.com",
+        );
         expect(result).toBe(mockResponse);
       });
 
@@ -235,7 +282,7 @@ describe("Platform Adapters - Production Ready", () => {
         globalThis.fetch = undefined as unknown as typeof fetch;
 
         await expect(
-          nodePlatformAdapter.http.fetch("https://example.com")
+          nodePlatformAdapter.http.fetch("https://example.com"),
         ).rejects.toThrow("No fetch implementation available");
       });
     });

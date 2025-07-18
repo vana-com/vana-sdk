@@ -3,10 +3,11 @@
   "entryPointStrategy": "expand",
   "exclude": [
     "packages/vana-sdk/src/abi/**/*",
-    "packages/vana-sdk/src/contracts/**/*"
+    "packages/vana-sdk/src/contracts/**/*",
+    "packages/vana-sdk/src/types/server.ts"
   ],
   "out": "docs",
-  "name": "Vana SDK Developer Guide",
+  "name": "Vana SDK",
   "readme": "packages/vana-sdk/README.md",
   "excludePrivate": true,
   "excludeInternal": true,

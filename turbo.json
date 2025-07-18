@@ -37,7 +37,7 @@
       "persistent": true
     },
     "test:coverage": {
-      "outputs": ["coverage/**"]
+      "outputs": []
     },
     "fetch-abis": {
       "outputs": ["src/abi/**"]

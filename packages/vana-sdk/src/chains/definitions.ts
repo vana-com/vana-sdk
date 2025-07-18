@@ -61,7 +61,7 @@ export const moksha: VanaChainConfig = {
     },
   },
   subgraphUrl:
-    "https://api.goldsky.com/api/public/project_cm168cz887zva010j39il7a6p/subgraphs/moksha/7.0.4/gn",
+    "https://api.goldsky.com/api/public/project_cm168cz887zva010j39il7a6p/subgraphs/moksha/7.0.3/gn",
 };
 
 /**
@@ -88,6 +88,9 @@ export function getChainConfig(chainId: number): VanaChainConfig | undefined {
       return undefined;
   }
 }
+
+// Backwards compatibility alias
+export const mokshaTestnet = moksha;
 
 /**
  * Retrieves all available Vana chain configurations.

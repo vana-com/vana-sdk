@@ -6,7 +6,7 @@ import {
   PinataStorage,
   ServerProxyStorage,
   GoogleDriveStorage,
-} from "@opendatalabs/vana-sdk";
+} from "@opendatalabs/vana-sdk/browser";
 
 /**
  * Get the Pinata gateway URL with fallback
@@ -33,6 +33,7 @@ function createGoogleDriveStorageWithConfig(config: {
   refreshToken?: string;
   clientId?: string;
   clientSecret?: string;
+  folderId?: string;
 }): GoogleDriveStorage {
   return new GoogleDriveStorage(config);
 }
@@ -64,6 +65,7 @@ export function createStorageManager(): StorageManager {
       refreshToken: process.env.GOOGLE_DRIVE_REFRESH_TOKEN,
       clientId: process.env.GOOGLE_DRIVE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_DRIVE_CLIENT_SECRET,
+      folderId: process.env.GOOGLE_DRIVE_FOLDER_ID,
     });
     storageManager.register("google-drive", googleDriveProvider);
   }
@@ -93,4 +95,29 @@ export function createClientPinataProvider(jwt: string): PinataStorage | null {
   }
 
   return createPinataStorageWithJWT(jwt);
+}
+
+/**
+ * Create a Google Drive storage provider with optional folder creation
+ * This will create or find the specified folder name for organized storage
+ */
+export async function createGoogleDriveProviderWithFolder(
+  config: {
+    accessToken: string;
+    refreshToken?: string;
+    clientId?: string;
+    clientSecret?: string;
+  },
+  folderName: string = "Vana Data",
+): Promise<GoogleDriveStorage> {
+  const googleDriveProvider = createGoogleDriveStorageWithConfig(config);
+
+  // Find or create the folder
+  const folderId = await googleDriveProvider.findOrCreateFolder(folderName);
+
+  // Create a new provider with the folder ID
+  return createGoogleDriveStorageWithConfig({
+    ...config,
+    folderId,
+  });
 }

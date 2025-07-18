@@ -14,7 +14,13 @@ export async function GET(request: NextRequest) {
   try {
     // Validate that we only proxy certain domains for security
     const parsedUrl = new URL(url);
-    const allowedDomains = ["drive.google.com", "docs.google.com"];
+    const allowedDomains = [
+      "drive.google.com",
+      "docs.google.com",
+      "gateway.pinata.cloud",
+      "cloudflare-ipfs.com",
+      "ipfs.io",
+    ];
 
     if (!allowedDomains.includes(parsedUrl.hostname)) {
       return NextResponse.json(

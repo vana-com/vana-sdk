@@ -26,7 +26,7 @@ import { CopyButton } from "./ui/CopyButton";
 import { SchemaIdDisplay } from "./ui/SchemaIdDisplay";
 import { RefinerIdDisplay } from "./ui/RefinerIdDisplay";
 import { DlpIdDisplay } from "./ui/DlpIdDisplay";
-import { Schema, Refiner } from "@opendatalabs/vana-sdk";
+import { Schema, Refiner } from "@opendatalabs/vana-sdk/browser";
 
 interface SchemaManagementCardProps {
   // Statistics

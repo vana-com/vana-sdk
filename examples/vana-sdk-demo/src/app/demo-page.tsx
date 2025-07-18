@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { addToast } from "@heroui/react";
-import type { VanaChain } from "@opendatalabs/vana-sdk";
+import type { VanaChain } from "@opendatalabs/vana-sdk/browser";
 import { useAccount, useWalletClient, useChainId } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import {
@@ -11,7 +11,6 @@ import {
   GrantPermissionParams,
   RevokePermissionParams,
   GrantedPermission,
-  generateEncryptionKey,
   DEFAULT_ENCRYPTION_SEED,
   StorageManager,
   StorageProvider,
@@ -31,8 +30,7 @@ import {
   GrantFile,
   Hash,
   retrieveGrantFile,
-} from "@opendatalabs/vana-sdk";
-import { privateKeyToAccount } from "viem/accounts";
+} from "@opendatalabs/vana-sdk/browser";
 
 // Types for demo app state
 
@@ -42,11 +40,11 @@ interface GrantPreview {
     operation: string;
     parameters: unknown;
     expires?: number;
-  };
+  } | null;
   grantUrl: string;
   params: GrantPermissionParams & { expiresAt?: number };
-  typedData?: PermissionGrantTypedData;
-  signature?: string;
+  typedData?: PermissionGrantTypedData | null;
+  signature?: string | null;
 }
 import {
   Card,
@@ -63,30 +61,20 @@ import {
   NavbarContent,
   NavbarItem,
 } from "@heroui/react";
-import { NavigationButton } from "@/components/ui/NavigationButton";
-import { SectionHeader } from "@/components/ui/SectionHeader";
-import { StatusMessage } from "@/components/ui/StatusMessage";
-import { PermissionsTable } from "@/components/PermissionsTable";
-import { EncryptionTestCard } from "@/components/EncryptionTestCard";
-import { TrustedServerManagementCard } from "@/components/TrustedServerManagementCard";
-import { SchemaManagementCard } from "@/components/SchemaManagementCard";
-import { SchemaValidationCard } from "@/components/SchemaValidationCard";
-import { ServerUploadCard } from "@/components/ServerUploadCard";
-import { YourDataCard } from "@/components/YourDataCard";
-import { TrustedServerIntegrationCard } from "@/components/TrustedServerIntegrationCard";
-import { ContractListCard } from "@/components/ContractListCard";
+import { MainLayout } from "@/components/MainLayout";
+import { GrantPreviewModalContent } from "@/components/GrantPreviewModalContent";
+import { Eye } from "lucide-react";
+import type {
+  DiscoveredServerInfo,
+  GatewayIdentityResponse,
+} from "@/types/api";
+import type { UserDashboardViewProps } from "@/components/views/UserDashboardView";
+import type { DeveloperDashboardViewProps } from "@/components/views/DeveloperDashboardView";
+import type { DemoExperienceViewProps } from "@/components/views/DemoExperienceView";
 import {
   SDKConfigurationSidebar,
   type AppConfig,
 } from "@/components/SDKConfigurationSidebar";
-import { GrantPreviewModalContent } from "@/components/GrantPreviewModalContent";
-import { Shield, Eye } from "lucide-react";
-import type {
-  TrustedServerIdentityAPIResponse,
-  DiscoveredServerInfo,
-} from "@/types/api";
-import { navigationConfig } from "@/config/navigation";
-import { Section, SectionDivider } from "@/components/ui/Section";
 
 export default function Home() {
   const { address, isConnected } = useAccount();
@@ -101,7 +89,7 @@ export default function Home() {
   const [selectedFiles, setSelectedFiles] = useState<number[]>([]);
   const [grantStatus, setGrantStatus] = useState<string>("");
   const [grantTxHash, setGrantTxHash] = useState<string>("");
-  const [revokeStatus, setRevokeStatus] = useState<string>("");
+  const [_revokeStatus, _setRevokeStatus] = useState<string>("");
 
   // Grant preview state
   const [grantPreview, setGrantPreview] = useState<GrantPreview | null>(null);
@@ -118,24 +106,24 @@ export default function Home() {
   const [isLoadingPermissions, setIsLoadingPermissions] = useState(false);
 
   // Encryption testing state
-  const [encryptionSeed, setEncryptionSeed] = useState<string>(
+  const [_encryptionSeed, _setEncryptionSeed] = useState<string>(
     DEFAULT_ENCRYPTION_SEED,
   );
-  const [testData, setTestData] = useState<string>(
+  const [_testData, _setTestData] = useState<string>(
     `{"message": "Hello Vana!", "timestamp": "${new Date().toISOString()}"}`,
   );
-  const [generatedEncryptionKey, setGeneratedEncryptionKey] = useState<
+  const [_generatedEncryptionKey, _setGeneratedEncryptionKey] = useState<
     string | null
   >(null);
-  const [isGeneratingKey] = useState(false);
-  const [encryptedData, setEncryptedData] = useState<Blob | null>(null);
-  const [decryptedData, setDecryptedData] = useState<string>("");
-  const [encryptionStatus, setEncryptionStatus] = useState<string>("");
-  const [isEncrypting, setIsEncrypting] = useState(false);
-  const [inputMode, setInputMode] = useState<"text" | "file">("text");
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [originalFileName, setOriginalFileName] = useState<string>("");
-  const [showEncryptedContent, setShowEncryptedContent] = useState(false);
+  const [_isGeneratingKey] = useState(false);
+  const [_encryptedData, _setEncryptedData] = useState<Blob | null>(null);
+  const [_decryptedData, _setDecryptedData] = useState<string>("");
+  const [_encryptionStatus, _setEncryptionStatus] = useState<string>("");
+  const [_isEncrypting, _setIsEncrypting] = useState(false);
+  const [_inputMode, _setInputMode] = useState<"text" | "file">("text");
+  const [_uploadedFile, _setUploadedFile] = useState<File | null>(null);
+  const [_originalFileName, _setOriginalFileName] = useState<string>("");
+  const [_showEncryptedContent, _setShowEncryptedContent] = useState(false);
 
   // File decryption state
   const [decryptingFiles, setDecryptingFiles] = useState<Set<number>>(
@@ -149,14 +137,14 @@ export default function Home() {
   >(new Map());
 
   // Blockchain upload state
-  const [isUploadingToChain, setIsUploadingToChain] = useState(false);
-  const [newFileId, setNewFileId] = useState<number | null>(null);
+  const [_isUploadingToChain, _setIsUploadingToChain] = useState(false);
+  const [_newFileId, _setNewFileId] = useState<number | null>(null);
 
   // Storage state (kept for demo UI functionality)
   const [_storageManager, setStorageManager] = useState<StorageManager | null>(
     null,
   );
-  const [ipfsMode] = useState<"app-managed" | "user-managed">("app-managed");
+  const [_ipfsMode] = useState<"app-managed" | "user-managed">("app-managed");
 
   // Prompt state for customizable LLM prompt
   const [promptText, setPromptText] = useState<string>(
@@ -165,13 +153,46 @@ export default function Home() {
 
   // Execution context state for displaying permission details
   const [lastUsedPermissionId, setLastUsedPermissionId] = useState<string>("");
-  const [lastUsedPrompt, setLastUsedPrompt] = useState<string>("");
+  const [_lastUsedPrompt, _setLastUsedPrompt] = useState<string>("");
 
   // Application address for permission granting
   const [applicationAddress, setApplicationAddress] = useState<string>("");
 
+  // Active view state for navigation
+  const [activeView, setActiveView] = useState<string>("my-data");
+
+  // Upload data functionality state
+  const [uploadInputMode, setUploadInputMode] = useState<"text" | "file">(
+    "text",
+  );
+  const [uploadTextData, setUploadTextData] = useState<string>("");
+  const [uploadSelectedFile, setUploadSelectedFile] = useState<File | null>(
+    null,
+  );
+  const [uploadSelectedSchemaId, setUploadSelectedSchemaId] = useState<
+    number | null
+  >(null);
+  const [isUploadingData, setIsUploadingData] = useState(false);
+  const [uploadResult, setUploadResult] = useState<{
+    fileId: number;
+    transactionHash: string;
+    isValid?: boolean;
+    validationErrors?: string[];
+  } | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // Demo experience state
+  const [demoNewTextData, setDemoNewTextData] = useState<string>(
+    "I love exploring new technologies and creating innovative solutions. I'm passionate about privacy and user empowerment. I enjoy reading about AI, blockchain, and the future of data ownership. In my free time, I like to travel and discover new cultures.",
+  );
+  const [demoNewTextUploadResult, setDemoNewTextUploadResult] = useState<{
+    fileId: number;
+    transactionHash: string;
+  } | null>(null);
+  const [isDemoUploadingNewText, setIsDemoUploadingNewText] = useState(false);
+
   // Schema selection for file upload
-  const [selectedUploadSchemaId, setSelectedUploadSchemaId] =
+  const [_selectedUploadSchemaId, _setSelectedUploadSchemaId] =
     useState<string>("");
 
   // File lookup state
@@ -179,20 +200,29 @@ export default function Home() {
   const [isLookingUpFile, setIsLookingUpFile] = useState(false);
   const [fileLookupStatus, setFileLookupStatus] = useState<string>("");
 
+  // Permission lookup state
+  const [permissionLookupId, setPermissionLookupId] = useState<string>("");
+  const [isLookingUpPermission, setIsLookingUpPermission] = useState(false);
+  const [permissionLookupStatus, setPermissionLookupStatus] =
+    useState<string>("");
+  const [lookedUpPermission, setLookedUpPermission] =
+    useState<GrantedPermission | null>(null);
+
   // Personal server state
-  const [personalPermissionId, setPersonalPermissionId] = useState<string>("");
+  const [personalPermissionId, _setPersonalPermissionId] = useState<string>("");
   const [personalResult, setPersonalResult] = useState<unknown>(null);
   const [personalError, setPersonalError] = useState<string>("");
   const [isPersonalLoading, setIsPersonalLoading] = useState(false);
-  const [isPolling, setIsPolling] = useState(false);
+  const [_isPolling, _setIsPolling] = useState(false);
 
   // Server decryption demo state
-  const [serverFileId, setServerFileId] = useState<string>("");
-  const [serverPrivateKey, setServerPrivateKey] = useState<string>("");
-  const [serverDecryptedData, setServerDecryptedData] = useState<string>("");
-  const [serverDecryptError, setServerDecryptError] = useState<string>("");
-  const [isServerDecrypting, setIsServerDecrypting] = useState(false);
-  const [derivedServerAddress, setDerivedServerAddress] = useState<string>("");
+  const [_serverFileId, _setServerFileId] = useState<string>("");
+  const [_serverPrivateKey, _setServerPrivateKey] = useState<string>("");
+  const [_serverDecryptedData, _setServerDecryptedData] = useState<string>("");
+  const [_serverDecryptError, _setServerDecryptError] = useState<string>("");
+  const [_isServerDecrypting, _setIsServerDecrypting] = useState(false);
+  const [_derivedServerAddress, _setDerivedServerAddress] =
+    useState<string>("");
 
   // Trust server state
   const [serverId, setServerId] = useState<string>("");
@@ -218,20 +248,20 @@ export default function Home() {
   const [isDiscoveringServer, setIsDiscoveringServer] = useState(false);
 
   // Trusted server file upload state
-  const [selectedServerForUpload, setSelectedServerForUpload] =
+  const [_selectedServerForUpload, _setSelectedServerForUpload] =
     useState<string>("");
-  const [serverFileToUpload, setServerFileToUpload] = useState<File | null>(
+  const [_serverFileToUpload, _setServerFileToUpload] = useState<File | null>(
     null,
   );
-  const [serverInputMode, setServerInputMode] = useState<"text" | "file">(
+  const [_serverInputMode, _setServerInputMode] = useState<"text" | "file">(
     "text",
   );
-  const [serverTextData, setServerTextData] = useState<string>(
+  const [_serverTextData, _setServerTextData] = useState<string>(
     `{"message": "Sample data from Vana SDK demo", "timestamp": "${new Date().toISOString()}"}`,
   );
-  const [isUploadingToServer, setIsUploadingToServer] = useState(false);
-  const [serverUploadStatus, setServerUploadStatus] = useState<string>("");
-  const [serverUploadResult, setServerUploadResult] = useState<{
+  const [_isUploadingToServer, _setIsUploadingToServer] = useState(false);
+  const [_serverUploadStatus, _setServerUploadStatus] = useState<string>("");
+  const [_serverUploadResult, _setServerUploadResult] = useState<{
     fileId: number;
     transactionHash: string;
     url: string;
@@ -488,13 +518,36 @@ export default function Home() {
           // Add Google Drive if configured
           if (sdkConfig.googleDriveAccessToken) {
             console.info("🔗 Adding Google Drive storage");
-            const googleDriveStorage = new GoogleDriveStorage({
+
+            // Create Google Drive provider with folder support
+            const googleDriveProvider = new GoogleDriveStorage({
               accessToken: sdkConfig.googleDriveAccessToken,
               refreshToken: sdkConfig.googleDriveRefreshToken,
               // Client credentials not needed for storage operations
               // Token refresh is handled by our API endpoint
             });
-            storageProviders["google-drive"] = googleDriveStorage;
+
+            // Create or find the "Vana Data" folder for organization
+            try {
+              const folderId =
+                await googleDriveProvider.findOrCreateFolder("Vana Data");
+              console.info("📁 Using Google Drive folder:", folderId);
+
+              // Create a new provider instance with the folder ID
+              const googleDriveStorage = new GoogleDriveStorage({
+                accessToken: sdkConfig.googleDriveAccessToken,
+                refreshToken: sdkConfig.googleDriveRefreshToken,
+                folderId: folderId,
+              });
+              storageProviders["google-drive"] = googleDriveStorage;
+            } catch (error) {
+              console.warn(
+                "⚠️ Failed to create Google Drive folder, using root:",
+                error,
+              );
+              // Fall back to root folder if folder creation fails
+              storageProviders["google-drive"] = googleDriveProvider;
+            }
           }
 
           // Determine the actual default storage provider based on what's available
@@ -767,7 +820,7 @@ export default function Home() {
   }, [vana, address]);
 
   const loadUserPermissions = useCallback(async () => {
-    if (!vana) return;
+    if (!vana) return [];
 
     setIsLoadingPermissions(true);
     try {
@@ -775,8 +828,10 @@ export default function Home() {
         limit: 20,
       });
       setUserPermissions(permissions);
+      return permissions;
     } catch (error) {
       console.error("Failed to load user permissions:", error);
+      return [];
     } finally {
       setIsLoadingPermissions(false);
     }
@@ -843,7 +898,9 @@ export default function Home() {
     }
   };
 
-  const handleGrantPermission = async () => {
+  const handleGrantPermission = async (
+    customParams?: GrantPermissionParams & { expiresAt?: number },
+  ) => {
     if (!vana || selectedFiles.length === 0) return;
 
     if (!applicationAddress) {
@@ -854,16 +911,70 @@ export default function Home() {
     }
 
     setIsGranting(true);
-    setGrantStatus("Preparing permission grant...");
-    setGrantTxHash("");
+    setGrantStatus("Preparing files for trusted server access...");
 
     try {
-      // Create clear, unencrypted parameters for the grant
+      // Get the trusted server address
+      const trustedServer = trustedServers.find((s) => s.serverAddress);
+      if (!trustedServer) {
+        throw new Error(
+          "No trusted server found. Please trust a server first.",
+        );
+      }
+
+      // Get server's public key from gateway (no API call needed)
+      setGrantStatus("Getting server public key...");
+
+      // Call the gateway directly to get the server's public key
+      const keyResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL}/identity?address=${address}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        },
+      );
+
+      if (!keyResponse.ok) {
+        throw new Error("Failed to get server identity from gateway");
+      }
+
+      const keyResult: GatewayIdentityResponse = await keyResponse.json();
+      const publicKey = keyResult.personal_server?.public_key;
+
+      if (!publicKey) {
+        throw new Error("Server public key not found in gateway response");
+      }
+
+      // Ensure server can decrypt all selected files
+      for (const fileId of selectedFiles) {
+        try {
+          setGrantStatus(`Ensuring server can access file ${fileId}...`);
+
+          // Add permission for the server to decrypt this file
+          await vana.data.addPermissionToFile(
+            fileId,
+            trustedServer.serverAddress as `0x${string}`,
+            publicKey,
+          );
+
+          console.debug(`✅ Added server permission for file ${fileId}`);
+        } catch (error) {
+          console.warn(
+            `Failed to add server permission for file ${fileId}:`,
+            error,
+          );
+          // Continue anyway - might already have permission
+        }
+      }
+
+      // Use custom parameters if provided, otherwise use defaults
       const params: GrantPermissionParams = {
-        to: applicationAddress as `0x${string}`, // Use dynamically fetched application address
-        operation: "llm_inference",
-        files: selectedFiles,
-        parameters: {
+        to: applicationAddress as `0x${string}`,
+        operation: customParams?.operation || "llm_inference",
+        files: selectedFiles, // Always use current selectedFiles
+        parameters: customParams?.parameters || {
           prompt: promptText,
         },
       };
@@ -875,44 +986,29 @@ export default function Home() {
         operation: params.operation,
       });
 
-      // Add expiration to params (24 hours from now)
+      // Add expiration to params
       const paramsWithExpiry = {
         ...params,
-        expiresAt: Math.floor(Date.now() / 1000) + 86400,
+        expiresAt:
+          customParams?.expiresAt || Math.floor(Date.now() / 1000) + 86400,
       };
 
-      setGrantStatus("Creating grant file via SDK...");
-
-      // Use the SDK to create and sign the grant
-      const { typedData, signature } =
-        await vana.permissions.createAndSign(paramsWithExpiry);
-
-      // Extract grant file for preview from the files array in typedData
-      setGrantStatus("Retrieving grant file for preview...");
-
-      // The SDK stores the grant file in IPFS and puts the URL in typedData.message.grant
-      const grantUrl = typedData.message.grant;
-
-      // Retrieve the stored grant file
-      const grantFile = await retrieveGrantFile(grantUrl);
-
-      // Show preview to user
+      // Show preview to user BEFORE signing
       setGrantPreview({
-        grantFile,
-        grantUrl,
+        grantFile: null, // Will be populated after signing
+        grantUrl: "",
         params: paramsWithExpiry,
-        typedData,
-        signature,
+        typedData: null,
+        signature: null,
       });
       onOpenGrant();
-      setGrantStatus(
-        "Review the grant file before submitting to blockchain...",
-      );
+      setGrantStatus("Review the grant details before signing...");
     } catch (error) {
-      console.error("Failed to prepare grant:", error);
+      console.error("Failed to prepare permission grant:", error);
       setGrantStatus(
-        `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+        `❌ Error: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
+    } finally {
       setIsGranting(false);
     }
   };
@@ -920,31 +1016,101 @@ export default function Home() {
   const handleConfirmGrant = async () => {
     if (!grantPreview || !vana) return;
 
+    setIsGranting(true);
+    setGrantTxHash("");
+
     try {
-      setGrantStatus("Submitting to blockchain...");
+      // Now create and sign the grant after user confirmation
+      setGrantStatus("Creating grant file via SDK...");
 
-      // Use the pre-signed data to submit the grant
-      let txHash: string;
+      // Use the SDK to create and sign the grant
+      const { typedData, signature } = await vana.permissions.createAndSign(
+        grantPreview.params,
+      );
 
-      if (grantPreview.typedData && grantPreview.signature) {
-        // Submit the already-signed grant
-        txHash = await vana.permissions.submitSignedGrant(
-          grantPreview.typedData,
-          grantPreview.signature as `0x${string}`,
+      // Extract grant file for preview from the files array in typedData
+      setGrantStatus("Retrieving grant file for preview...");
+
+      // The SDK stores the grant file in IPFS and puts the URL in typedData.message.grant
+      const grantUrl = typedData.message.grant;
+
+      // Try to retrieve the stored grant file, but don't fail if CORS issues occur
+      let grantFile = null;
+      try {
+        grantFile = await retrieveGrantFile(grantUrl);
+      } catch (error) {
+        console.warn(
+          "Failed to retrieve grant file (likely CORS issue):",
+          error,
         );
-      } else {
-        // Fallback to full grant flow (shouldn't happen with new flow)
-        txHash = await vana.permissions.grant(grantPreview.params);
+        // Create a minimal grant file from the typedData for preview
+        grantFile = {
+          grantee: grantPreview.params.to,
+          operation: grantPreview.params.operation || "llm_inference",
+          parameters: grantPreview.params.parameters || {},
+          expires: grantPreview.params.expiresAt,
+        };
       }
 
-      setGrantStatus(""); // Clear status since permission will appear in list
+      // Update grant preview with signed data
+      setGrantPreview({
+        grantFile,
+        grantUrl,
+        params: grantPreview.params,
+        typedData,
+        signature,
+      });
+
+      setGrantStatus("Submitting to blockchain...");
+
+      // Submit the signed grant
+      const txHash = await vana.permissions.submitSignedGrant(
+        typedData,
+        signature as `0x${string}`,
+      );
+
       setGrantTxHash(txHash);
       onCloseGrant();
 
-      // Refresh permissions to show the new grant
-      setTimeout(() => {
-        loadUserPermissions();
-      }, 2000);
+      // Store the grant URL and nonce to identify the newly created permission
+      const grantUrlToMatch = typedData.message.grant;
+      const nonceToMatch = typedData.message.nonce;
+
+      // Show status while looking for the new permission
+      setGrantStatus("Finding your new permission...");
+
+      // Refresh permissions to show the new grant and set lastUsedPermissionId
+      // Use retry logic with exponential backoff for blockchain processing
+      const findNewPermission = async (attempt = 1) => {
+        setGrantStatus(`Finding your new permission... (attempt ${attempt})`);
+
+        const freshPermissions = await loadUserPermissions();
+
+        // Find the newly created permission by matching grant URL and nonce
+        const newPermission = freshPermissions.find(
+          (p) =>
+            p.grant === grantUrlToMatch && p.nonce === Number(nonceToMatch),
+        );
+
+        if (newPermission) {
+          setLastUsedPermissionId(newPermission.id.toString());
+          setGrantStatus(""); // Clear status
+          console.debug(
+            "✅ Set lastUsedPermissionId to:",
+            newPermission.id.toString(),
+            `(found on attempt ${attempt})`,
+          );
+        } else {
+          console.debug(
+            `🔄 Permission not found on attempt ${attempt}, retrying in ${Math.min(attempt * 2, 10)} seconds...`,
+          );
+          // Exponential backoff with max delay of 10 seconds
+          const delay = Math.min(attempt * 2000, 10000);
+          setTimeout(() => findNewPermission(attempt + 1), delay);
+        }
+      };
+
+      setTimeout(() => findNewPermission(), 3000);
     } catch (error) {
       console.error("Failed to grant permission:", error);
       setGrantStatus(
@@ -967,7 +1133,6 @@ export default function Home() {
     if (!vana || !permissionId.trim()) return;
 
     setIsRevoking(true);
-    setRevokeStatus("Preparing permission revoke...");
 
     try {
       // Convert permission ID to bigint
@@ -977,171 +1142,26 @@ export default function Home() {
         permissionId: bigIntId,
       };
 
-      setRevokeStatus("Awaiting signature...");
-
       await vana.permissions.revoke(params);
-
-      setRevokeStatus(""); // Clear status since permission will disappear from list
 
       // Refresh permissions list
       loadUserPermissions();
     } catch (error) {
       console.error("Failed to revoke permission:", error);
-      setRevokeStatus(
-        `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
     } finally {
       setIsRevoking(false);
     }
   };
 
-  // Encryption testing functions
-  const handleGenerateKey = async () => {
-    if (!walletClient) return;
+  // Encryption testing functions (removed unused handlers)
 
-    setIsEncrypting(true);
-    setEncryptionStatus("Generating encryption key from wallet signature...");
-
-    try {
-      const encryptionKey = await generateEncryptionKey(
-        walletClient,
-        encryptionSeed,
-      );
-      setGeneratedEncryptionKey(encryptionKey);
-      setEncryptionStatus("✅ Encryption key generated from wallet signature!");
-    } catch (error) {
-      console.error("Failed to generate key:", error);
-      setEncryptionStatus(
-        `❌ Error: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-    } finally {
-      setIsEncrypting(false);
-    }
-  };
-
-  const handleEncryptData = async () => {
-    if (!generatedEncryptionKey) {
-      setEncryptionStatus("❌ Please generate an encryption key first");
-      return;
-    }
-
-    if (inputMode === "text" && !testData) {
-      setEncryptionStatus("❌ Please enter test data first");
-      return;
-    }
-
-    if (inputMode === "file" && !uploadedFile) {
-      setEncryptionStatus("❌ Please upload a file first");
-      return;
-    }
-
-    if (!vana) {
-      setEncryptionStatus("❌ Please connect your wallet first");
-      return;
-    }
-
-    setIsEncrypting(true);
-    setEncryptionStatus("Encrypting data...");
-
-    try {
-      let dataBlob: Blob;
-      let fileName: string;
-
-      if (inputMode === "file" && uploadedFile) {
-        dataBlob = uploadedFile;
-        fileName = uploadedFile.name;
-        setOriginalFileName(fileName);
-      } else {
-        dataBlob = new Blob([testData], { type: "text/plain" });
-        fileName = "test-data.txt";
-        setOriginalFileName(fileName);
-      }
-
-      const encrypted = await vana.encryptUserData(
-        dataBlob,
-        generatedEncryptionKey,
-      );
-      setEncryptedData(encrypted);
-      setEncryptionStatus("✅ Data encrypted successfully!");
-    } catch (error) {
-      console.error("Failed to encrypt data:", error);
-      setEncryptionStatus(
-        `❌ Error: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-    } finally {
-      setIsEncrypting(false);
-    }
-  };
-
-  const handleDecryptData = async () => {
-    if (!encryptedData || !generatedEncryptionKey) {
-      setEncryptionStatus("❌ Please encrypt data first");
-      return;
-    }
-
-    if (!vana) {
-      setEncryptionStatus("❌ Please connect your wallet first");
-      return;
-    }
-
-    setIsEncrypting(true);
-    setEncryptionStatus("Decrypting data...");
-
-    try {
-      const decrypted = await vana.decryptUserData(
-        encryptedData,
-        generatedEncryptionKey,
-      );
-      const decryptedText = await decrypted.text();
-      setDecryptedData(decryptedText);
-      setEncryptionStatus("✅ Data decrypted successfully!");
-    } catch (error) {
-      console.error("Failed to decrypt data:", error);
-      setEncryptionStatus(
-        `❌ Error: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-    } finally {
-      setIsEncrypting(false);
-    }
-  };
-
-  const downloadBlob = (blob: Blob, filename: string) => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  // Note: handleDownloadEncrypted functionality moved to EncryptionTestCard
-
-  const handleDownloadDecrypted = () => {
-    if (decryptedData) {
-      const blob = new Blob([decryptedData], { type: "text/plain" });
-      const filename = originalFileName || "decrypted-data.txt";
-      downloadBlob(blob, filename);
-    }
-  };
-
-  // Note: getBlobPreview functionality moved to EncryptionTestCard component
-
-  const copyToClipboard = async (text: string, type: string) => {
+  const _copyToClipboard = async (text: string, _type: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      setEncryptionStatus(`✅ ${type} copied to clipboard!`);
-      setTimeout(() => setEncryptionStatus(""), 2000);
+      // Note: Status feedback removed as it's not used in new layout
     } catch {
-      setEncryptionStatus(`❌ Failed to copy ${type} to clipboard`);
-      setTimeout(() => setEncryptionStatus(""), 2000);
+      console.error("Failed to copy to clipboard");
     }
-  };
-
-  // Simplified copy function for components
-  const handleCopyToClipboard = (text: string) => {
-    copyToClipboard(text, "Content");
   };
 
   const handleDecryptFile = async (file: UserFile) => {
@@ -1255,6 +1275,18 @@ export default function Home() {
     });
   };
 
+  // Simple blob download utility function
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const handleDownloadDecryptedFile = (file: UserFile) => {
     const decryptedContent = decryptedFiles.get(file.id);
     if (decryptedContent) {
@@ -1318,137 +1350,72 @@ export default function Home() {
     }
   };
 
-  const handleUploadToBlockchain = async () => {
-    if (!encryptedData || !vana) {
-      console.error("No encrypted data to upload or SDK not initialized");
+  const handleLookupPermission = async () => {
+    if (!permissionLookupId.trim() || !vana || !walletClient || !address) {
+      setPermissionLookupStatus(
+        "❌ Please enter a permission ID and ensure wallet is connected",
+      );
       return;
     }
-
-    // Check if Google Drive is selected but not configured
-    if (
-      sdkConfig.defaultStorageProvider === "google-drive" &&
-      !sdkConfig.googleDriveAccessToken
-    ) {
-      console.error("Google Drive storage selected but not authenticated");
-      return;
-    }
-
-    // Determine which provider to use (allow IPFS mode override for IPFS providers)
-    const providerName =
-      sdkConfig.defaultStorageProvider === "app-ipfs" ||
-      sdkConfig.defaultStorageProvider === "user-ipfs"
-        ? ipfsMode === "app-managed"
-          ? "app-ipfs"
-          : "user-ipfs"
-        : sdkConfig.defaultStorageProvider;
-
-    // Check if user-managed IPFS is selected but not configured
-    if (providerName === "user-ipfs" && !sdkConfig.pinataJwt) {
-      console.error("User-managed IPFS not configured");
-      return;
-    }
-
-    const displayName =
-      providerName === "app-ipfs"
-        ? "App-Managed IPFS"
-        : providerName === "user-ipfs"
-          ? "User-Managed IPFS"
-          : providerName === "google-drive"
-            ? "Google Drive"
-            : String(providerName).toUpperCase();
-
-    setIsUploadingToChain(true);
-    console.info(`📤 Uploading encrypted data via ${displayName}...`);
-
+    setIsLookingUpPermission(true);
+    setPermissionLookupStatus("🔍 Looking up permission...");
     try {
-      // Use SDK method to handle the complete upload flow
-      const filename = originalFileName
-        ? `${originalFileName}.encrypted`
-        : "encrypted-data.bin";
-
-      // Use schema-aware upload if a schema is selected, with fallback
-      let result;
-      if (selectedUploadSchemaId) {
-        try {
-          result = await vana.data.uploadEncryptedFileWithSchema(
-            encryptedData,
-            parseInt(selectedUploadSchemaId),
-            filename,
-            providerName,
-          );
-        } catch (error) {
-          if (
-            error instanceof Error &&
-            error.message.includes(
-              "Relayer does not yet support uploading files with schema",
-            )
-          ) {
-            console.warn(
-              "⚠️ Schema upload not supported by relayer, falling back to regular upload",
-            );
-            result = await vana.data.uploadEncryptedFile(
-              encryptedData,
-              filename,
-              providerName,
-            );
-          } else {
-            throw error;
-          }
-        }
-      } else {
-        result = await vana.data.uploadEncryptedFile(
-          encryptedData,
-          filename,
-          providerName,
+      const permissionId = BigInt(permissionLookupId.trim());
+      if (permissionId < 0n) {
+        throw new Error(
+          "Invalid permission ID. Please enter a valid positive number.",
         );
       }
+      // Get permission details using SDK method
+      const permissionInfo =
+        await vana.permissions.getPermissionInfo(permissionId);
+      const fileIds = await vana.permissions.getPermissionFileIds(permissionId);
 
-      console.info("✅ File uploaded and registered:", {
-        fileId: result.fileId,
-        url: result.url,
-        size: result.size,
-        transactionHash: result.transactionHash,
+      // Create a GrantedPermission object from the lookup result
+      const permission: GrantedPermission = {
+        id: permissionId,
+        operation: "data_access", // Default operation - this would need to be determined from the grant
+        files: fileIds.map((id) => Number(id)),
+        parameters: undefined,
+        grant: permissionInfo.grant,
+        grantor: permissionInfo.grantor,
+        grantee: address, // Get the current user's address from useAccount hook
+        active: true, // Assume it's active if we can look it up
+      };
+
+      setLookedUpPermission(permission);
+      // Add to main permissions array if not already present
+      setUserPermissions((prev) => {
+        const exists = prev.find((p) => p.id === permissionId);
+        if (exists) {
+          return prev; // Already exists, no need to add
+        } else {
+          return [...prev, permission];
+        }
       });
-
-      setNewFileId(result.fileId);
-      console.info("✅ File uploaded successfully");
-
-      // Refresh user files to show the new file
-      setTimeout(() => {
-        loadUserFiles();
-      }, 2000);
+      setPermissionLookupStatus("✅ Permission found and added to the list!");
+      setPermissionLookupId(""); // Clear the input
+      // Clear success message after 2 seconds
+      setTimeout(() => setPermissionLookupStatus(""), 2000);
     } catch (error) {
-      console.error("Failed to upload to blockchain:", error);
+      console.error("❌ Error looking up permission:", error);
+      let userMessage = "❌ Failed to lookup permission: ";
+      if (error instanceof Error) {
+        userMessage += error.message;
+      } else {
+        userMessage += "Unknown error occurred";
+      }
+      setPermissionLookupStatus(userMessage);
     } finally {
-      setIsUploadingToChain(false);
+      setIsLookingUpPermission(false);
     }
   };
 
-  const handleResetEncryption = () => {
-    setGeneratedEncryptionKey(null);
-    setEncryptedData(null);
-    setDecryptedData("");
-    setEncryptionStatus("");
-    setTestData(
-      `{"message": "Hello Vana!", "timestamp": "${new Date().toISOString()}"}`,
-    );
-    setEncryptionSeed(DEFAULT_ENCRYPTION_SEED);
-    setUploadedFile(null);
-    setOriginalFileName("");
-    setShowEncryptedContent(false);
-    setInputMode("text");
-    // Also clear file decryption state
-    setDecryptedFiles(new Map());
-    setFileDecryptErrors(new Map());
-    // Clear blockchain upload state
-    setIsUploadingToChain(false);
-    setNewFileId(null);
-    setSelectedUploadSchemaId("");
-  };
+  // Removed unused blockchain upload handler
 
   // Note: getExplorerUrl function removed - using ExplorerLink component directly
 
-  const handlePersonalServerCall = async () => {
+  const _handlePersonalServerCall = async () => {
     if (!address) return;
 
     // Parse permission ID
@@ -1493,25 +1460,18 @@ export default function Home() {
       const result = await response.json();
       setPersonalResult(result.data);
 
-      // Fetch and store permission context for display
+      // Store permission context for display
       if (vana) {
         try {
-          const permissionInfo = await vana.permissions.getPermissionInfo(
-            BigInt(permissionId),
-          );
-          const grantFile = await retrieveGrantFile(permissionInfo.grant);
+          // Note: Grant file retrieval removed to avoid CORS issues
+          // const permissionInfo = await vana.permissions.getPermissionInfo(BigInt(permissionId));
+          // const _grantFile = await retrieveGrantFile(permissionInfo.grant);
 
           setLastUsedPermissionId(permissionId.toString());
-          setLastUsedPrompt(
-            typeof grantFile.parameters?.prompt === "string"
-              ? grantFile.parameters.prompt
-              : "",
-          );
         } catch (error) {
-          console.warn("Failed to fetch permission context:", error);
-          // Don't fail the main operation if context fetching fails
+          console.warn("Failed to set permission context:", error);
+          // Don't fail the main operation if context setting fails
           setLastUsedPermissionId(permissionId.toString());
-          setLastUsedPrompt("");
         }
       }
     } catch (error) {
@@ -1523,139 +1483,87 @@ export default function Home() {
     }
   };
 
-  const handlePollStatus = async () => {
-    const result = personalResult as { id?: string };
-    if (!result?.id) return;
-
-    if (!chainId) {
-      setPersonalError(
-        "Chain ID not available. Please ensure wallet is connected.",
-      );
-      return;
-    }
-
-    setIsPolling(true);
-    setPersonalError("");
+  /**
+   * Handle LLM execution for the demo flow with the given permission ID
+   */
+  const pollOperationStatus = async (
+    operationId: string,
+    permissionId: number,
+  ) => {
     try {
-      const requestBody = {
-        operationId: result.id,
-        chainId,
-      };
-
-      // Call our API route for polling
       const response = await fetch("/api/trusted-server/poll", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({
+          operationId,
+          chainId,
+        }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP ${response.status}`);
-      }
-
-      const pollingResult = await response.json();
-      setPersonalResult(pollingResult.data);
-    } catch (error) {
-      setPersonalError(
-        error instanceof Error ? error.message : "Unknown error",
-      );
-    } finally {
-      setIsPolling(false);
-    }
-  };
-
-  // Derive server address from private key when it changes
-  useEffect(() => {
-    if (serverPrivateKey.trim()) {
-      try {
-        // Ensure private key starts with 0x
-        const formattedKey = serverPrivateKey.trim().startsWith("0x")
-          ? serverPrivateKey.trim()
-          : `0x${serverPrivateKey.trim()}`;
-
-        const account = privateKeyToAccount(formattedKey as `0x${string}`);
-        setDerivedServerAddress(account.address);
-        setServerDecryptError(""); // Clear any previous errors
-      } catch {
-        setDerivedServerAddress("");
-        setServerDecryptError("Invalid private key format");
-      }
-    } else {
-      setDerivedServerAddress("");
-    }
-  }, [serverPrivateKey]);
-
-  // Server decryption demo handler
-  const handleServerDecryption = async () => {
-    if (!vana || !serverFileId.trim() || !serverPrivateKey.trim()) {
-      setServerDecryptError(
-        "Please provide both File ID and Server Private Key",
-      );
-      return;
-    }
-
-    if (!derivedServerAddress) {
-      setServerDecryptError(
-        "Invalid private key - cannot derive server address",
-      );
-      return;
-    }
-
-    setIsServerDecrypting(true);
-    setServerDecryptError("");
-    setServerDecryptedData("");
-
-    try {
-      const fileIdNum = parseInt(serverFileId.trim());
-      if (isNaN(fileIdNum) || fileIdNum <= 0) {
-        setServerDecryptError("File ID must be a valid positive number");
+        console.warn("Failed to poll Replicate status");
         return;
       }
 
-      // Get the file from the blockchain
-      const file = await vana.data.getFileById(fileIdNum);
+      const result = await response.json();
 
-      // Decrypt the file using the server's private key and derived address
-      const decryptedBlob = await vana.data.decryptFileWithPermission(
-        file,
-        serverPrivateKey.trim(),
-        derivedServerAddress as `0x${string}`, // Use derived server address instead of user address
-      );
-
-      // Convert blob to text for display
-      const decryptedText = await decryptedBlob.text();
-      setServerDecryptedData(decryptedText);
+      if (result.data?.status === "succeeded") {
+        // Extract the actual AI response from output
+        const aiResponse = result.data.result || "No output received";
+        setPersonalResult(aiResponse);
+        setIsPersonalLoading(false);
+      } else if (result.data?.status === "failed") {
+        setPersonalError(result.data?.error || "AI processing failed");
+        setIsPersonalLoading(false);
+      } else if (
+        result.data?.status === "starting" ||
+        result.data?.status === "processing"
+      ) {
+        // Still processing, poll again in 2 seconds
+        setTimeout(() => pollOperationStatus(operationId, permissionId), 2000);
+      } else {
+        // Unknown status, stop polling
+        console.warn("Unknown operation status:", result.data?.status);
+        setPersonalError("Unknown operation status");
+        setIsPersonalLoading(false);
+      }
     } catch (error) {
-      setServerDecryptError(
-        error instanceof Error ? error.message : "Unknown error occurred",
-      );
-    } finally {
-      setIsServerDecrypting(false);
+      console.warn("Error polling Replicate status:", error);
+      setIsPersonalLoading(false);
     }
   };
 
-  // Trust server handlers
-
-  const handleDiscoverHostedServer = async () => {
+  const handleDemoRunLLM = async (permissionIdString: string) => {
     if (!address) return;
 
-    setIsDiscoveringServer(true);
-    setTrustServerError("");
-    // Clear any previous discovery state
-
+    // Parse permission ID
+    let permissionId: number;
     try {
-      // Call the trusted server setup API to discover/initialize the server identity
-      const response = await fetch("/api/identity", {
+      permissionId = parseInt(permissionIdString.trim());
+      if (isNaN(permissionId) || permissionId <= 0) {
+        setPersonalError("Permission ID must be a valid positive number");
+        return;
+      }
+    } catch {
+      setPersonalError("Permission ID must be a valid number");
+      return;
+    }
+
+    setIsPersonalLoading(true);
+    setPersonalError("");
+    setPersonalResult(null);
+    try {
+      // Call our API route instead of using the SDK directly
+      const response = await fetch("/api/trusted-server", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          userAddress: address,
-          chainId: chainId,
+          permissionId,
+          chainId,
         }),
       });
 
@@ -1664,43 +1572,124 @@ export default function Home() {
         throw new Error(errorData.error || `HTTP ${response.status}`);
       }
 
-      const result: TrustedServerIdentityAPIResponse = await response.json();
+      const result = await response.json();
+
+      // Handle the new OperationCreated response format
+      if (result.data?.id) {
+        // Start polling for the operation status
+        pollOperationStatus(result.data.id, permissionId);
+      } else {
+        // Fallback for unexpected response format
+        console.warn("Unexpected response format:", result.data);
+        setPersonalError("Unexpected response format from server");
+        setIsPersonalLoading(false);
+      }
+
+      // Store permission context for display
+      if (vana) {
+        try {
+          // Note: Grant file retrieval removed to avoid CORS issues
+          // const permissionInfo = await vana.permissions.getPermissionInfo(BigInt(permissionId));
+          // const _grantFile = await retrieveGrantFile(permissionInfo.grant);
+
+          setLastUsedPermissionId(permissionId.toString());
+        } catch (error) {
+          console.warn("Failed to set permission context:", error);
+          // Don't fail the main operation if context setting fails
+          setLastUsedPermissionId(permissionId.toString());
+        }
+      }
+    } catch (error) {
+      setPersonalError(
+        error instanceof Error ? error.message : "Unknown error",
+      );
+      setIsPersonalLoading(false);
+    }
+  };
+
+  // Removed unused server decryption handler
+
+  // Trust server handlers
+
+  const handleDiscoverHostedServer = async () => {
+    if (!address) {
+      console.error("❌ Server discovery failed: No address provided");
+      return null;
+    }
+
+    console.info("🔄 Starting server discovery for address:", address);
+    setIsDiscoveringServer(true);
+    setTrustServerError("");
+    // Clear any previous discovery state
+
+    try {
+      const gatewayUrl = `${process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL}/identity?address=${address}`;
+      console.info("🔍 Calling gateway URL:", gatewayUrl);
+
+      // Call the gateway directly to discover the server identity (no authentication required)
+      const response = await fetch(gatewayUrl, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      console.info("🔍 Gateway response status:", response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("❌ Gateway error response:", errorData);
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const result: GatewayIdentityResponse = await response.json();
 
       // Debug: Log the full response structure
-      console.debug("🔍 Full API Response:", JSON.stringify(result, null, 2));
-      console.debug("🔍 Response data:", result.data);
+      console.debug(
+        "🔍 Full Gateway Response:",
+        JSON.stringify(result, null, 2),
+      );
+      console.debug("🔍 Personal Server:", result.personal_server);
 
-      // Extract server information from the SDK response
-      // The SDK now returns: { userAddress, identity: { metadata: { derivedAddress, publicKey } }, timestamp }
-      const derivedAddress = result.data?.address;
-      const publicKey = result.data?.public_key;
+      // Extract server information from the direct gateway response
+      // The gateway returns: { personal_server: { address, base_url, name, public_key } }
+      const derivedAddress = result.personal_server?.address;
+      const publicKey = result.personal_server?.public_key;
 
       // Debug: Log extraction results
-      console.debug("🔍 SDK Response data:", result.data);
-      console.debug("🔍 Identity metadata:", result.data?.public_key);
+      console.debug("🔍 Gateway Response data:", result.personal_server);
       console.debug("🔍 Derived address:", derivedAddress);
       console.debug("🔍 Public key:", publicKey);
 
       if (!derivedAddress) {
+        console.error("❌ Could not determine server identity from response");
         throw new Error("Could not determine server identity from response");
       }
 
       const serverInfo: DiscoveredServerInfo = {
         serverId: derivedAddress,
-        serverUrl: result.data?.base_url || "",
-        name: result.data?.name || "",
+        serverUrl:
+          result.personal_server?.base_url ||
+          process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL ||
+          "",
+        name: result.personal_server?.name || "Personal Server",
         publicKey: publicKey,
       };
 
-      // Store discovered server info (functionality simplified for demo)
+      console.info("✅ Server discovery successful:", serverInfo);
 
       // Auto-populate the form fields
       setServerId(serverInfo.serverId);
       setServerUrl(serverInfo.serverUrl);
+
+      // Return the discovered server info
+      return serverInfo;
     } catch (error) {
+      console.error("❌ Server discovery failed:", error);
       setTrustServerError(
         error instanceof Error ? error.message : "Failed to discover server",
       );
+      return null;
     } finally {
       setIsDiscoveringServer(false);
     }
@@ -1749,44 +1738,69 @@ export default function Home() {
     }
   };
 
-  const handleTrustServerGasless = async () => {
-    if (!vana || !address) return;
+  const handleTrustServerGasless = async (
+    clearFieldsOnSuccess = true,
+    overrideServerId?: string,
+    overrideServerUrl?: string,
+  ) => {
+    if (!vana || !address) {
+      console.error("❌ Trust server failed: Missing vana instance or address");
+      return;
+    }
+
+    // Use override values if provided, otherwise use state values
+    const actualServerId = overrideServerId || serverId;
+    const actualServerUrl = overrideServerUrl || serverUrl;
 
     // Validate inputs
-    if (!serverId.trim()) {
+    if (!actualServerId.trim()) {
+      console.error("❌ Trust server failed: Missing server ID");
       setTrustServerError("Please provide a server ID");
       return;
     }
 
-    if (!serverUrl.trim()) {
+    if (!actualServerUrl.trim()) {
+      console.error("❌ Trust server failed: Missing server URL");
       setTrustServerError("Please provide a server URL");
       return;
     }
 
     // Basic URL validation
     try {
-      new URL(serverUrl);
+      new URL(actualServerUrl);
     } catch {
+      console.error("❌ Trust server failed: Invalid URL format");
       setTrustServerError("Please provide a valid URL");
       return;
     }
+
+    console.info("🔄 Starting trust server with signature...", {
+      serverId: actualServerId,
+      serverUrl: actualServerUrl,
+    });
 
     setIsTrustingServer(true);
     setTrustServerError("");
 
     try {
       await vana.permissions.trustServerWithSignature({
-        serverId: serverId as `0x${string}`,
-        serverUrl: serverUrl,
+        serverId: actualServerId as `0x${string}`,
+        serverUrl: actualServerUrl,
       });
 
+      console.info("✅ Trust server with signature completed successfully!");
+
       // Success - form shows success via trustServerError being cleared
-      // Clear the form fields on success
-      setServerId("");
-      setServerUrl("");
+      // Clear the form fields on success only if requested
+      if (clearFieldsOnSuccess) {
+        setServerId("");
+        setServerUrl("");
+      }
       // Refresh trusted servers list
       await loadUserTrustedServers();
+      console.info("✅ Trusted servers list refreshed");
     } catch (error) {
+      console.error("❌ Trust server with signature failed:", error);
       setTrustServerError(
         error instanceof Error ? error.message : "Failed to trust server",
       );
@@ -1831,106 +1845,14 @@ export default function Home() {
     }
   };
 
-  const handleUploadToTrustedServer = async () => {
-    if (!vana || !address || !selectedServerForUpload) {
-      setServerUploadStatus("❌ Please select a server");
-      return;
-    }
-
-    if (serverInputMode === "file" && !serverFileToUpload) {
-      setServerUploadStatus("❌ Please select a file to upload");
-      return;
-    }
-
-    if (serverInputMode === "text" && !serverTextData.trim()) {
-      setServerUploadStatus("❌ Please enter text data to upload");
-      return;
-    }
-
-    setIsUploadingToServer(true);
-    setServerUploadStatus("");
-    setServerUploadResult(null);
-
-    try {
-      // Get the server's public key from the trusted server registry via API
-      const identityResponse = await fetch("/api/identity", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userAddress: address,
-          chainId: chainId,
-        }),
-      });
-
-      if (!identityResponse.ok) {
-        const errorData = await identityResponse.json();
-        throw new Error(errorData.error || "Failed to get server public key");
-      }
-
-      const identityData: TrustedServerIdentityAPIResponse =
-        await identityResponse.json();
-
-      if (!identityData.data) {
-        throw new Error("Failed to get server public key");
-      }
-      const serverPublicKey = identityData.data.public_key;
-
-      // Create file or blob from input
-      let fileToUpload: File;
-      if (serverInputMode === "file" && serverFileToUpload) {
-        fileToUpload = serverFileToUpload;
-      } else {
-        // Create a file from text data
-        const blob = new Blob([serverTextData], { type: "text/plain" });
-        fileToUpload = new File([blob], "text-data.txt", {
-          type: "text/plain",
-        });
-      }
-
-      // Upload file with permissions for the selected server
-      const result = await vana.data.uploadFileWithPermissions(
-        fileToUpload,
-        [
-          {
-            account: selectedServerForUpload as `0x${string}`,
-            publicKey: serverPublicKey,
-          },
-        ],
-        fileToUpload.name,
-        ipfsMode === "user-managed" ? "pinata" : undefined,
-      );
-
-      setServerUploadResult({
-        fileId: result.fileId,
-        transactionHash: result.transactionHash as string,
-        url: result.url,
-      });
-      setServerUploadStatus("✅ File uploaded with server permissions!");
-
-      // Clear the form
-      setServerFileToUpload(null);
-      setServerTextData(
-        `{"message": "Sample data from Vana SDK demo", "timestamp": "${new Date().toISOString()}"}`,
-      );
-      setSelectedServerForUpload("");
-
-      // Refresh user files
-      await loadUserFiles();
-    } catch (error) {
-      setServerUploadStatus(
-        `❌ Upload failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-    } finally {
-      setIsUploadingToServer(false);
-    }
-  };
+  // Removed unused trusted server upload handler
 
   const loadSchemas = useCallback(async () => {
     if (!vana) return;
 
     setIsLoadingSchemas(true);
     try {
-      const count = await vana.data.getSchemasCount();
+      const count = await vana.schemas.count();
       setSchemasCount(count);
 
       // Load first 10 schemas for display
@@ -1939,7 +1861,7 @@ export default function Home() {
 
       for (let i = 1; i <= maxToLoad; i++) {
         try {
-          const schema = await vana.data.getSchema(i);
+          const schema = await vana.schemas.get(i);
           schemaList.push({ ...schema, source: "discovered" });
         } catch (error) {
           console.warn(`Failed to load schema ${i}:`, error);
@@ -2160,6 +2082,258 @@ export default function Home() {
     }
   };
 
+  // Demo experience handlers
+  const handleDemoUploadNewText = async () => {
+    if (!demoNewTextData.trim() || !vana) return;
+
+    setIsDemoUploadingNewText(true);
+    try {
+      // Create a file from the text data
+      const blob = new Blob([demoNewTextData], { type: "text/plain" });
+      const file = new File([blob], "demo-text.txt", { type: "text/plain" });
+
+      // Use the new high-level upload method
+      const result = await vana.data.upload({
+        content: blob,
+        filename: file.name,
+      });
+
+      setDemoNewTextUploadResult({
+        fileId: result.fileId,
+        transactionHash: result.transactionHash as string,
+      });
+
+      // Add to selected files for permission granting
+      setSelectedFiles([result.fileId]);
+
+      // Refresh files list
+      setTimeout(() => {
+        loadUserFiles();
+      }, 2000);
+    } catch (error) {
+      console.error("Failed to upload demo text:", error);
+    } finally {
+      setIsDemoUploadingNewText(false);
+    }
+  };
+
+  // Create props for each view helper function
+  const createUserDashboardProps = (
+    vanaInstance: typeof vana,
+  ): UserDashboardViewProps => ({
+    fileLookupId,
+    onFileLookupIdChange: setFileLookupId,
+    onLookupFile: handleLookupFile,
+    isLookingUpFile,
+    fileLookupStatus,
+
+    // Permission lookup props
+    permissionLookupId,
+    onPermissionLookupIdChange: setPermissionLookupId,
+    onLookupPermission: handleLookupPermission,
+    isLookingUpPermission,
+    permissionLookupStatus,
+    lookedUpPermission,
+
+    userFiles,
+    isLoadingFiles,
+    onRefreshFiles: loadUserFiles,
+    selectedFiles,
+    decryptingFiles,
+    decryptedFiles,
+    fileDecryptErrors,
+    onFileSelection: handleFileSelection,
+    onDecryptFile: handleDecryptFile,
+    onDownloadDecryptedFile: handleDownloadDecryptedFile,
+    onClearFileError: handleClearFileError,
+    onGrantPermission: handleGrantPermission,
+    isGranting,
+    grantStatus,
+    grantTxHash,
+    promptText,
+    onPromptTextChange: setPromptText,
+    applicationAddress,
+    userPermissions,
+    isLoadingPermissions,
+    onRevokePermission: handleRevokePermissionById,
+    isRevoking,
+    onRefreshPermissions: loadUserPermissions,
+    serverId,
+    onServerIdChange: setServerId,
+    serverUrl,
+    onServerUrlChange: setServerUrl,
+    onTrustServer: appConfig.useGaslessTransactions
+      ? () => handleTrustServerGasless(true)
+      : handleTrustServer,
+    isTrustingServer,
+    onUntrustServer: handleUntrustServer,
+    isUntrusting,
+    onDiscoverReplicateServer: handleDiscoverHostedServer,
+    isDiscoveringServer,
+    trustedServers: trustedServers.map((server) => ({
+      id: server.serverAddress,
+      url: server.serverUrl,
+      name: server.serverAddress,
+    })),
+    isLoadingServers: isLoadingTrustedServers,
+    onRefreshServers: () => loadUserTrustedServers(trustedServerQueryMode),
+    trustServerError,
+    queryMode: trustedServerQueryMode,
+    onQueryModeChange: setTrustedServerQueryMode,
+    userAddress: address,
+    chainId: chainId || 14800,
+    vana: vanaInstance!,
+    // Upload data functionality
+    uploadInputMode,
+    onUploadInputModeChange: setUploadInputMode,
+    uploadTextData,
+    onUploadTextDataChange: setUploadTextData,
+    uploadSelectedFile,
+    onUploadFileSelect: setUploadSelectedFile,
+    uploadSelectedSchemaId,
+    onUploadSchemaChange: setUploadSelectedSchemaId,
+    onUploadData: async (data: {
+      content: string;
+      filename?: string;
+      schemaId?: number;
+      isValid?: boolean;
+      validationErrors?: string[];
+    }) => {
+      if (!vanaInstance || !walletClient) {
+        setUploadError("Wallet not connected");
+        return;
+      }
+
+      setIsUploadingData(true);
+      setUploadError(null);
+      setUploadResult(null);
+
+      try {
+        // Use the new high-level upload method
+        const uploadResult = await vanaInstance.data.upload({
+          content: data.content,
+          filename: data.filename || "uploaded_data.txt",
+          schemaId: data.schemaId,
+        });
+
+        const result = {
+          fileId: uploadResult.fileId,
+          transactionHash: uploadResult.transactionHash,
+          isValid: data.isValid,
+          validationErrors: data.validationErrors,
+        };
+
+        setUploadResult(result);
+
+        // Refresh the user files list
+        await loadUserFiles();
+
+        // Clear the form
+        setUploadTextData("");
+        setUploadSelectedFile(null);
+        setUploadSelectedSchemaId(null);
+      } catch (error) {
+        console.error("Error uploading data:", error);
+        setUploadError(
+          error instanceof Error ? error.message : "Unknown error",
+        );
+      } finally {
+        setIsUploadingData(false);
+      }
+    },
+    isUploadingData,
+    uploadResult,
+    uploadError,
+  });
+
+  const createDeveloperDashboardProps = (
+    vanaInstance: typeof vana,
+    walletClientInstance: typeof walletClient,
+  ): DeveloperDashboardViewProps => ({
+    schemasCount,
+    refinersCount,
+    schemaName,
+    onSchemaNameChange: setSchemaName,
+    schemaType,
+    onSchemaTypeChange: setSchemaType,
+    schemaDefinitionUrl,
+    onSchemaDefinitionUrlChange: setSchemaDefinitionUrl,
+    onCreateSchema: handleCreateSchema,
+    isCreatingSchema,
+    schemaStatus,
+    lastCreatedSchemaId,
+    refinerName,
+    onRefinerNameChange: setRefinerName,
+    refinerDlpId,
+    onRefinerDlpIdChange: setRefinerDlpId,
+    refinerSchemaId,
+    onRefinerSchemaIdChange: setRefinerSchemaId,
+    refinerInstructionUrl,
+    onRefinerInstructionUrlChange: setRefinerInstructionUrl,
+    onCreateRefiner: handleCreateRefiner,
+    isCreatingRefiner,
+    refinerStatus,
+    lastCreatedRefinerId,
+    updateRefinerId,
+    onUpdateRefinerIdChange: setUpdateRefinerId,
+    updateSchemaId,
+    onUpdateSchemaIdChange: setUpdateSchemaId,
+    onUpdateSchemaId: handleUpdateSchemaId,
+    isUpdatingSchema,
+    updateSchemaStatus,
+    schemas,
+    isLoadingSchemas,
+    onRefreshSchemas: loadSchemas,
+    refiners,
+    isLoadingRefiners,
+    onRefreshRefiners: loadRefiners,
+    chainId: chainId || 14800,
+    vana: vanaInstance!,
+    walletClient: walletClientInstance!,
+  });
+
+  const createDemoExperienceProps = (
+    vanaInstance: typeof vana,
+  ): DemoExperienceViewProps => ({
+    vana: vanaInstance!,
+    serverId,
+    onServerIdChange: setServerId,
+    serverUrl,
+    onServerUrlChange: setServerUrl,
+    onDiscoverReplicateServer: handleDiscoverHostedServer,
+    isDiscoveringServer,
+    onTrustServer: appConfig.useGaslessTransactions
+      ? (serverId?: string, serverUrl?: string) =>
+          handleTrustServerGasless(false, serverId, serverUrl)
+      : handleTrustServer,
+    isTrustingServer,
+    trustServerError,
+    trustedServers: trustedServers.map((server) => ({
+      id: server.serverAddress,
+      url: server.serverUrl,
+      name: server.serverAddress,
+    })),
+    userFiles,
+    selectedFiles,
+    onFileSelection: handleFileSelection,
+    newTextData: demoNewTextData,
+    onNewTextDataChange: setDemoNewTextData,
+    onUploadNewText: handleDemoUploadNewText,
+    isUploadingNewText: isDemoUploadingNewText,
+    newTextUploadResult: demoNewTextUploadResult,
+    onGrantPermission: handleGrantPermission,
+    isGranting,
+    grantStatus,
+    grantTxHash,
+    applicationAddress,
+    onRunLLM: handleDemoRunLLM,
+    isRunningLLM: isPersonalLoading,
+    llmResult: personalResult,
+    llmError: personalError,
+    lastUsedPermissionId,
+    chainId: chainId || 14800,
+  });
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar isBordered>
@@ -2173,372 +2347,56 @@ export default function Home() {
         </NavbarContent>
       </Navbar>
 
-      <div className="flex h-[calc(100vh-4rem)]">
-        {/* Left Sidebar - Navigation */}
-        <div className="w-64 border-r border-divider bg-content1 overflow-y-auto">
-          <div className="p-4">
-            <h2 className="text-lg font-semibold mb-4">SDK Demo</h2>
-            <nav className="space-y-1">
-              {navigationConfig.sections.map((section, sectionIndex) => (
-                <div key={section.title}>
-                  <div className={`${sectionIndex > 0 ? "mt-4" : ""} mb-2`}>
-                    <div className="px-3 py-1 text-xs font-medium text-default-500 uppercase tracking-wider">
-                      {section.title}
-                    </div>
-                  </div>
-                  {section.items.map((item) => (
-                    <NavigationButton
-                      key={item.id}
-                      icon={item.icon}
-                      label={item.label}
-                      targetId={item.targetId}
-                    />
-                  ))}
-                </div>
-              ))}
-            </nav>
-          </div>
+      {!isConnected && (
+        <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
+          <Card className="max-w-md">
+            <CardHeader className="flex-col items-start">
+              <div>Get Started</div>
+            </CardHeader>
+            <CardBody>
+              <p className="text-muted-foreground">
+                Connect your wallet above to begin exploring the Vana SDK
+                capabilities.
+              </p>
+            </CardBody>
+          </Card>
         </div>
+      )}
 
-        {/* Main Content */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-4xl mx-auto p-6">
-            {!isConnected && (
-              <Card>
-                <CardHeader className="flex-col items-start">
-                  <div>Get Started</div>
-                </CardHeader>
-                <CardBody>
-                  <p className="text-muted-foreground">
-                    Connect your wallet above to begin exploring the Vana SDK
-                    capabilities.
-                  </p>
-                </CardBody>
-              </Card>
-            )}
-
-            {isConnected && !vana && (
-              <Card>
-                <CardHeader className="flex-col items-start">
-                  <div className="flex items-center gap-2">
-                    <Spinner size="sm" />
-                    Initializing...
-                  </div>
-                </CardHeader>
-                <CardBody>
-                  <p className="text-muted-foreground">
-                    Setting up the Vana SDK with your wallet...
-                  </p>
-                </CardBody>
-              </Card>
-            )}
-
-            {vana && (
-              <div id="main-content">
-                {/* Data & Permissions Section */}
-                <Section isFirst>
-                  <h1 className="text-3xl font-bold mb-16">
-                    Data &amp; Permissions
-                  </h1>
-
-                  <div className="space-y-20">
-                    <YourDataCard
-                      fileLookupId={fileLookupId}
-                      onFileLookupIdChange={setFileLookupId}
-                      onLookupFile={handleLookupFile}
-                      isLookingUpFile={isLookingUpFile}
-                      fileLookupStatus={fileLookupStatus}
-                      userFiles={userFiles}
-                      isLoadingFiles={isLoadingFiles}
-                      onRefreshFiles={loadUserFiles}
-                      selectedFiles={selectedFiles}
-                      decryptingFiles={decryptingFiles}
-                      decryptedFiles={decryptedFiles}
-                      fileDecryptErrors={fileDecryptErrors}
-                      onFileSelection={handleFileSelection}
-                      onDecryptFile={handleDecryptFile}
-                      onDownloadDecryptedFile={handleDownloadDecryptedFile}
-                      onClearFileError={handleClearFileError}
-                      onGrantPermission={handleGrantPermission}
-                      isGranting={isGranting}
-                      grantStatus={grantStatus}
-                      grantTxHash={grantTxHash}
-                      promptText={promptText}
-                      onPromptTextChange={setPromptText}
-                      applicationAddress={applicationAddress}
-                      _userAddress={address}
-                      chainId={chainId || 14800}
-                    />
-
-                    {/* Grant Preview Modal */}
-                    <Modal
-                      isOpen={showGrantPreview && !!grantPreview}
-                      onClose={onCloseGrant}
-                      size="2xl"
-                      scrollBehavior="inside"
-                    >
-                      <ModalContent>
-                        <ModalHeader className="flex items-center gap-2">
-                          <Eye className="h-5 w-5" />
-                          Review Grant
-                        </ModalHeader>
-                        <ModalBody>
-                          <GrantPreviewModalContent
-                            grantPreview={grantPreview}
-                            onConfirm={handleConfirmGrant}
-                            onCancel={handleCancelGrant}
-                          />
-                        </ModalBody>
-                      </ModalContent>
-                    </Modal>
-
-                    <section id="permissions">
-                      <SectionHeader
-                        icon={<Shield className="h-5 w-5" />}
-                        title="Permissions Management"
-                        description={
-                          <>
-                            <em>
-                              Demonstrates: `getPermissions()`,
-                              `revokePermission()`, `grantPermission()`
-                            </em>
-                            <br />
-                            View and manage data access permissions for your
-                            files.
-                          </>
-                        }
-                      />
-
-                      {revokeStatus && (
-                        <StatusMessage status={revokeStatus} className="mb-4" />
-                      )}
-
-                      <PermissionsTable
-                        userPermissions={userPermissions}
-                        isLoading={isLoadingPermissions}
-                        onRevoke={handleRevokePermissionById}
-                        isRevoking={isRevoking}
-                        onRefresh={loadUserPermissions}
-                      />
-                    </section>
-
-                    <EncryptionTestCard
-                      encryptionSeed={encryptionSeed}
-                      onEncryptionSeedChange={setEncryptionSeed}
-                      encryptionKey={generatedEncryptionKey || ""}
-                      isGeneratingKey={isGeneratingKey}
-                      onGenerateKey={handleGenerateKey}
-                      inputMode={inputMode}
-                      onInputModeChange={setInputMode}
-                      testData={testData}
-                      onTestDataChange={setTestData}
-                      uploadedFile={uploadedFile}
-                      onFileUpload={setUploadedFile}
-                      isEncrypting={isEncrypting}
-                      onEncryptData={handleEncryptData}
-                      onDecryptData={handleDecryptData}
-                      onResetAll={handleResetEncryption}
-                      encryptionStatus={encryptionStatus}
-                      encryptedData={encryptedData}
-                      decryptedData={decryptedData}
-                      showEncryptedContent={showEncryptedContent}
-                      onToggleEncryptedContent={() =>
-                        setShowEncryptedContent(!showEncryptedContent)
-                      }
-                      schemas={schemas}
-                      selectedSchemaId={selectedUploadSchemaId}
-                      onSchemaSelectionChange={setSelectedUploadSchemaId}
-                      isUploadingToChain={isUploadingToChain}
-                      onUploadToChain={handleUploadToBlockchain}
-                      newFileId={newFileId}
-                      storageConfig={{
-                        provider:
-                          sdkConfig.defaultStorageProvider || "app-ipfs",
-                        ipfsMode: ipfsMode,
-                      }}
-                      onCopyToClipboard={handleCopyToClipboard}
-                      onDownloadDecrypted={handleDownloadDecrypted}
-                    />
-                  </div>
-                </Section>
-
-                <SectionDivider />
-
-                {/* Server & Schema Setup Section */}
-                <Section>
-                  <h1 className="text-3xl font-bold mb-16">
-                    Server &amp; Schema Setup
-                  </h1>
-
-                  <div className="space-y-20">
-                    <TrustedServerManagementCard
-                      serverId={serverId}
-                      onServerIdChange={setServerId}
-                      serverUrl={serverUrl}
-                      onServerUrlChange={setServerUrl}
-                      onTrustServer={
-                        appConfig.useGaslessTransactions
-                          ? handleTrustServerGasless
-                          : handleTrustServer
-                      }
-                      isTrustingServer={isTrustingServer}
-                      onDiscoverHostedServer={handleDiscoverHostedServer}
-                      isDiscoveringServer={isDiscoveringServer}
-                      trustServerError={trustServerError}
-                      trustedServers={trustedServers.map((server) => ({
-                        id: server.serverAddress,
-                        url: server.serverUrl,
-                        name: server.serverAddress,
-                      }))}
-                      isLoadingServers={isLoadingTrustedServers}
-                      onRefreshServers={() =>
-                        loadUserTrustedServers(trustedServerQueryMode)
-                      }
-                      onUntrustServer={handleUntrustServer}
-                      isUntrusting={isUntrusting}
-                      chainId={chainId}
-                      queryMode={trustedServerQueryMode}
-                      onQueryModeChange={setTrustedServerQueryMode}
-                    />
-
-                    <SchemaManagementCard
-                      schemasCount={schemasCount}
-                      refinersCount={refinersCount}
-                      schemaName={schemaName}
-                      onSchemaNameChange={setSchemaName}
-                      schemaType={schemaType}
-                      onSchemaTypeChange={setSchemaType}
-                      schemaDefinitionUrl={schemaDefinitionUrl}
-                      onSchemaDefinitionUrlChange={setSchemaDefinitionUrl}
-                      onCreateSchema={handleCreateSchema}
-                      isCreatingSchema={isCreatingSchema}
-                      schemaStatus={schemaStatus}
-                      lastCreatedSchemaId={lastCreatedSchemaId}
-                      refinerName={refinerName}
-                      onRefinerNameChange={setRefinerName}
-                      refinerDlpId={refinerDlpId}
-                      onRefinerDlpIdChange={setRefinerDlpId}
-                      refinerSchemaId={refinerSchemaId}
-                      onRefinerSchemaIdChange={setRefinerSchemaId}
-                      refinerInstructionUrl={refinerInstructionUrl}
-                      onRefinerInstructionUrlChange={setRefinerInstructionUrl}
-                      onCreateRefiner={handleCreateRefiner}
-                      isCreatingRefiner={isCreatingRefiner}
-                      refinerStatus={refinerStatus}
-                      lastCreatedRefinerId={lastCreatedRefinerId}
-                      updateRefinerId={updateRefinerId}
-                      onUpdateRefinerIdChange={setUpdateRefinerId}
-                      updateSchemaId={updateSchemaId}
-                      onUpdateSchemaIdChange={setUpdateSchemaId}
-                      onUpdateSchemaId={handleUpdateSchemaId}
-                      isUpdatingSchema={isUpdatingSchema}
-                      updateSchemaStatus={updateSchemaStatus}
-                      schemas={schemas}
-                      isLoadingSchemas={isLoadingSchemas}
-                      onRefreshSchemas={loadSchemas}
-                      refiners={refiners}
-                      isLoadingRefiners={isLoadingRefiners}
-                      onRefreshRefiners={loadRefiners}
-                      chainId={chainId || 14800}
-                    />
-                  </div>
-
-                  {/* Schema Validation Section */}
-                  <div className="mt-16">
-                    <SchemaValidationCard vana={vana} />
-                  </div>
-                </Section>
-
-                <SectionDivider />
-
-                {/* Server Workflows Section */}
-                <Section>
-                  <h1 className="text-3xl font-bold mb-16">Server Workflows</h1>
-
-                  <div className="space-y-20">
-                    <ServerUploadCard
-                      trustedServers={trustedServers.map(
-                        (server) => server.serverAddress,
-                      )}
-                      selectedServerForUpload={selectedServerForUpload}
-                      onSelectedServerForUploadChange={
-                        setSelectedServerForUpload
-                      }
-                      serverInputMode={serverInputMode}
-                      onServerInputModeChange={setServerInputMode}
-                      serverTextData={serverTextData}
-                      onServerTextDataChange={setServerTextData}
-                      serverFileToUpload={serverFileToUpload}
-                      onServerFileToUploadChange={(file) => {
-                        setServerFileToUpload(file);
-                        setServerUploadStatus("");
-                        setServerUploadResult(null);
-                      }}
-                      onUploadToTrustedServer={handleUploadToTrustedServer}
-                      isUploadingToServer={isUploadingToServer}
-                      serverUploadStatus={serverUploadStatus}
-                      serverUploadResult={serverUploadResult}
-                      chainId={chainId}
-                    />
-
-                    <TrustedServerIntegrationCard
-                      serverFileId={serverFileId}
-                      onServerFileIdChange={setServerFileId}
-                      serverPrivateKey={serverPrivateKey}
-                      onServerPrivateKeyChange={setServerPrivateKey}
-                      derivedServerAddress={derivedServerAddress}
-                      onServerDecryption={handleServerDecryption}
-                      isServerDecrypting={isServerDecrypting}
-                      serverDecryptError={serverDecryptError}
-                      serverDecryptedData={serverDecryptedData}
-                      personalPermissionId={personalPermissionId}
-                      onPersonalPermissionIdChange={setPersonalPermissionId}
-                      onPersonalServerCall={handlePersonalServerCall}
-                      isPersonalLoading={isPersonalLoading}
-                      onPollStatus={handlePollStatus}
-                      isPolling={isPolling}
-                      personalError={personalError}
-                      personalResult={personalResult}
-                      lastUsedPermissionId={lastUsedPermissionId}
-                      lastUsedPrompt={lastUsedPrompt}
-                      onCopyToClipboard={copyToClipboard}
-                    />
-                  </div>
-                </Section>
-
-                <SectionDivider />
-
-                {/* Reference Section */}
-                <Section isLast>
-                  <h1 className="text-3xl font-bold mb-16">Reference</h1>
-                  <ContractListCard
-                    contracts={vana.protocol.getAvailableContracts()}
-                    getContract={(contractName) =>
-                      vana.protocol.getContract(
-                        contractName as
-                          | "DataPermissions"
-                          | "DataRegistry"
-                          | "TeePoolPhala"
-                          | "ComputeEngine"
-                          | "DataRefinerRegistry"
-                          | "QueryEngine"
-                          | "ComputeInstructionRegistry"
-                          | "TeePoolEphemeralStandard",
-                      )
-                    }
-                    chainId={chainId}
-                    chainName={
-                      vana?.protocol?.getChainName?.() || "this network"
-                    }
-                  />
-                </Section>
+      {isConnected && !vana && (
+        <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
+          <Card className="max-w-md">
+            <CardHeader className="flex-col items-start">
+              <div className="flex items-center gap-2">
+                <Spinner size="sm" />
+                Initializing...
               </div>
-            )}
-          </div>
+            </CardHeader>
+            <CardBody>
+              <p className="text-muted-foreground">
+                Setting up the Vana SDK with your wallet...
+              </p>
+            </CardBody>
+          </Card>
         </div>
+      )}
 
-        {/* Right Sidebar - SDK Configuration */}
-        {vana && (
+      {vana && (
+        <div className="flex">
+          <div className="flex-1">
+            <MainLayout
+              activeView={activeView}
+              onViewChange={setActiveView}
+              userDashboardProps={createUserDashboardProps(vana)}
+              developerDashboardProps={createDeveloperDashboardProps(
+                vana,
+                walletClient,
+              )}
+              demoExperienceProps={createDemoExperienceProps(vana)}
+            />
+          </div>
+
+          {/* Right Sidebar - SDK Configuration */}
           <div id="configuration">
             <SDKConfigurationSidebar
               sdkConfig={sdkConfig}
@@ -2553,8 +2411,30 @@ export default function Home() {
               onGoogleDriveDisconnect={handleGoogleDriveDisconnect}
             />
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* Grant Preview Modal */}
+      <Modal
+        isOpen={showGrantPreview && !!grantPreview}
+        onClose={onCloseGrant}
+        size="2xl"
+        scrollBehavior="inside"
+      >
+        <ModalContent>
+          <ModalHeader className="flex items-center gap-2">
+            <Eye className="h-5 w-5" />
+            Review Grant
+          </ModalHeader>
+          <ModalBody>
+            <GrantPreviewModalContent
+              grantPreview={grantPreview}
+              onConfirm={handleConfirmGrant}
+              onCancel={handleCancelGrant}
+            />
+          </ModalBody>
+        </ModalContent>
+      </Modal>
     </div>
   );
 }

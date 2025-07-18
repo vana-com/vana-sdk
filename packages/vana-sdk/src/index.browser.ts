@@ -86,9 +86,17 @@ export * from "./storage";
 
 // Configuration
 export { getContractAddress } from "./config/addresses";
-export { chains, mokshaTestnet, vanaMainnet } from "./config/chains";
+export { chains } from "./config/chains";
 
-// Chain configurations with subgraph URLs
+// Chain configurations with subgraph URLs - explicit exports for better DX
+export { 
+  vanaMainnet, 
+  mokshaTestnet, 
+  moksha,
+  type VanaChainConfig,
+  getChainConfig,
+  getAllChains 
+} from "./chains";
 export * from "./chains";
 
 // ABIs

@@ -45,7 +45,7 @@ export interface RelayerRequestPayload {
  * @category Server
  * @example
  * ```typescript
- * import { handleRelayerRequest } from 'vana-sdk';
+ * import { handleRelayerRequest } from '@opendatalabs/vana-sdk';
  *
  * // In your relayer API endpoint:
  * export async function POST(request: NextRequest) {

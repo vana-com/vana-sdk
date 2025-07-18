@@ -71,6 +71,7 @@ export { PermissionsController } from "./controllers/permissions";
 export { DataController } from "./controllers/data";
 export { ServerController } from "./controllers/server";
 export { ProtocolController } from "./controllers/protocol";
+export { SchemaController } from "./controllers/schemas";
 
 // Contract controller
 export * from "./contracts/contractController";
@@ -89,9 +90,17 @@ export * from "./storage";
 
 // Configuration
 export { getContractAddress } from "./config/addresses";
-export { chains, mokshaTestnet, vanaMainnet } from "./config/chains";
+export { chains } from "./config/chains";
 
-// Chain configurations with subgraph URLs
+// Chain configurations with subgraph URLs - explicit exports for better DX
+export { 
+  vanaMainnet, 
+  mokshaTestnet, 
+  moksha,
+  type VanaChainConfig,
+  getChainConfig,
+  getAllChains 
+} from "./chains";
 export * from "./chains";
 
 // ABIs

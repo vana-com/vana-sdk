@@ -256,7 +256,7 @@ export class ServerController {
   /**
    * Makes the request to the personal server API.
    *
-   * @param params - The post request parameters to serialize
+   * @param requestBody - The post request parameters to serialize
    * @returns JSON string representation of the request data
    */
   private async makeRequest(

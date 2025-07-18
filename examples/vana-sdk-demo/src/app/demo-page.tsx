@@ -1348,7 +1348,7 @@ export default function Home() {
   };
 
   const handleLookupPermission = async () => {
-    if (!permissionLookupId.trim() || !vana || !walletClient) {
+    if (!permissionLookupId.trim() || !vana || !walletClient || !address) {
       setPermissionLookupStatus(
         "❌ Please enter a permission ID and ensure wallet is connected",
       );
@@ -1376,7 +1376,7 @@ export default function Home() {
         parameters: undefined,
         grant: permissionInfo.grant,
         grantor: permissionInfo.grantor,
-        grantee: address!, // Get the current user's address from useAccount hook
+        grantee: address, // Get the current user's address from useAccount hook
         active: true, // Assume it's active if we can look it up
       };
 
@@ -2074,8 +2074,10 @@ export default function Home() {
     }
   };
 
-  // Create props for each view
-  const userDashboardProps: UserDashboardViewProps = {
+  // Create props for each view helper function
+  const createUserDashboardProps = (
+    vanaInstance: typeof vana,
+  ): UserDashboardViewProps => ({
     fileLookupId,
     onFileLookupIdChange: setFileLookupId,
     onLookupFile: handleLookupFile,
@@ -2137,7 +2139,7 @@ export default function Home() {
     onQueryModeChange: setTrustedServerQueryMode,
     userAddress: address,
     chainId: chainId || 14800,
-    vana: vana!,
+    vana: vanaInstance!,
     // Upload data functionality
     uploadInputMode,
     onUploadInputModeChange: setUploadInputMode,
@@ -2154,7 +2156,7 @@ export default function Home() {
       isValid?: boolean;
       validationErrors?: string[];
     }) => {
-      if (!vana || !walletClient) {
+      if (!vanaInstance || !walletClient) {
         setUploadError("Wallet not connected");
         return;
       }
@@ -2165,7 +2167,7 @@ export default function Home() {
 
       try {
         // Use the new high-level upload method
-        const uploadResult = await vana.data.upload({
+        const uploadResult = await vanaInstance.data.upload({
           content: data.content,
           filename: data.filename || "uploaded_data.txt",
           schemaId: data.schemaId,
@@ -2199,9 +2201,12 @@ export default function Home() {
     isUploadingData,
     uploadResult,
     uploadError,
-  };
+  });
 
-  const developerDashboardProps: DeveloperDashboardViewProps = {
+  const createDeveloperDashboardProps = (
+    vanaInstance: typeof vana,
+    walletClientInstance: typeof walletClient,
+  ): DeveloperDashboardViewProps => ({
     schemasCount,
     refinersCount,
     schemaName,
@@ -2240,12 +2245,14 @@ export default function Home() {
     isLoadingRefiners,
     onRefreshRefiners: loadRefiners,
     chainId: chainId || 14800,
-    vana: vana!,
-    walletClient: walletClient!,
-  };
+    vana: vanaInstance!,
+    walletClient: walletClientInstance!,
+  });
 
-  const demoExperienceProps: DemoExperienceViewProps = {
-    vana: vana!,
+  const createDemoExperienceProps = (
+    vanaInstance: typeof vana,
+  ): DemoExperienceViewProps => ({
+    vana: vanaInstance!,
     serverId,
     onServerIdChange: setServerId,
     serverUrl,
@@ -2281,7 +2288,7 @@ export default function Home() {
     llmError: personalError,
     lastUsedPermissionId,
     chainId: chainId || 14800,
-  };
+  });
 
   return (
     <div className="min-h-screen bg-background">
@@ -2336,9 +2343,12 @@ export default function Home() {
             <MainLayout
               activeView={activeView}
               onViewChange={setActiveView}
-              userDashboardProps={userDashboardProps}
-              developerDashboardProps={developerDashboardProps}
-              demoExperienceProps={demoExperienceProps}
+              userDashboardProps={createUserDashboardProps(vana)}
+              developerDashboardProps={createDeveloperDashboardProps(
+                vana,
+                walletClient,
+              )}
+              demoExperienceProps={createDemoExperienceProps(vana)}
             />
           </div>
 

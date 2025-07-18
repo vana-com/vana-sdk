@@ -21,6 +21,8 @@ export default defineConfig({
         "src/types.ts", // Pure TypeScript definitions - no executable code
         "src/platform/interface.ts", // TypeScript interface definitions only
         "src/types/**/*.ts", // All type definition files
+        "src/types/server.d.ts", // Generated server types - exclude explicitly
+        "**/*.d.ts", // All declaration files
       ],
       reportOnFailure: true,
       thresholds: {

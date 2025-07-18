@@ -22,6 +22,7 @@ import {
   RefreshCw,
   RotateCcw,
   ExternalLink,
+  Copy,
 } from "lucide-react";
 import { Schema, Refiner, Vana } from "@opendatalabs/vana-sdk/browser";
 import type { WalletClient } from "viem";
@@ -314,6 +315,83 @@ export function DeveloperDashboardView({
               )}
             </div>
           )}
+        </CardBody>
+      </Card>
+    </div>
+  );
+
+  /**
+   * Renders the contracts tab content
+   */
+  const renderContractsTab = () => (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Database className="h-5 w-5" />
+            <h3 className="text-lg font-semibold">Smart Contracts</h3>
+          </div>
+        </CardHeader>
+        <CardBody>
+          <div className="space-y-4">
+            <Table aria-label="Smart contracts table" removeWrapper>
+              <TableHeader>
+                <TableColumn>Contract Name</TableColumn>
+                <TableColumn>Address</TableColumn>
+                <TableColumn>Actions</TableColumn>
+              </TableHeader>
+              <TableBody>
+                {vana.protocol
+                  .getAvailableContracts()
+                  .filter((contractName) => {
+                    try {
+                      vana.protocol.getContract(contractName);
+                      return true;
+                    } catch {
+                      return false;
+                    }
+                  })
+                  .map((contractName) => {
+                    const contract = vana.protocol.getContract(contractName);
+                    return (
+                      <TableRow key={contractName}>
+                        <TableCell>{contractName}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-sm">
+                              {contract.address}
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="flat"
+                              isIconOnly
+                              onPress={() =>
+                                navigator.clipboard.writeText(contract.address)
+                              }
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            as="a"
+                            href={`https://vanascan.io/address/${contract.address}?tab=contract`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            size="sm"
+                            variant="flat"
+                            startContent={<ExternalLink className="h-3 w-3" />}
+                          >
+                            View on Explorer
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+              </TableBody>
+            </Table>
+          </div>
         </CardBody>
       </Card>
     </div>
@@ -633,6 +711,9 @@ export function DeveloperDashboardView({
         </Tab>
         <Tab key="refiners" title="Refiners">
           {renderRefinersTab()}
+        </Tab>
+        <Tab key="contracts" title="Contracts">
+          {renderContractsTab()}
         </Tab>
       </Tabs>
     </div>

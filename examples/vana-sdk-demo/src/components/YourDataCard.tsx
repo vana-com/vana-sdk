@@ -585,8 +585,7 @@ export const YourDataCard: React.FC<YourDataCardProps> = ({
                   className="text-sm"
                 />
                 <p className="text-xs text-primary-600 mt-1">
-                  Permissions will be granted to this application address
-                  derived from the server's private key.
+                  Permissions will be granted to this application's address.
                 </p>
               </div>
             )}

@@ -1,7 +1,8 @@
 import {
   CreateOperationParams,
   InitPersonalServerParams,
-  OperationCreatedResponse,
+  PersonalServerIdentity,
+  CreateOperationResponse,
   GetOperationResponse,
 } from "../types";
 import { IdentityServerOutput } from "../types/external-apis";
@@ -12,7 +13,8 @@ import {
   PersonalServerError,
 } from "../errors";
 import { ControllerContext } from "./permissions";
-import { PersonalServerIdentity } from "../types/personal";
+
+// Server types are now auto-imported from the generated exports
 
 /**
  * Manages interactions with Vana personal servers and identity infrastructure.
@@ -116,7 +118,7 @@ export class ServerController {
    */
   async createOperation(
     params: CreateOperationParams,
-  ): Promise<OperationCreatedResponse> {
+  ): Promise<CreateOperationResponse> {
     try {
       const requestData = {
         permission_id: params.permissionId,
@@ -261,7 +263,7 @@ export class ServerController {
    */
   private async makeRequest(
     requestBody: Record<string, unknown>,
-  ): Promise<OperationCreatedResponse> {
+  ): Promise<CreateOperationResponse> {
     try {
       console.debug("Personal Server Request:", {
         url: `${this.PERSONAL_SERVER_BASE_URL}/operations`,
@@ -295,7 +297,7 @@ export class ServerController {
         );
       }
 
-      const data = (await response.json()) as OperationCreatedResponse;
+      const data = (await response.json()) as CreateOperationResponse;
 
       console.debug("Personal Server Success Response:", data);
 

@@ -143,6 +143,7 @@ export function DemoExperienceView({
   const [fileSchemas, setFileSchemas] = useState<Map<number, Schema>>(
     new Map(),
   );
+  const [isAdvancingStep, setIsAdvancingStep] = useState(false);
 
   // Fetch schema information for files that have schema IDs
   useEffect(() => {
@@ -185,12 +186,16 @@ export function DemoExperienceView({
   const isStep4Complete = Boolean(llmResult && !llmError);
 
   /**
-   * Handles moving to the next step
+   * Handles moving to the next step with debouncing protection
    */
   const handleNextStep = () => {
-    if (currentStep < 4) {
-      setCurrentStep(currentStep + 1);
-    }
+    if (isAdvancingStep || currentStep >= 4) return;
+
+    setIsAdvancingStep(true);
+    setCurrentStep(currentStep + 1);
+
+    // Reset debouncing after a short delay
+    setTimeout(() => setIsAdvancingStep(false), 1000);
   };
 
   /**
@@ -364,9 +369,17 @@ export function DemoExperienceView({
                 <Button
                   onPress={handleNextStep}
                   color="primary"
-                  endContent={<ArrowRight className="h-4 w-4" />}
+                  isDisabled={isAdvancingStep}
+                  isLoading={isAdvancingStep}
+                  endContent={
+                    !isAdvancingStep ? (
+                      <ArrowRight className="h-4 w-4" />
+                    ) : undefined
+                  }
                 >
-                  Continue to Data Selection
+                  {isAdvancingStep
+                    ? "Loading..."
+                    : "Continue to Data Selection"}
                 </Button>
               )}
             </div>
@@ -551,9 +564,15 @@ export function DemoExperienceView({
             <Button
               onPress={handleNextStep}
               color="primary"
-              endContent={<ArrowRight className="h-4 w-4" />}
+              isDisabled={isAdvancingStep}
+              isLoading={isAdvancingStep}
+              endContent={
+                !isAdvancingStep ? (
+                  <ArrowRight className="h-4 w-4" />
+                ) : undefined
+              }
             >
-              Continue to Grant Permission
+              {isAdvancingStep ? "Loading..." : "Continue to Grant Permission"}
             </Button>
           )}
         </div>
@@ -640,9 +659,15 @@ export function DemoExperienceView({
             <Button
               onPress={handleNextStep}
               color="primary"
-              endContent={<ArrowRight className="h-4 w-4" />}
+              isDisabled={isAdvancingStep}
+              isLoading={isAdvancingStep}
+              endContent={
+                !isAdvancingStep ? (
+                  <ArrowRight className="h-4 w-4" />
+                ) : undefined
+              }
             >
-              Continue to Generate Profile
+              {isAdvancingStep ? "Loading..." : "Continue to Generate Profile"}
             </Button>
           )}
         </div>
@@ -774,9 +799,9 @@ export function DemoExperienceView({
       {/* Steps */}
       <div className="space-y-6 max-w-2xl mx-auto">
         {currentStep >= 1 && renderStep1()}
-        {currentStep >= 2 && renderStep2()}
-        {currentStep >= 3 && renderStep3()}
-        {currentStep >= 4 && renderStep4()}
+        {currentStep >= 2 && isStep1Complete && renderStep2()}
+        {currentStep >= 3 && isStep2Complete && renderStep3()}
+        {currentStep >= 4 && isStep3Complete && renderStep4()}
       </div>
 
       {/* Footer */}

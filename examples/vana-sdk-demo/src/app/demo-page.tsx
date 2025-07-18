@@ -898,7 +898,9 @@ export default function Home() {
     }
   };
 
-  const handleGrantPermission = async () => {
+  const handleGrantPermission = async (
+    customParams?: GrantPermissionParams & { expiresAt?: number },
+  ) => {
     if (!vana || selectedFiles.length === 0) return;
 
     if (!applicationAddress) {
@@ -967,12 +969,12 @@ export default function Home() {
         }
       }
 
-      // Create clear, unencrypted parameters for the grant
+      // Use custom parameters if provided, otherwise use defaults
       const params: GrantPermissionParams = {
-        to: applicationAddress as `0x${string}`, // Use dynamically fetched application address
-        operation: "llm_inference",
-        files: selectedFiles,
-        parameters: {
+        to: applicationAddress as `0x${string}`,
+        operation: customParams?.operation || "llm_inference",
+        files: selectedFiles, // Always use current selectedFiles
+        parameters: customParams?.parameters || {
           prompt: promptText,
         },
       };
@@ -984,10 +986,11 @@ export default function Home() {
         operation: params.operation,
       });
 
-      // Add expiration to params (24 hours from now)
+      // Add expiration to params
       const paramsWithExpiry = {
         ...params,
-        expiresAt: Math.floor(Date.now() / 1000) + 86400,
+        expiresAt:
+          customParams?.expiresAt || Math.floor(Date.now() / 1000) + 86400,
       };
 
       // Show preview to user BEFORE signing

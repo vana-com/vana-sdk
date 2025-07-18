@@ -41,6 +41,7 @@ import type {
   GrantedPermission,
   Schema,
   Vana,
+  GrantPermissionParams,
 } from "@opendatalabs/vana-sdk/browser";
 import { convertIpfsUrl } from "@opendatalabs/vana-sdk/browser";
 import { ActionButton } from "../ui/ActionButton";
@@ -54,6 +55,7 @@ import { ErrorMessage } from "../ui/ErrorMessage";
 import { PermissionDisplay } from "../ui/PermissionDisplay";
 import { FormBuilder } from "../ui/FormBuilder";
 import { DataUploadForm } from "../ui/DataUploadForm";
+import { GrantPermissionModal } from "../ui/GrantPermissionModal";
 
 /**
  * Props for the UserDashboardView component
@@ -96,7 +98,9 @@ export interface UserDashboardViewProps {
   onClearFileError: (fileId: number) => void;
 
   // Permission granting
-  onGrantPermission: () => void;
+  onGrantPermission: (
+    customParams?: GrantPermissionParams & { expiresAt?: number },
+  ) => void;
   isGranting: boolean;
   grantStatus: string;
   grantTxHash: string;
@@ -106,7 +110,7 @@ export interface UserDashboardViewProps {
   onPromptTextChange: (text: string) => void;
 
   // Application info
-  applicationAddress: string;
+  applicationAddress?: string;
 
   // User permissions
   userPermissions: GrantedPermission[];
@@ -209,9 +213,9 @@ export function UserDashboardView({
   isGranting,
   grantStatus: _grantStatus,
   grantTxHash: _grantTxHash,
-  promptText: _promptText,
+  promptText,
   onPromptTextChange: _onPromptTextChange,
-  applicationAddress: _applicationAddress,
+  applicationAddress,
   userPermissions,
   isLoadingPermissions,
   onRevokePermission,
@@ -249,7 +253,8 @@ export function UserDashboardView({
   uploadResult,
   uploadError,
 }: UserDashboardViewProps) {
-  const [activeTab, setActiveTab] = useState("upload");
+  const [activeTab, setActiveTab] = useState("files");
+  const [isGrantModalOpen, setIsGrantModalOpen] = useState(false);
 
   // Files table state
   const [filesCurrentPage, setFilesCurrentPage] = useState(1);
@@ -560,11 +565,11 @@ export function UserDashboardView({
                     <Button
                       size="sm"
                       color="primary"
-                      onPress={onGrantPermission}
-                      disabled={isGranting}
+                      onPress={() => setIsGrantModalOpen(true)}
+                      disabled={isGranting || !applicationAddress?.trim()}
                       startContent={<Users className="h-3 w-3" />}
                     >
-                      {isGranting ? "Granting..." : "Grant Permissions"}
+                      Grant Permissions
                     </Button>
                   </div>
                 </div>
@@ -1291,11 +1296,11 @@ export function UserDashboardView({
         onSelectionChange={(key) => setActiveTab(key as string)}
         className="w-full"
       >
-        <Tab key="upload" title="Upload Data">
-          {renderUploadDataTab()}
-        </Tab>
         <Tab key="files" title="Data Files">
           {renderFilesTab()}
+        </Tab>
+        <Tab key="upload" title="Upload Data">
+          {renderUploadDataTab()}
         </Tab>
         <Tab key="permissions" title="Permissions">
           {renderPermissionsTab()}
@@ -1304,6 +1309,23 @@ export function UserDashboardView({
           {renderTrustedServersTab()}
         </Tab>
       </Tabs>
+
+      {/* Grant Permission Modal */}
+      {applicationAddress?.trim() ? (
+        <GrantPermissionModal
+          isOpen={isGrantModalOpen}
+          onClose={() => setIsGrantModalOpen(false)}
+          onConfirm={(params) => {
+            setIsGrantModalOpen(false);
+            onGrantPermission(params);
+          }}
+          selectedFiles={selectedFiles}
+          applicationAddress={applicationAddress}
+          isGranting={isGranting}
+          defaultPrompt={promptText}
+          allowEditAddress={true}
+        />
+      ) : null}
     </div>
   );
 }

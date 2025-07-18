@@ -1,7 +1,7 @@
 // Vana Personal Server API Types
 // Generated automatically from OpenAPI specification - do not edit manually
 // Source: https://raw.githubusercontent.com/vana-com/vana-personal-server/main/openapi.yaml
-// Generated on: 2025-07-18T23:12:51.997Z
+// Generated on: 2025-07-18T23:23:13.446Z
 
 export interface paths {
   "/operations": {

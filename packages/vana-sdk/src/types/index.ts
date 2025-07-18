@@ -128,6 +128,7 @@ export type {
   InitPersonalServerParams,
   CreateOperationResponse as OperationCreatedResponse,
   GetOperationResponse,
+  PersonalServerIdentity,
 } from "./personal";
 
 // External API types

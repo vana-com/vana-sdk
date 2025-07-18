@@ -70,7 +70,9 @@
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:verbose": "vitest --reporter=verbose",
+    "test:coverage": "vitest run --coverage",
+    "test:coverage:verbose": "vitest run --coverage --reporter=verbose --coverage.reporter=text"
   },
   "keywords": [
     "vana",

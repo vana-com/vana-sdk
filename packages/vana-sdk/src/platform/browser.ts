@@ -16,143 +16,9 @@ import {
   processWalletPublicKey,
   processWalletPrivateKey,
   parseEncryptedDataBuffer,
-  uint8ArrayToHex,
 } from "./shared/crypto-utils";
 import { getPGPKeyGenParams } from "./shared/pgp-utils";
 import { wrapCryptoError } from "./shared/error-utils";
-
-// Browser-native crypto implementation using Web Crypto API
-class BrowserECDH {
-  async generateKeyPair() {
-    const keyPair = await crypto.subtle.generateKey(
-      {
-        name: "ECDH",
-        namedCurve: "P-256",
-      },
-      true,
-      ["deriveKey", "deriveBits"],
-    );
-    return keyPair;
-  }
-
-  async encrypt(publicKeyHex: string, message: string): Promise<string> {
-    // Generate ephemeral key pair for this encryption
-    const ephemeralKeyPair = await this.generateKeyPair();
-
-    // Import the provided public key
-    const publicKeyData = hexToUint8Array(publicKeyHex);
-    const importedPublicKey = await crypto.subtle.importKey(
-      "raw",
-      publicKeyData,
-      { name: "ECDH", namedCurve: "P-256" },
-      false,
-      [],
-    );
-
-    // Derive shared secret using ephemeral private key and provided public key
-    const sharedKey = await crypto.subtle.deriveKey(
-      { name: "ECDH", public: importedPublicKey },
-      ephemeralKeyPair.privateKey,
-      { name: "AES-GCM", length: 256 },
-      false,
-      ["encrypt"],
-    );
-
-    // Generate IV
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-
-    // Encrypt the message
-    const encoder = new TextEncoder();
-    const data = encoder.encode(message);
-    const encrypted = await crypto.subtle.encrypt(
-      { name: "AES-GCM", iv },
-      sharedKey,
-      data,
-    );
-
-    // Export ephemeral public key for sender
-    const ephemeralPublicKeyData = await crypto.subtle.exportKey(
-      "raw",
-      ephemeralKeyPair.publicKey,
-    );
-
-    return JSON.stringify({
-      encrypted: Array.from(new Uint8Array(encrypted)),
-      iv: Array.from(iv),
-      ephemeralPublicKey: Array.from(new Uint8Array(ephemeralPublicKeyData)),
-      publicKey: publicKeyHex,
-    });
-  }
-
-  async decrypt(privateKeyHex: string, encryptedData: string): Promise<string> {
-    try {
-      const data = JSON.parse(encryptedData);
-
-      // Validate that we have the expected data structure
-      if (!data.encrypted || !data.iv || !data.ephemeralPublicKey) {
-        throw new Error("Invalid encrypted data format");
-      }
-
-      // Import the private key
-      const privateKeyData = hexToUint8Array(privateKeyHex);
-      const importedPrivateKey = await crypto.subtle.importKey(
-        "pkcs8",
-        privateKeyData,
-        { name: "ECDH", namedCurve: "P-256" },
-        false,
-        ["deriveKey"],
-      );
-
-      // Import ephemeral public key
-      const ephemeralPublicKey = await crypto.subtle.importKey(
-        "raw",
-        new Uint8Array(data.ephemeralPublicKey),
-        { name: "ECDH", namedCurve: "P-256" },
-        false,
-        [],
-      );
-
-      // Derive the same shared secret
-      const sharedKey = await crypto.subtle.deriveKey(
-        { name: "ECDH", public: ephemeralPublicKey },
-        importedPrivateKey,
-        { name: "AES-GCM", length: 256 },
-        false,
-        ["decrypt"],
-      );
-
-      // Decrypt
-      const decrypted = await crypto.subtle.decrypt(
-        { name: "AES-GCM", iv: new Uint8Array(data.iv) },
-        sharedKey,
-        new Uint8Array(data.encrypted),
-      );
-
-      return new TextDecoder().decode(decrypted);
-    } catch (error) {
-      throw new Error(
-        `Decryption failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-    }
-  }
-}
-
-// Utility functions for browser crypto
-/**
- * Converts a hexadecimal string to a Uint8Array
- *
- * @param hex - The hexadecimal string to convert
- * @returns Uint8Array representation of the hex string
- */
-function hexToUint8Array(hex: string): Uint8Array {
-  const result = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < hex.length; i += 2) {
-    result[i / 2] = parseInt(hex.substr(i, 2), 16);
-  }
-  return result;
-}
-
-// Utility functions for browser crypto remain available if needed in future
 
 /**
  * Browser implementation of crypto operations using eccrypto-js
@@ -163,8 +29,27 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
     publicKeyHex: string,
   ): Promise<string> {
     try {
-      const ecdh = new BrowserECDH();
-      return await ecdh.encrypt(publicKeyHex, data);
+      // Import eccrypto-js for secp256k1 encryption
+      const eccrypto = await import("eccrypto-js");
+
+      // Convert hex public key to Buffer
+      const publicKeyBuffer = Buffer.from(publicKeyHex, "hex");
+
+      // Encrypt data using secp256k1 ECDH
+      const encrypted = await eccrypto.encrypt(
+        publicKeyBuffer,
+        Buffer.from(data, "utf8"),
+      );
+
+      // Concatenate all components and return as hex string for API consistency
+      const result = Buffer.concat([
+        encrypted.iv,
+        encrypted.ephemPublicKey,
+        encrypted.ciphertext,
+        encrypted.mac,
+      ]);
+
+      return result.toString("hex");
     } catch (error) {
       throw new Error(`Encryption failed: ${error}`);
     }
@@ -175,8 +60,25 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
     privateKeyHex: string,
   ): Promise<string> {
     try {
-      const ecdh = new BrowserECDH();
-      return await ecdh.decrypt(privateKeyHex, encryptedData);
+      // Import eccrypto-js for secp256k1 decryption
+      const eccrypto = await import("eccrypto-js");
+
+      // Use shared utilities to process keys and parse data
+      const privateKeyBuffer = processWalletPrivateKey(privateKeyHex);
+      const encryptedBuffer = Buffer.from(encryptedData, "hex");
+      const { iv, ephemPublicKey, ciphertext, mac } =
+        parseEncryptedDataBuffer(encryptedBuffer);
+
+      // Reconstruct the encrypted data structure for eccrypto
+      const encryptedObj = { iv, ephemPublicKey, ciphertext, mac };
+
+      // Decrypt using secp256k1 ECDH
+      const decryptedBuffer = await eccrypto.decrypt(
+        privateKeyBuffer,
+        encryptedObj,
+      );
+
+      return decryptedBuffer.toString("utf8");
     } catch (error) {
       throw new Error(`Decryption failed: ${error}`);
     }
@@ -184,29 +86,20 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
 
   async generateKeyPair(): Promise<{ publicKey: string; privateKey: string }> {
     try {
-      // Generate a secp256k1 compatible key pair using Web Crypto API
-      const keyPair = await crypto.subtle.generateKey(
-        {
-          name: "ECDH",
-          namedCurve: "P-256",
-        },
-        true,
-        ["deriveKey", "deriveBits"],
-      );
+      // Import eccrypto-js for secp256k1 key generation (browser-compatible)
+      const eccrypto = await import("eccrypto-js");
 
-      // Export keys as hex strings using shared utility
-      const publicKeyBuffer = await crypto.subtle.exportKey(
-        "raw",
-        keyPair.publicKey,
-      );
-      const privateKeyBuffer = await crypto.subtle.exportKey(
-        "pkcs8",
-        keyPair.privateKey,
-      );
+      // Generate a random 32-byte private key for secp256k1
+      const privateKeyBytes = new Uint8Array(32);
+      crypto.getRandomValues(privateKeyBytes);
+      const privateKey = Buffer.from(privateKeyBytes);
+
+      // Generate the corresponding compressed public key
+      const publicKey = eccrypto.getPublicCompressed(privateKey);
 
       return {
-        publicKey: uint8ArrayToHex(new Uint8Array(publicKeyBuffer)),
-        privateKey: uint8ArrayToHex(new Uint8Array(privateKeyBuffer)),
+        privateKey: privateKey.toString("hex"),
+        publicKey: publicKey.toString("hex"),
       };
     } catch (error) {
       throw wrapCryptoError("key generation", error);

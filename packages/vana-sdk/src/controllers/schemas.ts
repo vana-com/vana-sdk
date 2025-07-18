@@ -269,8 +269,14 @@ export class SchemaController {
       }
 
       // Contract returns an object with {name, typ, definitionUrl}
-      const schemaObj = schemaData as any;
-      
+      interface SchemaContractData {
+        name: string;
+        typ: string;
+        definitionUrl: string;
+      }
+
+      const schemaObj = schemaData as SchemaContractData;
+
       if (!schemaObj.name || !schemaObj.typ || !schemaObj.definitionUrl) {
         throw new Error("Incomplete schema data");
       }

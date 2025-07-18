@@ -8,7 +8,7 @@ import {
   type PublicClient,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { withConsole } from "./setup";
+
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 import { mokshaTestnet } from "../config/chains";
 import type { VanaChain } from "../types";
@@ -538,55 +538,62 @@ describe("Correct Vana Encryption Implementation", () => {
   });
 
   describe("Integration: End-to-End Workflow", () => {
-    it(
-      "should support complete data sharing workflow",
-      withConsole(async () => {
-        console.log("Testing end-to-end workflow...");
+    it("should support complete data sharing workflow", async () => {
+      // 1. User encrypts data with wallet signature
+      const {
+        generateEncryptionKey,
+        encryptUserData,
+        encryptWithWalletPublicKey,
+      } = await import("../utils/encryption");
 
-        // 1. User encrypts data with wallet signature
-        const {
-          generateEncryptionKey,
-          encryptUserData,
-          encryptWithWalletPublicKey,
-        } = await import("../utils/encryption");
+      (mockWallet.signMessage as any).mockResolvedValue(
+        "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+      );
 
-        (mockWallet.signMessage as any).mockResolvedValue(
-          "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-        );
+      const originalData = new Blob(["Private user data"], {
+        type: "text/plain",
+      });
+      const encryptionKey = await generateEncryptionKey(mockWallet);
+      const encryptedData = await encryptUserData(
+        originalData,
+        encryptionKey,
+        mockPlatformAdapter,
+      );
 
-        const originalData = new Blob(["Private user data"], {
-          type: "text/plain",
-        });
-        const encryptionKey = await generateEncryptionKey(mockWallet);
-        const encryptedData = await encryptUserData(
-          originalData,
-          encryptionKey,
-          mockPlatformAdapter,
-        );
+      // Verify encryption step
+      expect(encryptionKey).toBeDefined();
+      expect(typeof encryptionKey).toBe("string");
+      expect(encryptedData).toBeInstanceOf(Blob);
+      expect(encryptedData.size).toBeGreaterThan(0);
 
-        console.log("Data encrypted with wallet signature");
+      // 2. User shares encryption key with validator
+      const validatorPublicKey =
+        "04c68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";
+      const encryptedKey = await encryptWithWalletPublicKey(
+        encryptionKey,
+        validatorPublicKey,
+        mockPlatformAdapter,
+      );
 
-        // 2. User shares encryption key with validator
-        const validatorPublicKey =
-          "04c68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";
-        const encryptedKey = await encryptWithWalletPublicKey(
-          encryptionKey,
-          validatorPublicKey,
-          mockPlatformAdapter,
-        );
+      // Verify key sharing step
+      expect(typeof encryptedKey).toBe("string");
+      expect(encryptedKey).toMatch(/^[0-9a-fA-F]+$/);
+      expect(encryptedKey.length).toBeGreaterThan(0);
 
-        console.log("Encryption key shared with validator");
+      // 3. Validator receives and can access data (simulated)
+      // In real scenario, validator would decrypt encryptedKey with their private key
+      // then use the decrypted signature to decrypt the data
 
-        // 3. Validator receives and can access data (simulated)
-        // In real scenario, validator would decrypt encryptedKey with their private key
-        // then use the decrypted signature to decrypt the data
+      // Verify final workflow state
+      expect(encryptedData).toBeInstanceOf(Blob);
+      expect(typeof encryptedKey).toBe("string");
+      expect(encryptedKey).toMatch(/^[0-9a-fA-F]+$/);
 
-        expect(encryptedData).toBeInstanceOf(Blob);
-        expect(typeof encryptedKey).toBe("string");
-        expect(encryptedKey).toMatch(/^[0-9a-fA-F]+$/);
-
-        console.log("End-to-end workflow completed successfully");
-      }),
-    );
+      // Verify wallet was called for encryption key generation
+      expect(mockWallet.signMessage).toHaveBeenCalledWith({
+        account: mockWallet.account,
+        message: expect.stringContaining("encryption"),
+      });
+    });
   });
 });

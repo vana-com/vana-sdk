@@ -10,7 +10,7 @@ export default defineConfig({
     reporters: "dot",
     coverage: {
       provider: "v8",
-      reporter: ["text", "json"],
+      reporter: ["text-summary"],
       include: ["src/**/*.ts"],
       exclude: [
         "node_modules/",

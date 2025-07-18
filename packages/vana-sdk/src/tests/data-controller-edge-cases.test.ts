@@ -76,9 +76,12 @@ describe("DataController Edge Cases Coverage", () => {
       };
 
       // This should call the utility function and not throw
-      expect((): void => {
-        (dataController as any).validateDataSchema(mockSchema);
-      }).not.toThrow();
+      const dataControllerWithValidate = dataController as DataController & {
+        validateDataSchema: (schema: unknown) => void;
+      };
+      expect(() =>
+        dataControllerWithValidate.validateDataSchema(mockSchema),
+      ).not.toThrow();
     });
 
     it("should call validateDataAgainstSchema utility function (lines 2074-2075)", () => {
@@ -118,9 +121,12 @@ describe("DataController Edge Cases Coverage", () => {
         schema: { type: "object" },
       };
 
-      (dataController as any).validateDataSchema(mockSchema);
+      const dataControllerWithValidate = dataController as DataController & {
+        validateDataSchema: (schema: unknown) => void;
+      };
+      dataControllerWithValidate.validateDataSchema(mockSchema);
 
-      expect(validateDataSchemaMock as any).toHaveBeenCalledWith(mockSchema);
+      expect(validateDataSchemaMock).toHaveBeenCalledWith(mockSchema);
     });
 
     it("should call validateDataAgainstSchema with proper arguments", async () => {
@@ -164,9 +170,12 @@ describe("DataController Edge Cases Coverage", () => {
       };
 
       // Mock the getUserAddress method to throw an error
-      vi.spyOn(dataController as any, "getUserAddress").mockRejectedValue(
-        new Error("User address error"),
-      );
+      vi.spyOn(
+        dataController as DataController & {
+          getUserAddress: () => Promise<string>;
+        },
+        "getUserAddress",
+      ).mockRejectedValue(new Error("User address error"));
 
       await expect(
         dataController.decryptFileWithPermission(mockFile, "private-key"),

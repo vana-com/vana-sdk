@@ -73,6 +73,45 @@ describe("DataController Error Handling", () => {
     dataController = new DataController(mockContext);
   });
 
+  describe("getTrustedServerPublicKey error handling (line 1952)", () => {
+    it("should handle getTrustedServerPublicKey errors", async () => {
+      const mockServerController = {
+        getTrustedServerPublicKey: vi
+          .fn()
+          .mockRejectedValue(new Error("Server not found")),
+      };
+
+      // Mock the serverController property
+      Object.defineProperty(dataController, "serverController", {
+        value: mockServerController,
+        writable: true,
+      });
+
+      await expect(
+        dataController.getTrustedServerPublicKey("0x123..."),
+      ).rejects.toThrow(
+        "Failed to get trusted server public key: Server not found",
+      );
+    });
+
+    it("should handle non-Error exceptions in getTrustedServerPublicKey", async () => {
+      const mockServerController = {
+        getTrustedServerPublicKey: vi.fn().mockRejectedValue("String error"),
+      };
+
+      Object.defineProperty(dataController, "serverController", {
+        value: mockServerController,
+        writable: true,
+      });
+
+      await expect(
+        dataController.getTrustedServerPublicKey("0x123..."),
+      ).rejects.toThrow(
+        "Failed to get trusted server public key: Unknown error",
+      );
+    });
+  });
+
   describe("decryptFileWithPermission error handling (lines 1982-2009)", () => {
     const mockFile = {
       id: 1,
@@ -89,9 +128,12 @@ describe("DataController Error Handling", () => {
 
     it("should throw error when no file permission found (lines 1982-1986)", async () => {
       // Mock getUserAddress to return a valid address
-      vi.spyOn(dataController as any, "getUserAddress").mockResolvedValue(
-        "0x123",
-      );
+      vi.spyOn(
+        dataController as DataController & {
+          getUserAddress: () => Promise<string>;
+        },
+        "getUserAddress",
+      ).mockResolvedValue("0x123");
       vi.spyOn(dataController, "getFilePermission").mockResolvedValue("");
 
       await expect(
@@ -100,16 +142,19 @@ describe("DataController Error Handling", () => {
     });
 
     it("should handle HTTP fetch errors during file download (lines 1997-1999)", async () => {
-      vi.spyOn(dataController as any, "getUserAddress").mockResolvedValue(
-        "0x123",
-      );
+      vi.spyOn(
+        dataController as DataController & {
+          getUserAddress: () => Promise<string>;
+        },
+        "getUserAddress",
+      ).mockResolvedValue("0x123");
       vi.spyOn(dataController, "getFilePermission").mockResolvedValue(
         "encryptedKey",
       );
       vi.mocked(global.fetch).mockResolvedValue({
         ok: false,
         statusText: "Not Found",
-      } as any);
+      } as Response);
 
       await expect(
         dataController.decryptFileWithPermission(mockFile, "privateKey"),
@@ -117,16 +162,19 @@ describe("DataController Error Handling", () => {
     });
 
     it("should handle decryption errors in catch block (lines 2005-2009)", async () => {
-      vi.spyOn(dataController as any, "getUserAddress").mockResolvedValue(
-        "0x123",
-      );
+      vi.spyOn(
+        dataController as DataController & {
+          getUserAddress: () => Promise<string>;
+        },
+        "getUserAddress",
+      ).mockResolvedValue("0x123");
       vi.spyOn(dataController, "getFilePermission").mockResolvedValue(
         "encryptedKey",
       );
       vi.mocked(global.fetch).mockResolvedValue({
         ok: true,
         blob: () => Promise.resolve(new Blob(["test content"])),
-      } as any);
+      } as Response);
 
       // Mock decryptWithWalletPrivateKey to throw an error
       const { decryptWithWalletPrivateKey } = await import(
@@ -145,9 +193,12 @@ describe("DataController Error Handling", () => {
 
     it("should successfully decrypt file with permission (success path lines 1977-2009)", async () => {
       // Mock all dependencies to return successful results
-      vi.spyOn(dataController as any, "getUserAddress").mockResolvedValue(
-        "0x123",
-      );
+      vi.spyOn(
+        dataController as DataController & {
+          getUserAddress: () => Promise<string>;
+        },
+        "getUserAddress",
+      ).mockResolvedValue("0x123");
       vi.spyOn(dataController, "getFilePermission").mockResolvedValue(
         "encryptedKey",
       );
@@ -159,7 +210,7 @@ describe("DataController Error Handling", () => {
       vi.mocked(global.fetch).mockResolvedValue({
         ok: true,
         blob: () => Promise.resolve(mockEncryptedBlob),
-      } as any);
+      } as Response);
 
       // Mock successful decryption functions
       const { decryptWithWalletPrivateKey, decryptUserData } = await import(

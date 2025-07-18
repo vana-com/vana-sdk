@@ -223,20 +223,22 @@ describe("GrantValidation Edge Cases Coverage", () => {
       // We'll create a function that implements the exact logic from validateGrant
       // but allows us to control the error structure
       const testDefensiveErrorHandling = (
-        errors: any[],
-        data: any,
+        errors: unknown[],
+        data: unknown,
         throwOnError: boolean,
       ) => {
         // This mirrors lines 300-312 in validateGrant exactly
         if (errors.length > 0) {
           if (throwOnError) {
             // Throw the most specific error we have
-            const firstError = errors[0];
+            const firstError = errors[0] as { error?: Error; message: string };
             if (firstError.error) {
               throw firstError.error;
             } else {
               // This is the exact branch we want to test (lines 307-312)
-              const combinedMessage = errors.map((e) => e.message).join("; ");
+              const combinedMessage = (errors as Array<{ message: string }>)
+                .map((e) => e.message)
+                .join("; ");
               throw new GrantValidationError(
                 `Grant validation failed: ${combinedMessage}`,
                 { errors, data },
@@ -295,10 +297,16 @@ describe("GrantValidation Edge Cases Coverage", () => {
         testData,
         false,
       );
-      expect(nonThrowingResult.valid).toBe(false);
-      expect(nonThrowingResult.errors).toHaveLength(2);
-      expect(nonThrowingResult.errors[0].error).toBeUndefined();
-      expect(nonThrowingResult.errors[1].error).toBeUndefined();
+      expect((nonThrowingResult as { valid: boolean }).valid).toBe(false);
+      expect((nonThrowingResult as { errors: unknown[] }).errors).toHaveLength(
+        2,
+      );
+      expect(
+        (nonThrowingResult as { errors: { error?: Error }[] }).errors[0].error,
+      ).toBeUndefined();
+      expect(
+        (nonThrowingResult as { errors: { error?: Error }[] }).errors[1].error,
+      ).toBeUndefined();
     });
 
     it("should handle complex validation scenario with multiple error types", () => {

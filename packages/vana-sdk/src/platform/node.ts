@@ -86,15 +86,15 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
 
       const encrypted = await eccryptoLib.encrypt(publicKey, message);
 
-      // Serialize encrypted data as JSON
-      const serialized = {
-        iv: encrypted.iv.toString("hex"),
-        ephemPublicKey: encrypted.ephemPublicKey.toString("hex"),
-        ciphertext: encrypted.ciphertext.toString("hex"),
-        mac: encrypted.mac.toString("hex"),
-      };
+      // Concatenate all components and return as hex string for API consistency
+      const result = Buffer.concat([
+        encrypted.iv,
+        encrypted.ephemPublicKey,
+        encrypted.ciphertext,
+        encrypted.mac,
+      ]);
 
-      return JSON.stringify(serialized);
+      return result.toString("hex");
     } catch (error) {
       throw new Error(`Encryption failed: ${error}`);
     }
@@ -106,18 +106,20 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
   ): Promise<string> {
     try {
       const eccryptoLib = await getEccrypto();
-      const privateKey = Buffer.from(privateKeyHex, "hex");
 
-      // Deserialize encrypted data
-      const serialized = JSON.parse(encryptedData);
-      const encrypted = {
-        iv: Buffer.from(serialized.iv, "hex"),
-        ephemPublicKey: Buffer.from(serialized.ephemPublicKey, "hex"),
-        ciphertext: Buffer.from(serialized.ciphertext, "hex"),
-        mac: Buffer.from(serialized.mac, "hex"),
-      };
+      // Use shared utilities to process keys and parse data
+      const privateKeyBuffer = processWalletPrivateKey(privateKeyHex);
+      const encryptedBuffer = Buffer.from(encryptedData, "hex");
+      const { iv, ephemPublicKey, ciphertext, mac } =
+        parseEncryptedDataBuffer(encryptedBuffer);
 
-      const decrypted = await eccryptoLib.decrypt(privateKey, encrypted);
+      // Reconstruct the encrypted data structure for eccrypto
+      const encryptedObj = { iv, ephemPublicKey, ciphertext, mac };
+
+      const decrypted = await eccryptoLib.decrypt(
+        privateKeyBuffer,
+        encryptedObj,
+      );
       return decrypted.toString("utf8");
     } catch (error) {
       throw new Error(`Decryption failed: ${error}`);

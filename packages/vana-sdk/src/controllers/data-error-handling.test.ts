@@ -73,39 +73,6 @@ describe("DataController Error Handling", () => {
     dataController = new DataController(mockContext);
   });
 
-  describe("getTrustedServerPublicKey error handling (line 1952)", () => {
-    it("should handle getTrustedServerPublicKey errors", async () => {
-      const mockServerController = {
-        getTrustedServerPublicKey: vi
-          .fn()
-          .mockRejectedValue(new Error("Server not found")),
-      };
-
-      // Mock the serverController property
-      (dataController as any).serverController = mockServerController;
-
-      await expect(
-        dataController.getTrustedServerPublicKey("0x123..."),
-      ).rejects.toThrow(
-        "Failed to get trusted server public key: Server not found",
-      );
-    });
-
-    it("should handle non-Error exceptions in getTrustedServerPublicKey", async () => {
-      const mockServerController = {
-        getTrustedServerPublicKey: vi.fn().mockRejectedValue("String error"),
-      };
-
-      (dataController as any).serverController = mockServerController;
-
-      await expect(
-        dataController.getTrustedServerPublicKey("0x123..."),
-      ).rejects.toThrow(
-        "Failed to get trusted server public key: Unknown error",
-      );
-    });
-  });
-
   describe("decryptFileWithPermission error handling (lines 1982-2009)", () => {
     const mockFile = {
       id: 1,

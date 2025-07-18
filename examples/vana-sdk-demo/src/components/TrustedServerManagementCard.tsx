@@ -30,7 +30,7 @@ interface TrustedServerManagementCardProps {
   isUntrusting?: boolean;
 
   // Server discovery (only to populate form)
-  onDiscoverReplicateServer: () => void;
+  onDiscoverHostedServer: () => void;
   isDiscoveringServer: boolean;
 
   // Trusted servers list
@@ -62,7 +62,7 @@ export const TrustedServerManagementCard: React.FC<
   isTrustingServer,
   onUntrustServer,
   isUntrusting = false,
-  onDiscoverReplicateServer,
+  onDiscoverHostedServer,
   isDiscoveringServer,
   trustedServers = [],
   isLoadingServers = false,
@@ -122,7 +122,7 @@ export const TrustedServerManagementCard: React.FC<
           status={trustServerError}
           additionalButtons={
             <Button
-              onPress={onDiscoverReplicateServer}
+              onPress={onDiscoverHostedServer}
               isLoading={isDiscoveringServer}
               variant="bordered"
             >

@@ -101,13 +101,6 @@ export interface PersonalServerOutput {
   };
 }
 
-/** Personal server response with typed output */
-export interface PersonalServerResponse
-  extends Omit<ReplicateAPIResponse, "output"> {
-  /** Parsed personal server output */
-  output?: PersonalServerOutput | string; // Can be string (needs parsing) or parsed object
-}
-
 /**
  * Storage Provider API Types
  */

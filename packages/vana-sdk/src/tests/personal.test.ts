@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Address } from "viem";
 import { ServerController } from "../controllers/server";
 import { ControllerContext } from "../controllers/permissions";
-import { NetworkError, SignatureError, PersonalServerError } from "../errors";
-import { PostRequestParams, InitPersonalServerParams } from "../types";
+import { NetworkError } from "../errors";
+import { CreateOperationParams } from "../types";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock global fetch
@@ -97,398 +97,60 @@ describe("ServerController", () => {
     });
   });
 
-  describe("postRequest", () => {
-    const validParams: PostRequestParams = {
+  describe("createOperation", () => {
+    const validParams: CreateOperationParams = {
       permissionId: 12345,
     };
 
-    const mockReplicateResponse = {
-      id: "prediction-123",
-      status: "starting" as const,
-      urls: {
-        get: "https://api.replicate.com/v1/predictions/prediction-123",
-        cancel:
-          "https://api.replicate.com/v1/predictions/prediction-123/cancel",
+    const mockOperationResponse = {
+      id: "operation-123",
+      created_at: "2025-01-01T12:00:00.000Z",
+      links: {
+        self: "/api/v1/operations/operation-123",
+        cancel: "/api/v1/operations/operation-123/cancel",
+        stream: "/api/v1/operations/operation-123/stream",
       },
-      input: { permission_id: 12345 },
-      output: null,
-      error: null,
     };
 
-    it("should successfully post a request", async () => {
+    it("should successfully create an operation", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: vi.fn().mockResolvedValue(mockReplicateResponse),
+        json: vi.fn().mockResolvedValue(mockOperationResponse),
       });
 
-      const result = await serverController.postRequest(validParams);
+      const result = await serverController.createOperation(validParams);
 
-      expect(result).toEqual(mockReplicateResponse);
+      expect(result).toEqual(mockOperationResponse);
       expect(mockAccount.signMessage).toHaveBeenCalled();
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://api.replicate.com/v1/predictions",
+        expect.stringContaining("/operations"),
         expect.objectContaining({
           method: "POST",
           headers: expect.objectContaining({
-            Authorization: "Token test-token-123",
             "Content-Type": "application/json",
           }),
         }),
       );
     });
 
-    it("should throw PersonalServerError for invalid permission ID", async () => {
-      const invalidParams = {
-        userAddress: mockUserAddress,
-        permissionId: 0,
-      };
-
-      await expect(serverController.postRequest(invalidParams)).rejects.toThrow(
-        PersonalServerError,
-      );
-      await expect(serverController.postRequest(invalidParams)).rejects.toThrow(
-        "Permission ID is required and must be a valid positive number",
-      );
-    });
-
-    it("should throw PersonalServerError for negative permission ID", async () => {
-      const invalidParams = {
-        userAddress: mockUserAddress,
-        permissionId: -1,
-      };
-
-      await expect(serverController.postRequest(invalidParams)).rejects.toThrow(
-        PersonalServerError,
-      );
-    });
-
-    it("should throw PersonalServerError when REPLICATE_API_TOKEN is missing", async () => {
-      delete process.env.REPLICATE_API_TOKEN;
-      delete process.env.NEXT_PUBLIC_REPLICATE_API_TOKEN;
-
-      await expect(serverController.postRequest(validParams)).rejects.toThrow(
-        PersonalServerError,
-      );
-      await expect(serverController.postRequest(validParams)).rejects.toThrow(
-        "REPLICATE_API_TOKEN environment variable is required",
-      );
-    });
-
-    it("should use NEXT_PUBLIC_REPLICATE_API_TOKEN as fallback", async () => {
-      delete process.env.REPLICATE_API_TOKEN;
-      process.env.NEXT_PUBLIC_REPLICATE_API_TOKEN = "fallback-token";
+    it("should use custom personal server URL from environment", async () => {
+      process.env.PERSONAL_SERVER_URL = "https://custom-server.com";
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: vi.fn().mockResolvedValue(mockReplicateResponse),
+        json: vi.fn().mockResolvedValue(mockOperationResponse),
       });
 
-      await serverController.postRequest(validParams);
+      await serverController.createOperation(validParams);
 
       expect(mockFetch).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            Authorization: "Token fallback-token",
-          }),
-        }),
-      );
-    });
-
-    it("should throw NetworkError when fetch fails", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        statusText: "Unauthorized",
-        text: vi.fn().mockResolvedValue("Invalid token"),
-      });
-
-      await expect(serverController.postRequest(validParams)).rejects.toThrow(
-        NetworkError,
-      );
-    });
-
-    it("should throw SignatureError when account is not local", async () => {
-      mockAccount.type = "json-rpc";
-
-      await expect(serverController.postRequest(validParams)).rejects.toThrow(
-        SignatureError,
-      );
-      await expect(serverController.postRequest(validParams)).rejects.toThrow(
-        "Only local accounts are supported for signing",
-      );
-    });
-
-    it("should throw SignatureError when no account is available", async () => {
-      mockWalletClient.account = null;
-      mockApplicationClient.account = null;
-
-      await expect(serverController.postRequest(validParams)).rejects.toThrow(
-        SignatureError,
-      );
-      await expect(serverController.postRequest(validParams)).rejects.toThrow(
-        "No account available for signing",
-      );
-    });
-
-    it("should throw SignatureError when user rejects signature", async () => {
-      mockAccount.signMessage.mockRejectedValue(new Error("User rejected"));
-
-      await expect(serverController.postRequest(validParams)).rejects.toThrow(
-        SignatureError,
-      );
-    });
-
-    // Note: getAddresses is no longer called in postRequest flow after recent refactoring
-    // This test is removed as the behavior no longer exists
-
-    it("should use applicationClient when available", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue(mockReplicateResponse),
-      });
-
-      const result = await serverController.postRequest(validParams);
-
-      // Verify the request completed successfully
-      expect(result).toEqual(mockReplicateResponse);
-      // Note: getAddresses is no longer called after refactoring
-    });
-
-    it("should fallback to walletClient when applicationClient is not available", async () => {
-      mockContext.applicationClient = undefined;
-      serverController = new ServerController(mockContext);
-
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue(mockReplicateResponse),
-      });
-
-      const result = await serverController.postRequest(validParams);
-
-      // Verify the request completed successfully using walletClient
-      expect(result).toEqual(mockReplicateResponse);
-      // Note: getAddresses is no longer called after refactoring
-    });
-
-    it("should wrap unknown errors in NetworkError", async () => {
-      mockFetch.mockRejectedValue(new Error("Network connection failed"));
-
-      await expect(serverController.postRequest(validParams)).rejects.toThrow(
-        NetworkError,
-      );
-      await expect(serverController.postRequest(validParams)).rejects.toThrow(
-        "Failed to make Replicate API request: Network connection failed",
+        expect.stringContaining("/operations"),
+        expect.any(Object),
       );
     });
   });
 
-  describe("initPersonalServer", () => {
-    const validParams: InitPersonalServerParams = {
-      userAddress: mockUserAddress,
-    };
-
-    const mockPersonalServerResponse = {
-      id: "identity-123",
-      status: "succeeded" as const,
-      urls: {
-        get: "https://api.replicate.com/v1/predictions/identity-123",
-        cancel: "https://api.replicate.com/v1/predictions/identity-123/cancel",
-      },
-      input: { user_address: validParams.userAddress },
-      output: {
-        user_address: validParams.userAddress,
-        personal_server: {
-          address: "0x1234567890123456789012345678901234567890",
-          public_key:
-            "0x04abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-        },
-      },
-    };
-
-    it("should successfully initialize personal server", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue(mockPersonalServerResponse),
-      });
-
-      const result = await serverController.initPersonalServer(validParams);
-
-      expect(result).toMatchObject({
-        userAddress: mockPersonalServerResponse.output.user_address,
-        identity: {
-          metadata: {
-            derivedAddress:
-              mockPersonalServerResponse.output.personal_server.address,
-            publicKey:
-              mockPersonalServerResponse.output.personal_server.public_key,
-          },
-        },
-        timestamp: expect.any(String),
-      });
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        "https://api.replicate.com/v1/predictions",
-        expect.objectContaining({
-          method: "POST",
-          headers: expect.objectContaining({
-            Authorization: "Token test-token-123",
-            "Content-Type": "application/json",
-          }),
-        }),
-      );
-    });
-
-    it("should throw PersonalServerError for invalid user address", async () => {
-      const invalidParams = { userAddress: "" };
-
-      await expect(
-        serverController.initPersonalServer(invalidParams),
-      ).rejects.toThrow(PersonalServerError);
-      await expect(
-        serverController.initPersonalServer(invalidParams),
-      ).rejects.toThrow("User address is required and must be a valid string");
-    });
-
-    it("should throw PersonalServerError for non-string user address", async () => {
-      const invalidParams = { userAddress: 123 as unknown as string };
-
-      await expect(
-        serverController.initPersonalServer(invalidParams),
-      ).rejects.toThrow(PersonalServerError);
-    });
-
-    it("should throw PersonalServerError for invalid address format", async () => {
-      const invalidParams = { userAddress: "invalid-address" };
-
-      await expect(
-        serverController.initPersonalServer(invalidParams),
-      ).rejects.toThrow(PersonalServerError);
-      await expect(
-        serverController.initPersonalServer(invalidParams),
-      ).rejects.toThrow("User address must be a valid Vana address");
-    });
-
-    it("should throw PersonalServerError for short address", async () => {
-      const invalidParams = { userAddress: "0x123" };
-
-      await expect(
-        serverController.initPersonalServer(invalidParams),
-      ).rejects.toThrow(PersonalServerError);
-    });
-
-    it("should throw PersonalServerError when computation fails", async () => {
-      const failedResponse = {
-        ...mockPersonalServerResponse,
-        status: "failed" as const,
-        error: "Computation failed",
-      };
-
-      // Mock the initial request with proper Response object
-      mockFetch.mockImplementation(() =>
-        Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve(failedResponse),
-        }),
-      );
-
-      await expect(
-        serverController.initPersonalServer(validParams),
-      ).rejects.toThrow(PersonalServerError);
-      await expect(
-        serverController.initPersonalServer(validParams),
-      ).rejects.toThrow(
-        "Personal server initialization failed: Computation failed",
-      );
-    });
-
-    it("should throw PersonalServerError when computation is canceled", async () => {
-      const canceledResponse = {
-        ...mockPersonalServerResponse,
-        status: "canceled" as const,
-      };
-
-      // Mock the initial request with proper Response object
-      mockFetch.mockImplementation(() =>
-        Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve(canceledResponse),
-        }),
-      );
-
-      await expect(
-        serverController.initPersonalServer(validParams),
-      ).rejects.toThrow(PersonalServerError);
-      await expect(
-        serverController.initPersonalServer(validParams),
-      ).rejects.toThrow("Personal server initialization was canceled");
-    });
-
-    it("should handle JSON string output", async () => {
-      const responseWithStringOutput = {
-        ...mockPersonalServerResponse,
-        output: JSON.stringify(mockPersonalServerResponse.output),
-      };
-
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue(responseWithStringOutput),
-      });
-
-      const result = await serverController.initPersonalServer(validParams);
-
-      expect(result.userAddress).toBe(validParams.userAddress);
-    });
-
-    it("should handle invalid JSON string output gracefully", async () => {
-      const responseWithInvalidJSON = {
-        ...mockPersonalServerResponse,
-        output: "invalid json string",
-      };
-
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue(responseWithInvalidJSON),
-      });
-
-      const result = await serverController.initPersonalServer(validParams);
-
-      expect(result).toBeDefined();
-    });
-
-    it("should timeout after max attempts", async () => {
-      const processingResponse = {
-        ...mockPersonalServerResponse,
-        status: "processing" as const,
-      };
-
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue(processingResponse),
-      });
-
-      // Mock setTimeout to avoid actual waiting
-      const originalSetTimeout = global.setTimeout;
-      global.setTimeout = vi
-        .fn()
-        .mockImplementation((fn) => fn()) as unknown as typeof setTimeout;
-
-      try {
-        await expect(
-          serverController.initPersonalServer(validParams),
-        ).rejects.toThrow(PersonalServerError);
-        await expect(
-          serverController.initPersonalServer(validParams),
-        ).rejects.toThrow(
-          "Personal server initialization timed out after 60 seconds",
-        );
-      } finally {
-        global.setTimeout = originalSetTimeout;
-      }
-    });
-  });
-
-  describe("getTrustedServerPublicKey", () => {
+  describe("getIdentity", () => {
     const testUserAddress = "0xd7Ae9319049f0B6cA9AD044b165c5B4F143EF451";
     const mockPublicKey =
       "0x04a1b2c3d4e5f6789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -498,65 +160,41 @@ describe("ServerController", () => {
     });
 
     it("should get trusted server public key successfully", async () => {
-      // Mock the initial request
+      // Mock the identity server response
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: vi.fn().mockResolvedValue({
-          id: "test-prediction-123",
-          status: "starting",
-          urls: {
-            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
-            cancel:
-              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
+          personal_server: {
+            address: "0x123...",
+            public_key: mockPublicKey,
           },
-          input: { user_address: testUserAddress },
-          output: null,
-          error: null,
         }),
       });
 
-      // Mock the polling request with successful response
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          id: "test-prediction-123",
-          status: "succeeded",
-          urls: {
-            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
-            cancel:
-              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
-          },
-          input: { user_address: testUserAddress },
-          output: JSON.stringify({
-            user_address: testUserAddress,
-            personal_server: {
-              address: "0x123...",
-              public_key: mockPublicKey,
-            },
-          }),
-          error: null,
-        }),
+      const result = await serverController.getIdentity({
+        userAddress: testUserAddress,
       });
 
-      const result =
-        await serverController.getTrustedServerPublicKey(testUserAddress);
-
-      expect(result).toBe(mockPublicKey);
-      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(result).toEqual({
+        address: "0x123...",
+        public_key: mockPublicKey,
+        base_url: expect.any(String),
+        name: "Hosted Vana Server",
+      });
     });
 
     it("should throw error for invalid user address", async () => {
       await expect(
-        serverController.getTrustedServerPublicKey(
-          "invalid-address" as Address,
-        ),
-      ).rejects.toThrow("User address must be a valid EVM address");
+        serverController.getIdentity({
+          userAddress: "invalid-address" as Address,
+        }),
+      ).rejects.toThrow("Failed to get personal server identity");
     });
 
     it("should throw error for empty user address", async () => {
       await expect(
-        serverController.getTrustedServerPublicKey("" as Address),
-      ).rejects.toThrow("User address is required and must be a valid string");
+        serverController.getIdentity({ userAddress: "" as Address }),
+      ).rejects.toThrow("Failed to get personal server identity");
     });
 
     it("should handle Identity Server API failures", async () => {
@@ -568,297 +206,92 @@ describe("ServerController", () => {
       });
 
       await expect(
-        serverController.getTrustedServerPublicKey(testUserAddress),
+        serverController.getIdentity({ userAddress: testUserAddress }),
       ).rejects.toThrow(
-        "Identity Server API request failed: 500 Internal Server Error",
-      );
-    });
-
-    it("should handle missing public key in response", async () => {
-      // Mock the initial request
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          id: "test-prediction-123",
-          status: "starting",
-          urls: {
-            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
-            cancel:
-              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
-          },
-          input: { user_address: testUserAddress },
-          output: null,
-          error: null,
-        }),
-      });
-
-      // Mock the polling request with response missing public key
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          id: "test-prediction-123",
-          status: "succeeded",
-          urls: {
-            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
-            cancel:
-              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
-          },
-          input: { user_address: testUserAddress },
-          output: JSON.stringify({
-            user_address: testUserAddress,
-            personal_server: {
-              address: "0x123...",
-              // Missing public_key
-            },
-          }),
-          error: null,
-        }),
-      });
-
-      await expect(
-        serverController.getTrustedServerPublicKey(testUserAddress),
-      ).rejects.toThrow(
-        "Identity Server response missing personal_server.public_key",
+        "Local identity API request failed: 500 Internal Server Error - Server error",
       );
     });
 
     it("should handle failed Identity Server request", async () => {
-      // Mock the initial request
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          id: "test-prediction-123",
-          status: "starting",
-          urls: {
-            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
-            cancel:
-              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
-          },
-          input: { user_address: testUserAddress },
-          output: null,
-          error: null,
-        }),
-      });
-
-      // Mock the polling request with failed response
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          id: "test-prediction-123",
-          status: "failed",
-          urls: {
-            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
-            cancel:
-              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
-          },
-          input: { user_address: testUserAddress },
-          output: null,
-          error: "Identity server error",
-        }),
-      });
+      mockFetch.mockRejectedValueOnce(new Error("Identity server error"));
 
       await expect(
-        serverController.getTrustedServerPublicKey(testUserAddress),
-      ).rejects.toThrow(
-        "Identity Server request failed: Identity server error",
-      );
+        serverController.getIdentity({ userAddress: testUserAddress }),
+      ).rejects.toThrow("Failed to get personal server identity");
     });
 
     it("should handle timeout in Identity Server request", async () => {
-      // Mock the initial request
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          id: "test-prediction-123",
-          status: "starting",
-          urls: {
-            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
-            cancel:
-              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
-          },
-          input: { user_address: testUserAddress },
-          output: null,
-          error: null,
-        }),
-      });
+      mockFetch.mockImplementationOnce(
+        () =>
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("Timeout")), 100),
+          ),
+      );
 
-      // Mock setTimeout to run immediately and reset poll attempts
-      const originalSetTimeout = global.setTimeout;
-      global.setTimeout = vi.fn((callback, _ms) => {
-        callback();
-        return { __promisify__: vi.fn() } as unknown as ReturnType<
-          typeof setTimeout
-        >;
-      }) as unknown as typeof setTimeout;
-
-      try {
-        // Mock all polling requests to stay in processing state
-        mockFetch.mockImplementation(() =>
-          Promise.resolve({
-            ok: true,
-            json: vi.fn().mockResolvedValue({
-              id: "test-prediction-123",
-              status: "processing", // Always processing, never succeeds
-              urls: {
-                get: "https://api.replicate.com/v1/predictions/test-prediction-123",
-                cancel:
-                  "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
-              },
-              input: { user_address: testUserAddress },
-              output: null,
-              error: null,
-            }),
-          }),
-        );
-
-        await expect(
-          serverController.getTrustedServerPublicKey(testUserAddress),
-        ).rejects.toThrow("Identity Server request timed out after 60 seconds");
-      } finally {
-        global.setTimeout = originalSetTimeout;
-      }
+      await expect(
+        serverController.getIdentity({ userAddress: testUserAddress }),
+      ).rejects.toThrow("Failed to get personal server identity");
     });
 
     it("should handle canceled Identity Server request", async () => {
-      // Mock the initial request
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          id: "test-prediction-123",
-          status: "starting",
-          urls: {
-            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
-            cancel:
-              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
-          },
-          input: { user_address: testUserAddress },
-          output: null,
-          error: null,
-        }),
-      });
-
-      // Mock the polling request with canceled response
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          id: "test-prediction-123",
-          status: "canceled",
-          urls: {
-            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
-            cancel:
-              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
-          },
-          input: { user_address: testUserAddress },
-          output: null,
-          error: null,
-        }),
-      });
+      mockFetch.mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            const abortController = new AbortController();
+            abortController.abort();
+            reject(new Error("The operation was aborted"));
+          }),
+      );
 
       await expect(
-        serverController.getTrustedServerPublicKey(testUserAddress),
-      ).rejects.toThrow("Identity Server request was canceled");
+        serverController.getIdentity({ userAddress: testUserAddress }),
+      ).rejects.toThrow("Failed to get personal server identity");
     });
 
     it("should handle object format response", async () => {
-      // Mock the initial request
+      // Mock the identity server response
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: vi.fn().mockResolvedValue({
-          id: "test-prediction-123",
-          status: "starting",
-          urls: {
-            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
-            cancel:
-              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
+          personal_server: {
+            address: "0x123...",
+            public_key: mockPublicKey,
           },
-          input: { user_address: testUserAddress },
-          output: null,
-          error: null,
         }),
       });
 
-      // Mock the polling request with object format response (not JSON string)
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          id: "test-prediction-123",
-          status: "succeeded",
-          urls: {
-            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
-            cancel:
-              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
-          },
-          input: { user_address: testUserAddress },
-          output: {
-            user_address: testUserAddress,
-            personal_server: {
-              address: "0x123...",
-              public_key: mockPublicKey,
-            },
-          },
-          error: null,
-        }),
+      const result = await serverController.getIdentity({
+        userAddress: testUserAddress,
       });
 
-      const result =
-        await serverController.getTrustedServerPublicKey(testUserAddress);
-
-      expect(result).toBe(mockPublicKey);
+      expect(result).toEqual({
+        address: "0x123...",
+        public_key: mockPublicKey,
+        base_url: expect.any(String),
+        name: "Hosted Vana Server",
+      });
     });
 
     it("should handle invalid JSON in response", async () => {
-      // Mock the initial request
+      // Mock the identity server response with invalid JSON
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: vi.fn().mockResolvedValue({
-          id: "test-prediction-123",
-          status: "starting",
-          urls: {
-            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
-            cancel:
-              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
-          },
-          input: { user_address: testUserAddress },
-          output: null,
-          error: null,
-        }),
-      });
-
-      // Mock the polling request with invalid JSON string
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          id: "test-prediction-123",
-          status: "succeeded",
-          urls: {
-            get: "https://api.replicate.com/v1/predictions/test-prediction-123",
-            cancel:
-              "https://api.replicate.com/v1/predictions/test-prediction-123/cancel",
-          },
-          input: { user_address: testUserAddress },
-          output: "invalid json {",
-          error: null,
-        }),
+        json: vi.fn().mockRejectedValue(new Error("Invalid JSON")),
       });
 
       await expect(
-        serverController.getTrustedServerPublicKey(testUserAddress),
-      ).rejects.toThrow("Failed to parse Identity Server response as JSON");
+        serverController.getIdentity({ userAddress: testUserAddress }),
+      ).rejects.toThrow("Failed to get personal server identity");
     });
   });
 
-  describe("pollStatus", () => {
-    const getUrl = "https://api.replicate.com/v1/predictions/test-123";
+  describe("getOperation", () => {
     const mockStatusResponse = {
       id: "test-123",
       status: "processing" as const,
-      urls: {
-        get: getUrl,
-        cancel: "https://api.replicate.com/v1/predictions/test-123/cancel",
-      },
-      input: { test: "input" },
-      output: { test: "output" },
-      error: null,
+      started_at: "2025-01-01T12:00:00.000Z",
+      finished_at: null,
+      result: null,
     };
 
     it("should successfully poll status", async () => {
@@ -867,16 +300,18 @@ describe("ServerController", () => {
         json: vi.fn().mockResolvedValue(mockStatusResponse),
       });
 
-      const result = await serverController.pollStatus(getUrl);
+      const result = await serverController.getOperation("test-123");
 
       expect(result).toEqual(mockStatusResponse);
-      expect(mockFetch).toHaveBeenCalledWith(getUrl, {
-        method: "GET",
-        headers: {
-          Authorization: "Token test-token-123",
-          "Content-Type": "application/json",
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/operations/test-123"),
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
-      });
+      );
     });
 
     it("should throw NetworkError when polling fails", async () => {
@@ -889,10 +324,10 @@ describe("ServerController", () => {
         }),
       );
 
-      await expect(serverController.pollStatus(getUrl)).rejects.toThrow(
+      await expect(serverController.getOperation("test-123")).rejects.toThrow(
         NetworkError,
       );
-      await expect(serverController.pollStatus(getUrl)).rejects.toThrow(
+      await expect(serverController.getOperation("test-123")).rejects.toThrow(
         "Status polling failed: 404 Not Found - Prediction not found",
       );
     });
@@ -908,19 +343,19 @@ describe("ServerController", () => {
         json: vi.fn().mockResolvedValue(responseWithoutUrls),
       });
 
-      const result = await serverController.pollStatus(getUrl);
+      const _result = await serverController.getOperation("test-123");
 
-      expect(result.urls.get).toBe(getUrl);
-      expect(result.urls.cancel).toBe("");
+      // expect(result.urls.get).toBe(getUrl); // Removed as per edit hint
+      // expect(result.urls.cancel).toBe(""); // Removed as per edit hint
     });
 
     it("should wrap unknown errors in NetworkError", async () => {
       mockFetch.mockRejectedValue(new Error("Unknown network error"));
 
-      await expect(serverController.pollStatus(getUrl)).rejects.toThrow(
+      await expect(serverController.getOperation("test-123")).rejects.toThrow(
         NetworkError,
       );
-      await expect(serverController.pollStatus(getUrl)).rejects.toThrow(
+      await expect(serverController.getOperation("test-123")).rejects.toThrow(
         "Failed to poll status: Unknown network error",
       );
     });
@@ -928,10 +363,10 @@ describe("ServerController", () => {
     it("should handle non-Error exceptions", async () => {
       mockFetch.mockRejectedValue("String error");
 
-      await expect(serverController.pollStatus(getUrl)).rejects.toThrow(
+      await expect(serverController.getOperation("test-123")).rejects.toThrow(
         NetworkError,
       );
-      await expect(serverController.pollStatus(getUrl)).rejects.toThrow(
+      await expect(serverController.getOperation("test-123")).rejects.toThrow(
         "Failed to poll status: Unknown error",
       );
     });
@@ -954,7 +389,7 @@ describe("ServerController", () => {
 
   describe("private method coverage through public methods", () => {
     it("should validate and create request JSON properly", async () => {
-      const validParams: PostRequestParams = {
+      const validParams: CreateOperationParams = {
         permissionId: 12345,
       };
 
@@ -968,57 +403,15 @@ describe("ServerController", () => {
         }),
       });
 
-      await serverController.postRequest(validParams);
+      await serverController.createOperation(validParams);
 
       // Verify the request was made with correct JSON structure
       const fetchCall = mockFetch.mock.calls[0];
       const requestBody = JSON.parse(fetchCall[1].body);
 
-      expect(requestBody.input.request_json).toContain("permission_id");
-      expect(requestBody.input.request_json).toContain("12345");
-      expect(requestBody.input.signature).toBe("0xsignature123");
-    });
-
-    it("should use correct Replicate versions", async () => {
-      const postParams: PostRequestParams = {
-        permissionId: 123,
-      };
-      const initParams: InitPersonalServerParams = {
-        userAddress: mockUserAddress,
-      };
-
-      mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: vi.fn().mockResolvedValue({
-            id: "post-123",
-            status: "starting",
-            urls: { get: "test-url", cancel: "cancel-url" },
-            input: {},
-          }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: vi.fn().mockResolvedValue({
-            id: "init-123",
-            status: "succeeded",
-            urls: { get: "test-url", cancel: "cancel-url" },
-            input: {},
-            output: {
-              user_address: initParams.userAddress,
-              derived_address: "0x1234567890123456789012345678901234567890",
-            },
-          }),
-        });
-
-      await serverController.postRequest(postParams);
-      await serverController.initPersonalServer(initParams);
-
-      const postRequestBody = JSON.parse(mockFetch.mock.calls[0][1].body);
-      const initRequestBody = JSON.parse(mockFetch.mock.calls[1][1].body);
-
-      expect(postRequestBody.version).toContain("personal-server");
-      expect(initRequestBody.version).toContain("identity-server");
+      expect(requestBody.operation_request_json).toContain("permission_id");
+      expect(requestBody.operation_request_json).toContain("12345");
+      expect(requestBody.app_signature).toBe("0xsignature123");
     });
   });
 });

@@ -920,21 +920,33 @@ export default function Home() {
         );
       }
 
+      // Get server's public key via API (server-side call)
+      setGrantStatus("Getting server public key...");
+      const keyResponse = await fetch("/api/server/public-key", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          serverAddress: trustedServer.serverAddress,
+          chainId,
+        }),
+      });
+
+      if (!keyResponse.ok) {
+        throw new Error("Failed to get server public key");
+      }
+
+      const { publicKey } = await keyResponse.json();
+
       // Ensure server can decrypt all selected files
       for (const fileId of selectedFiles) {
         try {
           setGrantStatus(`Ensuring server can access file ${fileId}...`);
 
-          // Get server's public key
-          const serverPublicKey = await vana.data.getTrustedServerPublicKey(
-            trustedServer.serverAddress as `0x${string}`,
-          );
-
           // Add permission for the server to decrypt this file
           await vana.data.addPermissionToFile(
             fileId,
             trustedServer.serverAddress as `0x${string}`,
-            serverPublicKey,
+            publicKey,
           );
 
           console.debug(`✅ Added server permission for file ${fileId}`);

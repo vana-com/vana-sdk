@@ -3,6 +3,7 @@ import { DataController } from "../controllers/data";
 import { ControllerContext } from "../controllers/permissions";
 import { mokshaTestnet } from "../config/chains";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
+import { DataSchema } from "../utils/schemaValidation";
 
 // Mock external dependencies
 vi.mock("../utils/encryption", () => ({
@@ -76,12 +77,9 @@ describe("DataController Edge Cases Coverage", () => {
       };
 
       // This should call the utility function and not throw
-      const dataControllerWithValidate = dataController as DataController & {
-        validateDataSchema: (schema: unknown) => void;
-      };
-      expect(() =>
-        dataControllerWithValidate.validateDataSchema(mockSchema),
-      ).not.toThrow();
+      const validateFunc: (schema: unknown) => asserts schema is DataSchema =
+        dataController.validateDataSchema.bind(dataController);
+      expect(() => validateFunc(mockSchema)).not.toThrow();
     });
 
     it("should call validateDataAgainstSchema utility function (lines 2074-2075)", () => {
@@ -121,10 +119,9 @@ describe("DataController Edge Cases Coverage", () => {
         schema: { type: "object" },
       };
 
-      const dataControllerWithValidate = dataController as DataController & {
-        validateDataSchema: (schema: unknown) => void;
-      };
-      dataControllerWithValidate.validateDataSchema(mockSchema);
+      const validateFunc: (schema: unknown) => asserts schema is DataSchema =
+        dataController.validateDataSchema.bind(dataController);
+      validateFunc(mockSchema);
 
       expect(validateDataSchemaMock).toHaveBeenCalledWith(mockSchema);
     });

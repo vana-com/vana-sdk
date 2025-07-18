@@ -1,7 +1,12 @@
 import { createWalletClient, createPublicClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { createHash } from "crypto";
-import { mokshaTestnet, vanaMainnet, Vana } from "@opendatalabs/vana-sdk/node";
+import {
+  mokshaTestnet,
+  vanaMainnet,
+  Vana,
+  type VanaChain,
+} from "@opendatalabs/vana-sdk/node";
 
 // Simple in-memory storage for demo purposes
 const parameterStorage = new Map<string, string>();
@@ -32,7 +37,7 @@ export function createRelayerConfig(chainId: number) {
 
   const walletClient = createWalletClient({
     account: relayerAccount,
-    chain,
+    chain: chain as VanaChain,
     transport: http(chain.rpcUrls.default.http[0]),
   });
 

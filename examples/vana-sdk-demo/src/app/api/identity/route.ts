@@ -35,15 +35,13 @@ export async function POST(request: NextRequest) {
     });
 
     // Get the trusted server public key using server-side REPLICATE_API_TOKEN
-    const publicKey = await vana.server.getTrustedServerPublicKey(userAddress);
+    const identity = await vana.server.getIdentity({
+      userAddress,
+    });
 
     return NextResponse.json({
       success: true,
-      data: {
-        userAddress,
-        publicKey,
-        applicationAddress: applicationAccount.address,
-      },
+      data: identity,
     });
   } catch (error) {
     console.error("Identity server request failed:", error);

@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach, MockedFunction } from 'vitest';
-import { useAccount, useWalletClient } from 'wagmi';
+import { useAccount, useWalletClient, type UseAccountReturnType, type UseWalletClientReturnType } from 'wagmi';
 import { VanaProvider, useVana } from '../VanaProvider';
 import { Vana } from '@opendatalabs/vana-sdk/browser';
 
@@ -35,7 +35,53 @@ Object.defineProperty(window, 'location', {
 
 const useAccountMock = useAccount as MockedFunction<typeof useAccount>;
 const useWalletClientMock = useWalletClient as MockedFunction<typeof useWalletClient>;
-const VanaMock = Vana as unknown as MockedFunction<typeof Vana>;
+const VanaMock = vi.mocked(Vana);
+
+// Helper functions to create complete mock objects
+function createMockUseAccountReturn(overrides = {}): UseAccountReturnType<any> {
+  return ({
+    address: '0x123' as `0x${string}`,
+    addresses: ['0x123' as `0x${string}`],
+    chain: undefined,
+    chainId: 14800,
+    connector: undefined,
+    isConnected: true,
+    isConnecting: false,
+    isDisconnected: false,
+    isReconnecting: false,
+    status: 'connected' as const,
+    ...overrides,
+  } as unknown) as UseAccountReturnType<any>;
+}
+
+function createMockUseWalletClientReturn(overrides = {}): UseWalletClientReturnType<any, any, any> {
+  return ({
+    data: null,
+    error: null,
+    isError: false,
+    isPending: false,
+    isLoading: false,
+    isLoadingError: false,
+    isRefetchError: false,
+    isSuccess: true,
+    isPlaceholderData: false,
+    status: 'success' as const,
+    dataUpdatedAt: Date.now(),
+    errorUpdatedAt: 0,
+    failureCount: 0,
+    failureReason: null,
+    fetchStatus: 'idle' as const,
+    isFetched: true,
+    isFetchedAfterMount: true,
+    isFetching: false,
+    isInitialLoading: false,
+    isPaused: false,
+    isStale: false,
+    refetch: vi.fn(),
+    queryKey: [],
+    ...overrides,
+  } as unknown) as UseWalletClientReturnType<any, any, any>;
+}
 
 // Test component that uses the VanaProvider context
 function TestComponent() {
@@ -81,15 +127,14 @@ describe('VanaProvider', () => {
     vi.clearAllMocks();
     mockFetch.mockClear();
     
-    // Default mock implementations
-    useAccountMock.mockReturnValue({
-      address: '0x123',
+    // Default mock implementations with complete types  
+    useAccountMock.mockReturnValue(createMockUseAccountReturn({
       isConnected: false,
-    });
+      isDisconnected: true,
+      status: 'disconnected',
+    }));
     
-    useWalletClientMock.mockReturnValue({
-      data: null,
-    });
+    useWalletClientMock.mockReturnValue(createMockUseWalletClientReturn());
 
     VanaMock.mockImplementation(() => mockVanaInstance as any);
   });
@@ -110,10 +155,12 @@ describe('VanaProvider', () => {
   });
 
   it('renders children without initializing when wallet is not connected', () => {
-    useAccountMock.mockReturnValue({
+    useAccountMock.mockReturnValue(createMockUseAccountReturn({
       address: undefined,
       isConnected: false,
-    });
+      isDisconnected: true,
+      status: 'disconnected',
+    }));
 
     render(
       <VanaProvider config={defaultConfig}>
@@ -128,14 +175,14 @@ describe('VanaProvider', () => {
   });
 
   it('renders children without initializing when wallet client is not available', () => {
-    useAccountMock.mockReturnValue({
-      address: '0x123',
+    useAccountMock.mockReturnValue(createMockUseAccountReturn({
+      address: '0x123' as `0x${string}`,
       isConnected: true,
-    });
+    }));
     
-    useWalletClientMock.mockReturnValue({
+    useWalletClientMock.mockReturnValue(createMockUseWalletClientReturn({
       data: null,
-    });
+    }));
 
     render(
       <VanaProvider config={defaultConfig}>
@@ -148,14 +195,14 @@ describe('VanaProvider', () => {
   });
 
   it('initializes Vana SDK when wallet is connected with default configuration', async () => {
-    useAccountMock.mockReturnValue({
-      address: '0x123',
+    useAccountMock.mockReturnValue(createMockUseAccountReturn({
+      address: '0x123' as `0x${string}`,
       isConnected: true,
-    });
+    }));
     
-    useWalletClientMock.mockReturnValue({
+    useWalletClientMock.mockReturnValue(createMockUseWalletClientReturn({
       data: mockWalletClient as any,
-    });
+    }));
 
     // Mock successful application address fetch
     mockFetch.mockResolvedValueOnce({
@@ -202,14 +249,14 @@ describe('VanaProvider', () => {
       defaultStorageProvider: 'user-ipfs',
     };
 
-    useAccountMock.mockReturnValue({
-      address: '0x123',
+    useAccountMock.mockReturnValue(createMockUseAccountReturn({
+      address: '0x123' as `0x${string}`,
       isConnected: true,
-    });
+    }));
     
-    useWalletClientMock.mockReturnValue({
+    useWalletClientMock.mockReturnValue(createMockUseWalletClientReturn({
       data: mockWalletClient as any,
-    });
+    }));
 
     mockFetch.mockResolvedValueOnce({
       ok: true,
@@ -251,14 +298,14 @@ describe('VanaProvider', () => {
       defaultStorageProvider: 'google-drive',
     };
 
-    useAccountMock.mockReturnValue({
-      address: '0x123',
+    useAccountMock.mockReturnValue(createMockUseAccountReturn({
+      address: '0x123' as `0x${string}`,
       isConnected: true,
-    });
+    }));
     
-    useWalletClientMock.mockReturnValue({
+    useWalletClientMock.mockReturnValue(createMockUseWalletClientReturn({
       data: mockWalletClient as any,
-    });
+    }));
 
     mockFetch.mockResolvedValueOnce({
       ok: true,
@@ -299,14 +346,14 @@ describe('VanaProvider', () => {
       pinataJwt: undefined,
     };
 
-    useAccountMock.mockReturnValue({
-      address: '0x123',
+    useAccountMock.mockReturnValue(createMockUseAccountReturn({
+      address: '0x123' as `0x${string}`,
       isConnected: true,
-    });
+    }));
     
-    useWalletClientMock.mockReturnValue({
+    useWalletClientMock.mockReturnValue(createMockUseWalletClientReturn({
       data: mockWalletClient as any,
-    });
+    }));
 
     mockFetch.mockResolvedValueOnce({
       ok: true,
@@ -339,14 +386,14 @@ describe('VanaProvider', () => {
   });
 
   it('disables gasless transactions when useGaslessTransactions is false', async () => {
-    useAccountMock.mockReturnValue({
-      address: '0x123',
+    useAccountMock.mockReturnValue(createMockUseAccountReturn({
+      address: '0x123' as `0x${string}`,
       isConnected: true,
-    });
+    }));
     
-    useWalletClientMock.mockReturnValue({
+    useWalletClientMock.mockReturnValue(createMockUseWalletClientReturn({
       data: mockWalletClient as any,
-    });
+    }));
 
     mockFetch.mockResolvedValueOnce({
       ok: true,
@@ -380,14 +427,14 @@ describe('VanaProvider', () => {
   });
 
   it('handles initialization errors gracefully', async () => {
-    useAccountMock.mockReturnValue({
-      address: '0x123',
+    useAccountMock.mockReturnValue(createMockUseAccountReturn({
+      address: '0x123' as `0x${string}`,
       isConnected: true,
-    });
+    }));
     
-    useWalletClientMock.mockReturnValue({
+    useWalletClientMock.mockReturnValue(createMockUseWalletClientReturn({
       data: mockWalletClient as any,
-    });
+    }));
 
     // Mock Vana constructor to throw an error
     VanaMock.mockImplementation(() => {
@@ -409,14 +456,14 @@ describe('VanaProvider', () => {
   });
 
   it('handles application address fetch failure gracefully', async () => {
-    useAccountMock.mockReturnValue({
-      address: '0x123',
+    useAccountMock.mockReturnValue(createMockUseAccountReturn({
+      address: '0x123' as `0x${string}`,
       isConnected: true,
-    });
+    }));
     
-    useWalletClientMock.mockReturnValue({
+    useWalletClientMock.mockReturnValue(createMockUseWalletClientReturn({
       data: mockWalletClient as any,
-    });
+    }));
 
     // Mock failed application address fetch
     mockFetch.mockRejectedValueOnce(new Error('Network error'));
@@ -448,14 +495,14 @@ describe('VanaProvider', () => {
     expect(screen.getByTestId('vana-status')).toHaveTextContent('vana-null');
 
     // Connect wallet
-    useAccountMock.mockReturnValue({
-      address: '0x123',
+    useAccountMock.mockReturnValue(createMockUseAccountReturn({
+      address: '0x123' as `0x${string}`,
       isConnected: true,
-    });
+    }));
     
-    useWalletClientMock.mockReturnValue({
+    useWalletClientMock.mockReturnValue(createMockUseWalletClientReturn({
       data: mockWalletClient as any,
-    });
+    }));
 
     mockFetch.mockResolvedValueOnce({
       ok: true,
@@ -476,14 +523,16 @@ describe('VanaProvider', () => {
     });
 
     // Disconnect wallet
-    useAccountMock.mockReturnValue({
+    useAccountMock.mockReturnValue(createMockUseAccountReturn({
       address: undefined,
       isConnected: false,
-    });
+      isDisconnected: true,
+      status: 'disconnected',
+    }));
     
-    useWalletClientMock.mockReturnValue({
+    useWalletClientMock.mockReturnValue(createMockUseWalletClientReturn({
       data: null,
-    });
+    }));
 
     rerender(
       <VanaProvider config={defaultConfig}>
@@ -506,14 +555,14 @@ describe('VanaProvider', () => {
       defaultStorageProvider: 'google-drive',
     };
 
-    useAccountMock.mockReturnValue({
-      address: '0x123',
+    useAccountMock.mockReturnValue(createMockUseAccountReturn({
+      address: '0x123' as `0x${string}`,
       isConnected: true,
-    });
+    }));
     
-    useWalletClientMock.mockReturnValue({
+    useWalletClientMock.mockReturnValue(createMockUseWalletClientReturn({
       data: mockWalletClient as any,
-    });
+    }));
 
     // Mock Google Drive folder creation failure
     const { GoogleDriveStorage } = await import('@opendatalabs/vana-sdk/browser');

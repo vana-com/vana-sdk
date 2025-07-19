@@ -19,37 +19,6 @@ const nextConfig = {
       "@": path.resolve(__dirname, "src"),
     };
 
-    // These fallbacks are still needed for dependencies that use Node.js APIs
-    // in a way that can be polyfilled for the browser.
-    if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
-        net: false,
-        tls: false,
-        child_process: false,
-        stream: require.resolve("stream-browserify"),
-        crypto: require.resolve("crypto-browserify"),
-        buffer: require.resolve("buffer"),
-        process: require.resolve("process/browser"),
-      };
-
-      config.plugins.push(
-        new (require("webpack").ProvidePlugin)({
-          process: "process/browser",
-          Buffer: ["buffer", "Buffer"],
-        }),
-      );
-    }
-
-    // Ignore the native eccrypto module that causes issues
-    config.plugins.push(
-      new (require("webpack").IgnorePlugin)({
-        resourceRegExp: /^\.\/build\/Release\/ecdh$/,
-        contextRegExp: /eccrypto/,
-      }),
-    );
-
     // This is needed for certain dependencies that are not fully ESM-compatible.
     config.externals.push("pino-pretty", "lokijs", "encoding");
 

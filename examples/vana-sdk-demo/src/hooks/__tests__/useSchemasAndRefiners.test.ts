@@ -33,16 +33,12 @@ describe('useSchemasAndRefiners', () => {
       name: 'Schema 1',
       type: 'json',
       definitionUrl: 'https://schema1.com',
-      creator: '0x123',
-      timestamp: BigInt(1640995200),
     },
     {
       id: 2,
       name: 'Schema 2',
       type: 'csv',
       definitionUrl: 'https://schema2.com',
-      creator: '0x456',
-      timestamp: BigInt(1640995300),
     },
   ];
 
@@ -51,19 +47,17 @@ describe('useSchemasAndRefiners', () => {
       id: 1,
       name: 'Refiner 1',
       dlpId: 1,
+      owner: '0x123' as `0x${string}`,
       schemaId: 1,
       refinementInstructionUrl: 'https://refiner1.com',
-      creator: '0x123',
-      timestamp: BigInt(1640995400),
     },
     {
       id: 2,
       name: 'Refiner 2',
       dlpId: 2,
+      owner: '0x456' as `0x${string}`,
       schemaId: 2,
       refinementInstructionUrl: 'https://refiner2.com',
-      creator: '0x456',
-      timestamp: BigInt(1640995500),
     },
   ];
 
@@ -97,11 +91,12 @@ describe('useSchemasAndRefiners', () => {
   });
 
   describe('initialization', () => {
-    it('returns default state when initialized', () => {
+    it('returns default state when initialized', async () => {
       const { result } = renderHook(() => useSchemasAndRefiners());
 
+      // Initially loading should be true since the hook auto-loads when vana and address are available
       expect(result.current.schemas).toEqual([]);
-      expect(result.current.isLoadingSchemas).toBe(false);
+      expect(result.current.isLoadingSchemas).toBe(true);
       expect(result.current.schemasCount).toBe(0);
       expect(result.current.schemaName).toBe('');
       expect(result.current.schemaType).toBe('');
@@ -111,7 +106,7 @@ describe('useSchemasAndRefiners', () => {
       expect(result.current.lastCreatedSchemaId).toBe(null);
 
       expect(result.current.refiners).toEqual([]);
-      expect(result.current.isLoadingRefiners).toBe(false);
+      expect(result.current.isLoadingRefiners).toBe(true);
       expect(result.current.refinersCount).toBe(0);
       expect(result.current.refinerName).toBe('');
       expect(result.current.refinerDlpId).toBe('');
@@ -125,6 +120,14 @@ describe('useSchemasAndRefiners', () => {
       expect(result.current.updateSchemaId).toBe('');
       expect(result.current.isUpdatingSchema).toBe(false);
       expect(result.current.updateSchemaStatus).toBe('');
+
+      // Wait for auto-loading to complete
+      await waitFor(() => {
+        expect(result.current.isLoadingSchemas).toBe(false);
+        expect(result.current.isLoadingRefiners).toBe(false);
+        expect(result.current.schemas).toHaveLength(2);
+        expect(result.current.refiners).toHaveLength(2);
+      });
     });
 
     it('loads schemas and refiners automatically when vana and address are available', async () => {
@@ -231,6 +234,15 @@ describe('useSchemasAndRefiners', () => {
       mockVana.schemas.count.mockResolvedValue(15);
 
       const { result } = renderHook(() => useSchemasAndRefiners());
+
+      // Wait for auto-loading to complete first
+      await waitFor(() => {
+        expect(result.current.isLoadingSchemas).toBe(false);
+      });
+
+      // Clear mocks to count only the explicit call
+      vi.clearAllMocks();
+      mockVana.schemas.count.mockResolvedValue(15);
 
       await act(async () => {
         await result.current.loadSchemas();

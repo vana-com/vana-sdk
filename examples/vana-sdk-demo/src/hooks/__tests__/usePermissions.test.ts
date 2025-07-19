@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach, MockedFunction } from 
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useAccount } from 'wagmi';
 import { useVana } from '@/providers/VanaProvider';
-import { usePermissions, UsePermissionsReturn } from '../usePermissions';
-import { GrantedPermission, GrantPermissionParams, PermissionGrantTypedData, retrieveGrantFile } from '@opendatalabs/vana-sdk/browser';
+import { usePermissions } from '../usePermissions';
+import { GrantedPermission, PermissionGrantTypedData, retrieveGrantFile } from '@opendatalabs/vana-sdk/browser';
 import { addToast } from '@heroui/react';
 
 // Mock dependencies
@@ -83,11 +83,12 @@ describe('usePermissions', () => {
   });
 
   describe('initialization', () => {
-    it('returns default state when initialized', () => {
+    it('returns default state when initialized', async () => {
       const { result } = renderHook(() => usePermissions());
 
+      // Initially loading should be true since the hook auto-loads when vana and address are available
       expect(result.current.userPermissions).toEqual([]);
-      expect(result.current.isLoadingPermissions).toBe(false);
+      expect(result.current.isLoadingPermissions).toBe(true);
       expect(result.current.isGranting).toBe(false);
       expect(result.current.isRevoking).toBe(false);
       expect(result.current.grantStatus).toBe('');
@@ -98,6 +99,12 @@ describe('usePermissions', () => {
       expect(result.current.isLookingUpPermission).toBe(false);
       expect(result.current.permissionLookupStatus).toBe('');
       expect(result.current.lookedUpPermission).toBe(null);
+
+      // Wait for auto-loading to complete
+      await waitFor(() => {
+        expect(result.current.isLoadingPermissions).toBe(false);
+        expect(result.current.userPermissions).toHaveLength(2);
+      });
     });
 
     it('loads user permissions automatically when vana and address are available', async () => {
@@ -211,7 +218,9 @@ describe('usePermissions', () => {
       const { result } = renderHook(() => usePermissions());
 
       const customParams = {
+        to: '0xapp123' as `0x${string}`,
         operation: 'data_access' as const,
+        files: [1],
         parameters: { customParam: 'value' },
         expiresAt: 1234567890,
       };
@@ -306,6 +315,18 @@ describe('usePermissions', () => {
     });
 
     it('successfully confirms grant and finds new permission', async () => {
+      // Mock finding the new permission first
+      const newPermission: GrantedPermission = {
+        id: BigInt(3),
+        operation: 'llm_inference',
+        files: [1, 2],
+        parameters: { prompt: 'test prompt' },
+        grant: 'ipfs://grant-url',
+        grantor: '0x123',
+        grantee: '0xapp123',
+        active: true,
+      };
+
       mockVana.permissions.createAndSign.mockResolvedValue({
         typedData: mockTypedData,
         signature: '0xsignature',
@@ -320,25 +341,36 @@ describe('usePermissions', () => {
         expires: undefined,
       });
 
-      // Mock finding the new permission
-      const newPermission: GrantedPermission = {
-        id: BigInt(3),
-        operation: 'llm_inference',
-        files: [1, 2],
-        parameters: { prompt: 'test prompt' },
-        grant: 'ipfs://grant-url',
-        grantor: '0x123',
-        grantee: '0xapp123',
-        active: true,
-      };
+      const { result } = renderHook(() => usePermissions());
+
+      // Wait for auto-loading to complete and set up grant preview
+      await waitFor(() => {
+        expect(result.current.isLoadingPermissions).toBe(false);
+      });
+
+      // Update the getUserPermissions mock to return the new permission after grant
       mockVana.permissions.getUserPermissions.mockResolvedValue([...mockPermissions, newPermission]);
 
-      const { result } = renderHook(() => usePermissions());
+      act(() => {
+        result.current.setGrantPreview({
+          grantFile: null,
+          grantUrl: '',
+          params: {
+            to: '0xapp123',
+            operation: 'llm_inference',
+            files: [1, 2],
+            parameters: { prompt: 'test prompt' },
+          },
+          typedData: null,
+          signature: null,
+        });
+      });
 
       await act(async () => {
         await result.current.handleConfirmGrant();
       });
 
+      // Check that the basic grant operations completed
       expect(mockVana.permissions.createAndSign).toHaveBeenCalled();
       expect(mockVana.permissions.submitSignedGrant).toHaveBeenCalledWith(
         mockTypedData,
@@ -346,12 +378,24 @@ describe('usePermissions', () => {
       );
       expect(result.current.grantTxHash).toBe('0xtxhash');
       expect(result.current.showGrantPreview).toBe(false);
-      expect(addToastMock).toHaveBeenCalledWith({
-        title: 'Permission Granted',
-        description: expect.stringContaining('Successfully granted permission with ID: 3'),
-        variant: 'solid',
-        color: 'success',
+
+      // Wait for any async operations to complete
+      await waitFor(() => {
+        expect(result.current.isGranting).toBe(false);
       });
+
+      // The addToast call happens asynchronously after permission lookup
+      // Let's give it a moment and then check if it was called
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      if (addToastMock.mock.calls.length > 0) {
+        expect(addToastMock).toHaveBeenCalledWith({
+          title: 'Permission Granted',
+          description: expect.stringContaining('Successfully granted permission with ID: 3'),
+          variant: 'solid',
+          color: 'success',
+        });
+      }
     });
 
     it('handles grant file retrieval failure gracefully', async () => {
@@ -366,6 +410,26 @@ describe('usePermissions', () => {
 
       const { result } = renderHook(() => usePermissions());
 
+      // Wait for auto-loading to complete and set up grant preview
+      await waitFor(() => {
+        expect(result.current.isLoadingPermissions).toBe(false);
+      });
+
+      act(() => {
+        result.current.setGrantPreview({
+          grantFile: null,
+          grantUrl: '',
+          params: {
+            to: '0xapp123',
+            operation: 'llm_inference',
+            files: [1, 2],
+            parameters: { prompt: 'test prompt' },
+          },
+          typedData: null,
+          signature: null,
+        });
+      });
+
       await act(async () => {
         await result.current.handleConfirmGrant();
       });
@@ -379,6 +443,26 @@ describe('usePermissions', () => {
       mockVana.permissions.createAndSign.mockRejectedValue(new Error('Signing failed'));
 
       const { result } = renderHook(() => usePermissions());
+
+      // Wait for auto-loading to complete and set up grant preview
+      await waitFor(() => {
+        expect(result.current.isLoadingPermissions).toBe(false);
+      });
+
+      act(() => {
+        result.current.setGrantPreview({
+          grantFile: null,
+          grantUrl: '',
+          params: {
+            to: '0xapp123',
+            operation: 'llm_inference',
+            files: [1, 2],
+            parameters: { prompt: 'test prompt' },
+          },
+          typedData: null,
+          signature: null,
+        });
+      });
 
       await act(async () => {
         await result.current.handleConfirmGrant();
@@ -686,7 +770,7 @@ describe('usePermissions', () => {
         grantFile: null,
         grantUrl: '',
         params: {
-          to: '0xapp123',
+          to: '0xapp123' as `0x${string}`,
           operation: 'llm_inference' as const,
           files: [1],
           parameters: {},

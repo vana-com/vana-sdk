@@ -92,11 +92,12 @@ describe('useTrustedServers', () => {
   });
 
   describe('initialization', () => {
-    it('returns default state when initialized', () => {
+    it('returns default state when initialized', async () => {
       const { result } = renderHook(() => useTrustedServers());
 
+      // Initially loading should be true since the hook auto-loads when vana and address are available
       expect(result.current.trustedServers).toEqual([]);
-      expect(result.current.isLoadingTrustedServers).toBe(false);
+      expect(result.current.isLoadingTrustedServers).toBe(true);
       expect(result.current.isTrustingServer).toBe(false);
       expect(result.current.isUntrusting).toBe(false);
       expect(result.current.isDiscoveringServer).toBe(false);
@@ -104,6 +105,12 @@ describe('useTrustedServers', () => {
       expect(result.current.trustedServerQueryMode).toBe('auto');
       expect(result.current.serverId).toBe('');
       expect(result.current.serverUrl).toBe('');
+
+      // Wait for auto-loading to complete
+      await waitFor(() => {
+        expect(result.current.isLoadingTrustedServers).toBe(false);
+        expect(result.current.trustedServers).toHaveLength(2);
+      });
     });
 
     it('loads trusted servers automatically when vana and address are available', async () => {
@@ -111,6 +118,7 @@ describe('useTrustedServers', () => {
 
       await waitFor(() => {
         expect(result.current.trustedServers).toHaveLength(2);
+        expect(result.current.isLoadingTrustedServers).toBe(false);
       });
 
       expect(mockVana.data.getUserTrustedServers).toHaveBeenCalledWith({
@@ -123,7 +131,7 @@ describe('useTrustedServers', () => {
       expect(addToastMock).toHaveBeenCalledWith({
         color: 'success',
         title: 'Trusted servers loaded via SUBGRAPH',
-        description: 'Found 2 trusted servers (2 total)',
+        description: 'Found 2 trusted servers (2 total). Warnings: ',
       });
     });
 

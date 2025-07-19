@@ -88,14 +88,22 @@
     "abitype": "^1.0.8",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
-    "eccrypto": "^1.1.6",
     "eccrypto-js": "^5.4.0",
     "openpgp": "^6.1.1",
     "viem": "^2.31.7"
   },
+  "peerDependencies": {
+    "eccrypto": "^1.1.6"
+  },
+  "peerDependenciesMeta": {
+    "eccrypto": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@types/eccrypto": "^1.1.6",
     "@types/node": "^24.0.10",
+    "eccrypto": "^1.1.6",
     "@typescript-eslint/eslint-plugin": "^8.32.1",
     "@typescript-eslint/parser": "^8.32.1",
     "@vitest/coverage-v8": "^3.2.4",

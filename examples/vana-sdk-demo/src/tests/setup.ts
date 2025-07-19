@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom";
-import { vi, beforeEach, afterEach } from "vitest";
+import { vi } from "vitest";
 
 // Mock Next.js router
 vi.mock("next/navigation", () => ({
@@ -75,10 +75,13 @@ Object.defineProperty(global, "crypto", {
   },
 });
 
-// Mock clipboard API
-Object.defineProperty(navigator, "clipboard", {
-  value: {
-    writeText: vi.fn(() => Promise.resolve()),
-    readText: vi.fn(() => Promise.resolve("")),
-  },
-});
+// Mock clipboard API - only if it doesn't already exist
+if (!navigator.clipboard) {
+  Object.defineProperty(navigator, "clipboard", {
+    value: {
+      writeText: vi.fn(() => Promise.resolve()),
+      readText: vi.fn(() => Promise.resolve("")),
+    },
+    writable: true,
+  });
+}

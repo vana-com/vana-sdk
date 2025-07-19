@@ -29,10 +29,23 @@ export default defineConfig({
       ],
       reportOnFailure: true,
       thresholds: {
-        lines: 0.5,
-        functions: 27, // Temporarily reduced due to new untested components
-        branches: 34, // Temporarily reduced due to new untested components
-        statements: 0.5,
+        lines: 30, // Aggressive target based on current coverage of critical components
+        functions: 70, // High threshold for function coverage
+        branches: 50, // Reasonable branch coverage threshold
+        statements: 30, // Match lines coverage for consistency
+        // Per-file thresholds for critical components
+        'src/hooks/**/*.ts': {
+          lines: 60,
+          functions: 80,
+          branches: 40,
+          statements: 60,
+        },
+        'src/providers/**/*.tsx': {
+          lines: 40,
+          functions: 75,
+          branches: 25,
+          statements: 40,
+        },
       },
     },
   },

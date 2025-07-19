@@ -1,52 +1,49 @@
 # CLAUDE_MISSION.md
 
-## CRITICAL DIRECTIVE - AUTONOMOUS COMPLETION
-**The user is on vacation. You MUST continue working autonomously through ALL phases without stopping until you open a PR. Do NOT stop for any reason. Complete the entire refactoring and open the PR when everything passes verification.**
-
 ## Constitution
 
 <directive id="mission">
-Your primary mission is to refactor the monolithic "God Component" at `examples/vana-sdk-demo/src/app/demo-page.tsx` into a modular system of providers, custom hooks, and lean view components, following the provided execution plan precisely.
+Your primary mission is to write comprehensive unit and integration tests for the newly created custom hooks and page components. Your goal is to achieve high test coverage and enforce it in the CI configuration.
 </directive>
 
 <directive id="quality">
-Prioritize code clarity, correctness, and long-term maintainability over speed of completion. Produce elegant, modern, and idiomatic React/TypeScript. Before writing code for a step, you must briefly state your plan for that step.
+You must write high-quality tests using `vitest` and `@testing-library/react`. Tests should be clear, resilient, and focus on testing the behavior of the hooks and components from a user's perspective, not their internal implementation details. Mocks should be used judiciously for external dependencies like the Vana SDK.
 </directive>
 
 <directive id="workflow">
-You MUST follow this strict, repeating loop for each logical step defined in the execution plan:
-1.  **Re-orient:** Before beginning ANY new step, you MUST first execute the command `cat CLAUDE_MISSION.md` to read your full, un-compacted instructions back into your context. This is non-negotiable.
-2.  **Plan:** Announce the specific step you are about to take from the execution plan.
-3.  **Implement:** Write the necessary code to complete that single step.
-4.  **Verify:** After completing a logical unit of work (e.g., a full custom hook and its component integration), you MUST run the verification suite: `npm run lint && npm run typecheck && npm test`. This verification cadence balances token cost with correctness. You must analyze the results and autonomously fix any errors before proceeding to the next step.
+You MUST follow this strict, repeating loop for each logical testing unit:
+1.  **Re-orient:** Before beginning ANY new step, you MUST execute the command `cat CLAUDE_MISSION.md` to read your full instructions back into your context.
+2.  **Plan:** Announce which hook or component you are about to test.
+3.  **Implement:** Write the test file (e.g., `useUserFiles.test.ts`).
+4.  **Verify:** Run the tests via `npm test`. Analyze the results, including coverage reports. Ensure the new tests pass and that coverage has increased. Fix any issues before proceeding.
 </directive>
 
 <directive id="reporting">
-To ensure you and I can track your state across many cycles, you MUST begin every single response with a header in the following format:
+You MUST begin every response with a header in the following format:
 ---
-**Mission:** Refactor the God Component
+**Mission:** Build the Test Suite
 **Current Step:** [Name of the current step from the execution_plan]
 ---
 </directive>
 
 ## Execution Plan
 
-<phase id="1" name="Establish the Foundation">
-<step id="1a">Create the file `examples/vana-sdk-demo/src/providers/VanaProvider.tsx`.</step>
-<step id="1b">Implement the `VanaProvider` component and the `useVana` custom hook within that file. This component will be responsible for initializing the Vana SDK and providing it via React Context.</step>
+<phase id="1" name="Test the Foundation">
+<step id="1a">Write tests for the `VanaProvider`. The tests should verify that it correctly initializes the Vana SDK when a wallet is connected and provides the context value to child components.</step>
 </phase>
 
-<phase id="2" name="Extract Logic into Custom Hooks">
-<step id="2a">Create the hook `examples/vana-sdk-demo/src/hooks/useUserFiles.ts` to manage all state and logic related to user files.</step>
-<step id="2b">Create the hook `examples/vana-sdk-demo/src/hooks/usePermissions.ts` for permission management.</step>
-<step id="2c">Create the hook `examples/vana-sdk-demo/src/hooks/useTrustedServers.ts` for trusted server logic.</step>
-<step id="2d">Create hooks for Schemas and Refiners as needed.</step>
+<phase id="2" name="Unit Test the Custom Hooks (One by One)">
+<step id="2a">Write comprehensive unit tests for `useUserFiles.ts`. Mock the `useVana` hook. Test all returned state and functions: fetching files, selecting files, decrypting, looking up, etc.</step>
+<step id="2b">Write comprehensive unit tests for `usePermissions.ts`. Follow the same pattern of mocking dependencies and testing the hook's logic in isolation.</step>
+<step id="2c">Write unit tests for `useTrustedServers.ts`.</step>
+<step id="2d">Write unit tests for `useSchemasAndRefiners.ts`.</step>
 </phase>
 
-<phase id="3" name="Refactor Views and Components">
-<step id="3a">After creating each hook, immediately refactor the primary UI component that uses its logic (e.g., `UserDashboardView.tsx`) to consume the new hook. Remove the now-redundant state logic and props from the component.</step>
+<phase id="3" name="Integration Test the Pages">
+<step id="3a">Write an integration test for the `my-data/page.tsx` component. This test will render the full page and verify that user interactions (e.g., clicking the "Refresh" button) correctly trigger the underlying hooks and update the UI. You will use `@testing-library/react` for this.</step>
 </phase>
 
-<phase id="4" name="Decommission the God Component">
-<step id="4a">Once all logic has been extracted into hooks and consumed by the respective views, refactor the main `demo-page.tsx` file. It should become a simple structural component that wraps its children with the `VanaProvider` and handles only the top-level loading/connection states.</step>
+<phase id="4" name="Enforce Quality Gate">
+<step id="4a">After all tests are written and passing, analyze the final code coverage report.</step>
+<step id="4b">Update the `examples/vana-sdk-demo/vitest.config.ts` file. Uncomment the `thresholds` section and set aggressive targets (e.g., 80% or higher for lines, functions, and branches) based on the achieved coverage. The build must fail if coverage drops below these new thresholds.</step>
 </phase>

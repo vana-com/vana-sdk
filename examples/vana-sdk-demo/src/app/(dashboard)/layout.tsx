@@ -1,8 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { addToast } from "@heroui/react";
-import type { VanaChain } from "@opendatalabs/vana-sdk/browser";
 import { useAccount, useWalletClient, useChainId } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import {
@@ -23,21 +21,6 @@ import {
   Address,
   retrieveGrantFile,
 } from "@opendatalabs/vana-sdk/browser";
-
-// Types for demo app state
-
-interface GrantPreview {
-  grantFile: {
-    grantee: string;
-    operation: string;
-    parameters: unknown;
-    expires?: number;
-  } | null;
-  grantUrl: string;
-  params: GrantPermissionParams & { expiresAt?: number };
-  typedData?: PermissionGrantTypedData | null;
-  signature?: string | null;
-}
 import {
   Card,
   CardHeader,
@@ -53,25 +36,40 @@ import {
   NavbarContent,
   NavbarItem,
 } from "@heroui/react";
-import { MainLayout } from "@/components/MainLayout";
 import { GrantPreviewModalContent } from "@/components/GrantPreviewModalContent";
 import { Eye } from "lucide-react";
-import type { UserDashboardViewProps } from "@/components/views/UserDashboardView";
-import type { DeveloperDashboardViewProps } from "@/components/views/DeveloperDashboardView";
-import type { DemoExperienceViewProps } from "@/components/views/DemoExperienceView";
 import {
   SDKConfigurationSidebar,
   type AppConfig,
 } from "@/components/SDKConfigurationSidebar";
+import { SidebarNavigation } from "@/components/SidebarNavigation";
+import type { VanaChain } from "@opendatalabs/vana-sdk/browser";
 
-export default function Home() {
+// Types for demo app state
+interface GrantPreview {
+  grantFile: {
+    grantee: string;
+    operation: string;
+    parameters: unknown;
+    expires?: number;
+  } | null;
+  grantUrl: string;
+  params: GrantPermissionParams & { expiresAt?: number };
+  typedData?: PermissionGrantTypedData | null;
+  signature?: string | null;
+}
+
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
   const chainId = useChainId();
 
   const [vana, setVana] = useState<Vana | null>(null);
-  // Core state for grant preview modal
-
+  
   // Grant preview state
   const [grantPreview, setGrantPreview] = useState<GrantPreview | null>(null);
   const {
@@ -79,12 +77,6 @@ export default function Home() {
     onOpen: onOpenGrant,
     onClose: onCloseGrant,
   } = useDisclosure();
-  // Grant preview modal state remains
-
-  // Encryption testing state
-
-  // Blockchain upload state
-
 
   // Prompt state for customizable LLM prompt
   const [promptText, setPromptText] = useState<string>(
@@ -97,16 +89,30 @@ export default function Home() {
   // Application address for permission granting
   const [applicationAddress, setApplicationAddress] = useState<string>("");
 
-  // Active view state for navigation
-  const [activeView, setActiveView] = useState<string>("my-data");
+  // Upload data functionality state
+  const [uploadInputMode, setUploadInputMode] = useState<"text" | "file">(
+    "text",
+  );
+  const [uploadTextData, setUploadTextData] = useState<string>("");
+  const [uploadSelectedFile, setUploadSelectedFile] = useState<File | null>(
+    null,
+  );
+  const [uploadSelectedSchemaId, setUploadSelectedSchemaId] = useState<
+    number | null
+  >(null);
+  const [isUploadingData, setIsUploadingData] = useState(false);
+  const [uploadResult, setUploadResult] = useState<{
+    fileId: number;
+    transactionHash: string;
+    isValid?: boolean;
+    validationErrors?: string[];
+  } | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
-
-  // Schema selection for file upload
-
+  // Personal server state
   const [personalResult, setPersonalResult] = useState<unknown>(null);
   const [personalError, setPersonalError] = useState<string>("");
   const [isPersonalLoading, setIsPersonalLoading] = useState(false);
-
 
   // SDK Configuration state
   const [sdkConfig, setSdkConfig] = useState({
@@ -606,15 +612,6 @@ export default function Home() {
     }
   }, [isConnected, walletClient, sdkConfig]);
 
-  // Generate encrypted content preview when encryptedData changes
-  // Note: encryptedData preview now handled by EncryptionTestCard component
-
-  // Trusted servers loading removed - handled by useTrustedServers hook
-
-  // Data loading now handled by individual hooks
-
-
-
   const handleConfirmGrant = async () => {
     if (!grantPreview || !vana) return;
 
@@ -689,18 +686,7 @@ export default function Home() {
     setGrantPreview(null);
   };
 
-
-
-
-
-
-
-
-
-
-  /**
-   * Handle LLM execution for the demo flow with the given permission ID
-   */
+  // Helper function to poll operation status
   const pollOperationStatus = async (
     operationId: string,
     permissionId: number,
@@ -803,10 +789,6 @@ export default function Home() {
       // Store permission context for display
       if (vana) {
         try {
-          // Note: Grant file retrieval removed to avoid CORS issues
-          // const permissionInfo = await vana.permissions.getPermissionInfo(BigInt(permissionId));
-          // const _grantFile = await retrieveGrantFile(permissionInfo.grant);
-
           setLastUsedPermissionId(permissionId.toString());
         } catch (error) {
           console.warn("Failed to set permission context:", error);
@@ -822,64 +804,21 @@ export default function Home() {
     }
   };
 
-  // Trust server handlers
+  // If not connected, show wallet connection prompt
+  if (!isConnected) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar isBordered>
+          <NavbarBrand>
+            <h1 className="text-xl font-bold text-foreground">Vana SDK Demo</h1>
+          </NavbarBrand>
+          <NavbarContent justify="end">
+            <NavbarItem>
+              <ConnectButton />
+            </NavbarItem>
+          </NavbarContent>
+        </Navbar>
 
-
-
-
-
-
-
-
-
-
-
-
-  // Create props for each view helper function
-  const createUserDashboardProps = (): UserDashboardViewProps => ({
-    promptText,
-    onPromptTextChange: setPromptText,
-    applicationAddress,
-    userAddress: address,
-    chainId: chainId || 14800,
-  });
-
-  const createDeveloperDashboardProps = (
-    sdk: typeof vana,
-    walletClientInstance: typeof walletClient,
-  ): DeveloperDashboardViewProps => ({
-    chainId: chainId || 14800,
-    vana: sdk!,
-    walletClient: walletClientInstance!,
-  });
-
-  const createDemoExperienceProps = (
-    sdk: typeof vana,
-  ): DemoExperienceViewProps => ({
-    vana: sdk!,
-    onRunLLM: handleDemoRunLLM,
-    isRunningLLM: isPersonalLoading,
-    llmResult: personalResult,
-    llmError: personalError,
-    lastUsedPermissionId,
-    chainId: chainId || 14800,
-    applicationAddress,
-  });
-
-  return (
-    <div className="min-h-screen bg-background">
-      <Navbar isBordered>
-        <NavbarBrand>
-          <h1 className="text-xl font-bold text-foreground">Vana SDK Demo</h1>
-        </NavbarBrand>
-        <NavbarContent justify="end">
-          <NavbarItem>
-            <ConnectButton />
-          </NavbarItem>
-        </NavbarContent>
-      </Navbar>
-
-      {!isConnected && (
         <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
           <Card className="max-w-md">
             <CardHeader className="flex-col items-start">
@@ -893,9 +832,25 @@ export default function Home() {
             </CardBody>
           </Card>
         </div>
-      )}
+      </div>
+    );
+  }
 
-      {isConnected && !vana && (
+  // If connected but SDK not initialized, show loading
+  if (!vana) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar isBordered>
+          <NavbarBrand>
+            <h1 className="text-xl font-bold text-foreground">Vana SDK Demo</h1>
+          </NavbarBrand>
+          <NavbarContent justify="end">
+            <NavbarItem>
+              <ConnectButton />
+            </NavbarItem>
+          </NavbarContent>
+        </Navbar>
+
         <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
           <Card className="max-w-md">
             <CardHeader className="flex-col items-start">
@@ -911,40 +866,51 @@ export default function Home() {
             </CardBody>
           </Card>
         </div>
-      )}
+      </div>
+    );
+  }
 
-      {vana && (
-        <div className="flex">
-          <div className="flex-1">
-            <MainLayout
-              activeView={activeView}
-              onViewChange={setActiveView}
-              userDashboardProps={createUserDashboardProps()}
-              developerDashboardProps={createDeveloperDashboardProps(
-                vana,
-                walletClient,
-              )}
-              demoExperienceProps={createDemoExperienceProps(vana)}
-            />
-          </div>
+  // Main dashboard layout with sidebar navigation and content
+  return (
+    <div className="min-h-screen bg-background">
+      <Navbar isBordered>
+        <NavbarBrand>
+          <h1 className="text-xl font-bold text-foreground">Vana SDK Demo</h1>
+        </NavbarBrand>
+        <NavbarContent justify="end">
+          <NavbarItem>
+            <ConnectButton />
+          </NavbarItem>
+        </NavbarContent>
+      </Navbar>
 
-          {/* Right Sidebar - SDK Configuration */}
-          <div id="configuration">
-            <SDKConfigurationSidebar
-              sdkConfig={sdkConfig}
-              onConfigChange={(config) =>
-                setSdkConfig((prev) => ({ ...prev, ...config }))
-              }
-              appConfig={appConfig}
-              onAppConfigChange={(config) =>
-                setAppConfig((prev) => ({ ...prev, ...config }))
-              }
-              onGoogleDriveAuth={handleGoogleDriveAuth}
-              onGoogleDriveDisconnect={handleGoogleDriveDisconnect}
-            />
-          </div>
+      <div className="flex">
+        {/* Left Sidebar - Navigation */}
+        <div className="w-64 min-h-[calc(100vh-4rem)] border-r border-border">
+          <SidebarNavigation />
         </div>
-      )}
+
+        {/* Main Content Area */}
+        <div className="flex-1">
+          {children}
+        </div>
+
+        {/* Right Sidebar - SDK Configuration */}
+        <div id="configuration">
+          <SDKConfigurationSidebar
+            sdkConfig={sdkConfig}
+            onConfigChange={(config) =>
+              setSdkConfig((prev) => ({ ...prev, ...config }))
+            }
+            appConfig={appConfig}
+            onAppConfigChange={(config) =>
+              setAppConfig((prev) => ({ ...prev, ...config }))
+            }
+            onGoogleDriveAuth={handleGoogleDriveAuth}
+            onGoogleDriveDisconnect={handleGoogleDriveDisconnect}
+          />
+        </div>
+      </div>
 
       {/* Grant Preview Modal */}
       <Modal

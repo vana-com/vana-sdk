@@ -29,6 +29,7 @@ import {
   UntrustServerTypedData,
   GrantFile,
   Hash,
+  Address,
   retrieveGrantFile,
 } from "@opendatalabs/vana-sdk/browser";
 
@@ -705,6 +706,27 @@ export default function Home() {
               return {
                 fileId: result.fileId,
                 transactionHash: result.transactionHash as Hash,
+              };
+            },
+
+            async submitFileAdditionComplete(params: {
+              url: string;
+              userAddress: Address;
+              permissions: Array<{ account: Address; key: string }>;
+              schemaId: number;
+            }) {
+              const response = await fetch("/api/relay/addFileComplete", {
+                method: "POST",
+                body: JSON.stringify(params),
+                headers: { "Content-Type": "application/json" },
+              });
+              const data = await response.json();
+              if (!data.success) {
+                throw new Error(data.message || "Relay request failed");
+              }
+              return {
+                fileId: data.fileId,
+                transactionHash: data.transactionHash as Hash,
               };
             },
 
@@ -2119,7 +2141,7 @@ export default function Home() {
 
   // Create props for each view helper function
   const createUserDashboardProps = (
-    vanaInstance: typeof vana,
+    sdk: typeof vana,
   ): UserDashboardViewProps => ({
     fileLookupId,
     onFileLookupIdChange: setFileLookupId,
@@ -2182,7 +2204,7 @@ export default function Home() {
     onQueryModeChange: setTrustedServerQueryMode,
     userAddress: address,
     chainId: chainId || 14800,
-    vana: vanaInstance!,
+    vana: sdk!,
     // Upload data functionality
     uploadInputMode,
     onUploadInputModeChange: setUploadInputMode,
@@ -2199,7 +2221,7 @@ export default function Home() {
       isValid?: boolean;
       validationErrors?: string[];
     }) => {
-      if (!vanaInstance || !walletClient) {
+      if (!sdk || !walletClient) {
         setUploadError("Wallet not connected");
         return;
       }
@@ -2210,7 +2232,7 @@ export default function Home() {
 
       try {
         // Use the new high-level upload method
-        const uploadResult = await vanaInstance.data.upload({
+        const uploadResult = await sdk.data.upload({
           content: data.content,
           filename: data.filename || "uploaded_data.txt",
           schemaId: data.schemaId,
@@ -2247,7 +2269,7 @@ export default function Home() {
   });
 
   const createDeveloperDashboardProps = (
-    vanaInstance: typeof vana,
+    sdk: typeof vana,
     walletClientInstance: typeof walletClient,
   ): DeveloperDashboardViewProps => ({
     schemasCount,
@@ -2288,14 +2310,14 @@ export default function Home() {
     isLoadingRefiners,
     onRefreshRefiners: loadRefiners,
     chainId: chainId || 14800,
-    vana: vanaInstance!,
+    vana: sdk!,
     walletClient: walletClientInstance!,
   });
 
   const createDemoExperienceProps = (
-    vanaInstance: typeof vana,
+    sdk: typeof vana,
   ): DemoExperienceViewProps => ({
-    vana: vanaInstance!,
+    vana: sdk!,
     serverId,
     onServerIdChange: setServerId,
     serverUrl,

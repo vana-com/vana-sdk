@@ -168,6 +168,12 @@ export const DataRefinerRegistryABI = [
       {
         indexed: false,
         internalType: "string",
+        name: "schemaDefinitionUrl",
+        type: "string",
+      },
+      {
+        indexed: false,
+        internalType: "string",
         name: "refinementInstructionUrl",
         type: "string",
       },
@@ -268,7 +274,7 @@ export const DataRefinerRegistryABI = [
       {
         indexed: false,
         internalType: "string",
-        name: "typ",
+        name: "dialect",
         type: "string",
       },
       {
@@ -377,9 +383,9 @@ export const DataRefinerRegistryABI = [
         type: "string",
       },
       {
-        internalType: "uint256",
-        name: "schemaId",
-        type: "uint256",
+        internalType: "string",
+        name: "schemaDefinitionUrl",
+        type: "string",
       },
       {
         internalType: "string",
@@ -401,13 +407,47 @@ export const DataRefinerRegistryABI = [
   {
     inputs: [
       {
+        internalType: "uint256",
+        name: "dlpId",
+        type: "uint256",
+      },
+      {
+        internalType: "string",
+        name: "name",
+        type: "string",
+      },
+      {
+        internalType: "uint256",
+        name: "schemaId",
+        type: "uint256",
+      },
+      {
+        internalType: "string",
+        name: "refinementInstructionUrl",
+        type: "string",
+      },
+    ],
+    name: "addRefinerWithSchemaId",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
         internalType: "string",
         name: "name",
         type: "string",
       },
       {
         internalType: "string",
-        name: "typ",
+        name: "dialect",
         type: "string",
       },
       {
@@ -770,7 +810,7 @@ export const DataRefinerRegistryABI = [
           },
           {
             internalType: "string",
-            name: "typ",
+            name: "dialect",
             type: "string",
           },
           {

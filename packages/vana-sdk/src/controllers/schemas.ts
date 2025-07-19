@@ -275,7 +275,7 @@ export class SchemaController {
         definitionUrl: string;
       }
 
-      const schemaObj = schemaData as SchemaContractData;
+      const schemaObj = schemaData as unknown as SchemaContractData;
 
       if (!schemaObj.name || !schemaObj.typ || !schemaObj.definitionUrl) {
         throw new Error("Incomplete schema data");

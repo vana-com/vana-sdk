@@ -1491,7 +1491,7 @@ describe("DataController", () => {
       expect(result.transactionHash).toBe("0xtxhash");
       expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
         expect.objectContaining({
-          functionName: "addRefiner",
+          functionName: "addRefinerWithSchemaId",
           args: [
             BigInt(1),
             "Test Refiner",

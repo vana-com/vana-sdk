@@ -122,6 +122,8 @@ export interface PermissionParams {
   nonce?: bigint;
   /** Optional expiration timestamp. */
   expiresAt?: number;
+  /** Public key of the recipient to encrypt the data key for (required for upload with permissions). */
+  publicKey?: string;
 }
 
 /**

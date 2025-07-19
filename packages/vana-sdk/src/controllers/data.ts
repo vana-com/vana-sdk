@@ -1,4 +1,4 @@
-import { Address, getContract, decodeEventLog } from "viem";
+import { Address, getContract, decodeEventLog, Hash } from "viem";
 
 import {
   UserFile,
@@ -122,7 +122,7 @@ interface SubgraphResponse {
  * @see {@link [URL_PLACEHOLDER] | Vana Data Registry Documentation} for conceptual overview
  */
 export class DataController {
-  constructor(private readonly context: ControllerContext) { }
+  constructor(private readonly context: ControllerContext) {}
 
   /**
    * Uploads user data with automatic encryption and blockchain registration.
@@ -274,82 +274,82 @@ export class DataController {
       );
 
       // Step 5: Register on blockchain
-      let blockchainResult;
       const userAddress = await this.getUserAddress();
 
-      if (permissions.length > 0) {
-        // Upload with permissions - not fully implemented yet
-        throw new Error(
-          "Upload with permissions is not yet implemented in the high-level API",
+      // Prepare encrypted permissions if provided
+      let encryptedPermissions: Array<{ account: Address; key: string }> = [];
+      if (permissions.length > 0 && encrypt) {
+        const userEncryptionKey = await generateEncryptionKey(
+          this.context.walletClient,
+          DEFAULT_ENCRYPTION_SEED,
         );
-      } else {
-        // Use the appropriate blockchain registration method
-        const chainId = this.context.walletClient.chain?.id;
-        if (!chainId) {
-          throw new Error("Chain ID not available");
-        }
 
-        const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
-        const dataRegistryAbi = getAbi("DataRegistry");
-
-        // Choose the right contract method based on schema
-        let txHash;
-        if (schemaId !== undefined) {
-          txHash = await this.context.walletClient.writeContract({
-            address: dataRegistryAddress,
-            abi: dataRegistryAbi,
-            functionName: "addFileWithSchema",
-            args: [uploadResult.url, BigInt(schemaId)],
-            account: this.context.walletClient.account || userAddress,
-            chain: this.context.walletClient.chain || null,
-          });
-        } else {
-          txHash = await this.context.walletClient.writeContract({
-            address: dataRegistryAddress,
-            abi: dataRegistryAbi,
-            functionName: "addFile",
-            args: [uploadResult.url],
-            account: this.context.walletClient.account || userAddress,
-            chain: this.context.walletClient.chain || null,
-          });
-        }
-
-        // Wait for transaction receipt to parse the FileAdded event
-        const receipt =
-          await this.context.publicClient.waitForTransactionReceipt({
-            hash: txHash,
-            timeout: 30_000, // 30 seconds timeout
-          });
-
-        // Parse the FileAdded event to get the actual fileId
-        let fileId = 0;
-        for (const log of receipt.logs) {
-          try {
-            const decoded = decodeEventLog({
-              abi: dataRegistryAbi,
-              data: log.data,
-              topics: log.topics,
-            });
-
-            if (decoded.eventName === "FileAdded") {
-              fileId = Number(decoded.args.fileId);
-              break;
+        encryptedPermissions = await Promise.all(
+          permissions.map(async (permission) => {
+            // Get public key for the permission recipient
+            const publicKey = permission.publicKey;
+            if (!publicKey) {
+              throw new Error(
+                `Public key required for permission to ${permission.to}`,
+              );
             }
-          } catch {
-            // Skip logs that can't be decoded
-          }
-        }
 
-        blockchainResult = {
-          fileId,
-          transactionHash: txHash,
-        };
+            const encryptedKey = await encryptWithWalletPublicKey(
+              userEncryptionKey,
+              publicKey,
+              this.context.platform,
+            );
+
+            return {
+              account: permission.to,
+              key: encryptedKey,
+            };
+          }),
+        );
+      }
+
+      // Determine which registration method to use
+      let result;
+
+      // Preferred: Use the new comprehensive relay callback if it exists
+      if (this.context.relayerCallbacks?.submitFileAdditionComplete) {
+        result = await this.context.relayerCallbacks.submitFileAdditionComplete(
+          {
+            url: uploadResult.url,
+            userAddress: userAddress,
+            permissions: encryptedPermissions,
+            schemaId: schemaId || 0,
+          },
+        );
+
+        // Legacy: Use the old relay callback if it exists
+      } else if (this.context.relayerCallbacks?.submitFileAddition) {
+        const needsComplexRegistration =
+          schemaId !== undefined || encryptedPermissions.length > 0;
+        if (needsComplexRegistration) {
+          throw new Error(
+            "The configured relay callback does not support schemas or permissions. Please update your relay server implementation to provide the `submitFileAdditionComplete` callback.",
+          );
+        }
+        result = await this.context.relayerCallbacks.submitFileAddition(
+          uploadResult.url,
+          userAddress,
+        );
+
+        // Fallback: No relay support, use a direct transaction
+      } else {
+        result = await this.addFileWithPermissionsAndSchema(
+          uploadResult.url,
+          userAddress,
+          encryptedPermissions,
+          schemaId || 0,
+        );
       }
 
       return {
-        fileId: blockchainResult.fileId,
+        fileId: result.fileId,
         url: uploadResult.url,
-        transactionHash: blockchainResult.transactionHash,
+        transactionHash: result.transactionHash as Hash,
         size: uploadResult.size,
         isValid,
         validationErrors:
@@ -1596,6 +1596,84 @@ export class DataController {
   }
 
   /**
+   * Adds a file to the registry with permissions and schema.
+   * This combines the functionality of addFileWithPermissions and schema validation.
+   *
+   * @param url - The URL of the file to register
+   * @param ownerAddress - The address of the file owner
+   * @param permissions - Array of permissions to grant (account and encrypted key)
+   * @param schemaId - The schema ID to associate with the file (0 for no schema)
+   * @returns Promise resolving to object with fileId and transactionHash
+   */
+  async addFileWithPermissionsAndSchema(
+    url: string,
+    ownerAddress: Address,
+    permissions: Array<{ account: Address; key: string }> = [],
+    schemaId: number = 0,
+  ): Promise<{
+    fileId: number;
+    transactionHash: string;
+  }> {
+    try {
+      const chainId = this.context.walletClient.chain?.id;
+      if (!chainId) {
+        throw new Error("Chain ID not available");
+      }
+
+      const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
+      const dataRegistryAbi = getAbi("DataRegistry");
+
+      // Execute the transaction using the wallet client
+      const txHash = await this.context.walletClient.writeContract({
+        address: dataRegistryAddress,
+        abi: dataRegistryAbi,
+        functionName: "addFileWithPermissionsAndSchema",
+        args: [url, ownerAddress, permissions, BigInt(schemaId)],
+        account: this.context.walletClient.account || ownerAddress,
+        chain: this.context.walletClient.chain || null,
+      });
+
+      // Wait for transaction receipt to parse the FileAdded event
+      const receipt = await this.context.publicClient.waitForTransactionReceipt(
+        {
+          hash: txHash,
+          timeout: 30_000, // 30 seconds timeout
+        },
+      );
+
+      // Parse the FileAdded event to get the actual fileId
+      let fileId = 0;
+      for (const log of receipt.logs) {
+        try {
+          const decoded = decodeEventLog({
+            abi: dataRegistryAbi,
+            data: log.data,
+            topics: log.topics,
+          });
+
+          if (decoded.eventName === "FileAdded") {
+            fileId = Number(decoded.args.fileId);
+            break;
+          }
+        } catch {
+          // Ignore logs that don't match our ABI
+          continue;
+        }
+      }
+
+      return {
+        fileId: fileId,
+        transactionHash: txHash,
+      };
+    } catch (error) {
+      console.error("Failed to add file with permissions and schema:", error);
+      throw new Error(
+        `Failed to add file with permissions and schema: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
    * Adds a new schema to the DataRefinerRegistry.
    *
    * @deprecated Use vana.schemas.create() instead for the high-level API with automatic IPFS upload
@@ -1703,7 +1781,7 @@ export class DataController {
         definitionUrl: string;
       }
 
-      const schemaObj = schemaData as SchemaContractData;
+      const schemaObj = schemaData as unknown as SchemaContractData;
 
       if (!schemaObj.name || !schemaObj.typ || !schemaObj.definitionUrl) {
         throw new Error("Incomplete schema data");
@@ -1778,7 +1856,7 @@ export class DataController {
       const txHash = await this.context.walletClient.writeContract({
         address: dataRefinerRegistryAddress,
         abi: dataRefinerRegistryAbi,
-        functionName: "addRefiner",
+        functionName: "addRefinerWithSchemaId",
         args: [
           BigInt(params.dlpId),
           params.name,

@@ -1,4 +1,4 @@
-import type { WalletClient, Account, Hash } from "viem";
+import type { WalletClient, Account, Hash, Address } from "viem";
 import type { VanaChainId, VanaChain } from "./chains";
 import type { StorageProvider } from "./storage";
 import type {
@@ -115,6 +115,7 @@ export interface RelayerCallbacks {
   /**
    * Submit a file addition for relay
    *
+   * @deprecated Use submitFileAdditionComplete for full support.
    * @param url - The file URL to register
    * @param userAddress - The user's address
    * @returns Promise resolving to object with fileId and transactionHash
@@ -127,6 +128,7 @@ export interface RelayerCallbacks {
   /**
    * Submit a file addition with permissions for relay
    *
+   * @deprecated Use submitFileAdditionComplete for full support.
    * @param url - The file URL to register
    * @param userAddress - The user's address
    * @param permissions - Array of encrypted permissions
@@ -137,6 +139,26 @@ export interface RelayerCallbacks {
     userAddress: string,
     permissions: Array<{ account: string; key: string }>,
   ) => Promise<{ fileId: number; transactionHash: Hash }>;
+
+  /**
+   * Submit a comprehensive file addition with optional schema and permissions for relay
+   *
+   * This is the preferred callback that supports all file addition scenarios.
+   * It can handle files with schemas, permissions, or both.
+   *
+   * @param params - Complete parameters for file addition
+   * @param params.url - The file URL to register
+   * @param params.userAddress - The user's address
+   * @param params.permissions - Array of encrypted permissions (empty array if none)
+   * @param params.schemaId - Schema ID for validation (0 if none)
+   * @returns Promise resolving to object with fileId and transactionHash
+   */
+  submitFileAdditionComplete?: (params: {
+    url: string;
+    userAddress: Address;
+    permissions: Array<{ account: Address; key: string }>;
+    schemaId: number;
+  }) => Promise<{ fileId: number; transactionHash: Hash }>;
 
   /**
    * Store a grant file for relay (e.g., upload to IPFS)

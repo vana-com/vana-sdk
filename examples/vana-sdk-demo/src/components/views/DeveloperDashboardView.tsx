@@ -34,50 +34,12 @@ import { DlpIdDisplay } from "../ui/DlpIdDisplay";
 import { SchemaCreationForm } from "../ui/SchemaCreationForm";
 import { SchemaValidationTab } from "../ui/SchemaValidationTab";
 import { AdvancedToolsTab } from "../ui/AdvancedToolsTab";
+import { useSchemasAndRefiners } from "@/hooks/useSchemasAndRefiners";
 
 /**
  * Props for the DeveloperDashboardView component
  */
 export interface DeveloperDashboardViewProps {
-  // Schema management
-  schemasCount: number;
-  refinersCount: number;
-  schemaName: string;
-  onSchemaNameChange: (name: string) => void;
-  schemaType: string;
-  onSchemaTypeChange: (type: string) => void;
-  schemaDefinitionUrl: string;
-  onSchemaDefinitionUrlChange: (url: string) => void;
-  onCreateSchema: () => void;
-  isCreatingSchema: boolean;
-  schemaStatus: string;
-  lastCreatedSchemaId: number | null;
-  refinerName: string;
-  onRefinerNameChange: (name: string) => void;
-  refinerDlpId: string;
-  onRefinerDlpIdChange: (dlpId: string) => void;
-  refinerSchemaId: string;
-  onRefinerSchemaIdChange: (schemaId: string) => void;
-  refinerInstructionUrl: string;
-  onRefinerInstructionUrlChange: (url: string) => void;
-  onCreateRefiner: () => void;
-  isCreatingRefiner: boolean;
-  refinerStatus: string;
-  lastCreatedRefinerId: number | null;
-  updateRefinerId: string;
-  onUpdateRefinerIdChange: (refinerId: string) => void;
-  updateSchemaId: string;
-  onUpdateSchemaIdChange: (schemaId: string) => void;
-  onUpdateSchemaId: () => void;
-  isUpdatingSchema: boolean;
-  updateSchemaStatus: string;
-  schemas: (Schema & { source?: "discovered" | "created" })[];
-  isLoadingSchemas: boolean;
-  onRefreshSchemas: () => void;
-  refiners: (Refiner & { source?: "discovered" | "created" })[];
-  isLoadingRefiners: boolean;
-  onRefreshRefiners: () => void;
-
   // Chain info
   chainId: number;
   vana: Vana;
@@ -99,47 +61,63 @@ export interface DeveloperDashboardViewProps {
  * @returns The rendered developer dashboard view
  */
 export function DeveloperDashboardView({
-  schemasCount,
-  refinersCount,
-  schemaName,
-  onSchemaNameChange,
-  schemaType,
-  onSchemaTypeChange,
-  schemaDefinitionUrl: _schemaDefinitionUrl,
-  onSchemaDefinitionUrlChange,
-  onCreateSchema,
-  isCreatingSchema,
-  schemaStatus,
-  lastCreatedSchemaId,
-  refinerName,
-  onRefinerNameChange,
-  refinerDlpId,
-  onRefinerDlpIdChange,
-  refinerSchemaId,
-  onRefinerSchemaIdChange,
-  refinerInstructionUrl,
-  onRefinerInstructionUrlChange,
-  onCreateRefiner,
-  isCreatingRefiner,
-  refinerStatus,
-  lastCreatedRefinerId,
-  updateRefinerId,
-  onUpdateRefinerIdChange,
-  updateSchemaId,
-  onUpdateSchemaIdChange,
-  onUpdateSchemaId,
-  isUpdatingSchema,
-  updateSchemaStatus,
-  schemas,
-  isLoadingSchemas,
-  onRefreshSchemas,
-  refiners,
-  isLoadingRefiners,
-  onRefreshRefiners,
   chainId,
   vana,
   walletClient,
 }: DeveloperDashboardViewProps) {
+  // Use custom hook for schemas and refiners management
+  const {
+    // Schemas state
+    schemas,
+    isLoadingSchemas,
+    schemasCount,
+    
+    // Schema creation state
+    schemaName,
+    schemaType,
+    schemaDefinitionUrl,
+    isCreatingSchema,
+    schemaStatus,
+    lastCreatedSchemaId,
+    
+    // Refiners state
+    refiners,
+    isLoadingRefiners,
+    refinersCount,
+    
+    // Refiner creation state
+    refinerName,
+    refinerDlpId,
+    refinerSchemaId,
+    refinerInstructionUrl,
+    isCreatingRefiner,
+    refinerStatus,
+    lastCreatedRefinerId,
+    
+    // Schema update state
+    updateRefinerId,
+    updateSchemaId,
+    isUpdatingSchema,
+    updateSchemaStatus,
+    
+    // Actions
+    loadSchemas,
+    loadRefiners,
+    handleCreateSchema,
+    handleCreateRefiner,
+    handleUpdateSchemaId,
+    
+    // Setters
+    setSchemaName,
+    setSchemaType,
+    setSchemaDefinitionUrl,
+    setRefinerName,
+    setRefinerDlpId,
+    setRefinerSchemaId,
+    setRefinerInstructionUrl,
+    setUpdateRefinerId,
+    setUpdateSchemaId,
+  } = useSchemasAndRefiners();
   const [activeTab, setActiveTab] = React.useState("schemas");
 
   // Schemas pagination state
@@ -189,14 +167,14 @@ export function DeveloperDashboardView({
       <SchemaCreationForm
         vana={vana}
         schemaName={schemaName}
-        onSchemaNameChange={onSchemaNameChange}
+        onSchemaNameChange={setSchemaName}
         schemaType={schemaType}
-        onSchemaTypeChange={onSchemaTypeChange}
+        onSchemaTypeChange={setSchemaType}
         onCreateSchema={({ name: _name, type: _type, definitionUrl }) => {
-          // Update the URL field in the parent state
-          onSchemaDefinitionUrlChange(definitionUrl);
-          // Call the existing create schema handler
-          onCreateSchema();
+          // Update the URL field in the hook state
+          setSchemaDefinitionUrl(definitionUrl);
+          // Call the hook's create schema handler
+          handleCreateSchema();
         }}
         isCreatingSchema={isCreatingSchema}
         schemaStatus={schemaStatus}
@@ -218,7 +196,7 @@ export function DeveloperDashboardView({
               </div>
             </div>
             <Button
-              onPress={onRefreshSchemas}
+              onPress={loadSchemas}
               variant="bordered"
               size="sm"
               startContent={
@@ -420,7 +398,7 @@ export function DeveloperDashboardView({
                 label: "Refiner Name",
                 type: "text",
                 value: refinerName,
-                onChange: onRefinerNameChange,
+                onChange: setRefinerName,
                 placeholder: "My Data Refiner",
                 description: "A descriptive name for your refiner",
                 required: true,
@@ -430,7 +408,7 @@ export function DeveloperDashboardView({
                 label: "DLP ID",
                 type: "text",
                 value: refinerDlpId,
-                onChange: onRefinerDlpIdChange,
+                onChange: setRefinerDlpId,
                 placeholder: "1",
                 description: "The Data Liquidity Pool ID",
                 required: true,
@@ -440,7 +418,7 @@ export function DeveloperDashboardView({
                 label: "Schema ID",
                 type: "text",
                 value: refinerSchemaId,
-                onChange: onRefinerSchemaIdChange,
+                onChange: setRefinerSchemaId,
                 placeholder: "1",
                 description: "The schema ID this refiner will use",
                 required: true,
@@ -450,13 +428,13 @@ export function DeveloperDashboardView({
                 label: "Instruction URL",
                 type: "text",
                 value: refinerInstructionUrl,
-                onChange: onRefinerInstructionUrlChange,
+                onChange: setRefinerInstructionUrl,
                 placeholder: "https://...",
                 description: "URL to the refiner instruction file",
                 required: true,
               },
             ]}
-            onSubmit={onCreateRefiner}
+            onSubmit={handleCreateRefiner}
             isSubmitting={isCreatingRefiner}
             submitText="Create Refiner"
             submitIcon={<Brain className="h-4 w-4" />}
@@ -497,7 +475,7 @@ export function DeveloperDashboardView({
                 label: "Refiner ID",
                 type: "text",
                 value: updateRefinerId,
-                onChange: onUpdateRefinerIdChange,
+                onChange: setUpdateRefinerId,
                 placeholder: "1",
                 description: "The refiner ID to update",
                 required: true,
@@ -507,13 +485,13 @@ export function DeveloperDashboardView({
                 label: "New Schema ID",
                 type: "text",
                 value: updateSchemaId,
-                onChange: onUpdateSchemaIdChange,
+                onChange: setUpdateSchemaId,
                 placeholder: "2",
                 description: "The new schema ID to assign",
                 required: true,
               },
             ]}
-            onSubmit={onUpdateSchemaId}
+            onSubmit={handleUpdateSchemaId}
             isSubmitting={isUpdatingSchema}
             submitText="Update Schema"
             submitIcon={<RotateCcw className="h-4 w-4" />}
@@ -536,7 +514,7 @@ export function DeveloperDashboardView({
               </div>
             </div>
             <Button
-              onPress={onRefreshRefiners}
+              onPress={loadRefiners}
               variant="bordered"
               size="sm"
               startContent={

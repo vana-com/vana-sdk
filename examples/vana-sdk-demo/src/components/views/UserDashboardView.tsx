@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import {
   Card,
   CardHeader,
@@ -56,90 +56,20 @@ import { PermissionDisplay } from "../ui/PermissionDisplay";
 import { FormBuilder } from "../ui/FormBuilder";
 import { DataUploadForm } from "../ui/DataUploadForm";
 import { GrantPermissionModal } from "../ui/GrantPermissionModal";
+import { useUserFiles } from "@/hooks/useUserFiles";
+import { usePermissions } from "@/hooks/usePermissions";
+import { useTrustedServers } from "@/hooks/useTrustedServers";
 
 /**
  * Props for the UserDashboardView component
  */
 export interface UserDashboardViewProps {
-  // File lookup
-  fileLookupId: string;
-  onFileLookupIdChange: (id: string) => void;
-  onLookupFile: () => void;
-  isLookingUpFile: boolean;
-  fileLookupStatus: string;
-
-  // Permission lookup
-  permissionLookupId: string;
-  onPermissionLookupIdChange: (id: string) => void;
-  onLookupPermission: () => void;
-  isLookingUpPermission: boolean;
-  permissionLookupStatus: string;
-  lookedUpPermission: GrantedPermission | null;
-
-  // User files
-  userFiles: (UserFile & {
-    source?: "discovered" | "looked-up" | "uploaded";
-  })[];
-  isLoadingFiles: boolean;
-  onRefreshFiles: () => void;
-
-  // File selection and decryption
-  selectedFiles: number[];
-  decryptingFiles: Set<number>;
-  decryptedFiles: Map<number, string>;
-  fileDecryptErrors: Map<number, string>;
-  onFileSelection: (fileId: number, selected: boolean) => void;
-  onDecryptFile: (
-    file: UserFile & { source?: "discovered" | "looked-up" | "uploaded" },
-  ) => void;
-  onDownloadDecryptedFile: (
-    file: UserFile & { source?: "discovered" | "looked-up" | "uploaded" },
-  ) => void;
-  onClearFileError: (fileId: number) => void;
-
-  // Permission granting
-  onGrantPermission: (
-    customParams?: GrantPermissionParams & { expiresAt?: number },
-  ) => void;
-  isGranting: boolean;
-  grantStatus: string;
-  grantTxHash: string;
-
   // Prompt customization
   promptText: string;
   onPromptTextChange: (text: string) => void;
 
   // Application info
   applicationAddress?: string;
-
-  // User permissions
-  userPermissions: GrantedPermission[];
-  isLoadingPermissions: boolean;
-  onRevokePermission: (permissionId: string) => void;
-  isRevoking: boolean;
-  onRefreshPermissions: () => void;
-
-  // Trusted server management
-  serverId: string;
-  onServerIdChange: (value: string) => void;
-  serverUrl: string;
-  onServerUrlChange: (value: string) => void;
-  onTrustServer: (serverId?: string, serverUrl?: string) => void;
-  isTrustingServer: boolean;
-  onUntrustServer: (serverId: string) => void;
-  isUntrusting: boolean;
-  onDiscoverReplicateServer: () => void;
-  isDiscoveringServer: boolean;
-  trustedServers: Array<{
-    id: string;
-    url?: string;
-    name?: string;
-  }>;
-  isLoadingServers: boolean;
-  onRefreshServers: () => void;
-  trustServerError: string;
-  queryMode: "subgraph" | "rpc" | "auto";
-  onQueryModeChange: (mode: "subgraph" | "rpc" | "auto") => void;
 
   // User info
   userAddress: string | undefined;
@@ -187,56 +117,9 @@ export interface UserDashboardViewProps {
  * @returns The rendered user dashboard view
  */
 export function UserDashboardView({
-  fileLookupId,
-  onFileLookupIdChange,
-  onLookupFile,
-  isLookingUpFile,
-  fileLookupStatus,
-  permissionLookupId,
-  onPermissionLookupIdChange,
-  onLookupPermission,
-  isLookingUpPermission,
-  permissionLookupStatus,
-  lookedUpPermission,
-  userFiles,
-  isLoadingFiles,
-  onRefreshFiles,
-  selectedFiles,
-  decryptingFiles,
-  decryptedFiles,
-  fileDecryptErrors,
-  onFileSelection,
-  onDecryptFile,
-  onDownloadDecryptedFile,
-  onClearFileError,
-  onGrantPermission,
-  isGranting,
-  grantStatus: _grantStatus,
-  grantTxHash: _grantTxHash,
   promptText,
   onPromptTextChange: _onPromptTextChange,
   applicationAddress,
-  userPermissions,
-  isLoadingPermissions,
-  onRevokePermission,
-  isRevoking,
-  onRefreshPermissions,
-  serverId,
-  onServerIdChange,
-  serverUrl,
-  onServerUrlChange,
-  onTrustServer,
-  isTrustingServer,
-  onUntrustServer,
-  isUntrusting,
-  onDiscoverReplicateServer,
-  isDiscoveringServer,
-  trustedServers,
-  isLoadingServers,
-  onRefreshServers,
-  trustServerError,
-  queryMode,
-  onQueryModeChange,
   userAddress: _userAddress,
   chainId,
   vana,
@@ -255,6 +138,102 @@ export function UserDashboardView({
 }: UserDashboardViewProps) {
   const [activeTab, setActiveTab] = useState("files");
   const [isGrantModalOpen, setIsGrantModalOpen] = useState(false);
+  
+  // Use the user files hook
+  const {
+    userFiles,
+    isLoadingFiles,
+    selectedFiles,
+    decryptingFiles,
+    decryptedFiles,
+    fileDecryptErrors,
+    loadUserFiles: onRefreshFiles,
+    handleFileSelection: onFileSelection,
+    handleDecryptFile: onDecryptFile,
+    handleDownloadDecryptedFile: onDownloadDecryptedFile,
+    handleClearFileError: onClearFileError,
+    handleLookupFile,
+    fileLookupId,
+    setFileLookupId: onFileLookupIdChange,
+    isLookingUpFile,
+    fileLookupStatus,
+  } = useUserFiles();
+  
+  // Use the permissions hook
+  const {
+    userPermissions,
+    isLoadingPermissions,
+    isGranting,
+    isRevoking,
+    grantStatus,
+    grantTxHash,
+    permissionLookupId,
+    setPermissionLookupId: onPermissionLookupIdChange,
+    isLookingUpPermission,
+    permissionLookupStatus,
+    lookedUpPermission,
+    loadUserPermissions: onRefreshPermissions,
+    handleGrantPermission,
+    handleRevokePermissionById: onRevokePermission,
+    handleLookupPermission,
+  } = usePermissions();
+  
+  // Use the trusted servers hook
+  const {
+    trustedServers: rawTrustedServers,
+    isLoadingTrustedServers: isLoadingServers,
+    isTrustingServer,
+    isUntrusting,
+    isDiscoveringServer,
+    trustServerError,
+    trustedServerQueryMode: queryMode,
+    serverId,
+    serverUrl,
+    loadUserTrustedServers,
+    handleTrustServerGasless,
+    handleUntrustServer: onUntrustServer,
+    handleDiscoverHostedServer: onDiscoverReplicateServer,
+    setServerId: onServerIdChange,
+    setServerUrl: onServerUrlChange,
+    setTrustedServerQueryMode: onQueryModeChange,
+  } = useTrustedServers();
+  
+  // Map trusted servers to the expected interface format
+  const trustedServers = useMemo(() => 
+    rawTrustedServers.map(server => ({
+      id: server.serverAddress,
+      url: server.serverUrl,
+      name: server.serverAddress,
+    })), 
+    [rawTrustedServers]
+  );
+  
+  // Create wrapper function for file lookup
+  const onLookupFile = useCallback(() => {
+    handleLookupFile(fileLookupId);
+  }, [handleLookupFile, fileLookupId]);
+  
+  // Create wrapper function for permission lookup
+  const onLookupPermission = useCallback(() => {
+    handleLookupPermission();
+  }, [handleLookupPermission]);
+  
+  // Create wrapper function for permission granting
+  const onGrantPermission = useCallback((
+    customParams?: GrantPermissionParams & { expiresAt?: number }
+  ) => {
+    handleGrantPermission(selectedFiles, promptText, customParams);
+  }, [handleGrantPermission, selectedFiles, promptText]);
+  
+  // Create wrapper function for trusting servers
+  const onTrustServer = useCallback((serverId?: string, serverUrl?: string) => {
+    handleTrustServerGasless(false, serverId, serverUrl);
+  }, [handleTrustServerGasless]);
+  
+  // Create wrapper function for refreshing servers
+  const onRefreshServers = useCallback(() => {
+    loadUserTrustedServers(queryMode);
+  }, [loadUserTrustedServers, queryMode]);
 
   // Files table state
   const [filesCurrentPage, setFilesCurrentPage] = useState(1);

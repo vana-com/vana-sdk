@@ -1,4 +1,7 @@
+"use client";
+
 import React, { useMemo } from "react";
+import { useChainId, useWalletClient } from "wagmi";
 import {
   Card,
   CardHeader,
@@ -24,47 +27,29 @@ import {
   ExternalLink,
   Copy,
 } from "lucide-react";
-import { Schema, Refiner, Vana } from "@opendatalabs/vana-sdk/browser";
-import type { WalletClient } from "viem";
-import { FormBuilder } from "../ui/FormBuilder";
-import { EmptyState } from "../ui/EmptyState";
-import { SchemaIdDisplay } from "../ui/SchemaIdDisplay";
-import { RefinerIdDisplay } from "../ui/RefinerIdDisplay";
-import { DlpIdDisplay } from "../ui/DlpIdDisplay";
-import { SchemaCreationForm } from "../ui/SchemaCreationForm";
-import { SchemaValidationTab } from "../ui/SchemaValidationTab";
-import { AdvancedToolsTab } from "../ui/AdvancedToolsTab";
+import { FormBuilder } from "@/components/ui/FormBuilder";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { SchemaIdDisplay } from "@/components/ui/SchemaIdDisplay";
+import { RefinerIdDisplay } from "@/components/ui/RefinerIdDisplay";
+import { DlpIdDisplay } from "@/components/ui/DlpIdDisplay";
+import { SchemaCreationForm } from "@/components/ui/SchemaCreationForm";
+import { SchemaValidationTab } from "@/components/ui/SchemaValidationTab";
+import { AdvancedToolsTab } from "@/components/ui/AdvancedToolsTab";
 import { useSchemasAndRefiners } from "@/hooks/useSchemasAndRefiners";
+import { useVana } from "@/providers/VanaProvider";
 
 /**
- * Props for the DeveloperDashboardView component
- */
-export interface DeveloperDashboardViewProps {
-  // Chain info
-  chainId: number;
-  vana: Vana;
-  walletClient: WalletClient;
-}
-
-/**
- * Developer dashboard view component - consolidates schema and refiner management
+ * Developer Tools page - Manage protocol-level entities and server integrations
  *
- * @remarks
- * This view serves as the control panel for application developers building on Vana.
+ * This page serves as the control panel for application developers building on Vana.
  * It provides tools to manage protocol-level entities like Schemas and Refiners
  * in a clean, form-driven interface.
- *
- * The component consolidates the functionality of SchemaManagementCard into a single,
- * organized interface for better navigation and reduced cognitive load.
- *
- * @param props - The component props
- * @returns The rendered developer dashboard view
  */
-export function DeveloperDashboardView({
-  chainId,
-  vana,
-  walletClient,
-}: DeveloperDashboardViewProps) {
+export default function DeveloperToolsPage() {
+  const chainId = useChainId();
+  const { data: walletClient } = useWalletClient();
+  const { vana } = useVana();
+
   // Use custom hook for schemas and refiners management
   const {
     // Schemas state
@@ -75,7 +60,7 @@ export function DeveloperDashboardView({
     // Schema creation state
     schemaName,
     schemaType,
-    schemaDefinitionUrl,
+    schemaDefinitionUrl: _schemaDefinitionUrl,
     isCreatingSchema,
     schemaStatus,
     lastCreatedSchemaId,
@@ -118,6 +103,7 @@ export function DeveloperDashboardView({
     setUpdateRefinerId,
     setUpdateSchemaId,
   } = useSchemasAndRefiners();
+  
   const [activeTab, setActiveTab] = React.useState("schemas");
 
   // Schemas pagination state
@@ -128,18 +114,14 @@ export function DeveloperDashboardView({
   const [refinersCurrentPage, setRefinersCurrentPage] = React.useState(1);
   const REFINERS_PER_PAGE = 10;
 
-  /**
-   * Calculate paginated schemas
-   */
+  // Calculate paginated schemas
   const paginatedSchemas = useMemo(() => {
     const startIndex = (schemasCurrentPage - 1) * SCHEMAS_PER_PAGE;
     const endIndex = startIndex + SCHEMAS_PER_PAGE;
     return schemas.slice(startIndex, endIndex);
   }, [schemas, schemasCurrentPage, SCHEMAS_PER_PAGE]);
 
-  /**
-   * Calculate paginated refiners
-   */
+  // Calculate paginated refiners
   const paginatedRefiners = useMemo(() => {
     const startIndex = (refinersCurrentPage - 1) * REFINERS_PER_PAGE;
     const endIndex = startIndex + REFINERS_PER_PAGE;
@@ -158,29 +140,29 @@ export function DeveloperDashboardView({
     setRefinersCurrentPage(1);
   }, [refiners.length]);
 
-  /**
-   * Renders the schemas tab content
-   */
+  // Renders the schemas tab content
   const renderSchemasTab = () => (
     <div className="space-y-6">
       {/* Create Schema */}
-      <SchemaCreationForm
-        vana={vana}
-        schemaName={schemaName}
-        onSchemaNameChange={setSchemaName}
-        schemaType={schemaType}
-        onSchemaTypeChange={setSchemaType}
-        onCreateSchema={({ name: _name, type: _type, definitionUrl }) => {
-          // Update the URL field in the hook state
-          setSchemaDefinitionUrl(definitionUrl);
-          // Call the hook's create schema handler
-          handleCreateSchema();
-        }}
-        isCreatingSchema={isCreatingSchema}
-        schemaStatus={schemaStatus}
-        lastCreatedSchemaId={lastCreatedSchemaId}
-        chainId={chainId}
-      />
+      {vana && (
+        <SchemaCreationForm
+          vana={vana}
+          schemaName={schemaName}
+          onSchemaNameChange={setSchemaName}
+          schemaType={schemaType}
+          onSchemaTypeChange={setSchemaType}
+          onCreateSchema={({ name: _name, type: _type, definitionUrl }) => {
+            // Update the URL field in the hook state
+            setSchemaDefinitionUrl(definitionUrl);
+            // Call the hook's create schema handler
+            handleCreateSchema();
+          }}
+          isCreatingSchema={isCreatingSchema}
+          schemaStatus={schemaStatus}
+          lastCreatedSchemaId={lastCreatedSchemaId}
+          chainId={chainId || 14800}
+        />
+      )}
 
       {/* Schemas List */}
       <Card>
@@ -240,7 +222,7 @@ export function DeveloperDashboardView({
                       <TableCell>
                         <SchemaIdDisplay
                           schemaId={schema.id}
-                          chainId={chainId}
+                          chainId={chainId || 14800}
                           showCopy={true}
                           showExternalLink={true}
                         />
@@ -298,9 +280,7 @@ export function DeveloperDashboardView({
     </div>
   );
 
-  /**
-   * Renders the contracts tab content
-   */
+  // Renders the contracts tab content
   const renderContractsTab = () => (
     <div className="space-y-6">
       <Card>
@@ -311,73 +291,77 @@ export function DeveloperDashboardView({
           </div>
         </CardHeader>
         <CardBody>
-          <div className="space-y-4">
-            <Table aria-label="Smart contracts table" removeWrapper>
-              <TableHeader>
-                <TableColumn>Contract Name</TableColumn>
-                <TableColumn>Address</TableColumn>
-                <TableColumn>Actions</TableColumn>
-              </TableHeader>
-              <TableBody>
-                {vana.protocol
-                  .getAvailableContracts()
-                  .filter((contractName) => {
-                    try {
-                      vana.protocol.getContract(contractName);
-                      return true;
-                    } catch {
-                      return false;
-                    }
-                  })
-                  .map((contractName) => {
-                    const contract = vana.protocol.getContract(contractName);
-                    return (
-                      <TableRow key={contractName}>
-                        <TableCell>{contractName}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-sm">
-                              {contract.address}
-                            </span>
+          {vana ? (
+            <div className="space-y-4">
+              <Table aria-label="Smart contracts table" removeWrapper>
+                <TableHeader>
+                  <TableColumn>Contract Name</TableColumn>
+                  <TableColumn>Address</TableColumn>
+                  <TableColumn>Actions</TableColumn>
+                </TableHeader>
+                <TableBody>
+                  {vana.protocol
+                    .getAvailableContracts()
+                    .filter((contractName) => {
+                      try {
+                        vana.protocol.getContract(contractName);
+                        return true;
+                      } catch {
+                        return false;
+                      }
+                    })
+                    .map((contractName) => {
+                      const contract = vana.protocol.getContract(contractName);
+                      return (
+                        <TableRow key={contractName}>
+                          <TableCell>{contractName}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-sm">
+                                {contract.address}
+                              </span>
+                              <Button
+                                size="sm"
+                                variant="flat"
+                                isIconOnly
+                                onPress={() =>
+                                  navigator.clipboard.writeText(contract.address)
+                                }
+                              >
+                                <Copy className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                          <TableCell>
                             <Button
+                              as="a"
+                              href={`https://vanascan.io/address/${contract.address}?tab=contract`}
+                              target="_blank"
+                              rel="noopener noreferrer"
                               size="sm"
                               variant="flat"
-                              isIconOnly
-                              onPress={() =>
-                                navigator.clipboard.writeText(contract.address)
-                              }
+                              startContent={<ExternalLink className="h-3 w-3" />}
                             >
-                              <Copy className="h-3 w-3" />
+                              View on Explorer
                             </Button>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            as="a"
-                            href={`https://vanascan.io/address/${contract.address}?tab=contract`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            size="sm"
-                            variant="flat"
-                            startContent={<ExternalLink className="h-3 w-3" />}
-                          >
-                            View on Explorer
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-              </TableBody>
-            </Table>
-          </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <div className="text-center p-8">
+              <p>Loading Vana SDK...</p>
+            </div>
+          )}
         </CardBody>
       </Card>
     </div>
   );
 
-  /**
-   * Renders the refiners tab content
-   */
+  // Renders the refiners tab content
   const renderRefinersTab = () => (
     <div className="space-y-6">
       {/* Create Refiner */}
@@ -448,7 +432,7 @@ export function DeveloperDashboardView({
               </p>
               <RefinerIdDisplay
                 refinerId={lastCreatedRefinerId}
-                chainId={chainId}
+                chainId={chainId || 14800}
                 showCopy={true}
                 showExternalLink={true}
               />
@@ -559,7 +543,7 @@ export function DeveloperDashboardView({
                       <TableCell>
                         <RefinerIdDisplay
                           refinerId={refiner.id}
-                          chainId={chainId}
+                          chainId={chainId || 14800}
                           showCopy={true}
                           showExternalLink={true}
                         />
@@ -568,7 +552,7 @@ export function DeveloperDashboardView({
                       <TableCell>
                         <DlpIdDisplay
                           dlpId={refiner.dlpId}
-                          chainId={chainId}
+                          chainId={chainId || 14800}
                           showCopy={true}
                           showExternalLink={true}
                         />
@@ -576,7 +560,7 @@ export function DeveloperDashboardView({
                       <TableCell>
                         <SchemaIdDisplay
                           schemaId={refiner.schemaId}
-                          chainId={chainId}
+                          chainId={chainId || 14800}
                           showCopy={true}
                           showExternalLink={true}
                         />
@@ -632,8 +616,20 @@ export function DeveloperDashboardView({
     </div>
   );
 
+  // Show loading if no vana instance
+  if (!vana) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="text-center">
+          <Spinner size="lg" />
+          <p className="mt-2 text-default-500">Loading Vana SDK...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="max-w-6xl mx-auto p-6 space-y-6">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-foreground mb-2">
@@ -677,15 +673,17 @@ export function DeveloperDashboardView({
           {renderSchemasTab()}
         </Tab>
         <Tab key="validation" title="Schema Validation">
-          <SchemaValidationTab vana={vana} chainId={chainId} />
+          <SchemaValidationTab vana={vana} chainId={chainId || 14800} />
         </Tab>
         <Tab key="advanced" title="Advanced Tools">
-          <AdvancedToolsTab
-            vana={vana}
-            schemas={schemas}
-            walletClient={walletClient}
-            chainId={chainId}
-          />
+          {walletClient && (
+            <AdvancedToolsTab
+              vana={vana}
+              schemas={schemas}
+              walletClient={walletClient}
+              chainId={chainId || 14800}
+            />
+          )}
         </Tab>
         <Tab key="refiners" title="Refiners">
           {renderRefinersTab()}

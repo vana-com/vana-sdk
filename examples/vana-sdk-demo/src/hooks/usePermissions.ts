@@ -4,7 +4,6 @@ import { useState, useCallback, useEffect } from "react";
 import { 
   GrantedPermission, 
   GrantPermissionParams,
-  DEFAULT_ENCRYPTION_SEED,
   retrieveGrantFile,
   PermissionGrantTypedData,
 } from "@opendatalabs/vana-sdk/browser";

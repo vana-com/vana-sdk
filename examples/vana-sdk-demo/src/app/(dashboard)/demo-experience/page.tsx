@@ -1,4 +1,7 @@
+"use client";
+
 import React, { useState, useEffect } from "react";
+import { useAccount, useChainId } from "wagmi";
 import {
   Card,
   CardHeader,
@@ -11,6 +14,7 @@ import {
   Progress,
   RadioGroup,
   Radio,
+  Spinner,
 } from "@heroui/react";
 import {
   Shield,
@@ -25,69 +29,44 @@ import {
   Server,
   Database,
 } from "lucide-react";
-import type { UserFile, Schema, Vana } from "@opendatalabs/vana-sdk/browser";
-import { StatusMessage } from "../ui/StatusMessage";
-import { AddressDisplay } from "../ui/AddressDisplay";
-import { FileIdDisplay } from "../ui/FileIdDisplay";
-import { ExplorerLink } from "../ui/ExplorerLink";
-import { EmptyState } from "../ui/EmptyState";
+import type { Schema } from "@opendatalabs/vana-sdk/browser";
+import { StatusMessage } from "@/components/ui/StatusMessage";
+import { AddressDisplay } from "@/components/ui/AddressDisplay";
+import { FileIdDisplay } from "@/components/ui/FileIdDisplay";
+import { ExplorerLink } from "@/components/ui/ExplorerLink";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { useTrustedServers } from "@/hooks/useTrustedServers";
 import { useUserFiles } from "@/hooks/useUserFiles";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useVana } from "@/providers/VanaProvider";
 
 /**
- * Props for the DemoExperienceView component
- */
-export interface DemoExperienceViewProps {
-  // SDK instance
-  vana: Vana;
-
-  // LLM execution (not covered by existing hooks)
-  onRunLLM: (permissionId: string) => void;
-  isRunningLLM: boolean;
-  llmResult: unknown;
-  llmError: string;
-  lastUsedPermissionId: string;
-
-  // Chain info
-  chainId: number;
-  applicationAddress: string;
-}
-
-/**
- * Demo experience view component - the hero flow that delivers the "Aha!" moment
+ * AI Profile Demo page - the hero flow that delivers the "Aha!" moment
  *
- * @remarks
- * This component provides the flagship demonstration of the Vana SDK's capabilities
+ * This page provides the flagship demonstration of the Vana SDK's capabilities
  * through a carefully crafted 4-step journey that showcases user-owned data
  * and privacy-preserving permissions.
  *
  * The flow is designed to be lean, guided, and deliver maximum impact by showing
  * how a user can maintain control over their data while enabling AI processing.
- *
- * @param props - The component props
- * @returns The rendered demo experience view
  */
-export function DemoExperienceView({
-  vana,
-  onRunLLM,
-  isRunningLLM,
-  llmResult,
-  llmError,
-  lastUsedPermissionId,
-  chainId,
-  applicationAddress,
-}: DemoExperienceViewProps) {
+export default function DemoExperiencePage() {
+  const { address } = useAccount();
+  const chainId = useChainId();
+  const { vana, applicationAddress } = useVana();
+
+  // LLM execution state (migrated from demo-page.tsx)
+  const [lastUsedPermissionId, setLastUsedPermissionId] = useState<string>("");
+  const [llmResult, setLlmResult] = useState<unknown>(null);
+  const [llmError, setLlmError] = useState<string>("");
+  const [isRunningLLM, setIsRunningLLM] = useState(false);
+
   // Use custom hooks for state management
   const {
     trustedServers,
     isDiscoveringServer,
     isTrustingServer,
     trustServerError,
-    serverId,
-    serverUrl,
-    setServerId,
-    setServerUrl,
     handleDiscoverHostedServer,
     handleTrustServerGasless,
   } = useTrustedServers();
@@ -112,16 +91,122 @@ export function DemoExperienceView({
 
   const [currentStep, setCurrentStep] = useState(1);
   const [dataChoice, setDataChoice] = useState<"new" | "existing">("new");
-  const [selectedTrustedServer, setSelectedTrustedServer] =
-    useState<string>("");
-  const [fileSchemas, setFileSchemas] = useState<Map<number, Schema>>(
-    new Map(),
-  );
+  const [selectedTrustedServer, setSelectedTrustedServer] = useState<string>("");
+  const [fileSchemas, setFileSchemas] = useState<Map<number, Schema>>(new Map());
   const [isAdvancingStep, setIsAdvancingStep] = useState(false);
+
+  // Poll operation status for LLM execution (migrated from demo-page.tsx)
+  const pollOperationStatus = async (operationId: string, permissionId: number) => {
+    try {
+      const response = await fetch("/api/trusted-server/poll", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          operationId,
+          chainId,
+        }),
+      });
+
+      if (!response.ok) {
+        console.warn("Failed to poll Replicate status");
+        return;
+      }
+
+      const result = await response.json();
+
+      if (result.data?.status === "succeeded") {
+        // Extract the actual AI response from output
+        const aiResponse = result.data.result || "No output received";
+        setLlmResult(aiResponse);
+        setIsRunningLLM(false);
+      } else if (result.data?.status === "failed") {
+        setLlmError(result.data?.error || "AI processing failed");
+        setIsRunningLLM(false);
+      } else if (
+        result.data?.status === "starting" ||
+        result.data?.status === "processing"
+      ) {
+        // Still processing, poll again in 2 seconds
+        setTimeout(() => pollOperationStatus(operationId, permissionId), 2000);
+      } else {
+        // Unknown status, stop polling
+        console.warn("Unknown operation status:", result.data?.status);
+        setLlmError("Unknown operation status");
+        setIsRunningLLM(false);
+      }
+    } catch (error) {
+      console.warn("Error polling Replicate status:", error);
+      setIsRunningLLM(false);
+    }
+  };
+
+  // Handle LLM execution (migrated from demo-page.tsx)
+  const handleRunLLM = async (permissionIdString: string) => {
+    if (!address) return;
+
+    // Parse permission ID
+    let permissionId: number;
+    try {
+      permissionId = parseInt(permissionIdString.trim());
+      if (isNaN(permissionId) || permissionId <= 0) {
+        setLlmError("Permission ID must be a valid positive number");
+        return;
+      }
+    } catch {
+      setLlmError("Permission ID must be a valid number");
+      return;
+    }
+
+    setIsRunningLLM(true);
+    setLlmError("");
+    setLlmResult(null);
+    
+    try {
+      // Call our API route instead of using the SDK directly
+      const response = await fetch("/api/trusted-server", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          permissionId,
+          chainId,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      // Handle the new OperationCreated response format
+      if (result.data?.id) {
+        // Start polling for the operation status
+        pollOperationStatus(result.data.id, permissionId);
+      } else {
+        // Fallback for unexpected response format
+        console.warn("Unexpected response format:", result.data);
+        setLlmError("Unexpected response format from server");
+        setIsRunningLLM(false);
+      }
+
+      // Store permission context for display
+      setLastUsedPermissionId(permissionId.toString());
+    } catch (error) {
+      setLlmError(error instanceof Error ? error.message : "Unknown error");
+      setIsRunningLLM(false);
+    }
+  };
 
   // Fetch schema information for files that have schema IDs
   useEffect(() => {
     const fetchSchemas = async () => {
+      if (!vana) return;
+
       const schemaMap = new Map<number, Schema>();
 
       for (const file of userFiles) {
@@ -146,7 +231,7 @@ export function DemoExperienceView({
       }
     };
 
-    if (userFiles.length > 0) {
+    if (userFiles.length > 0 && vana) {
       fetchSchemas();
     }
   }, [userFiles, vana, fileSchemas]);
@@ -159,9 +244,7 @@ export function DemoExperienceView({
   const isStep3Complete = grantTxHash && lastUsedPermissionId;
   const isStep4Complete = Boolean(llmResult && !llmError);
 
-  /**
-   * Handles moving to the next step with debouncing protection
-   */
+  // Handles moving to the next step with debouncing protection
   const handleNextStep = () => {
     if (isAdvancingStep || currentStep >= 4) return;
 
@@ -172,9 +255,7 @@ export function DemoExperienceView({
     setTimeout(() => setIsAdvancingStep(false), 1000);
   };
 
-  /**
-   * Handles the trust server action with one-click setup
-   */
+  // Handles the trust server action with one-click setup
   const handleTrustServerWithSetup = async () => {
     try {
       console.info("🔄 Starting One Click Setup...");
@@ -207,22 +288,18 @@ export function DemoExperienceView({
       }
     } catch (error) {
       console.error("❌ One Click Setup failed:", error);
-      // Error will be displayed via trustServerError state from parent component
+      // Error will be displayed via trustServerError state from hook
     }
   };
 
-  /**
-   * Handles the LLM execution with the predefined prompt
-   */
-  const handleRunLLM = () => {
+  // Handles the LLM execution with the predefined prompt
+  const handleRunLLMClick = () => {
     if (lastUsedPermissionId) {
-      onRunLLM(lastUsedPermissionId);
+      handleRunLLM(lastUsedPermissionId);
     }
   };
 
-  /**
-   * Renders the step indicator
-   */
+  // Renders the step indicator
   const renderStepIndicator = () => {
     const steps = [
       { number: 1, title: "Trust Server", completed: isStep1Complete },
@@ -264,9 +341,7 @@ export function DemoExperienceView({
     );
   };
 
-  /**
-   * Renders step 1: Trust a server
-   */
+  // Renders step 1: Trust a server
   const renderStep1 = () => (
     <Card className={currentStep === 1 ? "border-primary" : ""}>
       <CardHeader>
@@ -364,9 +439,7 @@ export function DemoExperienceView({
     </Card>
   );
 
-  /**
-   * Renders step 2: Choose your data
-   */
+  // Renders step 2: Choose your data
   const renderStep2 = () => (
     <Card className={currentStep === 2 ? "border-primary" : ""}>
       <CardHeader>
@@ -429,7 +502,7 @@ export function DemoExperienceView({
                       File ID:{" "}
                       <FileIdDisplay
                         fileId={uploadResult.fileId}
-                        chainId={chainId}
+                        chainId={chainId || 14800}
                       />
                     </div>
                     <div>
@@ -437,7 +510,7 @@ export function DemoExperienceView({
                       <ExplorerLink
                         type="tx"
                         hash={uploadResult.transactionHash}
-                        chainId={chainId}
+                        chainId={chainId || 14800}
                       />
                     </div>
                   </div>
@@ -555,9 +628,7 @@ export function DemoExperienceView({
     </Card>
   );
 
-  /**
-   * Renders step 3: Grant permission
-   */
+  // Renders step 3: Grant permission
   const renderStep3 = () => (
     <Card className={currentStep === 3 ? "border-primary" : ""}>
       <CardHeader>
@@ -615,7 +686,7 @@ export function DemoExperienceView({
               </div>
               <div className="text-xs">
                 Transaction:{" "}
-                <ExplorerLink type="tx" hash={grantTxHash} chainId={chainId} />
+                <ExplorerLink type="tx" hash={grantTxHash} chainId={chainId || 14800} />
               </div>
             </div>
           ) : (
@@ -650,9 +721,7 @@ export function DemoExperienceView({
     </Card>
   );
 
-  /**
-   * Renders step 4: The payoff
-   */
+  // Renders step 4: The payoff
   const renderStep4 = () => (
     <Card className={currentStep === 4 ? "border-primary" : ""}>
       <CardHeader>
@@ -727,7 +796,7 @@ export function DemoExperienceView({
             </div>
           ) : (
             <Button
-              onPress={handleRunLLM}
+              onPress={handleRunLLMClick}
               isLoading={isRunningLLM}
               color="primary"
               size="lg"
@@ -745,8 +814,20 @@ export function DemoExperienceView({
     </Card>
   );
 
+  // Show loading if no vana instance
+  if (!vana) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="text-center">
+          <Spinner size="lg" />
+          <p className="mt-2 text-default-500">Loading Vana SDK...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="max-w-4xl mx-auto p-6 space-y-6">
       {/* Header */}
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold text-foreground mb-2">

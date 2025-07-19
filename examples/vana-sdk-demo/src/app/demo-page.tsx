@@ -83,11 +83,7 @@ export default function Home() {
   const chainId = useChainId();
 
   const [vana, setVana] = useState<Vana | null>(null);
-  const [userFiles, setUserFiles] = useState<
-    (UserFile & { source?: "discovered" | "looked-up" | "uploaded" })[]
-  >([]);
-  const [isLoadingFiles, setIsLoadingFiles] = useState(false);
-  const [selectedFiles, setSelectedFiles] = useState<number[]>([]);
+  // Core state that remains (not handled by hooks)
   const [grantStatus, setGrantStatus] = useState<string>("");
   const [grantTxHash, setGrantTxHash] = useState<string>("");
   const [_revokeStatus, _setRevokeStatus] = useState<string>("");
@@ -101,10 +97,6 @@ export default function Home() {
   } = useDisclosure();
   const [isGranting, setIsGranting] = useState(false);
   const [isRevoking, setIsRevoking] = useState(false);
-  const [userPermissions, setUserPermissions] = useState<GrantedPermission[]>(
-    [],
-  );
-  const [isLoadingPermissions, setIsLoadingPermissions] = useState(false);
 
   // Encryption testing state
   const [_encryptionSeed, _setEncryptionSeed] = useState<string>(
@@ -126,16 +118,7 @@ export default function Home() {
   const [_originalFileName, _setOriginalFileName] = useState<string>("");
   const [_showEncryptedContent, _setShowEncryptedContent] = useState(false);
 
-  // File decryption state
-  const [decryptingFiles, setDecryptingFiles] = useState<Set<number>>(
-    new Set(),
-  );
-  const [decryptedFiles, setDecryptedFiles] = useState<Map<number, string>>(
-    new Map(),
-  );
-  const [fileDecryptErrors, setFileDecryptErrors] = useState<
-    Map<number, string>
-  >(new Map());
+  // File decryption state (removed - handled by useUserFiles hook)
 
   // Blockchain upload state
   const [_isUploadingToChain, _setIsUploadingToChain] = useState(false);
@@ -182,32 +165,15 @@ export default function Home() {
   } | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  // Demo experience state
-  const [demoNewTextData, setDemoNewTextData] = useState<string>(
-    "I love exploring new technologies and creating innovative solutions. I'm passionate about privacy and user empowerment. I enjoy reading about AI, blockchain, and the future of data ownership. In my free time, I like to travel and discover new cultures.",
-  );
-  const [demoNewTextUploadResult, setDemoNewTextUploadResult] = useState<{
-    fileId: number;
-    transactionHash: string;
-  } | null>(null);
-  const [isDemoUploadingNewText, setIsDemoUploadingNewText] = useState(false);
+  // Demo experience state (removed - text upload handled by useUserFiles hook)
 
   // Schema selection for file upload
   const [_selectedUploadSchemaId, _setSelectedUploadSchemaId] =
     useState<string>("");
 
-  // File lookup state
-  const [fileLookupId, setFileLookupId] = useState<string>("");
-  const [isLookingUpFile, setIsLookingUpFile] = useState(false);
-  const [fileLookupStatus, setFileLookupStatus] = useState<string>("");
+  // File lookup state (removed - handled by useUserFiles hook)
 
-  // Permission lookup state
-  const [permissionLookupId, setPermissionLookupId] = useState<string>("");
-  const [isLookingUpPermission, setIsLookingUpPermission] = useState(false);
-  const [permissionLookupStatus, setPermissionLookupStatus] =
-    useState<string>("");
-  const [lookedUpPermission, setLookedUpPermission] =
-    useState<GrantedPermission | null>(null);
+  // Permission lookup state (removed - handled by usePermissions hook)
 
   // Personal server state
   const [personalPermissionId, _setPersonalPermissionId] = useState<string>("");
@@ -225,28 +191,9 @@ export default function Home() {
   const [_derivedServerAddress, _setDerivedServerAddress] =
     useState<string>("");
 
-  // Trust server state
-  const [serverId, setServerId] = useState<string>("");
-  const [serverUrl, setServerUrl] = useState<string>("");
-  const [trustServerError, setTrustServerError] = useState<string>("");
-  const [isTrustingServer, setIsTrustingServer] = useState(false);
-  const [trustedServers, setTrustedServers] = useState<
-    Array<{
-      id: string;
-      serverAddress: string;
-      serverUrl: string;
-      trustedAt: bigint;
-      user: string;
-    }>
-  >([]);
-  const [isLoadingTrustedServers, setIsLoadingTrustedServers] = useState(false);
-  const [trustedServerQueryMode, setTrustedServerQueryMode] = useState<
-    "subgraph" | "rpc" | "auto"
-  >("auto");
-  const [isUntrusting, setIsUntrusting] = useState(false);
+  // Trust server state (removed - handled by useTrustedServers hook)
 
-  // Server discovery state
-  const [isDiscoveringServer, setIsDiscoveringServer] = useState(false);
+  // Server discovery state (removed - handled by useTrustedServers hook)
 
   // Trusted server file upload state
   const [_selectedServerForUpload, _setSelectedServerForUpload] =
@@ -270,45 +217,13 @@ export default function Home() {
 
   // Personal server setup state (unused but kept for future features)
 
-  // Schema management state
-  const [schemas, setSchemas] = useState<
-    (Schema & { source?: "discovered" | "created" })[]
-  >([]);
-  const [refiners, setRefiners] = useState<
-    (Refiner & { source?: "discovered" | "created" })[]
-  >([]);
-  const [isLoadingSchemas, setIsLoadingSchemas] = useState(false);
-  const [isLoadingRefiners, setIsLoadingRefiners] = useState(false);
-  const [schemasCount, setSchemasCount] = useState(0);
-  const [refinersCount, setRefinersCount] = useState(0);
+  // Schema management state (removed - handled by useSchemasAndRefiners hook)
 
-  // Schema creation state
-  const [schemaName, setSchemaName] = useState<string>("");
-  const [schemaType, setSchemaType] = useState<string>("");
-  const [schemaDefinitionUrl, setSchemaDefinitionUrl] = useState<string>("");
-  const [isCreatingSchema, setIsCreatingSchema] = useState(false);
-  const [schemaStatus, setSchemaStatus] = useState<string>("");
-  const [lastCreatedSchemaId, setLastCreatedSchemaId] = useState<number | null>(
-    null,
-  );
+  // Schema creation state (removed - handled by useSchemasAndRefiners hook)
 
-  // Refiner creation state
-  const [refinerName, setRefinerName] = useState<string>("");
-  const [refinerDlpId, setRefinerDlpId] = useState<string>("");
-  const [refinerSchemaId, setRefinerSchemaId] = useState<string>("");
-  const [refinerInstructionUrl, setRefinerInstructionUrl] =
-    useState<string>("");
-  const [isCreatingRefiner, setIsCreatingRefiner] = useState(false);
-  const [refinerStatus, setRefinerStatus] = useState<string>("");
-  const [lastCreatedRefinerId, setLastCreatedRefinerId] = useState<
-    number | null
-  >(null);
+  // Refiner creation state (removed - handled by useSchemasAndRefiners hook)
 
-  // Schema update state
-  const [updateRefinerId, setUpdateRefinerId] = useState<string>("");
-  const [updateSchemaId, setUpdateSchemaId] = useState<string>("");
-  const [isUpdatingSchema, setIsUpdatingSchema] = useState(false);
-  const [updateSchemaStatus, setUpdateSchemaStatus] = useState<string>("");
+  // Schema update state (removed - handled by useSchemasAndRefiners hook)
 
   // SDK Configuration state
   const [sdkConfig, setSdkConfig] = useState({
@@ -823,41 +738,9 @@ export default function Home() {
   // Generate encrypted content preview when encryptedData changes
   // Note: encryptedData preview now handled by EncryptionTestCard component
 
-  const loadUserFiles = useCallback(async () => {
-    if (!vana || !address) return;
+  // loadUserFiles removed - handled by useUserFiles hook
 
-    setIsLoadingFiles(true);
-    try {
-      const files = await vana.data.getUserFiles({ owner: address });
-      const discoveredFiles = files.map((file) => ({
-        ...file,
-        source: "discovered" as const,
-      }));
-      setUserFiles(discoveredFiles);
-    } catch (error) {
-      console.error("Failed to load user files:", error);
-    } finally {
-      setIsLoadingFiles(false);
-    }
-  }, [vana, address]);
-
-  const loadUserPermissions = useCallback(async () => {
-    if (!vana) return [];
-
-    setIsLoadingPermissions(true);
-    try {
-      const permissions = await vana.permissions.getUserPermissions({
-        limit: 20,
-      });
-      setUserPermissions(permissions);
-      return permissions;
-    } catch (error) {
-      console.error("Failed to load user permissions:", error);
-      return [];
-    } finally {
-      setIsLoadingPermissions(false);
-    }
-  }, [vana]);
+  // loadUserPermissions removed - handled by usePermissions hook
 
   const loadUserTrustedServers = useCallback(
     async (mode: "subgraph" | "rpc" | "auto" = "auto") => {
@@ -2143,65 +2026,9 @@ export default function Home() {
   const createUserDashboardProps = (
     sdk: typeof vana,
   ): UserDashboardViewProps => ({
-    fileLookupId,
-    onFileLookupIdChange: setFileLookupId,
-    onLookupFile: handleLookupFile,
-    isLookingUpFile,
-    fileLookupStatus,
-
-    // Permission lookup props
-    permissionLookupId,
-    onPermissionLookupIdChange: setPermissionLookupId,
-    onLookupPermission: handleLookupPermission,
-    isLookingUpPermission,
-    permissionLookupStatus,
-    lookedUpPermission,
-
-    userFiles,
-    isLoadingFiles,
-    onRefreshFiles: loadUserFiles,
-    selectedFiles,
-    decryptingFiles,
-    decryptedFiles,
-    fileDecryptErrors,
-    onFileSelection: handleFileSelection,
-    onDecryptFile: handleDecryptFile,
-    onDownloadDecryptedFile: handleDownloadDecryptedFile,
-    onClearFileError: handleClearFileError,
-    onGrantPermission: handleGrantPermission,
-    isGranting,
-    grantStatus,
-    grantTxHash,
     promptText,
     onPromptTextChange: setPromptText,
     applicationAddress,
-    userPermissions,
-    isLoadingPermissions,
-    onRevokePermission: handleRevokePermissionById,
-    isRevoking,
-    onRefreshPermissions: loadUserPermissions,
-    serverId,
-    onServerIdChange: setServerId,
-    serverUrl,
-    onServerUrlChange: setServerUrl,
-    onTrustServer: appConfig.useGaslessTransactions
-      ? () => handleTrustServerGasless(true)
-      : handleTrustServer,
-    isTrustingServer,
-    onUntrustServer: handleUntrustServer,
-    isUntrusting,
-    onDiscoverReplicateServer: handleDiscoverHostedServer,
-    isDiscoveringServer,
-    trustedServers: trustedServers.map((server) => ({
-      id: server.serverAddress,
-      url: server.serverUrl,
-      name: server.serverAddress,
-    })),
-    isLoadingServers: isLoadingTrustedServers,
-    onRefreshServers: () => loadUserTrustedServers(trustedServerQueryMode),
-    trustServerError,
-    queryMode: trustedServerQueryMode,
-    onQueryModeChange: setTrustedServerQueryMode,
     userAddress: address,
     chainId: chainId || 14800,
     vana: sdk!,
@@ -2272,43 +2099,6 @@ export default function Home() {
     sdk: typeof vana,
     walletClientInstance: typeof walletClient,
   ): DeveloperDashboardViewProps => ({
-    schemasCount,
-    refinersCount,
-    schemaName,
-    onSchemaNameChange: setSchemaName,
-    schemaType,
-    onSchemaTypeChange: setSchemaType,
-    schemaDefinitionUrl,
-    onSchemaDefinitionUrlChange: setSchemaDefinitionUrl,
-    onCreateSchema: handleCreateSchema,
-    isCreatingSchema,
-    schemaStatus,
-    lastCreatedSchemaId,
-    refinerName,
-    onRefinerNameChange: setRefinerName,
-    refinerDlpId,
-    onRefinerDlpIdChange: setRefinerDlpId,
-    refinerSchemaId,
-    onRefinerSchemaIdChange: setRefinerSchemaId,
-    refinerInstructionUrl,
-    onRefinerInstructionUrlChange: setRefinerInstructionUrl,
-    onCreateRefiner: handleCreateRefiner,
-    isCreatingRefiner,
-    refinerStatus,
-    lastCreatedRefinerId,
-    updateRefinerId,
-    onUpdateRefinerIdChange: setUpdateRefinerId,
-    updateSchemaId,
-    onUpdateSchemaIdChange: setUpdateSchemaId,
-    onUpdateSchemaId: handleUpdateSchemaId,
-    isUpdatingSchema,
-    updateSchemaStatus,
-    schemas,
-    isLoadingSchemas,
-    onRefreshSchemas: loadSchemas,
-    refiners,
-    isLoadingRefiners,
-    onRefreshRefiners: loadRefiners,
     chainId: chainId || 14800,
     vana: sdk!,
     walletClient: walletClientInstance!,
@@ -2318,42 +2108,13 @@ export default function Home() {
     sdk: typeof vana,
   ): DemoExperienceViewProps => ({
     vana: sdk!,
-    serverId,
-    onServerIdChange: setServerId,
-    serverUrl,
-    onServerUrlChange: setServerUrl,
-    onDiscoverReplicateServer: handleDiscoverHostedServer,
-    isDiscoveringServer,
-    onTrustServer: appConfig.useGaslessTransactions
-      ? (serverId?: string, serverUrl?: string) =>
-          handleTrustServerGasless(false, serverId, serverUrl)
-      : handleTrustServer,
-    isTrustingServer,
-    trustServerError,
-    trustedServers: trustedServers.map((server) => ({
-      id: server.serverAddress,
-      url: server.serverUrl,
-      name: server.serverAddress,
-    })),
-    userFiles,
-    selectedFiles,
-    onFileSelection: handleFileSelection,
-    newTextData: demoNewTextData,
-    onNewTextDataChange: setDemoNewTextData,
-    onUploadNewText: handleDemoUploadNewText,
-    isUploadingNewText: isDemoUploadingNewText,
-    newTextUploadResult: demoNewTextUploadResult,
-    onGrantPermission: handleGrantPermission,
-    isGranting,
-    grantStatus,
-    grantTxHash,
-    applicationAddress,
     onRunLLM: handleDemoRunLLM,
     isRunningLLM: isPersonalLoading,
     llmResult: personalResult,
     llmError: personalError,
     lastUsedPermissionId,
     chainId: chainId || 14800,
+    applicationAddress,
   });
 
   return (

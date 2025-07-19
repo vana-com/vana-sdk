@@ -31,6 +31,9 @@ import { AddressDisplay } from "../ui/AddressDisplay";
 import { FileIdDisplay } from "../ui/FileIdDisplay";
 import { ExplorerLink } from "../ui/ExplorerLink";
 import { EmptyState } from "../ui/EmptyState";
+import { useTrustedServers } from "@/hooks/useTrustedServers";
+import { useUserFiles } from "@/hooks/useUserFiles";
+import { usePermissions } from "@/hooks/usePermissions";
 
 /**
  * Props for the DemoExperienceView component
@@ -39,47 +42,7 @@ export interface DemoExperienceViewProps {
   // SDK instance
   vana: Vana;
 
-  // Step 1: Trust server
-  serverId: string;
-  onServerIdChange: (value: string) => void;
-  serverUrl: string;
-  onServerUrlChange: (value: string) => void;
-  onDiscoverReplicateServer: () => Promise<{
-    serverId: string;
-    serverUrl: string;
-    name: string;
-    publicKey?: string;
-  } | null>;
-  isDiscoveringServer: boolean;
-  onTrustServer: (serverId?: string, serverUrl?: string) => void;
-  isTrustingServer: boolean;
-  trustServerError: string;
-  trustedServers: Array<{
-    id: string;
-    url?: string;
-    name?: string;
-  }>;
-
-  // Step 2: Choose data
-  userFiles: (UserFile & {
-    source?: "discovered" | "looked-up" | "uploaded";
-  })[];
-  selectedFiles: number[];
-  onFileSelection: (fileId: number, selected: boolean) => void;
-  newTextData: string;
-  onNewTextDataChange: (text: string) => void;
-  onUploadNewText: () => void;
-  isUploadingNewText: boolean;
-  newTextUploadResult: { fileId: number; transactionHash: string } | null;
-
-  // Step 3: Grant permission
-  onGrantPermission: () => void;
-  isGranting: boolean;
-  grantStatus: string;
-  grantTxHash: string;
-  applicationAddress: string;
-
-  // Step 4: Run LLM
+  // LLM execution (not covered by existing hooks)
   onRunLLM: (permissionId: string) => void;
   isRunningLLM: boolean;
   llmResult: unknown;
@@ -88,6 +51,7 @@ export interface DemoExperienceViewProps {
 
   // Chain info
   chainId: number;
+  applicationAddress: string;
 }
 
 /**
@@ -106,36 +70,46 @@ export interface DemoExperienceViewProps {
  */
 export function DemoExperienceView({
   vana,
-  serverId: _serverId,
-  onServerIdChange: _onServerIdChange,
-  serverUrl: _serverUrl,
-  onServerUrlChange: _onServerUrlChange,
-  onDiscoverReplicateServer,
-  isDiscoveringServer,
-  onTrustServer,
-  isTrustingServer,
-  trustServerError,
-  trustedServers,
-  userFiles,
-  selectedFiles,
-  onFileSelection,
-  newTextData,
-  onNewTextDataChange,
-  onUploadNewText,
-  isUploadingNewText,
-  newTextUploadResult,
-  onGrantPermission,
-  isGranting,
-  grantStatus,
-  grantTxHash,
-  applicationAddress,
   onRunLLM,
   isRunningLLM,
   llmResult,
   llmError,
   lastUsedPermissionId,
   chainId,
+  applicationAddress,
 }: DemoExperienceViewProps) {
+  // Use custom hooks for state management
+  const {
+    trustedServers,
+    isDiscoveringServer,
+    isTrustingServer,
+    trustServerError,
+    serverId,
+    serverUrl,
+    setServerId,
+    setServerUrl,
+    handleDiscoverHostedServer,
+    handleTrustServerGasless,
+  } = useTrustedServers();
+
+  const {
+    userFiles,
+    selectedFiles,
+    newTextData,
+    isUploadingText,
+    uploadResult,
+    handleFileSelection,
+    setNewTextData,
+    handleUploadText,
+  } = useUserFiles();
+
+  const {
+    isGranting,
+    grantStatus,
+    grantTxHash,
+    handleGrantPermission,
+  } = usePermissions();
+
   const [currentStep, setCurrentStep] = useState(1);
   const [dataChoice, setDataChoice] = useState<"new" | "existing">("new");
   const [selectedTrustedServer, setSelectedTrustedServer] =
@@ -180,7 +154,7 @@ export function DemoExperienceView({
   // Determine step completion status
   const isStep1Complete = trustedServers.length > 0 && selectedTrustedServer;
   const isStep2Complete =
-    (dataChoice === "new" && newTextUploadResult) ||
+    (dataChoice === "new" && uploadResult) ||
     (dataChoice === "existing" && selectedFiles.length > 0);
   const isStep3Complete = grantTxHash && lastUsedPermissionId;
   const isStep4Complete = Boolean(llmResult && !llmError);
@@ -204,30 +178,31 @@ export function DemoExperienceView({
   const handleTrustServerWithSetup = async () => {
     try {
       console.info("🔄 Starting One Click Setup...");
-      const discoveredServer = await onDiscoverReplicateServer();
+      const discoveredServer = await handleDiscoverHostedServer();
       console.info("🔍 Discovered server:", discoveredServer);
 
       if (
         discoveredServer &&
-        discoveredServer.serverId &&
+        discoveredServer.serverAddress &&
         discoveredServer.serverUrl
       ) {
         console.info("✅ Server discovery successful, now trusting server...");
-        await onTrustServer(
-          discoveredServer.serverId,
+        await handleTrustServerGasless(
+          false,
+          discoveredServer.serverAddress,
           discoveredServer.serverUrl,
         );
         console.info("✅ Trust server completed, setting selected server...");
 
         // Auto-select the server that was just trusted
-        setSelectedTrustedServer(discoveredServer.serverId);
+        setSelectedTrustedServer(discoveredServer.serverAddress);
         console.info("✅ One Click Setup completed successfully!");
       } else {
         console.warn(
           "❌ Server discovery failed or incomplete:",
           discoveredServer,
         );
-        console.warn("❌ Missing serverId:", !discoveredServer?.serverId);
+        console.warn("❌ Missing serverAddress:", !discoveredServer?.serverAddress);
         console.warn("❌ Missing serverUrl:", !discoveredServer?.serverUrl);
       }
     } catch (error) {
@@ -426,7 +401,7 @@ export function DemoExperienceView({
                 label="Personal Data"
                 placeholder="Write something personal... a journal entry, your thoughts, or anything that represents you."
                 value={newTextData}
-                onChange={(e) => onNewTextDataChange(e.target.value)}
+                onChange={(e) => setNewTextData(e.target.value)}
                 minRows={4}
                 maxRows={8}
                 description="This will be encrypted and registered on-chain before processing."
@@ -441,7 +416,7 @@ export function DemoExperienceView({
                 </div>
               </div>
 
-              {newTextUploadResult ? (
+              {uploadResult ? (
                 <div className="p-3 bg-success/10 rounded-lg">
                   <div className="flex items-center gap-2 mb-2">
                     <CheckCircle className="h-4 w-4 text-success" />
@@ -453,7 +428,7 @@ export function DemoExperienceView({
                     <div>
                       File ID:{" "}
                       <FileIdDisplay
-                        fileId={newTextUploadResult.fileId}
+                        fileId={uploadResult.fileId}
                         chainId={chainId}
                       />
                     </div>
@@ -461,7 +436,7 @@ export function DemoExperienceView({
                       Transaction:{" "}
                       <ExplorerLink
                         type="tx"
-                        hash={newTextUploadResult.transactionHash}
+                        hash={uploadResult.transactionHash}
                         chainId={chainId}
                       />
                     </div>
@@ -469,13 +444,13 @@ export function DemoExperienceView({
                 </div>
               ) : (
                 <Button
-                  onPress={onUploadNewText}
-                  isLoading={isUploadingNewText}
+                  onPress={handleUploadText}
+                  isLoading={isUploadingText}
                   color="primary"
                   isDisabled={!newTextData.trim()}
                   startContent={<Lock className="h-4 w-4" />}
                 >
-                  {isUploadingNewText
+                  {isUploadingText
                     ? "Encrypting and uploading..."
                     : "Encrypt and Upload Data"}
                 </Button>
@@ -514,7 +489,7 @@ export function DemoExperienceView({
                               : "border-default-200 hover:bg-default-50"
                           }`}
                           onClick={() =>
-                            onFileSelection(
+                            handleFileSelection(
                               file.id,
                               !selectedFiles.includes(file.id),
                             )
@@ -645,7 +620,7 @@ export function DemoExperienceView({
             </div>
           ) : (
             <Button
-              onPress={onGrantPermission}
+              onPress={() => handleGrantPermission(selectedFiles, "AI processing for demo experience")}
               isLoading={isGranting}
               color="primary"
               isDisabled={!isStep1Complete || !isStep2Complete}

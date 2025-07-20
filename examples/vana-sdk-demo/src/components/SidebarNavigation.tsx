@@ -68,9 +68,7 @@ const navigationViews: NavigationView[] = [
  * @param props - The component props
  * @returns The rendered sidebar navigation
  */
-export function SidebarNavigation({
-  className = "",
-}: SidebarNavigationProps) {
+export function SidebarNavigation({ className = "" }: SidebarNavigationProps) {
   const pathname = usePathname();
 
   return (
@@ -88,29 +86,30 @@ export function SidebarNavigation({
             const isActive = pathname === view.href;
 
             return (
-              <Link key={view.id} href={view.href}>
-                <Button
-                  variant={isActive ? "solid" : "light"}
-                  color={isActive ? "primary" : "default"}
-                  className={`w-full justify-start h-auto p-3 ${
-                    isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "hover:bg-content2"
-                  }`}
-                >
-                  <div className="flex items-center gap-3 w-full">
-                    <Icon className="h-5 w-5 flex-shrink-0" />
-                    <div className="flex-1 text-left">
-                      <div className="font-medium">{view.label}</div>
-                      {view.description && (
-                        <div className="text-xs opacity-70 mt-1 leading-tight">
-                          {view.description}
-                        </div>
-                      )}
-                    </div>
+              <Button
+                key={view.id}
+                as={Link}
+                href={view.href}
+                variant={isActive ? "solid" : "light"}
+                color={isActive ? "primary" : "default"}
+                className={`w-full justify-start h-auto p-3 ${
+                  isActive
+                    ? "bg-primary text-primary-foreground"
+                    : "hover:bg-content2"
+                }`}
+              >
+                <div className="flex items-center gap-3 w-full">
+                  <Icon className="h-5 w-5 flex-shrink-0" />
+                  <div className="flex-1 text-left">
+                    <div className="font-medium">{view.label}</div>
+                    {view.description && (
+                      <div className="text-xs opacity-70 mt-1 leading-tight">
+                        {view.description}
+                      </div>
+                    )}
                   </div>
-                </Button>
-              </Link>
+                </div>
+              </Button>
             );
           })}
         </nav>

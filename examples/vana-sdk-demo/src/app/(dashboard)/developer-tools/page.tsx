@@ -56,7 +56,7 @@ export default function DeveloperToolsPage() {
     schemas,
     isLoadingSchemas,
     schemasCount,
-    
+
     // Schema creation state
     schemaName,
     schemaType,
@@ -64,12 +64,12 @@ export default function DeveloperToolsPage() {
     isCreatingSchema,
     schemaStatus,
     lastCreatedSchemaId,
-    
+
     // Refiners state
     refiners,
     isLoadingRefiners,
     refinersCount,
-    
+
     // Refiner creation state
     refinerName,
     refinerDlpId,
@@ -78,20 +78,20 @@ export default function DeveloperToolsPage() {
     isCreatingRefiner,
     refinerStatus,
     lastCreatedRefinerId,
-    
+
     // Schema update state
     updateRefinerId,
     updateSchemaId,
     isUpdatingSchema,
     updateSchemaStatus,
-    
+
     // Actions
     loadSchemas,
     loadRefiners,
     handleCreateSchema,
     handleCreateRefiner,
     handleUpdateSchemaId,
-    
+
     // Setters
     setSchemaName,
     setSchemaType,
@@ -103,7 +103,7 @@ export default function DeveloperToolsPage() {
     setUpdateRefinerId,
     setUpdateSchemaId,
   } = useSchemasAndRefiners();
-  
+
   const [activeTab, setActiveTab] = React.useState("schemas");
 
   // Schemas pagination state
@@ -325,7 +325,9 @@ export default function DeveloperToolsPage() {
                                 variant="flat"
                                 isIconOnly
                                 onPress={() =>
-                                  navigator.clipboard.writeText(contract.address)
+                                  navigator.clipboard.writeText(
+                                    contract.address,
+                                  )
                                 }
                               >
                                 <Copy className="h-3 w-3" />
@@ -340,7 +342,9 @@ export default function DeveloperToolsPage() {
                               rel="noopener noreferrer"
                               size="sm"
                               variant="flat"
-                              startContent={<ExternalLink className="h-3 w-3" />}
+                              startContent={
+                                <ExternalLink className="h-3 w-3" />
+                              }
                             >
                               View on Explorer
                             </Button>
@@ -616,17 +620,7 @@ export default function DeveloperToolsPage() {
     </div>
   );
 
-  // Show loading if no vana instance
-  if (!vana) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="text-center">
-          <Spinner size="lg" />
-          <p className="mt-2 text-default-500">Loading Vana SDK...</p>
-        </div>
-      </div>
-    );
-  }
+  // Layout handles wallet connection and VanaProvider initialization
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6">
@@ -673,10 +667,12 @@ export default function DeveloperToolsPage() {
           {renderSchemasTab()}
         </Tab>
         <Tab key="validation" title="Schema Validation">
-          <SchemaValidationTab vana={vana} chainId={chainId || 14800} />
+          {vana && (
+            <SchemaValidationTab vana={vana} chainId={chainId || 14800} />
+          )}
         </Tab>
         <Tab key="advanced" title="Advanced Tools">
-          {walletClient && (
+          {walletClient && vana && (
             <AdvancedToolsTab
               vana={vana}
               schemas={schemas}

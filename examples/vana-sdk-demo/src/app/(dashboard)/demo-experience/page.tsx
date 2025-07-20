@@ -14,7 +14,6 @@ import {
   Progress,
   RadioGroup,
   Radio,
-  Spinner,
 } from "@heroui/react";
 import {
   Shield,
@@ -82,21 +81,23 @@ export default function DemoExperiencePage() {
     handleUploadText,
   } = useUserFiles();
 
-  const {
-    isGranting,
-    grantStatus,
-    grantTxHash,
-    handleGrantPermission,
-  } = usePermissions();
+  const { isGranting, grantStatus, grantTxHash, handleGrantPermission } =
+    usePermissions();
 
   const [currentStep, setCurrentStep] = useState(1);
   const [dataChoice, setDataChoice] = useState<"new" | "existing">("new");
-  const [selectedTrustedServer, setSelectedTrustedServer] = useState<string>("");
-  const [fileSchemas, setFileSchemas] = useState<Map<number, Schema>>(new Map());
+  const [selectedTrustedServer, setSelectedTrustedServer] =
+    useState<string>("");
+  const [fileSchemas, setFileSchemas] = useState<Map<number, Schema>>(
+    new Map(),
+  );
   const [isAdvancingStep, setIsAdvancingStep] = useState(false);
 
   // Poll operation status for LLM execution (migrated from demo-page.tsx)
-  const pollOperationStatus = async (operationId: string, permissionId: number) => {
+  const pollOperationStatus = async (
+    operationId: string,
+    permissionId: number,
+  ) => {
     try {
       const response = await fetch("/api/trusted-server/poll", {
         method: "POST",
@@ -162,7 +163,7 @@ export default function DemoExperiencePage() {
     setIsRunningLLM(true);
     setLlmError("");
     setLlmResult(null);
-    
+
     try {
       // Call our API route instead of using the SDK directly
       const response = await fetch("/api/trusted-server", {
@@ -283,7 +284,10 @@ export default function DemoExperiencePage() {
           "❌ Server discovery failed or incomplete:",
           discoveredServer,
         );
-        console.warn("❌ Missing serverAddress:", !discoveredServer?.serverAddress);
+        console.warn(
+          "❌ Missing serverAddress:",
+          !discoveredServer?.serverAddress,
+        );
         console.warn("❌ Missing serverUrl:", !discoveredServer?.serverUrl);
       }
     } catch (error) {
@@ -686,12 +690,21 @@ export default function DemoExperiencePage() {
               </div>
               <div className="text-xs">
                 Transaction:{" "}
-                <ExplorerLink type="tx" hash={grantTxHash} chainId={chainId || 14800} />
+                <ExplorerLink
+                  type="tx"
+                  hash={grantTxHash}
+                  chainId={chainId || 14800}
+                />
               </div>
             </div>
           ) : (
             <Button
-              onPress={() => handleGrantPermission(selectedFiles, "AI processing for demo experience")}
+              onPress={() =>
+                handleGrantPermission(
+                  selectedFiles,
+                  "AI processing for demo experience",
+                )
+              }
               isLoading={isGranting}
               color="primary"
               isDisabled={!isStep1Complete || !isStep2Complete}
@@ -814,17 +827,7 @@ export default function DemoExperiencePage() {
     </Card>
   );
 
-  // Show loading if no vana instance
-  if (!vana) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="text-center">
-          <Spinner size="lg" />
-          <p className="mt-2 text-default-500">Loading Vana SDK...</p>
-        </div>
-      </div>
-    );
-  }
+  // Layout handles wallet connection and VanaProvider initialization
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">

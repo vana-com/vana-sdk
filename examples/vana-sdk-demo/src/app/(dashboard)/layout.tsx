@@ -47,7 +47,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { isConnected } = useAccount();
-  
+
   // Layout-level state for grant preview modal
   const [grantPreview, setGrantPreview] = useState<GrantPreview | null>(null);
   const {
@@ -57,8 +57,8 @@ export default function DashboardLayout({
   } = useDisclosure();
 
   // SDK Configuration state (layout-level since it affects entire app)
-  const [sdkConfig, setSdkConfig] = useState({
-    relayerUrl: `${typeof window !== "undefined" ? window.location.origin : ""}`,
+  const [sdkConfig, setSdkConfig] = useState(() => ({
+    relayerUrl: typeof window !== "undefined" ? window.location.origin : "",
     subgraphUrl: "",
     rpcUrl: "",
     pinataJwt: "",
@@ -67,7 +67,7 @@ export default function DashboardLayout({
     googleDriveAccessToken: "",
     googleDriveRefreshToken: "",
     googleDriveExpiresAt: null as number | null,
-  });
+  }));
 
   // App Configuration state
   const [appConfig, setAppConfig] = useState<AppConfig>({
@@ -171,9 +171,7 @@ export default function DashboardLayout({
           </div>
 
           {/* Main Content Area */}
-          <div className="flex-1">
-            {children}
-          </div>
+          <div className="flex-1">{children}</div>
 
           {/* Right Sidebar - SDK Configuration */}
           <div id="configuration">

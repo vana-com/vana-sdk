@@ -395,13 +395,10 @@ export function VanaProvider({
     walletClient,
     address,
     config.relayerUrl,
-    config.subgraphUrl,
-    config.pinataJwt,
-    config.pinataGateway,
     config.defaultStorageProvider,
-    config.googleDriveAccessToken,
-    config.googleDriveRefreshToken,
     useGaslessTransactions,
+    // Note: Other config changes (Pinata, Google Drive) don't require full re-init
+    // They can be handled by the storage provider setup
   ]);
 
   return (

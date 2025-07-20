@@ -18,6 +18,10 @@ import {
   Hash,
   Address,
   GrantFile,
+  PermissionGrantTypedData,
+  GenericTypedData,
+  TrustServerTypedData,
+  UntrustServerTypedData,
 } from "@opendatalabs/vana-sdk/browser";
 import type { VanaChain } from "@opendatalabs/vana-sdk/browser";
 
@@ -139,10 +143,57 @@ const getDefaultProvider = (config: VanaConfig): string => {
 };
 
 // Helper to create typed data submission callback
-type TypedData = Record<string, unknown>;
 const createSubmitCallback =
   (endpoint: string, baseUrl: string, address: string | undefined) =>
-  async (typedData: TypedData, signature: Hash) => {
+  async (typedData: GenericTypedData, signature: Hash) => {
+    const result = await submitToRelayer(
+      endpoint,
+      {
+        typedData: serializeBigInt(typedData),
+        signature,
+        expectedUserAddress: address,
+      },
+      baseUrl,
+    );
+    return result.transactionHash as Hash;
+  };
+
+// Helper for permission grant specific callback
+const createPermissionGrantCallback =
+  (endpoint: string, baseUrl: string, address: string | undefined) =>
+  async (typedData: PermissionGrantTypedData, signature: Hash) => {
+    const result = await submitToRelayer(
+      endpoint,
+      {
+        typedData: serializeBigInt(typedData),
+        signature,
+        expectedUserAddress: address,
+      },
+      baseUrl,
+    );
+    return result.transactionHash as Hash;
+  };
+
+// Helper for trust server specific callback
+const createTrustServerCallback =
+  (endpoint: string, baseUrl: string, address: string | undefined) =>
+  async (typedData: TrustServerTypedData, signature: Hash) => {
+    const result = await submitToRelayer(
+      endpoint,
+      {
+        typedData: serializeBigInt(typedData),
+        signature,
+        expectedUserAddress: address,
+      },
+      baseUrl,
+    );
+    return result.transactionHash as Hash;
+  };
+
+// Helper for untrust server specific callback
+const createUntrustServerCallback =
+  (endpoint: string, baseUrl: string, address: string | undefined) =>
+  async (typedData: UntrustServerTypedData, signature: Hash) => {
     const result = await submitToRelayer(
       endpoint,
       {
@@ -206,7 +257,7 @@ export function VanaProvider({
         const baseUrl = config.relayerUrl || window.location.origin;
         const relayerCallbacks = useGaslessTransactions
           ? {
-              submitPermissionGrant: createSubmitCallback(
+              submitPermissionGrant: createPermissionGrantCallback(
                 "/api/relay",
                 baseUrl,
                 address,
@@ -216,12 +267,12 @@ export function VanaProvider({
                 baseUrl,
                 address,
               ),
-              submitTrustServer: createSubmitCallback(
+              submitTrustServer: createTrustServerCallback(
                 "/api/relay",
                 baseUrl,
                 address,
               ),
-              submitUntrustServer: createSubmitCallback(
+              submitUntrustServer: createUntrustServerCallback(
                 "/api/relay",
                 baseUrl,
                 address,
@@ -234,7 +285,7 @@ export function VanaProvider({
                   baseUrl,
                 );
                 return {
-                  fileId: result.fileId,
+                  fileId: Number(result.fileId) || 0,
                   transactionHash: result.transactionHash as Hash,
                 };
               },
@@ -250,7 +301,7 @@ export function VanaProvider({
                   baseUrl,
                 );
                 return {
-                  fileId: result.fileId,
+                  fileId: Number(result.fileId) || 0,
                   transactionHash: result.transactionHash as Hash,
                 };
               },
@@ -267,7 +318,7 @@ export function VanaProvider({
                   baseUrl,
                 );
                 return {
-                  fileId: result.fileId,
+                  fileId: Number(result.fileId) || 0,
                   transactionHash: result.transactionHash as Hash,
                 };
               },

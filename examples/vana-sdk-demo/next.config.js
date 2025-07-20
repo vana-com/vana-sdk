@@ -12,7 +12,7 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
 
-  webpack: (config, { isServer }) => {
+  webpack: (config) => {
     // Add resolve aliases to match tsconfig.json paths
     config.resolve.alias = {
       ...config.resolve.alias,

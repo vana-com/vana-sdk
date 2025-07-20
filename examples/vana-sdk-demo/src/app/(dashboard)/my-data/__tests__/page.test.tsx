@@ -1,116 +1,57 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@/tests/test-utils';
-import MyDataPage from '../page';
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, waitFor } from "@/tests/test-utils";
+import MyDataPage from "../page";
+import {
+  createMockUseUserFiles,
+  createMockUsePermissions,
+  createMockUseTrustedServers,
+  createMockUseVana,
+  createMockUseAccount,
+} from "@/tests/mocks";
 
-// Mock dependencies - but keep the provider structure
-vi.mock('wagmi', async () => {
-  const actual = await vi.importActual('wagmi');
+// Mock dependencies using factory functions
+vi.mock("wagmi", async () => {
+  const actual = await vi.importActual("wagmi");
   return {
     ...actual,
-    useAccount: () => ({ address: '0x123', isConnected: true }),
+    useAccount: () => createMockUseAccount(),
     useWalletClient: () => ({ data: null }),
     useChainId: () => 14800,
   };
 });
 
-vi.mock('@/providers/VanaProvider', () => ({
-  useVana: () => ({
-    vana: { data: {}, permissions: {} },
-    isInitialized: true,
-    error: null,
-    applicationAddress: '0xapp123',
-  }),
+vi.mock("@/providers/VanaProvider", () => ({
+  useVana: () => createMockUseVana(),
   VanaProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-vi.mock('@/hooks/useUserFiles', () => ({
-  useUserFiles: () => ({
-    userFiles: [],
-    isLoadingFiles: false,
-    selectedFiles: [],
-    decryptingFiles: new Set(),
-    decryptedFiles: new Map(),
-    fileDecryptErrors: new Map(),
-    newTextData: '',
-    isUploadingText: false,
-    uploadResult: null,
-    fileLookupId: '',
-    setFileLookupId: vi.fn(),
-    isLookingUpFile: false,
-    fileLookupStatus: '',
-    loadUserFiles: vi.fn(),
-    handleFileSelection: vi.fn(),
-    handleDecryptFile: vi.fn(),
-    handleDownloadDecryptedFile: vi.fn(),
-    handleClearFileError: vi.fn(),
-    handleLookupFile: vi.fn(),
-    handleUploadText: vi.fn(),
-    setUserFiles: vi.fn(),
-    setSelectedFiles: vi.fn(),
-    setNewTextData: vi.fn(),
-  }),
+vi.mock("@/hooks/useUserFiles", () => ({
+  useUserFiles: () => createMockUseUserFiles(),
 }));
 
-vi.mock('@/hooks/usePermissions', () => ({
-  usePermissions: () => ({
-    userPermissions: [],
-    isLoadingPermissions: false,
-    isGranting: false,
-    isRevoking: false,
-    grantStatus: '',
-    grantTxHash: '',
-    grantPreview: null,
-    showGrantPreview: false,
-    permissionLookupId: '',
-    setPermissionLookupId: vi.fn(),
-    isLookingUpPermission: false,
-    permissionLookupStatus: '',
-    lookedUpPermission: null,
-    loadUserPermissions: vi.fn(),
-    handleGrantPermission: vi.fn(),
-    handleRevokePermissionById: vi.fn(),
-    handleLookupPermission: vi.fn(),
-    onOpenGrant: vi.fn(),
-    onCloseGrant: vi.fn(),
-    handleConfirmGrant: vi.fn(),
-    handleCancelGrant: vi.fn(),
-    setGrantPreview: vi.fn(),
-    setGrantStatus: vi.fn(),
-    setGrantTxHash: vi.fn(),
-    setUserPermissions: vi.fn(),
-  }),
+vi.mock("@/hooks/usePermissions", () => ({
+  usePermissions: () => createMockUsePermissions(),
 }));
 
-vi.mock('@/hooks/useTrustedServers', () => ({
-  useTrustedServers: () => ({
-    trustedServers: [],
-    isLoadingTrustedServers: false,
-    isTrustingServer: false,
-    isUntrusting: false,
-    isDiscoveringServer: false,
-    trustServerError: '',
-    trustedServerQueryMode: 'auto',
-    serverId: '',
-    serverUrl: '',
-    loadUserTrustedServers: vi.fn(),
-    handleTrustServer: vi.fn(),
-    handleTrustServerGasless: vi.fn(),
-    handleUntrustServer: vi.fn(),
-    handleDiscoverHostedServer: vi.fn(),
-    setServerId: vi.fn(),
-    setServerUrl: vi.fn(),
-    setTrustedServerQueryMode: vi.fn(),
-    setTrustServerError: vi.fn(),
-  }),
+vi.mock("@/hooks/useTrustedServers", () => ({
+  useTrustedServers: () => createMockUseTrustedServers(),
 }));
 
 // Mock components that might have complex dependencies
-vi.mock('@/components/FilePreview', () => ({
-  FilePreview: ({ children }: { children: React.ReactNode }) => <div data-testid="file-preview">{children}</div>,
+vi.mock("@/components/FilePreview", () => ({
+  FilePreview: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="file-preview">{children}</div>
+  ),
 }));
 
-vi.mock('@/components/ui/GrantPermissionModal', () => ({
-  GrantPermissionModal: ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => 
+vi.mock("@/components/ui/GrantPermissionModal", () => ({
+  GrantPermissionModal: ({
+    isOpen,
+    onClose,
+  }: {
+    isOpen: boolean;
+    onClose: () => void;
+  }) =>
     isOpen ? (
       <div data-testid="grant-permission-modal">
         <button onClick={onClose}>Close Modal</button>
@@ -118,18 +59,25 @@ vi.mock('@/components/ui/GrantPermissionModal', () => ({
     ) : null,
 }));
 
-vi.mock('@/components/ui/DataUploadForm', () => ({
-  DataUploadForm: ({ onUploadComplete }: { onUploadComplete: (result: any) => void }) => (
+vi.mock("@/components/ui/DataUploadForm", () => ({
+  DataUploadForm: ({
+    onUploadComplete,
+  }: {
+    onUploadComplete: (result: any) => void;
+  }) => (
     <div data-testid="data-upload-form">
-      <button onClick={() => onUploadComplete({ fileId: 123, transactionHash: '0xtx123' })}>
+      <button
+        onClick={() =>
+          onUploadComplete({ fileId: 123, transactionHash: "0xtx123" })
+        }
+      >
         Upload File
       </button>
     </div>
   ),
 }));
 
-describe('MyDataPage Integration Test', () => {
-
+describe("MyDataPage Integration Test", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // The hooks will be provided by our test providers
@@ -140,33 +88,35 @@ describe('MyDataPage Integration Test', () => {
     vi.clearAllMocks();
   });
 
-  it('renders the main page without crashing', async () => {
+  it("renders the main page without crashing", async () => {
     render(<MyDataPage />);
 
     // Check that the page renders without throwing
     // The actual hooks will provide the data
     await waitFor(() => {
-      expect(screen.getByText('My Data')).toBeInTheDocument();
+      expect(screen.getByText("My Data")).toBeInTheDocument();
     });
   });
 
-  it('renders page structure with tabs', async () => {
+  it("renders page structure with tabs", async () => {
     render(<MyDataPage />);
 
     // Check that tabs are present
     await waitFor(() => {
-      expect(screen.getByRole('tab', { name: /files/i })).toBeInTheDocument();
-      expect(screen.getByRole('tab', { name: /permissions/i })).toBeInTheDocument();
-      expect(screen.getByRole('tab', { name: /servers/i })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: /files/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole("tab", { name: /permissions/i }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: /servers/i })).toBeInTheDocument();
     });
   });
 
-  it('displays page content', async () => {
+  it("displays page content", async () => {
     render(<MyDataPage />);
 
     // Just verify the page renders some content
     await waitFor(() => {
-      expect(screen.getByText('My Data')).toBeInTheDocument();
+      expect(screen.getByText("My Data")).toBeInTheDocument();
     });
   });
 });

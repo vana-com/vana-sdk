@@ -1,6 +1,12 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+} from "react";
 import { useAccount, useWalletClient } from "wagmi";
 import {
   Vana,
@@ -11,10 +17,6 @@ import {
   WalletClient,
   Hash,
   Address,
-  PermissionGrantTypedData,
-  GenericTypedData,
-  TrustServerTypedData,
-  UntrustServerTypedData,
   GrantFile,
 } from "@opendatalabs/vana-sdk/browser";
 import type { VanaChain } from "@opendatalabs/vana-sdk/browser";
@@ -46,7 +48,138 @@ interface VanaProviderProps {
   useGaslessTransactions?: boolean;
 }
 
-export function VanaProvider({ children, config, useGaslessTransactions = true }: VanaProviderProps) {
+// Helper to serialize bigint values for JSON
+const serializeBigInt = (data: unknown) =>
+  JSON.parse(
+    JSON.stringify(data, (_key, value) =>
+      typeof value === "bigint" ? value.toString() : value,
+    ),
+  );
+
+// Helper to make relayer requests
+const submitToRelayer = async (
+  endpoint: string,
+  payload: Record<string, unknown>,
+  baseUrl: string,
+): Promise<{
+  success: boolean;
+  error?: string;
+  fileId?: string;
+  transactionHash?: string;
+  [key: string]: unknown;
+}> => {
+  const response = await fetch(`${baseUrl}${endpoint}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const result = await response.json();
+  if (!result.success) {
+    throw new Error(result.error || "Failed to submit to relayer");
+  }
+  return result;
+};
+
+// Helper to create storage providers
+const createStorageProviders = (
+  config: VanaConfig,
+): Record<string, StorageProvider> => {
+  const providers: Record<string, StorageProvider> = {
+    "app-ipfs": new ServerProxyStorage({
+      uploadUrl: "/api/ipfs/upload",
+      downloadUrl: "/api/ipfs/download",
+    }),
+  };
+
+  if (config.pinataJwt) {
+    console.info("👤 Adding user-managed Pinata IPFS storage");
+    providers["user-ipfs"] = new PinataStorage({
+      jwt: config.pinataJwt,
+      gatewayUrl: config.pinataGateway || "https://gateway.pinata.cloud",
+    });
+  }
+
+  return providers;
+};
+
+// Helper to setup Google Drive storage
+const setupGoogleDriveStorage = async (
+  config: VanaConfig,
+  providers: Record<string, StorageProvider>,
+) => {
+  if (!config.googleDriveAccessToken) return;
+
+  console.info("🔗 Adding Google Drive storage");
+  const baseStorage = new GoogleDriveStorage({
+    accessToken: config.googleDriveAccessToken,
+    refreshToken: config.googleDriveRefreshToken,
+  });
+
+  try {
+    const folderId = await baseStorage.findOrCreateFolder("Vana Data");
+    console.info("📁 Using Google Drive folder:", folderId);
+    providers["google-drive"] = new GoogleDriveStorage({
+      accessToken: config.googleDriveAccessToken,
+      refreshToken: config.googleDriveRefreshToken,
+      folderId,
+    });
+  } catch (error) {
+    console.warn("⚠️ Failed to create Google Drive folder, using root:", error);
+    providers["google-drive"] = baseStorage;
+  }
+};
+
+// Helper to determine default storage provider
+const getDefaultProvider = (config: VanaConfig): string => {
+  const requested = config.defaultStorageProvider || "app-ipfs";
+  if (requested === "user-ipfs" && !config.pinataJwt) return "app-ipfs";
+  if (requested === "google-drive" && !config.googleDriveAccessToken)
+    return "app-ipfs";
+  return requested;
+};
+
+// Helper to create typed data submission callback
+type TypedData = Record<string, unknown>;
+const createSubmitCallback =
+  (endpoint: string, baseUrl: string, address: string | undefined) =>
+  async (typedData: TypedData, signature: Hash) => {
+    const result = await submitToRelayer(
+      endpoint,
+      {
+        typedData: serializeBigInt(typedData),
+        signature,
+        expectedUserAddress: address,
+      },
+      baseUrl,
+    );
+    return result.transactionHash as Hash;
+  };
+
+// Helper to fetch application address
+const fetchApplicationAddress = async (): Promise<string | null> => {
+  try {
+    const response = await fetch("/api/application-address");
+    if (response.ok) {
+      const data = await response.json();
+      if (data.success) {
+        console.info(
+          "✅ Application address fetched:",
+          data.data.applicationAddress,
+        );
+        return data.data.applicationAddress;
+      }
+    }
+  } catch (error) {
+    console.warn("⚠️ Failed to fetch application address:", error);
+  }
+  return null;
+};
+
+export function VanaProvider({
+  children,
+  config,
+  useGaslessTransactions = true,
+}: VanaProviderProps) {
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
   const [vana, setVana] = useState<Vana | null>(null);
@@ -64,239 +197,117 @@ export function VanaProvider({ children, config, useGaslessTransactions = true }
 
     const initializeVana = async () => {
       try {
-        // Initialize storage providers
         console.info("🏢 Setting up app-managed IPFS storage");
-        const serverProxy = new ServerProxyStorage({
-          uploadUrl: "/api/ipfs/upload",
-          downloadUrl: "/api/ipfs/download",
-        });
-
-        const storageProviders: Record<string, StorageProvider> = {
-          "app-ipfs": serverProxy,
-        };
-
-        // Add user-managed IPFS if configured
-        if (config.pinataJwt) {
-          console.info("👤 Adding user-managed Pinata IPFS storage");
-          const pinataStorage = new PinataStorage({
-            jwt: config.pinataJwt,
-            gatewayUrl: config.pinataGateway || "https://gateway.pinata.cloud",
-          });
-          storageProviders["user-ipfs"] = pinataStorage;
-        }
-
-        // Add Google Drive if configured
-        if (config.googleDriveAccessToken) {
-          console.info("🔗 Adding Google Drive storage");
-          const googleDriveProvider = new GoogleDriveStorage({
-            accessToken: config.googleDriveAccessToken,
-            refreshToken: config.googleDriveRefreshToken,
-          });
-
-          try {
-            const folderId = await googleDriveProvider.findOrCreateFolder("Vana Data");
-            console.info("📁 Using Google Drive folder:", folderId);
-            
-            const googleDriveStorage = new GoogleDriveStorage({
-              accessToken: config.googleDriveAccessToken,
-              refreshToken: config.googleDriveRefreshToken,
-              folderId: folderId,
-            });
-            storageProviders["google-drive"] = googleDriveStorage;
-          } catch (error) {
-            console.warn("⚠️ Failed to create Google Drive folder, using root:", error);
-            storageProviders["google-drive"] = googleDriveProvider;
-          }
-        }
-
-        // Determine the actual default storage provider
-        let actualDefaultProvider = config.defaultStorageProvider || "app-ipfs";
-        if (actualDefaultProvider === "user-ipfs" && !config.pinataJwt) {
-          actualDefaultProvider = "app-ipfs";
-        } else if (actualDefaultProvider === "google-drive" && !config.googleDriveAccessToken) {
-          actualDefaultProvider = "app-ipfs";
-        }
+        const storageProviders = createStorageProviders(config);
+        await setupGoogleDriveStorage(config, storageProviders);
+        const actualDefaultProvider = getDefaultProvider(config);
 
         // Create relayer callbacks if using gasless transactions
         const baseUrl = config.relayerUrl || window.location.origin;
-        const relayerCallbacks = useGaslessTransactions ? {
-          async submitPermissionGrant(typedData: PermissionGrantTypedData, signature: Hash) {
-            const jsonSafeTypedData = JSON.parse(
-              JSON.stringify(typedData, (_key, value) =>
-                typeof value === "bigint" ? value.toString() : value
-              )
-            );
-            const response = await fetch(`${baseUrl}/api/relay`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                typedData: jsonSafeTypedData,
-                signature,
-                expectedUserAddress: address,
-              }),
-            });
-            const result = await response.json();
-            if (!result.success) {
-              throw new Error(result.error || "Failed to submit to relayer");
+        const relayerCallbacks = useGaslessTransactions
+          ? {
+              submitPermissionGrant: createSubmitCallback(
+                "/api/relay",
+                baseUrl,
+                address,
+              ),
+              submitPermissionRevoke: createSubmitCallback(
+                "/api/relay",
+                baseUrl,
+                address,
+              ),
+              submitTrustServer: createSubmitCallback(
+                "/api/relay",
+                baseUrl,
+                address,
+              ),
+              submitUntrustServer: createSubmitCallback(
+                "/api/relay",
+                baseUrl,
+                address,
+              ),
+
+              async submitFileAddition(url: string, userAddress: string) {
+                const result = await submitToRelayer(
+                  "/api/relay/addFile",
+                  { url, userAddress },
+                  baseUrl,
+                );
+                return {
+                  fileId: result.fileId,
+                  transactionHash: result.transactionHash as Hash,
+                };
+              },
+
+              async submitFileAdditionWithPermissions(
+                url: string,
+                userAddress: string,
+                permissions: Array<{ account: string; key: string }>,
+              ) {
+                const result = await submitToRelayer(
+                  "/api/relay/addFileWithPermissions",
+                  { url, userAddress, permissions },
+                  baseUrl,
+                );
+                return {
+                  fileId: result.fileId,
+                  transactionHash: result.transactionHash as Hash,
+                };
+              },
+
+              async submitFileAdditionComplete(params: {
+                url: string;
+                userAddress: Address;
+                permissions: Array<{ account: Address; key: string }>;
+                schemaId: number;
+              }) {
+                const result = await submitToRelayer(
+                  "/api/relay/addFileComplete",
+                  params,
+                  baseUrl,
+                );
+                return {
+                  fileId: result.fileId,
+                  transactionHash: result.transactionHash as Hash,
+                };
+              },
+
+              async storeGrantFile(grantData: GrantFile) {
+                try {
+                  const formData = new FormData();
+                  formData.append(
+                    "file",
+                    new Blob([JSON.stringify(grantData, null, 2)], {
+                      type: "application/json",
+                    }),
+                    "grant-file.json",
+                  );
+
+                  const response = await fetch(`${baseUrl}/api/ipfs/upload`, {
+                    method: "POST",
+                    body: formData,
+                  });
+
+                  if (!response.ok)
+                    throw new Error(
+                      `IPFS upload failed: ${response.statusText}`,
+                    );
+
+                  const result = await response.json();
+                  if (!result.success)
+                    throw new Error(result.error || "IPFS upload failed");
+                  if (!result.url)
+                    throw new Error("IPFS upload did not return a URL");
+
+                  return result.url;
+                } catch (error) {
+                  throw new Error(
+                    `Failed to store grant file: ${error instanceof Error ? error.message : "Unknown error"}`,
+                  );
+                }
+              },
             }
-            return result.transactionHash as Hash;
-          },
-
-          async submitPermissionRevoke(typedData: GenericTypedData, signature: Hash) {
-            const jsonSafeTypedData = JSON.parse(
-              JSON.stringify(typedData, (_key, value) =>
-                typeof value === "bigint" ? value.toString() : value
-              )
-            );
-            const response = await fetch(`${baseUrl}/api/relay`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                typedData: jsonSafeTypedData,
-                signature,
-                expectedUserAddress: address,
-              }),
-            });
-            const result = await response.json();
-            if (!result.success) {
-              throw new Error(result.error || "Failed to submit to relayer");
-            }
-            return result.transactionHash as Hash;
-          },
-
-          async submitTrustServer(typedData: TrustServerTypedData, signature: Hash) {
-            const jsonSafeTypedData = JSON.parse(
-              JSON.stringify(typedData, (_key, value) =>
-                typeof value === "bigint" ? value.toString() : value
-              )
-            );
-            const response = await fetch(`${baseUrl}/api/relay`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                typedData: jsonSafeTypedData,
-                signature,
-                expectedUserAddress: address,
-              }),
-            });
-            const result = await response.json();
-            if (!result.success) {
-              throw new Error(result.error || "Failed to submit to relayer");
-            }
-            return result.transactionHash as Hash;
-          },
-
-          async submitUntrustServer(typedData: UntrustServerTypedData, signature: Hash) {
-            const jsonSafeTypedData = JSON.parse(
-              JSON.stringify(typedData, (_key, value) =>
-                typeof value === "bigint" ? value.toString() : value
-              )
-            );
-            const response = await fetch(`${baseUrl}/api/relay`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                typedData: jsonSafeTypedData,
-                signature,
-                expectedUserAddress: address,
-              }),
-            });
-            const result = await response.json();
-            if (!result.success) {
-              throw new Error(result.error || "Failed to submit to relayer");
-            }
-            return result.transactionHash as Hash;
-          },
-
-          async submitFileAddition(url: string, userAddress: string) {
-            const response = await fetch(`${baseUrl}/api/relay/addFile`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ url, userAddress }),
-            });
-            const result = await response.json();
-            if (!result.success) {
-              throw new Error(result.error || "Failed to submit to relayer");
-            }
-            return {
-              fileId: result.fileId,
-              transactionHash: result.transactionHash as Hash,
-            };
-          },
-
-          async submitFileAdditionWithPermissions(
-            url: string,
-            userAddress: string,
-            permissions: Array<{ account: string; key: string }>
-          ) {
-            const response = await fetch(`${baseUrl}/api/relay/addFileWithPermissions`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ url, userAddress, permissions }),
-            });
-            const result = await response.json();
-            if (!result.success) {
-              throw new Error(result.error || "Failed to submit to relayer");
-            }
-            return {
-              fileId: result.fileId,
-              transactionHash: result.transactionHash as Hash,
-            };
-          },
-
-          async submitFileAdditionComplete(params: {
-            url: string;
-            userAddress: Address;
-            permissions: Array<{ account: Address; key: string }>;
-            schemaId: number;
-          }) {
-            const response = await fetch(`${baseUrl}/api/relay/addFileComplete`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(params),
-            });
-            const result = await response.json();
-            if (!result.success) {
-              throw new Error(result.error || "Failed to submit to relayer");
-            }
-            return {
-              fileId: result.fileId,
-              transactionHash: result.transactionHash as Hash,
-            };
-          },
-
-          async storeGrantFile(grantData: GrantFile) {
-            try {
-              const grantFileBlob = new Blob([JSON.stringify(grantData, null, 2)], {
-                type: "application/json",
-              });
-              const formData = new FormData();
-              formData.append("file", grantFileBlob, "grant-file.json");
-
-              const response = await fetch(`${baseUrl}/api/ipfs/upload`, {
-                method: "POST",
-                body: formData,
-              });
-
-              if (!response.ok) {
-                throw new Error(`IPFS upload failed: ${response.statusText}`);
-              }
-
-              const result = await response.json();
-              if (!result.success) {
-                throw new Error(result.error || "IPFS upload failed");
-              }
-              if (!result.url) {
-                throw new Error("IPFS upload did not return a URL");
-              }
-              return result.url;
-            } catch (error) {
-              throw new Error(
-                `Failed to store grant file: ${error instanceof Error ? error.message : "Unknown error"}`
-              );
-            }
-          },
-        } : undefined;
+          : undefined;
 
         // Initialize Vana SDK
         const vanaInstance = new Vana({
@@ -314,21 +325,15 @@ export function VanaProvider({ children, config, useGaslessTransactions = true }
         console.info("✅ Vana SDK initialized:", vanaInstance.getConfig());
 
         // Fetch application address for permission granting
-        try {
-          const appAddressResponse = await fetch("/api/application-address");
-          if (appAddressResponse.ok) {
-            const appAddressData = await appAddressResponse.json();
-            if (appAddressData.success) {
-              setApplicationAddress(appAddressData.data.applicationAddress);
-              console.info("✅ Application address fetched:", appAddressData.data.applicationAddress);
-            }
-          }
-        } catch (error) {
-          console.warn("⚠️ Failed to fetch application address:", error);
-        }
+        const appAddress = await fetchApplicationAddress();
+        if (appAddress) setApplicationAddress(appAddress);
       } catch (err) {
         console.error("Failed to initialize Vana SDK:", err);
-        setError(err instanceof Error ? err : new Error("Failed to initialize Vana SDK"));
+        setError(
+          err instanceof Error
+            ? err
+            : new Error("Failed to initialize Vana SDK"),
+        );
         setIsInitialized(false);
       }
     };
@@ -349,7 +354,9 @@ export function VanaProvider({ children, config, useGaslessTransactions = true }
   ]);
 
   return (
-    <VanaContext.Provider value={{ vana, isInitialized, error, applicationAddress }}>
+    <VanaContext.Provider
+      value={{ vana, isInitialized, error, applicationAddress }}
+    >
       {children}
     </VanaContext.Provider>
   );

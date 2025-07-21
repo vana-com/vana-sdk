@@ -957,6 +957,26 @@ export class PermissionsController {
   }
 
   /**
+   * Gets the EIP-712 domain for DataPortabilityServers contract operations.
+   *
+   * @returns The EIP-712 domain object for server operations
+   */
+  private async getServerDomain() {
+    const chainId = await this.context.walletClient.getChainId();
+    const DataPortabilityServersAddress = getContractAddress(
+      chainId,
+      "DataPortabilityServers",
+    );
+
+    return {
+      name: "VanaDataPortabilityServers",
+      version: "1",
+      chainId,
+      verifyingContract: DataPortabilityServersAddress,
+    };
+  }
+
+  /**
    * Signs typed data using the wallet client.
    *
    * @param typedData - The EIP-712 typed data structure to sign
@@ -2038,7 +2058,7 @@ export class PermissionsController {
   private async composeTrustServerMessage(
     input: TrustServerInput,
   ): Promise<TrustServerTypedData> {
-    const domain = await this.getPermissionDomain();
+    const domain = await this.getServerDomain();
 
     return {
       domain,
@@ -2062,7 +2082,7 @@ export class PermissionsController {
   private async composeUntrustServerMessage(
     input: UntrustServerInput,
   ): Promise<UntrustServerTypedData> {
-    const domain = await this.getPermissionDomain();
+    const domain = await this.getServerDomain();
 
     return {
       domain,
@@ -2086,7 +2106,7 @@ export class PermissionsController {
   private async composeAddAndTrustServerMessage(
     input: AddAndTrustServerInput,
   ): Promise<AddAndTrustServerTypedData> {
-    const domain = await this.getPermissionDomain();
+    const domain = await this.getServerDomain();
     return {
       domain,
       types: {
@@ -2397,18 +2417,4 @@ export class PermissionsController {
    *
    * @returns Promise resolving to the EIP-712 domain configuration
    */
-  private async getServerDomain() {
-    const chainId = await this.context.walletClient.getChainId();
-    const DataPortabilityServersAddress = getContractAddress(
-      chainId,
-      "DataPortabilityServers",
-    );
-
-    return {
-      name: "VanaDataPortabilityServers",
-      version: "1",
-      chainId,
-      verifyingContract: DataPortabilityServersAddress,
-    };
-  }
 }

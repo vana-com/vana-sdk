@@ -2273,10 +2273,14 @@ export default function Home() {
     onRevokePermission: handleRevokePermissionById,
     isRevoking,
     onRefreshPermissions: loadUserPermissions,
-    serverId,
-    onServerIdChange: setServerId,
+    serverAddress,
+    onServerAddressChange: setServerAddress,
+    serverPublicKey,
+    onServerPublicKeyChange: setServerPublicKey,
     serverUrl,
     onServerUrlChange: setServerUrl,
+    ownerAddress,
+    onOwnerAddressChange: setOwnerAddress,
     onTrustServer: appConfig.useGaslessTransactions
       ? () => handleTrustServerGasless(true)
       : handleTrustServer,
@@ -2289,6 +2293,9 @@ export default function Home() {
       id: server.serverAddress,
       url: server.serverUrl,
       name: server.serverAddress,
+      serverAddress: server.serverAddress,
+      publicKey: undefined, // Not available from backend yet
+      owner: server.user, // Use the user field as owner for now
     })),
     isLoadingServers: isLoadingTrustedServers,
     onRefreshServers: () => loadUserTrustedServers(trustedServerQueryMode),

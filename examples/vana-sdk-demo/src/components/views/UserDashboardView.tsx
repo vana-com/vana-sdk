@@ -120,11 +120,15 @@ export interface UserDashboardViewProps {
   onRefreshPermissions: () => void;
 
   // Trusted server management
-  serverId: string;
-  onServerIdChange: (value: string) => void;
+  serverAddress: string;
+  onServerAddressChange: (value: string) => void;
+  serverPublicKey: string;
+  onServerPublicKeyChange: (value: string) => void;
   serverUrl: string;
   onServerUrlChange: (value: string) => void;
-  onTrustServer: (serverId?: string, serverUrl?: string) => void;
+  ownerAddress: string;
+  onOwnerAddressChange: (value: string) => void;
+  onTrustServer: () => void;
   isTrustingServer: boolean;
   onUntrustServer: (serverId: string) => void;
   isUntrusting: boolean;
@@ -134,6 +138,9 @@ export interface UserDashboardViewProps {
     id: string;
     url?: string;
     name?: string;
+    serverAddress?: string;
+    publicKey?: string;
+    owner?: string;
   }>;
   isLoadingServers: boolean;
   onRefreshServers: () => void;
@@ -221,10 +228,14 @@ export function UserDashboardView({
   onRevokePermission,
   isRevoking,
   onRefreshPermissions,
-  serverId,
-  onServerIdChange,
+  serverAddress,
+  onServerAddressChange,
+  serverPublicKey,
+  onServerPublicKeyChange,
   serverUrl,
   onServerUrlChange,
+  ownerAddress,
+  onOwnerAddressChange,
   onTrustServer,
   isTrustingServer,
   onUntrustServer,
@@ -1069,13 +1080,23 @@ export function UserDashboardView({
             singleColumn={true}
             fields={[
               {
-                name: "serverId",
-                label: "Server ID",
+                name: "serverAddress",
+                label: "Server Address",
                 type: "text",
-                value: serverId,
-                onChange: onServerIdChange,
+                value: serverAddress,
+                onChange: onServerAddressChange,
                 placeholder: "0x...",
-                description: "The Ethereum address of the server to trust",
+                description: "The Ethereum address of the server",
+                required: true,
+              },
+              {
+                name: "publicKey",
+                label: "Public Key",
+                type: "text",
+                value: serverPublicKey,
+                onChange: onServerPublicKeyChange,
+                placeholder: "0x...",
+                description: "The server's public key",
                 required: true,
               },
               {
@@ -1086,6 +1107,16 @@ export function UserDashboardView({
                 onChange: onServerUrlChange,
                 placeholder: "https://...",
                 description: "The API endpoint URL of the server",
+                required: true,
+              },
+              {
+                name: "owner",
+                label: "Owner Address",
+                type: "text",
+                value: ownerAddress,
+                onChange: onOwnerAddressChange,
+                placeholder: "0x...",
+                description: "The owner address of the server",
                 required: true,
               },
             ]}
@@ -1176,7 +1207,9 @@ export function UserDashboardView({
             <Table aria-label="Trusted servers table" removeWrapper>
               <TableHeader>
                 <TableColumn>Server Address</TableColumn>
+                <TableColumn>Public Key</TableColumn>
                 <TableColumn>URL</TableColumn>
+                <TableColumn>Owner</TableColumn>
                 <TableColumn>Actions</TableColumn>
               </TableHeader>
               <TableBody>
@@ -1184,14 +1217,32 @@ export function UserDashboardView({
                   <TableRow key={server.id}>
                     <TableCell>
                       <AddressDisplay
-                        address={server.id}
+                        address={server.serverAddress || server.id}
                         truncate={true}
                         showCopy={true}
                         showExternalLink={true}
                       />
                     </TableCell>
                     <TableCell>
-                      {server.url && (
+                      {server.publicKey ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-mono text-default-600 max-w-32 truncate">
+                            {server.publicKey}
+                          </span>
+                          <CopyButton
+                            value={server.publicKey}
+                            tooltip="Copy public key"
+                            isInline
+                          />
+                        </div>
+                      ) : (
+                        <span className="text-sm text-default-400">
+                          Not available
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {server.url ? (
                         <div className="flex items-center gap-2">
                           <Button
                             as="a"
@@ -1210,6 +1261,24 @@ export function UserDashboardView({
                             isInline
                           />
                         </div>
+                      ) : (
+                        <span className="text-sm text-default-400">
+                          Not available
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {server.owner ? (
+                        <AddressDisplay
+                          address={server.owner}
+                          truncate={true}
+                          showCopy={true}
+                          showExternalLink={true}
+                        />
+                      ) : (
+                        <span className="text-sm text-default-400">
+                          Not available
+                        </span>
                       )}
                     </TableCell>
                     <TableCell>

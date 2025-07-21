@@ -1707,9 +1707,12 @@ export default function Home() {
 
       console.info("✅ Server discovery successful:", serverInfo);
 
-      // Auto-populate the form fields
+      // Auto-populate the form fields for addAndTrustServer
       setServerId(serverInfo.serverId);
       setServerUrl(serverInfo.serverUrl);
+      setServerAddress(serverInfo.serverId); // Server address is the same as serverId
+      setServerPublicKey(serverInfo.publicKey || "");
+      setOwnerAddress(address); // Current user is the owner
 
       // Return the discovered server info
       return serverInfo;
@@ -1725,128 +1728,12 @@ export default function Home() {
   };
 
   const handleTrustServer = async () => {
-    if (!vana || !address) return;
-
-    // Validate inputs
-    if (!serverId.trim()) {
-      setTrustServerError("Please provide a server ID (address)");
-      return;
-    }
-
-    if (!serverUrl.trim()) {
-      setTrustServerError("Please provide a server URL");
-      return;
-    }
-
-    // Basic URL validation
-    try {
-      new URL(serverUrl);
-    } catch {
-      setTrustServerError("Please provide a valid URL");
-      return;
-    }
-
-    setIsTrustingServer(true);
-    setTrustServerError("");
-
-    try {
-      await vana.permissions.trustServer({
-        serverId: serverId as `0x${string}`,
-        serverUrl: serverUrl,
-      });
-
-      // Success - form shows success via trustServerError being cleared
-      // Refresh trusted servers list
-      await loadUserTrustedServers();
-    } catch (error) {
-      setTrustServerError(
-        error instanceof Error ? error.message : "Failed to trust server",
-      );
-    } finally {
-      setIsTrustingServer(false);
-    }
-  };
-
-  const handleTrustServerGasless = async (
-    clearFieldsOnSuccess = true,
-    overrideServerId?: string,
-    overrideServerUrl?: string,
-  ) => {
     if (!vana || !address) {
-      console.error("❌ Trust server failed: Missing vana instance or address");
+      setTrustServerError("Wallet not connected");
       return;
     }
 
-    // Use override values if provided, otherwise use state values
-    const actualServerId = overrideServerId || serverId;
-    const actualServerUrl = overrideServerUrl || serverUrl;
-
-    // Validate inputs
-    if (!actualServerId.trim()) {
-      console.error("❌ Trust server failed: Missing server ID");
-      setTrustServerError("Please provide a server ID");
-      return;
-    }
-
-    if (!actualServerUrl.trim()) {
-      console.error("❌ Trust server failed: Missing server URL");
-      setTrustServerError("Please provide a server URL");
-      return;
-    }
-
-    // Basic URL validation
-    try {
-      new URL(actualServerUrl);
-    } catch {
-      console.error("❌ Trust server failed: Invalid URL format");
-      setTrustServerError("Please provide a valid URL");
-      return;
-    }
-
-    console.info("🔄 Starting trust server with signature...", {
-      serverId: actualServerId,
-      serverUrl: actualServerUrl,
-    });
-
-    setIsTrustingServer(true);
-    setTrustServerError("");
-
-    try {
-      await vana.permissions.trustServerWithSignature({
-        serverId: actualServerId as `0x${string}`,
-        serverUrl: actualServerUrl,
-      });
-
-      console.info("✅ Trust server with signature completed successfully!");
-
-      // Success - form shows success via trustServerError being cleared
-      // Clear the form fields on success only if requested
-      if (clearFieldsOnSuccess) {
-        setServerId("");
-        setServerUrl("");
-      }
-      // Refresh trusted servers list
-      await loadUserTrustedServers();
-      console.info("✅ Trusted servers list refreshed");
-    } catch (error) {
-      console.error("❌ Trust server with signature failed:", error);
-      setTrustServerError(
-        error instanceof Error ? error.message : "Failed to trust server",
-      );
-    } finally {
-      setIsTrustingServer(false);
-    }
-  };
-
-  const _handleAddAndTrustServer = async () => {
-    if (!vana || !address) {
-      console.error(
-        "❌ Add and trust server failed: Missing vana instance or address",
-      );
-      return;
-    }
-
-    // Validate inputs for add new server mode
+    // Validate all required fields for addAndTrustServer
     if (!ownerAddress.trim()) {
       setTrustServerError("Please provide an owner address");
       return;
@@ -1888,13 +1775,6 @@ export default function Home() {
       return;
     }
 
-    console.info("🔄 Starting add and trust server...", {
-      owner: ownerAddress,
-      serverAddress: serverAddress,
-      publicKey: serverPublicKey,
-      serverUrl: serverUrl,
-    });
-
     setIsTrustingServer(true);
     setTrustServerError("");
 
@@ -1906,25 +1786,134 @@ export default function Home() {
         serverUrl: serverUrl,
       };
 
-      if (appConfig.useGaslessTransactions) {
-        await vana.permissions.addAndTrustServerWithSignature(params);
-      } else {
-        await vana.permissions.addAndTrustServer(params);
-      }
+      await vana.permissions.addAndTrustServer(params);
 
-      console.info("✅ Add and trust server completed successfully!");
-
-      // Clear the form fields on success
+      // Success - clear form
       setOwnerAddress("");
       setServerAddress("");
       setServerPublicKey("");
       setServerUrl("");
+      setServerId(""); // Also clear this if it's still used in UI
+
+      // Refresh trusted servers list
+      await loadUserTrustedServers();
+    } catch (error) {
+      setTrustServerError(
+        error instanceof Error
+          ? error.message
+          : "Failed to add and trust server",
+      );
+    } finally {
+      setIsTrustingServer(false);
+    }
+  };
+
+  const handleTrustServerGasless = async (
+    clearFieldsOnSuccess = true,
+    overrideOwnerAddress?: string,
+    overrideServerAddress?: string,
+    overrideServerPublicKey?: string,
+    overrideServerUrl?: string,
+  ) => {
+    if (!vana || !address) {
+      console.error(
+        "❌ Add and trust server failed: Missing vana instance or address",
+      );
+      return;
+    }
+
+    // Use override values if provided, otherwise use state values
+    const actualOwnerAddress = overrideOwnerAddress || ownerAddress;
+    const actualServerAddress = overrideServerAddress || serverAddress;
+    const actualServerPublicKey = overrideServerPublicKey || serverPublicKey;
+    const actualServerUrl = overrideServerUrl || serverUrl;
+
+    // Validate all required fields
+    if (!actualOwnerAddress.trim()) {
+      setTrustServerError("Please provide an owner address");
+      return;
+    }
+    if (!actualServerAddress.trim()) {
+      setTrustServerError("Please provide a server address");
+      return;
+    }
+    if (!actualServerPublicKey.trim()) {
+      setTrustServerError("Please provide a server public key");
+      return;
+    }
+    if (!actualServerUrl.trim()) {
+      setTrustServerError("Please provide a server URL");
+      return;
+    }
+
+    // Basic URL validation
+    try {
+      new URL(actualServerUrl);
+    } catch {
+      setTrustServerError("Please provide a valid URL");
+      return;
+    }
+
+    // Validate addresses (basic format check)
+    if (
+      !actualOwnerAddress.startsWith("0x") ||
+      actualOwnerAddress.length !== 42
+    ) {
+      setTrustServerError("Please provide a valid owner address");
+      return;
+    }
+    if (
+      !actualServerAddress.startsWith("0x") ||
+      actualServerAddress.length !== 42
+    ) {
+      setTrustServerError("Please provide a valid server address");
+      return;
+    }
+    if (!actualServerPublicKey.startsWith("0x")) {
+      setTrustServerError(
+        "Please provide a valid public key (must start with 0x)",
+      );
+      return;
+    }
+
+    console.info("🔄 Starting add and trust server with signature...", {
+      owner: actualOwnerAddress,
+      serverAddress: actualServerAddress,
+      publicKey: actualServerPublicKey,
+      serverUrl: actualServerUrl,
+    });
+
+    setIsTrustingServer(true);
+    setTrustServerError("");
+
+    try {
+      const params: AddAndTrustServerParams = {
+        owner: actualOwnerAddress as `0x${string}`,
+        serverAddress: actualServerAddress as `0x${string}`,
+        publicKey: actualServerPublicKey as `0x${string}`,
+        serverUrl: actualServerUrl,
+      };
+
+      await vana.permissions.addAndTrustServerWithSignature(params);
+
+      console.info(
+        "✅ Add and trust server with signature completed successfully!",
+      );
+
+      // Clear the form fields on success only if requested
+      if (clearFieldsOnSuccess) {
+        setOwnerAddress("");
+        setServerAddress("");
+        setServerPublicKey("");
+        setServerUrl("");
+        setServerId(""); // Also clear this if it's still used in UI
+      }
 
       // Refresh trusted servers list
       await loadUserTrustedServers();
       console.info("✅ Trusted servers list refreshed");
     } catch (error) {
-      console.error("❌ Add and trust server failed:", error);
+      console.error("❌ Add and trust server with signature failed:", error);
       setTrustServerError(
         error instanceof Error
           ? error.message
@@ -2308,7 +2297,7 @@ export default function Home() {
     onQueryModeChange: setTrustedServerQueryMode,
     userAddress: address,
     chainId: chainId || 14800,
-    vana: sdk || null,
+    vana: sdk as Vana,
     // Upload data functionality
     uploadInputMode,
     onUploadInputModeChange: setUploadInputMode,
@@ -2414,14 +2403,14 @@ export default function Home() {
     isLoadingRefiners,
     onRefreshRefiners: loadRefiners,
     chainId: chainId || 14800,
-    vana: sdk || null,
-    walletClient: walletClientInstance || null,
+    vana: sdk as Vana,
+    walletClient: walletClientInstance!,
   });
 
   const createDemoExperienceProps = (
     sdk: typeof vana,
   ): DemoExperienceViewProps => ({
-    vana: sdk || null,
+    vana: sdk as Vana,
     serverId,
     onServerIdChange: setServerId,
     serverUrl,

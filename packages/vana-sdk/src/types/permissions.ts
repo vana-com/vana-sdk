@@ -425,15 +425,13 @@ export interface Server {
 }
 
 /**
- * Parameters for trusting a server
+ * Parameters for trusting an existing server
  *
  * @category Permissions
  */
 export interface TrustServerParams {
   /** Server ID (address) */
   serverId: Address;
-  /** Server URL */
-  serverUrl: string;
 }
 
 /**

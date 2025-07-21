@@ -50,10 +50,7 @@ vi.mock("../abi", () => ({
     {
       name: "trustServer",
       type: "function",
-      inputs: [
-        { name: "serverId", type: "uint256" },
-        { name: "serverUrl", type: "string" },
-      ],
+      inputs: [{ name: "serverId", type: "uint256" }],
       outputs: [],
     },
     {
@@ -156,7 +153,6 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
     it("should successfully trust a server", async () => {
       const params = {
         serverId: "0x0000000000000000000000000000000000000001" as Address,
-        serverUrl: "https://example.com",
       };
 
       const result = await controller.trustServer(params);
@@ -179,7 +175,6 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
 
       const params = {
         serverId: "0x0000000000000000000000000000000000000001" as Address,
-        serverUrl: "https://example.com",
       };
 
       await expect(controller.trustServer(params)).rejects.toThrow(
@@ -196,7 +191,6 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
 
       const params = {
         serverId: "0x0000000000000000000000000000000000000001" as Address,
-        serverUrl: "https://example.com",
       };
 
       const result = await controller.trustServerWithSignature(params);
@@ -209,7 +203,6 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       // No relayer callbacks, should use direct transaction
       const params = {
         serverId: "0x0000000000000000000000000000000000000001" as Address,
-        serverUrl: "https://example.com",
       };
 
       const result = await controller.trustServerWithSignature(params);
@@ -232,7 +225,6 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
 
       const params = {
         serverId: "0x0000000000000000000000000000000000000001" as Address,
-        serverUrl: "https://example.com",
       };
 
       await expect(controller.trustServerWithSignature(params)).rejects.toThrow(
@@ -247,7 +239,6 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
 
       const params = {
         serverId: "0x0000000000000000000000000000000000000001" as Address,
-        serverUrl: "https://example.com",
       };
 
       await expect(controller.trustServerWithSignature(params)).rejects.toThrow(
@@ -264,7 +255,6 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
 
       const params = {
         serverId: "0x0000000000000000000000000000000000000001" as Address,
-        serverUrl: "https://example.com",
       };
 
       await expect(controller.trustServerWithSignature(params)).rejects.toThrow(
@@ -277,7 +267,6 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
 
       const params = {
         serverId: "0x0000000000000000000000000000000000000001" as Address,
-        serverUrl: "https://example.com",
       };
 
       await expect(controller.trustServerWithSignature(params)).rejects.toThrow(
@@ -637,8 +626,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         primaryType: "TrustServer" as const,
         message: {
           nonce: BigInt(1),
-          serverId: "0x0000000000000000000000000000000000000001" as Address,
-          serverUrl: "https://example.com",
+          serverId: BigInt("0x0000000000000000000000000000000000000001"),
         },
       };
 
@@ -663,8 +651,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         primaryType: "TrustServer" as const,
         message: {
           nonce: BigInt(1),
-          serverId: "0x0000000000000000000000000000000000000001" as Address,
-          serverUrl: "https://example.com",
+          serverId: BigInt("0x0000000000000000000000000000000000000001"),
         },
       };
 
@@ -693,8 +680,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         primaryType: "TrustServer" as const,
         message: {
           nonce: BigInt(1),
-          serverId: "0x0000000000000000000000000000000000000001" as Address,
-          serverUrl: "https://example.com",
+          serverId: BigInt("0x0000000000000000000000000000000000000001"),
         },
       };
 

@@ -5,6 +5,7 @@ import type {
   PermissionGrantTypedData,
   TrustServerTypedData,
   UntrustServerTypedData,
+  AddAndTrustServerTypedData,
   GenericTypedData,
   GrantFile,
 } from "./permissions";
@@ -109,6 +110,18 @@ export interface RelayerCallbacks {
    */
   submitUntrustServer?: (
     typedData: UntrustServerTypedData,
+    signature: Hash,
+  ) => Promise<Hash>;
+
+  /**
+   * Submit a signed add and trust server transaction for relay
+   *
+   * @param typedData - The EIP-712 typed data that was signed
+   * @param signature - The user's signature
+   * @returns Promise resolving to the transaction hash
+   */
+  submitAddAndTrustServer?: (
+    typedData: AddAndTrustServerTypedData,
     signature: Hash,
   ) => Promise<Hash>;
 

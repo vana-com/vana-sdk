@@ -12,6 +12,9 @@ import {
   UntrustServerInput,
   TrustServerTypedData,
   UntrustServerTypedData,
+  AddAndTrustServerParams,
+  AddAndTrustServerInput,
+  AddAndTrustServerTypedData,
   Server,
   TrustedServerInfo,
   PaginatedTrustedServers,
@@ -526,8 +529,7 @@ export class PermissionsController {
     try {
       const trustServerInput: TrustServerInput = {
         nonce: BigInt(typedData.message.nonce),
-        serverId: typedData.message.serverId,
-        serverUrl: typedData.message.serverUrl,
+        serverId: BigInt(typedData.message.serverId),
       };
 
       return await this.submitTrustServerTransaction(
@@ -560,7 +562,7 @@ export class PermissionsController {
           throw new ServerUrlMismatchError(
             existingUrl,
             providedUrl,
-            typedData.message.serverId,
+            typedData.message.serverId.toString(),
           );
         }
       }
@@ -1398,8 +1400,7 @@ export class PermissionsController {
       // Create trust server message
       const trustServerInput: TrustServerInput = {
         nonce,
-        serverId: params.serverId,
-        serverUrl: params.serverUrl,
+        serverId: BigInt(params.serverId),
       };
 
       // Create typed data
@@ -1498,7 +1499,7 @@ export class PermissionsController {
     const nonce = await this.getUserNonce();
     const untrustServerInput: UntrustServerInput = {
       nonce,
-      serverId: params.serverId,
+      serverId: BigInt(params.serverId),
     };
 
     return await this.submitDirectUntrustTransaction(untrustServerInput);
@@ -1517,7 +1518,7 @@ export class PermissionsController {
       // Create untrust server message
       const untrustServerInput: UntrustServerInput = {
         nonce,
-        serverId: params.serverId,
+        serverId: BigInt(params.serverId),
       };
 
       // Create typed data
@@ -1560,6 +1561,139 @@ export class PermissionsController {
         );
       }
       throw new BlockchainError("Untrust server failed with unknown error");
+    }
+  }
+
+  /**
+   * Adds and trusts a new server in a single transaction.
+   *
+   * @param params - Parameters for adding and trusting the server
+   * @returns Promise resolving to transaction hash
+   *
+   * @example
+   * ```typescript
+   * const txHash = await vana.permissions.addAndTrustServer({
+   *   owner: '0x123...',
+   *   serverAddress: '0x456...',
+   *   publicKey: '0x789...',
+   *   serverUrl: 'https://myserver.example.com'
+   * });
+   * console.log('Server added and trusted in transaction:', txHash);
+   * ```
+   */
+  async addAndTrustServer(params: AddAndTrustServerParams): Promise<Hash> {
+    try {
+      const chainId = await this.context.walletClient.getChainId();
+      const DataPortabilityServersAddress = getContractAddress(
+        chainId,
+        "DataPortabilityServers",
+      );
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
+
+      // Submit directly to the contract
+      const txHash = await this.context.walletClient.writeContract({
+        address: DataPortabilityServersAddress,
+        abi: DataPortabilityServersAbi,
+        functionName: "addAndTrustServer",
+        args: [
+          {
+            owner: params.owner,
+            serverAddress: params.serverAddress,
+            publicKey: params.publicKey,
+            serverUrl: params.serverUrl,
+          },
+        ],
+        account:
+          this.context.walletClient.account || (await this.getUserAddress()),
+        chain: this.context.walletClient.chain || null,
+      });
+
+      return txHash;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("rejected")) {
+        throw new UserRejectedRequestError("User rejected the transaction");
+      }
+      throw new BlockchainError(
+        `Add and trust server failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Adds and trusts a new server using a signature (gasless transaction).
+   *
+   * @param params - Parameters for adding and trusting the server
+   * @returns Promise resolving to transaction hash
+   *
+   * @example
+   * ```typescript
+   * const txHash = await vana.permissions.addAndTrustServerWithSignature({
+   *   owner: '0x123...',
+   *   serverAddress: '0x456...',
+   *   publicKey: '0x789...',
+   *   serverUrl: 'https://myserver.example.com'
+   * });
+   * console.log('Server added and trusted gaslessly:', txHash);
+   * ```
+   */
+  async addAndTrustServerWithSignature(
+    params: AddAndTrustServerParams,
+  ): Promise<Hash> {
+    try {
+      const nonce = await this.getUserNonce();
+
+      // Create add and trust server message
+      const addAndTrustServerInput: AddAndTrustServerInput = {
+        nonce,
+        owner: params.owner,
+        serverAddress: params.serverAddress,
+        publicKey: params.publicKey,
+        serverUrl: params.serverUrl,
+      };
+
+      // Create typed data
+      const typedData = await this.composeAddAndTrustServerMessage(
+        addAndTrustServerInput,
+      );
+
+      // Sign the typed data
+      const signature = await this.signTypedData(
+        typedData as unknown as GenericTypedData,
+      );
+
+      // Submit via relayer callbacks or direct transaction
+      if (this.context.relayerCallbacks?.submitAddAndTrustServer) {
+        return await this.context.relayerCallbacks.submitAddAndTrustServer(
+          typedData,
+          signature,
+        );
+      } else {
+        return await this.submitAddAndTrustServerTransaction(
+          addAndTrustServerInput,
+          signature,
+        );
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        // Re-throw known Vana errors directly
+        if (
+          error instanceof RelayerError ||
+          error instanceof UserRejectedRequestError ||
+          error instanceof SerializationError ||
+          error instanceof SignatureError ||
+          error instanceof NetworkError ||
+          error instanceof NonceError
+        ) {
+          throw error;
+        }
+        throw new BlockchainError(
+          `Add and trust server failed: ${error.message}`,
+          error,
+        );
+      }
+      throw new BlockchainError(
+        "Add and trust server failed with unknown error",
+      );
     }
   }
 
@@ -1911,8 +2045,7 @@ export class PermissionsController {
       types: {
         TrustServer: [
           { name: "nonce", type: "uint256" },
-          { name: "serverId", type: "address" },
-          { name: "serverUrl", type: "string" },
+          { name: "serverId", type: "uint256" },
         ],
       },
       primaryType: "TrustServer",
@@ -1936,12 +2069,78 @@ export class PermissionsController {
       types: {
         UntrustServer: [
           { name: "nonce", type: "uint256" },
-          { name: "serverId", type: "address" },
+          { name: "serverId", type: "uint256" },
         ],
       },
       primaryType: "UntrustServer",
       message: input,
     };
+  }
+
+  /**
+   * Composes EIP-712 typed data for AddAndTrustServer.
+   *
+   * @param input - The add and trust server input data containing server details
+   * @returns Promise resolving to the typed data structure for add and trust server
+   */
+  private async composeAddAndTrustServerMessage(
+    input: AddAndTrustServerInput,
+  ): Promise<AddAndTrustServerTypedData> {
+    const domain = await this.getPermissionDomain();
+    return {
+      domain,
+      types: {
+        AddAndTrustServer: [
+          { name: "nonce", type: "uint256" },
+          { name: "owner", type: "address" },
+          { name: "serverAddress", type: "address" },
+          { name: "publicKey", type: "bytes" },
+          { name: "serverUrl", type: "string" },
+        ],
+      },
+      primaryType: "AddAndTrustServer",
+      message: input,
+    };
+  }
+
+  /**
+   * Submits an add and trust server transaction directly to the blockchain.
+   *
+   * @param addAndTrustServerInput - The add and trust server input data containing server details
+   * @param signature - The cryptographic signature for the transaction
+   * @returns Promise resolving to the transaction hash
+   */
+  private async submitAddAndTrustServerTransaction(
+    addAndTrustServerInput: AddAndTrustServerInput,
+    signature: Hash,
+  ): Promise<Hash> {
+    const chainId = await this.context.walletClient.getChainId();
+    const DataPortabilityServersAddress = getContractAddress(
+      chainId,
+      "DataPortabilityServers",
+    );
+    const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
+
+    const txHash = await this.context.walletClient.writeContract({
+      address: DataPortabilityServersAddress,
+      abi: DataPortabilityServersAbi,
+      functionName: "addAndTrustServerWithSignature",
+      args: [
+        {
+          nonce: addAndTrustServerInput.nonce,
+          owner: addAndTrustServerInput.owner,
+          serverAddress: addAndTrustServerInput.serverAddress,
+          publicKey: addAndTrustServerInput.publicKey,
+          serverUrl: addAndTrustServerInput.serverUrl,
+        },
+        signature,
+      ],
+      account:
+        this.context.walletClient.account || (await this.getUserAddress()),
+      chain: this.context.walletClient.chain || null,
+    });
+
+    return txHash;
   }
 
   /**

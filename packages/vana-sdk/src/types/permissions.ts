@@ -447,6 +447,40 @@ export interface UntrustServerParams {
 }
 
 /**
+ * Parameters for adding and trusting a new server
+ *
+ * @category Permissions
+ */
+export interface AddAndTrustServerParams {
+  /** Server owner address */
+  owner: Address;
+  /** Server address */
+  serverAddress: Address;
+  /** Server public key */
+  publicKey: `0x${string}`;
+  /** Server URL */
+  serverUrl: string;
+}
+
+/**
+ * Input for adding and trusting a server with signature (gasless)
+ *
+ * @category Permissions
+ */
+export interface AddAndTrustServerInput {
+  /** User nonce */
+  nonce: bigint;
+  /** Server owner address */
+  owner: Address;
+  /** Server address */
+  serverAddress: Address;
+  /** Server public key */
+  publicKey: `0x${string}`;
+  /** Server URL */
+  serverUrl: string;
+}
+
+/**
  * Input for trusting a server with signature (gasless)
  *
  * @category Permissions
@@ -454,10 +488,8 @@ export interface UntrustServerParams {
 export interface TrustServerInput {
   /** User nonce */
   nonce: bigint;
-  /** Server ID (address) */
-  serverId: Address;
-  /** Server URL */
-  serverUrl: string;
+  /** Server ID */
+  serverId: bigint;
 }
 
 /**
@@ -468,8 +500,8 @@ export interface TrustServerInput {
 export interface UntrustServerInput {
   /** User nonce */
   nonce: bigint;
-  /** Server ID (address) */
-  serverId: Address;
+  /** Server ID */
+  serverId: bigint;
 }
 
 /**
@@ -491,6 +523,27 @@ export interface TrustServerTypedData {
   primaryType: "TrustServer";
   /** Message to sign */
   message: TrustServerInput;
+}
+
+/**
+ * EIP-712 typed data for AddAndTrustServer
+ *
+ * @category Permissions
+ */
+export interface AddAndTrustServerTypedData {
+  /** EIP-712 domain */
+  domain: PermissionGrantDomain;
+  /** EIP-712 types */
+  types: {
+    AddAndTrustServer: Array<{
+      name: string;
+      type: string;
+    }>;
+  };
+  /** Primary type */
+  primaryType: "AddAndTrustServer";
+  /** Message to sign */
+  message: AddAndTrustServerInput;
 }
 
 /**

@@ -27,6 +27,7 @@ import {
   GenericTypedData,
   TrustServerTypedData,
   UntrustServerTypedData,
+  AddAndTrustServerParams,
   GrantFile,
   Hash,
   Address,
@@ -230,6 +231,12 @@ export default function Home() {
   const [serverUrl, setServerUrl] = useState<string>("");
   const [trustServerError, setTrustServerError] = useState<string>("");
   const [isTrustingServer, setIsTrustingServer] = useState(false);
+
+  // Add new server state
+  const [_serverMode, _setServerMode] = useState<"trust" | "add">("trust");
+  const [ownerAddress, setOwnerAddress] = useState<string>("");
+  const [serverAddress, setServerAddress] = useState<string>("");
+  const [serverPublicKey, setServerPublicKey] = useState<string>("");
   const [trustedServers, setTrustedServers] = useState<
     Array<{
       id: string;
@@ -1831,6 +1838,103 @@ export default function Home() {
     }
   };
 
+  const _handleAddAndTrustServer = async () => {
+    if (!vana || !address) {
+      console.error(
+        "❌ Add and trust server failed: Missing vana instance or address",
+      );
+      return;
+    }
+
+    // Validate inputs for add new server mode
+    if (!ownerAddress.trim()) {
+      setTrustServerError("Please provide an owner address");
+      return;
+    }
+    if (!serverAddress.trim()) {
+      setTrustServerError("Please provide a server address");
+      return;
+    }
+    if (!serverPublicKey.trim()) {
+      setTrustServerError("Please provide a server public key");
+      return;
+    }
+    if (!serverUrl.trim()) {
+      setTrustServerError("Please provide a server URL");
+      return;
+    }
+
+    // Basic URL validation
+    try {
+      new URL(serverUrl);
+    } catch {
+      setTrustServerError("Please provide a valid URL");
+      return;
+    }
+
+    // Validate addresses (basic format check)
+    if (!ownerAddress.startsWith("0x") || ownerAddress.length !== 42) {
+      setTrustServerError("Please provide a valid owner address");
+      return;
+    }
+    if (!serverAddress.startsWith("0x") || serverAddress.length !== 42) {
+      setTrustServerError("Please provide a valid server address");
+      return;
+    }
+    if (!serverPublicKey.startsWith("0x")) {
+      setTrustServerError(
+        "Please provide a valid public key (must start with 0x)",
+      );
+      return;
+    }
+
+    console.info("🔄 Starting add and trust server...", {
+      owner: ownerAddress,
+      serverAddress: serverAddress,
+      publicKey: serverPublicKey,
+      serverUrl: serverUrl,
+    });
+
+    setIsTrustingServer(true);
+    setTrustServerError("");
+
+    try {
+      const params: AddAndTrustServerParams = {
+        owner: ownerAddress as `0x${string}`,
+        serverAddress: serverAddress as `0x${string}`,
+        publicKey: serverPublicKey as `0x${string}`,
+        serverUrl: serverUrl,
+      };
+
+      if (appConfig.useGaslessTransactions) {
+        await vana.permissions.addAndTrustServerWithSignature(params);
+      } else {
+        await vana.permissions.addAndTrustServer(params);
+      }
+
+      console.info("✅ Add and trust server completed successfully!");
+
+      // Clear the form fields on success
+      setOwnerAddress("");
+      setServerAddress("");
+      setServerPublicKey("");
+      setServerUrl("");
+
+      // Refresh trusted servers list
+      await loadUserTrustedServers();
+      console.info("✅ Trusted servers list refreshed");
+    } catch (error) {
+      console.error("❌ Add and trust server failed:", error);
+      setTrustServerError(
+        error instanceof Error
+          ? error.message
+          : "Failed to add and trust server",
+      );
+    } finally {
+      setIsTrustingServer(false);
+    }
+  };
+
   const handleUntrustServer = async (serverIdToUntrust: string) => {
     if (!vana || !address) return;
 
@@ -2204,7 +2308,7 @@ export default function Home() {
     onQueryModeChange: setTrustedServerQueryMode,
     userAddress: address,
     chainId: chainId || 14800,
-    vana: sdk!,
+    vana: sdk || null,
     // Upload data functionality
     uploadInputMode,
     onUploadInputModeChange: setUploadInputMode,
@@ -2310,14 +2414,14 @@ export default function Home() {
     isLoadingRefiners,
     onRefreshRefiners: loadRefiners,
     chainId: chainId || 14800,
-    vana: sdk!,
-    walletClient: walletClientInstance!,
+    vana: sdk || null,
+    walletClient: walletClientInstance || null,
   });
 
   const createDemoExperienceProps = (
     sdk: typeof vana,
   ): DemoExperienceViewProps => ({
-    vana: sdk!,
+    vana: sdk || null,
     serverId,
     onServerIdChange: setServerId,
     serverUrl,

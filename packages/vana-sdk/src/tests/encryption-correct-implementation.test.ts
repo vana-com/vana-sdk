@@ -117,15 +117,14 @@ describe("Correct Vana Encryption Implementation", () => {
 
     describe("Password-based PGP encryption", () => {
       it("should encrypt data using wallet signature as password", async () => {
-        const { encryptUserData, decryptUserData } = await import(
-          "../utils/encryption"
-        );
+        const { encryptBlobWithSignedKey, decryptBlobWithSignedKey } =
+          await import("../utils/encryption");
         const testData = new Blob(["Hello Vana!"], { type: "text/plain" });
         const walletSignature =
           "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
 
         // This should use password-based PGP encryption
-        const encrypted = await encryptUserData(
+        const encrypted = await encryptBlobWithSignedKey(
           testData,
           walletSignature,
           mockPlatformAdapter,
@@ -133,7 +132,7 @@ describe("Correct Vana Encryption Implementation", () => {
         expect(encrypted).toBeInstanceOf(Blob);
 
         // Should be able to decrypt with same signature
-        const decrypted = await decryptUserData(
+        const decrypted = await decryptBlobWithSignedKey(
           encrypted,
           walletSignature,
           mockPlatformAdapter,
@@ -145,20 +144,19 @@ describe("Correct Vana Encryption Implementation", () => {
       });
 
       it("should round-trip encrypt/decrypt with wallet signature", async () => {
-        const { encryptUserData, decryptUserData } = await import(
-          "../utils/encryption"
-        );
+        const { encryptBlobWithSignedKey, decryptBlobWithSignedKey } =
+          await import("../utils/encryption");
         const originalText = "Hello Vana!";
         const testData = new Blob([originalText], { type: "text/plain" });
         const signature =
           "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
 
-        const encrypted = await encryptUserData(
+        const encrypted = await encryptBlobWithSignedKey(
           testData,
           signature,
           mockPlatformAdapter,
         );
-        const decrypted = await decryptUserData(
+        const decrypted = await decryptBlobWithSignedKey(
           encrypted,
           signature,
           mockPlatformAdapter,
@@ -169,21 +167,20 @@ describe("Correct Vana Encryption Implementation", () => {
       });
 
       it("should use password-based encryption (any string as password)", async () => {
-        const { encryptUserData, decryptUserData } = await import(
-          "../utils/encryption"
-        );
+        const { encryptBlobWithSignedKey, decryptBlobWithSignedKey } =
+          await import("../utils/encryption");
         const originalText = "Hello Vana!";
         const testData = new Blob([originalText], { type: "text/plain" });
         // Even an armored key can be used as a password in password-based encryption
         const password =
           "-----BEGIN PGP PUBLIC KEY BLOCK-----\nTest\n-----END PGP PUBLIC KEY BLOCK-----";
 
-        const encrypted = await encryptUserData(
+        const encrypted = await encryptBlobWithSignedKey(
           testData,
           password,
           mockPlatformAdapter,
         );
-        const decrypted = await decryptUserData(
+        const decrypted = await decryptBlobWithSignedKey(
           encrypted,
           password,
           mockPlatformAdapter,
@@ -301,7 +298,7 @@ describe("Correct Vana Encryption Implementation", () => {
         },
       ];
 
-      // This should orchestrate: generateEncryptionKey -> encryptUserData -> encryptWithWalletPublicKey -> addFileWithPermissions
+      // This should orchestrate: generateEncryptionKey -> encryptBlobWithSignedKey -> encryptWithWalletPublicKey -> addFileWithPermissions
       const result = await controller.uploadFileWithPermissions(
         testData,
         permissions,
@@ -357,7 +354,7 @@ describe("Correct Vana Encryption Implementation", () => {
     it("should decrypt files through controller methods using wallet signatures", async () => {
       // Test that the controller can decrypt files using the correct architecture
       const { DataController } = await import("../controllers/data");
-      const { encryptUserData } = await import("../utils/encryption");
+      const { encryptBlobWithSignedKey } = await import("../utils/encryption");
 
       const mockWalletClient = createMockWalletClient();
       (mockWalletClient.signMessage as any).mockResolvedValue("0xsignature123");
@@ -374,7 +371,7 @@ describe("Correct Vana Encryption Implementation", () => {
 
       // First encrypt some test data with the same signature
       const originalData = new Blob(["Hello Vana!"], { type: "text/plain" });
-      const encryptedData = await encryptUserData(
+      const encryptedData = await encryptBlobWithSignedKey(
         originalData,
         "0xsignature123",
         mockPlatformAdapter,
@@ -393,7 +390,7 @@ describe("Correct Vana Encryption Implementation", () => {
         addedAtBlock: BigInt(100),
       };
 
-      // This should orchestrate: generateEncryptionKey -> fetch -> decryptUserData
+      // This should orchestrate: generateEncryptionKey -> fetch -> decryptBlobWithSignedKey
       const decryptedBlob = await controller.decryptFile(testFile);
       const decryptedText = await decryptedBlob.text();
 
@@ -406,13 +403,16 @@ describe("Correct Vana Encryption Implementation", () => {
   });
 
   describe("Level 1: High-Level Client", () => {
-    it("should provide async new Vana() for initialization", async () => {
+    it("should provide Vana() factory for initialization", async () => {
       // Test that Vana client provides simple high-level API
-      const { Vana } = await import("../index.node");
+      const { Vana, VanaNodeImpl } = await import("../index.node");
 
-      // Check that the Vana class exists and can be instantiated
+      // Check that the Vana factory function exists and can be instantiated
       expect(Vana).toBeDefined();
       expect(typeof Vana).toBe("function");
+
+      const vana = Vana({ walletClient: mockWallet });
+      expect(vana).toBeInstanceOf(VanaNodeImpl);
     });
 
     it("should provide high-level data controller methods through Vana client", async () => {
@@ -434,7 +434,7 @@ describe("Correct Vana Encryption Implementation", () => {
       };
 
       // Create Vana instance
-      const vana = new Vana(config);
+      const vana = Vana(config);
 
       // Verify that the data controller methods are accessible
       expect(vana.data).toBeDefined();
@@ -470,7 +470,7 @@ describe("Correct Vana Encryption Implementation", () => {
         },
       };
 
-      const vana = new Vana(config);
+      const vana = Vana(config);
 
       // Mock the blockchain interaction
       vana.data.addFileWithPermissions = vi.fn().mockResolvedValue({
@@ -517,7 +517,7 @@ describe("Correct Vana Encryption Implementation", () => {
         walletClient: mockWalletClient,
       };
 
-      const vana = new Vana(config);
+      const vana = Vana(config);
 
       const validatorPublicKey =
         "04c68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";
@@ -542,7 +542,7 @@ describe("Correct Vana Encryption Implementation", () => {
       // 1. User encrypts data with wallet signature
       const {
         generateEncryptionKey,
-        encryptUserData,
+        encryptBlobWithSignedKey,
         encryptWithWalletPublicKey,
       } = await import("../utils/encryption");
 
@@ -554,7 +554,7 @@ describe("Correct Vana Encryption Implementation", () => {
         type: "text/plain",
       });
       const encryptionKey = await generateEncryptionKey(mockWallet);
-      const encryptedData = await encryptUserData(
+      const encryptedData = await encryptBlobWithSignedKey(
         originalData,
         encryptionKey,
         mockPlatformAdapter,

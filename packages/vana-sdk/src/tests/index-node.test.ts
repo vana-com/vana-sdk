@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { Vana } from "../index.node";
+import { Vana, VanaNodeImpl } from "../index.node";
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { mokshaTestnet } from "../config/chains";
@@ -64,11 +64,11 @@ describe("Node.js Index Entry Point", () => {
 
   describe("Vana constructor", () => {
     it("should create a Vana instance with wallet client config", async () => {
-      const vana = new Vana({
+      const vana = Vana({
         walletClient: validWalletClient as WalletConfig["walletClient"],
       });
 
-      expect(vana).toBeInstanceOf(Vana);
+      expect(vana).toBeInstanceOf(VanaNodeImpl);
       expect(vana).toBeDefined();
       expect(vana.permissions).toBeDefined();
       expect(vana.data).toBeDefined();
@@ -77,12 +77,12 @@ describe("Node.js Index Entry Point", () => {
     });
 
     it("should create a Vana instance with chain-only config", async () => {
-      const vana = new Vana({
+      const vana = Vana({
         chainId: validChain.id,
         account: testAccount,
       });
 
-      expect(vana).toBeInstanceOf(Vana);
+      expect(vana).toBeInstanceOf(VanaNodeImpl);
       expect(vana).toBeDefined();
       expect(vana.permissions).toBeDefined();
       expect(vana.data).toBeDefined();
@@ -91,7 +91,7 @@ describe("Node.js Index Entry Point", () => {
     });
 
     it("should create instance with full configuration", async () => {
-      const vana = new Vana({
+      const vana = Vana({
         walletClient: validWalletClient as WalletConfig["walletClient"],
         relayerCallbacks: {
           submitPermissionGrant: async (_typedData, _signature) => "0xtxhash",
@@ -99,13 +99,13 @@ describe("Node.js Index Entry Point", () => {
         },
       });
 
-      expect(vana).toBeInstanceOf(Vana);
+      expect(vana).toBeInstanceOf(VanaNodeImpl);
       expect(vana).toBeDefined();
       expect(vana.getConfig().relayerCallbacks).toBeDefined();
     });
 
     it("should reject with error for invalid configuration", async () => {
-      expect(() => new Vana({} as VanaConfig)).toThrow();
+      expect(() => Vana({} as VanaConfig)).toThrow();
     });
   });
 
@@ -201,7 +201,7 @@ describe("Node.js Index Entry Point", () => {
 
   describe("Node.js specific functionality", () => {
     it("should use NodePlatformAdapter by default", async () => {
-      const vana = new Vana({
+      const vana = Vana({
         chainId: validChain.id,
         account: testAccount,
       });

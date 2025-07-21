@@ -96,7 +96,7 @@ export function findMatchingPermission(
   console.info(
     "[findMatchingPermission] Checking for existing permissions with params:",
     {
-      to: params.to,
+      grantee: params.grantee,
       operation: params.operation,
       files: params.files,
       parameters: params.parameters,
@@ -105,7 +105,7 @@ export function findMatchingPermission(
 
   for (const permission of existingPermissions) {
     // Check grantee
-    if (permission.grantee.toLowerCase() !== params.to.toLowerCase()) {
+    if (permission.grantee.toLowerCase() !== params.grantee.toLowerCase()) {
       continue;
     }
 

@@ -47,7 +47,7 @@ describe("Grant Utilities", () => {
   };
 
   const mockParams = {
-    to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+    grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
     operation: "llm_inference",
     files: [1, 2, 3],
     parameters: { prompt: "test" },
@@ -66,7 +66,7 @@ describe("Grant Utilities", () => {
 
       expect(createGrantFile).toHaveBeenCalledWith(mockParams);
       expect(validateGrant).toHaveBeenCalledWith(mockGrantFile, {
-        grantee: mockParams.to,
+        grantee: mockParams.grantee,
         operation: mockParams.operation,
         schema: true,
       });

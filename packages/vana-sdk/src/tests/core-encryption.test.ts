@@ -42,8 +42,8 @@ vi.mock("../storage", () => ({
 
 // Mock the encryption utilities
 vi.mock("../utils/encryption", () => ({
-  encryptUserData: vi.fn(),
-  decryptUserData: vi.fn(),
+  encryptBlobWithSignedKey: vi.fn(),
+  decryptBlobWithSignedKey: vi.fn(),
 }));
 
 describe("VanaCore Encryption Methods", () => {
@@ -52,15 +52,15 @@ describe("VanaCore Encryption Methods", () => {
   );
 
   let vanaCore: VanaCore;
-  let mockEncryptUserData: ReturnType<typeof vi.fn>;
-  let mockDecryptUserData: ReturnType<typeof vi.fn>;
+  let mockEncryptBlob: ReturnType<typeof vi.fn>;
+  let mockDecryptBlob: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
 
     // Get mocked functions
-    mockEncryptUserData = vi.mocked(encryptionUtils.encryptUserData);
-    mockDecryptUserData = vi.mocked(encryptionUtils.decryptUserData);
+    mockEncryptBlob = vi.mocked(encryptionUtils.encryptBlobWithSignedKey);
+    mockDecryptBlob = vi.mocked(encryptionUtils.decryptBlobWithSignedKey);
 
     // Create VanaCore instance
     const walletClient = createWalletClient({
@@ -74,24 +74,24 @@ describe("VanaCore Encryption Methods", () => {
     });
   });
 
-  describe("encryptUserData", () => {
-    it("should call encryptUserData utility with correct parameters", async () => {
+  describe("encryptBlob", () => {
+    it("should call encryptBlobWithSignedKey utility with correct parameters", async () => {
       const testData = "test data to encrypt";
       const testSignature = "0x1234567890abcdef";
       const expectedBlob = new Blob(["encrypted"], {
         type: "application/octet-stream",
       });
 
-      mockEncryptUserData.mockResolvedValue(expectedBlob);
+      mockEncryptBlob.mockResolvedValue(expectedBlob);
 
-      const result = await vanaCore.encryptUserData(testData, testSignature);
+      const result = await vanaCore.encryptBlob(testData, testSignature);
 
-      expect(mockEncryptUserData).toHaveBeenCalledWith(
+      expect(mockEncryptBlob).toHaveBeenCalledWith(
         testData,
         testSignature,
         mockPlatformAdapter,
       );
-      expect(mockEncryptUserData).toHaveBeenCalledTimes(1);
+      expect(mockEncryptBlob).toHaveBeenCalledTimes(1);
       expect(result).toBe(expectedBlob);
     });
 
@@ -102,36 +102,36 @@ describe("VanaCore Encryption Methods", () => {
         type: "application/octet-stream",
       });
 
-      mockEncryptUserData.mockResolvedValue(expectedBlob);
+      mockEncryptBlob.mockResolvedValue(expectedBlob);
 
-      const result = await vanaCore.encryptUserData(testBlob, testSignature);
+      const result = await vanaCore.encryptBlob(testBlob, testSignature);
 
-      expect(mockEncryptUserData).toHaveBeenCalledWith(
+      expect(mockEncryptBlob).toHaveBeenCalledWith(
         testBlob,
         testSignature,
         mockPlatformAdapter,
       );
-      expect(mockEncryptUserData).toHaveBeenCalledTimes(1);
+      expect(mockEncryptBlob).toHaveBeenCalledTimes(1);
       expect(result).toBe(expectedBlob);
     });
 
-    it("should propagate errors from encryptUserData utility", async () => {
+    it("should propagate errors from encryptBlobWithSignedKey utility", async () => {
       const testData = "test data";
       const testSignature = "0x1234567890abcdef";
       const expectedError = new Error("Encryption failed");
 
-      mockEncryptUserData.mockRejectedValue(expectedError);
+      mockEncryptBlob.mockRejectedValue(expectedError);
 
       await expect(
-        vanaCore.encryptUserData(testData, testSignature),
+        vanaCore.encryptBlob(testData, testSignature),
       ).rejects.toThrow("Encryption failed");
 
-      expect(mockEncryptUserData).toHaveBeenCalledWith(
+      expect(mockEncryptBlob).toHaveBeenCalledWith(
         testData,
         testSignature,
         mockPlatformAdapter,
       );
-      expect(mockEncryptUserData).toHaveBeenCalledTimes(1);
+      expect(mockEncryptBlob).toHaveBeenCalledTimes(1);
     });
 
     it("should handle empty string data", async () => {
@@ -141,11 +141,11 @@ describe("VanaCore Encryption Methods", () => {
         type: "application/octet-stream",
       });
 
-      mockEncryptUserData.mockResolvedValue(expectedBlob);
+      mockEncryptBlob.mockResolvedValue(expectedBlob);
 
-      const result = await vanaCore.encryptUserData(testData, testSignature);
+      const result = await vanaCore.encryptBlob(testData, testSignature);
 
-      expect(mockEncryptUserData).toHaveBeenCalledWith(
+      expect(mockEncryptBlob).toHaveBeenCalledWith(
         testData,
         testSignature,
         mockPlatformAdapter,
@@ -160,11 +160,11 @@ describe("VanaCore Encryption Methods", () => {
         type: "application/octet-stream",
       });
 
-      mockEncryptUserData.mockResolvedValue(expectedBlob);
+      mockEncryptBlob.mockResolvedValue(expectedBlob);
 
-      const result = await vanaCore.encryptUserData(testData, longSignature);
+      const result = await vanaCore.encryptBlob(testData, longSignature);
 
-      expect(mockEncryptUserData).toHaveBeenCalledWith(
+      expect(mockEncryptBlob).toHaveBeenCalledWith(
         testData,
         longSignature,
         mockPlatformAdapter,
@@ -173,25 +173,25 @@ describe("VanaCore Encryption Methods", () => {
     });
   });
 
-  describe("decryptUserData", () => {
-    it("should call decryptUserData utility with correct parameters", async () => {
+  describe("decryptBlob", () => {
+    it("should call decryptBlobWithSignedKey utility with correct parameters", async () => {
       const testEncryptedData = "encrypted data";
       const testSignature = "0x1234567890abcdef";
       const expectedBlob = new Blob(["decrypted"], { type: "text/plain" });
 
-      mockDecryptUserData.mockResolvedValue(expectedBlob);
+      mockDecryptBlob.mockResolvedValue(expectedBlob);
 
-      const result = await vanaCore.decryptUserData(
+      const result = await vanaCore.decryptBlob(
         testEncryptedData,
         testSignature,
       );
 
-      expect(mockDecryptUserData).toHaveBeenCalledWith(
+      expect(mockDecryptBlob).toHaveBeenCalledWith(
         testEncryptedData,
         testSignature,
         mockPlatformAdapter,
       );
-      expect(mockDecryptUserData).toHaveBeenCalledTimes(1);
+      expect(mockDecryptBlob).toHaveBeenCalledTimes(1);
       expect(result).toBe(expectedBlob);
     });
 
@@ -202,36 +202,36 @@ describe("VanaCore Encryption Methods", () => {
       const testSignature = "0x1234567890abcdef";
       const expectedBlob = new Blob(["decrypted"], { type: "text/plain" });
 
-      mockDecryptUserData.mockResolvedValue(expectedBlob);
+      mockDecryptBlob.mockResolvedValue(expectedBlob);
 
-      const result = await vanaCore.decryptUserData(testBlob, testSignature);
+      const result = await vanaCore.decryptBlob(testBlob, testSignature);
 
-      expect(mockDecryptUserData).toHaveBeenCalledWith(
+      expect(mockDecryptBlob).toHaveBeenCalledWith(
         testBlob,
         testSignature,
         mockPlatformAdapter,
       );
-      expect(mockDecryptUserData).toHaveBeenCalledTimes(1);
+      expect(mockDecryptBlob).toHaveBeenCalledTimes(1);
       expect(result).toBe(expectedBlob);
     });
 
-    it("should propagate errors from decryptUserData utility", async () => {
+    it("should propagate errors from decryptBlobWithSignedKey utility", async () => {
       const testEncryptedData = "encrypted data";
       const testSignature = "0x1234567890abcdef";
       const expectedError = new Error("Decryption failed");
 
-      mockDecryptUserData.mockRejectedValue(expectedError);
+      mockDecryptBlob.mockRejectedValue(expectedError);
 
       await expect(
-        vanaCore.decryptUserData(testEncryptedData, testSignature),
+        vanaCore.decryptBlob(testEncryptedData, testSignature),
       ).rejects.toThrow("Decryption failed");
 
-      expect(mockDecryptUserData).toHaveBeenCalledWith(
+      expect(mockDecryptBlob).toHaveBeenCalledWith(
         testEncryptedData,
         testSignature,
         mockPlatformAdapter,
       );
-      expect(mockDecryptUserData).toHaveBeenCalledTimes(1);
+      expect(mockDecryptBlob).toHaveBeenCalledTimes(1);
     });
 
     it("should handle empty string encrypted data", async () => {
@@ -239,14 +239,14 @@ describe("VanaCore Encryption Methods", () => {
       const testSignature = "0x1234567890abcdef";
       const expectedBlob = new Blob(["decrypted"], { type: "text/plain" });
 
-      mockDecryptUserData.mockResolvedValue(expectedBlob);
+      mockDecryptBlob.mockResolvedValue(expectedBlob);
 
-      const result = await vanaCore.decryptUserData(
+      const result = await vanaCore.decryptBlob(
         testEncryptedData,
         testSignature,
       );
 
-      expect(mockDecryptUserData).toHaveBeenCalledWith(
+      expect(mockDecryptBlob).toHaveBeenCalledWith(
         testEncryptedData,
         testSignature,
         mockPlatformAdapter,
@@ -259,13 +259,13 @@ describe("VanaCore Encryption Methods", () => {
       const invalidSignature = "invalid-signature";
       const expectedError = new Error("Invalid signature format");
 
-      mockDecryptUserData.mockRejectedValue(expectedError);
+      mockDecryptBlob.mockRejectedValue(expectedError);
 
       await expect(
-        vanaCore.decryptUserData(testEncryptedData, invalidSignature),
+        vanaCore.decryptBlob(testEncryptedData, invalidSignature),
       ).rejects.toThrow("Invalid signature format");
 
-      expect(mockDecryptUserData).toHaveBeenCalledWith(
+      expect(mockDecryptBlob).toHaveBeenCalledWith(
         testEncryptedData,
         invalidSignature,
         mockPlatformAdapter,
@@ -282,30 +282,24 @@ describe("VanaCore Encryption Methods", () => {
       });
       const decryptedBlob = new Blob(["decrypted"], { type: "text/plain" });
 
-      mockEncryptUserData.mockResolvedValue(encryptedBlob);
-      mockDecryptUserData.mockResolvedValue(decryptedBlob);
+      mockEncryptBlob.mockResolvedValue(encryptedBlob);
+      mockDecryptBlob.mockResolvedValue(decryptedBlob);
 
       // Encrypt
-      const encrypted = await vanaCore.encryptUserData(
-        originalData,
-        testSignature,
-      );
+      const encrypted = await vanaCore.encryptBlob(originalData, testSignature);
       expect(encrypted).toBe(encryptedBlob);
 
       // Decrypt
-      const decrypted = await vanaCore.decryptUserData(
-        encrypted,
-        testSignature,
-      );
+      const decrypted = await vanaCore.decryptBlob(encrypted, testSignature);
       expect(decrypted).toBe(decryptedBlob);
 
       // Verify both methods were called with correct parameters
-      expect(mockEncryptUserData).toHaveBeenCalledWith(
+      expect(mockEncryptBlob).toHaveBeenCalledWith(
         originalData,
         testSignature,
         mockPlatformAdapter,
       );
-      expect(mockDecryptUserData).toHaveBeenCalledWith(
+      expect(mockDecryptBlob).toHaveBeenCalledWith(
         encryptedBlob,
         testSignature,
         mockPlatformAdapter,
@@ -317,13 +311,13 @@ describe("VanaCore Encryption Methods", () => {
       const testSignature = "0x1234567890abcdef";
       const expectedError = new Error("Platform adapter is null");
 
-      mockEncryptUserData.mockRejectedValue(expectedError);
+      mockEncryptBlob.mockRejectedValue(expectedError);
 
       await expect(
-        vanaCore.encryptUserData(testData, testSignature),
+        vanaCore.encryptBlob(testData, testSignature),
       ).rejects.toThrow("Platform adapter is null");
 
-      expect(mockEncryptUserData).toHaveBeenCalledWith(
+      expect(mockEncryptBlob).toHaveBeenCalledWith(
         testData,
         testSignature,
         mockPlatformAdapter,
@@ -337,12 +331,12 @@ describe("VanaCore Encryption Methods", () => {
         type: "application/octet-stream",
       });
 
-      mockEncryptUserData.mockResolvedValue(expectedBlob);
+      mockEncryptBlob.mockResolvedValue(expectedBlob);
 
-      await vanaCore.encryptUserData(testData, testSignature);
+      await vanaCore.encryptBlob(testData, testSignature);
 
       // Verify the exact platform adapter instance was passed
-      expect(mockEncryptUserData).toHaveBeenCalledWith(
+      expect(mockEncryptBlob).toHaveBeenCalledWith(
         testData,
         testSignature,
         mockPlatformAdapter,

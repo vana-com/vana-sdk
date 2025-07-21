@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { Vana } from "../index.browser";
+import { Vana, VanaBrowserImpl } from "../index.browser";
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { mokshaTestnet } from "../config/chains";
@@ -66,13 +66,13 @@ describe("Browser Index Entry Point", () => {
     expect(typeof Vana).toBe("function");
   });
 
-  describe("Async new Vana() factory method", () => {
+  describe("Vana() factory method", () => {
     it("should create Vana instance with wallet client config", async () => {
-      const vana = new Vana({
+      const vana = Vana({
         walletClient: validWalletClient,
       });
 
-      expect(vana).toBeInstanceOf(Vana);
+      expect(vana).toBeInstanceOf(VanaBrowserImpl);
       expect(vana.permissions).toBeDefined();
       expect(vana.data).toBeDefined();
       expect(vana.server).toBeDefined();
@@ -80,12 +80,12 @@ describe("Browser Index Entry Point", () => {
     });
 
     it("should create instance from chain config", async () => {
-      const vana = new Vana({
+      const vana = Vana({
         chainId: 14800,
         account: testAccount,
       });
 
-      expect(vana).toBeInstanceOf(Vana);
+      expect(vana).toBeInstanceOf(VanaBrowserImpl);
       expect(vana.permissions).toBeDefined();
       expect(vana.data).toBeDefined();
       expect(vana.server).toBeDefined();
@@ -93,7 +93,7 @@ describe("Browser Index Entry Point", () => {
     });
 
     it("should create instance with full configuration", async () => {
-      const vana = new Vana({
+      const vana = Vana({
         walletClient: validWalletClient,
         relayerCallbacks: {
           submitPermissionGrant: async (_typedData, _signature) => "0xtxhash",
@@ -101,15 +101,14 @@ describe("Browser Index Entry Point", () => {
         },
       });
 
-      expect(vana).toBeInstanceOf(Vana);
+      expect(vana).toBeInstanceOf(VanaBrowserImpl);
       expect(vana.getConfig().relayerCallbacks).toBeDefined();
     });
 
     it("should throw error for invalid configuration", () => {
-      expect(() => new Vana({} as VanaConfig)).toThrow();
+      expect(() => Vana({} as VanaConfig)).toThrow();
     });
   });
-
 
   it("should have default export", async () => {
     const module = await import("../index.browser");
@@ -125,8 +124,8 @@ describe("Browser Index Entry Point", () => {
     expect(module.ServerController).toBeDefined();
     expect(module.ProtocolController).toBeDefined();
     expect(module.generateEncryptionKey).toBeDefined();
-    expect(module.encryptUserData).toBeDefined();
-    expect(module.decryptUserData).toBeDefined();
+    expect(module.encryptBlobWithSignedKey).toBeDefined();
+    expect(module.decryptBlobWithSignedKey).toBeDefined();
     expect(module.mokshaTestnet).toBeDefined();
     expect(module.vanaMainnet).toBeDefined();
   });

@@ -11,7 +11,9 @@ global.fetch = mockFetch;
 // Mock encryption functions
 vi.mock("../utils/encryption", () => ({
   generateEncryptionKey: vi.fn().mockResolvedValue("mocked-encryption-key"),
-  encryptUserData: vi.fn().mockResolvedValue(new Blob(["encrypted-data"])),
+  encryptBlobWithSignedKey: vi
+    .fn()
+    .mockResolvedValue(new Blob(["encrypted-data"])),
   encryptWithWalletPublicKey: vi.fn().mockResolvedValue("mocked-encrypted-key"),
   DEFAULT_ENCRYPTION_SEED: "test-seed",
 }));

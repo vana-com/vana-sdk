@@ -16,15 +16,17 @@ import {
   TrustedServer,
   GetUserTrustedServersParams,
   GetUserTrustedServersResult,
+  EncryptedUploadParams,
+  UnencryptedUploadParams,
 } from "../types/index";
 import { ControllerContext } from "./permissions";
 import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../abi";
 import {
   generateEncryptionKey,
-  decryptUserData,
+  decryptBlobWithSignedKey,
   DEFAULT_ENCRYPTION_SEED,
-  encryptUserData,
+  encryptBlobWithSignedKey,
   encryptWithWalletPublicKey,
   decryptWithWalletPrivateKey,
 } from "../utils/encryption";
@@ -140,6 +142,9 @@ export class DataController {
    * - Grants permissions to specified applications
    * - Registers the file on the blockchain
    *
+   * When using permissions with encryption enabled (default), you must provide the public key
+   * for each permission recipient.
+   *
    * @param params - Upload parameters including content, filename, schema, and permissions
    * @returns Promise resolving to upload results with file ID and transaction hash
    * @throws {Error} When wallet is not connected or storage is not configured
@@ -160,18 +165,34 @@ export class DataController {
    *   schemaId: 1
    * });
    *
-   * // Upload with permissions
+   * // Upload with permissions (encrypted - requires publicKey)
    * const result = await vana.data.upload({
    *   content: "Data for AI analysis",
    *   filename: "analysis.txt",
    *   permissions: [{
-   *     to: "0x1234...",
+   *     grantee: "0x1234...",
    *     operation: "llm_inference",
-   *     parameters: { model: "gpt-4" }
+   *     parameters: { model: "gpt-4" },
+   *     publicKey: "0x04..." // Required when encrypt is true (default)
+   *   }]
+   * });
+   *
+   * // Upload without encryption
+   * const result = await vana.data.upload({
+   *   content: "Public data",
+   *   filename: "public.txt",
+   *   encrypt: false,
+   *   permissions: [{
+   *     grantee: "0x1234...",
+   *     operation: "read",
+   *     parameters: {}
    *   }]
    * });
    * ```
    */
+  async upload(params: EncryptedUploadParams): Promise<UploadResult>;
+  async upload(params: UnencryptedUploadParams): Promise<UploadResult>;
+  async upload(params: UploadParams): Promise<UploadResult>;
   async upload(params: UploadParams): Promise<UploadResult> {
     const {
       content,
@@ -253,7 +274,7 @@ export class DataController {
         );
 
         // Encrypt the data
-        finalBlob = await encryptUserData(
+        finalBlob = await encryptBlobWithSignedKey(
           blob,
           encryptionKey,
           this.context.platform,
@@ -262,9 +283,17 @@ export class DataController {
 
       // Step 4: Upload to storage
       if (!this.context.storageManager) {
-        throw new Error(
-          "Storage manager not configured. Please provide storage providers in VanaConfig.",
-        );
+        // Use centralized validation if available, otherwise fall back to old behavior
+        if (this.context.validateStorageRequired) {
+          this.context.validateStorageRequired();
+          // The validateStorageRequired method throws, so this line should never be reached
+          // but TypeScript doesn't know that, so we need this fallback
+          throw new Error("Storage validation failed");
+        } else {
+          throw new Error(
+            "Storage manager not configured. Please provide storage providers in VanaConfig.",
+          );
+        }
       }
 
       const uploadResult = await this.context.storageManager.upload(
@@ -287,10 +316,12 @@ export class DataController {
         encryptedPermissions = await Promise.all(
           permissions.map(async (permission) => {
             // Get public key for the permission recipient
+            // TypeScript should enforce this at compile time with proper typing,
+            // but we keep the runtime check for robustness
             const publicKey = permission.publicKey;
             if (!publicKey) {
               throw new Error(
-                `Public key required for permission to ${permission.to}`,
+                `Public key required for permission to ${permission.grantee} when encryption is enabled`,
               );
             }
 
@@ -301,7 +332,7 @@ export class DataController {
             );
 
             return {
-              account: permission.to,
+              account: permission.grantee,
               key: encryptedKey,
             };
           }),
@@ -358,6 +389,185 @@ export class DataController {
     } catch (error) {
       throw new Error(
         `Upload failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Decrypts a file owned by the user using their wallet signature.
+   *
+   * @remarks
+   * This is the high-level convenience method for decrypting user files, serving as the
+   * symmetrical counterpart to the `upload` method. It handles the complete decryption
+   * workflow including key generation, URL protocol detection, content fetching, and
+   * decryption.
+   *
+   * The method automatically:
+   * - Generates the decryption key from the user's wallet signature
+   * - Determines the appropriate fetch method based on the file URL protocol
+   * - Fetches the encrypted content from IPFS or standard HTTP URLs
+   * - Decrypts the content using the generated key
+   *
+   * For IPFS URLs, the method uses gateway fallback for improved reliability. For
+   * standard HTTP URLs, it uses a simple fetch. If you need custom authentication
+   * headers or specific gateway configurations, use the low-level primitives directly.
+   *
+   * @param file - The user file to decrypt (typically from getUserFiles)
+   * @param encryptionSeed - Optional custom encryption seed (defaults to Vana standard)
+   * @returns Promise resolving to the decrypted file content as a Blob
+   * @throws {Error} When the wallet is not connected
+   * @throws {Error} When fetching the encrypted content fails
+   * @throws {Error} When decryption fails (wrong key or corrupted data)
+   * @example
+   * ```typescript
+   * // Basic file decryption
+   * const files = await vana.data.getUserFiles({ owner: userAddress });
+   * const decryptedBlob = await vana.data.decryptFile(files[0]);
+   *
+   * // Convert to text
+   * const text = await decryptedBlob.text();
+   * console.log('Decrypted content:', text);
+   *
+   * // Convert to JSON
+   * const json = JSON.parse(await decryptedBlob.text());
+   * console.log('Decrypted data:', json);
+   *
+   * // With custom encryption seed
+   * const decryptedBlob = await vana.data.decryptFile(
+   *   files[0],
+   *   "My custom encryption seed"
+   * );
+   *
+   * // Save to file (in Node.js)
+   * const buffer = await decryptedBlob.arrayBuffer();
+   * fs.writeFileSync('decrypted-file.txt', Buffer.from(buffer));
+   * ```
+   */
+  async decryptFile(file: UserFile, encryptionSeed?: string): Promise<Blob> {
+    try {
+      // Step 1: Generate the decryption key from wallet signature
+      const encryptionKey = await generateEncryptionKey(
+        this.context.walletClient,
+        encryptionSeed || DEFAULT_ENCRYPTION_SEED,
+      );
+
+      // Step 2: Determine the protocol and fetch the encrypted content
+      let encryptedBlob: Blob;
+
+      try {
+        if (file.url.startsWith("ipfs://")) {
+          // Use IPFS fetcher with gateway fallback for reliability
+          encryptedBlob = await this.fetchFromIPFS(file.url);
+        } else {
+          // Use standard fetch for HTTP/HTTPS URLs
+          encryptedBlob = await this.fetch(file.url);
+        }
+      } catch (fetchError) {
+        // Handle network errors
+        const errorMessage =
+          fetchError instanceof Error ? fetchError.message : "Unknown error";
+
+        // Check for specific error types
+        if (
+          errorMessage.includes("Failed to fetch IPFS content") &&
+          errorMessage.includes("from all gateways")
+        ) {
+          // IPFS gateway failures - treat as network error
+          throw new Error(
+            "Network error: Cannot access the file URL. The file may be stored on a server that's not accessible or has CORS restrictions.",
+          );
+        } else if (errorMessage.includes("Empty response")) {
+          throw new Error("File is empty or could not be retrieved");
+        } else if (
+          errorMessage.includes("Network error:") ||
+          errorMessage.includes("Failed to fetch")
+        ) {
+          throw new Error(
+            "Network error: Cannot access the file URL. The file may be stored on a server that's not accessible or has CORS restrictions.",
+          );
+        } else if (errorMessage.includes("HTTP error!")) {
+          const statusMatch = errorMessage.match(/status: (\d+)/);
+          const status = statusMatch ? statusMatch[1] : "unknown";
+
+          if (status === "500") {
+            throw new Error(
+              "Network error: Cannot access the file URL. The file may be stored on a server that's not accessible or has CORS restrictions.",
+            );
+          } else if (status === "403") {
+            throw new Error(
+              "Access denied. You may not have permission to access this file",
+            );
+          } else if (status === "404") {
+            throw new Error(
+              "File not found: The encrypted file is no longer available at the stored URL.",
+            );
+          } else {
+            throw new Error(
+              "Network error: Cannot access the file URL. The file may be stored on a server that's not accessible or has CORS restrictions.",
+            );
+          }
+        }
+
+        // Re-throw other errors
+        throw fetchError;
+      }
+
+      // Check if blob is empty
+      if (encryptedBlob.size === 0) {
+        throw new Error("File is empty or could not be retrieved");
+      }
+
+      // Step 3: Decrypt the blob using the low-level primitive
+      let decryptedBlob: Blob;
+      try {
+        decryptedBlob = await decryptBlobWithSignedKey(
+          encryptedBlob,
+          encryptionKey,
+          this.context.platform,
+        );
+      } catch (decryptError) {
+        const errorMessage =
+          decryptError instanceof Error
+            ? decryptError.message
+            : "Unknown error";
+
+        // Map decryption errors to user-friendly messages
+        if (errorMessage.includes("not a valid OpenPGP message")) {
+          throw new Error(
+            "Invalid file format: This file doesn't appear to be encrypted with the Vana protocol",
+          );
+        } else if (errorMessage.includes("Session key decryption failed")) {
+          throw new Error("Wrong encryption key");
+        } else if (errorMessage.includes("Error decrypting message")) {
+          throw new Error("Wrong encryption key");
+        } else if (errorMessage.includes("File not found")) {
+          throw new Error(
+            "File not found: The encrypted file is no longer available",
+          );
+        } else {
+          // Re-throw the original error for other cases
+          throw decryptError;
+        }
+      }
+
+      return decryptedBlob;
+    } catch (error) {
+      // If it's already one of our formatted errors, re-throw it
+      if (
+        error instanceof Error &&
+        (error.message.includes("Network error:") ||
+          error.message.includes("Invalid file format:") ||
+          error.message.includes("Wrong encryption key") ||
+          error.message.includes("Access denied") ||
+          error.message.includes("File not found:") ||
+          error.message.includes("File is empty"))
+      ) {
+        throw error;
+      }
+
+      // Otherwise, wrap it
+      throw new Error(
+        `Failed to decrypt file: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }
@@ -1306,107 +1516,6 @@ export class DataController {
   }
 
   /**
-   * Decrypts a file that was encrypted using the Vana protocol.
-   *
-   * @param file - The UserFile object containing the file URL and metadata
-   * @param encryptionSeed - Optional custom encryption seed (defaults to Vana standard)
-   * @returns Promise resolving to the decrypted file as a Blob
-   *
-   * This method handles the complete flow of:
-   * 1. Generating the encryption key from the user's wallet signature
-   * 2. Fetching the encrypted file from the stored URL
-   * 3. Decrypting the file using the canonical Vana decryption method
-   */
-  async decryptFile(
-    file: UserFile,
-    encryptionSeed: string = DEFAULT_ENCRYPTION_SEED,
-  ): Promise<Blob> {
-    try {
-      // Step 1: Generate encryption key using the same method used for encryption
-      const encryptionKey = await generateEncryptionKey(
-        this.context.walletClient,
-        encryptionSeed,
-      );
-
-      // Step 2: Fetch the encrypted file from the URL
-      const fetchUrl = this.convertToDownloadUrl(file.url);
-      console.debug(
-        `Fetching encrypted file from URL: ${fetchUrl} (original: ${file.url})`,
-      );
-
-      const response = await fetch(fetchUrl);
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error(
-            "File not found. The encrypted file may have been moved or deleted.",
-          );
-        } else if (response.status === 403) {
-          throw new Error(
-            "Access denied. You may not have permission to access this file.",
-          );
-        } else {
-          throw new Error(
-            `Network error: ${response.status} ${response.statusText}`,
-          );
-        }
-      }
-
-      const encryptedBlob = await response.blob();
-      console.debug(
-        `Retrieved blob of size: ${encryptedBlob.size} bytes, type: ${encryptedBlob.type}`,
-      );
-
-      // Check if we got actual content
-      if (encryptedBlob.size === 0) {
-        throw new Error("File is empty or could not be retrieved.");
-      }
-
-      // Step 3: Decrypt the file using the canonical Vana decryption method
-      const decryptedBlob = await decryptUserData(
-        encryptedBlob,
-        encryptionKey,
-        this.context.platform,
-      );
-
-      return decryptedBlob;
-    } catch (error) {
-      console.error("Failed to decrypt file:", error);
-
-      // Provide user-friendly error messages
-      if (error instanceof Error) {
-        if (
-          error.message.includes("Session key decryption failed") ||
-          error.message.includes("Error decrypting message")
-        ) {
-          throw new Error(
-            "Wrong encryption key. This file may have been encrypted with a different wallet or encryption seed. Try using the same wallet that originally encrypted this file.",
-          );
-        } else if (
-          error.message.includes("Failed to fetch") ||
-          error.message.includes("Network error")
-        ) {
-          throw new Error(
-            "Network error: Cannot access the file URL. The file may be stored on a server that's not accessible or has CORS restrictions.",
-          );
-        } else if (error.message.includes("File not found")) {
-          throw new Error(
-            "File not found: The encrypted file is no longer available at the stored URL.",
-          );
-        } else if (
-          error.message.includes("not a valid OpenPGP message") ||
-          error.message.includes("does not conform to a valid OpenPGP format")
-        ) {
-          throw new Error(
-            "Invalid file format: This file doesn't appear to be encrypted with the Vana protocol.",
-          );
-        }
-      }
-
-      throw error;
-    }
-  }
-
-  /**
    * Registers a file URL directly on the blockchain with a schema ID.
    *
    * @param url - The URL of the file to register
@@ -1476,31 +1585,6 @@ export class DataController {
         `Registration failed: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
-  }
-
-  /**
-   * Converts IPFS and Google Drive URLs to direct download URLs for fetching.
-   *
-   * @param url - The URL to convert to a direct download URL
-   * @returns The converted direct download URL or the original URL if not a special URL
-   */
-  private convertToDownloadUrl(url: string): string {
-    // Handle IPFS URLs
-    if (url.startsWith("ipfs://")) {
-      const hash = url.replace("ipfs://", "");
-      return `https://ipfs.io/ipfs/${hash}`;
-    }
-
-    // Handle Google Drive URLs
-    if (url.includes("drive.google.com/file/d/")) {
-      const fileIdMatch = url.match(/\/file\/d\/([a-zA-Z0-9-_]+)/);
-      if (fileIdMatch) {
-        const fileId = fileIdMatch[1];
-        return `https://drive.google.com/uc?id=${fileId}&export=download`;
-      }
-    }
-
-    return url;
   }
 
   /**
@@ -2097,7 +2181,7 @@ export class DataController {
       );
 
       // 2. Encrypt data with user's key
-      const encryptedData = await encryptUserData(
+      const encryptedData = await encryptBlobWithSignedKey(
         data,
         userEncryptionKey,
         this.context.platform,
@@ -2306,14 +2390,16 @@ export class DataController {
       );
 
       // 3. Download the encrypted file
-      const response = await fetch(this.convertToDownloadUrl(file.url));
-      if (!response.ok) {
-        throw new Error(`Failed to download file: ${response.statusText}`);
+      // Use fetchFromIPFS for IPFS URLs, otherwise use regular fetch
+      let encryptedData: Blob;
+      if (file.url.startsWith("ipfs://")) {
+        encryptedData = await this.fetchFromIPFS(file.url);
+      } else {
+        encryptedData = await this.fetch(file.url);
       }
-      const encryptedData = await response.blob();
 
       // 4. Decrypt the file data using the user's encryption key
-      const decryptedData = await decryptUserData(
+      const decryptedData = await decryptBlobWithSignedKey(
         encryptedData,
         userEncryptionKey,
         this.context.platform,
@@ -2326,6 +2412,201 @@ export class DataController {
         `Failed to decrypt file with permission: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
+  }
+
+  /**
+   * Simple network-agnostic fetch utility for retrieving file content.
+   *
+   * @remarks
+   * This is a thin wrapper around the global fetch API that returns the response as a Blob.
+   * It provides a consistent interface for fetching encrypted content before decryption.
+   * For IPFS URLs, consider using fetchFromIPFS for better reliability.
+   *
+   * @param url - The URL to fetch content from
+   * @returns Promise resolving to the fetched content as a Blob
+   * @throws {Error} When the fetch fails or returns a non-ok response
+   *
+   * @example
+   * ```typescript
+   * // Fetch and decrypt a file
+   * const encryptionKey = await generateEncryptionKey(walletClient);
+   * const encryptedBlob = await vana.data.fetch(file.url);
+   * const decryptedBlob = await decryptBlob(encryptedBlob, encryptionKey, platform);
+   *
+   * // With custom headers for authentication
+   * const response = await fetch(file.url, {
+   *   headers: { 'Authorization': 'Bearer token' }
+   * });
+   * const encryptedBlob = await response.blob();
+   * ```
+   */
+  async fetch(url: string): Promise<Blob> {
+    try {
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error(
+          `HTTP error! status: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      const blob = await response.blob();
+
+      // Check if blob is empty
+      if (blob.size === 0) {
+        throw new Error("Empty response");
+      }
+
+      return blob;
+    } catch (error) {
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        throw new Error(
+          `Network error: Failed to fetch from ${url}. The URL may be invalid or the server may not be accessible.`,
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Specialized IPFS fetcher with gateway fallback mechanism.
+   *
+   * @remarks
+   * This method provides robust IPFS content fetching by trying multiple gateways
+   * in sequence until one succeeds. It supports both ipfs:// URLs and raw CIDs.
+   *
+   * The default gateway list includes public gateways, but you should provide
+   * your own gateways for production use to ensure reliability and privacy.
+   *
+   * @param url - The IPFS URL (ipfs://...) or CID to fetch
+   * @param options - Optional configuration
+   * @param options.gateways - Array of IPFS gateway URLs to try (must end with /)
+   * @returns Promise resolving to the fetched content as a Blob
+   * @throws {Error} When all gateways fail to fetch the content
+   *
+   * @example
+   * ```typescript
+   * // Fetch from IPFS with custom gateways
+   * const encryptedBlob = await vana.data.fetchFromIPFS(file.url, {
+   *   gateways: [
+   *     'https://my-private-gateway.com/ipfs/',
+   *     'https://dweb.link/ipfs/',
+   *     'https://ipfs.io/ipfs/'
+   *   ]
+   * });
+   *
+   * // Decrypt the fetched content
+   * const encryptionKey = await generateEncryptionKey(walletClient);
+   * const decryptedBlob = await decryptBlob(encryptedBlob, encryptionKey, platform);
+   *
+   * // With raw CID
+   * const blob = await vana.data.fetchFromIPFS('QmXxx...', {
+   *   gateways: ['https://ipfs.io/ipfs/']
+   * });
+   * ```
+   */
+  async fetchFromIPFS(
+    url: string,
+    options?: { gateways?: string[] },
+  ): Promise<Blob> {
+    // Default public gateways (in order of preference)
+    const defaultGateways = [
+      "https://dweb.link/ipfs/",
+      "https://ipfs.io/ipfs/",
+    ];
+
+    // Use per-call gateways if provided, otherwise use app-wide gateways, otherwise use defaults
+    const gateways =
+      options?.gateways || this.context.ipfsGateways || defaultGateways;
+
+    // Extract CID from ipfs:// URL or use raw CID
+    let cid: string;
+    if (url.startsWith("ipfs://")) {
+      cid = url.replace("ipfs://", "");
+    } else if (url.startsWith("Qm") || url.startsWith("bafy")) {
+      // Looks like a raw CID
+      cid = url;
+    } else {
+      throw new Error(
+        `Invalid IPFS URL format. Expected ipfs://... or a raw CID, got: ${url}`,
+      );
+    }
+
+    const errors: Array<{ gateway: string; error: string }> = [];
+
+    // Try each gateway in sequence
+    for (let i = 0; i < gateways.length; i++) {
+      const gateway = gateways[i];
+      const isLastGateway = i === gateways.length - 1;
+      const gatewayUrl = gateway.endsWith("/")
+        ? `${gateway}${cid}`
+        : `${gateway}/${cid}`;
+
+      try {
+        console.debug(`Trying IPFS gateway: ${gatewayUrl}`);
+
+        const response = await fetch(gatewayUrl);
+
+        if (response.ok) {
+          const blob = await response.blob();
+
+          // Verify we got actual content
+          if (blob.size > 0) {
+            console.debug(`Successfully fetched from gateway: ${gateway}`);
+            return blob;
+          } else {
+            // If this is the last gateway and we got an empty response, throw specific error
+            if (isLastGateway) {
+              throw new Error("Empty response");
+            }
+            errors.push({
+              gateway,
+              error: "Empty response",
+            });
+          }
+        } else {
+          // Handle specific HTTP errors on last gateway attempt
+          if (isLastGateway) {
+            if (response.status === 403) {
+              throw new Error(`HTTP error! status: 403 ${response.statusText}`);
+            } else if (response.status === 404) {
+              throw new Error(`HTTP error! status: 404 ${response.statusText}`);
+            } else {
+              throw new Error(
+                `HTTP error! status: ${response.status} ${response.statusText}`,
+              );
+            }
+          }
+          errors.push({
+            gateway,
+            error: `HTTP ${response.status} ${response.statusText}`,
+          });
+        }
+      } catch (error) {
+        // Re-throw on last gateway if it's a specific error we want to preserve
+        if (
+          isLastGateway &&
+          error instanceof Error &&
+          (error.message.includes("Empty response") ||
+            error.message.includes("HTTP error!"))
+        ) {
+          throw error;
+        }
+        errors.push({
+          gateway,
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    }
+
+    // All gateways failed
+    const errorDetails = errors
+      .map((e) => `${e.gateway}: ${e.error}`)
+      .join("\n  ");
+
+    throw new Error(
+      `Failed to fetch IPFS content ${cid} from all gateways:\n  ${errorDetails}`,
+    );
   }
 
   /**

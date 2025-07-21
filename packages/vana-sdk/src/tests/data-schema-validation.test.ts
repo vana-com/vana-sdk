@@ -18,8 +18,8 @@ vi.mock("viem", () => ({
 // Mock ALL external dependencies for pure unit tests
 vi.mock("../utils/encryption", () => ({
   generateEncryptionKey: vi.fn(),
-  decryptUserData: vi.fn(),
-  encryptUserData: vi.fn(),
+  decryptBlobWithSignedKey: vi.fn(),
+  encryptBlobWithSignedKey: vi.fn(),
   DEFAULT_ENCRYPTION_SEED: "Please sign to retrieve your encryption key",
 }));
 

@@ -23,7 +23,7 @@ describe("permissions utilities", () => {
   };
 
   const mockParams: GrantPermissionParams = {
-    to: "0x456" as `0x${string}`,
+    grantee: "0x456" as `0x${string}`,
     operation: "llm_inference",
     files: [1, 2, 3],
     parameters: { prompt: "Test prompt" },
@@ -56,7 +56,7 @@ describe("permissions utilities", () => {
     it("should not find match with different grantee", () => {
       const paramsWithDifferentGrantee = {
         ...mockParams,
-        to: "0x789" as `0x${string}`,
+        grantee: "0x789" as `0x${string}`,
       };
 
       const result = findMatchingPermission(
@@ -123,7 +123,7 @@ describe("permissions utilities", () => {
     it("should handle case-insensitive grantee comparison", () => {
       const paramsWithUppercaseGrantee = {
         ...mockParams,
-        to: "0x456" as `0x${string}`, // Same address, different case
+        grantee: "0x456" as `0x${string}`, // Same address, different case
       };
 
       const permissionWithLowercaseGrantee = {

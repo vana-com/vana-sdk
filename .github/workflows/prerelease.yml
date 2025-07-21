@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - feature/data-portability-sdk-v1
-      - feat/npm-publish
+      - no-god-component
 
 jobs:
   publish-prerelease:

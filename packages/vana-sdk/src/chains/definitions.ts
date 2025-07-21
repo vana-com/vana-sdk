@@ -36,7 +36,7 @@ export const vanaMainnet: VanaChainConfig = {
   },
   subgraphUrl:
     "https://api.goldsky.com/api/public/project_cm168cz887zva010j39il7a6p/subgraphs/vana/7.0.2/gn",
-};
+} as const;
 
 /**
  * Moksha Testnet configuration
@@ -62,7 +62,7 @@ export const moksha: VanaChainConfig = {
   },
   subgraphUrl:
     "https://api.goldsky.com/api/public/project_cm168cz887zva010j39il7a6p/subgraphs/moksha/7.0.3/gn",
-};
+} as const;
 
 /**
  * Retrieves the chain configuration for a given chain ID.

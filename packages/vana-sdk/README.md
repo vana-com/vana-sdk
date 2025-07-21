@@ -47,7 +47,7 @@ const walletClient = createWalletClient({
 });
 
 // Initialize SDK
-const vana = new Vana({
+const vana = Vana({
   walletClient,
   relayerUrl: "https://relayer.moksha.vana.org",
 });
@@ -70,14 +70,14 @@ const walletClient = createWalletClient({
 });
 
 // Initialize SDK
-const vana = new Vana({
+const vana = Vana({
   walletClient,
   relayerUrl: "https://relayer.moksha.vana.org",
 });
 
 // Grant gasless permission
 const txHash = await vana.permissions.grant({
-  to: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+  grantee: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
   operation: "llm_inference",
   parameters: {
     prompt: "Analyze my data for insights",
@@ -96,7 +96,7 @@ Users can grant data access permissions without paying gas fees through EIP-712 
 ```typescript
 // Grant permission with custom parameters
 await vana.permissions.grant({
-  to: applicationAddress,
+  grantee: applicationAddress,
   operation: "data_analysis",
   parameters: {
     analysisType: "sentiment",
@@ -158,7 +158,7 @@ The SDK provides four main controllers:
 ## Configuration
 
 ```typescript
-const vana = new Vana({
+const vana = Vana({
   walletClient,
 
   // Gasless transaction relay
@@ -226,18 +226,18 @@ try {
 import {
   Vana,
   generateEncryptionKey,
-  encryptUserData,
+  encryptBlobWithSignedKey,
 } from "@opendatalabs/vana-sdk/browser";
 // OR for server-side applications
 // } from "@opendatalabs/vana-sdk/node";
 
 async function grantDataPermission() {
-  const vana = new Vana({ walletClient });
+  const vana = Vana({ walletClient });
 
   // 1. Encrypt user data
   const encryptionKey = await generateEncryptionKey(walletClient);
   const userData = new Blob([JSON.stringify({ data: "sensitive info" })]);
-  const encryptedData = await encryptUserData(userData, encryptionKey);
+  const encryptedData = await encryptBlobWithSignedKey(userData, encryptionKey);
 
   // 2. Upload encrypted file
   const uploadResult = await vana.data.uploadEncryptedFile({
@@ -248,7 +248,7 @@ async function grantDataPermission() {
 
   // 3. Grant permission
   const permissionTx = await vana.permissions.grant({
-    to: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+    grantee: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
     operation: "ai_training",
     parameters: {
       files: [uploadResult.fileId],
@@ -296,7 +296,7 @@ vana.data.validateDataAgainstSchema(userData, schema);
 ```typescript
 // Grant permission
 await vana.permissions.grant({
-  to: Address,
+  grantee: Address,
   operation: string,
   parameters: object,
   expiresAt?: number

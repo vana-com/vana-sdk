@@ -115,7 +115,7 @@ describe("PermissionsController", () => {
     const mockCreateGrantFile = createGrantFile as Mock;
     mockCreateGrantFile.mockImplementation(
       (params: Record<string, unknown>) => ({
-        grantee: params.to,
+        grantee: params.grantee,
         operation: params.operation,
         parameters: params.parameters,
         expires: params.expiresAt || Math.floor(Date.now() / 1000) + 3600,
@@ -166,7 +166,7 @@ describe("PermissionsController", () => {
 
   describe("grant", () => {
     const mockGrantParams = {
-      to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+      grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
       operation: "llm_inference",
       files: [],
       parameters: {
@@ -312,7 +312,7 @@ describe("PermissionsController", () => {
       ).composePermissionGrantMessage.bind(controller);
 
       const params = {
-        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "test_operation",
         files: [1, 2, 3],
         grantUrl: "https://example.com/grant",
@@ -353,7 +353,7 @@ describe("PermissionsController", () => {
 
     it("should throw error when no grantUrl provided and no relayer configured", async () => {
       const mockParams = {
-        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "llm_inference",
         files: [],
         parameters: { prompt: "Test prompt" },
@@ -367,7 +367,7 @@ describe("PermissionsController", () => {
 
     it("should execute direct transaction when grantUrl is provided", async () => {
       const mockParams = {
-        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "llm_inference",
         files: [1, 2, 3],
         parameters: { prompt: "Test prompt" },
@@ -417,7 +417,7 @@ describe("PermissionsController", () => {
       );
 
       const params = {
-        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "test",
         files: [],
         parameters: { test: "value" },
@@ -431,7 +431,7 @@ describe("PermissionsController", () => {
       mockWalletClient.getAddresses.mockResolvedValue([]);
 
       const mockParams = {
-        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "test",
         files: [],
         parameters: { test: "value" },
@@ -443,7 +443,7 @@ describe("PermissionsController", () => {
 
     it("should handle signature errors with specific messages", async () => {
       const mockParams = {
-        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "test",
         files: [],
         parameters: { test: "value" },
@@ -482,7 +482,7 @@ describe("PermissionsController", () => {
   describe("Grant File Handling", () => {
     it("should create and store grant file when no grantUrl provided", async () => {
       const mockParams = {
-        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "llm_inference",
         files: [1, 2, 3],
         parameters: { prompt: "Test prompt", maxTokens: 100 },
@@ -513,7 +513,7 @@ describe("PermissionsController", () => {
 
       expect(mockStoreGrantFile).toHaveBeenCalledWith(
         expect.objectContaining({
-          grantee: mockParams.to,
+          grantee: mockParams.grantee,
           operation: mockParams.operation,
           parameters: mockParams.parameters,
         }),
@@ -522,7 +522,7 @@ describe("PermissionsController", () => {
     });
   });
 
-  describe("getUserPermissions", () => {
+  describe("getUserPermissionGrantsOnChain", () => {
     beforeEach(() => {
       vi.clearAllMocks();
     });
@@ -569,35 +569,27 @@ describe("PermissionsController", () => {
           }),
       });
 
-      const result = await controller.getUserPermissions({
+      const result = await controller.getUserPermissionGrantsOnChain({
         subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
       });
 
       expect(result).toHaveLength(2);
-      expect(result[0]).toEqual({
-        id: 2n,
-        files: [],
-        grant: "https://ipfs.io/ipfs/Qm2",
-        operation: "",
-        parameters: {},
-        active: true,
-        grantor: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        grantedAt: 123457,
-        nonce: 2,
-      });
-      expect(result[1]).toEqual({
-        id: 1n,
-        files: [],
-        grant: "https://ipfs.io/ipfs/Qm1",
-        operation: "",
-        parameters: {},
-        active: true,
-        grantor: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        grantedAt: 123456,
-        nonce: 1,
-      });
+      expect(result[0]).toEqual(
+        expect.objectContaining({
+          id: 2n,
+          grantUrl: "https://ipfs.io/ipfs/Qm2",
+          nonce: 2n,
+          addedAtBlock: 123457n,
+        }),
+      );
+      expect(result[1]).toEqual(
+        expect.objectContaining({
+          id: 1n,
+          grantUrl: "https://ipfs.io/ipfs/Qm1",
+          nonce: 1n,
+          addedAtBlock: 123456n,
+        }),
+      );
     });
 
     it("should return empty array when user has no permissions", async () => {
@@ -617,7 +609,7 @@ describe("PermissionsController", () => {
           }),
       });
 
-      const result = await controller.getUserPermissions({
+      const result = await controller.getUserPermissionGrantsOnChain({
         subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
       });
 
@@ -679,7 +671,7 @@ describe("PermissionsController", () => {
           }),
       });
 
-      const result = await controller.getUserPermissions({
+      const result = await controller.getUserPermissionGrantsOnChain({
         limit: 2,
         subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
       });
@@ -702,7 +694,7 @@ describe("PermissionsController", () => {
       });
 
       await expect(
-        controllerWithoutSubgraph.getUserPermissions(),
+        controllerWithoutSubgraph.getUserPermissionGrantsOnChain(),
       ).rejects.toThrow("subgraphUrl is required");
     });
 
@@ -723,7 +715,7 @@ describe("PermissionsController", () => {
       });
 
       await expect(
-        controller.getUserPermissions({
+        controller.getUserPermissionGrantsOnChain({
           subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
         }),
       ).rejects.toThrow(BlockchainError);
@@ -759,24 +751,20 @@ describe("PermissionsController", () => {
           }),
       });
 
-      const result = await controller.getUserPermissions({
+      const result = await controller.getUserPermissionGrantsOnChain({
         subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
       });
 
       // Should still return the one permission even with grant file retrieval error
       expect(result).toHaveLength(1);
-      expect(result[0]).toEqual({
-        id: 1n,
-        files: [],
-        grant: "https://ipfs.io/ipfs/QmInvalidGrant",
-        operation: "",
-        parameters: {},
-        active: true,
-        grantor: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        grantedAt: 123456,
-        nonce: 1,
-      });
+      expect(result[0]).toEqual(
+        expect.objectContaining({
+          id: 1n,
+          grantUrl: "https://ipfs.io/ipfs/QmInvalidGrant",
+          nonce: 1n,
+          addedAtBlock: 123456n,
+        }),
+      );
     });
   });
 
@@ -806,7 +794,7 @@ describe("PermissionsController", () => {
       } as unknown as PublicClient);
 
       const mockParams = {
-        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "test",
         files: [],
         parameters: { test: "value" },
@@ -842,7 +830,7 @@ describe("PermissionsController", () => {
       } as unknown as PublicClient);
 
       const mockParams = {
-        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "test",
         files: [],
         parameters: { test: "value" },
@@ -864,7 +852,7 @@ describe("PermissionsController", () => {
       });
 
       const mockParams = {
-        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "test",
         files: [1, 2, 3],
         parameters: { test: "value" },
@@ -906,7 +894,7 @@ describe("PermissionsController", () => {
       });
 
       const mockParams = {
-        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "test",
         files: [1, 2, 3],
         parameters: { test: "value" },
@@ -934,7 +922,7 @@ describe("PermissionsController", () => {
       });
 
       const mockParams = {
-        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "test",
         files: [1, 2, 3],
         parameters: { test: "value" },
@@ -1005,7 +993,7 @@ describe("PermissionsController", () => {
       });
 
       const mockParams = {
-        to: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
         operation: "read",
         files: [],
         parameters: { someKey: "someValue" },
@@ -1038,8 +1026,8 @@ describe("PermissionsController", () => {
       // Mock getAddresses to throw non-Error object
       mockWalletClient.getAddresses.mockRejectedValue(null);
 
-      await expect(controller.getUserPermissions()).rejects.toThrow(
-        "Failed to fetch user permissions: Unknown error",
+      await expect(controller.getUserPermissionGrantsOnChain()).rejects.toThrow(
+        "Failed to fetch user permission grants: Unknown error",
       );
     });
 
@@ -1065,7 +1053,7 @@ describe("PermissionsController", () => {
       });
 
       const mockParams = {
-        to: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
         operation: "read",
         files: [],
         parameters: { someKey: "someValue" },
@@ -1148,7 +1136,7 @@ describe("PermissionsController", () => {
       });
 
       const mockParams = {
-        to: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
         operation: "read",
         files: [1, 2, 3],
         parameters: { someKey: "someValue" },
@@ -1253,7 +1241,7 @@ describe("PermissionsController", () => {
       });
 
       const mockParams = {
-        to: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
         operation: "read",
         files: [1, 2, 3],
         parameters: { someKey: "someValue" },
@@ -1288,7 +1276,7 @@ describe("PermissionsController", () => {
       } as unknown as PublicClient);
 
       const mockParams = {
-        to: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
         operation: "read",
         files: [1, 2, 3],
         parameters: { someKey: "someValue" },

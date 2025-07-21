@@ -8,8 +8,8 @@ import { SchemaValidationError } from "../utils/schemaValidation";
 // Mock external dependencies
 vi.mock("../utils/encryption", () => ({
   generateEncryptionKey: vi.fn(),
-  decryptUserData: vi.fn(),
-  encryptUserData: vi.fn(),
+  decryptBlobWithSignedKey: vi.fn(),
+  encryptBlobWithSignedKey: vi.fn(),
   decryptWithWalletPrivateKey: vi.fn(),
   DEFAULT_ENCRYPTION_SEED: "Please sign to retrieve your encryption key",
 }));
@@ -122,7 +122,9 @@ describe("DataController Error Handling", () => {
 
       await expect(
         dataController.decryptFileWithPermission(mockFile, "privateKey"),
-      ).rejects.toThrow("Failed to download file: Not Found");
+      ).rejects.toThrow(
+        "Failed to decrypt file with permission: HTTP error! status: undefined Not Found",
+      );
     });
 
     it("should handle decryption errors in catch block (lines 2005-2009)", async () => {
@@ -177,15 +179,14 @@ describe("DataController Error Handling", () => {
       } as Response);
 
       // Mock successful decryption functions
-      const { decryptWithWalletPrivateKey, decryptUserData } = await import(
-        "../utils/encryption"
-      );
+      const { decryptWithWalletPrivateKey, decryptBlobWithSignedKey } =
+        await import("../utils/encryption");
       vi.mocked(decryptWithWalletPrivateKey).mockResolvedValue("decryptionKey");
 
       const mockDecryptedBlob = new Blob(["decrypted content"], {
         type: "text/plain",
       });
-      vi.mocked(decryptUserData).mockResolvedValue(mockDecryptedBlob);
+      vi.mocked(decryptBlobWithSignedKey).mockResolvedValue(mockDecryptedBlob);
 
       // Call the method
       const result = await dataController.decryptFileWithPermission(
@@ -199,14 +200,14 @@ describe("DataController Error Handling", () => {
       // Verify all mocks were called with correct parameters
       expect(dataController.getFilePermission).toHaveBeenCalledWith(1, "0x123");
       expect(global.fetch).toHaveBeenCalledWith(
-        "https://ipfs.io/ipfs/QmTestHash",
+        "https://dweb.link/ipfs/QmTestHash",
       );
       expect(decryptWithWalletPrivateKey).toHaveBeenCalledWith(
         "encryptedKey",
         "privateKey",
         mockContext.platform,
       );
-      expect(decryptUserData).toHaveBeenCalledWith(
+      expect(decryptBlobWithSignedKey).toHaveBeenCalledWith(
         mockEncryptedBlob,
         "decryptionKey",
         mockContext.platform,

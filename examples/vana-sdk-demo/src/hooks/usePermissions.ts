@@ -142,7 +142,7 @@ export function usePermissions(): UsePermissionsReturn {
         const existingPermissions = await loadUserPermissions();
 
         const params: GrantPermissionParams = {
-          to: applicationAddress as `0x${string}`,
+          grantee: applicationAddress as `0x${string}`,
           operation: customParams?.operation || "llm_inference",
           files: selectedFiles,
           parameters: customParams?.parameters || {
@@ -265,7 +265,7 @@ export function usePermissions(): UsePermissionsReturn {
           );
           // Create a minimal grant file from the typedData for preview
           grantFile = {
-            grantee: grantPreview.params.to,
+            grantee: grantPreview.params.grantee,
             operation: grantPreview.params.operation || "llm_inference",
             parameters: grantPreview.params.parameters || {},
             expires: grantPreview.params.expiresAt,

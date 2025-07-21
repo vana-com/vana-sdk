@@ -179,7 +179,7 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
 
     const expiresAt = getExpirationTimestamp();
     const params: GrantPermissionParams & { expiresAt?: number } = {
-      to: (editableApplicationAddress || "") as `0x${string}`,
+      grantee: (editableApplicationAddress || "") as `0x${string}`,
       operation,
       files: selectedFiles,
       parameters: {

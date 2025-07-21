@@ -1,5 +1,16 @@
-import type { VanaConfig, RuntimeConfig, VanaChainId } from "./types";
-import { isWalletConfig, isChainConfig, isVanaChainId } from "./types";
+import type {
+  VanaConfig,
+  VanaConfigWithStorage,
+  RuntimeConfig,
+  VanaChainId,
+  StorageRequiredMarker,
+} from "./types";
+import {
+  isWalletConfig,
+  isChainConfig,
+  isVanaChainId,
+  hasStorageConfig,
+} from "./types";
 import type { RelayerCallbacks } from "./types/config";
 import { InvalidConfigurationError } from "./errors";
 import {
@@ -15,7 +26,59 @@ import { createWalletClient, createPublicClient, http } from "viem";
 import { chains } from "./config/chains";
 import { getChainConfig } from "./chains";
 import type { VanaPlatformAdapter } from "./platform/interface";
-import { encryptUserData, decryptUserData } from "./utils/encryption";
+import {
+  encryptBlobWithSignedKey,
+  decryptBlobWithSignedKey,
+} from "./utils/encryption";
+
+/**
+ * Factory functions for creating VanaCore instances with proper type safety
+ */
+export class VanaCoreFactory {
+  /**
+   * Creates a VanaCore instance that enforces storage requirements at compile time.
+   * Use this factory when you know you'll need storage-dependent operations.
+   *
+   * @param platform - The platform adapter for environment-specific operations
+   * @param config - Configuration that includes required storage providers
+   * @returns VanaCore instance with storage validation
+   * @example
+   * ```typescript
+   * const vanaCore = VanaCoreFactory.createWithStorage(platformAdapter, {
+   *   walletClient: myWalletClient,
+   *   storage: {
+   *     providers: { ipfs: new IPFSStorage() },
+   *     defaultProvider: 'ipfs'
+   *   }
+   * });
+   * ```
+   */
+  static createWithStorage(
+    platform: VanaPlatformAdapter,
+    config: VanaConfigWithStorage,
+  ): VanaCore & StorageRequiredMarker {
+    const core = new VanaCore(platform, config);
+    return core as VanaCore & StorageRequiredMarker;
+  }
+
+  /**
+   * Creates a VanaCore instance without storage requirements.
+   * Storage-dependent operations will fail at runtime if not configured.
+   *
+   * @param platform - The platform adapter for environment-specific operations
+   * @param config - Basic configuration without required storage
+   * @returns VanaCore instance
+   * @example
+   * ```typescript
+   * const vanaCore = VanaCoreFactory.create(platformAdapter, {
+   *   walletClient: myWalletClient
+   * });
+   * ```
+   */
+  static create(platform: VanaPlatformAdapter, config: VanaConfig): VanaCore {
+    return new VanaCore(platform, config);
+  }
+}
 
 /**
  * Provides the core SDK functionality for interacting with the Vana network.
@@ -25,8 +88,11 @@ import { encryptUserData, decryptUserData } from "./utils/encryption";
  * adapter to handle environment-specific operations. It initializes all controllers
  * and manages shared context between them.
  *
+ * The class uses TypeScript overloading to enforce storage requirements at compile time.
+ * When storage is required for certain operations, the constructor will fail fast at runtime.
+ *
  * For public usage, use the platform-specific Vana classes that extend this core:
- * - Use `new Vana(config)` from the main package import
+ * - Use `Vana({config)` from the main package import
  * @example
  * ```typescript
  * // Direct instantiation (typically used internally)
@@ -57,6 +123,8 @@ export class VanaCore {
 
   private readonly relayerCallbacks?: RelayerCallbacks;
   private readonly storageManager?: StorageManager;
+  private readonly hasRequiredStorage: boolean;
+  private readonly ipfsGateways?: string[];
 
   /**
    * Initializes a new VanaCore client instance with the provided configuration.
@@ -64,6 +132,10 @@ export class VanaCore {
    * @remarks
    * The constructor validates the configuration, initializes storage providers if configured,
    * creates wallet and public clients, and sets up all SDK controllers with shared context.
+   *
+   * IMPORTANT: This constructor will validate storage requirements at runtime to fail fast.
+   * Methods that require storage will throw runtime errors if storage is not configured.
+   *
    * @param platform - The platform adapter for environment-specific operations
    * @param config - The configuration object specifying wallet or chain settings
    * @throws {InvalidConfigurationError} When the configuration is invalid or incomplete
@@ -84,6 +156,12 @@ export class VanaCore {
 
     // Store relayer callbacks if provided
     this.relayerCallbacks = config.relayerCallbacks;
+
+    // Store IPFS gateways if provided
+    this.ipfsGateways = config.ipfsGateways;
+
+    // Check if storage is properly configured
+    this.hasRequiredStorage = hasStorageConfig(config);
 
     // Initialize storage manager if storage providers are provided
     if (config.storage?.providers) {
@@ -160,6 +238,9 @@ export class VanaCore {
       storageManager: this.storageManager,
       subgraphUrl,
       platform: this.platform, // Pass the platform adapter to controllers
+      validateStorageRequired: this.validateStorageRequired.bind(this),
+      hasStorage: this.hasStorage.bind(this),
+      ipfsGateways: this.ipfsGateways,
     };
 
     // Initialize controllers
@@ -168,6 +249,66 @@ export class VanaCore {
     this.schemas = new SchemaController(sharedContext);
     this.server = new ServerController(sharedContext);
     this.protocol = new ProtocolController(sharedContext);
+  }
+
+  /**
+   * Validates that storage is available for storage-dependent operations.
+   * This method enforces the fail-fast principle by checking storage availability
+   * at method call time rather than during expensive operations.
+   *
+   * @throws {InvalidConfigurationError} When storage is required but not configured
+   * @example
+   * ```typescript
+   * // This will throw if storage is not configured
+   * vana.validateStorageRequired();
+   * await vana.data.uploadFile(file); // Safe to proceed
+   * ```
+   */
+  public validateStorageRequired(): void {
+    if (!this.hasRequiredStorage) {
+      throw new InvalidConfigurationError(
+        "Storage configuration is required for this operation. " +
+          "Please configure storage providers in VanaConfig.storage, " +
+          "provide a relayerCallbacks.storeGrantFile implementation, " +
+          "or pass pre-stored URLs to avoid this dependency. " +
+          "\n\nFor better type safety, consider using VanaCoreFactory.createWithStorage() " +
+          "with VanaConfigWithStorage to catch this error at compile time.",
+      );
+    }
+  }
+
+  /**
+   * Checks whether storage is configured without throwing an error.
+   *
+   * @returns True if storage is properly configured
+   * @example
+   * ```typescript
+   * if (vana.hasStorage()) {
+   *   await vana.data.uploadFile(file);
+   * } else {
+   *   console.warn('Storage not configured - using pre-stored URLs only');
+   * }
+   * ```
+   */
+  public hasStorage(): boolean {
+    return this.hasRequiredStorage;
+  }
+
+  /**
+   * Type guard to check if this instance has storage enabled at compile time.
+   * Use this when you need TypeScript to understand that storage is available.
+   *
+   * @returns True if storage is configured, with type narrowing
+   * @example
+   * ```typescript
+   * if (vana.isStorageEnabled()) {
+   *   // TypeScript knows storage is available here
+   *   await vana.data.uploadFile(file);
+   * }
+   * ```
+   */
+  public isStorageEnabled(): this is VanaCore & StorageRequiredMarker {
+    return this.hasRequiredStorage;
   }
 
   /**
@@ -395,27 +536,24 @@ export class VanaCore {
   }
 
   /**
-   * Encrypts user data using the Vana protocol standard encryption.
+   * Encrypts data using the Vana protocol standard encryption.
    * This method automatically uses the correct platform adapter for the current environment.
    *
    * @param data The data to encrypt (string or Blob)
-   * @param walletSignature The wallet signature to use as encryption key
+   * @param key The key to use as encryption key
    * @returns The encrypted data as Blob
    * @example
    * ```typescript
    * const encryptionKey = await generateEncryptionKey(walletClient);
-   * const encrypted = await vana.encryptUserData("sensitive data", encryptionKey);
+   * const encrypted = await vana.encryptBlob("sensitive data", encryptionKey);
    * ```
    */
-  public async encryptUserData(
-    data: string | Blob,
-    walletSignature: string,
-  ): Promise<Blob> {
-    return encryptUserData(data, walletSignature, this.platform);
+  public async encryptBlob(data: string | Blob, key: string): Promise<Blob> {
+    return encryptBlobWithSignedKey(data, key, this.platform);
   }
 
   /**
-   * Decrypts user data using the Vana protocol standard decryption.
+   * Decrypts data that was encrypted using the Vana protocol.
    * This method automatically uses the correct platform adapter for the current environment.
    *
    * @param encryptedData The encrypted data (string or Blob)
@@ -424,14 +562,18 @@ export class VanaCore {
    * @example
    * ```typescript
    * const encryptionKey = await generateEncryptionKey(walletClient);
-   * const decrypted = await vana.decryptUserData(encryptedData, encryptionKey);
+   * const decrypted = await vana.decryptBlob(encryptedData, encryptionKey);
    * const text = await decrypted.text();
    * ```
    */
-  public async decryptUserData(
+  public async decryptBlob(
     encryptedData: string | Blob,
     walletSignature: string,
   ): Promise<Blob> {
-    return decryptUserData(encryptedData, walletSignature, this.platform);
+    return decryptBlobWithSignedKey(
+      encryptedData,
+      walletSignature,
+      this.platform,
+    );
   }
 }

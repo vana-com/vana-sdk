@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { Vana } from "../index.node";
+import { VanaNodeImpl } from "../index.node";
 import type { VanaConfig, WalletConfig, ChainConfig } from "../types/config";
 import type { UserFile, UploadEncryptedFileResult } from "../types/data";
 import type {
@@ -121,6 +122,7 @@ describe("TypeScript Types", () => {
         grantor: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         grantee: "0x0987654321098765432109876543210987654321" as `0x${string}`,
         active: true,
+        dataStatus: "complete",
       };
 
       expect(permission.id).toBe(1n);
@@ -140,6 +142,7 @@ describe("TypeScript Types", () => {
         active: true,
         nonce: 123,
         grantedAt: 456789,
+        dataStatus: "complete",
       };
 
       expect(permission.operation).toBe("llm_inference");
@@ -152,13 +155,13 @@ describe("TypeScript Types", () => {
   describe("GrantPermissionParams", () => {
     it("should have all required properties", () => {
       const params: GrantPermissionParams = {
-        to: "0x1234567890123456789012345678901234567890",
+        grantee: "0x1234567890123456789012345678901234567890",
         operation: "llm_inference",
         files: [1, 2, 3],
         parameters: { prompt: "Test" },
       };
 
-      expect(params.to).toBe("0x1234567890123456789012345678901234567890");
+      expect(params.grantee).toBe("0x1234567890123456789012345678901234567890");
       expect(params.operation).toBe("llm_inference");
       expect(params.files).toEqual([1, 2, 3]);
       expect(params.parameters).toEqual({ prompt: "Test" });
@@ -166,7 +169,7 @@ describe("TypeScript Types", () => {
 
     it("should accept optional grantUrl", () => {
       const params: GrantPermissionParams = {
-        to: "0x1234567890123456789012345678901234567890",
+        grantee: "0x1234567890123456789012345678901234567890",
         operation: "llm_inference",
         files: [1, 2, 3],
         parameters: { prompt: "Test" },
@@ -936,12 +939,12 @@ describe("TypeScript Types", () => {
     describe("Factory Methods", () => {
       it("should create Vana from ChainConfig", async () => {
         const account = privateKeyToAccount(testPrivateKey);
-        const vana = await new Vana({
+        const vana = Vana({
           chainId: 14800,
           rpcUrl: "https://rpc.moksha.vana.org",
           account,
         });
-        expect(vana).toBeInstanceOf(Vana);
+        expect(vana).toBeInstanceOf(VanaNodeImpl);
       });
 
       it("should create Vana from WalletConfig", async () => {
@@ -952,8 +955,8 @@ describe("TypeScript Types", () => {
           transport: http(),
         });
 
-        const vana = await new Vana({ walletClient });
-        expect(vana).toBeInstanceOf(Vana);
+        const vana = Vana({ walletClient });
+        expect(vana).toBeInstanceOf(VanaNodeImpl);
       });
     });
 
@@ -966,16 +969,16 @@ describe("TypeScript Types", () => {
           transport: http(),
         });
 
-        const vanaWithWallet = await new Vana({ walletClient });
+        const vanaWithWallet = Vana({ walletClient });
         const account2 = privateKeyToAccount(testPrivateKey);
-        const vanaWithChain = await new Vana({
+        const vanaWithChain = Vana({
           chainId: 14800,
           rpcUrl: "https://rpc.moksha.vana.org",
           account: account2,
         });
 
-        expect(vanaWithWallet).toBeInstanceOf(Vana);
-        expect(vanaWithChain).toBeInstanceOf(Vana);
+        expect(vanaWithWallet).toBeInstanceOf(VanaNodeImpl);
+        expect(vanaWithChain).toBeInstanceOf(VanaNodeImpl);
       });
     });
   });

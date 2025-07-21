@@ -196,7 +196,7 @@ globalThis.fetch = vi.fn();
  * @example
  * ```typescript
  * const txHash = await vana.permissions.grant({
- *   to: '0x...',
+ *   grantee: '0x...',
  *   operation: 'llm_inference',
  *   files: [1, 2, 3],
  *   parameters: { prompt: 'Analyze my data' }
@@ -243,7 +243,7 @@ When adding features, update relevant documentation:
 
 ```typescript
 // Minimal code example that reproduces the issue
-const vana = new Vana({ walletClient });
+const vana = Vana({ walletClient });
 await vana.permissions.grant(params); // Error occurs here
 ```
 

@@ -361,7 +361,7 @@ export function VanaProvider({
           : undefined;
 
         // Initialize Vana SDK
-        const vanaInstance = new Vana({
+        const vanaInstance = Vana({
           walletClient: walletClient as WalletClient & { chain: VanaChain },
           relayerCallbacks,
           subgraphUrl: config.subgraphUrl || undefined,

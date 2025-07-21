@@ -20,8 +20,8 @@ import type { Vana, Schema } from "@opendatalabs/vana-sdk/browser";
 import type { WalletClient } from "viem";
 import {
   generateEncryptionKey as sdkGenerateEncryptionKey,
-  encryptUserData as sdkEncryptUserData,
-  decryptUserData as sdkDecryptUserData,
+  encryptBlobWithSignedKey as sdkEncryptUserData,
+  decryptBlobWithSignedKey as sdkDecryptUserData,
   DEFAULT_ENCRYPTION_SEED,
   BrowserPlatformAdapter,
   convertIpfsUrl,

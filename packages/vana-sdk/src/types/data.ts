@@ -61,6 +61,10 @@ export interface FileMetadata {
  * @remarks
  * This is the primary interface for uploading user data through the simplified `vana.data.upload()` method.
  * It handles the complete workflow including encryption, storage, and blockchain registration.
+ *
+ * When using permissions with encryption enabled (default), you must provide the public key
+ * for each permission recipient.
+ *
  * @example
  * ```typescript
  * // Basic file upload
@@ -76,14 +80,27 @@ export interface FileMetadata {
  *   schemaId: 1
  * });
  *
- * // Upload with permissions for an app
+ * // Upload with permissions for an app (encrypted - requires publicKey)
  * const result = await vana.data.upload({
  *   content: "Data for AI analysis",
  *   filename: "analysis.txt",
  *   permissions: [{
- *     to: "0x1234...",
+ *     grantee: "0x1234...",
  *     operation: "llm_inference",
- *     parameters: { model: "gpt-4" }
+ *     parameters: { model: "gpt-4" },
+ *     publicKey: "0x04..." // Required when encrypt is true (default)
+ *   }]
+ * });
+ *
+ * // Upload without encryption (publicKey optional)
+ * const result = await vana.data.upload({
+ *   content: "Public data",
+ *   filename: "public.txt",
+ *   encrypt: false,
+ *   permissions: [{
+ *     grantee: "0x1234...",
+ *     operation: "read",
+ *     parameters: {}
  *   }]
  * });
  * ```
@@ -105,6 +122,33 @@ export interface UploadParams {
 }
 
 /**
+ * Upload parameters with encryption enabled (requires EncryptedPermissionParams).
+ *
+ * @remarks
+ * This interface ensures type safety when using encrypted uploads with permissions.
+ * @category Data Management
+ */
+export interface EncryptedUploadParams
+  extends Omit<UploadParams, "permissions" | "encrypt"> {
+  /** Permissions with required public keys for encrypted data sharing. */
+  permissions?: EncryptedPermissionParams[];
+  /** Encryption is enabled. */
+  encrypt: true;
+}
+
+/**
+ * Upload parameters with encryption disabled.
+ *
+ * @remarks
+ * This interface is used when uploading unencrypted data.
+ * @category Data Management
+ */
+export interface UnencryptedUploadParams extends Omit<UploadParams, "encrypt"> {
+  /** Encryption is disabled. */
+  encrypt: false;
+}
+
+/**
  * Permission parameters for granting access during file upload.
  *
  * @remarks
@@ -113,7 +157,7 @@ export interface UploadParams {
  */
 export interface PermissionParams {
   /** The address of the application to grant permission to. */
-  to: Address;
+  grantee: Address;
   /** The operation type (e.g., "llm_inference"). */
   operation: string;
   /** Additional parameters for the permission. */
@@ -124,6 +168,19 @@ export interface PermissionParams {
   expiresAt?: number;
   /** Public key of the recipient to encrypt the data key for (required for upload with permissions). */
   publicKey?: string;
+}
+
+/**
+ * Permission parameters with required public key for encrypted uploads.
+ *
+ * @remarks
+ * This type extends PermissionParams and makes publicKey required, ensuring
+ * compile-time safety when permissions are used with encryption.
+ * @category Data Management
+ */
+export interface EncryptedPermissionParams extends PermissionParams {
+  /** Public key of the recipient to encrypt the data key for. */
+  publicKey: string;
 }
 
 /**

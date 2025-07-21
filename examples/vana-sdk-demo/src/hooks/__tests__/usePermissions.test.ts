@@ -12,7 +12,7 @@ import { useAccount } from "wagmi";
 import { useVana } from "@/providers/VanaProvider";
 import { usePermissions } from "../usePermissions";
 import {
-  GrantedPermission,
+  OnChainPermissionGrant,
   PermissionGrantTypedData,
   retrieveGrantFile,
 } from "@opendatalabs/vana-sdk/browser";
@@ -47,7 +47,7 @@ const addToastMock = addToast as MockedFunction<typeof addToast>;
 describe("usePermissions", () => {
   const mockVana = {
     permissions: {
-      getUserPermissions: vi.fn(),
+      getUserPermissionGrantsOnChain: vi.fn(),
       createAndSign: vi.fn(),
       submitSignedGrant: vi.fn(),
       revoke: vi.fn(),
@@ -56,7 +56,7 @@ describe("usePermissions", () => {
     },
   };
 
-  const mockPermissions: GrantedPermission[] = createMockPermissions(2, {
+  const mockPermissions: OnChainPermissionGrant[] = createMockPermissions(2, {
     grantor: "0x123",
   });
 
@@ -67,7 +67,9 @@ describe("usePermissions", () => {
     useAccountMock.mockReturnValue(createMockUseAccount() as any);
     useVanaMock.mockReturnValue(createMockUseVana({ vana: mockVana }) as any);
 
-    mockVana.permissions.getUserPermissions.mockResolvedValue(mockPermissions);
+    mockVana.permissions.getUserPermissionGrantsOnChain.mockResolvedValue(
+      mockPermissions,
+    );
   });
 
   afterEach(() => {
@@ -106,7 +108,9 @@ describe("usePermissions", () => {
         expect(result.current.userPermissions).toHaveLength(2);
       });
 
-      expect(mockVana.permissions.getUserPermissions).toHaveBeenCalledWith({
+      expect(
+        mockVana.permissions.getUserPermissionGrantsOnChain,
+      ).toHaveBeenCalledWith({
         limit: 20,
       });
       expect(result.current.userPermissions).toEqual(mockPermissions);
@@ -122,7 +126,9 @@ describe("usePermissions", () => {
 
       renderHook(() => usePermissions());
 
-      expect(mockVana.permissions.getUserPermissions).not.toHaveBeenCalled();
+      expect(
+        mockVana.permissions.getUserPermissionGrantsOnChain,
+      ).not.toHaveBeenCalled();
     });
 
     it("does not load permissions when address is not available", () => {
@@ -132,7 +138,9 @@ describe("usePermissions", () => {
 
       renderHook(() => usePermissions());
 
-      expect(mockVana.permissions.getUserPermissions).not.toHaveBeenCalled();
+      expect(
+        mockVana.permissions.getUserPermissionGrantsOnChain,
+      ).not.toHaveBeenCalled();
     });
   });
 
@@ -153,7 +161,7 @@ describe("usePermissions", () => {
       const consoleSpy = vi
         .spyOn(console, "error")
         .mockImplementation(() => {});
-      mockVana.permissions.getUserPermissions.mockRejectedValue(
+      mockVana.permissions.getUserPermissionGrantsOnChain.mockRejectedValue(
         new Error("Network error"),
       );
 
@@ -188,7 +196,9 @@ describe("usePermissions", () => {
       });
 
       expect(permissions).toEqual([]);
-      expect(mockVana.permissions.getUserPermissions).not.toHaveBeenCalled();
+      expect(
+        mockVana.permissions.getUserPermissionGrantsOnChain,
+      ).not.toHaveBeenCalled();
     });
   });
 
@@ -204,7 +214,7 @@ describe("usePermissions", () => {
         grantFile: null,
         grantUrl: "",
         params: {
-          to: "0xapp123",
+          grantee: "0xapp123",
           operation: "llm_inference",
           files: [1, 2],
           parameters: { prompt: "test prompt" },
@@ -219,7 +229,7 @@ describe("usePermissions", () => {
       const { result } = renderHook(() => usePermissions());
 
       const customParams = {
-        to: "0xapp123" as `0x${string}`,
+        grantee: "0xapp123" as `0x${string}`,
         operation: "data_access" as const,
         files: [1],
         parameters: { customParam: "value" },
@@ -235,7 +245,7 @@ describe("usePermissions", () => {
       });
 
       expect(result.current.grantPreview?.params).toEqual({
-        to: "0xapp123",
+        grantee: "0xapp123",
         operation: "data_access",
         files: [1],
         parameters: { customParam: "value" },
@@ -310,7 +320,7 @@ describe("usePermissions", () => {
           grantFile: null,
           grantUrl: "",
           params: {
-            to: "0xapp123",
+            grantee: "0xapp123",
             operation: "llm_inference",
             files: [1, 2],
             parameters: { prompt: "test prompt" },
@@ -323,7 +333,7 @@ describe("usePermissions", () => {
 
     it("successfully confirms grant and finds new permission", async () => {
       // Mock finding the new permission first
-      const newPermission: GrantedPermission = {
+      const newPermission: OnChainPermissionGrant = {
         id: BigInt(3),
         operation: "llm_inference",
         files: [1, 2],
@@ -355,8 +365,8 @@ describe("usePermissions", () => {
         expect(result.current.isLoadingPermissions).toBe(false);
       });
 
-      // Update the getUserPermissions mock to return the new permission after grant
-      mockVana.permissions.getUserPermissions.mockResolvedValue([
+      // Update the getUserPermissionGrantsOnChain mock to return the new permission after grant
+      mockVana.permissions.getUserPermissionGrantsOnChain.mockResolvedValue([
         ...mockPermissions,
         newPermission,
       ]);
@@ -366,7 +376,7 @@ describe("usePermissions", () => {
           grantFile: null,
           grantUrl: "",
           params: {
-            to: "0xapp123",
+            grantee: "0xapp123",
             operation: "llm_inference",
             files: [1, 2],
             parameters: { prompt: "test prompt" },
@@ -432,7 +442,7 @@ describe("usePermissions", () => {
           grantFile: null,
           grantUrl: "",
           params: {
-            to: "0xapp123",
+            grantee: "0xapp123",
             operation: "llm_inference",
             files: [1, 2],
             parameters: { prompt: "test prompt" },
@@ -470,7 +480,7 @@ describe("usePermissions", () => {
           grantFile: null,
           grantUrl: "",
           params: {
-            to: "0xapp123",
+            grantee: "0xapp123",
             operation: "llm_inference",
             files: [1, 2],
             parameters: { prompt: "test prompt" },
@@ -536,7 +546,9 @@ describe("usePermissions", () => {
       expect(mockVana.permissions.revoke).toHaveBeenCalledWith({
         permissionId: BigInt(1),
       });
-      expect(mockVana.permissions.getUserPermissions).toHaveBeenCalled();
+      expect(
+        mockVana.permissions.getUserPermissionGrantsOnChain,
+      ).toHaveBeenCalled();
       expect(result.current.isRevoking).toBe(false);
     });
 
@@ -724,7 +736,7 @@ describe("usePermissions", () => {
           grantFile: null,
           grantUrl: "",
           params: {
-            to: "0xapp123",
+            grantee: "0xapp123",
             operation: "llm_inference",
             files: [1],
             parameters: {},
@@ -759,7 +771,7 @@ describe("usePermissions", () => {
           grantFile: null,
           grantUrl: "",
           params: {
-            to: "0xapp123",
+            grantee: "0xapp123",
             operation: "llm_inference",
             files: [1],
             parameters: {},
@@ -810,7 +822,7 @@ describe("usePermissions", () => {
         grantFile: null,
         grantUrl: "",
         params: {
-          to: "0xapp123" as `0x${string}`,
+          grantee: "0xapp123" as `0x${string}`,
           operation: "llm_inference" as const,
           files: [1],
           parameters: {},

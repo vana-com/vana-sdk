@@ -58,6 +58,13 @@ export default [
     },
     rules: {
       ...tseslint.configs.recommended.rules,
+      "no-redeclare": "off", // Disable base rule
+      "@typescript-eslint/no-redeclare": [
+        "error",
+        {
+          ignoreDeclarationMerge: true, // Allow TypeScript declaration merging
+        },
+      ], // Enable TypeScript-aware version with declaration merging
       "no-console": ["error", { allow: ["info", "debug", "warn", "error"] }],
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-unused-vars": [

@@ -24,7 +24,7 @@ export interface UserFile {
  */
 export interface GrantPermissionParams {
   /** The on-chain identity of the application */
-  to: Address;
+  grantee: Address;
   /** The class of computation, e.g., "llm_inference" */
   operation: string;
   /** Array of file IDs to grant permission for */

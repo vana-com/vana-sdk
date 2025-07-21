@@ -8,8 +8,8 @@ import { DataSchema } from "../utils/schemaValidation";
 // Mock external dependencies
 vi.mock("../utils/encryption", () => ({
   generateEncryptionKey: vi.fn(),
-  decryptUserData: vi.fn(),
-  encryptUserData: vi.fn(),
+  decryptBlobWithSignedKey: vi.fn(),
+  encryptBlobWithSignedKey: vi.fn(),
   DEFAULT_ENCRYPTION_SEED: "Please sign to retrieve your encryption key",
 }));
 

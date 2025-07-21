@@ -1,5 +1,5 @@
 import { Address, Hash, recoverTypedDataAddress } from "viem";
-import type { Vana } from "../index.node";
+import type { VanaInstance } from "../index.node";
 import type {
   GenericTypedData,
   PermissionGrantTypedData,
@@ -73,7 +73,7 @@ export interface RelayerRequestPayload {
  * ```
  */
 export async function handleRelayerRequest(
-  sdk: Vana,
+  sdk: VanaInstance,
   payload: RelayerRequestPayload,
 ): Promise<Hash> {
   const { typedData, signature, expectedUserAddress } = payload;

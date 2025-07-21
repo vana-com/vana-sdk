@@ -172,7 +172,7 @@ export interface GrantValidationResult {
  * }
  * ```
  */
-/* eslint-disable no-redeclare */
+
 export function validateGrant(
   data: unknown,
   options: GrantValidationOptions & { throwOnError: false },
@@ -196,7 +196,6 @@ export function validateGrant(
   data: unknown,
   options: GrantValidationOptions = {},
 ): GrantFile | GrantValidationResult {
-  /* eslint-enable no-redeclare */
   const {
     schema = true,
     grantee,

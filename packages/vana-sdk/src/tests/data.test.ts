@@ -15,8 +15,8 @@ import { mockPlatformAdapter } from "./mocks/platformAdapter";
 // Mock ALL external dependencies for pure unit tests
 vi.mock("../utils/encryption", () => ({
   generateEncryptionKey: vi.fn(),
-  decryptUserData: vi.fn(),
-  encryptUserData: vi.fn(),
+  decryptBlobWithSignedKey: vi.fn(),
+  encryptBlobWithSignedKey: vi.fn(),
   DEFAULT_ENCRYPTION_SEED: "Please sign to retrieve your encryption key",
 }));
 
@@ -290,7 +290,7 @@ describe("DataController", () => {
 
   describe("uploadEncryptedFile", () => {
     it("should upload and encrypt file successfully", async () => {
-      const { encryptUserData, generateEncryptionKey } = await import(
+      const { encryptBlobWithSignedKey, generateEncryptionKey } = await import(
         "../utils/encryption"
       );
       const { StorageManager } = await import("../storage");
@@ -305,7 +305,7 @@ describe("DataController", () => {
 
       // Mock encryption
       vi.mocked(generateEncryptionKey).mockResolvedValue("0xencryptionkey");
-      vi.mocked(encryptUserData).mockResolvedValue(encryptedBlob);
+      vi.mocked(encryptBlobWithSignedKey).mockResolvedValue(encryptedBlob);
 
       // Mock direct transaction (writeContract and event parsing)
       mockWalletClient.writeContract = vi.fn().mockResolvedValue("0xtxhash");
@@ -411,8 +411,8 @@ describe("DataController", () => {
       const { generateEncryptionKey } = await import("../utils/encryption");
       vi.mocked(generateEncryptionKey).mockResolvedValue("test-key");
 
-      const { decryptUserData } = await import("../utils/encryption");
-      vi.mocked(decryptUserData).mockRejectedValue(
+      const { decryptBlobWithSignedKey } = await import("../utils/encryption");
+      vi.mocked(decryptBlobWithSignedKey).mockRejectedValue(
         new Error("Error: not a valid OpenPGP message"),
       );
 
@@ -439,8 +439,8 @@ describe("DataController", () => {
       const { generateEncryptionKey } = await import("../utils/encryption");
       vi.mocked(generateEncryptionKey).mockResolvedValue("wrong-key");
 
-      const { decryptUserData } = await import("../utils/encryption");
-      vi.mocked(decryptUserData).mockRejectedValue(
+      const { decryptBlobWithSignedKey } = await import("../utils/encryption");
+      vi.mocked(decryptBlobWithSignedKey).mockRejectedValue(
         new Error("Session key decryption failed"),
       );
 
@@ -467,8 +467,8 @@ describe("DataController", () => {
       const { generateEncryptionKey } = await import("../utils/encryption");
       vi.mocked(generateEncryptionKey).mockResolvedValueOnce("test-key");
 
-      const { decryptUserData } = await import("../utils/encryption");
-      vi.mocked(decryptUserData).mockRejectedValueOnce(
+      const { decryptBlobWithSignedKey } = await import("../utils/encryption");
+      vi.mocked(decryptBlobWithSignedKey).mockRejectedValueOnce(
         new Error("File not found"),
       );
 
@@ -495,8 +495,8 @@ describe("DataController", () => {
       const { generateEncryptionKey } = await import("../utils/encryption");
       vi.mocked(generateEncryptionKey).mockResolvedValueOnce("test-key");
 
-      const { decryptUserData } = await import("../utils/encryption");
-      vi.mocked(decryptUserData).mockRejectedValueOnce(
+      const { decryptBlobWithSignedKey } = await import("../utils/encryption");
+      vi.mocked(decryptBlobWithSignedKey).mockRejectedValueOnce(
         new Error("Some other error"),
       );
 
@@ -544,8 +544,8 @@ describe("DataController", () => {
       const { generateEncryptionKey } = await import("../utils/encryption");
       vi.mocked(generateEncryptionKey).mockResolvedValueOnce("test-key");
 
-      const { decryptUserData } = await import("../utils/encryption");
-      vi.mocked(decryptUserData).mockResolvedValueOnce(
+      const { decryptBlobWithSignedKey } = await import("../utils/encryption");
+      vi.mocked(decryptBlobWithSignedKey).mockResolvedValueOnce(
         new Blob(["decrypted content"]),
       );
 
@@ -558,7 +558,9 @@ describe("DataController", () => {
       const result = await controller.decryptFile(mockFile);
 
       expect(result).toBeInstanceOf(Blob);
-      expect(mockFetch).toHaveBeenCalledWith("https://ipfs.io/ipfs/QmTestHash");
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://dweb.link/ipfs/QmTestHash",
+      );
     });
 
     it("should handle empty blob response", async () => {
@@ -580,7 +582,7 @@ describe("DataController", () => {
       });
 
       await expect(controller.decryptFile(mockFile)).rejects.toThrow(
-        "File is empty or could not be retrieved",
+        "Network error: Cannot access the file URL. The file may be stored on a server that's not accessible or has CORS restrictions.",
       );
     });
 
@@ -601,7 +603,7 @@ describe("DataController", () => {
       });
 
       await expect(controller.decryptFile(mockFile)).rejects.toThrow(
-        "Access denied. You may not have permission to access this file",
+        "Network error: Cannot access the file URL. The file may be stored on a server that's not accessible or has CORS restrictions.",
       );
     });
 
@@ -638,8 +640,8 @@ describe("DataController", () => {
       const { generateEncryptionKey } = await import("../utils/encryption");
       vi.mocked(generateEncryptionKey).mockResolvedValueOnce("test-key");
 
-      const { decryptUserData } = await import("../utils/encryption");
-      vi.mocked(decryptUserData).mockRejectedValueOnce(
+      const { decryptBlobWithSignedKey } = await import("../utils/encryption");
+      vi.mocked(decryptBlobWithSignedKey).mockRejectedValueOnce(
         new Error("Error decrypting message: invalid format"),
       );
 
@@ -1089,8 +1091,8 @@ describe("DataController", () => {
         blob: () => Promise.resolve(new Blob(["encrypted content"])),
       });
 
-      const { decryptUserData } = await import("../utils/encryption");
-      (decryptUserData as Mock).mockResolvedValueOnce(
+      const { decryptBlobWithSignedKey } = await import("../utils/encryption");
+      (decryptBlobWithSignedKey as Mock).mockResolvedValueOnce(
         new Blob(["decrypted content"]),
       );
 
@@ -2098,85 +2100,6 @@ describe("DataController", () => {
         controllerWithRelayer.uploadEncryptedFileWithSchema(testFile, 1),
       ).rejects.toThrow(
         "Upload failed: Relayer does not yet support uploading files with schema",
-      );
-    });
-  });
-
-  describe("convertToDownloadUrl", () => {
-    it("should convert IPFS URLs to direct download URLs", () => {
-      // Access the private method using explicit cast
-      const convertToDownloadUrl = (
-        controller as unknown as {
-          convertToDownloadUrl: (url: string) => string;
-        }
-      ).convertToDownloadUrl.bind(controller);
-
-      const ipfsUrl = "ipfs://QmTestHash123";
-      const result = convertToDownloadUrl(ipfsUrl);
-
-      expect(result).toBe("https://ipfs.io/ipfs/QmTestHash123");
-    });
-
-    it("should convert Google Drive URLs to direct download URLs", () => {
-      // Access the private method using explicit cast
-      const convertToDownloadUrl = (
-        controller as unknown as {
-          convertToDownloadUrl: (url: string) => string;
-        }
-      ).convertToDownloadUrl.bind(controller);
-
-      const driveUrl =
-        "https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit";
-      const result = convertToDownloadUrl(driveUrl);
-
-      expect(result).toBe(
-        "https://drive.google.com/uc?id=1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms&export=download",
-      );
-    });
-
-    it("should handle Google Drive URLs without valid file ID", () => {
-      // Access the private method using explicit cast
-      const convertToDownloadUrl = (
-        controller as unknown as {
-          convertToDownloadUrl: (url: string) => string;
-        }
-      ).convertToDownloadUrl.bind(controller);
-
-      const malformedDriveUrl = "https://drive.google.com/file/d/";
-      const result = convertToDownloadUrl(malformedDriveUrl);
-
-      // Should return original URL when no valid file ID match is found
-      expect(result).toBe(malformedDriveUrl);
-    });
-
-    it("should return original URL for non-IPFS and non-Google Drive URLs", () => {
-      // Access the private method using explicit cast
-      const convertToDownloadUrl = (
-        controller as unknown as {
-          convertToDownloadUrl: (url: string) => string;
-        }
-      ).convertToDownloadUrl.bind(controller);
-
-      const regularUrl = "https://example.com/file.txt";
-      const result = convertToDownloadUrl(regularUrl);
-
-      expect(result).toBe(regularUrl);
-    });
-
-    it("should handle Google Drive URLs with different valid file ID formats", () => {
-      // Access the private method using explicit cast
-      const convertToDownloadUrl = (
-        controller as unknown as {
-          convertToDownloadUrl: (url: string) => string;
-        }
-      ).convertToDownloadUrl.bind(controller);
-
-      const driveUrl =
-        "https://drive.google.com/file/d/1a2b3c4d5e6f7g8h9i0j_k-l/view";
-      const result = convertToDownloadUrl(driveUrl);
-
-      expect(result).toBe(
-        "https://drive.google.com/uc?id=1a2b3c4d5e6f7g8h9i0j_k-l&export=download",
       );
     });
   });

@@ -135,6 +135,7 @@ export type {
   PostRequestParams,
   CreateOperationParams,
   InitPersonalServerParams,
+  PersonalServerIdentity,
 } from "./personal";
 
 // Server API types (auto-generated via fetch-server-types.ts)

@@ -1,9 +1,12 @@
-import { CreateOperationParams, InitPersonalServerParams } from "../types";
+import {
+  CreateOperationParams,
+  InitPersonalServerParams,
+  PersonalServerIdentity,
+} from "../types";
 import {
   CreateOperationResponse,
   GetOperationResponse,
   IdentityResponseModel,
-  PersonalServerModel,
 } from "../types/server-exports";
 import {
   NetworkError,
@@ -54,7 +57,7 @@ export class ServerController {
 
   async getIdentity(
     request: InitPersonalServerParams,
-  ): Promise<PersonalServerModel & { base_url: string; name: string }> {
+  ): Promise<PersonalServerIdentity> {
     try {
       const response = await fetch(
         `${this.PERSONAL_SERVER_BASE_URL}/identity?address=${request.userAddress}`,

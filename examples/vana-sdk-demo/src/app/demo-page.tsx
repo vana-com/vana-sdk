@@ -28,6 +28,7 @@ import {
   TrustServerTypedData,
   UntrustServerTypedData,
   AddAndTrustServerParams,
+  AddAndTrustServerTypedData,
   GrantFile,
   Hash,
   Address,
@@ -660,6 +661,24 @@ export default function Home() {
 
             async submitUntrustServer(
               typedData: UntrustServerTypedData,
+              signature: Hash,
+            ) {
+              // Create a JSON-safe version for relayer
+              const jsonSafeTypedData = JSON.parse(
+                JSON.stringify(typedData, (_key, value) =>
+                  typeof value === "bigint" ? value.toString() : value,
+                ),
+              );
+              const result = await relayRequest("relay", {
+                typedData: jsonSafeTypedData,
+                signature,
+                expectedUserAddress: address, // Add expected user address for verification
+              });
+              return result.transactionHash as Hash;
+            },
+
+            async submitAddAndTrustServer(
+              typedData: AddAndTrustServerTypedData,
               signature: Hash,
             ) {
               // Create a JSON-safe version for relayer

@@ -4,6 +4,7 @@ import type {
   GenericTypedData,
   PermissionGrantTypedData,
   TrustServerTypedData,
+  AddAndTrustServerTypedData,
 } from "../types";
 import { SignatureError } from "../errors";
 
@@ -128,6 +129,12 @@ export async function handleRelayerRequest(
     case "UntrustServer":
       return await sdk.permissions.submitSignedUntrustServer(
         typedData as unknown as GenericTypedData,
+        signature,
+      );
+
+    case "AddAndTrustServer":
+      return await sdk.permissions.submitSignedAddAndTrustServer(
+        typedData as unknown as AddAndTrustServerTypedData,
         signature,
       );
 

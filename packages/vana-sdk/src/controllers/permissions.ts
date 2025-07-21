@@ -659,6 +659,50 @@ export class PermissionsController {
   }
 
   /**
+   * Submits an already-signed add and trust server transaction to the blockchain.
+   * This method handles adding and trusting servers with full server information.
+   *
+   * @param typedData - The EIP-712 typed data for AddAndTrustServer
+   * @param signature - The user's signature
+   * @returns Promise resolving to the transaction hash
+   */
+  async submitSignedAddAndTrustServer(
+    typedData: AddAndTrustServerTypedData,
+    signature: Hash,
+  ): Promise<Hash> {
+    try {
+      // Extract input data from typed data message
+      const addAndTrustServerInput: AddAndTrustServerInput = {
+        nonce: typedData.message.nonce,
+        owner: typedData.message.owner,
+        serverAddress: typedData.message.serverAddress,
+        publicKey: typedData.message.publicKey,
+        serverUrl: typedData.message.serverUrl,
+      };
+
+      return await this.submitAddAndTrustServerTransaction(
+        addAndTrustServerInput,
+        signature,
+      );
+    } catch (error) {
+      if (
+        error instanceof RelayerError ||
+        error instanceof NetworkError ||
+        error instanceof UserRejectedRequestError ||
+        error instanceof SerializationError ||
+        error instanceof NonceError ||
+        error instanceof SignatureError
+      ) {
+        throw error;
+      }
+      throw new BlockchainError(
+        `Failed to submit signed add and trust server: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
    * Submits a signed transaction directly to the blockchain.
    *
    * @param typedData - The typed data structure for the permission grant

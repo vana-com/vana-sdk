@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import { useAccount, useChainId } from "wagmi";
 import {
   Card,
@@ -10,57 +10,333 @@ import {
   Textarea,
   Select,
   SelectItem,
-  Chip,
-  Progress,
-  RadioGroup,
   Radio,
+  RadioGroup,
+  Divider,
+  ScrollShadow,
 } from "@heroui/react";
 import {
   Shield,
   FileText,
-  Users,
-  CheckCircle,
-  ArrowRight,
-  AlertCircle,
   Brain,
   Sparkles,
-  Lock,
   Server,
   Database,
+  CheckCircle,
+  AlertCircle,
+  Loader2,
+  Activity,
 } from "lucide-react";
-import type { Schema } from "@opendatalabs/vana-sdk/browser";
-import { StatusMessage } from "@/components/ui/StatusMessage";
-import { AddressDisplay } from "@/components/ui/AddressDisplay";
-import { FileIdDisplay } from "@/components/ui/FileIdDisplay";
-import { ExplorerLink } from "@/components/ui/ExplorerLink";
-import { EmptyState } from "@/components/ui/EmptyState";
+import { GrantPermissionModal } from "@/components/ui/GrantPermissionModal";
 import { useTrustedServers } from "@/hooks/useTrustedServers";
-import { useUserFiles } from "@/hooks/useUserFiles";
+import { useUserFiles, ExtendedUserFile } from "@/hooks/useUserFiles";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useVana } from "@/providers/VanaProvider";
+import { findMatchingPermission } from "@/utils/permissions";
+import { ExplorerLink } from "@/components/ui/ExplorerLink";
 
-/**
- * AI Profile Demo page - the hero flow that delivers the "Aha!" moment
- *
- * This page provides the flagship demonstration of the Vana SDK's capabilities
- * through a carefully crafted 4-step journey that showcases user-owned data
- * and privacy-preserving permissions.
- *
- * The flow is designed to be lean, guided, and deliver maximum impact by showing
- * how a user can maintain control over their data while enabling AI processing.
- */
+// Component-specific props
+type ServerConfigProps = {
+  needsToTrustServer: boolean;
+  config: SandboxConfig;
+  setConfig: React.Dispatch<React.SetStateAction<SandboxConfig>>;
+  trustedServers: ReturnType<typeof useTrustedServers>["trustedServers"];
+  trustServerError: string | null;
+};
+
+type DataSourceProps = {
+  config: SandboxConfig;
+  setConfig: React.Dispatch<React.SetStateAction<SandboxConfig>>;
+  userFiles: ExtendedUserFile[];
+  selectedFiles: number[];
+  handleFileSelection: (fileId: number, selected: boolean) => void;
+  newTextData: string;
+  setNewTextData: (text: string) => void;
+  uploadResult: { fileId: number } | null;
+};
+
+type ActivityLogProps = {
+  activityLog: ActivityEntry[];
+};
+
+type ResultsDisplayProps = {
+  llmResult: string | null;
+  currentPermissionId: string | null;
+  grantTxHash: string | null;
+  chainId: number | undefined;
+};
+
+// Sub-components defined outside the main component
+const ServerConfig = ({
+  needsToTrustServer,
+  config,
+  setConfig,
+  trustedServers,
+  trustServerError,
+}: ServerConfigProps) => (
+  <Card>
+    <CardHeader>
+      <div className="flex items-center gap-2">
+        <Server className="h-5 w-5 text-primary" />
+        <h3 className="text-lg font-semibold">Trusted Server</h3>
+        {!needsToTrustServer && (
+          <CheckCircle className="h-4 w-4 text-success" />
+        )}
+      </div>
+    </CardHeader>
+    <CardBody>
+      {needsToTrustServer ? (
+        <div className="text-sm text-default-600">
+          No trusted servers found. Click the action button to set one up.
+        </div>
+      ) : (
+        <Select
+          label="Select server"
+          selectedKeys={config.selectedServer ? [config.selectedServer] : []}
+          onSelectionChange={(keys) => {
+            const serverId = Array.from(keys)[0] as string;
+            setConfig((prev) => ({ ...prev, selectedServer: serverId }));
+          }}
+          size="sm"
+        >
+          {trustedServers.map((server) => (
+            <SelectItem
+              key={server.serverAddress}
+              textValue={server.name || server.serverAddress}
+            >
+              {server.name || server.serverAddress}
+            </SelectItem>
+          ))}
+        </Select>
+      )}
+      {trustServerError && (
+        <div className="text-xs text-danger mt-2">
+          <AlertCircle className="h-3 w-3 inline mr-1" />
+          {trustServerError}
+        </div>
+      )}
+    </CardBody>
+  </Card>
+);
+
+const DataSource = ({
+  config,
+  setConfig,
+  userFiles,
+  selectedFiles,
+  handleFileSelection,
+  newTextData,
+  setNewTextData,
+  uploadResult,
+}: DataSourceProps) => (
+  <Card>
+    <CardHeader>
+      <div className="flex items-center gap-2">
+        <Database className="h-5 w-5 text-primary" />
+        <h3 className="text-lg font-semibold">Data Source</h3>
+        {config.selectedFiles.length > 0 && (
+          <CheckCircle className="h-4 w-4 text-success" />
+        )}
+      </div>
+    </CardHeader>
+    <CardBody className="space-y-3">
+      <RadioGroup
+        value={config.dataChoice}
+        onValueChange={(value) =>
+          setConfig((prev) => ({
+            ...prev,
+            dataChoice: value as "new" | "existing",
+          }))
+        }
+        orientation="horizontal"
+        size="sm"
+      >
+        <Radio value="new">Create New</Radio>
+        <Radio value="existing">Use Existing</Radio>
+      </RadioGroup>
+      {config.dataChoice === "new" ? (
+        <div className="space-y-3">
+          <Textarea
+            label="Sample Text"
+            placeholder="Enter some personal text for the AI to analyze..."
+            value={newTextData}
+            onChange={(e) => setNewTextData(e.target.value)}
+            minRows={3}
+            maxRows={5}
+            size="sm"
+            description="This will be encrypted before processing"
+          />
+          {uploadResult && (
+            <div className="text-xs text-success">
+              <CheckCircle className="h-3 w-3 inline mr-1" />
+              Created file #{uploadResult.fileId}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {userFiles.length === 0 ? (
+            <div className="text-sm text-default-500">
+              No existing files. Create new data instead.
+            </div>
+          ) : (
+            <div className="space-y-1 max-h-32 overflow-y-auto">
+              {userFiles.slice(0, 5).map((file) => (
+                <div
+                  key={file.id}
+                  className={`p-2 border rounded-lg cursor-pointer transition-colors text-sm ${
+                    selectedFiles.includes(file.id)
+                      ? "border-primary bg-primary/5"
+                      : "border-default-200 hover:bg-default-50"
+                  }`}
+                  onClick={() =>
+                    handleFileSelection(
+                      file.id,
+                      !selectedFiles.includes(file.id),
+                    )
+                  }
+                >
+                  <div className="flex items-center justify-between">
+                    <span>File #{file.id}</span>
+                    {selectedFiles.includes(file.id) && (
+                      <CheckCircle className="h-3 w-3 text-primary" />
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </CardBody>
+  </Card>
+);
+
+const ActivityLog = ({ activityLog }: ActivityLogProps) => (
+  <Card className="h-64">
+    <CardHeader>
+      <div className="flex items-center gap-2">
+        <Activity className="h-5 w-5 text-primary" />
+        <h3 className="text-lg font-semibold">Activity Log</h3>
+      </div>
+    </CardHeader>
+    <CardBody>
+      <ScrollShadow className="h-full">
+        {activityLog.length === 0 ? (
+          <div className="text-sm text-default-500">
+            Activity will appear here as you interact with the sandbox...
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {activityLog.map((entry) => (
+              <div key={entry.id} className="text-xs space-y-1">
+                <div className="flex items-start gap-2">
+                  {entry.type === "success" && (
+                    <CheckCircle className="h-3 w-3 text-success mt-0.5" />
+                  )}
+                  {entry.type === "error" && (
+                    <AlertCircle className="h-3 w-3 text-danger mt-0.5" />
+                  )}
+                  {entry.type === "info" && (
+                    <Activity className="h-3 w-3 text-primary mt-0.5" />
+                  )}
+                  {entry.type === "warning" && (
+                    <AlertCircle className="h-3 w-3 text-warning mt-0.5" />
+                  )}
+                  <div className="flex-1">
+                    <span
+                      className={`font-medium ${
+                        entry.type === "success"
+                          ? "text-success"
+                          : entry.type === "error"
+                            ? "text-danger"
+                            : entry.type === "warning"
+                              ? "text-warning"
+                              : "text-primary"
+                      }`}
+                    >
+                      {entry.message}
+                    </span>
+                    {entry.details && (
+                      <div className="text-default-500 mt-0.5">
+                        {entry.details}
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-default-400 text-xs">
+                    {entry.timestamp.toLocaleTimeString()}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </ScrollShadow>
+    </CardBody>
+  </Card>
+);
+
+const ResultsDisplay = ({
+  llmResult,
+  currentPermissionId,
+  grantTxHash,
+  chainId,
+}: ResultsDisplayProps) => {
+  if (!llmResult) return null;
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-5 w-5 text-primary" />
+          <h3 className="text-lg font-semibold">AI-Generated Profile</h3>
+        </div>
+      </CardHeader>
+      <CardBody>
+        <div className="prose prose-sm max-w-none">
+          <div className="text-sm text-foreground whitespace-pre-wrap">
+            {llmResult}
+          </div>
+        </div>
+        <Divider className="my-4" />
+        <div className="text-xs text-default-500">
+          Generated using permission ID: {currentPermissionId}
+          {grantTxHash && (
+            <span className="ml-2">
+              •{" "}
+              <ExplorerLink
+                type="tx"
+                hash={grantTxHash}
+                chainId={chainId || 14800}
+              />
+            </span>
+          )}
+        </div>
+      </CardBody>
+    </Card>
+  );
+};
+
+// Configuration state type
+interface SandboxConfig {
+  selectedServer: string;
+  selectedFiles: number[];
+  dataChoice: "new" | "existing";
+}
+
+// Activity log entry type
+interface ActivityEntry {
+  id: string;
+  timestamp: Date;
+  type: "info" | "success" | "error" | "warning";
+  message: string;
+  details?: string;
+}
+
 export default function DemoExperiencePage() {
   const { address } = useAccount();
   const chainId = useChainId();
-  const { vana, applicationAddress } = useVana();
+  const { applicationAddress } = useVana();
 
-  // LLM execution state (migrated from demo-page.tsx)
-  const [lastUsedPermissionId, setLastUsedPermissionId] = useState<string>("");
-  const [llmResult, setLlmResult] = useState<unknown>(null);
-  const [llmError, setLlmError] = useState<string>("");
-  const [isRunningLLM, setIsRunningLLM] = useState(false);
-
-  // Use custom hooks for state management
   const {
     trustedServers,
     isDiscoveringServer,
@@ -79,102 +355,249 @@ export default function DemoExperiencePage() {
     handleFileSelection,
     setNewTextData,
     handleUploadText,
+    setSelectedFiles,
   } = useUserFiles();
 
-  const { isGranting, grantStatus, grantTxHash, handleGrantPermission } =
-    usePermissions();
+  const {
+    isGranting,
+    grantTxHash,
+    grantPreview,
+    showGrantPreview,
+    handleGrantPermission,
+    onCloseGrant,
+    handleConfirmGrant,
+    userPermissions,
+    setGrantPreview,
+    lastGrantedPermissionId,
+  } = usePermissions();
 
-  const [currentStep, setCurrentStep] = useState(1);
-  const [dataChoice, setDataChoice] = useState<"new" | "existing">("new");
-  const [selectedTrustedServer, setSelectedTrustedServer] =
-    useState<string>("");
-  const [fileSchemas, setFileSchemas] = useState<Map<number, Schema>>(
-    new Map(),
+  const [config, setConfig] = useState<SandboxConfig>({
+    selectedServer: "",
+    selectedFiles: [],
+    dataChoice: "new",
+  });
+
+  const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
+  const [isRunningLLM, setIsRunningLLM] = useState(false);
+  const [llmResult, setLlmResult] = useState<string | null>(null);
+  const [currentPermissionId, setCurrentPermissionId] = useState<string | null>(
+    null,
   );
-  const [isAdvancingStep, setIsAdvancingStep] = useState(false);
 
-  // Poll operation status for LLM execution (migrated from demo-page.tsx)
-  const pollOperationStatus = async (
-    operationId: string,
-    permissionId: number,
-  ) => {
-    try {
-      const response = await fetch("/api/trusted-server/poll", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          operationId,
-          chainId,
-        }),
-      });
+  const addActivity = useCallback(
+    (type: ActivityEntry["type"], message: string, details?: string) => {
+      const entry: ActivityEntry = {
+        id: `${Date.now()}-${Math.random()}`,
+        timestamp: new Date(),
+        type,
+        message,
+        details,
+      };
+      setActivityLog((prev) => [entry, ...prev].slice(0, 20));
+    },
+    [],
+  );
 
-      if (!response.ok) {
-        console.warn("Failed to poll Replicate status");
-        return;
-      }
+  const needsToTrustServer = useMemo(
+    () => trustedServers.length === 0,
+    [trustedServers],
+  );
 
-      const result = await response.json();
+  const needsToCreateData = useMemo(() => {
+    return (
+      config.dataChoice === "new" && !uploadResult && userFiles.length === 0
+    );
+  }, [config.dataChoice, uploadResult, userFiles]);
 
-      if (result.data?.status === "succeeded") {
-        // Extract the actual AI response from output
-        const aiResponse = result.data.result || "No output received";
-        setLlmResult(aiResponse);
-        setIsRunningLLM(false);
-      } else if (result.data?.status === "failed") {
-        setLlmError(result.data?.error || "AI processing failed");
-        setIsRunningLLM(false);
-      } else if (
-        result.data?.status === "starting" ||
-        result.data?.status === "processing"
-      ) {
-        // Still processing, poll again in 2 seconds
-        setTimeout(() => pollOperationStatus(operationId, permissionId), 2000);
-      } else {
-        // Unknown status, stop polling
-        console.warn("Unknown operation status:", result.data?.status);
-        setLlmError("Unknown operation status");
-        setIsRunningLLM(false);
-      }
-    } catch (error) {
-      console.warn("Error polling Replicate status:", error);
-      setIsRunningLLM(false);
+  const needsPermission = useMemo(() => {
+    // We can't know if permission is needed without knowing the prompt
+    // So we'll always show "Grant Permission" button and let the modal handle it
+    return config.selectedFiles.length === 0 || userPermissions.length === 0;
+  }, [config.selectedFiles, userPermissions]);
+
+  // We'll set currentPermissionId after the modal confirms a match
+  useEffect(() => {
+    if (config.selectedFiles.length === 0) {
+      setCurrentPermissionId(null);
     }
-  };
+  }, [config.selectedFiles]);
 
-  // Handle LLM execution (migrated from demo-page.tsx)
-  const handleRunLLM = async (permissionIdString: string) => {
-    if (!address) return;
+  useEffect(() => {
+    if (trustedServers.length > 0 && !config.selectedServer) {
+      setConfig((prev) => ({
+        ...prev,
+        selectedServer: trustedServers[0].serverAddress,
+      }));
+    }
+  }, [trustedServers, config.selectedServer]);
 
-    // Parse permission ID
-    let permissionId: number;
-    try {
-      permissionId = parseInt(permissionIdString.trim());
-      if (isNaN(permissionId) || permissionId <= 0) {
-        setLlmError("Permission ID must be a valid positive number");
-        return;
+  useEffect(() => {
+    setConfig((prev) => ({ ...prev, selectedFiles }));
+  }, [selectedFiles]);
+
+  useEffect(() => {
+    if (uploadResult?.fileId) {
+      setSelectedFiles([uploadResult.fileId]);
+      addActivity("success", `Created new data file #${uploadResult.fileId}`);
+    }
+  }, [uploadResult, setSelectedFiles, addActivity]);
+
+  const getButtonState = useCallback(() => {
+    if (!address)
+      return {
+        text: "Connect Wallet",
+        disabled: true,
+        icon: <Shield className="h-4 w-4" />,
+      };
+    if (needsToTrustServer)
+      return {
+        text: "Trust Server",
+        disabled: isDiscoveringServer || isTrustingServer,
+        icon: <Server className="h-4 w-4" />,
+      };
+    if (needsToCreateData && config.dataChoice === "new")
+      return {
+        text: "Create Sample Data",
+        disabled: !newTextData.trim() || isUploadingText,
+        icon: <FileText className="h-4 w-4" />,
+      };
+    if (config.selectedFiles.length === 0)
+      return {
+        text: "Select Data",
+        disabled: true,
+        icon: <Database className="h-4 w-4" />,
+      };
+    if (!currentPermissionId)
+      return {
+        text: "Configure Permission",
+        disabled: isGranting,
+        icon: <Shield className="h-4 w-4" />,
+      };
+    return {
+      text: "Generate AI Profile",
+      disabled: isRunningLLM,
+      icon: <Brain className="h-4 w-4" />,
+    };
+  }, [
+    address,
+    needsToTrustServer,
+    needsToCreateData,
+    needsPermission,
+    config.dataChoice,
+    config.selectedFiles,
+    newTextData,
+    isDiscoveringServer,
+    isTrustingServer,
+    isUploadingText,
+    isGranting,
+    isRunningLLM,
+  ]);
+
+  const pollOperationStatus = useCallback(
+    async (operationId: string, permissionId: string) => {
+      try {
+        const response = await fetch("/api/trusted-server/poll", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ operationId, chainId }),
+        });
+        if (!response.ok) {
+          addActivity("error", "Failed to poll operation status");
+          return;
+        }
+        const result = await response.json();
+        if (result.data?.status === "succeeded") {
+          setLlmResult(result.data.result || "No output received");
+          addActivity("success", "AI profile generated successfully!");
+        } else if (result.data?.status === "failed") {
+          addActivity("error", "AI processing failed", result.data?.error);
+        } else if (
+          result.data?.status === "starting" ||
+          result.data?.status === "processing"
+        ) {
+          setTimeout(
+            () => pollOperationStatus(operationId, permissionId),
+            2000,
+          );
+          return;
+        } else {
+          addActivity("error", "Unknown operation status", result.data?.status);
+        }
+      } catch (error) {
+        addActivity(
+          "error",
+          "Error polling operation status",
+          error instanceof Error ? error.message : undefined,
+        );
       }
-    } catch {
-      setLlmError("Permission ID must be a valid number");
+      setIsRunningLLM(false);
+    },
+    [chainId, addActivity],
+  );
+
+  const handlePrimaryAction = useCallback(async () => {
+    if (needsToTrustServer) {
+      addActivity("info", "Discovering and trusting server...");
+      try {
+        const discoveredServer = await handleDiscoverHostedServer();
+        if (discoveredServer?.serverAddress) {
+          await handleTrustServerGasless(
+            false,
+            discoveredServer.serverAddress,
+            discoveredServer.serverUrl,
+          );
+          setConfig((prev) => ({
+            ...prev,
+            selectedServer: discoveredServer.serverAddress,
+          }));
+          addActivity("success", "Server trusted successfully!");
+        } else {
+          addActivity("error", "Failed to discover server");
+        }
+      } catch (error) {
+        addActivity(
+          "error",
+          "Failed to trust server",
+          error instanceof Error ? error.message : undefined,
+        );
+      }
       return;
     }
 
+    if (needsToCreateData && config.dataChoice === "new") {
+      addActivity("info", "Creating sample data file...");
+      await handleUploadText();
+      return;
+    }
+
+    if (!applicationAddress || config.selectedFiles.length === 0) {
+      addActivity("error", "Missing configuration", "Please select data files");
+      return;
+    }
+
+    // For now, we'll need to open the modal to handle permission granting
+    // The modal will check for existing permissions once the user enters a prompt
+    if (userPermissions.length === 0 || !currentPermissionId) {
+      addActivity("info", "Opening permission configuration...");
+      await handleGrantPermission(config.selectedFiles, ""); // Empty prompt - modal will handle it
+      return;
+    }
+
+    const permissionId = currentPermissionId;
+    if (!permissionId) {
+      addActivity("error", "No permission ID available");
+      return;
+    }
+
+    addActivity("info", "Executing AI inference...");
     setIsRunningLLM(true);
-    setLlmError("");
     setLlmResult(null);
 
     try {
-      // Call our API route instead of using the SDK directly
       const response = await fetch("/api/trusted-server", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          permissionId,
-          chainId,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ permissionId: parseInt(permissionId), chainId }),
       });
 
       if (!response.ok) {
@@ -183,696 +606,192 @@ export default function DemoExperiencePage() {
       }
 
       const result = await response.json();
-
-      // Handle the new OperationCreated response format
       if (result.data?.id) {
-        // Start polling for the operation status
+        addActivity("info", "AI processing started...");
         pollOperationStatus(result.data.id, permissionId);
       } else {
-        // Fallback for unexpected response format
-        console.warn("Unexpected response format:", result.data);
-        setLlmError("Unexpected response format from server");
-        setIsRunningLLM(false);
+        throw new Error("Unexpected response format");
       }
-
-      // Store permission context for display
-      setLastUsedPermissionId(permissionId.toString());
     } catch (error) {
-      setLlmError(error instanceof Error ? error.message : "Unknown error");
+      addActivity(
+        "error",
+        "Failed to run AI inference",
+        error instanceof Error ? error.message : undefined,
+      );
       setIsRunningLLM(false);
     }
-  };
+  }, [
+    needsToTrustServer,
+    needsToCreateData,
+    config,
+    applicationAddress,
+    userPermissions,
+    needsPermission,
+    currentPermissionId,
+    handleDiscoverHostedServer,
+    handleTrustServerGasless,
+    handleUploadText,
+    handleGrantPermission,
+    pollOperationStatus,
+    addActivity,
+    chainId,
+  ]);
 
-  // Fetch schema information for files that have schema IDs
+  // Handle when a permission is granted from the usePermissions hook
   useEffect(() => {
-    const fetchSchemas = async () => {
-      if (!vana) return;
-
-      const schemaMap = new Map<number, Schema>();
-
-      for (const file of userFiles) {
-        const schemaId =
-          "schemaId" in file ? (file.schemaId as number) : undefined;
-        if (
-          schemaId &&
-          typeof schemaId === "number" &&
-          !fileSchemas.has(schemaId)
-        ) {
-          try {
-            const schema = await vana.schemas.get(schemaId);
-            schemaMap.set(schemaId, schema);
-          } catch (error) {
-            console.warn(`Failed to fetch schema ${schemaId}:`, error);
-          }
-        }
-      }
-
-      if (schemaMap.size > 0) {
-        setFileSchemas((prev) => new Map([...prev, ...schemaMap]));
-      }
-    };
-
-    if (userFiles.length > 0 && vana) {
-      fetchSchemas();
+    if (
+      lastGrantedPermissionId &&
+      lastGrantedPermissionId !== currentPermissionId
+    ) {
+      setCurrentPermissionId(lastGrantedPermissionId);
+      addActivity(
+        "success",
+        `New permission granted! ID: ${lastGrantedPermissionId}`,
+        "You can now generate AI profiles",
+      );
+      // Auto-trigger generation after granting
+      setTimeout(() => handlePrimaryAction(), 500);
     }
-  }, [userFiles, vana, fileSchemas]);
+  }, [
+    lastGrantedPermissionId,
+    currentPermissionId,
+    addActivity,
+    handlePrimaryAction,
+  ]);
 
-  // Determine step completion status
-  const isStep1Complete = trustedServers.length > 0 && selectedTrustedServer;
-  const isStep2Complete =
-    (dataChoice === "new" && uploadResult) ||
-    (dataChoice === "existing" && selectedFiles.length > 0);
-  const isStep3Complete = grantTxHash && lastUsedPermissionId;
-  const isStep4Complete = Boolean(llmResult && !llmError);
-
-  // Handles moving to the next step with debouncing protection
-  const handleNextStep = () => {
-    if (isAdvancingStep || currentStep >= 4) return;
-
-    setIsAdvancingStep(true);
-    setCurrentStep(currentStep + 1);
-
-    // Reset debouncing after a short delay
-    setTimeout(() => setIsAdvancingStep(false), 1000);
-  };
-
-  // Handles the trust server action with one-click setup
-  const handleTrustServerWithSetup = async () => {
-    try {
-      console.info("🔄 Starting One Click Setup...");
-      const discoveredServer = await handleDiscoverHostedServer();
-      console.info("🔍 Discovered server:", discoveredServer);
-
-      if (
-        discoveredServer &&
-        discoveredServer.serverAddress &&
-        discoveredServer.serverUrl
-      ) {
-        console.info("✅ Server discovery successful, now trusting server...");
-        await handleTrustServerGasless(
-          false,
-          discoveredServer.serverAddress,
-          discoveredServer.serverUrl,
-        );
-        console.info("✅ Trust server completed, setting selected server...");
-
-        // Auto-select the server that was just trusted
-        setSelectedTrustedServer(discoveredServer.serverAddress);
-        console.info("✅ One Click Setup completed successfully!");
-      } else {
-        console.warn(
-          "❌ Server discovery failed or incomplete:",
-          discoveredServer,
-        );
-        console.warn(
-          "❌ Missing serverAddress:",
-          !discoveredServer?.serverAddress,
-        );
-        console.warn("❌ Missing serverUrl:", !discoveredServer?.serverUrl);
-      }
-    } catch (error) {
-      console.error("❌ One Click Setup failed:", error);
-      // Error will be displayed via trustServerError state from hook
-    }
-  };
-
-  // Handles the LLM execution with the predefined prompt
-  const handleRunLLMClick = () => {
-    if (lastUsedPermissionId) {
-      handleRunLLM(lastUsedPermissionId);
-    }
-  };
-
-  // Renders the step indicator
-  const renderStepIndicator = () => {
-    const steps = [
-      { number: 1, title: "Trust Server", completed: isStep1Complete },
-      { number: 2, title: "Choose Data", completed: isStep2Complete },
-      { number: 3, title: "Grant Permission", completed: isStep3Complete },
-      { number: 4, title: "Generate Profile", completed: isStep4Complete },
-    ];
-
-    return (
-      <div className="flex items-center justify-center mb-8">
-        <div className="flex items-center space-x-4">
-          {steps.map((step, index) => (
-            <React.Fragment key={step.number}>
-              <div
-                className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
-                  step.completed
-                    ? "bg-success text-success-foreground border-success"
-                    : currentStep === step.number
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-default-100 text-default-500 border-default-200"
-                }`}
-              >
-                {step.completed ? (
-                  <CheckCircle className="h-5 w-5" />
-                ) : (
-                  <span className="text-sm font-semibold">{step.number}</span>
-                )}
-              </div>
-              <div className="text-center">
-                <div className="text-sm font-medium">{step.title}</div>
-              </div>
-              {index < steps.length - 1 && (
-                <ArrowRight className="h-4 w-4 text-default-400" />
-              )}
-            </React.Fragment>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  // Renders step 1: Trust a server
-  const renderStep1 = () => (
-    <Card className={currentStep === 1 ? "border-primary" : ""}>
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <Shield className="h-5 w-5 text-primary" />
-          <h3 className="text-lg font-semibold">Step 1: Trust a Server</h3>
-          {isStep1Complete && <CheckCircle className="h-5 w-5 text-success" />}
-        </div>
-      </CardHeader>
-      <CardBody>
-        <div className="space-y-4">
-          <p className="text-sm text-default-600">
-            Trust a server to securely process your data without exposing it to
-            others.
-          </p>
-
-          {trustedServers.length === 0 ? (
-            <div className="space-y-4">
-              <Button
-                onPress={handleTrustServerWithSetup}
-                isLoading={isDiscoveringServer || isTrustingServer}
-                color="primary"
-                size="lg"
-                className="w-full"
-                startContent={<Server className="h-5 w-5" />}
-              >
-                {isDiscoveringServer || isTrustingServer
-                  ? "Setting up server..."
-                  : "One-Click Setup: Trust Vana-Hosted Personal Server"}
-              </Button>
-
-              {trustServerError && (
-                <div className="text-sm text-danger">
-                  <AlertCircle className="h-4 w-4 inline mr-1" />
-                  {trustServerError}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="p-3 bg-success/10 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <CheckCircle className="h-4 w-4 text-success" />
-                  <span className="text-sm font-medium text-success">
-                    Server trusted successfully!
-                  </span>
-                </div>
-                <div className="text-xs text-success-600">
-                  You can now securely process data through this server.
-                </div>
-              </div>
-
-              <Select
-                label="Select trusted server"
-                placeholder="Choose a server"
-                selectedKeys={
-                  selectedTrustedServer ? [selectedTrustedServer] : []
-                }
-                onSelectionChange={(keys) => {
-                  const serverId = Array.from(keys)[0] as string;
-                  setSelectedTrustedServer(serverId);
-                }}
-              >
-                {trustedServers.map((server) => (
-                  <SelectItem
-                    key={server.id}
-                    textValue={server.name || server.id}
-                  >
-                    {server.name || server.id}
-                  </SelectItem>
-                ))}
-              </Select>
-
-              {isStep1Complete && (
-                <Button
-                  onPress={handleNextStep}
-                  color="primary"
-                  isDisabled={isAdvancingStep}
-                  isLoading={isAdvancingStep}
-                  endContent={
-                    !isAdvancingStep ? (
-                      <ArrowRight className="h-4 w-4" />
-                    ) : undefined
-                  }
-                >
-                  {isAdvancingStep
-                    ? "Loading..."
-                    : "Continue to Data Selection"}
-                </Button>
-              )}
-            </div>
-          )}
-        </div>
-      </CardBody>
-    </Card>
-  );
-
-  // Renders step 2: Choose your data
-  const renderStep2 = () => (
-    <Card className={currentStep === 2 ? "border-primary" : ""}>
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <FileText className="h-5 w-5 text-primary" />
-          <h3 className="text-lg font-semibold">Step 2: Choose Your Data</h3>
-          {isStep2Complete && <CheckCircle className="h-5 w-5 text-success" />}
-        </div>
-      </CardHeader>
-      <CardBody>
-        <div className="space-y-4">
-          <p className="text-sm text-default-600">
-            Provide some personal data for AI analysis. This data will be
-            encrypted and only the trusted server can access it.
-          </p>
-
-          <RadioGroup
-            value={dataChoice}
-            onValueChange={(value) =>
-              setDataChoice(value as "new" | "existing")
-            }
-            orientation="horizontal"
-            className="mb-4"
-          >
-            <Radio value="new">Add New Text</Radio>
-            <Radio value="existing">Select Existing File</Radio>
-          </RadioGroup>
-
-          {dataChoice === "new" ? (
-            <div className="space-y-4">
-              <Textarea
-                label="Personal Data"
-                placeholder="Write something personal... a journal entry, your thoughts, or anything that represents you."
-                value={newTextData}
-                onChange={(e) => setNewTextData(e.target.value)}
-                minRows={4}
-                maxRows={8}
-                description="This will be encrypted and registered on-chain before processing."
-              />
-
-              <div className="flex items-center gap-2 p-3 bg-warning/10 rounded-lg">
-                <Lock className="h-4 w-4 text-warning" />
-                <div className="text-sm text-warning-600">
-                  <strong>Privacy guarantee:</strong> Your data is encrypted
-                  before upload and only the trusted server you authorized can
-                  decrypt it.
-                </div>
-              </div>
-
-              {uploadResult ? (
-                <div className="p-3 bg-success/10 rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    <CheckCircle className="h-4 w-4 text-success" />
-                    <span className="text-sm font-medium text-success">
-                      Data uploaded and encrypted!
-                    </span>
-                  </div>
-                  <div className="text-xs space-y-1">
-                    <div>
-                      File ID:{" "}
-                      <FileIdDisplay
-                        fileId={uploadResult.fileId}
-                        chainId={chainId || 14800}
-                      />
-                    </div>
-                    <div>
-                      Transaction:{" "}
-                      <ExplorerLink
-                        type="tx"
-                        hash={uploadResult.transactionHash}
-                        chainId={chainId || 14800}
-                      />
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <Button
-                  onPress={handleUploadText}
-                  isLoading={isUploadingText}
-                  color="primary"
-                  isDisabled={!newTextData.trim()}
-                  startContent={<Lock className="h-4 w-4" />}
-                >
-                  {isUploadingText
-                    ? "Encrypting and uploading..."
-                    : "Encrypt and Upload Data"}
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {userFiles.length === 0 ? (
-                <EmptyState
-                  icon={<FileText className="h-8 w-8" />}
-                  title="No files found"
-                  description="You need to upload some files first. Switch to 'Add New Text' to create data for this demo."
-                />
-              ) : (
-                <div className="space-y-2">
-                  <div className="text-sm font-medium mb-2">
-                    Select files to use ({selectedFiles.length} selected):
-                  </div>
-                  <div className="max-h-40 overflow-y-auto space-y-1">
-                    {userFiles.slice(0, 5).map((file) => {
-                      const schemaId =
-                        "schemaId" in file
-                          ? (file.schemaId as number)
-                          : undefined;
-                      const schema =
-                        schemaId && typeof schemaId === "number"
-                          ? fileSchemas.get(schemaId)
-                          : null;
-
-                      return (
-                        <div
-                          key={file.id}
-                          className={`p-2 border rounded cursor-pointer transition-colors ${
-                            selectedFiles.includes(file.id)
-                              ? "border-primary bg-primary/5"
-                              : "border-default-200 hover:bg-default-50"
-                          }`}
-                          onClick={() =>
-                            handleFileSelection(
-                              file.id,
-                              !selectedFiles.includes(file.id),
-                            )
-                          }
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <FileText className="h-4 w-4" />
-                              <span className="text-sm">File {file.id}</span>
-                              {file.source && (
-                                <Chip size="sm" variant="flat">
-                                  {file.source}
-                                </Chip>
-                              )}
-                              {schema && (
-                                <Chip
-                                  size="sm"
-                                  variant="flat"
-                                  color="secondary"
-                                  startContent={
-                                    <Database className="h-3 w-3" />
-                                  }
-                                >
-                                  {schema.name}
-                                </Chip>
-                              )}
-                            </div>
-                            {selectedFiles.includes(file.id) && (
-                              <CheckCircle className="h-4 w-4 text-primary" />
-                            )}
-                          </div>
-                          {schema && (
-                            <div className="mt-1 text-xs text-default-500">
-                              Schema: {schema.type}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {isStep2Complete && (
-            <Button
-              onPress={handleNextStep}
-              color="primary"
-              isDisabled={isAdvancingStep}
-              isLoading={isAdvancingStep}
-              endContent={
-                !isAdvancingStep ? (
-                  <ArrowRight className="h-4 w-4" />
-                ) : undefined
-              }
-            >
-              {isAdvancingStep ? "Loading..." : "Continue to Grant Permission"}
-            </Button>
-          )}
-        </div>
-      </CardBody>
-    </Card>
-  );
-
-  // Renders step 3: Grant permission
-  const renderStep3 = () => (
-    <Card className={currentStep === 3 ? "border-primary" : ""}>
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <Users className="h-5 w-5 text-primary" />
-          <h3 className="text-lg font-semibold">Step 3: Grant Permission</h3>
-          {isStep3Complete && <CheckCircle className="h-5 w-5 text-success" />}
-        </div>
-      </CardHeader>
-      <CardBody>
-        <div className="space-y-4">
-          <p className="text-sm text-default-600">
-            Grant this demo application permission to use your data via the
-            trusted server.
-          </p>
-
-          <div className="p-3 bg-primary/10 rounded-lg">
-            <div className="text-sm font-medium text-primary mb-2">
-              Permission Details:
-            </div>
-            <div className="text-xs space-y-1">
-              <div>
-                <strong>Operation:</strong> AI personality profile generation
-              </div>
-              <div>
-                <strong>Data:</strong>{" "}
-                {dataChoice === "new"
-                  ? "Your new text data"
-                  : `${selectedFiles.length} selected files`}
-              </div>
-              <div>
-                <strong>Server:</strong> {selectedTrustedServer}
-              </div>
-              {applicationAddress && (
-                <div>
-                  <strong>Grantee:</strong>{" "}
-                  <AddressDisplay
-                    address={applicationAddress}
-                    truncate={true}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-
-          {grantStatus && <StatusMessage status={grantStatus} />}
-
-          {grantTxHash ? (
-            <div className="p-3 bg-success/10 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <CheckCircle className="h-4 w-4 text-success" />
-                <span className="text-sm font-medium text-success">
-                  Permission granted successfully!
-                </span>
-              </div>
-              <div className="text-xs">
-                Transaction:{" "}
-                <ExplorerLink
-                  type="tx"
-                  hash={grantTxHash}
-                  chainId={chainId || 14800}
-                />
-              </div>
-            </div>
-          ) : (
-            <Button
-              onPress={() =>
-                handleGrantPermission(
-                  selectedFiles,
-                  "AI processing for demo experience",
-                )
-              }
-              isLoading={isGranting}
-              color="primary"
-              isDisabled={!isStep1Complete || !isStep2Complete}
-              startContent={<Users className="h-4 w-4" />}
-            >
-              {isGranting ? "Granting permission..." : "Grant Permission"}
-            </Button>
-          )}
-
-          {isStep3Complete && (
-            <Button
-              onPress={handleNextStep}
-              color="primary"
-              isDisabled={isAdvancingStep}
-              isLoading={isAdvancingStep}
-              endContent={
-                !isAdvancingStep ? (
-                  <ArrowRight className="h-4 w-4" />
-                ) : undefined
-              }
-            >
-              {isAdvancingStep ? "Loading..." : "Continue to Generate Profile"}
-            </Button>
-          )}
-        </div>
-      </CardBody>
-    </Card>
-  );
-
-  // Renders step 4: The payoff
-  const renderStep4 = () => (
-    <Card className={currentStep === 4 ? "border-primary" : ""}>
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" />
-          <h3 className="text-lg font-semibold">Step 4: Generate AI Profile</h3>
-          {isStep4Complete && <CheckCircle className="h-5 w-5 text-success" />}
-        </div>
-      </CardHeader>
-      <CardBody>
-        <div className="space-y-4">
-          <p className="text-sm text-default-600">
-            <strong>The moment you've been waiting for:</strong> Generate a
-            comprehensive personality profile from your private data.
-          </p>
-
-          <div className="p-3 bg-gradient-to-r from-purple-500/10 to-pink-500/10 rounded-lg border border-purple-200">
-            <div className="flex items-center gap-2 mb-2">
-              <Brain className="h-4 w-4 text-purple-600" />
-              <span className="text-sm font-medium text-purple-600">
-                AI Prompt: "Generate a personality profile based on the
-                following text."
-              </span>
-            </div>
-            <div className="text-xs text-purple-600">
-              This insight will be generated using your private data, accessible
-              only to you and the trusted server.
-            </div>
-          </div>
-
-          {llmError && (
-            <div className="p-3 bg-danger/10 rounded-lg border border-danger-200">
-              <div className="flex items-center gap-2 mb-1">
-                <AlertCircle className="h-4 w-4 text-danger" />
-                <span className="text-sm font-medium text-danger">
-                  Error generating profile
-                </span>
-              </div>
-              <div className="text-xs text-danger">{llmError}</div>
-            </div>
-          )}
-
-          {llmResult ? (
-            <div className="space-y-4">
-              <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
-                <div className="flex items-center gap-2 mb-3">
-                  <Sparkles className="h-5 w-5 text-blue-600" />
-                  <span className="text-lg font-semibold text-blue-600">
-                    Your AI-Generated Personality Profile
-                  </span>
-                </div>
-                <div className="prose prose-sm max-w-none">
-                  <div className="text-sm text-gray-700 whitespace-pre-wrap">
-                    {typeof llmResult === "string"
-                      ? llmResult
-                      : JSON.stringify(llmResult, null, 2)}
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-3 bg-success/10 rounded-lg">
-                <div className="text-sm font-medium text-success mb-1">
-                  🎉 Congratulations! You've experienced the power of Vana:
-                </div>
-                <ul className="text-xs text-success-600 space-y-1">
-                  <li>• Your data remained private and encrypted</li>
-                  <li>• Only the trusted server could access it</li>
-                  <li>• You maintained full control over permissions</li>
-                  <li>• AI generated personalized insights just for you</li>
-                </ul>
-              </div>
-            </div>
-          ) : (
-            <Button
-              onPress={handleRunLLMClick}
-              isLoading={isRunningLLM}
-              color="primary"
-              size="lg"
-              className="w-full"
-              isDisabled={!isStep3Complete}
-              startContent={<Brain className="h-5 w-5" />}
-            >
-              {isRunningLLM
-                ? "Generating your profile..."
-                : "Generate My AI Personality Profile"}
-            </Button>
-          )}
-        </div>
-      </CardBody>
-    </Card>
-  );
-
-  // Layout handles wallet connection and VanaProvider initialization
+  const buttonState = getButtonState();
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6">
-      {/* Header */}
+    <div className="max-w-7xl mx-auto p-6">
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-foreground mb-2">
-          AI Profile Demo
-        </h1>
+        <h1 className="text-3xl font-bold mb-2">AI Profile Sandbox</h1>
         <p className="text-lg text-default-600 max-w-2xl mx-auto">
-          Experience the power of user-owned data. Generate AI insights while
-          maintaining complete control over your privacy.
+          Configure your parameters and watch as the intelligent sandbox
+          orchestrates the entire flow of user-owned data and privacy-preserving
+          AI processing.
         </p>
       </div>
 
-      {/* Progress Indicator */}
-      <div className="mb-8">
-        <Progress
-          value={(currentStep / 4) * 100}
-          className="max-w-md mx-auto"
-          color="primary"
-          aria-label={`Demo progress: Step ${currentStep} of 4 (${Math.round((currentStep / 4) * 100)}% complete)`}
-        />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold mb-4">Configuration</h2>
+          <ServerConfig
+            needsToTrustServer={needsToTrustServer}
+            config={config}
+            setConfig={setConfig}
+            trustedServers={trustedServers}
+            trustServerError={trustServerError}
+          />
+          <DataSource
+            config={config}
+            setConfig={setConfig}
+            userFiles={userFiles}
+            selectedFiles={selectedFiles}
+            handleFileSelection={handleFileSelection}
+            newTextData={newTextData}
+            setNewTextData={setNewTextData}
+            uploadResult={uploadResult}
+          />
+        </div>
+
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold mb-4">Action & Results</h2>
+          <Button
+            color="primary"
+            size="lg"
+            className="w-full"
+            onPress={handlePrimaryAction}
+            isDisabled={buttonState.disabled}
+            isLoading={
+              isDiscoveringServer ||
+              isTrustingServer ||
+              isUploadingText ||
+              isGranting ||
+              isRunningLLM
+            }
+            startContent={
+              isDiscoveringServer ||
+              isTrustingServer ||
+              isUploadingText ||
+              isGranting ||
+              isRunningLLM ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                buttonState.icon
+              )
+            }
+          >
+            {buttonState.text}
+          </Button>
+
+          {currentPermissionId && config.selectedFiles.length > 0 && (
+            <Card className="bg-success/10 border-success">
+              <CardBody className="py-3">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-success" />
+                  <div className="text-sm">
+                    <span className="font-medium text-success">
+                      Ready to generate!
+                    </span>
+                    <span className="text-default-600 ml-2">
+                      Using permission #{currentPermissionId}
+                    </span>
+                  </div>
+                </div>
+              </CardBody>
+            </Card>
+          )}
+
+          <ActivityLog activityLog={activityLog} />
+          <ResultsDisplay
+            llmResult={llmResult}
+            currentPermissionId={currentPermissionId}
+            grantTxHash={grantTxHash}
+            chainId={chainId}
+          />
+        </div>
       </div>
 
-      {/* Step Indicator */}
-      {renderStepIndicator()}
-
-      {/* Steps */}
-      <div className="space-y-6 max-w-2xl mx-auto">
-        {currentStep >= 1 && renderStep1()}
-        {currentStep >= 2 && isStep1Complete && renderStep2()}
-        {currentStep >= 3 && isStep2Complete && renderStep3()}
-        {currentStep >= 4 && isStep3Complete && renderStep4()}
-      </div>
-
-      {/* Footer */}
       <div className="text-center text-sm text-default-500 mt-12">
         <p>
-          This demo showcases the Vana network's privacy-preserving data
-          processing capabilities.
+          This sandbox demonstrates the Vana network's privacy-preserving data
+          processing.
           <br />
-          Your data is encrypted, your permissions are explicit, and you
+          Your data remains encrypted, permissions are explicit, and you
           maintain full control.
         </p>
       </div>
+
+      <GrantPermissionModal
+        isOpen={showGrantPreview}
+        onClose={onCloseGrant}
+        onConfirm={async (params) => {
+          // Check if we already have a matching permission
+          const matchResult = findMatchingPermission(userPermissions, params);
+          if (matchResult.found && matchResult.permission) {
+            // Found existing permission - just use it
+            setCurrentPermissionId(matchResult.permission.id.toString());
+            addActivity(
+              "success",
+              `Found existing permission #${matchResult.permission.id}`,
+              "No new permission needed - will reuse the existing one",
+            );
+            onCloseGrant();
+            // Trigger the LLM execution
+            setTimeout(() => handlePrimaryAction(), 100);
+          } else {
+            // Need to create new permission
+            if (grantPreview) {
+              setGrantPreview({ ...grantPreview, params: params });
+            }
+            await handleConfirmGrant();
+          }
+        }}
+        selectedFiles={config.selectedFiles}
+        applicationAddress={applicationAddress}
+        isGranting={isGranting}
+        existingPermissions={userPermissions}
+      />
     </div>
   );
 }

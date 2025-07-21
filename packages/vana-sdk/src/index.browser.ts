@@ -50,8 +50,6 @@ export type * from "./types";
 // Type guards and utilities
 export {
   isReplicateAPIResponse,
-  isIdentityServerOutput,
-  isPersonalServerOutput,
   isAPIResponse,
   safeParseJSON,
   parseReplicateOutput,
@@ -89,13 +87,13 @@ export { getContractAddress } from "./config/addresses";
 export { chains } from "./config/chains";
 
 // Chain configurations with subgraph URLs - explicit exports for better DX
-export { 
-  vanaMainnet, 
-  mokshaTestnet, 
+export {
+  vanaMainnet,
+  mokshaTestnet,
   moksha,
   type VanaChainConfig,
   getChainConfig,
-  getAllChains 
+  getAllChains,
 } from "./chains";
 export * from "./chains";
 

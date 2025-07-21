@@ -2,12 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   ReplicateStatus,
   ReplicateAPIResponse,
-  IdentityServerOutput,
-  PersonalServerOutput,
   APIResponse,
   isReplicateAPIResponse,
-  isIdentityServerOutput,
-  isPersonalServerOutput,
   isAPIResponse,
   safeParseJSON,
   parseReplicateOutput,
@@ -55,38 +51,7 @@ describe("External APIs Types", () => {
       expect(response.input.prompt).toBe("test");
     });
 
-    it("should structure IdentityServerOutput correctly", () => {
-      const data: IdentityServerOutput = {
-        user_address: "0x1234567890123456789012345678901234567890",
-        personal_server: {
-          address: "https://server.example.com",
-          public_key: "0xpublickey123",
-        },
-      };
-
-      expect(data.user_address).toBe(
-        "0x1234567890123456789012345678901234567890",
-      );
-      expect(data.personal_server.address).toBe("https://server.example.com");
-    });
-
-    it("should structure PersonalServerOutput correctly", () => {
-      const output: PersonalServerOutput = {
-        user_address: "0x1234567890123456789012345678901234567890",
-        identity: {
-          metadata: { name: "Test User", verified: true },
-          derivedAddress: "0x9876543210987654321098765432109876543210",
-        },
-      };
-
-      expect(output.user_address).toBe(
-        "0x1234567890123456789012345678901234567890",
-      );
-      expect(output.identity.metadata?.name).toBe("Test User");
-      expect(output.identity.derivedAddress).toBe(
-        "0x9876543210987654321098765432109876543210",
-      );
-    });
+    // Tests for server types removed - use generated types from server-exports.ts
 
     it("should structure APIResponse correctly", () => {
       const successResponse: APIResponse<string> = {
@@ -181,142 +146,7 @@ describe("External APIs Types", () => {
     });
   });
 
-  describe("isIdentityServerOutput", () => {
-    it("should return true for valid IdentityServerOutput", () => {
-      const validData = {
-        user_address: "0x1234567890123456789012345678901234567890",
-        personal_server: {
-          address: "https://server.example.com",
-          public_key: "0xpublickey123",
-        },
-      };
-
-      expect(isIdentityServerOutput(validData)).toBe(true);
-      expect(console.debug).toHaveBeenCalled();
-    });
-
-    it("should return false for null or undefined", () => {
-      expect(isIdentityServerOutput(null)).toBe(false);
-      expect(isIdentityServerOutput(undefined)).toBe(false);
-    });
-
-    it("should return false for non-object values", () => {
-      expect(isIdentityServerOutput("string")).toBe(false);
-      expect(isIdentityServerOutput(123)).toBe(false);
-      expect(isIdentityServerOutput(true)).toBe(false);
-    });
-
-    it("should return false when user_address is not a string", () => {
-      const invalidData = {
-        user_address: 123,
-        personal_server: {
-          address: "https://server.example.com",
-          public_key: "0xpublickey123",
-        },
-      };
-
-      expect(isIdentityServerOutput(invalidData)).toBe(false);
-    });
-
-    it("should return false when personal_server is null", () => {
-      const invalidData = {
-        user_address: "0x1234567890123456789012345678901234567890",
-        personal_server: null,
-      };
-
-      expect(isIdentityServerOutput(invalidData)).toBe(false);
-    });
-
-    it("should return false when personal_server is not an object", () => {
-      const invalidData = {
-        user_address: "0x1234567890123456789012345678901234567890",
-        personal_server: "not an object",
-      };
-
-      expect(isIdentityServerOutput(invalidData)).toBe(false);
-    });
-
-    it("should return false when personal_server lacks address", () => {
-      const invalidData = {
-        user_address: "0x1234567890123456789012345678901234567890",
-        personal_server: {
-          public_key: "0xpublickey123",
-          // missing address
-        },
-      };
-
-      expect(isIdentityServerOutput(invalidData)).toBe(false);
-    });
-
-    it("should return false when personal_server lacks public_key", () => {
-      const invalidData = {
-        user_address: "0x1234567890123456789012345678901234567890",
-        personal_server: {
-          address: "https://server.example.com",
-          // missing public_key
-        },
-      };
-
-      expect(isIdentityServerOutput(invalidData)).toBe(false);
-    });
-  });
-
-  describe("isPersonalServerOutput", () => {
-    it("should return true for valid PersonalServerOutput", () => {
-      const validOutput = {
-        user_address: "0x1234567890123456789012345678901234567890",
-        identity: {
-          metadata: { name: "Test User", verified: true },
-        },
-      };
-
-      expect(isPersonalServerOutput(validOutput)).toBe(true);
-    });
-
-    it("should return false for null or undefined", () => {
-      expect(isPersonalServerOutput(null)).toBe(false);
-      expect(isPersonalServerOutput(undefined)).toBe(false);
-    });
-
-    it("should return false for non-object values", () => {
-      expect(isPersonalServerOutput("string")).toBe(false);
-      expect(isPersonalServerOutput(123)).toBe(false);
-    });
-
-    it("should return false when user_address is missing", () => {
-      const invalidOutput = {
-        identity: { metadata: { name: "Test User" } },
-      };
-
-      expect(isPersonalServerOutput(invalidOutput)).toBe(false);
-    });
-
-    it("should return false when identity is missing", () => {
-      const invalidOutput = {
-        user_address: "0x1234567890123456789012345678901234567890",
-      };
-
-      expect(isPersonalServerOutput(invalidOutput)).toBe(false);
-    });
-
-    it("should return false when user_address is not a string", () => {
-      const invalidOutput = {
-        user_address: 123,
-        identity: { metadata: { name: "Test User" } },
-      };
-
-      expect(isPersonalServerOutput(invalidOutput)).toBe(false);
-    });
-
-    it("should return false when identity is not an object", () => {
-      const invalidOutput = {
-        user_address: "0x1234567890123456789012345678901234567890",
-        identity: "not an object",
-      };
-
-      expect(isPersonalServerOutput(invalidOutput)).toBe(false);
-    });
-  });
+  // Tests for server type guards removed - use generated types from server-exports.ts
 
   describe("isAPIResponse", () => {
     it("should return true for valid APIResponse", () => {
@@ -387,17 +217,14 @@ describe("External APIs Types", () => {
       expect(result).toBeNull();
     });
 
-    it("should work with different type guards", () => {
-      const identityServerJson =
-        '{"user_address": "0x123", "personal_server": {"address": "https://test.com", "public_key": "0xkey"}}';
-      const result = safeParseJSON(identityServerJson, isIdentityServerOutput);
+    it("should work with complex API responses", () => {
+      const complexJson =
+        '{"success": true, "data": {"nested": {"value": "test"}}}';
+      const result = safeParseJSON(complexJson, isAPIResponse);
 
       expect(result).toEqual({
-        user_address: "0x123",
-        personal_server: {
-          address: "https://test.com",
-          public_key: "0xkey",
-        },
+        success: true,
+        data: { nested: { value: "test" } },
       });
     });
   });

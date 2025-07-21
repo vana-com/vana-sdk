@@ -467,7 +467,6 @@ export default function MyDataPage() {
           selectedFiles={selectedFiles}
           applicationAddress={applicationAddress}
           isGranting={isGranting}
-          defaultPrompt={promptText}
           allowEditAddress={true}
         />
       ) : null}

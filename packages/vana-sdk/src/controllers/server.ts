@@ -1,11 +1,10 @@
+import { CreateOperationParams, InitPersonalServerParams } from "../types";
 import {
-  CreateOperationParams,
-  InitPersonalServerParams,
-  PersonalServerIdentity,
   CreateOperationResponse,
   GetOperationResponse,
-} from "../types";
-import { IdentityServerOutput } from "../types/external-apis";
+  IdentityResponseModel,
+  PersonalServerModel,
+} from "../types/server-exports";
 import {
   NetworkError,
   SerializationError,
@@ -55,7 +54,7 @@ export class ServerController {
 
   async getIdentity(
     request: InitPersonalServerParams,
-  ): Promise<PersonalServerIdentity> {
+  ): Promise<PersonalServerModel & { base_url: string; name: string }> {
     try {
       const response = await fetch(
         `${this.PERSONAL_SERVER_BASE_URL}/identity?address=${request.userAddress}`,
@@ -75,9 +74,10 @@ export class ServerController {
         );
       }
 
-      const serverResponse = (await response.json()) as IdentityServerOutput;
+      const serverResponse = (await response.json()) as IdentityResponseModel;
 
       return {
+        kind: serverResponse.personal_server.kind,
         address: serverResponse.personal_server.address,
         public_key: serverResponse.personal_server.public_key,
         base_url: this.PERSONAL_SERVER_BASE_URL || "",

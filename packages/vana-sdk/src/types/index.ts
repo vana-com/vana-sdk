@@ -135,7 +135,6 @@ export type {
   PostRequestParams,
   CreateOperationParams,
   InitPersonalServerParams,
-  PersonalServerIdentity,
 } from "./personal";
 
 // Server API types (auto-generated via fetch-server-types.ts)
@@ -145,9 +144,6 @@ export * from "./server-exports";
 export type {
   ReplicateAPIResponse,
   ReplicateStatus,
-  IdentityServerOutput,
-  IdentityServerResponse,
-  PersonalServerOutput,
   PinataUploadResponse,
   PinataPin,
   PinataListResponse,
@@ -156,8 +152,6 @@ export type {
 
 export {
   isReplicateAPIResponse,
-  isIdentityServerOutput,
-  isPersonalServerOutput,
   isAPIResponse,
   safeParseJSON,
   parseReplicateOutput,

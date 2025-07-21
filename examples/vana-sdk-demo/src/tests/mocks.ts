@@ -69,6 +69,7 @@ export function createMockUsePermissions(
     grantTxHash: "",
     grantPreview: null,
     showGrantPreview: false,
+    lastGrantedPermissionId: null,
 
     // Permission lookup
     permissionLookupId: "",

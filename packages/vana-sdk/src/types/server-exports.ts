@@ -17,10 +17,38 @@ export type {
 // Common server schema type aliases for easier usage
 import type { components } from "./server";
 
+// Operation types
+export type CreateOperationRequest =
+  components["schemas"]["CreateOperationRequest"];
 export type CreateOperationResponse =
   components["schemas"]["CreateOperationResponse"];
 export type GetOperationResponse =
   components["schemas"]["GetOperationResponse"];
 
-// Legacy alias for backward compatibility
-export type OperationCreatedResponse = CreateOperationResponse;
+// Identity types
+export type IdentityResponseModel =
+  components["schemas"]["IdentityResponseModel"];
+export type PersonalServerModel = components["schemas"]["PersonalServerModel"];
+
+// Error types
+export type ErrorResponse = components["schemas"]["ErrorResponse"];
+export type ValidationErrorResponse =
+  components["schemas"]["ValidationErrorResponse"];
+export type AuthenticationErrorResponse =
+  components["schemas"]["AuthenticationErrorResponse"];
+export type NotFoundErrorResponse =
+  components["schemas"]["NotFoundErrorResponse"];
+export type BlockchainErrorResponse =
+  components["schemas"]["BlockchainErrorResponse"];
+export type FileAccessErrorResponse =
+  components["schemas"]["FileAccessErrorResponse"];
+export type ComputeErrorResponse =
+  components["schemas"]["ComputeErrorResponse"];
+export type DecryptionErrorResponse =
+  components["schemas"]["DecryptionErrorResponse"];
+export type GrantValidationErrorResponse =
+  components["schemas"]["GrantValidationErrorResponse"];
+export type OperationErrorResponse =
+  components["schemas"]["OperationErrorResponse"];
+export type InternalServerErrorResponse =
+  components["schemas"]["InternalServerErrorResponse"];

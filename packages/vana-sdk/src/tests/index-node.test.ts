@@ -109,7 +109,6 @@ describe("Node.js Index Entry Point", () => {
     });
   });
 
-
   describe("Export verification", () => {
     it("should export all expected modules and types", () => {
       // Test that key exports are available
@@ -164,16 +163,12 @@ describe("Node.js Index Entry Point", () => {
     it("should export utility functions", async () => {
       const {
         isReplicateAPIResponse,
-        isIdentityServerOutput,
-        isPersonalServerOutput,
         isAPIResponse,
         safeParseJSON,
         parseReplicateOutput,
       } = await import("../index.node");
 
       expect(isReplicateAPIResponse).toBeDefined();
-      expect(isIdentityServerOutput).toBeDefined();
-      expect(isPersonalServerOutput).toBeDefined();
       expect(isAPIResponse).toBeDefined();
       expect(safeParseJSON).toBeDefined();
       expect(parseReplicateOutput).toBeDefined();

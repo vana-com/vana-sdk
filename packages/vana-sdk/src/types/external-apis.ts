@@ -58,48 +58,8 @@ export interface ReplicateAPIResponse {
   };
 }
 
-/**
- * Identity Server Output Types
- * These define the expected structure of output from Vana's identity server
- */
-
-/** Output from the identity server model */
-export interface IdentityServerOutput {
-  /** User's EVM address */
-  user_address: string;
-  /** Personal server information */
-  personal_server: {
-    /** Derived address for the personal server */
-    address: string;
-    /** Public key for encryption */
-    public_key: string;
-  };
-}
-
-/** Identity server response with typed output */
-export interface IdentityServerResponse
-  extends Omit<ReplicateAPIResponse, "output"> {
-  /** Parsed identity server output */
-  output?: IdentityServerOutput | string; // Can be string (needs parsing) or parsed object
-}
-
-/**
- * Personal Server Output Types
- * These define the expected structure of output from Vana's personal server
- */
-
-/** Output from the personal server model */
-export interface PersonalServerOutput {
-  /** User's EVM address */
-  user_address: string;
-  /** Identity information */
-  identity: {
-    /** Additional metadata */
-    metadata?: Record<string, unknown>;
-    /** Derived address (alternative location) */
-    derivedAddress?: string;
-  };
-}
+// Note: Server-specific types have been moved to auto-generated types in server.ts
+// Import types from @opendatalabs/vana-sdk/types/server-exports instead
 
 /**
  * Storage Provider API Types
@@ -196,103 +156,9 @@ export function isReplicateAPIResponse(
   );
 }
 
-/**
- * Validates whether a value is a valid IdentityServerOutput.
- *
- * @param value - The value to check
- * @returns True if the value matches the IdentityServerOutput structure
- * @example
- * ```typescript
- * const output = response.output;
- *
- * if (isIdentityServerOutput(output)) {
- *   console.log('User address:', output.user_address);
- *   console.log('Server address:', output.personal_server.address);
- * }
- * ```
- */
-export function isIdentityServerOutput(
-  value: unknown,
-): value is IdentityServerOutput {
-  console.debug("🔍 Type Guard: Checking value:", value);
-  console.debug("🔍 Type Guard: Value type:", typeof value);
-
-  if (typeof value !== "object" || value === null) {
-    console.debug("🔍 Type Guard: Failed - not object or null");
-    return false;
-  }
-
-  const obj = value as Record<string, unknown>;
-  console.debug("🔍 Type Guard: Object keys:", Object.keys(obj));
-  console.debug(
-    "🔍 Type Guard: user_address:",
-    obj.user_address,
-    typeof obj.user_address,
-  );
-
-  if (typeof obj.user_address !== "string") {
-    console.debug("🔍 Type Guard: Failed - user_address not string");
-    return false;
-  }
-
-  console.debug(
-    "🔍 Type Guard: personal_server:",
-    obj.personal_server,
-    typeof obj.personal_server,
-  );
-  if (typeof obj.personal_server !== "object" || obj.personal_server === null) {
-    console.debug("🔍 Type Guard: Failed - personal_server not object or null");
-    return false;
-  }
-
-  const personalServer = obj.personal_server as Record<string, unknown>;
-  console.debug(
-    "🔍 Type Guard: Personal server keys:",
-    Object.keys(personalServer),
-  );
-  console.debug("🔍 Type Guard: address:", personalServer.address);
-  console.debug("🔍 Type Guard: public_key:", personalServer.public_key);
-
-  const hasAddress = "address" in personalServer;
-  const hasPublicKey = "public_key" in personalServer;
-  console.debug(
-    "🔍 Type Guard: Has address:",
-    hasAddress,
-    "Has public_key:",
-    hasPublicKey,
-  );
-
-  return hasAddress && hasPublicKey;
-}
-
-/**
- * Validates whether a value is a valid PersonalServerOutput.
- *
- * @param value - The value to check
- * @returns True if the value matches the PersonalServerOutput structure
- * @example
- * ```typescript
- * const output = response.output;
- *
- * if (isPersonalServerOutput(output)) {
- *   console.log('User address:', output.user_address);
- *   console.log('Identity metadata:', output.identity.metadata);
- * }
- * ```
- */
-export function isPersonalServerOutput(
-  value: unknown,
-): value is PersonalServerOutput {
-  if (typeof value !== "object" || value === null) return false;
-
-  const obj = value as Record<string, unknown>;
-  return (
-    "user_address" in obj &&
-    "identity" in obj &&
-    typeof obj.user_address === "string" &&
-    typeof obj.identity === "object"
-  );
-}
+// Note: Type guards for server types removed - use generated types and create
+// type guards for IdentityResponseModel and PersonalServerModel from
+// @opendatalabs/vana-sdk/types/server-exports if needed
 
 /**
  * Validates whether a value is a valid APIResponse.
@@ -333,7 +199,7 @@ export function isAPIResponse<T>(value: unknown): value is APIResponse<T> {
  * @example
  * ```typescript
  * const jsonStr = '{"user_address": "0x123...", "identity": {}}';
- * const result = safeParseJSON(jsonStr, isPersonalServerOutput);
+ * const result = safeParseJSON(jsonStr, isAPIResponse);
  *
  * if (result) {
  *   console.log('Parsed server output:', result.user_address);
@@ -363,7 +229,7 @@ export function safeParseJSON<T>(
  * @example
  * ```typescript
  * const response = await replicateClient.get(predictionId);
- * const output = parseReplicateOutput(response, isIdentityServerOutput);
+ * const output = parseReplicateOutput(response, isReplicateAPIResponse);
  *
  * if (output) {
  *   console.log('Identity server result:', output.user_address);

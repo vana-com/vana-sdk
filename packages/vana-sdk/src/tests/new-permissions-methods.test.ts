@@ -367,8 +367,8 @@ describe("New PermissionsController Methods", () => {
         expect(result).toEqual(mockPermissionInfo);
         expect(mockPublicClient.readContract).toHaveBeenCalledWith({
           address: "0x1234567890123456789012345678901234567890",
-          abi: [],
-          functionName: "permissions",
+          abi: expect.any(Array),
+          functionName: "permission",
           args: [111n],
         });
       });

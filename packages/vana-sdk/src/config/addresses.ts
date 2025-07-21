@@ -9,6 +9,24 @@ export const CONTRACTS = {
       1480: "0x31fb1D48f6B2265A4cAD516BC39E96a18fb7c8de",
     },
   },
+  DataPortabilityServers: {
+    addresses: {
+      14800: "0xE16b4b90c53122663479Dcbcd5f00C2ECF1b3a67",
+      1480: "0xE16b4b90c53122663479Dcbcd5f00C2ECF1b3a67",
+    },
+  },
+  DataPortabilityGrantees: {
+    addresses: {
+      14800: "0x2e95B13EBda0009cb2ea398a843a49608AbFdd3d",
+      1480: "0x2e95B13EBda0009cb2ea398a843a49608AbFdd3d",
+    },
+  },
+  DataPortabilityPermissions: {
+    addresses: {
+      14800: "0x0d15681C472082e33Aac426C588d9d0C2264014c",
+      1480: "0x0d15681C472082e33Aac426C588d9d0C2264014c",
+    },
+  },
   DataRegistry: {
     addresses: {
       14800: "0x8C8788f98385F6ba1adD4234e551ABba0f82Cb7C",

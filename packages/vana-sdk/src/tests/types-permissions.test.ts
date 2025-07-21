@@ -312,19 +312,23 @@ describe("Permission Types", () => {
         id: 54321n,
         grantor: "0x6666666666666666666666666666666666666666" as Address,
         nonce: 111n,
+        granteeId: 42n,
         grant: "ipfs://QmPermissionInfo",
         signature:
           "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12",
-        isActive: true,
+        startBlock: 1000n,
+        endBlock: 2000n,
         fileIds: [100n, 200n],
       };
 
       expect(info.id).toBe(54321n);
       expect(info.grantor).toBe("0x6666666666666666666666666666666666666666");
       expect(info.nonce).toBe(111n);
+      expect(info.granteeId).toBe(42n);
       expect(info.grant).toBe("ipfs://QmPermissionInfo");
       expect(info.signature).toMatch(/^0x[a-fA-F0-9]{130}$/);
-      expect(info.isActive).toBe(true);
+      expect(info.startBlock).toBe(1000n);
+      expect(info.endBlock).toBe(2000n);
       expect(info.fileIds).toEqual([100n, 200n]);
     });
   });

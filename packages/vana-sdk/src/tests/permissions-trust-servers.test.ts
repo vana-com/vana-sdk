@@ -166,10 +166,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         address: "0x1234567890123456789012345678901234567890",
         abi: expect.any(Array),
         functionName: "trustServer",
-        args: [
-          "0x0000000000000000000000000000000000000001",
-          "https://example.com",
-        ],
+        args: [BigInt("0x0000000000000000000000000000000000000001")],
         account: mockWalletClient.account,
         chain: mockWalletClient.chain,
       });
@@ -302,7 +299,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         address: "0x1234567890123456789012345678901234567890",
         abi: expect.any(Array),
         functionName: "untrustServer",
-        args: ["0x0000000000000000000000000000000000000001"],
+        args: [BigInt("0x0000000000000000000000000000000000000001")],
         account: mockWalletClient.account,
         chain: mockWalletClient.chain,
       });
@@ -419,18 +416,59 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
 
   describe("getTrustedServers", () => {
     it("should successfully get trusted servers", async () => {
-      mockPublicClient.readContract.mockResolvedValue([
-        "0xserver1",
-        "0xserver2",
-      ]);
+      // Mock the user function to return proper structure with trustedServerIds
+      mockPublicClient.readContract.mockImplementation(
+        async ({ functionName, args }) => {
+          if (functionName === "user") {
+            return {
+              nonce: BigInt(1),
+              trustedServerIds: [BigInt(1), BigInt(2)],
+            };
+          }
+          if (functionName === "server") {
+            const serverId = args?.[0];
+            if (serverId === BigInt(1)) {
+              return {
+                id: BigInt(1),
+                serverAddress: "0x0000000000000000000000000000000000000001",
+                url: "https://server1.example.com",
+                active: true,
+              };
+            }
+            if (serverId === BigInt(2)) {
+              return {
+                id: BigInt(2),
+                serverAddress: "0x0000000000000000000000000000000000000002",
+                url: "https://server2.example.com",
+                active: true,
+              };
+            }
+          }
+          return BigInt(0);
+        },
+      );
 
       const result = await controller.getTrustedServers();
 
-      expect(result).toEqual(["0xserver1", "0xserver2"]);
+      expect(result).toEqual([
+        "0x0000000000000000000000000000000000000001",
+        "0x0000000000000000000000000000000000000002",
+      ]);
     });
 
     it("should return empty array when no trusted servers", async () => {
-      mockPublicClient.readContract.mockResolvedValue([]);
+      // Mock the user function to return empty trustedServerIds array
+      mockPublicClient.readContract.mockImplementation(
+        async ({ functionName }) => {
+          if (functionName === "user") {
+            return {
+              nonce: BigInt(0),
+              trustedServerIds: [],
+            };
+          }
+          return BigInt(0);
+        },
+      );
 
       const result = await controller.getTrustedServers();
 
@@ -450,7 +488,24 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
 
   describe("getTrustedServersCount", () => {
     it("should successfully get trusted servers count", async () => {
-      mockPublicClient.readContract.mockResolvedValue(BigInt(5));
+      // Mock the user function to return trustedServerIds array with length 5
+      mockPublicClient.readContract.mockImplementation(
+        async ({ functionName }) => {
+          if (functionName === "user") {
+            return {
+              nonce: BigInt(1),
+              trustedServerIds: [
+                BigInt(1),
+                BigInt(2),
+                BigInt(3),
+                BigInt(4),
+                BigInt(5),
+              ],
+            };
+          }
+          return BigInt(0);
+        },
+      );
 
       const result = await controller.getTrustedServersCount();
 

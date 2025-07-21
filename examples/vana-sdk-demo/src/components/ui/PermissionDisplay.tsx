@@ -22,16 +22,16 @@ export function PermissionDisplay({
   const hashForUrl =
     grantHash || `0x${permissionId.toString(16).padStart(64, "0")}`; // Use 64 chars for full uint256
 
-  // Link to the DataPermissions contract with the permission hash
+  // Link to the DataPortabilityPermissions contract with the permission hash
   const contractUrl = getContractUrl(
     chainId,
-    "0x9f03B01A17d54c6934F2735B5d38a60C56Bf0dBe",
+    "0x0d15681C472082e33Aac426C588d9d0C2264014c", // DataPortabilityPermissions contract
     {
       tab: "read_proxy",
       sourceAddress: "0xEfcd140D3b740dEfCa423fC12F4B5548E1FC0B36",
       hash: hashForUrl,
     },
-  ); // TODO: change to the correct source address and contract address
+  ); // TODO: Verify the correct source address for DataPortabilityPermissions
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>

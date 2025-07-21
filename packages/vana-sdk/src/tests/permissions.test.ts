@@ -326,7 +326,7 @@ describe("PermissionsController", () => {
         message: { nonce: bigint; grant: string };
       };
 
-      expect(typedData.domain.name).toBe("VanaDataPermissions");
+      expect(typedData.domain.name).toBe("VanaDataPortabilityPermissions");
       expect(typedData.domain.version).toBe("1");
       expect(typedData.domain.chainId).toBe(14800);
       expect(typedData.primaryType).toBe("Permission");
@@ -1579,7 +1579,7 @@ describe("PermissionsController", () => {
         expect(mockPublicClient.readContract).toHaveBeenCalledWith({
           address: "0x1234567890123456789012345678901234567890",
           abi: expect.any(Array),
-          functionName: "permissions",
+          functionName: "permission",
           args: [111n],
         });
       });

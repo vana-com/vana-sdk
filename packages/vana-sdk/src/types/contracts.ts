@@ -5,7 +5,10 @@ import type { GetContractReturnType } from "viem";
  * Union type of all canonical Vana contract names
  */
 export type VanaContractName =
-  | "DataPermissions"
+  | "DataPermissions" // Deprecated - use DataPortability contracts
+  | "DataPortabilityPermissions"
+  | "DataPortabilityServers"
+  | "DataPortabilityGrantees"
   | "DataRegistry"
   | "TeePool"
   | "ComputeEngine"

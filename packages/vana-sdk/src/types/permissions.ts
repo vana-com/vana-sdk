@@ -219,7 +219,7 @@ export interface RevokePermissionInput {
 }
 
 /**
- * Contract Permission Info structure returned from the contract
+ * Contract Permission Info structure returned from the new DataPortabilityPermissions contract
  *
  * @category Permissions
  */
@@ -230,12 +230,16 @@ export interface PermissionInfo {
   grantor: Address;
   /** Nonce used when creating */
   nonce: bigint;
+  /** Grantee ID from the DataPortabilityGrantees contract */
+  granteeId: bigint;
   /** Grant URL */
   grant: string;
   /** Signature bytes */
   signature: `0x${string}`;
-  /** Whether the permission is active */
-  isActive: boolean;
+  /** Start block when permission becomes active */
+  startBlock: bigint;
+  /** End block when permission expires */
+  endBlock: bigint;
   /** File IDs associated with this permission */
   fileIds: bigint[];
 }

@@ -63,8 +63,17 @@ describe("Enhanced Trusted Server Queries", () => {
 
   describe("getTrustedServersCount", () => {
     it("should return the total count of trusted servers for a user", async () => {
-      // Mock the contract call to return server count
-      mockPublicClient.readContract.mockResolvedValueOnce(5n);
+      // Mock the user function to return trustedServerIds array
+      mockPublicClient.readContract.mockResolvedValueOnce({
+        nonce: BigInt(1),
+        trustedServerIds: [
+          BigInt(1),
+          BigInt(2),
+          BigInt(3),
+          BigInt(4),
+          BigInt(5),
+        ],
+      });
 
       const count = await permissionsController.getTrustedServersCount();
 
@@ -72,14 +81,17 @@ describe("Enhanced Trusted Server Queries", () => {
       expect(mockPublicClient.readContract).toHaveBeenCalledWith({
         address: expect.any(String),
         abi: expect.any(Array),
-        functionName: "userServerIdsLength",
+        functionName: "user",
         args: [userAddress],
       });
     });
 
     it("should return count for a specific user address", async () => {
       const otherUser: Address = "0x9999999999999999999999999999999999999999";
-      mockPublicClient.readContract.mockResolvedValueOnce(3n);
+      mockPublicClient.readContract.mockResolvedValueOnce({
+        nonce: BigInt(1),
+        trustedServerIds: [BigInt(1), BigInt(2), BigInt(3)],
+      });
 
       const count =
         await permissionsController.getTrustedServersCount(otherUser);
@@ -88,13 +100,16 @@ describe("Enhanced Trusted Server Queries", () => {
       expect(mockPublicClient.readContract).toHaveBeenCalledWith({
         address: expect.any(String),
         abi: expect.any(Array),
-        functionName: "userServerIdsLength",
+        functionName: "user",
         args: [otherUser],
       });
     });
 
     it("should handle zero trusted servers", async () => {
-      mockPublicClient.readContract.mockResolvedValueOnce(0n);
+      mockPublicClient.readContract.mockResolvedValueOnce({
+        nonce: BigInt(1),
+        trustedServerIds: [],
+      });
 
       const count = await permissionsController.getTrustedServersCount();
 
@@ -114,14 +129,36 @@ describe("Enhanced Trusted Server Queries", () => {
 
   describe("getTrustedServersPaginated", () => {
     it("should return paginated trusted servers with default parameters", async () => {
-      // Mock total count
-      mockPublicClient.readContract
-        .mockResolvedValueOnce(5n) // userServerIdsLength
-        .mockResolvedValueOnce(serverAddresses[0]) // userServerIdsAt(0)
-        .mockResolvedValueOnce(serverAddresses[1]) // userServerIdsAt(1)
-        .mockResolvedValueOnce(serverAddresses[2]) // userServerIdsAt(2)
-        .mockResolvedValueOnce(serverAddresses[3]) // userServerIdsAt(3)
-        .mockResolvedValueOnce(serverAddresses[4]); // userServerIdsAt(4)
+      // Mock the user function and server info calls
+      mockPublicClient.readContract.mockImplementation(
+        async ({ functionName, args }) => {
+          if (functionName === "user") {
+            return {
+              nonce: BigInt(1),
+              trustedServerIds: [
+                BigInt(1),
+                BigInt(2),
+                BigInt(3),
+                BigInt(4),
+                BigInt(5),
+              ],
+            };
+          }
+          if (functionName === "server") {
+            const serverId = args?.[0];
+            const serverIndex = Number(serverId) - 1;
+            if (serverIndex >= 0 && serverIndex < serverAddresses.length) {
+              return {
+                id: serverId,
+                serverAddress: serverAddresses[serverIndex],
+                url: `https://server${Number(serverId)}.example.com`,
+                active: true,
+              };
+            }
+          }
+          return BigInt(0);
+        },
+      );
 
       const result = await permissionsController.getTrustedServersPaginated();
 
@@ -135,10 +172,32 @@ describe("Enhanced Trusted Server Queries", () => {
     });
 
     it("should respect pagination parameters", async () => {
-      mockPublicClient.readContract
-        .mockResolvedValueOnce(10n) // Total count is 10
-        .mockResolvedValueOnce(serverAddresses[2]) // userServerIdsAt(2)
-        .mockResolvedValueOnce(serverAddresses[3]); // userServerIdsAt(3)
+      const allServerIds = Array.from({ length: 10 }, (_, i) => BigInt(i + 1));
+
+      mockPublicClient.readContract.mockImplementation(
+        async ({ functionName, args }) => {
+          if (functionName === "user") {
+            return {
+              nonce: BigInt(1),
+              trustedServerIds: allServerIds,
+            };
+          }
+          if (functionName === "server") {
+            const serverId = args?.[0];
+            const serverIndex = Number(serverId) - 1;
+            if (serverIndex >= 2 && serverIndex <= 3) {
+              // For offset 2, limit 2
+              return {
+                id: serverId,
+                serverAddress: serverAddresses[serverIndex],
+                url: `https://server${Number(serverId)}.example.com`,
+                active: true,
+              };
+            }
+          }
+          return BigInt(0);
+        },
+      );
 
       const result = await permissionsController.getTrustedServersPaginated({
         offset: 2,
@@ -152,24 +211,20 @@ describe("Enhanced Trusted Server Queries", () => {
         limit: 2,
         hasMore: true, // 2 + 2 < 10
       });
-
-      // Verify the correct contract calls were made
-      expect(mockPublicClient.readContract).toHaveBeenNthCalledWith(2, {
-        address: expect.any(String),
-        abi: expect.any(Array),
-        functionName: "userServerIdsAt",
-        args: [userAddress, 2n],
-      });
-      expect(mockPublicClient.readContract).toHaveBeenNthCalledWith(3, {
-        address: expect.any(String),
-        abi: expect.any(Array),
-        functionName: "userServerIdsAt",
-        args: [userAddress, 3n],
-      });
     });
 
     it("should handle empty result sets", async () => {
-      mockPublicClient.readContract.mockResolvedValueOnce(0n);
+      mockPublicClient.readContract.mockImplementation(
+        async ({ functionName }) => {
+          if (functionName === "user") {
+            return {
+              nonce: BigInt(1),
+              trustedServerIds: [],
+            };
+          }
+          return BigInt(0);
+        },
+      );
 
       const result = await permissionsController.getTrustedServersPaginated();
 
@@ -183,7 +238,17 @@ describe("Enhanced Trusted Server Queries", () => {
     });
 
     it("should handle offset beyond available servers", async () => {
-      mockPublicClient.readContract.mockResolvedValueOnce(3n); // Total count is 3
+      mockPublicClient.readContract.mockImplementation(
+        async ({ functionName }) => {
+          if (functionName === "user") {
+            return {
+              nonce: BigInt(1),
+              trustedServerIds: [BigInt(1), BigInt(2), BigInt(3)],
+            };
+          }
+          return BigInt(0);
+        },
+      );
 
       const result = await permissionsController.getTrustedServersPaginated({
         offset: 5,
@@ -201,22 +266,36 @@ describe("Enhanced Trusted Server Queries", () => {
 
     it("should work with different user addresses", async () => {
       const otherUser: Address = "0x9999999999999999999999999999999999999999";
-      mockPublicClient.readContract
-        .mockResolvedValueOnce(2n)
-        .mockResolvedValueOnce(serverAddresses[0])
-        .mockResolvedValueOnce(serverAddresses[1]);
+
+      mockPublicClient.readContract.mockImplementation(
+        async ({ functionName, args }) => {
+          if (functionName === "user") {
+            return {
+              nonce: BigInt(1),
+              trustedServerIds: [BigInt(1), BigInt(2)],
+            };
+          }
+          if (functionName === "server") {
+            const serverId = args?.[0];
+            const serverIndex = Number(serverId) - 1;
+            if (serverIndex >= 0 && serverIndex < 2) {
+              return {
+                id: serverId,
+                serverAddress: serverAddresses[serverIndex],
+                url: `https://server${Number(serverId)}.example.com`,
+                active: true,
+              };
+            }
+          }
+          return BigInt(0);
+        },
+      );
 
       const result = await permissionsController.getTrustedServersPaginated({
         userAddress: otherUser,
       });
 
       expect(result.servers).toEqual([serverAddresses[0], serverAddresses[1]]);
-      expect(mockPublicClient.readContract).toHaveBeenNthCalledWith(1, {
-        address: expect.any(String),
-        abi: expect.any(Array),
-        functionName: "userServerIdsLength",
-        args: [otherUser],
-      });
     });
   });
 

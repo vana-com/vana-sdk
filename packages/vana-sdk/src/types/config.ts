@@ -163,9 +163,10 @@ export interface RelayerCallbacks {
    *
    * @param params - Complete parameters for file addition
    * @param params.url - The file URL to register
-   * @param params.userAddress - The user's address
+   * @param params.userAddress - The user's address (defaults to connected wallet if not specified)
    * @param params.permissions - Array of encrypted permissions (empty array if none)
    * @param params.schemaId - Schema ID for validation (0 if none)
+   * @param params.ownerAddress - Optional owner address (defaults to userAddress if not specified)
    * @returns Promise resolving to object with fileId and transactionHash
    */
   submitFileAdditionComplete?: (params: {
@@ -173,6 +174,7 @@ export interface RelayerCallbacks {
     userAddress: Address;
     permissions: Array<{ account: Address; key: string }>;
     schemaId: number;
+    ownerAddress?: Address;
   }) => Promise<{ fileId: number; transactionHash: Hash }>;
 
   /**

@@ -10,6 +10,7 @@ export async function POST(request: NextRequest) {
       userAddress,
       permissions = [],
       schemaId = 0,
+      ownerAddress,
     } = await request.json();
 
     if (!url || !userAddress) {
@@ -25,7 +26,7 @@ export async function POST(request: NextRequest) {
     const vana = await createRelayerVana();
     const result = await vana.data.addFileWithPermissionsAndSchema(
       url,
-      userAddress,
+      ownerAddress || userAddress, // Use ownerAddress if provided, otherwise fallback to userAddress
       permissions,
       schemaId,
     );

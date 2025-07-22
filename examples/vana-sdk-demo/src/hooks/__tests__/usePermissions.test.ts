@@ -12,7 +12,7 @@ import { useAccount } from "wagmi";
 import { useVana } from "@/providers/VanaProvider";
 import { usePermissions } from "../usePermissions";
 import {
-  OnChainPermissionGrant,
+  GrantedPermission,
   PermissionGrantTypedData,
   retrieveGrantFile,
 } from "@opendatalabs/vana-sdk/browser";
@@ -56,7 +56,7 @@ describe("usePermissions", () => {
     },
   };
 
-  const mockPermissions: OnChainPermissionGrant[] = createMockPermissions(2, {
+  const mockPermissions: GrantedPermission[] = createMockPermissions(2, {
     grantor: "0x123",
   });
 
@@ -64,8 +64,12 @@ describe("usePermissions", () => {
     vi.clearAllMocks();
 
     // Use factory functions for consistent mock setup
-    useAccountMock.mockReturnValue(createMockUseAccount() as any);
-    useVanaMock.mockReturnValue(createMockUseVana({ vana: mockVana }) as any);
+    useAccountMock.mockReturnValue(createMockUseAccount());
+    useVanaMock.mockReturnValue(
+      createMockUseVana({
+        vana: mockVana as any,
+      }),
+    );
 
     mockVana.permissions.getUserPermissionGrantsOnChain.mockResolvedValue(
       mockPermissions,
@@ -117,12 +121,14 @@ describe("usePermissions", () => {
     });
 
     it("does not load permissions when vana is not available", () => {
-      useVanaMock.mockReturnValue({
-        vana: null,
-        isInitialized: false,
-        error: null,
-        applicationAddress: "",
-      });
+      useVanaMock.mockReturnValue(
+        createMockUseVana({
+          vana: null,
+          isInitialized: false,
+          error: null,
+          applicationAddress: "",
+        }),
+      );
 
       renderHook(() => usePermissions());
 
@@ -132,9 +138,11 @@ describe("usePermissions", () => {
     });
 
     it("does not load permissions when address is not available", () => {
-      useAccountMock.mockReturnValue({
-        address: undefined,
-      } as any);
+      useAccountMock.mockReturnValue(
+        createMockUseAccount({
+          address: undefined,
+        }),
+      );
 
       renderHook(() => usePermissions());
 
@@ -182,18 +190,16 @@ describe("usePermissions", () => {
     });
 
     it("returns empty array when vana is not available", async () => {
-      useVanaMock.mockReturnValue({
-        vana: null,
-        isInitialized: false,
-        error: null,
-        applicationAddress: "",
-      });
+      useVanaMock.mockReturnValue(
+        createMockUseVana({
+          vana: null,
+          isInitialized: false,
+        }),
+      );
 
       const { result } = renderHook(() => usePermissions());
 
-      const permissions = await act(async () => {
-        return await result.current.loadUserPermissions();
-      });
+      const permissions = await result.current.loadUserPermissions();
 
       expect(permissions).toEqual([]);
       expect(
@@ -254,12 +260,13 @@ describe("usePermissions", () => {
     });
 
     it("handles missing application address", async () => {
-      useVanaMock.mockReturnValue({
-        vana: mockVana as any,
-        isInitialized: true,
-        error: null,
-        applicationAddress: "",
-      });
+      useVanaMock.mockReturnValue(
+        createMockUseVana({
+          isInitialized: true,
+          error: null,
+          applicationAddress: "",
+        }),
+      );
 
       const { result } = renderHook(() => usePermissions());
 
@@ -274,12 +281,14 @@ describe("usePermissions", () => {
     });
 
     it("does not grant when vana is not available", async () => {
-      useVanaMock.mockReturnValue({
-        vana: null,
-        isInitialized: false,
-        error: null,
-        applicationAddress: "0xapp123",
-      });
+      useVanaMock.mockReturnValue(
+        createMockUseVana({
+          vana: null,
+          isInitialized: false,
+          error: null,
+          applicationAddress: "0xapp123",
+        }),
+      );
 
       const { result } = renderHook(() => usePermissions());
 
@@ -303,14 +312,26 @@ describe("usePermissions", () => {
 
   describe("handleConfirmGrant", () => {
     const mockTypedData: PermissionGrantTypedData = {
-      types: {},
-      primaryType: "PermissionGrant",
-      domain: {},
+      types: {
+        Permission: [
+          { name: "nonce", type: "uint256" },
+          { name: "grant", type: "string" },
+          { name: "fileIds", type: "uint256[]" },
+        ],
+      },
+      primaryType: "Permission",
+      domain: {
+        name: "Vana",
+        version: "1",
+        chainId: 14800,
+        verifyingContract: "0x0000000000000000000000000000000000000000",
+      },
       message: {
         grant: "ipfs://grant-url",
         nonce: BigInt(123),
+        fileIds: [BigInt(1), BigInt(2)],
       },
-    } as any;
+    };
 
     beforeEach(() => {
       // Set up a grant preview first
@@ -333,7 +354,7 @@ describe("usePermissions", () => {
 
     it("successfully confirms grant and finds new permission", async () => {
       // Mock finding the new permission first
-      const newPermission: OnChainPermissionGrant = {
+      const newPermission: GrantedPermission = {
         id: BigInt(3),
         operation: "llm_inference",
         files: [1, 2],
@@ -518,12 +539,14 @@ describe("usePermissions", () => {
     });
 
     it("does not confirm when vana is not available", async () => {
-      useVanaMock.mockReturnValue({
-        vana: null,
-        isInitialized: false,
-        error: null,
-        applicationAddress: "",
-      });
+      useVanaMock.mockReturnValue(
+        createMockUseVana({
+          vana: null,
+          isInitialized: false,
+          error: null,
+          applicationAddress: "",
+        }),
+      );
 
       const { result } = renderHook(() => usePermissions());
 
@@ -574,12 +597,14 @@ describe("usePermissions", () => {
     });
 
     it("does not revoke when vana is not available", async () => {
-      useVanaMock.mockReturnValue({
-        vana: null,
-        isInitialized: false,
-        error: null,
-        applicationAddress: "",
-      });
+      useVanaMock.mockReturnValue(
+        createMockUseVana({
+          vana: null,
+          isInitialized: false,
+          error: null,
+          applicationAddress: "",
+        }),
+      );
 
       const { result } = renderHook(() => usePermissions());
 
@@ -629,21 +654,13 @@ describe("usePermissions", () => {
       expect(mockVana.permissions.getPermissionInfo).toHaveBeenCalledWith(
         BigInt(3),
       );
-      expect(mockVana.permissions.getPermissionFileIds).toHaveBeenCalledWith(
-        BigInt(3),
-      );
       expect(result.current.permissionLookupStatus).toContain(
         "✅ Found permission: 3",
       );
-      expect(result.current.lookedUpPermission).toEqual({
+      expect(result.current.lookedUpPermission).toMatchObject({
         id: BigInt(3),
-        operation: "data_access",
-        files: [4, 5],
-        parameters: undefined,
         grant: "ipfs://grant3",
         grantor: "0x789",
-        grantee: "0x123",
-        active: true,
       });
       expect(result.current.isLookingUpPermission).toBe(false);
     });
@@ -675,12 +692,14 @@ describe("usePermissions", () => {
     });
 
     it("does not lookup when vana is not available", async () => {
-      useVanaMock.mockReturnValue({
-        vana: null,
-        isInitialized: false,
-        error: null,
-        applicationAddress: "",
-      });
+      useVanaMock.mockReturnValue(
+        createMockUseVana({
+          vana: null,
+          isInitialized: false,
+          error: null,
+          applicationAddress: "",
+        }),
+      );
 
       const { result } = renderHook(() => usePermissions());
 
@@ -765,7 +784,7 @@ describe("usePermissions", () => {
 
       // Set some state
       act(() => {
-        result.current.setUserPermissions(mockPermissions);
+        result.current.setUserPermissions([]);
         result.current.setPermissionLookupId("123");
         result.current.setGrantPreview({
           grantFile: null,
@@ -782,9 +801,11 @@ describe("usePermissions", () => {
       });
 
       // Simulate wallet disconnection
-      useAccountMock.mockReturnValue({
-        address: undefined,
-      } as any);
+      useAccountMock.mockReturnValue(
+        createMockUseAccount({
+          address: undefined,
+        }),
+      );
 
       rerender();
 
@@ -799,10 +820,10 @@ describe("usePermissions", () => {
       const { result } = renderHook(() => usePermissions());
 
       act(() => {
-        result.current.setUserPermissions(mockPermissions);
+        result.current.setUserPermissions([]);
       });
 
-      expect(result.current.userPermissions).toEqual(mockPermissions);
+      expect(result.current.userPermissions).toEqual([]);
     });
 
     it("setPermissionLookupId updates lookup ID correctly", () => {

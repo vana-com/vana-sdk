@@ -32,7 +32,6 @@ import { useTrustedServers } from "@/hooks/useTrustedServers";
 import { useUserFiles, ExtendedUserFile } from "@/hooks/useUserFiles";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useVana } from "@/providers/VanaProvider";
-import { findMatchingPermission } from "@/utils/permissions";
 import { ExplorerLink } from "@/components/ui/ExplorerLink";
 
 // Component-specific props
@@ -366,7 +365,6 @@ export default function DemoExperiencePage() {
     handleGrantPermission,
     onCloseGrant,
     handleConfirmGrant,
-    userPermissions,
     setGrantPreview,
     lastGrantedPermissionId,
   } = usePermissions();
@@ -380,9 +378,6 @@ export default function DemoExperiencePage() {
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
   const [isRunningLLM, setIsRunningLLM] = useState(false);
   const [llmResult, setLlmResult] = useState<string | null>(null);
-  const [currentPermissionId, setCurrentPermissionId] = useState<string | null>(
-    null,
-  );
 
   const addActivity = useCallback(
     (type: ActivityEntry["type"], message: string, details?: string) => {
@@ -408,19 +403,6 @@ export default function DemoExperiencePage() {
       config.dataChoice === "new" && !uploadResult && userFiles.length === 0
     );
   }, [config.dataChoice, uploadResult, userFiles]);
-
-  const needsPermission = useMemo(() => {
-    // We can't know if permission is needed without knowing the prompt
-    // So we'll always show "Grant Permission" button and let the modal handle it
-    return config.selectedFiles.length === 0 || userPermissions.length === 0;
-  }, [config.selectedFiles, userPermissions]);
-
-  // We'll set currentPermissionId after the modal confirms a match
-  useEffect(() => {
-    if (config.selectedFiles.length === 0) {
-      setCurrentPermissionId(null);
-    }
-  }, [config.selectedFiles]);
 
   useEffect(() => {
     if (trustedServers.length > 0 && !config.selectedServer) {
@@ -467,7 +449,7 @@ export default function DemoExperiencePage() {
         disabled: true,
         icon: <Database className="h-4 w-4" />,
       };
-    if (!currentPermissionId)
+    if (!lastGrantedPermissionId)
       return {
         text: "Configure Permission",
         disabled: isGranting,
@@ -482,9 +464,9 @@ export default function DemoExperiencePage() {
     address,
     needsToTrustServer,
     needsToCreateData,
-    needsPermission,
     config.dataChoice,
     config.selectedFiles,
+    lastGrantedPermissionId,
     newTextData,
     isDiscoveringServer,
     isTrustingServer,
@@ -575,20 +557,18 @@ export default function DemoExperiencePage() {
       return;
     }
 
-    // For now, we'll need to open the modal to handle permission granting
-    // The modal will check for existing permissions once the user enters a prompt
-    if (userPermissions.length === 0 || !currentPermissionId) {
+    // If we don't have a permission, open the modal to create one
+    if (!lastGrantedPermissionId) {
       addActivity("info", "Opening permission configuration...");
-      await handleGrantPermission(config.selectedFiles, ""); // Empty prompt - modal will handle it
+      await handleGrantPermission(
+        config.selectedFiles,
+        "Generate a personalized AI profile based on my data",
+      );
       return;
     }
 
-    const permissionId = currentPermissionId;
-    if (!permissionId) {
-      addActivity("error", "No permission ID available");
-      return;
-    }
-
+    // Execute AI inference using the granted permission
+    const permissionId = lastGrantedPermissionId;
     addActivity("info", "Executing AI inference...");
     setIsRunningLLM(true);
     setLlmResult(null);
@@ -625,9 +605,7 @@ export default function DemoExperiencePage() {
     needsToCreateData,
     config,
     applicationAddress,
-    userPermissions,
-    needsPermission,
-    currentPermissionId,
+    lastGrantedPermissionId,
     handleDiscoverHostedServer,
     handleTrustServerGasless,
     handleUploadText,
@@ -639,25 +617,14 @@ export default function DemoExperiencePage() {
 
   // Handle when a permission is granted from the usePermissions hook
   useEffect(() => {
-    if (
-      lastGrantedPermissionId &&
-      lastGrantedPermissionId !== currentPermissionId
-    ) {
-      setCurrentPermissionId(lastGrantedPermissionId);
+    if (lastGrantedPermissionId) {
       addActivity(
         "success",
-        `New permission granted! ID: ${lastGrantedPermissionId}`,
+        `Permission granted! ID: ${lastGrantedPermissionId}`,
         "You can now generate AI profiles",
       );
-      // Auto-trigger generation after granting
-      setTimeout(() => handlePrimaryAction(), 500);
     }
-  }, [
-    lastGrantedPermissionId,
-    currentPermissionId,
-    addActivity,
-    handlePrimaryAction,
-  ]);
+  }, [lastGrantedPermissionId, addActivity]);
 
   const buttonState = getButtonState();
 
@@ -724,7 +691,7 @@ export default function DemoExperiencePage() {
             {buttonState.text}
           </Button>
 
-          {currentPermissionId && config.selectedFiles.length > 0 && (
+          {lastGrantedPermissionId && config.selectedFiles.length > 0 && (
             <Card className="bg-success/10 border-success">
               <CardBody className="py-3">
                 <div className="flex items-center gap-2">
@@ -734,7 +701,7 @@ export default function DemoExperiencePage() {
                       Ready to generate!
                     </span>
                     <span className="text-default-600 ml-2">
-                      Using permission #{currentPermissionId}
+                      Using permission #{lastGrantedPermissionId}
                     </span>
                   </div>
                 </div>
@@ -745,7 +712,7 @@ export default function DemoExperiencePage() {
           <ActivityLog activityLog={activityLog} />
           <ResultsDisplay
             llmResult={llmResult}
-            currentPermissionId={currentPermissionId}
+            currentPermissionId={lastGrantedPermissionId}
             grantTxHash={grantTxHash}
             chainId={chainId}
           />
@@ -766,31 +733,16 @@ export default function DemoExperiencePage() {
         isOpen={showGrantPreview}
         onClose={onCloseGrant}
         onConfirm={async (params) => {
-          // Check if we already have a matching permission
-          const matchResult = findMatchingPermission(userPermissions, params);
-          if (matchResult.found && matchResult.permission) {
-            // Found existing permission - just use it
-            setCurrentPermissionId(matchResult.permission.id.toString());
-            addActivity(
-              "success",
-              `Found existing permission #${matchResult.permission.id}`,
-              "No new permission needed - will reuse the existing one",
-            );
-            onCloseGrant();
-            // Trigger the LLM execution
-            setTimeout(() => handlePrimaryAction(), 100);
-          } else {
-            // Need to create new permission
-            if (grantPreview) {
-              setGrantPreview({ ...grantPreview, params: params });
-            }
-            await handleConfirmGrant();
+          // Create new permission - the modal handles the UI flow
+          if (grantPreview) {
+            setGrantPreview({ ...grantPreview, params: params });
           }
+          await handleConfirmGrant();
         }}
         selectedFiles={config.selectedFiles}
         applicationAddress={applicationAddress}
         isGranting={isGranting}
-        existingPermissions={userPermissions}
+        existingPermissions={[]}
       />
     </div>
   );

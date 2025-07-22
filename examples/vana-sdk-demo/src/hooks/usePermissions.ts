@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import {
+  OnChainPermissionGrant,
   GrantedPermission,
   GrantPermissionParams,
   retrieveGrantFile,
@@ -11,7 +12,6 @@ import { useVana } from "@/providers/VanaProvider";
 import { useAccount } from "wagmi";
 import { addToast } from "@heroui/react";
 import { createApiHandler } from "./utils";
-import { findMatchingPermission } from "@/utils/permissions";
 
 interface GrantPreview {
   grantFile: {
@@ -27,9 +27,15 @@ interface GrantPreview {
 }
 
 export interface UsePermissionsReturn {
-  // State
-  userPermissions: GrantedPermission[];
+  // Fast on-chain state - loads instantly
+  userPermissions: OnChainPermissionGrant[];
   isLoadingPermissions: boolean;
+
+  // Slow off-chain resolution state - loads on-demand
+  resolvedPermissions: Map<string, GrantedPermission>;
+  resolvingPermissions: Set<string>;
+
+  // Grant flow state
   isGranting: boolean;
   isRevoking: boolean;
   grantStatus: string;
@@ -46,7 +52,8 @@ export interface UsePermissionsReturn {
   lookedUpPermission: GrantedPermission | null;
 
   // Actions
-  loadUserPermissions: () => Promise<GrantedPermission[]>;
+  loadUserPermissions: () => Promise<OnChainPermissionGrant[]>;
+  resolvePermissionDetails: (permissionId: string) => Promise<void>;
   handleGrantPermission: (
     selectedFiles: number[],
     promptText: string,
@@ -63,8 +70,8 @@ export interface UsePermissionsReturn {
   setGrantTxHash: (hash: string) => void;
   setUserPermissions: (
     permissions:
-      | GrantedPermission[]
-      | ((prev: GrantedPermission[]) => GrantedPermission[]),
+      | OnChainPermissionGrant[]
+      | ((prev: OnChainPermissionGrant[]) => OnChainPermissionGrant[]),
   ) => void;
 }
 
@@ -72,11 +79,21 @@ export function usePermissions(): UsePermissionsReturn {
   const { vana, applicationAddress } = useVana();
   const { address } = useAccount();
 
-  // Permissions state
-  const [userPermissions, setUserPermissions] = useState<GrantedPermission[]>(
-    [],
-  );
+  // Fast on-chain permissions state - loads instantly for immediate UI feedback
+  const [userPermissions, setUserPermissions] = useState<
+    OnChainPermissionGrant[]
+  >([]);
   const [isLoadingPermissions, setIsLoadingPermissions] = useState(false);
+
+  // Slow off-chain resolution state - loads on-demand for detailed information
+  const [resolvedPermissions, setResolvedPermissions] = useState<
+    Map<string, GrantedPermission>
+  >(new Map());
+  const [resolvingPermissions, setResolvingPermissions] = useState<Set<string>>(
+    new Set(),
+  );
+
+  // Grant flow state
   const [isGranting, setIsGranting] = useState(false);
   const [isRevoking, setIsRevoking] = useState(false);
   const [grantStatus, setGrantStatus] = useState<string>("");
@@ -100,23 +117,135 @@ export function usePermissions(): UsePermissionsReturn {
   const onOpenGrant = useCallback(() => setShowGrantPreview(true), []);
   const onCloseGrant = useCallback(() => setShowGrantPreview(false), []);
 
-  const loadUserPermissions = useCallback(async () => {
-    if (!vana) return [];
+  /**
+   * Load fast on-chain permission data
+   * This provides instant UI loading with basic information
+   */
+  const loadUserPermissions = async () => {
+    if (!vana) {
+      return [];
+    }
 
     setIsLoadingPermissions(true);
     try {
-      const permissions = await vana.permissions.getUserPermissions({
-        limit: 20,
-      });
-      setUserPermissions(permissions);
-      return permissions;
+      const onChainPermissions =
+        await vana.permissions.getUserPermissionGrantsOnChain({
+          limit: 20,
+        });
+      setUserPermissions(onChainPermissions);
+      return onChainPermissions;
     } catch (error) {
       console.error("Failed to load user permissions:", error);
       return [];
     } finally {
       setIsLoadingPermissions(false);
     }
-  }, [vana]);
+  };
+
+  /**
+   * Resolve detailed permission data on-demand
+   * This is the critical function that fetches complete permission details
+   * only when the user explicitly requests them.
+   */
+  const resolvePermissionDetails = useCallback(
+    async (permissionId: string) => {
+      if (!vana) return;
+
+      // Check if already resolved
+      if (resolvedPermissions.has(permissionId)) return;
+
+      // Check if currently resolving
+      if (resolvingPermissions.has(permissionId)) return;
+
+      // Find the on-chain permission
+      const onChainPermission = userPermissions.find(
+        (p) => p.id.toString() === permissionId,
+      );
+      if (!onChainPermission) {
+        console.error("On-chain permission not found:", permissionId);
+        return;
+      }
+
+      // Mark as resolving
+      setResolvingPermissions((prev) => new Set(prev).add(permissionId));
+
+      try {
+        // Step 1: Get permission info and file IDs from contract
+        const [_permissionInfo, fileIds] = await Promise.all([
+          vana.permissions.getPermissionInfo(BigInt(permissionId)),
+          vana.permissions.getPermissionFileIds(BigInt(permissionId)),
+        ]);
+
+        // Step 2: Fetch grant file from IPFS
+        let grantFile = null;
+        try {
+          grantFile = await retrieveGrantFile(onChainPermission.grantUrl);
+        } catch (error) {
+          console.warn(
+            "Failed to retrieve grant file (likely CORS issue):",
+            error,
+          );
+          // Create a minimal grant file fallback
+          grantFile = {
+            grantee: "0x0000000000000000000000000000000000000000",
+            operation: "unknown",
+            parameters: {},
+            expires: undefined,
+          };
+        }
+
+        // Step 3: Assemble the complete GrantedPermission object
+        const resolvedPermission: GrantedPermission = {
+          id: onChainPermission.id,
+          files: fileIds.map((id: bigint) => Number(id)),
+          operation: grantFile.operation,
+          grant: onChainPermission.grantUrl,
+          grantee: grantFile.grantee as `0x${string}`,
+          grantor: onChainPermission.grantor,
+          parameters: grantFile.parameters,
+          active: onChainPermission.active,
+          nonce: Number(onChainPermission.nonce),
+          grantedAt: Number(onChainPermission.addedAtTimestamp),
+          expiresAt: grantFile.expires,
+          transactionHash: onChainPermission.transactionHash,
+          blockNumber: onChainPermission.addedAtBlock,
+        };
+
+        // Step 4: Update resolved permissions map
+        setResolvedPermissions((prev) => {
+          const newMap = new Map(prev);
+          newMap.set(permissionId, resolvedPermission);
+          return newMap;
+        });
+
+        console.debug(
+          "✅ Permission resolved:",
+          permissionId,
+          resolvedPermission,
+        );
+      } catch (error) {
+        console.error(
+          "Failed to resolve permission details:",
+          permissionId,
+          error,
+        );
+        addToast({
+          title: "Error Loading Details",
+          description: `Failed to load details for permission ${permissionId}`,
+          variant: "solid",
+          color: "danger",
+        });
+      } finally {
+        // Remove from resolving set
+        setResolvingPermissions((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(permissionId);
+          return newSet;
+        });
+      }
+    },
+    [vana, userPermissions, resolvedPermissions, resolvingPermissions],
+  );
 
   const handleGrantPermission = useCallback(
     async (
@@ -138,8 +267,8 @@ export function usePermissions(): UsePermissionsReturn {
       setGrantTxHash("");
 
       try {
-        // Check if permission already exists
-        const existingPermissions = await loadUserPermissions();
+        // Check if permission already exists - use simplified on-chain check
+        const onChainPermissions = await loadUserPermissions();
 
         const params: GrantPermissionParams = {
           grantee: applicationAddress as `0x${string}`,
@@ -151,30 +280,46 @@ export function usePermissions(): UsePermissionsReturn {
           ...customParams,
         };
 
-        // Check for matching permission using utility
-        const matchResult = findMatchingPermission(existingPermissions, params);
+        // Simple check: if we have an active permission for this grantor, consider reusing it
+        const potentialMatch = onChainPermissions.find(
+          (perm: OnChainPermissionGrant) =>
+            perm.grantor.toLowerCase() === address?.toLowerCase() &&
+            perm.active,
+        );
 
-        if (matchResult.found && matchResult.permission) {
-          // Permission already exists, reuse it
-          const existingPermission = matchResult.permission;
-          setGrantStatus(
-            `✅ Using existing permission! ID: ${existingPermission.id}`,
-          );
-          setLastGrantedPermissionId(existingPermission.id.toString());
-          // Don't set a fake tx hash - leave it empty since there's no new transaction
-          setGrantTxHash("");
+        if (potentialMatch) {
+          // Try to resolve this permission to check if it matches
+          try {
+            await resolvePermissionDetails(potentialMatch.id.toString());
+            const resolved = resolvedPermissions.get(
+              potentialMatch.id.toString(),
+            );
+            if (
+              resolved &&
+              resolved.files.some((f: number) => selectedFiles.includes(f))
+            ) {
+              setGrantStatus(
+                `✅ Using existing permission! ID: ${resolved.id}`,
+              );
+              setLastGrantedPermissionId(resolved.id.toString());
+              setGrantTxHash("");
 
-          addToast({
-            title: "Permission Already Exists",
-            description:
-              matchResult.reason ||
-              `Found existing permission with ID: ${existingPermission.id}`,
-            variant: "solid",
-            color: "success",
-          });
+              addToast({
+                title: "Permission Already Exists",
+                description: `Found existing permission with ID: ${resolved.id}`,
+                variant: "solid",
+                color: "success",
+              });
 
-          setIsGranting(false);
-          return;
+              setIsGranting(false);
+              return;
+            }
+          } catch {
+            // Continue with new permission if resolution fails
+            console.debug(
+              "Failed to resolve existing permission, creating new one",
+            );
+          }
         }
 
         // No existing permission found, proceed with creating new one
@@ -213,7 +358,15 @@ export function usePermissions(): UsePermissionsReturn {
         setIsGranting(false);
       }
     },
-    [vana, applicationAddress, onOpenGrant, loadUserPermissions],
+    [
+      vana,
+      applicationAddress,
+      address,
+      onOpenGrant,
+      loadUserPermissions,
+      resolvePermissionDetails,
+      resolvedPermissions,
+    ],
   );
 
   const handleConfirmGrant = useCallback(
@@ -306,8 +459,9 @@ export function usePermissions(): UsePermissionsReturn {
 
           // Find the newly created permission by matching grant URL and nonce
           const newPermission = freshPermissions.find(
-            (p) =>
-              p.grant === grantUrlToMatch && p.nonce === Number(nonceToMatch),
+            (p: OnChainPermissionGrant) =>
+              p.grantUrl === grantUrlToMatch &&
+              p.nonce === BigInt(nonceToMatch),
           );
 
           if (newPermission) {
@@ -373,7 +527,12 @@ export function usePermissions(): UsePermissionsReturn {
           loadingMessage: "Revoking permission...",
           toastTitle: "Failed to revoke permission",
           onSuccess: () => {
-            // Refresh permissions list
+            // Refresh permissions list and clear resolved permission
+            setResolvedPermissions((prev) => {
+              const newMap = new Map(prev);
+              newMap.delete(permissionId);
+              return newMap;
+            });
             loadUserPermissions();
           },
         },
@@ -389,26 +548,36 @@ export function usePermissions(): UsePermissionsReturn {
 
     const handler = createApiHandler(
       async () => {
+        // Try to resolve the permission details first
+        await resolvePermissionDetails(permissionLookupId);
+
+        // Get the resolved permission if available
+        const resolved = resolvedPermissions.get(permissionLookupId);
+        if (resolved) {
+          return resolved;
+        }
+
+        // Fallback to basic permission info if resolution failed
         const permissionIdBigInt = BigInt(permissionLookupId);
-        // Get permission details using SDK method
         const permissionInfo =
           await vana.permissions.getPermissionInfo(permissionIdBigInt);
-        const fileIds =
-          await vana.permissions.getPermissionFileIds(permissionIdBigInt);
 
-        // Create a GrantedPermission object from the lookup result
-        const permission: GrantedPermission = {
+        const basicPermission: GrantedPermission = {
           id: permissionIdBigInt,
-          operation: "data_access", // Default operation - this would need to be determined from the grant
-          files: fileIds.map((id) => Number(id)),
-          parameters: undefined,
+          files: [], // Would need to resolve
+          operation: "unknown", // Would need to resolve from grant file
           grant: permissionInfo.grant,
+          grantee: "0x0000000000000000000000000000000000000000", // Would need to resolve
           grantor: permissionInfo.grantor,
-          grantee: address!, // Get the current user's address from useAccount hook
-          active: true, // Assume it's active if we can look it up
+          parameters: {}, // Would need to resolve
+          active: permissionInfo.isActive,
+          nonce: Number(permissionInfo.nonce),
+          grantedAt: 0, // Would need to get from transaction
+          transactionHash: "", // Would need to get from lookup
+          blockNumber: BigInt(0), // Would need to get from transaction
         };
 
-        return permission;
+        return basicPermission;
       },
       {
         setLoading: setIsLookingUpPermission,
@@ -420,13 +589,26 @@ export function usePermissions(): UsePermissionsReturn {
         onSuccess: (permission) => {
           setLookedUpPermission(permission);
 
-          // Add to main permissions array if not already present
+          // Add to main permissions array if not already present (as on-chain data)
           setUserPermissions((prev) => {
             const exists = prev.find((p) => p.id === permission.id);
             if (exists) {
-              return prev; // Already exists, no need to add
+              return prev;
             } else {
-              return [...prev, permission];
+              // Create an on-chain permission entry
+              const onChainEntry: OnChainPermissionGrant = {
+                id: permission.id,
+                grantUrl: permission.grant,
+                grantSignature: "", // Would need lookup
+                grantHash: "", // Would need computation
+                nonce: BigInt(permission.nonce || 0),
+                addedAtBlock: permission.blockNumber || BigInt(0),
+                addedAtTimestamp: BigInt(permission.grantedAt || 0),
+                transactionHash: permission.transactionHash || "",
+                grantor: permission.grantor,
+                active: permission.active,
+              };
+              return [...prev, onChainEntry];
             }
           });
         },
@@ -434,7 +616,7 @@ export function usePermissions(): UsePermissionsReturn {
     );
 
     await handler();
-  }, [vana, permissionLookupId, address]);
+  }, [vana, permissionLookupId, resolvePermissionDetails, resolvedPermissions]);
 
   // Load permissions when Vana is initialized
   useEffect(() => {
@@ -447,15 +629,23 @@ export function usePermissions(): UsePermissionsReturn {
   useEffect(() => {
     if (!address) {
       setUserPermissions([]);
+      setResolvedPermissions(new Map());
+      setResolvingPermissions(new Set());
       setLookedUpPermission(null);
       setGrantPreview(null);
     }
   }, [address]);
 
   return {
-    // State
+    // Fast on-chain state
     userPermissions,
     isLoadingPermissions,
+
+    // Slow off-chain resolution state
+    resolvedPermissions,
+    resolvingPermissions,
+
+    // Grant flow state
     isGranting,
     isRevoking,
     grantStatus,
@@ -473,6 +663,7 @@ export function usePermissions(): UsePermissionsReturn {
 
     // Actions
     loadUserPermissions,
+    resolvePermissionDetails,
     handleGrantPermission,
     handleRevokePermissionById,
     handleLookupPermission,

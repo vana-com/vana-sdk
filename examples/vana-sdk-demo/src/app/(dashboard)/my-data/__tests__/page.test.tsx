@@ -8,6 +8,9 @@ import {
   createMockUseVana,
   createMockUseAccount,
 } from "@/tests/mocks";
+import * as useUserFilesHook from "@/hooks/useUserFiles";
+import * as usePermissionsHook from "@/hooks/usePermissions";
+import * as useTrustedServersHook from "@/hooks/useTrustedServers";
 
 // Mock dependencies using factory functions
 vi.mock("wagmi", async () => {
@@ -23,18 +26,6 @@ vi.mock("wagmi", async () => {
 vi.mock("@/providers/VanaProvider", () => ({
   useVana: () => createMockUseVana(),
   VanaProvider: ({ children }: { children: React.ReactNode }) => children,
-}));
-
-vi.mock("@/hooks/useUserFiles", () => ({
-  useUserFiles: () => createMockUseUserFiles(),
-}));
-
-vi.mock("@/hooks/usePermissions", () => ({
-  usePermissions: () => createMockUsePermissions(),
-}));
-
-vi.mock("@/hooks/useTrustedServers", () => ({
-  useTrustedServers: () => createMockUseTrustedServers(),
 }));
 
 // Mock components that might have complex dependencies
@@ -80,8 +71,15 @@ vi.mock("@/components/ui/DataUploadForm", () => ({
 describe("MyDataPage Integration Test", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // The hooks will be provided by our test providers
-    // We'll rely on the actual hook implementations with mocked dependencies
+    vi.spyOn(useUserFilesHook, "useUserFiles").mockReturnValue(
+      createMockUseUserFiles(),
+    );
+    vi.spyOn(usePermissionsHook, "usePermissions").mockReturnValue(
+      createMockUsePermissions(),
+    );
+    vi.spyOn(useTrustedServersHook, "useTrustedServers").mockReturnValue(
+      createMockUseTrustedServers(),
+    );
   });
 
   afterEach(() => {

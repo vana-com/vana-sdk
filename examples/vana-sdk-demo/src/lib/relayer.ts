@@ -5,6 +5,7 @@ import {
   mokshaTestnet,
   vanaMainnet,
   Vana,
+  type VanaInstance,
   type VanaChain,
   type VanaChainId,
 } from "@opendatalabs/vana-sdk/node";
@@ -91,7 +92,7 @@ export const generateContentId = (parameters: string): string => {
  */
 export async function createRelayerVana(
   chainId: VanaChainId = 14800,
-): Promise<Vana> {
+): Promise<VanaInstance> {
   const config = createRelayerConfig(chainId);
-  return new Vana({ walletClient: config.walletClient });
+  return Vana({ walletClient: config.walletClient });
 }

@@ -19,7 +19,7 @@ import {
   Shield,
   Database,
 } from "lucide-react";
-import type { Vana, Schema } from "@opendatalabs/vana-sdk/browser";
+import type { VanaInstance, Schema } from "@opendatalabs/vana-sdk/browser";
 import { SchemaSelector } from "./SchemaSelector";
 import { InputModeToggle } from "./InputModeToggle";
 import { ExplorerLink } from "./ExplorerLink";
@@ -28,7 +28,7 @@ import { validateDataAgainstSchema } from "../../utils/schemaValidation";
 
 export interface DataUploadFormProps {
   /** Vana SDK instance */
-  vana: Vana;
+  vana: VanaInstance;
 
   /** Current input mode */
   inputMode: "text" | "file";

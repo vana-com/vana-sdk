@@ -117,26 +117,10 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
       // Use shared utility to process public key
       const uncompressedKey = processWalletPublicKey(publicKey);
 
-      // Generate consistent encryption parameters (for deterministic encryption)
-      const iv = Buffer.from([
-        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c,
-        0x0d, 0x0e, 0x0f, 0x10,
-      ]);
-
-      const ephemeralKey = Buffer.from([
-        0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc,
-        0xdd, 0xee, 0xff, 0x00, 0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x80,
-        0x90, 0xa0, 0xb0, 0xc0, 0xd0, 0xe0, 0xf0, 0x00,
-      ]);
-
-      // Encrypt using ECDH
+      // Encrypt using ECDH with randomly generated parameters
       const encryptedBuffer = await eccrypto.encrypt(
         uncompressedKey,
         Buffer.from(data),
-        {
-          iv: iv,
-          ephemPrivateKey: ephemeralKey,
-        },
       );
 
       // Concatenate all components and return as hex

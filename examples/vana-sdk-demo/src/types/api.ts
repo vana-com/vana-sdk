@@ -6,9 +6,7 @@
 import type {
   APIResponse,
   ReplicateAPIResponse,
-  IdentityServerOutput,
-  PersonalServerOutput,
-  PersonalServerIdentity,
+  PersonalServerModel,
 } from "@opendatalabs/vana-sdk/browser";
 
 /**
@@ -19,34 +17,17 @@ import type {
 export type TrustedServerAPIResponse = APIResponse<ReplicateAPIResponse>;
 
 /** Response from /api/trusted-server/setup */
-export type TrustedServerIdentityAPIResponse =
-  APIResponse<PersonalServerIdentity>;
+export type TrustedServerIdentityAPIResponse = APIResponse<
+  PersonalServerModel & { base_url: string; name: string }
+>;
 
 /** Response from /api/trusted-server/poll */
 export type TrustedServerPollAPIResponse = APIResponse<ReplicateAPIResponse>;
 
-/** Response from direct Gateway identity call - matches OpenAPI spec */
-export interface GatewayIdentityResponse {
-  /** Resource type identifier */
-  kind: "Identity";
-  /** User's wallet address */
-  user_address: string;
-  /** Personal server information */
-  personal_server: {
-    /** Resource type identifier */
-    kind: "PersonalServer";
-    /** Derived address for the personal server */
-    address: string;
-    /** Public key for encryption */
-    public_key: string;
-    /** Base URL for the personal server (may be empty) */
-    base_url?: string;
-    /** Name of the personal server (may be empty) */
-    name?: string;
-  };
-}
+// Note: Use IdentityResponseModel from @opendatalabs/vana-sdk/types/server-exports
+// for gateway identity responses
 
-/** Response from /api/identity (deprecated - use GatewayIdentityResponse) */
+/** Response from /api/identity (deprecated - use IdentityResponseModel) */
 export type IdentityAPIResponse = APIResponse<{
   userAddress: string;
   publicKey: string;
@@ -94,17 +75,8 @@ export interface DiscoveredServerInfo {
  * These represent the parsed JSON output from Replicate responses
  */
 
-/** Parsed output from trusted server setup */
-export interface ParsedTrustedServerOutput extends IdentityServerOutput {
-  /** Additional server metadata */
-  metadata?: Record<string, unknown>;
-}
-
-/** Parsed output from personal server */
-export interface ParsedPersonalServerOutput extends PersonalServerOutput {
-  /** Additional identity metadata */
-  additionalData?: Record<string, unknown>;
-}
+// Note: Server output parsing types removed - use generated types from
+// @opendatalabs/vana-sdk/types/server-exports instead
 
 /**
  * Type Guards for Runtime Validation

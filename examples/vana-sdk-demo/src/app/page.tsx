@@ -1,35 +1,26 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import { Suspense } from "react";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
-// Dynamically import the main demo page with SSR turned off.
-// This prevents any of its code (including dependencies like wagmi)
-// from running on the server.
-const DemoPage = dynamic(() => import("./demo-page"), {
-  ssr: false,
-});
+/**
+ * Root page component that redirects to the default dashboard page
+ */
+export default function HomePage() {
+  const router = useRouter();
 
-// A simple loading component to show while the main page is loading.
-function LoadingSpinner() {
+  useEffect(() => {
+    // Redirect to the default dashboard page
+    router.push("/my-data");
+  }, [router]);
+
+  // Show a simple loading message while redirecting
   return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        height: "100vh",
-      }}
-    >
-      <p>Loading Demo...</p>
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="text-center">
+        <div className="text-lg font-semibold mb-2">Vana SDK Demo</div>
+        <div className="text-default-500">Redirecting to dashboard...</div>
+      </div>
     </div>
-  );
-}
-
-export default function Page() {
-  return (
-    <Suspense fallback={<LoadingSpinner />}>
-      <DemoPage />
-    </Suspense>
   );
 }

@@ -1,57 +1,78 @@
 import { BrowserPlatformAdapter } from "./platform/browser";
 import { VanaCore } from "./core";
-import type { VanaConfig } from "./types";
+import type {
+  VanaConfig,
+  VanaConfigWithStorage,
+  StorageRequiredMarker,
+} from "./types";
 
 /**
- * The Vana SDK class pre-configured for browser environments.
- * Automatically uses the browser platform adapter for crypto operations and file systems.
- *
- * @example
- * ```typescript
- * const vana = new Vana({ walletClient });
- *
- * // Upload and encrypt user data
- * const file = await vana.data.uploadAndStoreFile(dataBlob, schema);
- *
- * // Grant permissions to DLPs
- * await vana.permissions.grantPermission({
- *   account: dlpAddress,
- *   fileId: file.id,
- *   permissions: ['read']
- * });
- * ```
+ * Internal implementation class for browser environments.
+ * This class is not exported directly - use the Vana factory function instead.
  */
-export class VanaBrowser extends VanaCore {
-  /**
-   * Creates a Vana SDK instance configured for browser environments.
-   *
-   * @param config - SDK configuration object (wallet client or chain config)
-   * @example
-   * ```typescript
-   * // With wallet client
-   * const vana = new Vana({ walletClient });
-   *
-   * // With chain configuration
-   * const vana = new Vana({ chainId: 14800, account });
-   * ```
-   */
+class VanaBrowserImpl extends VanaCore {
   constructor(config: VanaConfig) {
     super(new BrowserPlatformAdapter(), config);
   }
 }
 
-// Export the browser-specific class as the main 'Vana' for this entry point.
-export { VanaBrowser as Vana };
+/**
+ * Creates a new Vana SDK instance configured for browser environments.
+ *
+ * This function automatically provides the correct TypeScript types based on your configuration:
+ * - With storage config: All methods including storage-dependent ones are available
+ * - Without storage: Storage-dependent methods are not available at compile time
+ *
+ * @param config - The configuration object containing wallet client and optional storage settings
+ * @returns A Vana SDK instance configured for browser use
+ * @example
+ * ```typescript
+ * // With storage - all methods available
+ * const vana = Vana({
+ *   walletClient,
+ *   storage: { providers: { ipfs: new IPFSStorage() }, defaultProvider: 'ipfs' }
+ * });
+ * await vana.data.uploadFile(file); // ✅ Works - TypeScript knows storage is available
+ *
+ * // Without storage - storage methods unavailable at compile time
+ * const vanaNoStorage = Vana({ walletClient });
+ * // await vanaNoStorage.data.uploadFile(file); // ❌ TypeScript error
+ *
+ * // Runtime check still available
+ * if (vanaNoStorage.isStorageEnabled()) {
+ *   // TypeScript now knows storage methods are safe to use
+ *   await vanaNoStorage.data.uploadFile(file); // ✅ Works
+ * }
+ * ```
+ */
+export function Vana(
+  config: VanaConfigWithStorage,
+): VanaBrowserImpl & StorageRequiredMarker;
+export function Vana(config: VanaConfig): VanaBrowserImpl;
+export function Vana(config: VanaConfig) {
+  return new VanaBrowserImpl(config);
+}
+
+/**
+ * The type of a Vana SDK instance in browser environments.
+ *
+ * @see {@link Vana}
+ */
+export type VanaInstance = VanaBrowserImpl;
+
+// Export as default export
+export default Vana;
 
 // Re-export everything that was in index.ts (avoiding circular dependency)
+// Core class and factory
+export { VanaCore, VanaCoreFactory } from "./core";
+
 // Types - modular exports
 export type * from "./types";
 
 // Type guards and utilities
 export {
   isReplicateAPIResponse,
-  isIdentityServerOutput,
-  isPersonalServerOutput,
   isAPIResponse,
   safeParseJSON,
   parseReplicateOutput,
@@ -89,13 +110,13 @@ export { getContractAddress } from "./config/addresses";
 export { chains } from "./config/chains";
 
 // Chain configurations with subgraph URLs - explicit exports for better DX
-export { 
-  vanaMainnet, 
-  mokshaTestnet, 
+export {
+  vanaMainnet,
+  mokshaTestnet,
   moksha,
   type VanaChainConfig,
   getChainConfig,
-  getAllChains 
+  getAllChains,
 } from "./chains";
 export * from "./chains";
 
@@ -145,5 +166,7 @@ export type {
   RequestOptions,
 } from "./core/apiClient";
 
-// Re-export the SDK as both named and default export
-export default VanaBrowser;
+// Note: Default export is already handled above with the Vana factory function
+
+// For testing purposes, we also export the implementation class
+export { VanaBrowserImpl };

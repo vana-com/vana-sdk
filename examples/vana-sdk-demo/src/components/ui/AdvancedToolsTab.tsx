@@ -16,12 +16,12 @@ import {
   Radio,
 } from "@heroui/react";
 import { Lock, Key, Database, TestTube, Wrench } from "lucide-react";
-import type { Vana, Schema } from "@opendatalabs/vana-sdk/browser";
+import type { VanaInstance, Schema } from "@opendatalabs/vana-sdk/browser";
 import type { WalletClient } from "viem";
 import {
   generateEncryptionKey as sdkGenerateEncryptionKey,
-  encryptUserData as sdkEncryptUserData,
-  decryptUserData as sdkDecryptUserData,
+  encryptBlobWithSignedKey as sdkEncryptUserData,
+  decryptBlobWithSignedKey as sdkDecryptUserData,
   DEFAULT_ENCRYPTION_SEED,
   BrowserPlatformAdapter,
   convertIpfsUrl,
@@ -31,7 +31,7 @@ import { CodeDisplay } from "./CodeDisplay";
 
 export interface AdvancedToolsTabProps {
   /** Vana SDK instance */
-  vana: Vana;
+  vana: VanaInstance;
 
   /** Available schemas */
   schemas: (Schema & { source?: "discovered" | "created" })[];

@@ -20,7 +20,7 @@ describe("Grant Files Utils", () => {
   describe("createGrantFile", () => {
     it("should create a grant file with correct structure", () => {
       const params = {
-        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "llm_inference",
         files: [1, 2, 3],
         parameters: {
@@ -32,7 +32,7 @@ describe("Grant Files Utils", () => {
       const grantFile = createGrantFile(params);
 
       expect(grantFile).toEqual({
-        grantee: params.to,
+        grantee: params.grantee,
         operation: params.operation,
         parameters: params.parameters,
       });
@@ -40,7 +40,7 @@ describe("Grant Files Utils", () => {
 
     it("should handle empty files array", () => {
       const params = {
-        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "data_query",
         files: [],
         parameters: {},
@@ -53,7 +53,7 @@ describe("Grant Files Utils", () => {
 
     it("should handle complex parameters", () => {
       const params = {
-        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "model_training",
         files: [10, 20, 30],
         parameters: {
@@ -75,7 +75,7 @@ describe("Grant Files Utils", () => {
     it("should include expiration when provided", () => {
       const expiresAt = Math.floor(Date.now() / 1000) + 3600; // 1 hour from now
       const params = {
-        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "llm_inference",
         files: [1, 2, 3],
         parameters: { prompt: "test" },
@@ -89,7 +89,7 @@ describe("Grant Files Utils", () => {
 
     it("should not include expiration when not provided", () => {
       const params = {
-        to: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         operation: "llm_inference",
         files: [1, 2, 3],
         parameters: { prompt: "test" },

@@ -67,6 +67,7 @@ describe("Permission Types", () => {
         grantee: "0x9876543210987654321098765432109876543210" as Address,
         active: true,
         expiresAt: 1672531200,
+        dataStatus: "complete",
       };
 
       expect(permission.id).toBe(123n);
@@ -87,14 +88,18 @@ describe("Permission Types", () => {
       const minimalPermission: GrantedPermission = {
         id: 456n,
         files: [5],
+        operation: "[DATA_UNAVAILABLE]",
+        parameters: {},
         grant: "ipfs://QmMinimalGrant",
         grantor: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as Address,
         grantee: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" as Address,
         active: false,
+        dataStatus: "minimal",
       };
 
-      expect(minimalPermission.operation).toBeUndefined();
-      expect(minimalPermission.parameters).toBeUndefined();
+      expect(minimalPermission.operation).toBe("[DATA_UNAVAILABLE]");
+      expect(minimalPermission.parameters).toEqual({});
+      expect(minimalPermission.dataStatus).toBe("minimal");
       expect(minimalPermission.nonce).toBeUndefined();
       expect(minimalPermission.grantedAt).toBeUndefined();
       expect(minimalPermission.expiresAt).toBeUndefined();
@@ -104,7 +109,7 @@ describe("Permission Types", () => {
   describe("GrantPermissionParams", () => {
     it("should structure grant parameters correctly", () => {
       const params: GrantPermissionParams = {
-        to: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6" as Address,
+        grantee: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6" as Address,
         operation: "llm_inference",
         files: [1, 2, 3],
         parameters: {
@@ -117,7 +122,7 @@ describe("Permission Types", () => {
         expiresAt: 1672531200,
       };
 
-      expect(params.to).toBe("0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6");
+      expect(params.grantee).toBe("0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6");
       expect(params.operation).toBe("llm_inference");
       expect(params.files).toEqual([1, 2, 3]);
       expect(params.parameters.model).toBe("gpt-4");
@@ -128,7 +133,7 @@ describe("Permission Types", () => {
 
     it("should handle minimal grant parameters", () => {
       const minimalParams: GrantPermissionParams = {
-        to: "0xcccccccccccccccccccccccccccccccccccccccc" as Address,
+        grantee: "0xcccccccccccccccccccccccccccccccccccccccc" as Address,
         operation: "data_analysis",
         files: [10],
         parameters: {
@@ -199,6 +204,9 @@ describe("Permission Types", () => {
           grantor: "0x1111111111111111111111111111111111111111" as Address,
           grantee: "0x2222222222222222222222222222222222222222" as Address,
           active: true,
+          operation: "llm_inference",
+          parameters: { model: "gpt-4" },
+          dataStatus: "complete",
         },
       };
 
@@ -495,6 +503,9 @@ describe("Permission Types", () => {
             grantor: "0x1111111111111111111111111111111111111111" as Address,
             grantee: "0x2222222222222222222222222222222222222222" as Address,
             active: true,
+            operation: "data_analysis",
+            parameters: { analysisType: "statistical" },
+            dataStatus: "complete",
           },
           {
             id: 2n,
@@ -503,6 +514,9 @@ describe("Permission Types", () => {
             grantor: "0x3333333333333333333333333333333333333333" as Address,
             grantee: "0x4444444444444444444444444444444444444444" as Address,
             active: false,
+            operation: "model_training",
+            parameters: { epochs: 100 },
+            dataStatus: "partial",
           },
         ],
         total: 2,
@@ -681,6 +695,9 @@ describe("Permission Types", () => {
           grantor: "0x5050505050505050505050505050505050505050" as Address,
           grantee: "0x6060606060606060606060606060606060606060" as Address,
           active: true,
+          operation: "compute_task",
+          parameters: { taskType: "training" },
+          dataStatus: "complete",
         },
         blockNumber: 12345n,
         transactionHash:
@@ -717,6 +734,9 @@ describe("Permission Types", () => {
         grantor: "0x7070707070707070707070707070707070707070" as Address,
         grantee: "0x8080808080808080808080808080808080808080" as Address,
         active: true,
+        operation: "[DATA_UNAVAILABLE]",
+        parameters: {},
+        dataStatus: "minimal",
       };
 
       expect(typeof permission.id).toBe("bigint");
@@ -725,7 +745,7 @@ describe("Permission Types", () => {
 
     it("should handle complex nested parameter structures", () => {
       const complexParams: GrantPermissionParams = {
-        to: "0x9090909090909090909090909090909090909090" as Address,
+        grantee: "0x9090909090909090909090909090909090909090" as Address,
         operation: "complex_computation",
         files: [1, 2, 3],
         parameters: {
@@ -784,11 +804,17 @@ describe("Permission Types", () => {
         grantor: "0xb0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0" as Address,
         grantee: "0xc0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0" as Address,
         active: true,
+        operation: "[DATA_UNAVAILABLE]",
+        parameters: {},
+        dataStatus: "minimal",
       };
 
-      // All optional fields should be undefined when not set
-      expect(basePermission.operation).toBeUndefined();
-      expect(basePermission.parameters).toBeUndefined();
+      // Required fields should have default values when minimal data is available
+      expect(basePermission.operation).toBe("[DATA_UNAVAILABLE]");
+      expect(basePermission.parameters).toEqual({});
+      expect(basePermission.dataStatus).toBe("minimal");
+
+      // Optional fields should be undefined when not set
       expect(basePermission.nonce).toBeUndefined();
       expect(basePermission.grantedAt).toBeUndefined();
       expect(basePermission.expiresAt).toBeUndefined();

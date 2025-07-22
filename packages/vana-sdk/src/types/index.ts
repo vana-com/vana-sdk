@@ -1,17 +1,22 @@
 // Configuration types
 export type {
   BaseConfig,
+  BaseConfigWithStorage,
   WalletConfig,
+  WalletConfigWithStorage,
   ChainConfig,
+  ChainConfigWithStorage,
   VanaConfig,
+  VanaConfigWithStorage,
   RuntimeConfig,
   StorageConfig,
   ConfigValidationOptions,
   ConfigValidationResult,
   RelayerCallbacks,
+  StorageRequiredMarker,
 } from "./config";
 
-export { isWalletConfig, isChainConfig } from "./config";
+export { isWalletConfig, isChainConfig, hasStorageConfig } from "./config";
 
 // Chain types
 export type { VanaChainId, VanaChain } from "./chains";
@@ -49,6 +54,9 @@ export type {
   FileMetadata,
   UploadParams,
   PermissionParams,
+  EncryptedPermissionParams,
+  EncryptedUploadParams,
+  UnencryptedUploadParams,
   UploadResult,
   UploadFileParams,
   UploadFileResult,
@@ -96,7 +104,8 @@ export {
 
 // Permission types
 export type {
-  GrantedPermission,
+  OnChainPermissionGrant,
+  GetUserPermissionsOptions,
   GrantPermissionParams,
   RevokePermissionParams,
   CheckPermissionParams,
@@ -114,6 +123,7 @@ export type {
   PermissionQueryResult,
   PermissionAnalytics,
   PermissionEvent,
+  GrantedPermission,
   Server,
   TrustServerParams,
   UntrustServerParams,
@@ -145,9 +155,6 @@ export * from "./server-exports";
 export type {
   ReplicateAPIResponse,
   ReplicateStatus,
-  IdentityServerOutput,
-  IdentityServerResponse,
-  PersonalServerOutput,
   PinataUploadResponse,
   PinataPin,
   PinataListResponse,
@@ -156,8 +163,6 @@ export type {
 
 export {
   isReplicateAPIResponse,
-  isIdentityServerOutput,
-  isPersonalServerOutput,
   isAPIResponse,
   safeParseJSON,
   parseReplicateOutput,

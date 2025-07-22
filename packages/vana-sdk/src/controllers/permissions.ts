@@ -5,7 +5,8 @@ import {
   RevokePermissionParams,
   PermissionGrantTypedData,
   GenericTypedData,
-  GrantedPermission,
+  OnChainPermissionGrant,
+  GetUserPermissionsOptions,
   TrustServerParams,
   UntrustServerParams,
   TrustServerInput,
@@ -35,11 +36,7 @@ import {
 } from "../errors";
 import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../abi";
-import {
-  createGrantFile,
-  getGrantFileHash,
-  retrieveGrantFile,
-} from "../utils/grantFiles";
+import { createGrantFile, getGrantFileHash } from "../utils/grantFiles";
 import { validateGrant } from "../utils/grantValidation";
 import { StorageManager } from "../storage";
 import type { VanaPlatformAdapter } from "../platform/interface";
@@ -58,6 +55,8 @@ interface SubgraphPermissionsResponse {
         user: { id: string };
         addedAtBlock: string;
         nonce: string;
+        addedAtTimestamp?: string;
+        transactionHash?: string;
       }>;
     };
   };
@@ -90,6 +89,12 @@ export interface ControllerContext {
   subgraphUrl?: string;
   /** Adapts SDK functionality to the current runtime environment. */
   platform: VanaPlatformAdapter;
+  /** Validates that storage is available for storage-dependent operations. */
+  validateStorageRequired?: () => void;
+  /** Checks whether storage is configured without throwing an error. */
+  hasStorage?: () => boolean;
+  /** Default IPFS gateways to use for fetching files. */
+  ipfsGateways?: string[];
 }
 
 /**
@@ -109,7 +114,7 @@ export interface ControllerContext {
  * ```typescript
  * // Grant permission for an app to access your data
  * const txHash = await vana.permissions.grant({
- *   to: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+ *   grantee: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
  *   operation: "llm_inference",
  *   parameters: { model: "gpt-4", maxTokens: 1000 },
  * });
@@ -147,7 +152,7 @@ export class PermissionsController {
    * @example
    * ```typescript
    * const txHash = await vana.permissions.grant({
-   *   to: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+   *   grantee: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
    *   operation: "llm_inference",
    *   parameters: {
    *     model: "gpt-4",
@@ -177,7 +182,7 @@ export class PermissionsController {
    * @example
    * ```typescript
    * const { preview, confirm } = await vana.permissions.prepareGrant({
-   *   to: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+   *   grantee: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
    *   operation: "llm_inference",
    *   files: [1, 2, 3],
    *   parameters: { model: "gpt-4", prompt: "Analyze my social media data" }
@@ -248,13 +253,19 @@ export class PermissionsController {
       let grantUrl = params.grantUrl;
       console.debug("🔍 Debug - Grant URL from params:", grantUrl);
       if (!grantUrl) {
+        // Validate storage is available using the centralized validation method
         if (
           !this.context.relayerCallbacks?.storeGrantFile &&
           !this.context.storageManager
         ) {
-          throw new Error(
-            "No storage available. Provide a grantUrl, configure relayerCallbacks.storeGrantFile, or storageManager.",
-          );
+          // Use centralized validation if available, otherwise fall back to old behavior
+          if (this.context.validateStorageRequired) {
+            this.context.validateStorageRequired();
+          } else {
+            throw new Error(
+              "No storage available. Provide a grantUrl, configure relayerCallbacks.storeGrantFile, or storageManager.",
+            );
+          }
         }
         if (this.context.relayerCallbacks?.storeGrantFile) {
           grantUrl =
@@ -285,7 +296,7 @@ export class PermissionsController {
         grantUrl,
       );
       const typedData = await this.composePermissionGrantMessage({
-        to: params.to,
+        grantee: params.grantee,
         operation: params.operation, // Placeholder - real data is in IPFS
         files: params.files, // Placeholder - real data is in IPFS
         grantUrl,
@@ -343,7 +354,7 @@ export class PermissionsController {
    * @example
    * ```typescript
    * const { typedData, signature } = await vana.permissions.createAndSign({
-   *   to: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+   *   grantee: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
    *   operation: "data_analysis",
    *   parameters: { analysisType: "sentiment" },
    * });
@@ -366,13 +377,19 @@ export class PermissionsController {
       let grantUrl = params.grantUrl;
       console.debug("🔍 Debug - Grant URL from params:", grantUrl);
       if (!grantUrl) {
+        // Validate storage is available using the centralized validation method
         if (
           !this.context.relayerCallbacks?.storeGrantFile &&
           !this.context.storageManager
         ) {
-          throw new Error(
-            "No storage available. Provide a grantUrl, configure relayerCallbacks.storeGrantFile, or storageManager.",
-          );
+          // Use centralized validation if available, otherwise fall back to old behavior
+          if (this.context.validateStorageRequired) {
+            this.context.validateStorageRequired();
+          } else {
+            throw new Error(
+              "No storage available. Provide a grantUrl, configure relayerCallbacks.storeGrantFile, or storageManager.",
+            );
+          }
         }
         if (this.context.relayerCallbacks?.storeGrantFile) {
           grantUrl =
@@ -403,7 +420,7 @@ export class PermissionsController {
         grantUrl,
       );
       const typedData = await this.composePermissionGrantMessage({
-        to: params.to,
+        grantee: params.grantee,
         operation: params.operation, // Placeholder - real data is in IPFS
         files: params.files, // Placeholder - real data is in IPFS
         grantUrl,
@@ -858,7 +875,7 @@ export class PermissionsController {
    * Composes the EIP-712 typed data for PermissionGrant (new simplified format).
    *
    * @param params - The parameters for composing the permission grant message
-   * @param params.to - The recipient address for the permission grant
+   * @param params.grantee - The recipient address for the permission grant
    * @param params.operation - The type of operation being granted permission for
    * @param params.files - Array of file IDs that the permission applies to
    * @param params.grantUrl - URL where the grant details are stored
@@ -867,7 +884,7 @@ export class PermissionsController {
    * @returns Promise resolving to the typed data structure
    */
   private async composePermissionGrantMessage(params: {
-    to: Address;
+    grantee: Address;
     operation: string;
     files: number[];
     grantUrl: string;
@@ -976,41 +993,50 @@ export class PermissionsController {
   }
 
   /**
-   * Retrieves all permissions granted by the current user using subgraph queries.
+   * Gets on-chain permission grant data without expensive off-chain resolution.
    *
    * @remarks
-   * This method queries the Vana subgraph to find permissions directly granted by the user
-   * using the Permission entity. It efficiently handles millions of permissions by leveraging
-   * indexed subgraph data instead of scanning contract logs. The method fetches complete
-   * grant files from IPFS to provide detailed permission information including operation
-   * parameters and grantee details.
-   * @param params - Optional query parameters
-   * @param params.limit - Maximum number of permissions to return (default: 50)
-   * @param params.subgraphUrl - Optional subgraph URL to override the default endpoint
-   * @returns A Promise that resolves to an array of `GrantedPermission` objects
-   * @throws {BlockchainError} When subgraph is unavailable or returns invalid data
+   * This method provides a fast, performance-focused way to retrieve permission grants
+   * by querying only the subgraph without making expensive IPFS or individual contract calls.
+   * It eliminates the N+1 query problem of the legacy `getUserPermissions()` method.
+   *
+   * The returned data contains all on-chain information but does NOT include resolved
+   * operation details, parameters, or file IDs. Use `retrieveGrantFile()` separately
+   * for specific grants when detailed data is needed.
+   *
+   * **Performance**: Completes in ~100-500ms regardless of permission count.
+   * **Reliability**: Single point of failure (subgraph) with clear RPC fallback path.
+   *
+   * @param options - Options for retrieving permissions (limit, subgraph URL)
+   * @returns A Promise that resolves to an array of `OnChainPermissionGrant` objects
+   * @throws {BlockchainError} When subgraph query fails
+   * @throws {NetworkError} When network requests fail
    * @example
    * ```typescript
-   * // Get all permissions granted by current user
-   * const permissions = await vana.permissions.getUserPermissions();
+   * // Fast: Get all on-chain permission data
+   * const grants = await vana.permissions.getUserPermissionGrantsOnChain({ limit: 20 });
    *
-   * permissions.forEach(permission => {
-   *   console.log(`Granted ${permission.operation} to ${permission.grantee}`);
+   * // Display in UI immediately
+   * grants.forEach(grant => {
+   *   console.log(`Permission ${grant.id}: ${grant.grantUrl}`);
    * });
    *
-   * // Limit results
-   * const recent = await vana.permissions.getUserPermissions({ limit: 10 });
+   * // Lazy load detailed data for specific permission when user clicks
+   * const grantFile = await retrieveGrantFile(grants[0].grantUrl);
+   * console.log(`Operation: ${grantFile.operation}`);
+   * console.log(`Parameters:`, grantFile.parameters);
    * ```
    */
-  async getUserPermissions(params?: {
-    limit?: number;
-    subgraphUrl?: string;
-  }): Promise<GrantedPermission[]> {
+  async getUserPermissionGrantsOnChain(
+    options: GetUserPermissionsOptions = {},
+  ): Promise<OnChainPermissionGrant[]> {
+    const { limit = 50, subgraphUrl } = options;
+
     try {
       const userAddress = await this.getUserAddress();
 
       // Use provided subgraph URL or default from context
-      const graphqlEndpoint = params?.subgraphUrl || this.context.subgraphUrl;
+      const graphqlEndpoint = subgraphUrl || this.context.subgraphUrl;
 
       if (!graphqlEndpoint) {
         throw new BlockchainError(
@@ -1018,7 +1044,7 @@ export class PermissionsController {
         );
       }
 
-      // Query the subgraph for user's permissions using the new Permission entity
+      // Query the subgraph for user's permissions - SINGLE QUERY, NO LOOPS
       const query = `
         query GetUserPermissions($userId: ID!) {
           user(id: $userId) {
@@ -1035,17 +1061,6 @@ export class PermissionsController {
           }
         }
       `;
-
-      console.info("Query:", query);
-      console.info(
-        "Body:",
-        JSON.stringify({
-          query,
-          variables: {
-            userId: userAddress.toLowerCase(),
-          },
-        }),
-      );
 
       const response = await fetch(graphqlEndpoint, {
         method: "POST",
@@ -1068,8 +1083,6 @@ export class PermissionsController {
 
       const result = (await response.json()) as SubgraphPermissionsResponse;
 
-      console.info("Result:", result);
-
       if (result.errors) {
         throw new BlockchainError(
           `Subgraph errors: ${result.errors.map((e: { message: string }) => e.message).join(", ")}`,
@@ -1078,76 +1091,37 @@ export class PermissionsController {
 
       const userData = result.data?.user;
       if (!userData || !userData.permissions?.length) {
-        console.warn("No permissions found for user:", userAddress);
         return [];
       }
 
-      const userPermissions: GrantedPermission[] = [];
-      const limit = params?.limit || 50; // Default limit
-      const permissionsToProcess = userData.permissions.slice(0, limit);
+      // Process permissions without expensive network calls - FAST PATH
+      const onChainGrants: OnChainPermissionGrant[] = userData.permissions
+        .slice(0, limit)
+        .map((permission) => ({
+          id: BigInt(permission.id),
+          grantUrl: permission.grant,
+          grantSignature: permission.grantSignature,
+          grantHash: permission.grantHash,
+          nonce: BigInt(permission.nonce),
+          addedAtBlock: BigInt(permission.addedAtBlock),
+          addedAtTimestamp: BigInt(permission.addedAtTimestamp || "0"),
+          transactionHash: permission.transactionHash || "",
+          grantor: userAddress as Address,
+          active: true, // TODO: Add revocation status from subgraph when available
+        }));
 
-      // Process each permission and fetch grant file data
-      for (const permission of permissionsToProcess) {
-        try {
-          // Fetch and parse the grant file from IPFS to get complete permission data
-          let operation: string | undefined;
-          let files: number[] = [];
-          let parameters: unknown | undefined;
-          let granteeAddress: string | undefined;
-
-          try {
-            const grantFile = await retrieveGrantFile(permission.grant);
-            operation = grantFile.operation;
-            parameters = grantFile.parameters;
-            granteeAddress = grantFile.grantee;
-          } catch {
-            // Failed to retrieve grant file - using basic permission data
-            // Continue with basic permission data even if grant file can't be retrieved
-          }
-
-          // Get file IDs from the contract
-          try {
-            const fileIds = await this.getPermissionFileIds(
-              BigInt(permission.id),
-            );
-            files = fileIds.map((id) => Number(id));
-          } catch {
-            // Failed to retrieve file IDs - using empty array
-            // Continue with empty files array
-          }
-
-          userPermissions.push({
-            id: BigInt(permission.id),
-            files: files,
-            operation: operation || "",
-            parameters: (parameters as Record<string, unknown>) || {},
-            grant: permission.grant,
-            grantor: userAddress.toLowerCase() as Address, // Current user is the grantor
-            grantee: (granteeAddress as Address) || userAddress, // Application that received permission
-            active: true, // Default to active if not specified
-            grantedAt: Number(permission.addedAtBlock),
-            nonce: Number(permission.nonce),
-          });
-        } catch (error) {
-          console.error(
-            "SDK Error: Failed to process permission:",
-            permission.id,
-            error,
-          );
-          // Failed to process permission - skipping
-        }
-      }
-
-      return userPermissions.sort((a, b) => {
-        // Sort bigints - most recent first
+      return onChainGrants.sort((a, b) => {
+        // Sort by ID - most recent first
         if (a.id < b.id) return 1;
         if (a.id > b.id) return -1;
         return 0;
       });
     } catch (error) {
-      console.error("Failed to fetch user permissions:", error);
+      if (error instanceof BlockchainError || error instanceof NetworkError) {
+        throw error;
+      }
       throw new BlockchainError(
-        `Failed to fetch user permissions: ${error instanceof Error ? error.message : "Unknown error"}`,
+        `Failed to fetch user permission grants: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }

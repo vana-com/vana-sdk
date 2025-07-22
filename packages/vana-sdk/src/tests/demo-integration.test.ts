@@ -2,8 +2,8 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   generateEncryptionKey,
-  encryptUserData,
-  decryptUserData,
+  encryptBlobWithSignedKey,
+  decryptBlobWithSignedKey,
 } from "../utils/encryption";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
@@ -37,7 +37,7 @@ describe("Demo Integration - Correct Wallet-Based Encryption", () => {
     const testData = "Hello Vana Demo!";
     const dataBlob = new Blob([testData], { type: "text/plain" });
 
-    const encryptedData = await encryptUserData(
+    const encryptedData = await encryptBlobWithSignedKey(
       dataBlob,
       encryptionKey,
       mockPlatformAdapter,
@@ -45,7 +45,7 @@ describe("Demo Integration - Correct Wallet-Based Encryption", () => {
     expect(encryptedData).toBeInstanceOf(Blob);
 
     // Step 3: Decrypt data using the same signature (like demo's handleDecryptData)
-    const decryptedData = await decryptUserData(
+    const decryptedData = await decryptBlobWithSignedKey(
       encryptedData,
       encryptionKey,
       mockPlatformAdapter,
@@ -77,12 +77,12 @@ describe("Demo Integration - Correct Wallet-Based Encryption", () => {
 
     // Verify encryption/decryption works with this key
     const testData = new Blob(["Demo test data"], { type: "text/plain" });
-    const encrypted = await encryptUserData(
+    const encrypted = await encryptBlobWithSignedKey(
       testData,
       encryptionKey,
       mockPlatformAdapter,
     );
-    const decrypted = await decryptUserData(
+    const decrypted = await decryptBlobWithSignedKey(
       encrypted,
       encryptionKey,
       mockPlatformAdapter,
@@ -108,12 +108,12 @@ describe("Demo Integration - Correct Wallet-Based Encryption", () => {
     });
     const jsonBlob = new Blob([jsonData], { type: "application/json" });
 
-    const encryptedJson = await encryptUserData(
+    const encryptedJson = await encryptBlobWithSignedKey(
       jsonBlob,
       encryptionKey,
       mockPlatformAdapter,
     );
-    const decryptedJson = await decryptUserData(
+    const decryptedJson = await decryptBlobWithSignedKey(
       encryptedJson,
       encryptionKey,
       mockPlatformAdapter,
@@ -126,12 +126,12 @@ describe("Demo Integration - Correct Wallet-Based Encryption", () => {
     const fileContent = "This is a test file content for the demo";
     const fileBlob = new Blob([fileContent], { type: "text/plain" });
 
-    const encryptedFile = await encryptUserData(
+    const encryptedFile = await encryptBlobWithSignedKey(
       fileBlob,
       encryptionKey,
       mockPlatformAdapter,
     );
-    const decryptedFile = await decryptUserData(
+    const decryptedFile = await decryptBlobWithSignedKey(
       encryptedFile,
       encryptionKey,
       mockPlatformAdapter,

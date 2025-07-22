@@ -9,11 +9,11 @@ import {
   Button,
 } from "@heroui/react";
 import { Database, ExternalLink, Info } from "lucide-react";
-import type { Schema, Vana } from "@opendatalabs/vana-sdk/browser";
+import type { Schema, VanaInstance } from "@opendatalabs/vana-sdk/browser";
 
 interface SchemaSelectorProps {
   /** Vana SDK instance for loading schemas */
-  vana: Vana | null;
+  vana: VanaInstance | null;
   /** Currently selected schema ID (null for no selection) */
   selectedSchemaId: number | null;
   /** Callback when schema selection changes */

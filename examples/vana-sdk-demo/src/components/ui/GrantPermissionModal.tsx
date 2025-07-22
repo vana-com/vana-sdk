@@ -12,10 +12,15 @@ import {
   SelectItem,
   Chip,
   Divider,
+  Card,
+  CardBody,
 } from "@heroui/react";
-import { Eye, Shield, AlertCircle } from "lucide-react";
+import { Eye, Shield, AlertCircle, Cloud, Database } from "lucide-react";
 import { validateGrant } from "@opendatalabs/vana-sdk/browser";
-import type { GrantPermissionParams } from "@opendatalabs/vana-sdk/browser";
+import type {
+  GrantPermissionParams,
+  GrantedPermission,
+} from "@opendatalabs/vana-sdk/browser";
 
 export interface GrantPermissionModalProps {
   isOpen: boolean;
@@ -24,8 +29,8 @@ export interface GrantPermissionModalProps {
   selectedFiles: number[];
   applicationAddress?: string;
   isGranting: boolean;
-  defaultPrompt?: string;
   allowEditAddress?: boolean;
+  existingPermissions?: GrantedPermission[]; // To check for duplicates
 }
 
 export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
@@ -35,11 +40,12 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
   selectedFiles,
   applicationAddress,
   isGranting,
-  defaultPrompt = "Create a comprehensive Digital DNA profile from this data that captures the essence of this person's digital footprint: {{data}}",
   allowEditAddress = false,
 }) => {
   const [operation, setOperation] = useState("llm_inference");
-  const [promptText, setPromptText] = useState(defaultPrompt);
+  const [promptText, setPromptText] = useState(
+    "Generate a personality profile based on the following text: {{data}}",
+  );
   const [expirationOption, setExpirationOption] = useState("never");
   const [customExpiration, setCustomExpiration] = useState("");
   const [editableApplicationAddress, setEditableApplicationAddress] = useState(
@@ -52,13 +58,15 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setOperation("llm_inference");
-      setPromptText(defaultPrompt);
+      setPromptText(
+        "Generate a personality profile based on the following text: {{data}}",
+      );
       setExpirationOption("never");
       setCustomExpiration("");
       setEditableApplicationAddress(applicationAddress || "");
       setValidationErrors([]);
     }
-  }, [isOpen, defaultPrompt, applicationAddress]);
+  }, [isOpen, applicationAddress]);
 
   // Calculate expiration timestamp
   const getExpirationTimestamp = (): number | undefined => {
@@ -159,12 +167,19 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
   };
 
   const handleConfirm = async () => {
+    console.debug("Modal handleConfirm called");
+    console.debug("Selected files in modal:", selectedFiles);
+    console.debug("Application address in modal:", editableApplicationAddress);
+
     const isValid = await validateGrantParams();
-    if (!isValid) return;
+    if (!isValid) {
+      console.debug("Validation failed, not proceeding");
+      return;
+    }
 
     const expiresAt = getExpirationTimestamp();
     const params: GrantPermissionParams & { expiresAt?: number } = {
-      to: (editableApplicationAddress || "") as `0x${string}`,
+      grantee: (editableApplicationAddress || "") as `0x${string}`,
       operation,
       files: selectedFiles,
       parameters: {
@@ -173,6 +188,7 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
       ...(expiresAt && { expiresAt }),
     };
 
+    console.debug("Calling onConfirm with params:", params);
     onConfirm(params);
   };
 
@@ -197,6 +213,43 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
         </ModalHeader>
         <ModalBody>
           <div className="space-y-4">
+            {/* Data Storage Visibility */}
+            <div className="grid grid-cols-2 gap-3">
+              <Card className="bg-default-100">
+                <CardBody className="py-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Database className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium">
+                      On-chain Storage
+                    </span>
+                  </div>
+                  <div className="text-xs text-default-600 space-y-1">
+                    <div>• File IDs: {selectedFiles.length} files</div>
+                    <div>• Permission ID</div>
+                    <div>• Grant URL</div>
+                  </div>
+                </CardBody>
+              </Card>
+
+              <Card className="bg-primary/10 border border-primary/20">
+                <CardBody className="py-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Cloud className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium">
+                      Off-chain Storage (IPFS)
+                    </span>
+                  </div>
+                  <div className="text-xs text-primary-700 space-y-1">
+                    <div>• Operation type</div>
+                    <div>• LLM prompt</div>
+                    <div>• Expiration rules</div>
+                  </div>
+                </CardBody>
+              </Card>
+            </div>
+
+            <Divider />
+
             {/* Selected Files */}
             <div>
               <p className="text-sm font-medium mb-2">Selected Files:</p>
@@ -211,64 +264,72 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
 
             <Divider />
 
-            {/* Operation */}
-            <Input
-              label="Operation"
-              value={operation}
-              onChange={(e) => setOperation(e.target.value)}
-              placeholder="llm_inference"
-              description="The operation that will be performed on your data"
-            />
+            {/* Off-chain Configuration (IPFS) */}
+            <div className="bg-primary/5 p-3 rounded-lg">
+              <p className="text-sm font-medium text-primary mb-3">
+                Off-chain Configuration
+              </p>
 
-            {/* Parameters (Prompt) */}
-            <Textarea
-              label="LLM Prompt"
-              value={promptText}
-              onChange={(e) => setPromptText(e.target.value)}
-              placeholder="Enter your custom prompt for the LLM"
-              description="Customize the prompt that will be used by the LLM when processing your data. Use {{data}} as a placeholder for your file contents."
-              minRows={4}
-              maxRows={8}
-            />
+              {/* Operation */}
+              <Input
+                label="Operation"
+                value={operation}
+                onChange={(e) => setOperation(e.target.value)}
+                placeholder="llm_inference"
+                description="The operation that will be performed on your data"
+              />
 
-            {/* Expiration */}
-            <div className="space-y-2">
-              <Select
-                label="Expiration"
-                selectedKeys={[expirationOption]}
-                onSelectionChange={(keys) =>
-                  setExpirationOption(Array.from(keys)[0] as string)
-                }
-                description="How long this permission should remain valid"
-              >
-                <SelectItem key="never" textValue="Never (no expiration)">
-                  Never (no expiration)
-                </SelectItem>
-                <SelectItem key="24h" textValue="24 hours">
-                  24 hours
-                </SelectItem>
-                <SelectItem key="7d" textValue="7 days">
-                  7 days
-                </SelectItem>
-                <SelectItem key="30d" textValue="30 days">
-                  30 days
-                </SelectItem>
-                <SelectItem key="custom" textValue="Custom">
-                  Custom
-                </SelectItem>
-              </Select>
+              {/* Parameters (Prompt) */}
+              <Textarea
+                label="LLM Prompt"
+                value={promptText}
+                onChange={(e) => setPromptText(e.target.value)}
+                placeholder="Enter your custom prompt for the LLM"
+                description="Customize the prompt that will be used by the LLM when processing your data. Use {{data}} as a placeholder for your file contents."
+                minRows={4}
+                maxRows={8}
+                className="mt-3"
+              />
 
-              {expirationOption === "custom" && (
-                <Input
-                  label="Custom Expiration (Hours)"
-                  type="number"
-                  value={customExpiration}
-                  onChange={(e) => setCustomExpiration(e.target.value)}
-                  placeholder="24"
-                  description="Number of hours from now"
-                  min="1"
-                />
-              )}
+              {/* Expiration */}
+              <div className="space-y-2 mt-3">
+                <Select
+                  label="Expiration"
+                  selectedKeys={[expirationOption]}
+                  onSelectionChange={(keys) =>
+                    setExpirationOption(Array.from(keys)[0] as string)
+                  }
+                  description="How long this permission should remain valid"
+                >
+                  <SelectItem key="never" textValue="Never (no expiration)">
+                    Never (no expiration)
+                  </SelectItem>
+                  <SelectItem key="24h" textValue="24 hours">
+                    24 hours
+                  </SelectItem>
+                  <SelectItem key="7d" textValue="7 days">
+                    7 days
+                  </SelectItem>
+                  <SelectItem key="30d" textValue="30 days">
+                    30 days
+                  </SelectItem>
+                  <SelectItem key="custom" textValue="Custom">
+                    Custom
+                  </SelectItem>
+                </Select>
+
+                {expirationOption === "custom" && (
+                  <Input
+                    label="Custom Expiration (Hours)"
+                    type="number"
+                    value={customExpiration}
+                    onChange={(e) => setCustomExpiration(e.target.value)}
+                    placeholder="24"
+                    description="Number of hours from now"
+                    min="1"
+                  />
+                )}
+              </div>
             </div>
 
             {/* Application Address */}
@@ -320,7 +381,7 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
                   <strong>Expires:</strong>{" "}
                   {getExpirationTimestamp()
                     ? new Date(
-                        getExpirationTimestamp()! * 1000,
+                        (getExpirationTimestamp() ?? 0) * 1000,
                       ).toLocaleString()
                     : "Never"}
                 </p>

@@ -149,9 +149,17 @@ export class SchemaController {
 
       // Step 3: Upload to IPFS (unencrypted for public access)
       if (!this.context.storageManager) {
-        throw new Error(
-          "Storage manager not configured. Please provide storage providers in VanaConfig.",
-        );
+        // Use centralized validation if available, otherwise fall back to old behavior
+        if (this.context.validateStorageRequired) {
+          this.context.validateStorageRequired();
+          // The validateStorageRequired method throws, so this line should never be reached
+          // but TypeScript doesn't know that, so we need this fallback
+          throw new Error("Storage validation failed");
+        } else {
+          throw new Error(
+            "Storage manager not configured. Please provide storage providers in VanaConfig.",
+          );
+        }
       }
 
       const schemaBlob = new Blob([JSON.stringify(schemaDefinition)], {

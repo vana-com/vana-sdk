@@ -16,7 +16,7 @@ interface GrantFileStorageResponse {
  */
 export function createGrantFile(params: GrantPermissionParams): GrantFile {
   const grantFile: GrantFile = {
-    grantee: params.to,
+    grantee: params.grantee,
     operation: params.operation,
     parameters: params.parameters,
   };
@@ -81,11 +81,42 @@ export async function storeGrantFile(
 }
 
 /**
- * Retrieves a grant file from any URL.
+ * Retrieves detailed grant file data from IPFS or HTTP storage.
  *
- * @param grantUrl - The grant file URL (supports HTTP/HTTPS, ipfs:// protocol, or IPFS gateway URLs)
- * @param _relayerUrl - URL of the relayer service (optional)
- * @returns Promise resolving to the grant file
+ * @remarks
+ * **This is Step 2 of the performant two-step permission API.**
+ *
+ * Use this method to resolve detailed permission data (operation, parameters, etc.)
+ * for specific grants after first getting the fast on-chain data using
+ * `getUserPermissionGrantsOnChain()`. This design eliminates N+1 query problems
+ * by allowing selective lazy-loading of expensive off-chain data.
+ *
+ * **Performance**: Single network request per grant file (typically 100-500ms).
+ * **Reliability**: Tries multiple IPFS gateways as fallbacks if primary URL fails.
+ *
+ * @param grantUrl - The grant file URL from OnChainPermissionGrant.grantUrl
+ * @param _relayerUrl - URL of the relayer service (optional, unused)
+ * @returns Promise resolving to the complete grant file with operation details
+ * @throws {NetworkError} When all retrieval attempts fail
+ * @throws {SerializationError} When grant file format is invalid
+ * @example
+ * ```typescript
+ * // Step 1: Fast on-chain data (no N+1 queries)
+ * const grants = await vana.permissions.getUserPermissionGrantsOnChain();
+ *
+ * // Step 2: Lazy-load details for specific grant when needed
+ * const grantFile = await retrieveGrantFile(grants[0].grantUrl);
+ *
+ * console.log(`Operation: ${grantFile.operation}`);
+ * console.log(`Grantee: ${grantFile.grantee}`);
+ * console.log(`Parameters:`, grantFile.parameters);
+ *
+ * // Only fetch details for grants user actually wants to see
+ * for (const grant of selectedGrants) {
+ *   const details = await retrieveGrantFile(grant.grantUrl);
+ *   displayGrantDetails(details);
+ * }
+ * ```
  */
 export async function retrieveGrantFile(
   grantUrl: string,

@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     );
 
     // Use the SDK's chain configuration approach
-    const vana = new Vana({
+    const vana = Vana({
       chainId,
       account: applicationAccount,
     });

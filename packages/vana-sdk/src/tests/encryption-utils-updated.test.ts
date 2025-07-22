@@ -3,8 +3,8 @@ import { mockPlatformAdapter } from "./mocks/platformAdapter";
 import {
   encryptWithWalletPublicKey,
   decryptWithWalletPrivateKey,
-  encryptUserData,
-  decryptUserData,
+  encryptBlobWithSignedKey,
+  decryptBlobWithSignedKey,
 } from "../utils/encryption";
 
 /**
@@ -63,7 +63,7 @@ describe("Updated Encryption Utilities", () => {
       it("should encrypt/decrypt user data using auto-detected platform", async () => {
         const testData = "secret user data for PGP encryption";
 
-        const encrypted = await encryptUserData(
+        const encrypted = await encryptBlobWithSignedKey(
           testData,
           testWalletSignature,
           mockPlatformAdapter,
@@ -71,7 +71,7 @@ describe("Updated Encryption Utilities", () => {
         expect(encrypted).toBeInstanceOf(Blob);
         expect(encrypted.type).toBe("application/octet-stream");
 
-        const decrypted = await decryptUserData(
+        const decrypted = await decryptBlobWithSignedKey(
           encrypted,
           testWalletSignature,
           mockPlatformAdapter,
@@ -88,14 +88,14 @@ describe("Updated Encryption Utilities", () => {
           type: "application/json",
         });
 
-        const encrypted = await encryptUserData(
+        const encrypted = await encryptBlobWithSignedKey(
           testData,
           testWalletSignature,
           mockPlatformAdapter,
         );
         expect(encrypted).toBeInstanceOf(Blob);
 
-        const decrypted = await decryptUserData(
+        const decrypted = await decryptBlobWithSignedKey(
           encrypted,
           testWalletSignature,
           mockPlatformAdapter,

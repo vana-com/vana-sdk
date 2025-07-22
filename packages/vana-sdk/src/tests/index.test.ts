@@ -48,14 +48,14 @@ describe("SDK Node Entry Point", () => {
     it("should export encryption utilities", async () => {
       const {
         generateEncryptionKey,
-        encryptUserData,
-        decryptUserData,
+        encryptBlobWithSignedKey,
+        decryptBlobWithSignedKey,
         DEFAULT_ENCRYPTION_SEED,
       } = await import("../index.node");
 
       expect(generateEncryptionKey).toBeDefined();
-      expect(encryptUserData).toBeDefined();
-      expect(decryptUserData).toBeDefined();
+      expect(encryptBlobWithSignedKey).toBeDefined();
+      expect(decryptBlobWithSignedKey).toBeDefined();
       expect(DEFAULT_ENCRYPTION_SEED).toBeDefined();
     });
 

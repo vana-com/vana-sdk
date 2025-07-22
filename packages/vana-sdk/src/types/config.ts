@@ -10,6 +10,17 @@ import type {
 } from "./permissions";
 
 /**
+ * Marker interface to indicate that a Vana instance has storage configured.
+ * Used for compile-time type safety to ensure storage-dependent methods
+ * are only called on properly configured instances.
+ *
+ * @category Configuration
+ */
+export interface StorageRequiredMarker {
+  readonly __storageRequired: true;
+}
+
+/**
  * Configuration for storage providers used by the SDK.
  *
  * Allows you to configure multiple storage backends (IPFS, Pinata, Google Drive, etc.)
@@ -170,7 +181,7 @@ export interface RelayerCallbacks {
 }
 
 /**
- * Base configuration interface
+ * Base configuration interface without storage requirements
  *
  * @category Configuration
  */
@@ -189,6 +200,44 @@ export interface BaseConfig {
    * Can be overridden per method call if needed.
    */
   subgraphUrl?: string;
+  /**
+   * Optional default IPFS gateways to use for fetching files.
+   * These gateways will be used by default in fetchFromIPFS unless overridden per-call.
+   * If not provided, the SDK will use public gateways.
+   *
+   * @example ['https://gateway.pinata.cloud', 'https://ipfs.io']
+   */
+  ipfsGateways?: string[];
+}
+
+/**
+ * Base configuration interface that requires storage for storage-dependent operations
+ *
+ * @category Configuration
+ */
+export interface BaseConfigWithStorage {
+  /**
+   * Optional relayer callback functions for handling gasless transactions.
+   * Provides flexible relay mechanism - can use HTTP, WebSocket, or any custom implementation.
+   */
+  relayerCallbacks?: RelayerCallbacks;
+
+  /** Required storage providers configuration for file upload/download */
+  storage: StorageConfig;
+  /**
+   * Optional subgraph URL for querying user files and permissions.
+   * If not provided, defaults to the built-in subgraph URL for the current chain.
+   * Can be overridden per method call if needed.
+   */
+  subgraphUrl?: string;
+  /**
+   * Optional default IPFS gateways to use for fetching files.
+   * These gateways will be used by default in fetchFromIPFS unless overridden per-call.
+   * If not provided, the SDK will use public gateways.
+   *
+   * @example ['https://gateway.pinata.cloud', 'https://ipfs.io']
+   */
+  ipfsGateways?: string[];
 }
 
 /**
@@ -204,11 +253,37 @@ export interface WalletConfig extends BaseConfig {
 }
 
 /**
+ * Configuration with wallet client that requires storage
+ *
+ * @category Configuration
+ */
+export interface WalletConfigWithStorage extends BaseConfigWithStorage {
+  /** The viem WalletClient instance used for signing transactions */
+  walletClient: WalletClient & {
+    chain: VanaChain;
+  };
+}
+
+/**
  * Configuration with chain and account details
  *
  * @category Configuration
  */
 export interface ChainConfig extends BaseConfig {
+  /** The chain ID for Vana network */
+  chainId: VanaChainId;
+  /** RPC URL for the chain (optional, will use default for the chain if not provided) */
+  rpcUrl?: string;
+  /** Optional account for signing transactions */
+  account?: Account;
+}
+
+/**
+ * Configuration with chain and account details that requires storage
+ *
+ * @category Configuration
+ */
+export interface ChainConfigWithStorage extends BaseConfigWithStorage {
   /** The chain ID for Vana network */
   chainId: VanaChainId;
   /** RPC URL for the chain (optional, will use default for the chain if not provided) */
@@ -256,6 +331,35 @@ export interface ChainConfig extends BaseConfig {
  * ```
  */
 export type VanaConfig = WalletConfig | ChainConfig;
+
+/**
+ * Configuration interface for Vana SDK that requires storage providers.
+ *
+ * Use this type when you need to ensure storage is configured for operations
+ * like file uploads, permission grants without pre-stored URLs, or schema creation.
+ *
+ * @category Configuration
+ * @example
+ * ```typescript
+ * // Configuration that guarantees storage availability
+ * const config: VanaConfigWithStorage = {
+ *   walletClient: createWalletClient({
+ *     account: privateKeyToAccount('0x...'),
+ *     chain: moksha,
+ *     transport: http()
+ *   }),
+ *   storage: {
+ *     providers: {
+ *       ipfs: new IPFSStorage({ gateway: 'https://gateway.pinata.cloud' })
+ *     },
+ *     defaultProvider: 'ipfs'
+ *   }
+ * };
+ * ```
+ */
+export type VanaConfigWithStorage =
+  | WalletConfigWithStorage
+  | ChainConfigWithStorage;
 
 /**
  * Runtime configuration information
@@ -310,6 +414,30 @@ export function isWalletConfig(config: VanaConfig): config is WalletConfig {
  */
 export function isChainConfig(config: VanaConfig): config is ChainConfig {
   return "chainId" in config && !("walletClient" in config);
+}
+
+/**
+ * Validates whether a configuration has required storage providers.
+ *
+ * @param config - The configuration object to check
+ * @returns True if the config has storage providers configured
+ * @example
+ * ```typescript
+ * if (hasStorageConfig(config)) {
+ *   // Safe to use storage-dependent operations
+ *   await vana.data.uploadFile(file);
+ * } else {
+ *   console.log('Storage not configured - some operations may fail');
+ * }
+ * ```
+ */
+export function hasStorageConfig(
+  config: VanaConfig,
+): config is VanaConfigWithStorage {
+  return (
+    config.storage?.providers !== undefined &&
+    Object.keys(config.storage.providers).length > 0
+  );
 }
 
 /**

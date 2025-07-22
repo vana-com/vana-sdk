@@ -1,37 +1,57 @@
 import type { Address, Hash } from "viem";
 
 /**
- * Represents a granted permission from the DataPermissions contract.
+ * Represents on-chain permission grant data without expensive off-chain resolution.
  *
- * This interface describes the structure of permissions that have been granted
- * on-chain, including all the metadata and parameters associated with the permission.
- * Used when querying user permissions or checking access rights.
+ * This interface contains only the fast, on-chain data that can be retrieved
+ * efficiently from the subgraph without making individual IPFS or contract calls.
+ * Use this for fast permission listing in UIs, then call `retrieveGrantFile()`
+ * on specific grants when detailed data is needed.
+ *
+ * @category Permissions
+ * @example
+ * ```typescript
+ * // Fast: Get all on-chain permission data
+ * const grants = await vana.permissions.getUserPermissionGrantsOnChain();
+ *
+ * // Lazy: Resolve detailed data for specific permission when needed
+ * const grantFile = await retrieveGrantFile(grants[0].grantUrl);
+ * console.log('Operation:', grantFile.operation);
+ * ```
+ */
+export interface OnChainPermissionGrant {
+  /** Unique identifier for the permission */
+  id: bigint;
+  /** The grant URL containing detailed permission parameters (IPFS link) */
+  grantUrl: string;
+  /** Cryptographic signature that authorized this permission */
+  grantSignature: string;
+  /** Hash of the grant file content for integrity verification */
+  grantHash: string;
+  /** Nonce used when granting the permission */
+  nonce: bigint;
+  /** Block number when permission was granted */
+  addedAtBlock: bigint;
+  /** Timestamp when permission was added */
+  addedAtTimestamp: bigint;
+  /** Transaction hash of the grant transaction */
+  transactionHash: string;
+  /** Address that granted the permission */
+  grantor: Address;
+  /** Whether the permission is still active (not revoked) */
+  active: boolean;
+}
+
+/**
+ * Options for retrieving user permissions
  *
  * @category Permissions
  */
-export interface GrantedPermission {
-  /** Unique identifier for the permission */
-  id: bigint;
-  /** Array of file IDs included in the permission */
-  files: number[];
-  /** Type of operation permitted (e.g., "llm_inference") */
-  operation?: string;
-  /** The grant URL containing all permission details */
-  grant: string;
-  /** The parameters associated with the permission */
-  parameters?: Record<string, unknown>;
-  /** Optional nonce used when granting the permission */
-  nonce?: number;
-  /** Optional block number when permission was granted */
-  grantedAt?: number;
-  /** Address that granted the permission */
-  grantor: Address;
-  /** Address that received the permission */
-  grantee: Address;
-  /** Whether the permission is still active */
-  active: boolean;
-  /** Expiration timestamp if applicable */
-  expiresAt?: number;
+export interface GetUserPermissionsOptions {
+  /** Maximum number of permissions to retrieve */
+  limit?: number;
+  /** Custom subgraph URL to use for querying */
+  subgraphUrl?: string;
 }
 
 /**
@@ -45,7 +65,7 @@ export interface GrantedPermission {
  * @example
  * ```typescript
  * const params: GrantPermissionParams = {
- *   to: '0x1234...', // Application address
+ *   grantee: '0x1234...', // Application address
  *   operation: 'llm_inference',
  *   files: [1, 2, 3], // File IDs to grant access to
  *   parameters: {
@@ -58,7 +78,7 @@ export interface GrantedPermission {
  */
 export interface GrantPermissionParams {
   /** The on-chain identity of the application */
-  to: Address;
+  grantee: Address;
   /** The class of computation, e.g., "llm_inference" */
   operation: string;
   /** Array of file IDs to grant permission for */
@@ -368,6 +388,42 @@ export interface QueryPermissionsParams {
   limit?: number;
   /** Offset for pagination */
   offset?: number;
+}
+
+/**
+ * Granted permission details
+ *
+ * @category Permissions
+ */
+export interface GrantedPermission {
+  /** Unique identifier for the permission */
+  id: bigint;
+  /** Array of file IDs that the permission applies to */
+  files: number[];
+  /** The type of operation being granted permission for */
+  operation: string;
+  /** Grant file reference (IPFS hash or URL) */
+  grant: string;
+  /** Address of the application granted permission */
+  grantee: Address;
+  /** Address of the user who granted permission */
+  grantor: Address;
+  /** Custom parameters for the operation */
+  parameters: Record<string, unknown>;
+  /** Whether the permission is still active */
+  active: boolean;
+  /** Data status for the permission */
+  dataStatus?: string;
+  /** Nonce used for the permission */
+  nonce?: number;
+  /** Timestamp when permission was granted */
+  grantedAt?: number;
+  /** Optional expiration timestamp */
+  expiresAt?: number;
+  /** Transaction hash of the grant transaction */
+  transactionHash?: string;
+  /** Block number when permission was granted */
+  blockNumber?: bigint;
 }
 
 /**

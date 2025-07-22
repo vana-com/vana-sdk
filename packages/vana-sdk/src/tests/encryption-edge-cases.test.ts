@@ -4,8 +4,8 @@ import {
   generateEncryptionKey,
   encryptWithWalletPublicKey,
   decryptWithWalletPrivateKey,
-  encryptUserData,
-  decryptUserData,
+  encryptBlobWithSignedKey,
+  decryptBlobWithSignedKey,
   encryptFileKey,
   decryptWithPrivateKey,
   getEncryptionParameters,
@@ -87,12 +87,12 @@ describe("Encryption Edge Cases Coverage", () => {
     });
   });
 
-  describe("encryptUserData with string input", () => {
+  describe("encryptBlobWithSignedKey with string input", () => {
     it("should handle string input correctly", async () => {
       const testData = "String data for encryption";
       const testSignature = "0xsignature";
 
-      const result = await encryptUserData(
+      const result = await encryptBlobWithSignedKey(
         testData,
         testSignature,
         mockPlatformAdapter,
@@ -114,19 +114,17 @@ describe("Encryption Edge Cases Coverage", () => {
       };
 
       await expect(
-        encryptUserData("test", "signature", errorAdapter),
-      ).rejects.toThrow(
-        "Failed to encrypt user data: Error: Encryption failed",
-      );
+        encryptBlobWithSignedKey("test", "signature", errorAdapter),
+      ).rejects.toThrow("Failed to encrypt data: Error: Encryption failed");
     });
   });
 
-  describe("decryptUserData with string input", () => {
+  describe("decryptBlobWithSignedKey with string input", () => {
     it("should handle string input correctly", async () => {
       const testEncryptedData = "encrypted-string-data";
       const testSignature = "0xsignature";
 
-      const result = await decryptUserData(
+      const result = await decryptBlobWithSignedKey(
         testEncryptedData,
         testSignature,
         mockPlatformAdapter,
@@ -148,10 +146,8 @@ describe("Encryption Edge Cases Coverage", () => {
       };
 
       await expect(
-        decryptUserData("encrypted", "signature", errorAdapter),
-      ).rejects.toThrow(
-        "Failed to decrypt user data: Error: Decryption failed",
-      );
+        decryptBlobWithSignedKey("encrypted", "signature", errorAdapter),
+      ).rejects.toThrow("Failed to decrypt data: Error: Decryption failed");
     });
   });
 

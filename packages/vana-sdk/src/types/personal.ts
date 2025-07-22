@@ -22,16 +22,23 @@ export interface InitPersonalServerParams {
   userAddress: string;
 }
 
-// Server response types are now auto-generated from OpenAPI spec in server.d.ts
-// Use components["schemas"]["CreateOperationResponse"] and components["schemas"]["GetOperationResponse"]
-
+/**
+ * Extended personal server identity information including connection details.
+ * This combines the base PersonalServerModel with additional metadata
+ * needed for client connections.
+ */
 export interface PersonalServerIdentity {
-  /** Derived address for the personal server */
+  /** Resource type identifier */
+  kind: string;
+  /** The server's Ethereum address */
   address: string;
-  /** Public key for encryption */
+  /** The server's public key for encryption */
   public_key: string;
-  /** Base URL for the personal server */
+  /** The base URL for connecting to this server */
   base_url: string;
-  /** Name of the personal server */
+  /** Human-readable name for this server */
   name: string;
 }
+
+// Server response types are now auto-generated from OpenAPI spec in server.ts
+// Import types from ../types/server-exports for easy usage

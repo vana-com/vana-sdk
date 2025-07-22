@@ -24,7 +24,7 @@ export function createValidatedGrant(params: GrantPermissionParams): GrantFile {
   try {
     validateGrant(grantFile, {
       schema: true,
-      grantee: params.to,
+      grantee: params.grantee,
       operation: params.operation,
     });
   } catch (error) {

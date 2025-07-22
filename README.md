@@ -21,7 +21,7 @@ import { Vana, mokshaTestnet } from "@opendatalabs/vana-sdk/browser";
 import { createWalletClient, http } from "viem";
 
 // 1. Initialize with your wallet
-const vana = new Vana({
+const vana = Vana({
   walletClient: createWalletClient({
     chain: mokshaTestnet,
     transport: http(),
@@ -30,7 +30,7 @@ const vana = new Vana({
 
 // 2. Grant gasless data permissions
 const txHash = await vana.permissions.grant({
-  to: "0x1234...", // Application address
+  grantee: "0x1234...", // Application address
   operation: "llm_inference",
   files: [12, 15, 28],
   parameters: { prompt: "Analyze my data for insights" },
@@ -91,7 +91,7 @@ const files = await vana.data.getUserFiles({ owner: userAddress });
 Resource-oriented architecture mapping to Vana ecosystem concepts:
 
 ```typescript
-const vana = new Vana({ walletClient });
+const vana = Vana({ walletClient });
 
 vana.permissions.*  // Manage data access permissions
 vana.data.*         // Handle user data files and encryption
@@ -134,7 +134,7 @@ pnpm add vana-sdk
 ```typescript
 // Browser/Client-side usage
 import { Vana, mokshaTestnet } from '@opendatalabs/vana-sdk/browser';
-// OR Server-side/Node.js usage  
+// OR Server-side/Node.js usage
 // import { Vana, mokshaTestnet } from '@opendatalabs/vana-sdk/node';
 
 import { createWalletClient, http } from 'viem';
@@ -149,7 +149,7 @@ const walletClient = createWalletClient({
 });
 
 // 2. Initialize Vana SDK
-const vana = new Vana({
+const vana = Vana({
   walletClient,
   // Optional: custom relayer for gasless transactions
   relayerUrl: 'https://custom-relayer.com',
@@ -180,7 +180,7 @@ const vana = new Vana({
 ```typescript
 try {
   const txHash = await vana.permissions.grant({
-    to: "0x742d35Cc6634C0532925a3b8D84C20CEed3F89B7", // DLP address
+    grantee: "0x742d35Cc6634C0532925a3b8D84C20CEed3F89B7", // DLP address
     operation: "llm_inference",
     files: [12, 15, 28], // File IDs to grant access to
     parameters: {

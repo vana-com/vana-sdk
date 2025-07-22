@@ -56,29 +56,41 @@ interface SubgraphPermission {
   grant: string;
   nonce: string;
   signature: string;
+  startBlock: string;
+  endBlock: string | null;
   addedAtBlock: string;
   addedAtTimestamp: string;
   transactionHash: string;
-  user: {
+  grantee: {
     id: string;
+    address: string;
+    publicKey: string;
   };
-}
-
-interface SubgraphTrustedServer {
-  id: string;
-  serverAddress: string;
-  serverUrl: string;
-  trustedAt: string;
-  user: {
-    id: string;
-  };
+  filePermissions: Array<{
+    file: {
+      id: string;
+    };
+  }>;
 }
 
 interface SubgraphUser {
   id: string;
   files: SubgraphFile[];
   permissions: SubgraphPermission[];
-  trustedServers: SubgraphTrustedServer[];
+  serverTrusts: Array<{
+    id: string;
+    trustedAt: string;
+    trustedAtBlock: string;
+    server: {
+      id: string;
+      serverAddress: string;
+      publicKey: string;
+      url: string;
+      owner: {
+        id: string;
+      };
+    };
+  }>;
 }
 
 interface SubgraphResponse {
@@ -551,11 +563,20 @@ export class DataController {
               grant
               nonce
               signature
+              startBlock
+              endBlock
               addedAtBlock
               addedAtTimestamp
               transactionHash
-              user {
+              grantee {
                 id
+                address
+                publicKey
+              }
+              filePermissions {
+                file {
+                  id
+                }
               }
             }
           }
@@ -595,17 +616,27 @@ export class DataController {
         return [];
       }
 
-      // Convert subgraph data directly to permission format
+      // Convert subgraph data to permission format with new schema structure
       const permissions = userData.permissions
         .map((permission) => ({
           id: permission.id,
           grant: permission.grant,
           nonce: BigInt(permission.nonce),
           signature: permission.signature,
+          startBlock: BigInt(permission.startBlock),
+          endBlock: permission.endBlock
+            ? BigInt(permission.endBlock)
+            : undefined,
           addedAtBlock: BigInt(permission.addedAtBlock),
           addedAtTimestamp: BigInt(permission.addedAtTimestamp),
           transactionHash: permission.transactionHash as Address,
-          user: permission.user.id as Address,
+          user: user as Address, // The queried user is the grantor
+          grantee: {
+            id: permission.grantee.id,
+            address: permission.grantee.address as Address,
+            publicKey: permission.grantee.publicKey,
+          },
+          fileIds: permission.filePermissions.map((fp) => parseInt(fp.file.id)),
         }))
         .sort((a, b) => Number(b.addedAtTimestamp - a.addedAtTimestamp)); // Latest first
 
@@ -788,16 +819,48 @@ export class DataController {
     }
 
     try {
+      // GraphQL response type for trusted servers query
+      interface TrustedServersSubgraphResponse {
+        data?: {
+          user?: {
+            id: string;
+            serverTrusts?: Array<{
+              id: string;
+              trustedAt: string;
+              trustedAtBlock: string;
+              server: {
+                id: string;
+                serverAddress: string;
+                publicKey: string;
+                url: string;
+                owner: {
+                  id: string;
+                };
+              };
+            }>;
+          };
+        };
+        errors?: Array<{ message: string }>;
+      }
+
       // Query the subgraph for user's trusted servers
       const query = `
         query GetUserTrustedServers($userId: ID!) {
           user(id: $userId) {
             id
-            trustedServers {
+            serverTrusts(where: { untrustedAtBlock: null }) {
               id
-              serverAddress
-              serverUrl
               trustedAt
+              trustedAtBlock
+              server {
+                id
+                serverAddress
+                publicKey
+                url
+                owner {
+                  id
+                }
+              }
             }
           }
         }
@@ -822,7 +885,7 @@ export class DataController {
         );
       }
 
-      const result = (await response.json()) as SubgraphResponse;
+      const result: TrustedServersSubgraphResponse = await response.json();
 
       if (result.errors) {
         throw new Error(
@@ -836,11 +899,16 @@ export class DataController {
       }
 
       // Map subgraph results to TrustedServer format
-      return (result.data.user.trustedServers || []).map((server) => ({
-        id: server.id,
-        serverAddress: server.serverAddress as Address,
-        serverUrl: server.serverUrl,
-        trustedAt: BigInt(server.trustedAt),
+      return (result.data.user.serverTrusts || []).map((trust) => ({
+        id: trust.id,
+        serverId: BigInt(trust.server.id),
+        serverAddress: trust.server.serverAddress as Address,
+        serverUrl: trust.server.url,
+        publicKey: trust.server.publicKey.startsWith("0x")
+          ? trust.server.publicKey
+          : `0x${trust.server.publicKey}`, // Ensure 0x prefix
+        owner: trust.server.owner.id as Address,
+        trustedAt: BigInt(trust.trustedAt),
         user,
       }));
     } catch (error) {

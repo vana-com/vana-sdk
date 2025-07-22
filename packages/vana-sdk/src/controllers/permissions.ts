@@ -52,15 +52,24 @@ interface SubgraphPermissionsResponse {
     user?: {
       permissions?: Array<{
         id: string;
-        account: string;
-        publicKey: string;
-        encryptedKey: string;
-        grantSignature: string;
-        grantHash: string;
         grant: string;
-        user: { id: string };
-        addedAtBlock: string;
         nonce: string;
+        signature: string;
+        startBlock: string;
+        endBlock: string | null;
+        addedAtBlock: string;
+        addedAtTimestamp: string;
+        transactionHash: string;
+        grantee: {
+          id: string;
+          address: string;
+          publicKey: string;
+        };
+        filePermissions: Array<{
+          file: {
+            id: string;
+          };
+        }>;
       }>;
     };
   };
@@ -1144,9 +1153,21 @@ export class PermissionsController {
               grant
               nonce
               signature
+              startBlock
+              endBlock
               addedAtBlock
               addedAtTimestamp
               transactionHash
+              grantee {
+                id
+                address
+                publicKey
+              }
+              filePermissions {
+                file {
+                  id
+                }
+              }
             }
           }
         }
@@ -1221,16 +1242,11 @@ export class PermissionsController {
             // Continue with basic permission data even if grant file can't be retrieved
           }
 
-          // Get file IDs from the contract
-          try {
-            const fileIds = await this.getPermissionFileIds(
-              BigInt(permission.id),
-            );
-            files = fileIds.map((id) => Number(id));
-          } catch {
-            // Failed to retrieve file IDs - using empty array
-            // Continue with empty files array
-          }
+          // Get file IDs from the subgraph (new schema)
+          files = permission.filePermissions.map((fp) => parseInt(fp.file.id));
+
+          // Get grantee address from the subgraph (new schema)
+          granteeAddress = permission.grantee.address;
 
           userPermissions.push({
             id: BigInt(permission.id),

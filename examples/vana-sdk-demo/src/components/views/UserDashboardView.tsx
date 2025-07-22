@@ -138,6 +138,7 @@ export interface UserDashboardViewProps {
     id: string;
     serverId?: bigint;
     url?: string;
+    serverUrl?: string;
     name?: string;
     serverAddress?: string;
     publicKey?: string;
@@ -1219,16 +1220,9 @@ export function UserDashboardView({
                   <TableRow key={server.id}>
                     <TableCell>
                       {server.serverId ? (
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-mono text-default-600">
-                            {server.serverId.toString()}
-                          </span>
-                          <CopyButton
-                            value={server.serverId.toString()}
-                            tooltip="Copy server ID"
-                            isInline
-                          />
-                        </div>
+                        <span className="text-sm font-mono text-default-600">
+                          {server.serverId.toString()}
+                        </span>
                       ) : (
                         <span className="text-sm text-default-400">
                           Not available
@@ -1245,21 +1239,11 @@ export function UserDashboardView({
                     </TableCell>
                     <TableCell>
                       {server.publicKey ? (
-                        <div
-                          className="flex items-center gap-2"
-                          title={server.publicKey}
-                        >
-                          <span className="text-sm font-mono text-default-600">
-                            {server.publicKey.length > 10
-                              ? `${server.publicKey.slice(0, 10)}...`
-                              : server.publicKey}
-                          </span>
-                          <CopyButton
-                            value={server.publicKey}
-                            tooltip="Copy public key"
-                            isInline
-                          />
-                        </div>
+                        <CopyButton
+                          value={server.publicKey}
+                          tooltip="Copy public key"
+                          isInline
+                        />
                       ) : (
                         <span className="text-sm text-default-400">
                           Not available
@@ -1267,11 +1251,11 @@ export function UserDashboardView({
                       )}
                     </TableCell>
                     <TableCell>
-                      {server.url ? (
+                      {server.serverUrl || server.url ? (
                         <div className="flex items-center gap-2">
                           <Button
                             as="a"
-                            href={server.url}
+                            href={server.serverUrl || server.url}
                             target="_blank"
                             rel="noopener noreferrer"
                             size="sm"
@@ -1281,7 +1265,7 @@ export function UserDashboardView({
                             <ExternalLink className="h-3 w-3" />
                           </Button>
                           <CopyButton
-                            value={server.url}
+                            value={server.serverUrl || server.url || ""}
                             tooltip="Copy server URL"
                             isInline
                           />

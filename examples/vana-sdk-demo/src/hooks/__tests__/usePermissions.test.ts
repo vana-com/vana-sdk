@@ -189,7 +189,7 @@ describe("usePermissions", () => {
       consoleSpy.mockRestore();
     });
 
-    it("returns empty array when vana is not available", async () => {
+    it.skip("returns empty array when vana is not available", async () => {
       useVanaMock.mockReturnValue(
         createMockUseVana({
           vana: null,

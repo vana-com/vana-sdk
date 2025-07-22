@@ -1515,7 +1515,6 @@ export function UserDashboardView({
                 <TableColumn>Address</TableColumn>
                 <TableColumn>Public Key</TableColumn>
                 <TableColumn>Owner</TableColumn>
-                <TableColumn>Registered At</TableColumn>
                 <TableColumn>Actions</TableColumn>
               </TableHeader>
               <TableBody>
@@ -1554,18 +1553,6 @@ export function UserDashboardView({
                         showCopy={true}
                         showExternalLink={true}
                       />
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        <div className="text-default-600">
-                          Block {grantee.registeredAtBlock.toString()}
-                        </div>
-                        <div className="text-default-400 text-xs">
-                          {new Date(
-                            Number(grantee.registeredAtTimestamp) * 1000,
-                          ).toLocaleDateString()}
-                        </div>
-                      </div>
                     </TableCell>
                     <TableCell>
                       {grantee.owner.toLowerCase() ===

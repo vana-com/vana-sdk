@@ -121,7 +121,7 @@ export function usePermissions(): UsePermissionsReturn {
    * Load fast on-chain permission data
    * This provides instant UI loading with basic information
    */
-  const loadUserPermissions = async () => {
+  const loadUserPermissions = useCallback(async () => {
     if (!vana) {
       return [];
     }
@@ -140,7 +140,7 @@ export function usePermissions(): UsePermissionsReturn {
     } finally {
       setIsLoadingPermissions(false);
     }
-  };
+  }, [vana]);
 
   /**
    * Resolve detailed permission data on-demand

@@ -16,6 +16,10 @@ import {
   TrustedServer,
   GetUserTrustedServersParams,
   GetUserTrustedServersResult,
+  Grantee,
+  RegisterGranteeParams,
+  GetAllGranteesParams,
+  GetAllGranteesResult,
 } from "../types/index";
 import { ControllerContext } from "./permissions";
 import { getContractAddress } from "../config/addresses";
@@ -2535,6 +2539,335 @@ export class DataController {
       throw new SchemaValidationError(
         `Failed to get validated schema ${schemaId}: ${error instanceof Error ? error.message : "Unknown error"}`,
         [],
+      );
+    }
+  }
+
+  /**
+   * Register a new grantee in the DataPortabilityGrantees contract
+   *
+   * @param params - Registration parameters
+   * @returns Promise resolving to the transaction hash
+   * @throws Error if registration fails
+   * @category Grantee Management
+   */
+  async registerGrantee(params: RegisterGranteeParams): Promise<Hash> {
+    try {
+      const chainId = await this.context.walletClient.getChainId();
+      const DataPortabilityGranteesAddress = getContractAddress(
+        chainId,
+        "DataPortabilityGrantees",
+      );
+      const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
+
+      const owner =
+        params.owner || (await this.context.walletClient.getAddresses())[0];
+
+      const txHash = await this.context.walletClient.writeContract({
+        address: DataPortabilityGranteesAddress,
+        abi: DataPortabilityGranteesAbi,
+        functionName: "registerGrantee",
+        args: [owner, params.address, params.publicKey],
+        account:
+          this.context.walletClient.account ||
+          (await this.context.walletClient.getAddresses())[0],
+        chain: this.context.walletClient.chain || null,
+      });
+
+      return txHash;
+    } catch (error) {
+      console.error("Failed to register grantee:", error);
+      throw new Error(
+        `Failed to register grantee: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Get all registered grantees with dual-mode support (subgraph or RPC)
+   *
+   * @param params - Query parameters
+   * @returns Promise resolving to grantees with metadata about the query
+   * @throws Error if query fails in both modes (when using 'auto')
+   * @category Grantee Management
+   */
+  async getAllGrantees(
+    params: GetAllGranteesParams = {},
+  ): Promise<GetAllGranteesResult> {
+    const { mode = "auto", limit = 50, offset = 0 } = params;
+    const warnings: string[] = [];
+
+    // Determine which query method to try first
+    let trySubgraph = false;
+    let tryRpc = false;
+    switch (mode) {
+      case "subgraph":
+        trySubgraph = true;
+        break;
+      case "rpc":
+        tryRpc = true;
+        break;
+      case "auto":
+        trySubgraph = true;
+        tryRpc = true; // fallback
+        break;
+    }
+
+    // Try subgraph query first (if enabled)
+    if (trySubgraph) {
+      const subgraphUrl = params.subgraphUrl || this.context.subgraphUrl;
+      if (!subgraphUrl) {
+        if (mode === "subgraph") {
+          throw new Error(
+            "Subgraph mode not available for grantees - subgraphUrl is required. Please provide a valid subgraph endpoint or configure it in Vana constructor.",
+          );
+        }
+        warnings.push(
+          "Subgraph mode not available for grantees - using direct contract calls",
+        );
+      } else {
+        try {
+          const grantees = await this._getAllGranteesViaSubgraph({
+            subgraphUrl,
+          });
+          const paginatedGrantees = limit
+            ? grantees.slice(offset, offset + limit)
+            : grantees;
+          return {
+            grantees: paginatedGrantees,
+            usedMode: "subgraph",
+            total: grantees.length,
+            hasMore: limit ? offset + limit < grantees.length : false,
+            warnings: warnings.length > 0 ? warnings : undefined,
+          };
+        } catch (error) {
+          if (mode === "subgraph") {
+            throw error;
+          }
+          warnings.push(
+            `Subgraph query failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+          );
+          console.warn(
+            "Subgraph query failed, falling back to RPC mode:",
+            error,
+          );
+        }
+      }
+    }
+
+    // Try RPC query (if enabled or as fallback)
+    if (tryRpc) {
+      try {
+        const rpcResult = await this._getAllGranteesViaRpc({
+          limit,
+          offset,
+        });
+        return {
+          grantees: rpcResult.grantees,
+          usedMode: "rpc",
+          total: rpcResult.total,
+          hasMore: rpcResult.hasMore,
+          warnings: warnings.length > 0 ? warnings : undefined,
+        };
+      } catch (error) {
+        if (mode === "rpc") {
+          throw error;
+        }
+        throw new Error(
+          `Both query methods failed. Subgraph: ${warnings[0] || "Unknown error"}. RPC: ${error instanceof Error ? error.message : "Unknown error"}`,
+        );
+      }
+    }
+
+    throw new Error("Invalid query mode specified");
+  }
+
+  /**
+   * Internal method: Query all grantees via subgraph
+   *
+   * @param params - Query parameters
+   * @param params.subgraphUrl - The subgraph URL for querying grantees
+   * @returns Promise resolving to an array of grantee objects
+   */
+  private async _getAllGranteesViaSubgraph(params: {
+    subgraphUrl?: string;
+  }): Promise<Grantee[]> {
+    const { subgraphUrl } = params;
+    const graphqlEndpoint = subgraphUrl;
+
+    if (!graphqlEndpoint) {
+      throw new Error(
+        "subgraphUrl is required for subgraph mode. Please provide a valid subgraph endpoint or configure it in Vana constructor.",
+      );
+    }
+
+    try {
+      // GraphQL response type for grantees query
+      interface AllGranteesSubgraphResponse {
+        data?: {
+          grantees?: Array<{
+            id: string;
+            address: string;
+            publicKey: string;
+            registeredAtBlock: string;
+            registeredAtTimestamp: string;
+            transactionHash: string;
+            owner: {
+              id: string;
+            };
+          }>;
+        };
+        errors?: Array<{ message: string }>;
+      }
+
+      const query = `
+        query GetAllGrantees {
+          grantees(orderBy: registeredAtTimestamp, orderDirection: desc) {
+            id
+            address
+            publicKey
+            registeredAtBlock
+            registeredAtTimestamp
+            transactionHash
+            owner {
+              id
+            }
+          }
+        }
+      `;
+
+      const response = await fetch(graphqlEndpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          query,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Subgraph request failed: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      const result: AllGranteesSubgraphResponse = await response.json();
+
+      if (result.errors) {
+        throw new Error(
+          `Subgraph query errors: ${result.errors.map((e) => e.message).join(", ")}`,
+        );
+      }
+
+      if (!result.data?.grantees) {
+        return [];
+      }
+
+      return result.data.grantees.map((grantee) => ({
+        id: grantee.id,
+        granteeId: BigInt(grantee.id),
+        address: grantee.address as Address,
+        publicKey: grantee.publicKey,
+        owner: grantee.owner.id as Address,
+        registeredAtBlock: BigInt(grantee.registeredAtBlock),
+        registeredAtTimestamp: BigInt(grantee.registeredAtTimestamp),
+        transactionHash: grantee.transactionHash as Address,
+      }));
+    } catch (error) {
+      console.error("Failed to query grantees from subgraph:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Internal method: Query all grantees via direct RPC
+   *
+   * @param params - Query parameters
+   * @param params.limit - Maximum number of grantees to return
+   * @param params.offset - Number of grantees to skip for pagination
+   * @returns Promise resolving to pagination result with grantees, total count, and hasMore flag
+   */
+  private async _getAllGranteesViaRpc(params: {
+    limit: number;
+    offset: number;
+  }): Promise<{
+    grantees: Grantee[];
+    total: number;
+    hasMore: boolean;
+  }> {
+    const { limit, offset } = params;
+
+    try {
+      const chainId = this.context.walletClient.chain?.id;
+      if (!chainId) {
+        throw new Error("Chain ID not available");
+      }
+
+      const DataPortabilityGranteesAddress = getContractAddress(
+        chainId,
+        "DataPortabilityGrantees",
+      );
+      const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
+
+      // Get total count
+      const totalCount = (await this.context.publicClient.readContract({
+        address: DataPortabilityGranteesAddress,
+        abi: DataPortabilityGranteesAbi,
+        functionName: "granteesCount",
+        args: [],
+      })) as bigint;
+
+      const total = Number(totalCount);
+      const hasMore = offset + limit < total;
+
+      // Get grantees for the requested page
+      const grantees: Grantee[] = [];
+      const endIndex = Math.min(offset + limit, total);
+
+      for (let i = offset; i < endIndex; i++) {
+        try {
+          const granteeId = BigInt(i + 1); // Contract IDs start at 1
+          const granteeInfo = (await this.context.publicClient.readContract({
+            address: DataPortabilityGranteesAddress,
+            abi: DataPortabilityGranteesAbi,
+            functionName: "grantee",
+            args: [granteeId],
+          })) as {
+            owner: Address;
+            granteeAddress: Address;
+            publicKey: string;
+            permissionIds: readonly bigint[];
+          };
+
+          const { owner, granteeAddress, publicKey } = granteeInfo;
+
+          grantees.push({
+            id: granteeId.toString(),
+            granteeId,
+            address: granteeAddress,
+            publicKey,
+            owner,
+            registeredAtBlock: BigInt(0), // Not available in RPC mode
+            registeredAtTimestamp: BigInt(0), // Not available in RPC mode
+            transactionHash:
+              "0x0000000000000000000000000000000000000000000000000000000000000000" as Address, // Not available in RPC mode
+          });
+        } catch (error) {
+          console.warn(`Failed to fetch grantee ${i + 1}:`, error);
+          // Continue with other grantees
+        }
+      }
+
+      return {
+        grantees: grantees.reverse(), // Reverse to show newest first
+        total,
+        hasMore,
+      };
+    } catch (error) {
+      console.error("Failed to query grantees via RPC:", error);
+      throw new Error(
+        `Failed to query grantees via RPC: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }

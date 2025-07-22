@@ -591,3 +591,75 @@ export interface GetUserTrustedServersResult {
   /** Any warnings or fallback information */
   warnings?: string[];
 }
+
+/**
+ * Represents a registered grantee in the Vana network
+ *
+ * @category Data Management
+ */
+export interface Grantee {
+  /** Unique grantee ID from the contract */
+  id: string;
+  /** Numeric grantee ID */
+  granteeId: bigint;
+  /** Grantee's Ethereum address */
+  address: Address;
+  /** Grantee's public key */
+  publicKey: string;
+  /** Address of the user who registered this grantee */
+  owner: Address;
+  /** Block number when the grantee was registered */
+  registeredAtBlock: bigint;
+  /** Timestamp when the grantee was registered */
+  registeredAtTimestamp: bigint;
+  /** Transaction hash of the grantee registration */
+  transactionHash: Address;
+}
+
+/**
+ * Parameters for registering a new grantee
+ *
+ * @category Data Management
+ */
+export interface RegisterGranteeParams {
+  /** Owner address (defaults to current user) */
+  owner?: Address;
+  /** Grantee's Ethereum address */
+  address: Address;
+  /** Grantee's public key */
+  publicKey: string;
+}
+
+/**
+ * Parameters for getting all grantees
+ *
+ * @category Data Management
+ */
+export interface GetAllGranteesParams {
+  /** Query mode: 'subgraph' (fast, requires subgraph), 'rpc' (direct contract), or 'auto' (tries subgraph first) */
+  mode?: TrustedServerQueryMode;
+  /** Subgraph URL (required for subgraph mode) */
+  subgraphUrl?: string;
+  /** Pagination limit (applies to RPC mode) */
+  limit?: number;
+  /** Pagination offset (applies to RPC mode) */
+  offset?: number;
+}
+
+/**
+ * Result of getAllGrantees query
+ *
+ * @category Data Management
+ */
+export interface GetAllGranteesResult {
+  /** Array of grantees */
+  grantees: Grantee[];
+  /** Query mode that was actually used */
+  usedMode: TrustedServerQueryMode;
+  /** Total count (only available in RPC mode) */
+  total?: number;
+  /** Whether there are more grantees (pagination info for RPC mode) */
+  hasMore?: boolean;
+  /** Any warnings or fallback information */
+  warnings?: string[];
+}

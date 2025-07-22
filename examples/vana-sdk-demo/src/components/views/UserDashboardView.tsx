@@ -32,6 +32,7 @@ import {
   Shield,
   Eye,
   Users,
+  UserPlus,
   FileText,
   Trash2,
   Server,
@@ -150,6 +151,31 @@ export interface UserDashboardViewProps {
   queryMode: "subgraph" | "rpc" | "auto";
   onQueryModeChange: (mode: "subgraph" | "rpc" | "auto") => void;
 
+  // Grantee management
+  granteeAddress: string;
+  onGranteeAddressChange: (value: string) => void;
+  granteePublicKey: string;
+  onGranteePublicKeyChange: (value: string) => void;
+  granteeOwner: string;
+  onGranteeOwnerChange: (value: string) => void;
+  onRegisterGrantee: () => void;
+  isRegisteringGrantee: boolean;
+  allGrantees: Array<{
+    id: string;
+    granteeId: bigint;
+    address: string;
+    publicKey: string;
+    owner: string;
+    registeredAtBlock: bigint;
+    registeredAtTimestamp: bigint;
+    transactionHash: string;
+  }>;
+  isLoadingGrantees: boolean;
+  onRefreshGrantees: () => void;
+  granteeError: string;
+  granteeQueryMode: "subgraph" | "rpc" | "auto";
+  onGranteeQueryModeChange: (mode: "subgraph" | "rpc" | "auto") => void;
+
   // User info
   userAddress: string | undefined;
   chainId: number;
@@ -250,6 +276,20 @@ export function UserDashboardView({
   trustServerError,
   queryMode,
   onQueryModeChange,
+  granteeAddress,
+  onGranteeAddressChange,
+  granteePublicKey,
+  onGranteePublicKeyChange,
+  granteeOwner,
+  onGranteeOwnerChange,
+  onRegisterGrantee,
+  isRegisteringGrantee,
+  allGrantees,
+  isLoadingGrantees,
+  onRefreshGrantees,
+  granteeError,
+  granteeQueryMode,
+  onGranteeQueryModeChange,
   userAddress: _userAddress,
   chainId,
   vana,
@@ -1319,6 +1359,236 @@ export function UserDashboardView({
     </div>
   );
 
+  /**
+   * Renders the grantees tab content
+   */
+  const renderGranteesTab = () => (
+    <div className="space-y-6">
+      {/* Banner */}
+      <Card className="border border-warning-200 bg-warning-50/50">
+        <CardBody>
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0">
+              <div className="w-8 h-8 rounded-full bg-warning-100 flex items-center justify-center">
+                <Users className="h-4 w-4 text-warning-600" />
+              </div>
+            </div>
+            <div>
+              <h4 className="font-medium text-warning-800 mb-1">
+                Application Management Section
+              </h4>
+              <p className="text-sm text-warning-700">
+                This section is designed for applications to manage their
+                grantees. As a user, you can view all registered grantees and
+                manage those you own.
+              </p>
+            </div>
+          </div>
+        </CardBody>
+      </Card>
+
+      {/* Register New Grantee */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <UserPlus className="h-5 w-5" />
+            <h3 className="text-lg font-semibold">Register New Grantee</h3>
+          </div>
+        </CardHeader>
+        <CardBody>
+          <FormBuilder
+            title=""
+            singleColumn={true}
+            fields={[
+              {
+                name: "granteeAddress",
+                label: "Grantee Address",
+                type: "text",
+                value: granteeAddress,
+                onChange: onGranteeAddressChange,
+                placeholder: "0x...",
+                description: "The Ethereum address of the grantee",
+                required: true,
+              },
+              {
+                name: "granteePublicKey",
+                label: "Public Key",
+                type: "text",
+                value: granteePublicKey,
+                onChange: onGranteePublicKeyChange,
+                placeholder: "0x... or plain text",
+                description: "The grantee's public key",
+                required: true,
+              },
+              {
+                name: "granteeOwner",
+                label: "Owner Address (Optional)",
+                type: "text",
+                value: granteeOwner,
+                onChange: onGranteeOwnerChange,
+                placeholder: "0x... (defaults to your address)",
+                description: "The owner of this grantee registration",
+                required: false,
+              },
+            ]}
+            submitText="Register Grantee"
+            onSubmit={onRegisterGrantee}
+            isSubmitting={isRegisteringGrantee}
+          />
+          {granteeError && (
+            <div className="mt-4 p-3 bg-danger-50 border border-danger-200 rounded-lg">
+              <p className="text-sm text-danger-600">{granteeError}</p>
+            </div>
+          )}
+        </CardBody>
+      </Card>
+
+      {/* All Grantees */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              <h3 className="text-lg font-semibold">All Grantees</h3>
+              {!isLoadingGrantees && allGrantees.length > 0 && (
+                <span className="text-sm text-default-500">
+                  ({allGrantees.length} total)
+                </span>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Select
+                size="sm"
+                label="Query Mode"
+                placeholder="Select query mode"
+                selectedKeys={[granteeQueryMode]}
+                onSelectionChange={(keys) => {
+                  const mode = Array.from(keys)[0] as
+                    | "subgraph"
+                    | "rpc"
+                    | "auto";
+                  onGranteeQueryModeChange(mode);
+                }}
+                className="w-40"
+                isDisabled={isLoadingGrantees}
+              >
+                <SelectItem key="auto" textValue="Auto (Smart Fallback)">
+                  Auto (Smart Fallback)
+                </SelectItem>
+                <SelectItem key="subgraph" textValue="Subgraph (Fast)">
+                  Subgraph (Fast)
+                </SelectItem>
+                <SelectItem key="rpc" textValue="RPC (Direct)">
+                  RPC (Direct)
+                </SelectItem>
+              </Select>
+              <Button
+                size="sm"
+                variant="flat"
+                onPress={onRefreshGrantees}
+                isLoading={isLoadingGrantees}
+                startContent={<RefreshCw className="h-4 w-4" />}
+              >
+                Refresh
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardBody>
+          {isLoadingGrantees ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                <p className="text-sm text-default-500">Loading grantees...</p>
+              </div>
+            </div>
+          ) : allGrantees.length === 0 ? (
+            <EmptyState
+              icon={<Users className="h-12 w-12" />}
+              title="No grantees found"
+              description="Register a grantee above to see it listed here"
+            />
+          ) : (
+            <Table aria-label="All grantees table" removeWrapper>
+              <TableHeader>
+                <TableColumn>Grantee ID</TableColumn>
+                <TableColumn>Address</TableColumn>
+                <TableColumn>Public Key</TableColumn>
+                <TableColumn>Owner</TableColumn>
+                <TableColumn>Registered At</TableColumn>
+                <TableColumn>Actions</TableColumn>
+              </TableHeader>
+              <TableBody>
+                {allGrantees.map((grantee) => (
+                  <TableRow key={grantee.id}>
+                    <TableCell>
+                      <span className="text-sm font-mono text-default-600">
+                        {grantee.granteeId.toString()}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <AddressDisplay
+                        address={grantee.address}
+                        truncate={true}
+                        showCopy={true}
+                        showExternalLink={true}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {grantee.publicKey ? (
+                        <CopyButton
+                          value={grantee.publicKey}
+                          tooltip="Copy public key"
+                          isInline
+                        />
+                      ) : (
+                        <span className="text-sm text-default-400">
+                          Not available
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <AddressDisplay
+                        address={grantee.owner}
+                        truncate={true}
+                        showCopy={true}
+                        showExternalLink={true}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm">
+                        <div className="text-default-600">
+                          Block {grantee.registeredAtBlock.toString()}
+                        </div>
+                        <div className="text-default-400 text-xs">
+                          {new Date(
+                            Number(grantee.registeredAtTimestamp) * 1000,
+                          ).toLocaleDateString()}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {grantee.owner.toLowerCase() ===
+                      _userAddress?.toLowerCase() ? (
+                        <Chip color="success" variant="flat" size="sm">
+                          Owned by you
+                        </Chip>
+                      ) : (
+                        <span className="text-sm text-default-400">
+                          View only
+                        </span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardBody>
+      </Card>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -1391,6 +1661,9 @@ export function UserDashboardView({
         </Tab>
         <Tab key="servers" title="Trusted Servers">
           {renderTrustedServersTab()}
+        </Tab>
+        <Tab key="grantees" title="Grantees">
+          {renderGranteesTab()}
         </Tab>
       </Tabs>
 

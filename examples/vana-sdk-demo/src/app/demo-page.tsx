@@ -260,6 +260,29 @@ export default function Home() {
   // Server discovery state
   const [isDiscoveringServer, setIsDiscoveringServer] = useState(false);
 
+  // Grantee management state
+  const [granteeAddress, setGranteeAddress] = useState<string>("");
+  const [granteePublicKey, setGranteePublicKey] = useState<string>("");
+  const [granteeOwner, setGranteeOwner] = useState<string>("");
+  const [allGrantees, setAllGrantees] = useState<
+    Array<{
+      id: string;
+      granteeId: bigint;
+      address: string;
+      publicKey: string;
+      owner: string;
+      registeredAtBlock: bigint;
+      registeredAtTimestamp: bigint;
+      transactionHash: string;
+    }>
+  >([]);
+  const [isLoadingGrantees, setIsLoadingGrantees] = useState(false);
+  const [granteeQueryMode, setGranteeQueryMode] = useState<
+    "subgraph" | "rpc" | "auto"
+  >("auto");
+  const [isRegisteringGrantee, setIsRegisteringGrantee] = useState(false);
+  const [granteeError, setGranteeError] = useState<string>("");
+
   // Trusted server file upload state
   const [_selectedServerForUpload, _setSelectedServerForUpload] =
     useState<string>("");
@@ -1983,6 +2006,90 @@ export default function Home() {
     }
   };
 
+  // Grantee management functions
+  const loadAllGrantees = useCallback(
+    async (mode: "subgraph" | "rpc" | "auto" = "auto") => {
+      if (!vana) return;
+      setIsLoadingGrantees(true);
+      setGranteeError("");
+      try {
+        const result = await vana.data.getAllGrantees({
+          mode,
+          subgraphUrl: process.env.NEXT_PUBLIC_SUBGRAPH_URL,
+          limit: 50,
+        });
+        console.info("Loaded grantees:", result);
+        addToast({
+          color: "success",
+          title: `Grantees loaded via ${result.usedMode.toUpperCase()}`,
+          description: `Found ${result.grantees.length} grantees${result.total ? ` (${result.total} total)` : ""}${result.warnings ? `. Warnings: ${result.warnings.join(", ")}` : ""}`,
+        });
+        setAllGrantees(result.grantees);
+      } catch (error) {
+        console.error("Failed to load grantees:", error);
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        setGranteeError(errorMessage);
+        addToast({
+          color: "danger",
+          title: "Failed to load grantees",
+          description: errorMessage,
+        });
+      } finally {
+        setIsLoadingGrantees(false);
+      }
+    },
+    [vana, addToast],
+  );
+
+  const handleRegisterGrantee = async () => {
+    if (!vana || !address) return;
+    if (!granteeAddress || !granteePublicKey) {
+      addToast({
+        color: "warning",
+        title: "Missing information",
+        description: "Please fill in grantee address and public key",
+      });
+      return;
+    }
+
+    setIsRegisteringGrantee(true);
+    setGranteeError("");
+    try {
+      const txHash = await vana.data.registerGrantee({
+        owner: (granteeOwner || address) as `0x${string}`,
+        address: granteeAddress as `0x${string}`,
+        publicKey: granteePublicKey,
+      });
+
+      addToast({
+        color: "success",
+        title: "Grantee registered successfully",
+        description: `Transaction: ${txHash}`,
+      });
+
+      // Clear form
+      setGranteeAddress("");
+      setGranteePublicKey("");
+      setGranteeOwner("");
+
+      // Reload grantees
+      await loadAllGrantees(granteeQueryMode);
+    } catch (error) {
+      console.error("Failed to register grantee:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      setGranteeError(errorMessage);
+      addToast({
+        color: "danger",
+        title: "Failed to register grantee",
+        description: errorMessage,
+      });
+    } finally {
+      setIsRegisteringGrantee(false);
+    }
+  };
+
   // Removed unused trusted server upload handler
 
   const loadSchemas = useCallback(async () => {
@@ -2326,6 +2433,32 @@ export default function Home() {
     trustServerError,
     queryMode: trustedServerQueryMode,
     onQueryModeChange: setTrustedServerQueryMode,
+
+    // Grantee management props
+    granteeAddress,
+    onGranteeAddressChange: setGranteeAddress,
+    granteePublicKey,
+    onGranteePublicKeyChange: setGranteePublicKey,
+    granteeOwner,
+    onGranteeOwnerChange: setGranteeOwner,
+    onRegisterGrantee: handleRegisterGrantee,
+    isRegisteringGrantee,
+    allGrantees: allGrantees.map((grantee) => ({
+      id: grantee.id,
+      granteeId: grantee.granteeId,
+      address: grantee.address,
+      publicKey: grantee.publicKey,
+      owner: grantee.owner,
+      registeredAtBlock: grantee.registeredAtBlock,
+      registeredAtTimestamp: grantee.registeredAtTimestamp,
+      transactionHash: grantee.transactionHash,
+    })),
+    isLoadingGrantees,
+    onRefreshGrantees: () => loadAllGrantees(granteeQueryMode),
+    granteeError,
+    granteeQueryMode,
+    onGranteeQueryModeChange: setGranteeQueryMode,
+
     userAddress: address,
     chainId: chainId || 14800,
     vana: sdk as Vana,

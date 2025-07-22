@@ -76,6 +76,10 @@ export type {
   TrustedServer,
   GetUserTrustedServersParams,
   GetUserTrustedServersResult,
+  Grantee,
+  RegisterGranteeParams,
+  GetAllGranteesParams,
+  GetAllGranteesResult,
 } from "./data";
 
 // Schema types

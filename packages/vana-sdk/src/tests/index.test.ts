@@ -92,7 +92,7 @@ describe("SDK Node Entry Point", () => {
         IpfsStorage,
         PinataStorage,
         GoogleDriveStorage,
-        ServerProxyStorage,
+        CallbackStorage,
       } = await import("../index.node");
 
       expect(StorageManager).toBeDefined();
@@ -100,7 +100,7 @@ describe("SDK Node Entry Point", () => {
       expect(IpfsStorage).toBeDefined();
       expect(PinataStorage).toBeDefined();
       expect(GoogleDriveStorage).toBeDefined();
-      expect(ServerProxyStorage).toBeDefined();
+      expect(CallbackStorage).toBeDefined();
     });
   });
 

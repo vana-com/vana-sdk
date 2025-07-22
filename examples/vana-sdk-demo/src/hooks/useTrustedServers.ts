@@ -262,7 +262,8 @@ export function useTrustedServers(): UseTrustedServersReturn {
       const data: IdentityResponseModel = await response.json();
       console.info("🔍 Gateway response:", data);
 
-      if (!data.personal_server?.address) {
+      // Fixed: Check the correct nested structure of IdentityResponseModel
+      if (!data?.personal_server?.address) {
         throw new Error(
           "Invalid server discovery response: missing personal_server.address",
         );

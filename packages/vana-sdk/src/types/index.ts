@@ -123,6 +123,7 @@ export type {
   PermissionQueryResult,
   PermissionAnalytics,
   PermissionEvent,
+  GrantedPermission,
   Server,
   TrustServerParams,
   UntrustServerParams,

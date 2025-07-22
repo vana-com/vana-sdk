@@ -10,6 +10,7 @@ import React, {
 import { useAccount, useWalletClient } from "wagmi";
 import {
   Vana,
+  VanaInstance,
   StorageProvider,
   ServerProxyStorage,
   PinataStorage,
@@ -37,8 +38,8 @@ interface VanaConfig {
   googleDriveExpiresAt?: number | null;
 }
 
-interface VanaContextValue {
-  vana: Vana | null;
+export interface VanaContextValue {
+  vana: VanaInstance | null;
   isInitialized: boolean;
   error: Error | null;
   applicationAddress: string;
@@ -233,7 +234,7 @@ export function VanaProvider({
 }: VanaProviderProps) {
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
-  const [vana, setVana] = useState<Vana | null>(null);
+  const [vana, setVana] = useState<VanaInstance | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [applicationAddress, setApplicationAddress] = useState<string>("");

@@ -252,7 +252,7 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
                   </span>
                   {permission.files.length > 0 && (
                     <div className="flex flex-wrap gap-1 max-w-48">
-                      {permission.files.slice(0, 3).map((fileId) => (
+                      {permission.files.slice(0, 3).map((fileId: number) => (
                         <FileIdDisplay
                           key={fileId}
                           fileId={fileId}

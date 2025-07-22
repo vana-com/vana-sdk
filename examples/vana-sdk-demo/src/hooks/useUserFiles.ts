@@ -86,7 +86,7 @@ export function useUserFiles(): UseUserFilesReturn {
     setIsLoadingFiles(true);
     try {
       const files = await vana.data.getUserFiles({ owner: address });
-      const discoveredFiles = files.map((file) => ({
+      const discoveredFiles = files.map((file: UserFile) => ({
         ...file,
         source: "discovered" as const,
       }));

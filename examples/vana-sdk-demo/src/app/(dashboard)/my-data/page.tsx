@@ -84,6 +84,9 @@ export default function MyDataPage() {
   const {
     userPermissions,
     isLoadingPermissions,
+    resolvedPermissions,
+    resolvingPermissions,
+    resolvePermissionDetails,
     isGranting,
     isRevoking,
     permissionLookupId,
@@ -415,6 +418,9 @@ export default function MyDataPage() {
           <PermissionsTab
             userPermissions={userPermissions}
             isLoadingPermissions={isLoadingPermissions}
+            resolvedPermissions={resolvedPermissions}
+            resolvingPermissions={resolvingPermissions}
+            onResolvePermissionDetails={resolvePermissionDetails}
             isRevoking={isRevoking}
             permissionLookupId={permissionLookupId}
             isLookingUpPermission={isLookingUpPermission}

@@ -15,13 +15,13 @@ import {
   Database,
   Code,
 } from "lucide-react";
-import type { Vana, Schema } from "@opendatalabs/vana-sdk/browser";
+import type { VanaInstance, Schema } from "@opendatalabs/vana-sdk/browser";
 import { SchemaSelector } from "./SchemaSelector";
 import { validateDataAgainstSchema } from "../../utils/schemaValidation";
 
 export interface SchemaValidationTabProps {
   /** Vana SDK instance */
-  vana: Vana;
+  vana: VanaInstance;
 
   /** Chain ID for explorer links */
   chainId: number;

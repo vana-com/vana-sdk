@@ -19,8 +19,18 @@ import {
   SortDescriptor,
   Tooltip,
 } from "@heroui/react";
-import { Search, ExternalLink, RefreshCw, Shield, Eye } from "lucide-react";
-import type { GrantedPermission } from "@opendatalabs/vana-sdk/browser";
+import {
+  Search,
+  ExternalLink,
+  RefreshCw,
+  Shield,
+  Eye,
+  FileText,
+} from "lucide-react";
+import type {
+  OnChainPermissionGrant,
+  GrantedPermission,
+} from "@opendatalabs/vana-sdk/browser";
 import { convertIpfsUrl } from "@opendatalabs/vana-sdk/browser";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -30,9 +40,16 @@ import { FileIdDisplay } from "@/components/ui/FileIdDisplay";
 import { PermissionDisplay } from "@/components/ui/PermissionDisplay";
 
 interface PermissionsTabProps {
-  // Permission data
-  userPermissions: GrantedPermission[];
+  // Fast on-chain permission data - loads instantly
+  userPermissions: OnChainPermissionGrant[];
   isLoadingPermissions: boolean;
+
+  // Slow off-chain resolution data - loads on-demand
+  resolvedPermissions: Map<string, GrantedPermission>;
+  resolvingPermissions: Set<string>;
+
+  // Actions
+  onResolvePermissionDetails: (permissionId: string) => Promise<void>;
   isRevoking: boolean;
 
   // Permission lookup
@@ -62,6 +79,9 @@ interface PermissionsTabProps {
 export function PermissionsTab({
   userPermissions,
   isLoadingPermissions,
+  resolvedPermissions,
+  resolvingPermissions,
+  onResolvePermissionDetails,
   isRevoking,
   permissionLookupId,
   isLookingUpPermission,
@@ -106,32 +126,167 @@ export function PermissionsTab({
   const endIndex = startIndex + PERMISSIONS_PER_PAGE;
   const paginatedPermissions = sortedPermissions.slice(startIndex, endIndex);
 
-  // Renders permission parameters with tooltip
-  const renderParameters = (parameters: unknown) => {
-    if (parameters === null) return "None";
+  // Helper functions for resolution state
+  const isResolved = (permissionId: string) =>
+    resolvedPermissions.has(permissionId);
+  const isResolving = (permissionId: string) =>
+    resolvingPermissions.has(permissionId);
+  const getResolved = (permissionId: string) =>
+    resolvedPermissions.get(permissionId);
 
-    const paramStr =
-      typeof parameters === "string"
-        ? parameters
-        : JSON.stringify(parameters, null, 2);
+  // Progressive disclosure render functions
+  const renderParameters = (permission: OnChainPermissionGrant) => {
+    const permissionId = permission.id.toString();
+    const resolved = getResolved(permissionId);
 
-    return (
-      <Tooltip
-        content={
-          <pre className="text-xs max-w-sm max-h-40 overflow-auto">
-            {paramStr}
-          </pre>
-        }
-        placement="left"
-      >
+    if (!isResolved(permissionId)) {
+      return (
         <Button
           size="sm"
-          variant="flat"
-          startContent={<Eye className="h-3 w-3" />}
+          variant="bordered"
+          onPress={() => onResolvePermissionDetails(permissionId)}
+          isLoading={isResolving(permissionId)}
+          startContent={
+            !isResolving(permissionId) ? <Eye className="h-3 w-3" /> : undefined
+          }
+          className="text-xs"
         >
-          View Details
+          {isResolving(permissionId) ? "Loading..." : "Load Details"}
         </Button>
-      </Tooltip>
+      );
+    }
+
+    if (!resolved)
+      return <span className="text-danger text-sm">Error loading</span>;
+
+    const paramStr = JSON.stringify(resolved.parameters, null, 2);
+
+    return (
+      <div className="flex gap-2">
+        <Tooltip
+          content={
+            <pre className="text-xs max-w-sm max-h-40 overflow-auto">
+              {paramStr}
+            </pre>
+          }
+          placement="left"
+        >
+          <Button
+            size="sm"
+            variant="flat"
+            startContent={<Eye className="h-3 w-3" />}
+            className="text-xs"
+          >
+            View Details
+          </Button>
+        </Tooltip>
+        <Tooltip content="View grant file on IPFS">
+          <Button
+            as="a"
+            href={convertIpfsUrl(permission.grantUrl)}
+            target="_blank"
+            rel="noopener noreferrer"
+            size="sm"
+            variant="flat"
+            isIconOnly
+          >
+            <ExternalLink className="h-3 w-3" />
+          </Button>
+        </Tooltip>
+      </div>
+    );
+  };
+
+  const renderOperation = (permission: OnChainPermissionGrant) => {
+    const permissionId = permission.id.toString();
+    const resolved = getResolved(permissionId);
+
+    if (!isResolved(permissionId)) {
+      return (
+        <Button
+          size="sm"
+          variant="bordered"
+          onPress={() => onResolvePermissionDetails(permissionId)}
+          isLoading={isResolving(permissionId)}
+          startContent={
+            !isResolving(permissionId) ? (
+              <FileText className="h-3 w-3" />
+            ) : undefined
+          }
+          className="text-xs"
+        >
+          {isResolving(permissionId) ? "Loading..." : "Load Operation"}
+        </Button>
+      );
+    }
+
+    if (!resolved) {
+      return (
+        <Chip variant="flat" color="danger" size="sm">
+          Error
+        </Chip>
+      );
+    }
+
+    return (
+      <Chip variant="flat" color="primary" size="sm">
+        {resolved.operation}
+      </Chip>
+    );
+  };
+
+  const renderFiles = (permission: OnChainPermissionGrant) => {
+    const permissionId = permission.id.toString();
+    const resolved = getResolved(permissionId);
+
+    if (!isResolved(permissionId)) {
+      return (
+        <Button
+          size="sm"
+          variant="bordered"
+          onPress={() => onResolvePermissionDetails(permissionId)}
+          isLoading={isResolving(permissionId)}
+          startContent={
+            !isResolving(permissionId) ? (
+              <FileText className="h-3 w-3" />
+            ) : undefined
+          }
+          className="text-xs"
+        >
+          {isResolving(permissionId) ? "Loading..." : "Load Files"}
+        </Button>
+      );
+    }
+
+    if (!resolved) {
+      return <span className="text-danger text-sm">Error loading</span>;
+    }
+
+    return (
+      <div className="flex flex-col gap-1">
+        <span className="text-small font-medium">
+          {resolved.files.length} file{resolved.files.length !== 1 ? "s" : ""}
+        </span>
+        {resolved.files.length > 0 && (
+          <div className="flex flex-wrap gap-1 max-w-48">
+            {resolved.files.slice(0, 3).map((fileId: number) => (
+              <FileIdDisplay
+                key={fileId}
+                fileId={fileId}
+                chainId={chainId}
+                showCopy={false}
+                showExternalLink={true}
+                className="text-tiny"
+              />
+            ))}
+            {resolved.files.length > 3 && (
+              <span className="text-tiny text-default-400">
+                +{resolved.files.length - 3} more
+              </span>
+            )}
+          </div>
+        )}
+      </div>
     );
   };
 
@@ -253,7 +408,13 @@ export function PermissionsTab({
                   <TableColumn key="id" allowsSorting>
                     Permission ID
                   </TableColumn>
-                  <TableColumn key="operation" allowsSorting>
+                  <TableColumn key="grantor" allowsSorting>
+                    Grantor
+                  </TableColumn>
+                  <TableColumn key="active" allowsSorting>
+                    Status
+                  </TableColumn>
+                  <TableColumn key="operation" allowsSorting={false}>
                     Operation
                   </TableColumn>
                   <TableColumn key="files" allowsSorting={false}>
@@ -284,55 +445,31 @@ export function PermissionsTab({
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Chip variant="flat" color="primary" size="sm">
-                          {permission.operation}
+                        <div className="flex items-center gap-2">
+                          <code className="text-xs bg-default-100 px-2 py-1 rounded">
+                            {permission.grantor.slice(0, 6)}...
+                            {permission.grantor.slice(-4)}
+                          </code>
+                          <CopyButton
+                            value={permission.grantor}
+                            tooltip="Copy grantor address"
+                            isInline
+                            size="sm"
+                          />
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          variant="flat"
+                          color={permission.active ? "success" : "danger"}
+                          size="sm"
+                        >
+                          {permission.active ? "Active" : "Inactive"}
                         </Chip>
                       </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          <span className="text-small font-medium">
-                            {permission.files.length} file
-                            {permission.files.length !== 1 ? "s" : ""}
-                          </span>
-                          {permission.files.length > 0 && (
-                            <div className="flex flex-wrap gap-1 max-w-48">
-                              {permission.files.slice(0, 3).map((fileId) => (
-                                <FileIdDisplay
-                                  key={fileId}
-                                  fileId={fileId}
-                                  chainId={chainId}
-                                  showCopy={false}
-                                  showExternalLink={true}
-                                  className="text-tiny"
-                                />
-                              ))}
-                              {permission.files.length > 3 && (
-                                <span className="text-tiny text-default-400">
-                                  +{permission.files.length - 3} more
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          {renderParameters(permission.parameters)}
-                          <Tooltip content="View grant file on IPFS">
-                            <Button
-                              as="a"
-                              href={convertIpfsUrl(permission.grant)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              size="sm"
-                              variant="flat"
-                              isIconOnly
-                            >
-                              <ExternalLink className="h-3 w-3" />
-                            </Button>
-                          </Tooltip>
-                        </div>
-                      </TableCell>
+                      <TableCell>{renderOperation(permission)}</TableCell>
+                      <TableCell>{renderFiles(permission)}</TableCell>
+                      <TableCell>{renderParameters(permission)}</TableCell>
                       <TableCell>
                         <Button
                           color="danger"
@@ -342,7 +479,7 @@ export function PermissionsTab({
                             onRevokePermission(permission.id.toString())
                           }
                           isLoading={isRevoking}
-                          isDisabled={isRevoking}
+                          isDisabled={isRevoking || !permission.active}
                         >
                           Revoke
                         </Button>

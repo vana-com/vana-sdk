@@ -1,10 +1,13 @@
 import { vi } from "vitest";
+import type { UseAccountReturnType } from "wagmi";
 import type {
   UseUserFilesReturn,
   ExtendedUserFile,
 } from "@/hooks/useUserFiles";
 import type { UsePermissionsReturn } from "@/hooks/usePermissions";
+import type { UseTrustedServersReturn } from "@/hooks/useTrustedServers";
 import type { GrantedPermission } from "@opendatalabs/vana-sdk/browser";
+import type { VanaContextValue } from "@/providers/VanaProvider";
 
 /**
  * Factory function to create a mock useUserFiles hook return object
@@ -77,8 +80,13 @@ export function createMockUsePermissions(
     permissionLookupStatus: "",
     lookedUpPermission: null,
 
+    // Slow off-chain resolution state
+    resolvedPermissions: new Map(),
+    resolvingPermissions: new Set(),
+
     // Actions
     loadUserPermissions: vi.fn(),
+    resolvePermissionDetails: vi.fn(),
     handleGrantPermission: vi.fn(),
     handleRevokePermissionById: vi.fn(),
     handleLookupPermission: vi.fn(),
@@ -103,8 +111,8 @@ export function createMockUsePermissions(
  * @returns Complete mock useTrustedServers return object
  */
 export function createMockUseTrustedServers(
-  overrides: Record<string, any> = {},
-) {
+  overrides: Partial<UseTrustedServersReturn> = {},
+): UseTrustedServersReturn {
   return {
     trustedServers: [],
     isLoadingTrustedServers: false,
@@ -135,33 +143,80 @@ export function createMockUseTrustedServers(
  * @param overrides - Partial object to override default mock values
  * @returns Complete mock useVana return object
  */
-export function createMockUseVana(overrides: Record<string, any> = {}) {
-  return {
-    vana: {
-      data: {
-        getUserFiles: vi.fn(),
-        decryptFile: vi.fn(),
-        getFileById: vi.fn(),
-        upload: vi.fn(),
-      },
-      permissions: {
-        getUserPermissions: vi.fn(),
-        createAndSign: vi.fn(),
-        submitSignedGrant: vi.fn(),
-        revoke: vi.fn(),
-        getPermissionInfo: vi.fn(),
-        getPermissionFileIds: vi.fn(),
-      },
-      schemas: {
-        get: vi.fn(),
-      },
+export function createMockUseVana(
+  overrides: Partial<VanaContextValue> = {},
+): VanaContextValue {
+  const defaultVana = {
+    data: {
+      getUserFiles: vi.fn(),
+      decryptFile: vi.fn(),
+      getFileById: vi.fn(),
+      upload: vi.fn(),
+      uploadFile: vi.fn(),
+      deleteFile: vi.fn(),
+      uploadText: vi.fn(),
+      isStorageEnabled: vi.fn().mockReturnValue(true),
+      hasRequiredStorage: true,
     },
-    isInitialized: true,
-    error: null,
-    applicationAddress: "0xapp123",
+    permissions: {
+      getUserPermissions: vi.fn(),
+      getUserPermissionGrantsOnChain: vi.fn(),
+      createAndSign: vi.fn(),
+      submitSignedGrant: vi.fn(),
+      revoke: vi.fn(),
+      getPermissionInfo: vi.fn(),
+      getPermissionFileIds: vi.fn(),
+      grant: vi.fn(),
+      check: vi.fn(),
+    },
+    schemas: {
+      get: vi.fn(),
+      list: vi.fn(),
+      validateData: vi.fn(),
+    },
+    server: {
+      discoverHostedServer: vi.fn(),
+      trustServer: vi.fn(),
+      trustServerGasless: vi.fn(),
+      untrustServer: vi.fn(),
+      getUserTrustedServers: vi.fn(),
+      submitTask: vi.fn(),
+      pollTask: vi.fn(),
+    },
+    protocol: {
+      getAllFileIds: vi.fn(),
+      getUserFileIds: vi.fn(),
+      getFileInfo: vi.fn(),
+      hasPermission: vi.fn(),
+      registerApplication: vi.fn(),
+    },
+    platform: {
+      encrypt: vi.fn(),
+      decrypt: vi.fn(),
+      sign: vi.fn(),
+      verify: vi.fn(),
+    },
+    // VanaCore properties
+    isStorageEnabled: vi.fn().mockReturnValue(true),
+    hasRequiredStorage: true,
+    validateStorageRequired: vi.fn(),
+    hasStorage: vi.fn().mockReturnValue(true),
+    validateConfig: vi.fn(),
+    chainId: 14800,
+    walletClient: {} as any,
+    publicClient: {} as any,
+    relayerUrl: "https://relayer.example.com",
+    subgraphUrl: "https://subgraph.example.com",
+    rpcUrl: "https://rpc.example.com",
+    encrypt: vi.fn(),
+    decrypt: vi.fn(),
+  } as any;
 
-    // Apply overrides
-    ...overrides,
+  return {
+    vana: overrides.vana ?? defaultVana,
+    isInitialized: overrides.isInitialized ?? true,
+    error: overrides.error ?? null,
+    applicationAddress: overrides.applicationAddress ?? "0xapp123",
   };
 }
 
@@ -170,14 +225,24 @@ export function createMockUseVana(overrides: Record<string, any> = {}) {
  * @param overrides - Partial object to override default mock values
  * @returns Complete mock useAccount return object
  */
-export function createMockUseAccount(overrides: Record<string, any> = {}) {
+export function createMockUseAccount(
+  overrides: Partial<UseAccountReturnType> = {},
+): UseAccountReturnType {
   return {
     address: "0x123" as `0x${string}`,
+    addresses: ["0x123" as `0x${string}`],
+    chain: undefined,
+    chainId: 14800,
+    connector: undefined,
     isConnected: true,
+    isConnecting: false,
+    isDisconnected: false,
+    isReconnecting: false,
+    status: "connected",
 
     // Apply overrides
     ...overrides,
-  };
+  } as UseAccountReturnType;
 }
 
 /**
@@ -235,7 +300,7 @@ export function createMockPermissions(
  */
 export function createMockTrustedServers(
   count: number = 2,
-  overrides: Record<string, any> = [],
+  overrides: Record<string, any> = {},
 ) {
   return Array.from({ length: count }, (_, index) => ({
     id: `0xserver${index + 1}`,
@@ -256,9 +321,9 @@ export function setupHookMocks(
   hookMocks: {
     useUserFiles?: Partial<UseUserFilesReturn>;
     usePermissions?: Partial<UsePermissionsReturn>;
-    useTrustedServers?: Record<string, any>;
-    useVana?: Record<string, any>;
-    useAccount?: Record<string, any>;
+    useTrustedServers?: Partial<UseTrustedServersReturn>;
+    useVana?: Partial<VanaContextValue>;
+    useAccount?: Partial<UseAccountReturnType>;
   } = {},
 ) {
   return {

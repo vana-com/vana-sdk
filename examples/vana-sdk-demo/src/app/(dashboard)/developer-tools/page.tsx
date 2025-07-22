@@ -28,6 +28,7 @@ import {
   Copy,
 } from "lucide-react";
 import { FormBuilder } from "@/components/ui/FormBuilder";
+import type { VanaContractName } from "@opendatalabs/vana-sdk/browser";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SchemaIdDisplay } from "@/components/ui/SchemaIdDisplay";
 import { RefinerIdDisplay } from "@/components/ui/RefinerIdDisplay";
@@ -302,16 +303,20 @@ export default function DeveloperToolsPage() {
                 <TableBody>
                   {vana.protocol
                     .getAvailableContracts()
-                    .filter((contractName) => {
+                    .filter((contractName: string) => {
                       try {
-                        vana.protocol.getContract(contractName);
+                        vana.protocol.getContract(
+                          contractName as VanaContractName,
+                        );
                         return true;
                       } catch {
                         return false;
                       }
                     })
-                    .map((contractName) => {
-                      const contract = vana.protocol.getContract(contractName);
+                    .map((contractName: string) => {
+                      const contract = vana.protocol.getContract(
+                        contractName as VanaContractName,
+                      );
                       return (
                         <TableRow key={contractName}>
                           <TableCell>{contractName}</TableCell>

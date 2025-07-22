@@ -50,8 +50,12 @@ describe("useUserFiles", () => {
     vi.clearAllMocks();
 
     // Use factory functions for consistent mock setup
-    useAccountMock.mockReturnValue(createMockUseAccount() as any);
-    useVanaMock.mockReturnValue(createMockUseVana({ vana: mockVana }) as any);
+    useAccountMock.mockReturnValue(createMockUseAccount());
+    useVanaMock.mockReturnValue(
+      createMockUseVana({
+        vana: mockVana as any,
+      }),
+    );
 
     mockVana.data.getUserFiles.mockResolvedValue(mockUserFiles);
   });

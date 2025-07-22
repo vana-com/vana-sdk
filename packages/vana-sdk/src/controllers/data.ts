@@ -934,6 +934,7 @@ export class DataController {
 
           return {
             id: `${user.toLowerCase()}-${serverId.toString()}`,
+            serverId: serverId,
             serverAddress: serverInfo.serverAddress,
             serverUrl: serverInfo.url,
             publicKey: serverInfo.publicKey,
@@ -946,6 +947,7 @@ export class DataController {
           // If server info fails, return basic info with server ID as placeholder
           return {
             id: `${user.toLowerCase()}-${serverId.toString()}`,
+            serverId: serverId,
             serverAddress:
               `0x${serverId.toString(16).padStart(40, "0")}` as Address,
             serverUrl: "",

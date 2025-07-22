@@ -241,10 +241,14 @@ export default function Home() {
   const [trustedServers, setTrustedServers] = useState<
     Array<{
       id: string;
+      serverId?: bigint;
       serverAddress: string;
       serverUrl: string;
+      publicKey?: string;
+      owner?: string;
       trustedAt: bigint;
       user: string;
+      trustIndex?: number;
     }>
   >([]);
   const [isLoadingTrustedServers, setIsLoadingTrustedServers] = useState(false);
@@ -2309,12 +2313,13 @@ export default function Home() {
     onDiscoverReplicateServer: handleDiscoverHostedServer,
     isDiscoveringServer,
     trustedServers: trustedServers.map((server) => ({
-      id: server.serverAddress,
+      id: server.id,
+      serverId: server.serverId,
       url: server.serverUrl,
       name: server.serverAddress,
       serverAddress: server.serverAddress,
-      publicKey: undefined, // Not available from backend yet
-      owner: server.user, // Use the user field as owner for now
+      publicKey: server.publicKey,
+      owner: server.owner,
     })),
     isLoadingServers: isLoadingTrustedServers,
     onRefreshServers: () => loadUserTrustedServers(trustedServerQueryMode),
@@ -2450,9 +2455,13 @@ export default function Home() {
     isTrustingServer,
     trustServerError,
     trustedServers: trustedServers.map((server) => ({
-      id: server.serverAddress,
+      id: server.id,
+      serverId: server.serverId,
       url: server.serverUrl,
       name: server.serverAddress,
+      serverAddress: server.serverAddress,
+      publicKey: server.publicKey,
+      owner: server.owner,
     })),
     userFiles,
     selectedFiles,

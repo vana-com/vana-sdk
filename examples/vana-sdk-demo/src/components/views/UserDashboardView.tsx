@@ -136,6 +136,7 @@ export interface UserDashboardViewProps {
   isDiscoveringServer: boolean;
   trustedServers: Array<{
     id: string;
+    serverId?: bigint;
     url?: string;
     name?: string;
     serverAddress?: string;
@@ -1206,6 +1207,7 @@ export function UserDashboardView({
           ) : (
             <Table aria-label="Trusted servers table" removeWrapper>
               <TableHeader>
+                <TableColumn>Server ID</TableColumn>
                 <TableColumn>Server Address</TableColumn>
                 <TableColumn>Public Key</TableColumn>
                 <TableColumn>URL</TableColumn>
@@ -1216,6 +1218,24 @@ export function UserDashboardView({
                 {trustedServers.map((server) => (
                   <TableRow key={server.id}>
                     <TableCell>
+                      {server.serverId ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-mono text-default-600">
+                            {server.serverId.toString()}
+                          </span>
+                          <CopyButton
+                            value={server.serverId.toString()}
+                            tooltip="Copy server ID"
+                            isInline
+                          />
+                        </div>
+                      ) : (
+                        <span className="text-sm text-default-400">
+                          Not available
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell>
                       <AddressDisplay
                         address={server.serverAddress || server.id}
                         truncate={true}
@@ -1225,9 +1245,14 @@ export function UserDashboardView({
                     </TableCell>
                     <TableCell>
                       {server.publicKey ? (
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-mono text-default-600 max-w-32 truncate">
-                            {server.publicKey}
+                        <div
+                          className="flex items-center gap-2"
+                          title={server.publicKey}
+                        >
+                          <span className="text-sm font-mono text-default-600">
+                            {server.publicKey.length > 10
+                              ? `${server.publicKey.slice(0, 10)}...`
+                              : server.publicKey}
                           </span>
                           <CopyButton
                             value={server.publicKey}
@@ -1286,7 +1311,13 @@ export function UserDashboardView({
                         color="danger"
                         variant="flat"
                         size="sm"
-                        onPress={() => onUntrustServer(server.id)}
+                        onPress={() =>
+                          onUntrustServer(
+                            server.serverId?.toString() ||
+                              server.serverAddress ||
+                              server.id,
+                          )
+                        }
                         isLoading={isUntrusting}
                         isDisabled={isUntrusting}
                         startContent={<Trash2 className="h-3 w-3" />}

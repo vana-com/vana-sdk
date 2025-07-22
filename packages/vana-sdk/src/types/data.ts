@@ -538,10 +538,16 @@ export type TrustedServerQueryMode = "subgraph" | "rpc" | "auto";
 export interface TrustedServer {
   /** Unique identifier for the trusted server relationship */
   id: string;
+  /** Numeric server ID from the contract */
+  serverId?: bigint;
   /** Server address (EVM address) */
   serverAddress: Address;
   /** Server URL */
   serverUrl: string;
+  /** Server public key */
+  publicKey?: string;
+  /** Server owner address */
+  owner?: Address;
   /** Timestamp when server was trusted */
   trustedAt: bigint;
   /** User who trusted the server */

@@ -148,8 +148,9 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
 
   const columns = [
     { key: "id", label: "Permission ID", allowsSorting: true },
-    { key: "operation", label: "Operation", allowsSorting: true },
+    { key: "grantor", label: "Grantor", allowsSorting: true },
     { key: "status", label: "Status", allowsSorting: true },
+    { key: "operation", label: "Operation", allowsSorting: true },
     { key: "files", label: "Files", allowsSorting: false },
     { key: "parameters", label: "Parameters", allowsSorting: false },
     { key: "actions", label: "Actions", allowsSorting: false },
@@ -251,9 +252,20 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
               </TableCell>
 
               <TableCell>
-                <Chip variant="flat" color="primary" size="sm">
-                  {permission.operation}
-                </Chip>
+                <div className="flex items-center gap-2">
+                  <span className="text-small font-mono">
+                    {permission.grantor.substring(0, 6)}...
+                    {permission.grantor.substring(
+                      permission.grantor.length - 4,
+                    )}
+                  </span>
+                  <CopyButton
+                    value={permission.grantor}
+                    tooltip="Copy grantor address"
+                    isInline
+                    size="sm"
+                  />
+                </div>
               </TableCell>
 
               <TableCell>
@@ -263,6 +275,12 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
                   size="sm"
                 >
                   {permission.active ? "Active" : "Revoked"}
+                </Chip>
+              </TableCell>
+
+              <TableCell>
+                <Chip variant="flat" color="primary" size="sm">
+                  {permission.operation}
                 </Chip>
               </TableCell>
 

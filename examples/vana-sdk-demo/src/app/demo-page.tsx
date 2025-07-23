@@ -3,7 +3,12 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { addToast } from "@heroui/react";
 import type { VanaChain } from "@opendatalabs/vana-sdk/browser";
-import { useAccount, useWalletClient, useChainId } from "wagmi";
+import {
+  useAccount,
+  useWalletClient,
+  useChainId,
+  usePublicClient,
+} from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import {
   Vana,
@@ -83,6 +88,7 @@ export default function Home() {
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
   const chainId = useChainId();
+  const publicClient = usePublicClient();
 
   const [vana, setVana] = useState<Vana | null>(null);
   const [userFiles, setUserFiles] = useState<
@@ -1482,7 +1488,21 @@ export default function Home() {
       // Get permission details using SDK method
       const permissionInfo =
         await vana.permissions.getPermissionInfo(permissionId);
+
+      // Check if permission exists (ID = 0 means not found)
+      if (permissionInfo.id === 0n) {
+        setPermissionLookupStatus("❌ Permission not found");
+        setLookedUpPermission(null);
+        return;
+      }
+
       const fileIds = await vana.permissions.getPermissionFileIds(permissionId);
+
+      // Check if permission is active based on current block vs endBlock
+      const currentBlock = await publicClient?.getBlockNumber();
+      const isActive = currentBlock
+        ? currentBlock < permissionInfo.endBlock
+        : false;
 
       // Create a GrantedPermission object from the lookup result
       const permission: GrantedPermission = {
@@ -1493,7 +1513,7 @@ export default function Home() {
         grant: permissionInfo.grant,
         grantor: permissionInfo.grantor,
         grantee: address, // Get the current user's address from useAccount hook
-        active: true, // Assume it's active if we can look it up
+        active: isActive, // Check actual permission status
       };
 
       setLookedUpPermission(permission);

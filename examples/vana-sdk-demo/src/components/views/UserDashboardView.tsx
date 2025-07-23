@@ -18,7 +18,6 @@ import {
   SortDescriptor,
   Tabs,
   Tab,
-  Tooltip,
   Select,
   SelectItem,
 } from "@heroui/react";
@@ -30,7 +29,6 @@ import {
   RefreshCw,
   Key,
   Shield,
-  Eye,
   Users,
   UserPlus,
   FileText,
@@ -44,7 +42,6 @@ import type {
   Vana,
   GrantPermissionParams,
 } from "@opendatalabs/vana-sdk/browser";
-import { convertIpfsUrl } from "@opendatalabs/vana-sdk/browser";
 import { ActionButton } from "../ui/ActionButton";
 import { EmptyState } from "../ui/EmptyState";
 import { StatusDisplay } from "../ui/StatusDisplay";
@@ -53,10 +50,10 @@ import { FilePreview } from "../FilePreview";
 import { FileIdDisplay } from "../ui/FileIdDisplay";
 import { AddressDisplay } from "../ui/AddressDisplay";
 import { ErrorMessage } from "../ui/ErrorMessage";
-import { PermissionDisplay } from "../ui/PermissionDisplay";
 import { FormBuilder } from "../ui/FormBuilder";
 import { DataUploadForm } from "../ui/DataUploadForm";
 import { GrantPermissionModal } from "../ui/GrantPermissionModal";
+import { PermissionsTable } from "../PermissionsTable";
 
 /**
  * Props for the UserDashboardView component
@@ -318,15 +315,6 @@ export function UserDashboardView({
     });
   const FILES_PER_PAGE = 10;
 
-  // Permissions table state
-  const [permissionsCurrentPage, setPermissionsCurrentPage] = useState(1);
-  const [permissionsSortDescriptor, setPermissionsSortDescriptor] =
-    useState<SortDescriptor>({
-      column: "id",
-      direction: "descending",
-    });
-  const PERMISSIONS_PER_PAGE = 10;
-
   // Schema state for files
   const [fileSchemas, setFileSchemas] = useState<Map<number, Schema>>(
     new Map(),
@@ -396,83 +384,16 @@ export function UserDashboardView({
   /**
    * Calculate sorted and paginated permissions
    */
-  const paginatedPermissions = useMemo(() => {
-    const sortedPermissions = [...userPermissions];
-
-    if (permissionsSortDescriptor.column) {
-      sortedPermissions.sort((a, b) => {
-        const aValue = a[permissionsSortDescriptor.column as keyof typeof a];
-        const bValue = b[permissionsSortDescriptor.column as keyof typeof b];
-
-        let comparison = 0;
-        if (typeof aValue === "number" && typeof bValue === "number") {
-          comparison = aValue - bValue;
-        } else if (typeof aValue === "bigint" && typeof bValue === "bigint") {
-          comparison = aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
-        } else {
-          comparison = String(aValue).localeCompare(String(bValue));
-        }
-
-        return permissionsSortDescriptor.direction === "descending"
-          ? -comparison
-          : comparison;
-      });
-    }
-
-    const startIndex = (permissionsCurrentPage - 1) * PERMISSIONS_PER_PAGE;
-    const endIndex = startIndex + PERMISSIONS_PER_PAGE;
-    return sortedPermissions.slice(startIndex, endIndex);
-  }, [
-    userPermissions,
-    permissionsCurrentPage,
-    PERMISSIONS_PER_PAGE,
-    permissionsSortDescriptor,
-  ]);
-
   const filesTotalPages = Math.ceil(userFiles.length / FILES_PER_PAGE);
-  const permissionsTotalPages = Math.ceil(
-    userPermissions.length / PERMISSIONS_PER_PAGE,
-  );
 
   // Reset to first page when data changes
   React.useEffect(() => {
     setFilesCurrentPage(1);
   }, [userFiles.length]);
 
-  React.useEffect(() => {
-    setPermissionsCurrentPage(1);
-  }, [userPermissions.length]);
-
   /**
    * Renders permission parameters with tooltip
    */
-  const renderParameters = (parameters: unknown) => {
-    if (parameters === null) return "None";
-
-    const paramStr =
-      typeof parameters === "string"
-        ? parameters
-        : JSON.stringify(parameters, null, 2);
-
-    return (
-      <Tooltip
-        content={
-          <pre className="text-xs max-w-sm max-h-40 overflow-auto">
-            {paramStr}
-          </pre>
-        }
-        placement="left"
-      >
-        <Button
-          size="sm"
-          variant="flat"
-          startContent={<Eye className="h-3 w-3" />}
-        >
-          View Details
-        </Button>
-      </Tooltip>
-    );
-  };
 
   /**
    * Renders the upload data tab content
@@ -970,133 +891,13 @@ export function UserDashboardView({
               description="Grant permissions to data processors to see them here"
             />
           ) : (
-            <div className="space-y-4">
-              <Table
-                aria-label="Permissions table"
-                removeWrapper
-                sortDescriptor={permissionsSortDescriptor}
-                onSortChange={setPermissionsSortDescriptor}
-                classNames={{
-                  th: "bg-default-100 text-default-700",
-                  td: "py-4",
-                }}
-              >
-                <TableHeader>
-                  <TableColumn key="id" allowsSorting>
-                    Permission ID
-                  </TableColumn>
-                  <TableColumn key="operation" allowsSorting>
-                    Operation
-                  </TableColumn>
-                  <TableColumn key="files" allowsSorting={false}>
-                    Files
-                  </TableColumn>
-                  <TableColumn key="parameters" allowsSorting={false}>
-                    Parameters
-                  </TableColumn>
-                  <TableColumn key="actions" allowsSorting={false}>
-                    Actions
-                  </TableColumn>
-                </TableHeader>
-                <TableBody>
-                  {paginatedPermissions.map((permission) => (
-                    <TableRow key={permission.id.toString()}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <PermissionDisplay
-                            permissionId={permission.id}
-                            className="inline-flex"
-                          />
-                          <CopyButton
-                            value={permission.id.toString()}
-                            tooltip="Copy permission ID"
-                            isInline
-                            size="sm"
-                          />
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Chip variant="flat" color="primary" size="sm">
-                          {permission.operation}
-                        </Chip>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          <span className="text-small font-medium">
-                            {permission.files.length} file
-                            {permission.files.length !== 1 ? "s" : ""}
-                          </span>
-                          {permission.files.length > 0 && (
-                            <div className="flex flex-wrap gap-1 max-w-48">
-                              {permission.files.slice(0, 3).map((fileId) => (
-                                <FileIdDisplay
-                                  key={fileId}
-                                  fileId={fileId}
-                                  chainId={chainId}
-                                  showCopy={false}
-                                  showExternalLink={true}
-                                  className="text-tiny"
-                                />
-                              ))}
-                              {permission.files.length > 3 && (
-                                <span className="text-tiny text-default-400">
-                                  +{permission.files.length - 3} more
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          {renderParameters(permission.parameters)}
-                          <Tooltip content="View grant file on IPFS">
-                            <Button
-                              as="a"
-                              href={convertIpfsUrl(permission.grant)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              size="sm"
-                              variant="flat"
-                              isIconOnly
-                            >
-                              <ExternalLink className="h-3 w-3" />
-                            </Button>
-                          </Tooltip>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          color="danger"
-                          variant="flat"
-                          size="sm"
-                          onPress={() =>
-                            onRevokePermission(permission.id.toString())
-                          }
-                          isLoading={isRevoking}
-                          isDisabled={isRevoking}
-                        >
-                          Revoke
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-
-              {/* Permissions Pagination */}
-              {userPermissions.length > PERMISSIONS_PER_PAGE && (
-                <div className="flex justify-center mt-4">
-                  <Pagination
-                    total={permissionsTotalPages}
-                    page={permissionsCurrentPage}
-                    onChange={setPermissionsCurrentPage}
-                    showControls={true}
-                    size="sm"
-                  />
-                </div>
-              )}
-            </div>
+            <PermissionsTable
+              userPermissions={userPermissions}
+              isLoading={isLoadingPermissions}
+              onRevoke={onRevokePermission}
+              isRevoking={isRevoking}
+              onRefresh={onRefreshPermissions}
+            />
           )}
         </CardBody>
       </Card>

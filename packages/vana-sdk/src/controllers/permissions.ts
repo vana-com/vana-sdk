@@ -107,15 +107,27 @@ export interface ControllerContext {
  * The controller also manages trusted servers that can process user data and provides
  * methods for revoking permissions when access is no longer needed.
  *
- * All permission operations support both gasless transactions via relayers and direct
- * blockchain transactions. Grant files containing detailed permission parameters are
- * stored on IPFS while permission references are recorded on the blockchain.
+ * **Permission Architecture:**
+ * Permissions use dual storage: detailed parameters stored on IPFS, references stored on blockchain.
+ * This enables complex permissions while maintaining minimal on-chain data.
+ *
+ * **Method Selection:**
+ * - `grant()` creates new permissions with automatic IPFS upload and blockchain registration
+ * - `prepareGrant()` allows preview before signing for interactive applications
+ * - `revoke()` removes permissions by ID, supporting both gasless and direct transactions
+ * - `getUserPermissionGrantsOnChain()` queries existing permissions efficiently
+ * - `trustServer()` and `untrustServer()` manage server access for data processing
+ *
+ * **Transaction Types:**
+ * Methods with gasless support: `grant()`, `revoke()`, `trustServer()`, `untrustServer()`
+ * Methods requiring direct transactions: none (all support both gasless and direct)
  * @example
  * ```typescript
  * // Grant permission for an app to access your data
  * const txHash = await vana.permissions.grant({
  *   grantee: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
  *   operation: "llm_inference",
+ *   files: [1, 2, 3],
  *   parameters: { model: "gpt-4", maxTokens: 1000 },
  * });
  *
@@ -126,7 +138,7 @@ export interface ControllerContext {
  * });
  *
  * // Query current permissions
- * const permissions = await vana.permissions.getUserPermissions();
+ * const permissions = await vana.permissions.getUserPermissionGrantsOnChain();
  * ```
  * @category Permissions
  * @see {@link [URL_PLACEHOLDER] | Vana Permissions System} for conceptual overview
@@ -725,6 +737,8 @@ export class PermissionsController {
    * Revokes a previously granted permission.
    *
    * @param params - Parameters for revoking the permission
+   * @param params.permissionId - Permission identifier as bigint for contract compatibility.
+   *   Obtain from permission grants via `getUserPermissionGrantsOnChain()`.
    * @returns Promise resolving to transaction hash
    * @example
    * ```typescript

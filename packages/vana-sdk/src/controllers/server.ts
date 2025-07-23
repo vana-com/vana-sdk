@@ -28,23 +28,33 @@ import { ControllerContext } from "./permissions";
  * cryptographic keys for secure data sharing. All server interactions use the
  * Replicate API infrastructure with proper authentication and error handling.
  *
- * Personal servers enable privacy-preserving computation on user data, while identity
- * servers provide deterministic key derivation for secure communication without
- * requiring servers to be online during key retrieval.
+ * **Server Identity System:**
+ * Personal servers use deterministic key derivation: each user address maps to a specific server identity.
+ * This enables secure communication without requiring servers to be online during key retrieval.
+ *
+ * **Method Selection:**
+ * - `getIdentity()` retrieves server public keys and addresses for encryption setup
+ * - `createOperation()` submits computation requests with signed permission verification
+ * - `getOperation()` polls operation status and retrieves results when complete
+ * - `cancelOperation()` stops running operations when cancellation is supported
+ *
+ * **Workflow Pattern:**
+ * Typical flow: Get identity → Create operation → Poll status → Retrieve results
+ *
  * @example
  * ```typescript
- * // Post a request to a personal server
- * const response = await vana.server.postRequest({
+ * // Get a server's identity including public key for encryption
+ * const identity = await vana.server.getIdentity({
+ *   userAddress: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36"
+ * });
+ *
+ * // Create an operation using a granted permission
+ * const response = await vana.server.createOperation({
  *   permissionId: 123,
  * });
  *
- * // Get a server's identity including public key for encryption
- * const identity = await vana.server.getIdentity(
- *   "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36"
- * );
- *
  * // Poll for computation results
- * const result = await vana.server.pollStatus(response.urls.get);
+ * const result = await vana.server.getOperation(response.id);
  * ```
  * @category Server Management
  * @see {@link [URL_PLACEHOLDER] | Vana Personal Servers} for conceptual overview
@@ -139,10 +149,13 @@ export class ServerController {
    * This method submits a computation request to the personal server API.
    * The response includes the operation ID.
    * @param params - The request parameters object
-   * @param params.permissionId - The permission ID authorizing this operation
+   * @param params.permissionId - The permission ID authorizing this operation.
+   *   Obtain from granted permissions via `vana.permissions.getUserPermissionGrantsOnChain()`.
    * @returns A Promise that resolves to an operation response with status and control URLs
-   * @throws {PersonalServerError} When server request fails or parameters are invalid
-   * @throws {NetworkError} When personal server API communication fails
+   * @throws {PersonalServerError} When server request fails or parameters are invalid.
+   *   Verify permissionId exists and is active for the target server.
+   * @throws {NetworkError} When personal server API communication fails.
+   *   Check server URL configuration and network connectivity.
    * @example
    * ```typescript
    * const response = await vana.server.createOperation({

@@ -50,9 +50,20 @@ export interface CreateSchemaResult {
  * validation, IPFS upload, and blockchain registration. It provides methods for managing
  * both schemas (data structure definitions) and refiners (data processing definitions).
  *
- * Schemas are public protocol entities that define data structures and validation rules.
- * Unlike private user data, schemas are stored unencrypted on IPFS to enable public
- * access and reusability across the network.
+ * **Schema Storage:**
+ * Schemas are stored unencrypted on IPFS for public access and reusability across the network.
+ * Schema definitions use JSON Schema format for data validation and structure definition.
+ *
+ * **Method Selection:**
+ * - `create()` validates, uploads to IPFS, and registers new schemas on blockchain
+ * - `get()` retrieves existing schema metadata by ID from blockchain contracts
+ * - `count()` returns total number of registered schemas for pagination
+ * - `list()` provides paginated access to all schemas with optional filtering
+ * - `addSchema()` provides lower-level schema registration with pre-uploaded URLs
+ *
+ * **Storage Requirements:**
+ * Methods requiring storage configuration: `create()`
+ * Methods working without storage: `get()`, `count()`, `list()`, `addSchema()`
  *
  * @example
  * ```typescript

@@ -1469,6 +1469,7 @@ export function UserDashboardView({
           isGranting={isGranting}
           defaultPrompt={promptText}
           allowEditAddress={true}
+          allGrantees={allGrantees}
         />
       ) : null}
     </div>

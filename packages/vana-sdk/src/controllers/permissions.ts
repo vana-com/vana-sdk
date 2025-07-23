@@ -292,7 +292,7 @@ export class PermissionsController {
       const nonce = await this.getUserNonce();
 
       // Step 3: Get grantee ID from address
-      const granteeId = await this.getOrCreateGranteeId(params.to);
+      const granteeId = await this.getGranteeId(params.to);
 
       // Step 4: Create EIP-712 message with granteeId
       console.debug(
@@ -413,7 +413,7 @@ export class PermissionsController {
       const nonce = await this.getUserNonce();
 
       // Step 4: Get grantee ID from address
-      const granteeId = await this.getOrCreateGranteeId(params.to);
+      const granteeId = await this.getGranteeId(params.to);
 
       // Step 5: Create EIP-712 message with granteeId
       console.debug(
@@ -2395,16 +2395,13 @@ export class PermissionsController {
   }
 
   /**
-   * Gets or creates a grantee ID for the given address.
+   * Gets a grantee ID for the given address. The grantee must already exist.
    *
    * @param granteeAddress - The grantee address
-   * @param publicKey - The grantee's public key (optional)
    * @returns Promise resolving to the grantee ID
+   * @throws {PermissionError} When grantee doesn't exist
    */
-  private async getOrCreateGranteeId(
-    granteeAddress: Address,
-    publicKey?: string,
-  ): Promise<bigint> {
+  private async getGranteeId(granteeAddress: Address): Promise<bigint> {
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityGranteesAddress = getContractAddress(
@@ -2413,48 +2410,28 @@ export class PermissionsController {
       );
       const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
 
-      // First, try to get existing grantee ID
-      let granteeId = (await this.context.publicClient.readContract({
+      // Get existing grantee ID
+      const granteeId = (await this.context.publicClient.readContract({
         address: DataPortabilityGranteesAddress,
         abi: DataPortabilityGranteesAbi,
         functionName: "granteeAddressToId",
         args: [granteeAddress],
       })) as bigint;
 
-      // If grantee doesn't exist, register a new one
+      // If grantee doesn't exist, throw an error
       if (granteeId === 0n) {
-        const owner = await this.getUserAddress();
-        const pk = publicKey || ""; // Empty string if no public key provided
-
-        // Register new grantee
-        const txHash = await this.context.walletClient.writeContract({
-          address: DataPortabilityGranteesAddress,
-          abi: DataPortabilityGranteesAbi,
-          functionName: "registerGrantee",
-          args: [owner, granteeAddress, pk],
-          account:
-            this.context.walletClient.account || (await this.getUserAddress()),
-          chain: this.context.walletClient.chain || null,
-        });
-
-        // Wait for transaction
-        await this.context.publicClient.waitForTransactionReceipt({
-          hash: txHash,
-        });
-
-        // Get the grantee ID again after registration
-        granteeId = (await this.context.publicClient.readContract({
-          address: DataPortabilityGranteesAddress,
-          abi: DataPortabilityGranteesAbi,
-          functionName: "granteeAddressToId",
-          args: [granteeAddress],
-        })) as bigint;
+        throw new PermissionError(
+          `Grantee ${granteeAddress} is not registered. The grantee must be registered before permissions can be granted.`,
+        );
       }
 
       return granteeId;
     } catch (error) {
+      if (error instanceof PermissionError) {
+        throw error;
+      }
       throw new BlockchainError(
-        `Failed to get or create grantee: ${error instanceof Error ? error.message : "Unknown error"}`,
+        `Failed to get grantee: ${error instanceof Error ? error.message : "Unknown error"}`,
         error as Error,
       );
     }

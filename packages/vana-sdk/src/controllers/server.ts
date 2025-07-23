@@ -55,6 +55,39 @@ export class ServerController {
 
   constructor(private readonly context: ControllerContext) {}
 
+  /**
+   * Retrieves the cryptographic identity of a personal server.
+   *
+   * @remarks
+   * This method fetches the public key and metadata for a personal server,
+   * which is required for encrypting data before sharing with the server.
+   * The identity includes the server's public key, address, and operational
+   * details needed for secure communication. This information is cached
+   * by identity servers to enable offline key retrieval.
+   *
+   * @param request - Parameters containing the user address
+   * @param request.userAddress - The wallet address associated with the personal server
+   * @returns Promise resolving to the server's identity information
+   * @throws {NetworkError} When the identity service is unavailable or returns invalid data
+   * @throws {PersonalServerError} When server identity cannot be retrieved
+   * @example
+   * ```typescript
+   * // Get server identity for data encryption
+   * const identity = await vana.server.getIdentity({
+   *   userAddress: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36"
+   * });
+   * 
+   * console.log(`Server: ${identity.name}`);
+   * console.log(`Address: ${identity.address}`);
+   * console.log(`Public Key: ${identity.public_key}`);
+   * 
+   * // Use the public key for encrypting data to share with this server
+   * const encryptedData = await encryptWithWalletPublicKey(
+   *   userData,
+   *   identity.public_key
+   * );
+   * ```
+   */
   async getIdentity(
     request: InitPersonalServerParams,
   ): Promise<PersonalServerIdentity> {

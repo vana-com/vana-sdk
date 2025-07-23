@@ -55,12 +55,44 @@ export async function generateEncryptionKey(
 }
 
 /**
- * Encrypt data with a wallet's public key using platform-appropriate cryptography
+ * Encrypts data using a wallet's public key for secure sharing with specific recipients.
  *
- * @param data The data to encrypt (as string or Blob)
- * @param publicKey The public key for encryption
- * @param platformAdapter - The platform adapter for crypto operations
- * @returns The encrypted data
+ * @remarks
+ * This function implements asymmetric encryption using the recipient's public key,
+ * enabling secure data sharing where only the holder of the corresponding private key
+ * can decrypt the data. It automatically handles different data types and uses
+ * platform-appropriate cryptographic libraries for maximum compatibility.
+ * 
+ * This is commonly used when granting permissions to applications or servers,
+ * where the data needs to be encrypted for a specific recipient's public key.
+ *
+ * @param data - The data to encrypt (string or Blob)
+ * @param publicKey - The recipient's public key in hexadecimal format
+ * @param platformAdapter - The platform adapter providing cryptographic operations
+ * @returns Promise resolving to the encrypted data as a string
+ * @throws {Error} When encryption fails due to invalid key or data format
+ * @example
+ * ```typescript
+ * // Encrypt data for a specific application's public key
+ * const appPublicKey = "0x04a1b2c3..."; // Application's public key
+ * const sensitiveData = "User's private information";
+ * 
+ * const encrypted = await encryptWithWalletPublicKey(
+ *   sensitiveData,
+ *   appPublicKey,
+ *   platformAdapter
+ * );
+ * 
+ * console.log('Encrypted for app:', encrypted);
+ * 
+ * // Encrypt file data for server processing
+ * const fileBlob = new File(['{"name":"John","age":30}'], 'profile.json');
+ * const encryptedFile = await encryptWithWalletPublicKey(
+ *   fileBlob,
+ *   serverPublicKey,
+ *   platformAdapter
+ * );
+ * ```
  */
 export async function encryptWithWalletPublicKey(
   data: string | Blob,
@@ -79,12 +111,52 @@ export async function encryptWithWalletPublicKey(
 }
 
 /**
- * Decrypt data with a wallet's private key using platform-appropriate cryptography
+ * Decrypts data that was encrypted with the corresponding public key.
  *
- * @param encryptedData The encrypted data
- * @param privateKey The private key for decryption
- * @param platformAdapter - The platform adapter for crypto operations
- * @returns The decrypted data as string
+ * @remarks
+ * This function performs asymmetric decryption using the recipient's private key
+ * to decrypt data that was encrypted with the corresponding public key. It's the
+ * counterpart to `encryptWithWalletPublicKey` and is typically used by applications
+ * or servers to decrypt data that was shared with them by users.
+ * 
+ * The function automatically handles platform-specific cryptographic operations
+ * and provides consistent behavior across browser and Node.js environments.
+ *
+ * @param encryptedData - The encrypted data string to decrypt
+ * @param privateKey - The private key corresponding to the public key used for encryption
+ * @param platformAdapter - The platform adapter providing cryptographic operations
+ * @returns Promise resolving to the decrypted data as a string
+ * @throws {Error} When decryption fails due to invalid key, corrupted data, or key mismatch
+ * @example
+ * ```typescript
+ * // Decrypt data received from a user (server-side)
+ * const encryptedUserData = "encrypted_string_from_user";
+ * const serverPrivateKey = process.env.SERVER_PRIVATE_KEY;
+ * 
+ * const decrypted = await decryptWithWalletPrivateKey(
+ *   encryptedUserData,
+ *   serverPrivateKey,
+ *   platformAdapter
+ * );
+ * 
+ * const userData = JSON.parse(decrypted);
+ * console.log('User data:', userData);
+ * 
+ * // Handle decryption errors gracefully
+ * try {
+ *   const result = await decryptWithWalletPrivateKey(
+ *     encryptedData,
+ *     privateKey,
+ *     platformAdapter
+ *   );
+ * } catch (error) {
+ *   if (error.message.includes('invalid key')) {
+ *     console.error('Key mismatch - data not encrypted for this recipient');
+ *   } else {
+ *     console.error('Decryption failed:', error.message);
+ *   }
+ * }
+ * ```
  */
 export async function decryptWithWalletPrivateKey(
   encryptedData: string,

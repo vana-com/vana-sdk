@@ -59,7 +59,32 @@ export class UserRejectedRequestError extends VanaError {
 }
 
 /**
- * Error thrown when the SDK configuration is invalid.
+ * Thrown when the SDK configuration contains invalid or missing parameters.
+ *
+ * @remarks
+ * This error occurs during SDK initialization when required configuration
+ * parameters are missing, invalid, or incompatible. Common causes include
+ * missing wallet clients, invalid chain IDs, malformed storage provider
+ * configurations, or incompatible parameter combinations.
+ * 
+ * Applications should catch this error during initialization and provide
+ * clear feedback to users about configuration requirements.
+ * 
+ * @example
+ * ```typescript
+ * try {
+ *   const vana = Vana({
+ *     chainId: 999999, // Invalid chain ID
+ *     account: null // Missing account
+ *   });
+ * } catch (error) {
+ *   if (error instanceof InvalidConfigurationError) {
+ *     console.error('Configuration error:', error.message);
+ *     // Show user-friendly configuration help
+ *   }
+ * }
+ * ```
+ * @category Error Handling
  */
 export class InvalidConfigurationError extends VanaError {
   constructor(message: string) {
@@ -86,7 +111,42 @@ export class ContractNotFoundError extends VanaError {
 }
 
 /**
- * Error thrown when a blockchain operation fails.
+ * Thrown when blockchain operations fail due to network, contract, or transaction issues.
+ *
+ * @remarks
+ * This error encompasses various blockchain-related failures including network
+ * connectivity issues, contract execution failures, insufficient gas, invalid
+ * transaction parameters, or smart contract reverts. The original error is
+ * preserved to provide detailed debugging information while maintaining a
+ * consistent SDK error interface.
+ * 
+ * Common causes:
+ * - Network connectivity problems
+ * - Insufficient gas or gas price too low
+ * - Contract function reverts
+ * - Invalid transaction parameters
+ * - Blockchain congestion or downtime
+ * 
+ * @example
+ * ```typescript
+ * try {
+ *   await vana.permissions.grant({
+ *     grantee: '0x742d35...',
+ *     operation: 'read'
+ *   });
+ * } catch (error) {
+ *   if (error instanceof BlockchainError) {
+ *     console.error('Blockchain operation failed:', error.message);
+ *     
+ *     // Check if it's a network issue
+ *     if (error.originalError?.message.includes('network')) {
+ *       // Retry with exponential backoff
+ *       await retryOperation();
+ *     }
+ *   }
+ * }
+ * ```
+ * @category Error Handling
  */
 export class BlockchainError extends VanaError {
   constructor(
@@ -98,7 +158,39 @@ export class BlockchainError extends VanaError {
 }
 
 /**
- * Error thrown when parameter serialization fails.
+ * Thrown when data serialization or deserialization operations fail.
+ *
+ * @remarks
+ * This error occurs when the SDK cannot properly serialize parameters for
+ * blockchain transactions, IPFS storage, or API calls. Common causes include
+ * circular references in objects, unsupported data types, or malformed JSON.
+ * It's typically encountered during grant file creation, storage operations,
+ * or when preparing transaction data.
+ * 
+ * @example
+ * ```typescript
+ * try {
+ *   // Object with circular reference causes serialization error
+ *   const obj = { name: 'test' };
+ *   obj.self = obj; // Circular reference
+ *   
+ *   await vana.data.upload({
+ *     content: obj,
+ *     filename: 'data.json'
+ *   });
+ * } catch (error) {
+ *   if (error instanceof SerializationError) {
+ *     console.error('Data serialization failed:', error.message);
+ *     // Clean data before retry
+ *     const cleanedData = removeCircularReferences(obj);
+ *     await vana.data.upload({
+ *       content: cleanedData,
+ *       filename: 'data.json'
+ *     });
+ *   }
+ * }
+ * ```
+ * @category Error Handling
  */
 export class SerializationError extends VanaError {
   constructor(message: string) {

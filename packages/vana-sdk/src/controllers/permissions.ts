@@ -1251,6 +1251,17 @@ export class PermissionsController {
           // Get grantee address from the subgraph (new schema)
           granteeAddress = permission.grantee.address;
 
+          // Get granteeId from contract
+          let granteeId: bigint | undefined;
+          try {
+            const permissionInfo = await this.getPermissionInfo(
+              BigInt(permission.id),
+            );
+            granteeId = permissionInfo.granteeId;
+          } catch {
+            // If we can't get the permission info, continue without granteeId
+          }
+
           // Determine if permission is active based on current block vs endBlock
           const endBlock = permission.endBlock
             ? BigInt(permission.endBlock)
@@ -1267,6 +1278,7 @@ export class PermissionsController {
             grant: permission.grant,
             grantor: userAddress.toLowerCase() as Address, // Current user is the grantor
             grantee: (granteeAddress as Address) || userAddress, // Application that received permission
+            granteeId: granteeId, // Grantee ID from contract
             active: isActive, // Permission is active if current block is before endBlock
             grantedAt: Number(permission.addedAtBlock),
             nonce: Number(permission.nonce),

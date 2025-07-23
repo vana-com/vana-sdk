@@ -149,6 +149,7 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
   const columns = [
     { key: "id", label: "Permission ID", allowsSorting: true },
     { key: "grantor", label: "Grantor", allowsSorting: true },
+    { key: "granteeId", label: "Grantee ID", allowsSorting: true },
     { key: "status", label: "Status", allowsSorting: true },
     { key: "operation", label: "Operation", allowsSorting: true },
     { key: "files", label: "Files", allowsSorting: false },
@@ -265,6 +266,24 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
                     isInline
                     size="sm"
                   />
+                </div>
+              </TableCell>
+
+              <TableCell>
+                <div className="flex items-center gap-2">
+                  <span className="text-small font-mono">
+                    {permission.granteeId
+                      ? permission.granteeId.toString()
+                      : "N/A"}
+                  </span>
+                  {permission.granteeId && (
+                    <CopyButton
+                      value={permission.granteeId.toString()}
+                      tooltip="Copy grantee ID"
+                      isInline
+                      size="sm"
+                    />
+                  )}
                 </div>
               </TableCell>
 

@@ -28,6 +28,8 @@ export interface GrantedPermission {
   grantor: Address;
   /** Address that received the permission */
   grantee: Address;
+  /** Grantee ID from the DataPortabilityGrantees contract */
+  granteeId?: bigint;
   /** Whether the permission is still active */
   active: boolean;
   /** Expiration timestamp if applicable */

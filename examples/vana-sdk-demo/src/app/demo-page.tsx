@@ -1513,6 +1513,7 @@ export default function Home() {
         grant: permissionInfo.grant,
         grantor: permissionInfo.grantor,
         grantee: address, // Get the current user's address from useAccount hook
+        granteeId: permissionInfo.granteeId, // Include granteeId from contract
         active: isActive, // Check actual permission status
       };
 

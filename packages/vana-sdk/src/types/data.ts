@@ -120,6 +120,8 @@ export interface UploadParams {
   encrypt?: boolean;
   /** Optional storage provider name. */
   providerName?: string;
+  /** Optional owner address (defaults to current wallet address). */
+  owner?: Address;
 }
 
 /**

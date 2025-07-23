@@ -16,8 +16,8 @@
  * - ✅ Use `IpfsStorage.forLocalNode()` - Connect to local IPFS node
  * - ✅ Use `new IpfsStorage()` - Connect to any IPFS-compatible service
  *
- * **Want server-managed storage?**
- * - ✅ Use `ServerProxyStorage` - Delegate to your server endpoints (any backend)
+ * **Want flexible callback-based storage?**
+ * - ✅ Use `CallbackStorage` - Implement storage via custom callbacks (HTTP, WebSocket, etc.)
  *
  * **Need Google Drive integration?**
  * - ✅ Use `GoogleDriveStorage` - Direct Google Drive API with folder management
@@ -30,8 +30,20 @@
  * // Standard IPFS with Infura
  * const ipfs = IpfsStorage.forInfura({ projectId: "...", projectSecret: "..." });
  *
- * // Server-managed storage
- * const server = new ServerProxyStorage({ uploadUrl: "/upload", downloadUrl: "/download" });
+ * // Callback-based storage (flexible)
+ * const storage = new CallbackStorage({
+ *   async upload(blob, filename) {
+ *     // Your custom upload logic
+ *     const response = await fetch('/api/upload', { method: 'POST', body: blob });
+ *     const data = await response.json();
+ *     return { url: data.url, size: blob.size, contentType: blob.type };
+ *   },
+ *   async download(identifier) {
+ *     // Your custom download logic
+ *     const response = await fetch(`/api/download/${identifier}`);
+ *     return response.blob();
+ *   }
+ * });
  * ```
  */
 
@@ -50,7 +62,14 @@ export { StorageError } from "../types/storage";
 export { GoogleDriveStorage } from "./providers/google-drive";
 export { IpfsStorage } from "./providers/ipfs";
 export { PinataStorage } from "./providers/pinata";
-export { ServerProxyStorage } from "./providers/server-proxy";
+export { CallbackStorage } from "./providers/callback-storage";
 
 // Export storage manager
 export { StorageManager } from "./manager";
+
+// Export storage callback types
+export type {
+  StorageCallbacks,
+  StorageDownloadOptions,
+  StorageListResult,
+} from "../types/config";

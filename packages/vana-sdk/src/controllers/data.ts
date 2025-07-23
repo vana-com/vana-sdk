@@ -204,6 +204,19 @@ export class DataController {
    *     parameters: {}
    *   }]
    * });
+   *
+   * // Upload on behalf of another user (delegation)
+   * const result = await vana.data.upload({
+   *   content: "User's data",
+   *   filename: "delegated.txt",
+   *   owner: "0x5678...", // Different from connected wallet
+   *   permissions: [{
+   *     grantee: "0x1234...",
+   *     operation: "process",
+   *     parameters: { type: "analysis" },
+   *     publicKey: "0x04..."
+   *   }]
+   * });
    * ```
    */
   async upload(params: EncryptedUploadParams): Promise<UploadResult>;
@@ -217,6 +230,7 @@ export class DataController {
       permissions = [],
       encrypt = true,
       providerName,
+      owner,
     } = params;
 
     try {
@@ -319,7 +333,7 @@ export class DataController {
       );
 
       // Step 5: Register on blockchain
-      const userAddress = await this.getUserAddress();
+      const userAddress = owner || (await this.getUserAddress());
 
       // Prepare encrypted permissions if provided
       let encryptedPermissions: Array<{ account: Address; key: string }> = [];
@@ -366,6 +380,7 @@ export class DataController {
             userAddress: userAddress,
             permissions: encryptedPermissions,
             schemaId: schemaId || 0,
+            ownerAddress: owner,
           },
         );
 

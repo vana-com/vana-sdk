@@ -4,7 +4,8 @@
 import {
   StorageManager,
   PinataStorage,
-  ServerProxyStorage,
+  CallbackStorage,
+  StorageCallbacks,
   GoogleDriveStorage,
 } from "@opendatalabs/vana-sdk/browser";
 
@@ -45,11 +46,42 @@ function createGoogleDriveStorageWithConfig(config: {
 export function createStorageManager(): StorageManager {
   const storageManager = new StorageManager();
 
-  // Always provide server-managed storage as fallback
-  const serverProxy = new ServerProxyStorage({
-    uploadUrl: "/api/ipfs/upload",
-    downloadUrl: "/api/ipfs/download", // Not actually used in demo
-  });
+  // Always provide server-managed storage as fallback using callbacks
+  const appIpfsCallbacks: StorageCallbacks = {
+    async upload(blob: Blob, filename?: string) {
+      const formData = new FormData();
+      formData.append("file", blob, filename);
+      const response = await fetch("/api/ipfs/upload", {
+        method: "POST",
+        body: formData,
+      });
+      if (!response.ok) {
+        throw new Error(
+          `Upload failed: ${response.status} ${response.statusText}`,
+        );
+      }
+      const data = await response.json();
+      return {
+        url: data.url || data.identifier,
+        size: blob.size,
+        contentType: blob.type || "application/octet-stream",
+      };
+    },
+    async download(identifier: string) {
+      const response = await fetch("/api/ipfs/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier }),
+      });
+      if (!response.ok) {
+        throw new Error(
+          `Download failed: ${response.status} ${response.statusText}`,
+        );
+      }
+      return response.blob();
+    },
+  };
+  const serverProxy = new CallbackStorage(appIpfsCallbacks);
   storageManager.register("app-ipfs", serverProxy);
 
   // Add Pinata if configured

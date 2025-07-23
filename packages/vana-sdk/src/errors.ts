@@ -200,6 +200,11 @@ export class SerializationError extends VanaError {
 
 /**
  * Error thrown when a signature operation fails.
+ *
+ * @remarks
+ * Recovery strategies: Check wallet connection and account unlock status,
+ * retry operation with explicit user interaction, or for gasless operations
+ * consider switching to direct transactions.
  */
 export class SignatureError extends VanaError {
   constructor(
@@ -212,6 +217,10 @@ export class SignatureError extends VanaError {
 
 /**
  * Error thrown when a network operation fails.
+ *
+ * @remarks
+ * Recovery strategies: Check network connectivity, retry with exponential backoff,
+ * verify API endpoints are accessible, or switch to alternative network providers.
  */
 export class NetworkError extends VanaError {
   constructor(
@@ -224,6 +233,10 @@ export class NetworkError extends VanaError {
 
 /**
  * Error thrown when the nonce retrieval fails.
+ *
+ * @remarks
+ * Recovery strategies: Retry nonce retrieval after brief delay, check wallet connection
+ * and account status, or use manual nonce specification if supported by the operation.
  */
 export class NonceError extends VanaError {
   constructor(message: string) {
@@ -233,6 +246,10 @@ export class NonceError extends VanaError {
 
 /**
  * Error thrown when a personal server operation fails.
+ *
+ * @remarks
+ * Recovery strategies: Verify server URL accessibility, check server trust status via
+ * `vana.permissions.getUserTrustedServers()`, or retry after server becomes available.
  */
 export class PersonalServerError extends VanaError {
   constructor(

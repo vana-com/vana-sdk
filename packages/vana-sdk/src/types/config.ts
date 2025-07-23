@@ -26,6 +26,12 @@ export interface StorageRequiredMarker {
  * Allows you to configure multiple storage backends (IPFS, Pinata, Google Drive, etc.)
  * and specify which one to use by default for file operations.
  *
+ * **Provider Selection:**
+ * - IPFS: Decentralized, permanent storage ideal for production
+ * - Pinata: Managed IPFS with guaranteed availability
+ * - Google Drive: Centralized, suitable for development/testing
+ * - Custom providers: Implement StorageProvider interface
+ *
  * @category Configuration
  * @example
  * ```typescript
@@ -39,9 +45,12 @@ export interface StorageRequiredMarker {
  * ```
  */
 export interface StorageConfig {
-  /** Map of provider name to storage provider instance */
+  /** Map of provider name to storage provider instance.
+   *   Common provider names: "ipfs", "pinata", "googledrive", "s3".
+   *   Custom names allowed for custom provider implementations. */
   providers: Record<string, StorageProvider>;
-  /** Default provider name to use when none specified */
+  /** Default provider name to use when none specified.
+   *   Must match a key in the providers map. Falls back to first provider if not specified. */
   defaultProvider?: string;
 }
 
@@ -192,18 +201,22 @@ export interface BaseConfig {
    */
   relayerCallbacks?: RelayerCallbacks;
 
-  /** Optional storage providers configuration for file upload/download */
+  /** Optional storage providers configuration for file upload/download.
+   *   Required for: upload(), grant() without pre-stored URLs, schema operations.
+   *   See StorageConfig for provider selection guidance. */
   storage?: StorageConfig;
   /**
    * Optional subgraph URL for querying user files and permissions.
    * If not provided, defaults to the built-in subgraph URL for the current chain.
    * Can be overridden per method call if needed.
+   * Obtain chain-specific URLs from Vana documentation or deployment info.
    */
   subgraphUrl?: string;
   /**
    * Optional default IPFS gateways to use for fetching files.
    * These gateways will be used by default in fetchFromIPFS unless overridden per-call.
    * If not provided, the SDK will use public gateways.
+   * Order matters: first successful gateway is used.
    *
    * @example ['https://gateway.pinata.cloud', 'https://ipfs.io']
    */
@@ -270,11 +283,17 @@ export interface WalletConfigWithStorage extends BaseConfigWithStorage {
  * @category Configuration
  */
 export interface ChainConfig extends BaseConfig {
-  /** The chain ID for Vana network */
+  /** The chain ID for Vana network.
+   *   Supported: 14800 (Vana Mainnet), 14801 (Moksha Testnet), 31337 (Local Development).
+   *   Use chain constants from '@vana/sdk' for type safety. */
   chainId: VanaChainId;
-  /** RPC URL for the chain (optional, will use default for the chain if not provided) */
+  /** RPC URL for the chain (optional, will use default for the chain if not provided).
+   *   Default URLs: mainnet (https://rpc.vana.org), testnet (https://rpc.moksha.vana.org).
+   *   Override for custom nodes or local development. */
   rpcUrl?: string;
-  /** Optional account for signing transactions */
+  /** Optional account for signing transactions.
+   *   Can be: privateKeyToAccount(), mnemonicToAccount(), or custom Account implementation.
+   *   Required for write operations; read-only operations work without account. */
   account?: Account;
 }
 

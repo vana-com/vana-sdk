@@ -3,6 +3,11 @@ import { formatEther, formatUnits } from "viem";
 /**
  * Format a bigint or BigNumber to a regular number
  *
+ * **Edge Cases:**
+ * - Values exceeding JavaScript's MAX_SAFE_INTEGER (2^53-1) lose precision
+ * - Negative values are supported
+ * - String values must be valid numeric strings or will return NaN
+ *
  * @param value BigInt, BigNumber or numeric string to convert
  * @returns Regular JavaScript number
  */
@@ -12,6 +17,12 @@ export function formatNumber(value: bigint | string | number): number {
 
 /**
  * Format wei value to ETH with specified decimal places
+ *
+ * **Edge Cases:**
+ * - Truncates (not rounds) to specified decimal places
+ * - Negative values are supported
+ * - Zero values return "0.0000" (based on decimals)
+ * - Very small values may display as "0.0000" due to truncation
  *
  * @param wei Value in wei (as bigint, string, or number)
  * @param decimals Number of decimal places to display (default: 4)
@@ -46,6 +57,11 @@ export function formatToken(
 
 /**
  * Format an address for display (showing first 6 and last 4 characters)
+ *
+ * **Edge Cases:**
+ * - Addresses shorter than 10 characters are returned unchanged
+ * - Works with both checksummed and lowercase addresses
+ * - Does not validate address format
  *
  * @param address EVM address
  * @returns Shortened address string

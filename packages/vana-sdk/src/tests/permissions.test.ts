@@ -19,6 +19,7 @@ import { mockPlatformAdapter } from "./mocks/platformAdapter";
 vi.mock("viem", () => ({
   createPublicClient: vi.fn(() => ({
     readContract: vi.fn(),
+    getBlockNumber: vi.fn().mockResolvedValue(BigInt(1000000)),
   })),
   getContract: vi.fn(() => ({
     read: {
@@ -100,6 +101,7 @@ interface MockWalletClient {
 interface MockPublicClient {
   readContract: ReturnType<typeof vi.fn>;
   waitForTransactionReceipt: ReturnType<typeof vi.fn>;
+  getBlockNumber: ReturnType<typeof vi.fn>;
 }
 
 describe("PermissionsController", () => {
@@ -147,6 +149,7 @@ describe("PermissionsController", () => {
     mockPublicClient = {
       readContract: vi.fn().mockResolvedValue(BigInt(0)),
       waitForTransactionReceipt: vi.fn().mockResolvedValue({ logs: [] }),
+      getBlockNumber: vi.fn().mockResolvedValue(BigInt(1000000)), // Mock current block number
     };
 
     mockContext = {
@@ -192,6 +195,7 @@ describe("PermissionsController", () => {
       const { createPublicClient } = await import("viem");
       vi.mocked(createPublicClient).mockReturnValueOnce({
         readContract: vi.fn().mockResolvedValue(BigInt(0)),
+        getBlockNumber: vi.fn().mockResolvedValue(BigInt(1000000)),
       } as unknown as PublicClient);
 
       // Mock user rejection
@@ -378,6 +382,7 @@ describe("PermissionsController", () => {
       const { createPublicClient } = await import("viem");
       vi.mocked(createPublicClient).mockReturnValueOnce({
         readContract: vi.fn().mockResolvedValue(BigInt(5)),
+        getBlockNumber: vi.fn().mockResolvedValue(BigInt(1000000)),
       } as unknown as PublicClient);
 
       // Mock direct transaction
@@ -507,6 +512,7 @@ describe("PermissionsController", () => {
       const { createPublicClient } = await import("viem");
       vi.mocked(createPublicClient).mockReturnValueOnce({
         readContract: vi.fn().mockResolvedValue(BigInt(0)),
+        getBlockNumber: vi.fn().mockResolvedValue(BigInt(1000000)),
       } as unknown as PublicClient);
 
       const result = await controllerWithStorage.grant(mockParams);
@@ -544,24 +550,37 @@ describe("PermissionsController", () => {
                     grant: "https://ipfs.io/ipfs/Qm1",
                     nonce: "1",
                     signature: "0xsig1",
+                    startBlock: "123000",
+                    endBlock: "2000000", // Active permission (current block 1000000 < endBlock 2000000)
                     addedAtBlock: "123456",
                     addedAtTimestamp: "1640995200",
                     transactionHash: "0x123...",
-                    user: {
-                      id: mockWalletClient.account.address.toLowerCase(),
+                    grantee: {
+                      id: "1",
+                      address: "0x1234567890123456789012345678901234567890",
+                      publicKey: "0xpubkey1",
                     },
+                    filePermissions: [
+                      { file: { id: "1" } },
+                      { file: { id: "2" } },
+                    ],
                   },
                   {
                     id: "2",
                     grant: "https://ipfs.io/ipfs/Qm2",
                     nonce: "2",
                     signature: "0xsig2",
+                    startBlock: "123000",
+                    endBlock: "2000000", // Active permission (current block 1000000 < endBlock 2000000)
                     addedAtBlock: "123457",
                     addedAtTimestamp: "1640995300",
                     transactionHash: "0x456...",
-                    user: {
-                      id: mockWalletClient.account.address.toLowerCase(),
+                    grantee: {
+                      id: "2",
+                      address: "0x2234567890123456789012345678901234567890",
+                      publicKey: "0xpubkey2",
                     },
+                    filePermissions: [{ file: { id: "3" } }],
                   },
                 ],
               },
@@ -576,25 +595,25 @@ describe("PermissionsController", () => {
       expect(result).toHaveLength(2);
       expect(result[0]).toEqual({
         id: 2n,
-        files: [],
+        files: [3],
         grant: "https://ipfs.io/ipfs/Qm2",
         operation: "",
         parameters: {},
         active: true,
         grantor: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        grantee: "0x2234567890123456789012345678901234567890",
         grantedAt: 123457,
         nonce: 2,
       });
       expect(result[1]).toEqual({
         id: 1n,
-        files: [],
+        files: [1, 2],
         grant: "https://ipfs.io/ipfs/Qm1",
         operation: "",
         parameters: {},
         active: true,
         grantor: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        grantee: "0x1234567890123456789012345678901234567890",
         grantedAt: 123456,
         nonce: 1,
       });
@@ -641,24 +660,34 @@ describe("PermissionsController", () => {
                     grant: "https://ipfs.io/ipfs/Qm1",
                     nonce: "1",
                     signature: "0xsig1",
+                    startBlock: "123000",
+                    endBlock: "2000000",
                     addedAtBlock: "123456",
                     addedAtTimestamp: "1640995200",
                     transactionHash: "0x123...",
-                    user: {
-                      id: mockWalletClient.account.address.toLowerCase(),
+                    grantee: {
+                      id: "1",
+                      address: "0x1234567890123456789012345678901234567890",
+                      publicKey: "0xpubkey1",
                     },
+                    filePermissions: [{ file: { id: "1" } }],
                   },
                   {
                     id: "2",
                     grant: "https://ipfs.io/ipfs/Qm2",
                     nonce: "2",
                     signature: "0xsig2",
+                    startBlock: "123000",
+                    endBlock: "2000000",
                     addedAtBlock: "123457",
                     addedAtTimestamp: "1640995300",
                     transactionHash: "0x456...",
-                    user: {
-                      id: mockWalletClient.account.address.toLowerCase(),
+                    grantee: {
+                      id: "2",
+                      address: "0x2234567890123456789012345678901234567890",
+                      publicKey: "0xpubkey2",
                     },
+                    filePermissions: [{ file: { id: "2" } }],
                   },
                   // We include more than 2 to test the limit
                   {
@@ -666,12 +695,17 @@ describe("PermissionsController", () => {
                     grant: "https://ipfs.io/ipfs/Qm3",
                     nonce: "3",
                     signature: "0xsig3",
+                    startBlock: "123000",
+                    endBlock: "2000000",
                     addedAtBlock: "123458",
                     addedAtTimestamp: "1640995400",
                     transactionHash: "0x789...",
-                    user: {
-                      id: mockWalletClient.account.address.toLowerCase(),
+                    grantee: {
+                      id: "3",
+                      address: "0x3234567890123456789012345678901234567890",
+                      publicKey: "0xpubkey3",
                     },
+                    filePermissions: [{ file: { id: "3" } }],
                   },
                 ],
               },
@@ -746,12 +780,17 @@ describe("PermissionsController", () => {
                     grant: "https://ipfs.io/ipfs/QmInvalidGrant", // This will fail in retrieveGrantFile
                     nonce: "1",
                     signature: "0xsig1",
+                    startBlock: "123000",
+                    endBlock: "2000000",
                     addedAtBlock: "123456",
                     addedAtTimestamp: "1640995200",
                     transactionHash: "0x123...",
-                    user: {
-                      id: mockWalletClient.account.address.toLowerCase(),
+                    grantee: {
+                      id: "1",
+                      address: "0x1234567890123456789012345678901234567890",
+                      publicKey: "0xpubkey1",
                     },
+                    filePermissions: [{ file: { id: "1" } }],
                   },
                 ],
               },
@@ -767,16 +806,179 @@ describe("PermissionsController", () => {
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({
         id: 1n,
-        files: [],
+        files: [1],
         grant: "https://ipfs.io/ipfs/QmInvalidGrant",
         operation: "",
         parameters: {},
         active: true,
         grantor: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        grantee: "0x1234567890123456789012345678901234567890",
         grantedAt: 123456,
         nonce: 1,
       });
+    });
+
+    it("should correctly identify revoked permissions based on endBlock", async () => {
+      const mockFetch = fetch as Mock;
+
+      // Mock current block number to be greater than endBlock
+      mockPublicClient.getBlockNumber = vi
+        .fn()
+        .mockResolvedValue(BigInt(3000000));
+
+      // Mock subgraph response with expired permission
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              user: {
+                id: mockWalletClient.account.address.toLowerCase(),
+                permissions: [
+                  {
+                    id: "1",
+                    grant: "https://ipfs.io/ipfs/Qm1",
+                    nonce: "1",
+                    signature: "0xsig1",
+                    startBlock: "123000",
+                    endBlock: "2000000", // Expired permission (current block 3000000 > endBlock 2000000)
+                    addedAtBlock: "123456",
+                    addedAtTimestamp: "1640995200",
+                    transactionHash: "0x123...",
+                    grantee: {
+                      id: "1",
+                      address: "0x1234567890123456789012345678901234567890",
+                      publicKey: "0xpubkey1",
+                    },
+                    filePermissions: [{ file: { id: "1" } }],
+                  },
+                ],
+              },
+            },
+          }),
+      });
+
+      const result = await controller.getUserPermissions({
+        subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].active).toBe(false); // Should be inactive/revoked
+      expect(result[0]).toEqual({
+        id: 1n,
+        files: [1],
+        grant: "https://ipfs.io/ipfs/Qm1",
+        operation: "",
+        parameters: {},
+        active: false, // Permission is revoked due to current block > endBlock
+        grantor: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+        grantee: "0x1234567890123456789012345678901234567890",
+        grantedAt: 123456,
+        nonce: 1,
+      });
+    });
+
+    it("should correctly identify active permissions based on endBlock", async () => {
+      const mockFetch = fetch as Mock;
+
+      // Mock current block number to be less than endBlock
+      mockPublicClient.getBlockNumber = vi
+        .fn()
+        .mockResolvedValue(BigInt(500000));
+
+      // Mock subgraph response with active permission
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              user: {
+                id: mockWalletClient.account.address.toLowerCase(),
+                permissions: [
+                  {
+                    id: "1",
+                    grant: "https://ipfs.io/ipfs/Qm1",
+                    nonce: "1",
+                    signature: "0xsig1",
+                    startBlock: "123000",
+                    endBlock: "2000000", // Active permission (current block 500000 < endBlock 2000000)
+                    addedAtBlock: "123456",
+                    addedAtTimestamp: "1640995200",
+                    transactionHash: "0x123...",
+                    grantee: {
+                      id: "1",
+                      address: "0x1234567890123456789012345678901234567890",
+                      publicKey: "0xpubkey1",
+                    },
+                    filePermissions: [{ file: { id: "1" } }],
+                  },
+                ],
+              },
+            },
+          }),
+      });
+
+      const result = await controller.getUserPermissions({
+        subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].active).toBe(true); // Should be active
+      expect(result[0]).toEqual({
+        id: 1n,
+        files: [1],
+        grant: "https://ipfs.io/ipfs/Qm1",
+        operation: "",
+        parameters: {},
+        active: true, // Permission is active due to current block < endBlock
+        grantor: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+        grantee: "0x1234567890123456789012345678901234567890",
+        grantedAt: 123456,
+        nonce: 1,
+      });
+    });
+
+    it("should handle permissions with null endBlock as inactive", async () => {
+      const mockFetch = fetch as Mock;
+
+      // Mock subgraph response with null endBlock
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              user: {
+                id: mockWalletClient.account.address.toLowerCase(),
+                permissions: [
+                  {
+                    id: "1",
+                    grant: "https://ipfs.io/ipfs/Qm1",
+                    nonce: "1",
+                    signature: "0xsig1",
+                    startBlock: "123000",
+                    endBlock: null, // Null endBlock should result in inactive permission
+                    addedAtBlock: "123456",
+                    addedAtTimestamp: "1640995200",
+                    transactionHash: "0x123...",
+                    grantee: {
+                      id: "1",
+                      address: "0x1234567890123456789012345678901234567890",
+                      publicKey: "0xpubkey1",
+                    },
+                    filePermissions: [{ file: { id: "1" } }],
+                  },
+                ],
+              },
+            },
+          }),
+      });
+
+      const result = await controller.getUserPermissions({
+        subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].active).toBe(false); // Should be inactive due to null endBlock
     });
   });
 
@@ -803,6 +1005,7 @@ describe("PermissionsController", () => {
       const { createPublicClient } = await import("viem");
       vi.mocked(createPublicClient).mockReturnValueOnce({
         readContract: vi.fn().mockResolvedValue(BigInt(0)),
+        getBlockNumber: vi.fn().mockResolvedValue(BigInt(1000000)),
       } as unknown as PublicClient);
 
       const mockParams = {
@@ -839,6 +1042,7 @@ describe("PermissionsController", () => {
       const { createPublicClient } = await import("viem");
       vi.mocked(createPublicClient).mockReturnValueOnce({
         readContract: vi.fn().mockResolvedValue(BigInt(0)),
+        getBlockNumber: vi.fn().mockResolvedValue(BigInt(1000000)),
       } as unknown as PublicClient);
 
       const mockParams = {
@@ -875,6 +1079,7 @@ describe("PermissionsController", () => {
       const { createPublicClient } = await import("viem");
       vi.mocked(createPublicClient).mockReturnValueOnce({
         readContract: vi.fn().mockResolvedValue(BigInt(5)),
+        getBlockNumber: vi.fn().mockResolvedValue(BigInt(1000000)),
       } as unknown as PublicClient);
 
       // Mock direct transaction failure
@@ -945,6 +1150,7 @@ describe("PermissionsController", () => {
       const { createPublicClient } = await import("viem");
       vi.mocked(createPublicClient).mockReturnValueOnce({
         readContract: vi.fn().mockResolvedValue(BigInt(5)),
+        getBlockNumber: vi.fn().mockResolvedValue(BigInt(1000000)),
       } as unknown as PublicClient);
 
       // Mock getUserAddress to return an address
@@ -1015,6 +1221,7 @@ describe("PermissionsController", () => {
       const { createPublicClient } = await import("viem");
       vi.mocked(createPublicClient).mockReturnValueOnce({
         readContract: vi.fn().mockResolvedValue(BigInt(0)),
+        getBlockNumber: vi.fn().mockResolvedValue(BigInt(1000000)),
       } as unknown as PublicClient);
 
       await expect(failingController.grant(mockParams)).rejects.toThrow(
@@ -1285,6 +1492,7 @@ describe("PermissionsController", () => {
       const { createPublicClient } = await import("viem");
       vi.mocked(createPublicClient).mockReturnValueOnce({
         readContract: vi.fn().mockResolvedValue(BigInt(0)),
+        getBlockNumber: vi.fn().mockResolvedValue(BigInt(1000000)),
       } as unknown as PublicClient);
 
       const mockParams = {

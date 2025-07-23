@@ -1223,6 +1223,9 @@ export class PermissionsController {
       const limit = params?.limit || 50; // Default limit
       const permissionsToProcess = userData.permissions.slice(0, limit);
 
+      // Get current block number to determine if permissions are active
+      const currentBlock = await this.context.publicClient.getBlockNumber();
+
       // Process each permission and fetch grant file data
       for (const permission of permissionsToProcess) {
         try {
@@ -1248,6 +1251,14 @@ export class PermissionsController {
           // Get grantee address from the subgraph (new schema)
           granteeAddress = permission.grantee.address;
 
+          // Determine if permission is active based on current block vs endBlock
+          const endBlock = permission.endBlock
+            ? BigInt(permission.endBlock)
+            : BigInt(0);
+          const isActive = permission.endBlock
+            ? currentBlock < endBlock
+            : false;
+
           userPermissions.push({
             id: BigInt(permission.id),
             files: files,
@@ -1256,7 +1267,7 @@ export class PermissionsController {
             grant: permission.grant,
             grantor: userAddress.toLowerCase() as Address, // Current user is the grantor
             grantee: (granteeAddress as Address) || userAddress, // Application that received permission
-            active: true, // Default to active if not specified
+            active: isActive, // Permission is active if current block is before endBlock
             grantedAt: Number(permission.addedAtBlock),
             nonce: Number(permission.nonce),
           });

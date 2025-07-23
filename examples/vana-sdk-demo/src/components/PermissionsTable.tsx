@@ -74,14 +74,25 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
     // Sort permissions based on sortDescriptor
     if (sortDescriptor.column) {
       sortedPermissions.sort((a, b) => {
-        const aValue = a[sortDescriptor.column as keyof typeof a];
-        const bValue = b[sortDescriptor.column as keyof typeof b];
+        let aValue, bValue;
+
+        // Handle special case for status column
+        if (sortDescriptor.column === "status") {
+          aValue = a.active;
+          bValue = b.active;
+        } else {
+          aValue = a[sortDescriptor.column as keyof typeof a];
+          bValue = b[sortDescriptor.column as keyof typeof b];
+        }
 
         let comparison = 0;
         if (typeof aValue === "number" && typeof bValue === "number") {
           comparison = aValue - bValue;
         } else if (typeof aValue === "bigint" && typeof bValue === "bigint") {
           comparison = aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+        } else if (typeof aValue === "boolean" && typeof bValue === "boolean") {
+          // For status column (active): true comes before false (active before revoked)
+          comparison = aValue === bValue ? 0 : aValue ? -1 : 1;
         } else {
           comparison = String(aValue).localeCompare(String(bValue));
         }
@@ -138,6 +149,7 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
   const columns = [
     { key: "id", label: "Permission ID", allowsSorting: true },
     { key: "operation", label: "Operation", allowsSorting: true },
+    { key: "status", label: "Status", allowsSorting: true },
     { key: "files", label: "Files", allowsSorting: false },
     { key: "parameters", label: "Parameters", allowsSorting: false },
     { key: "actions", label: "Actions", allowsSorting: false },
@@ -241,6 +253,16 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
               <TableCell>
                 <Chip variant="flat" color="primary" size="sm">
                   {permission.operation}
+                </Chip>
+              </TableCell>
+
+              <TableCell>
+                <Chip
+                  variant="flat"
+                  color={permission.active ? "success" : "danger"}
+                  size="sm"
+                >
+                  {permission.active ? "Active" : "Revoked"}
                 </Chip>
               </TableCell>
 

@@ -84,7 +84,7 @@ CHAIN_RPC_URL=https://rpc.moksha.vana.org
 CHAIN_ID=14800
 
 # Data Discovery (Subgraph)
-NEXT_PUBLIC_SUBGRAPH_URL=https://api.goldsky.com/api/public/project_cm168cz887zva010j39il7a6p/subgraphs/vana/7.0.3/gn
+NEXT_PUBLIC_SUBGRAPH_URL=https://api.goldsky.com/api/public/project_cm168cz887zva010j39il7a6p/subgraphs/vana/7.0.5/gn
 
 # IPFS Storage (Pinata)
 PINATA_JWT=your_pinata_jwt_token_here

@@ -950,12 +950,49 @@ export default function Home() {
     [vana, address],
   );
 
-  // Load user files, permissions, and trusted servers when Vana is initialized
+  // Grantee management function
+  const loadAllGrantees = useCallback(
+    async (mode: "subgraph" | "rpc" | "auto" = "auto") => {
+      if (!vana) return;
+      setIsLoadingGrantees(true);
+      setGranteeError("");
+      try {
+        const result = await vana.data.getAllGrantees({
+          mode,
+          subgraphUrl: process.env.NEXT_PUBLIC_SUBGRAPH_URL,
+          limit: 50,
+        });
+        console.info("Loaded grantees:", result);
+        addToast({
+          color: "success",
+          title: `Grantees loaded via ${result.usedMode.toUpperCase()}`,
+          description: `Found ${result.grantees.length} grantees${result.total ? ` (${result.total} total)` : ""}${result.warnings ? `. Warnings: ${result.warnings.join(", ")}` : ""}`,
+        });
+        setAllGrantees(result.grantees);
+      } catch (error) {
+        console.error("Failed to load grantees:", error);
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        setGranteeError(errorMessage);
+        addToast({
+          color: "danger",
+          title: "Failed to load grantees",
+          description: errorMessage,
+        });
+      } finally {
+        setIsLoadingGrantees(false);
+      }
+    },
+    [vana, addToast],
+  );
+
+  // Load user files, permissions, trusted servers, and grantees when Vana is initialized
   useEffect(() => {
     if (vana && address) {
       loadUserFiles();
       loadUserPermissions();
       loadUserTrustedServers();
+      loadAllGrantees();
     }
   }, [
     vana,
@@ -963,6 +1000,7 @@ export default function Home() {
     loadUserFiles,
     loadUserPermissions,
     loadUserTrustedServers,
+    loadAllGrantees,
   ]);
 
   const handleFileSelection = (fileId: number, selected: boolean) => {
@@ -2006,42 +2044,6 @@ export default function Home() {
     }
   };
 
-  // Grantee management functions
-  const loadAllGrantees = useCallback(
-    async (mode: "subgraph" | "rpc" | "auto" = "auto") => {
-      if (!vana) return;
-      setIsLoadingGrantees(true);
-      setGranteeError("");
-      try {
-        const result = await vana.data.getAllGrantees({
-          mode,
-          subgraphUrl: process.env.NEXT_PUBLIC_SUBGRAPH_URL,
-          limit: 50,
-        });
-        console.info("Loaded grantees:", result);
-        addToast({
-          color: "success",
-          title: `Grantees loaded via ${result.usedMode.toUpperCase()}`,
-          description: `Found ${result.grantees.length} grantees${result.total ? ` (${result.total} total)` : ""}${result.warnings ? `. Warnings: ${result.warnings.join(", ")}` : ""}`,
-        });
-        setAllGrantees(result.grantees);
-      } catch (error) {
-        console.error("Failed to load grantees:", error);
-        const errorMessage =
-          error instanceof Error ? error.message : "Unknown error";
-        setGranteeError(errorMessage);
-        addToast({
-          color: "danger",
-          title: "Failed to load grantees",
-          description: errorMessage,
-        });
-      } finally {
-        setIsLoadingGrantees(false);
-      }
-    },
-    [vana, addToast],
-  );
-
   const handleRegisterGrantee = async () => {
     if (!vana || !address) return;
     if (!granteeAddress || !granteePublicKey) {
@@ -2150,14 +2152,22 @@ export default function Home() {
     }
   }, [vana]);
 
-  // Load schemas, refiners, and trusted servers when vana is initialized
+  // Load schemas, refiners, trusted servers, and grantees when vana is initialized
   useEffect(() => {
     if (vana && address) {
       loadUserTrustedServers();
+      loadAllGrantees();
       loadSchemas();
       loadRefiners();
     }
-  }, [vana, address, loadUserTrustedServers, loadSchemas, loadRefiners]);
+  }, [
+    vana,
+    address,
+    loadUserTrustedServers,
+    loadAllGrantees,
+    loadSchemas,
+    loadRefiners,
+  ]);
 
   // Schema management handlers
   const handleCreateSchema = async () => {

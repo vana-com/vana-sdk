@@ -260,11 +260,13 @@ describe("Permission Types", () => {
     it("should structure permission input message correctly", () => {
       const message: PermissionInputMessage = {
         nonce: 666n,
+        granteeId: 1n,
         grant: "ipfs://QmInputMessage",
         fileIds: [1n, 2n, 3n],
       };
 
       expect(message.nonce).toBe(666n);
+      expect(message.granteeId).toBe(1n);
       expect(message.grant).toBe("ipfs://QmInputMessage");
       expect(message.fileIds).toEqual([1n, 2n, 3n]);
     });
@@ -288,11 +290,13 @@ describe("Permission Types", () => {
     it("should structure permission input correctly", () => {
       const input: PermissionInput = {
         nonce: 888n,
+        granteeId: 2n,
         grant: "ipfs://QmContractInput",
         fileIds: [10n, 20n, 30n],
       };
 
       expect(input.nonce).toBe(888n);
+      expect(input.granteeId).toBe(2n);
       expect(input.grant).toBe("ipfs://QmContractInput");
       expect(input.fileIds).toEqual([10n, 20n, 30n]);
     });
@@ -382,6 +386,7 @@ describe("Permission Types", () => {
         types: {
           Permission: [
             { name: "nonce", type: "uint256" },
+            { name: "granteeId", type: "uint256" },
             { name: "grant", type: "string" },
             { name: "fileIds", type: "uint256[]" },
           ],
@@ -389,6 +394,7 @@ describe("Permission Types", () => {
         primaryType: "Permission",
         message: {
           nonce: 123n,
+          granteeId: 3n,
           grant: "ipfs://QmTypedData",
           fileIds: [1n, 2n],
         },
@@ -396,7 +402,7 @@ describe("Permission Types", () => {
 
       expect(typedData.domain.name).toBe("DataPermissions");
       expect(typedData.primaryType).toBe("Permission");
-      expect(typedData.types.Permission).toHaveLength(3);
+      expect(typedData.types.Permission).toHaveLength(4);
       expect(typedData.message.nonce).toBe(123n);
       // Files are now only in message.fileIds, not at the top level
     });

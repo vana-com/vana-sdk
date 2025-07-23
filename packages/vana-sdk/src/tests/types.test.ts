@@ -268,11 +268,13 @@ describe("TypeScript Types", () => {
     it("should support PermissionInputMessage structure", () => {
       const message: PermissionInputMessage = {
         nonce: BigInt(123),
+        granteeId: 1n,
         grant: "ipfs://QmGrant",
         fileIds: [1n, 2n, 3n],
       };
 
       expect(message.nonce).toBe(BigInt(123));
+      expect(message.granteeId).toBe(1n);
       expect(message.grant).toBe("ipfs://QmGrant");
       expect(message.fileIds).toEqual([1n, 2n, 3n]);
     });
@@ -319,6 +321,7 @@ describe("TypeScript Types", () => {
         types: {
           Permission: [
             { name: "nonce", type: "uint256" },
+            { name: "granteeId", type: "uint256" },
             { name: "grant", type: "string" },
             { name: "fileIds", type: "uint256[]" },
           ],
@@ -326,13 +329,14 @@ describe("TypeScript Types", () => {
         primaryType: "Permission",
         message: {
           nonce: BigInt(123),
+          granteeId: 2n,
           grant: "ipfs://QmGrant",
           fileIds: [1n, 2n, 3n],
         },
       };
 
       expect(typedData.domain.name).toBe("DataPermissions");
-      expect(typedData.types.Permission).toHaveLength(3);
+      expect(typedData.types.Permission).toHaveLength(4);
       expect(typedData.primaryType).toBe("Permission");
       expect(typedData.message.nonce).toBe(BigInt(123));
       expect(typedData.message.fileIds).toEqual([1n, 2n, 3n]);

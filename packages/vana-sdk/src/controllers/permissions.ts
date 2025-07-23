@@ -173,7 +173,7 @@ export class PermissionsController {
    */
   async grant(params: GrantPermissionParams): Promise<Hash> {
     const { typedData, signature } = await this.createAndSign(params);
-    return await this.submitSignedGrant(typedData, signature, params.to);
+    return await this.submitSignedGrant(typedData, signature);
   }
 
   /**
@@ -291,13 +291,16 @@ export class PermissionsController {
       // Step 2: Get user nonce
       const nonce = await this.getUserNonce();
 
-      // Step 3: Create EIP-712 message with compatibility placeholders
+      // Step 3: Get grantee ID from address
+      const granteeId = await this.getOrCreateGranteeId(params.to);
+
+      // Step 4: Create EIP-712 message with granteeId
       console.debug(
         "🔍 Debug - Final grant URL being passed to compose:",
         grantUrl,
       );
       const typedData = await this.composePermissionGrantMessage({
-        to: params.to,
+        granteeId: granteeId,
         operation: params.operation, // Placeholder - real data is in IPFS
         files: params.files, // Placeholder - real data is in IPFS
         grantUrl,
@@ -305,11 +308,11 @@ export class PermissionsController {
         nonce,
       });
 
-      // Step 4: User signature
+      // Step 5: User signature
       const signature = await this.signTypedData(typedData);
 
-      // Step 5: Submit the signed grant
-      return await this.submitSignedGrant(typedData, signature, params.to);
+      // Step 6: Submit the signed grant
+      return await this.submitSignedGrant(typedData, signature);
     } catch (error) {
       if (error instanceof Error) {
         // Re-throw known Vana errors directly
@@ -409,13 +412,16 @@ export class PermissionsController {
       // Step 3: Get user nonce
       const nonce = await this.getUserNonce();
 
-      // Step 4: Create EIP-712 message with compatibility placeholders
+      // Step 4: Get grantee ID from address
+      const granteeId = await this.getOrCreateGranteeId(params.to);
+
+      // Step 5: Create EIP-712 message with granteeId
       console.debug(
         "🔍 Debug - Final grant URL being passed to compose:",
         grantUrl,
       );
       const typedData = await this.composePermissionGrantMessage({
-        to: params.to,
+        granteeId: granteeId,
         operation: params.operation, // Placeholder - real data is in IPFS
         files: params.files, // Placeholder - real data is in IPFS
         grantUrl,
@@ -423,7 +429,7 @@ export class PermissionsController {
         nonce,
       });
 
-      // Step 5: User signature
+      // Step 6: User signature
       const signature = await this.signTypedData(typedData);
 
       return { typedData, signature };
@@ -459,9 +465,8 @@ export class PermissionsController {
    * This method supports both relayer-based gasless transactions and direct transactions.
    * It automatically converts `bigint` values to JSON-safe strings when using relayer
    * callbacks and handles transaction submission with proper error handling and retry logic.
-   * @param typedData - The EIP-712 typed data structure for the permission grant
+   * @param typedData - The EIP-712 typed data structure for the permission grant containing granteeId
    * @param signature - The user's signature as a hex string
-   * @param to - The grantee address for the permission
    * @returns A Promise that resolves to the transaction hash
    * @throws {RelayerError} When gasless transaction submission fails
    * @throws {BlockchainError} When permission submission fails
@@ -477,7 +482,6 @@ export class PermissionsController {
   async submitSignedGrant(
     typedData: PermissionGrantTypedData,
     signature: Hash,
-    to?: Address,
   ): Promise<Hash> {
     try {
       console.debug(
@@ -503,7 +507,7 @@ export class PermissionsController {
           signature,
         );
       } else {
-        return await this.submitDirectTransaction(typedData, signature, to);
+        return await this.submitDirectTransaction(typedData, signature);
       }
     } catch (error) {
       // Re-throw known Vana errors directly to preserve error types
@@ -714,15 +718,13 @@ export class PermissionsController {
   /**
    * Submits a signed transaction directly to the blockchain.
    *
-   * @param typedData - The typed data structure for the permission grant
+   * @param typedData - The typed data structure for the permission grant containing granteeId
    * @param signature - The cryptographic signature authorizing the transaction
-   * @param to - The grantee address for the permission
    * @returns Promise resolving to the transaction hash
    */
   private async submitDirectTransaction(
     typedData: PermissionGrantTypedData,
     signature: Hash,
-    to?: Address,
   ): Promise<Hash> {
     const chainId = await this.context.walletClient.getChainId();
     const DataPortabilityPermissionsAddress = getContractAddress(
@@ -731,14 +733,9 @@ export class PermissionsController {
     );
     const DataPortabilityPermissionsAbi = getAbi("DataPortabilityPermissions");
 
-    // Extract grantee address from params
-    // In the new structure, we need to get or create a grantee ID
-    if (!to) {
-      throw new Error("Grantee address is required for permission grant");
-    }
-    const granteeAddress = to;
-
-    const granteeId = await this.getOrCreateGranteeId(granteeAddress);
+    // Extract granteeId directly from the typed data message
+    // The granteeId is now part of the signature and message
+    const granteeId = typedData.message.granteeId;
 
     // Prepare the PermissionInput struct for new contract
     const permissionInput = {
@@ -963,7 +960,7 @@ export class PermissionsController {
    * Composes the EIP-712 typed data for PermissionGrant (new simplified format).
    *
    * @param params - The parameters for composing the permission grant message
-   * @param params.to - The recipient address for the permission grant
+   * @param params.granteeId - The grantee ID from the DataPortabilityGrantees contract
    * @param params.operation - The type of operation being granted permission for
    * @param params.files - Array of file IDs that the permission applies to
    * @param params.grantUrl - URL where the grant details are stored
@@ -972,7 +969,7 @@ export class PermissionsController {
    * @returns Promise resolving to the typed data structure
    */
   private async composePermissionGrantMessage(params: {
-    to: Address;
+    granteeId: bigint;
     operation: string;
     files: number[];
     grantUrl: string;
@@ -1007,6 +1004,7 @@ export class PermissionsController {
       types: {
         Permission: [
           { name: "nonce", type: "uint256" },
+          { name: "granteeId", type: "uint256" },
           { name: "grant", type: "string" },
           { name: "fileIds", type: "uint256[]" },
         ],
@@ -1014,6 +1012,7 @@ export class PermissionsController {
       primaryType: "Permission",
       message: {
         nonce: params.nonce,
+        granteeId: params.granteeId,
         grant: params.grantUrl,
         fileIds: params.files.map((fileId) => BigInt(fileId)),
       },

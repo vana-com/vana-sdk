@@ -188,6 +188,8 @@ export interface PermissionGrantMessage {
 export interface PermissionInputMessage {
   /** Nonce */
   nonce: bigint;
+  /** Grantee ID from the DataPortabilityGrantees contract */
+  granteeId: bigint;
   /** Grant URL */
   grant: string;
   /** File IDs */
@@ -202,6 +204,8 @@ export interface PermissionInputMessage {
 export interface PermissionInput {
   /** Nonce */
   nonce: bigint;
+  /** Grantee ID from the DataPortabilityGrantees contract */
+  granteeId: bigint;
   /** Grant URL */
   grant: string;
   /** File IDs to grant permission for */

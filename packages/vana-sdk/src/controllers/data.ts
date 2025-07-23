@@ -104,13 +104,23 @@ interface SubgraphResponse {
  * and supports both gasless transactions via relayers and direct blockchain interaction.
  * File metadata and access permissions are stored on the Vana blockchain while encrypted
  * file content is stored on decentralized storage networks.
+ *
+ * **Method Selection:**
+ * - `upload()` handles encryption, storage, and blockchain registration automatically
+ * - `getUserFiles()` queries existing file metadata from blockchain and subgraph
+ * - `decryptFile()` decrypts files for which you have access permissions
+ * - `getFileById()` retrieves specific file metadata when you have the file ID
+ *
+ * **Storage Requirements:**
+ * Methods requiring storage configuration: `upload()`
+ * Methods working without storage: `getUserFiles()`, `decryptFile()`, `getFileById()`
  * @example
  * ```typescript
  * // Upload an encrypted file with automatic schema validation
- * const result = await vana.data.uploadEncryptedFile(
- *   encryptedBlob,
- *   "personal-data.json"
- * );
+ * const result = await vana.data.upload({
+ *   content: "My personal data",
+ *   filename: "personal-data.json"
+ * });
  *
  * // Query files owned by a user
  * const files = await vana.data.getUserFiles({
@@ -146,10 +156,16 @@ export class DataController {
    * for each permission recipient.
    *
    * @param params - Upload parameters including content, filename, schema, and permissions
+   * @param params.permissions.publicKey - The recipient's public key for encryption.
+   *   Obtain via `vana.server.getIdentity(userAddress).public_key` for personal servers.
+   * @param params.permissions.grantee - The application's wallet address that will access the data.
    * @returns Promise resolving to upload results with file ID and transaction hash
-   * @throws {Error} When wallet is not connected or storage is not configured
-   * @throws {SchemaValidationError} When schema validation fails
-   * @throws {Error} When upload or blockchain registration fails
+   * @throws {Error} When wallet is not connected or storage is not configured.
+   *   Configure storage providers in VanaConfig or check wallet connection.
+   * @throws {SchemaValidationError} When data format doesn't match the specified schema.
+   *   Verify data structure matches schema definition from `vana.schemas.get(schemaId)`.
+   * @throws {Error} When upload or blockchain registration fails.
+   *   Check network connection and storage provider availability.
    * @example
    * ```typescript
    * // Basic file upload
@@ -173,7 +189,7 @@ export class DataController {
    *     grantee: "0x1234...",
    *     operation: "llm_inference",
    *     parameters: { model: "gpt-4" },
-   *     publicKey: "0x04..." // Required when encrypt is true (default)
+   *     publicKey: "0x04..." // Obtain via vana.server.getIdentity(userAddress).public_key
    *   }]
    * });
    *

@@ -60,6 +60,12 @@ export function convertIpfsUrl(
 /**
  * Extract IPFS hash from various URL formats
  *
+ * **Edge Cases:**
+ * - Returns null for non-IPFS URLs or malformed hashes
+ * - Handles both CIDv0 (starts with Qm) and CIDv1 formats
+ * - Minimum 46 characters required for standalone hash detection
+ * - Gateway paths with subdirectories are not supported
+ *
  * @param url - The URL to extract hash from
  * @returns The IPFS hash or null if not found
  * @example
@@ -67,6 +73,8 @@ export function convertIpfsUrl(
  * extractIpfsHash("ipfs://QmHash123") // Returns: "QmHash123"
  * extractIpfsHash("https://gateway.pinata.cloud/ipfs/QmHash123") // Returns: "QmHash123"
  * extractIpfsHash("QmHash123456789012345678901234567890123456") // Returns: "QmHash123456789012345678901234567890123456"
+ * extractIpfsHash("https://example.com/file.json") // Returns: null (not IPFS)
+ * extractIpfsHash("ipfs://QmHash/subdirectory") // Returns: null (subdirectories not supported)
  * ```
  */
 export function extractIpfsHash(url: string): string | null {
@@ -113,6 +121,13 @@ export function convertIpfsUrlWithFallbacks(url: string): string[] {
 
 /**
  * Fetch content from IPFS with automatic gateway fallbacks
+ *
+ * **Edge Cases:**
+ * - Non-IPFS URLs are fetched directly without fallback
+ * - 10-second timeout per gateway attempt to prevent hanging
+ * - Rate-limited gateways (429) are skipped immediately
+ * - Exponential backoff between retries (1s, 2s, 3s, etc.)
+ * - AbortSignal in options is merged with timeout signal
  *
  * @param url - The IPFS URL to fetch
  * @param options - Optional fetch options

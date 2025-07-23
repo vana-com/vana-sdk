@@ -42,6 +42,35 @@ export class MyController {
 }
 ```
 
+### **Method Selection Guidance for Controllers**
+
+When a controller has multiple methods for similar operations, include factual guidance on method selection:
+
+```typescript
+/**
+ * Manages encrypted user data files and blockchain registration.
+ *
+ * @remarks
+ * **Method Selection:**
+ * - `upload()` handles encryption and blockchain registration automatically
+ * - `getUserFiles()` queries existing file metadata
+ * - `decryptFile()` decrypts files for which you have access
+ * 
+ * **Storage Requirements:**
+ * Methods requiring storage configuration: `upload()`
+ * Methods working without storage: `getUserFiles()`, `decryptFile()`
+ *
+ * @category Data Management
+ */
+export class DataController {
+```
+
+**Guidelines:**
+- State the **primary use case** for each method objectively
+- Note **configuration dependencies** that affect method availability
+- Limit guidance to **3-4 key methods** to avoid overwhelming developers
+- Use **factual descriptions** without subjective recommendations
+
 ### **For Methods**
 
 The order of tags must be: summary, `@remarks`, `@param`, `@returns`, `@throws`, `@example`, `@see`.
@@ -67,6 +96,23 @@ The order of tags must be: summary, `@remarks`, `@param`, `@returns`, `@throws`,
    */
   public async myMethod(params: MyParams): Promise<MyResult> { /* ... */ }
 ```
+
+### **Enhanced Parameter Documentation**
+
+When parameters require external acquisition or have non-obvious sources, provide factual guidance:
+
+```typescript
+/**
+ * @param permissions.publicKey - The recipient's public key for encryption.
+ *   Obtain via `vana.server.getIdentity(userAddress).public_key`.
+ * @param permissions.grantee - The application's wallet address that will access the data.
+ */
+```
+
+**Guidelines:**
+- State **how to obtain** parameter values using specific SDK methods
+- Clarify **which identifier** is needed when multiple exist
+- Provide **factual descriptions** without assumptions about developer knowledge
 
 ### **For Types and Interfaces**
 
@@ -134,6 +180,25 @@ While the API reference should be concise, it's crucial to provide enough contex
 - **Prioritize clarity and self-containment:** The goal is to give the developer just enough information to use the API effectively. Avoid deep dives that are better suited for `docs.vana.org`.
 - **Use `@see` for further reading:** If a concept warrants more detailed explanation, use the `@see` tag to point developers to the main documentation website as a resource for further learning.
 
+### **Architecture Context for Complex Systems**
+
+When documenting controllers that involve multi-step processes or dual storage patterns:
+
+```typescript
+/**
+ * @remarks
+ * **Permission Architecture:**
+ * Permissions use dual storage: detailed parameters stored on IPFS, references stored on blockchain.
+ * This enables complex permissions while maintaining minimal on-chain data.
+ */
+```
+
+**Guidelines:**
+- Provide **one-sentence architecture summary** when the design affects usage
+- Explain **the rationale** behind architectural decisions briefly
+- Focus on **what developers need to understand** to use the API correctly
+- Maintain **neutral, factual tone** without justifying design choices
+
 **Correct Usage:**
 
 ```typescript
@@ -160,3 +225,43 @@ While the API reference should be concise, it's crucial to provide enough contex
  * (This is too detailed for the API reference and will become stale.)
  */
 ```
+
+## 7. Error Documentation with Recovery Information
+
+Enhance `@throws` documentation to include factual recovery strategies when errors are user-actionable.
+
+```typescript
+/**
+ * @throws {NetworkError} When IPFS gateway is unreachable.
+ *   Check network connection or configure alternative gateways via `ipfsGateways`.
+ * @throws {SchemaValidationError} When data format doesn't match the specified schema.
+ *   Verify data structure matches schema definition from `vana.schemas.get(schemaId)`.
+ * @throws {RelayerError} When gasless transaction submission fails.
+ *   Retry without relayer configuration to submit direct transaction.
+ */
+```
+
+**Guidelines:**
+- Include **specific recovery actions** for user-actionable errors
+- Reference **SDK methods or configuration options** that address the error
+- Use **imperative voice** for recovery instructions ("Check...", "Configure...", "Verify...")
+- Focus on **immediate next steps** rather than general troubleshooting advice
+
+## 8. Type Consistency Documentation
+
+When documenting APIs with different ID types or conversion requirements:
+
+```typescript
+/**
+ * @param permissionId - Permission identifier as bigint for contract compatibility.
+ * @remarks
+ * Permission IDs use bigint while file IDs use number due to different contract architectures.
+ * Convert between types using `BigInt(fileId)` when needed.
+ */
+```
+
+**Guidelines:**
+- **Acknowledge type differences** factually without apology
+- **Provide conversion syntax** using specific utility functions
+- **Explain the technical reason** briefly when it aids understanding
+- **Keep explanations neutral** and focused on practical usage

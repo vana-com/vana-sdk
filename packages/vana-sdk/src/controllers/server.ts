@@ -279,6 +279,50 @@ export class ServerController {
     }
   }
 
+  /**
+   * Cancels a running operation on the personal server.
+   *
+   * @remarks
+   * This method attempts to cancel an operation that is currently processing
+   * on the personal server. The operation must be in a cancellable state
+   * (typically `starting` or `processing`). Not all operations support 
+   * cancellation, and cancellation may not be immediate. The server will
+   * attempt to stop the operation and update its status to `canceled`.
+   *
+   * **Cancellation Behavior:**
+   * - Operations in `succeeded` or `failed` states cannot be canceled
+   * - Some long-running operations may take time to respond to cancellation
+   * - Always verify cancellation by polling the operation status afterward
+   *
+   * @param operationId - The unique identifier of the operation to cancel,
+   *   obtained from `createOperation()` response
+   * @returns Promise that resolves when the cancellation request is accepted
+   * @throws {PersonalServerError} When the operation cannot be canceled or doesn't exist.
+   *   Check operation status - it may already be completed or failed.
+   * @throws {NetworkError} When unable to reach the personal server API.
+   *   Verify server URL and network connectivity.
+   * @example
+   * ```typescript
+   * // Start a long-running operation
+   * const operation = await vana.server.createOperation({
+   *   permissionId: 123
+   * });
+   *
+   * // Cancel if needed
+   * try {
+   *   await vana.server.cancelOperation(operation.id);
+   *   console.log("Cancellation requested");
+   *   
+   *   // Verify cancellation
+   *   const status = await vana.server.getOperation(operation.id);
+   *   if (status.status === "canceled") {
+   *     console.log("Operation successfully canceled");
+   *   }
+   * } catch (error) {
+   *   console.error("Failed to cancel:", error);
+   * }
+   * ```
+   */
   async cancelOperation(operationId: string): Promise<void> {
     try {
       const response = await fetch(

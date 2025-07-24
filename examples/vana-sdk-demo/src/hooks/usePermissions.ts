@@ -275,13 +275,11 @@ export function usePermissions(): UsePermissionsReturn {
       }
 
       setIsGranting(true);
-      setGrantStatus("Checking for existing permissions...");
+      setGrantStatus("Preparing permission...");
       setGrantTxHash("");
 
       try {
-        // Check if permission already exists - use simplified on-chain check
-        const onChainPermissions = await loadUserPermissions();
-
+        // Use custom parameters if provided, otherwise use defaults
         const params: GrantPermissionParams = {
           grantee: applicationAddress as `0x${string}`,
           operation: customParams?.operation || "llm_inference",
@@ -289,54 +287,9 @@ export function usePermissions(): UsePermissionsReturn {
           parameters: customParams?.parameters || {
             prompt: promptText,
           },
-          ...customParams,
         };
 
-        // Simple check: if we have an active permission for this grantor, consider reusing it
-        const potentialMatch = onChainPermissions.find(
-          (perm: OnChainPermissionGrant) =>
-            perm.grantor.toLowerCase() === address?.toLowerCase() &&
-            perm.active,
-        );
-
-        if (potentialMatch) {
-          // Try to resolve this permission to check if it matches
-          try {
-            await resolvePermissionDetails(potentialMatch.id.toString());
-            const resolved = resolvedPermissions.get(
-              potentialMatch.id.toString(),
-            );
-            if (
-              resolved &&
-              resolved.files.some((f: number) => selectedFiles.includes(f))
-            ) {
-              setGrantStatus(
-                `✅ Using existing permission! ID: ${resolved.id}`,
-              );
-              setLastGrantedPermissionId(resolved.id.toString());
-              setGrantTxHash("");
-
-              addToast({
-                title: "Permission Already Exists",
-                description: `Found existing permission with ID: ${resolved.id}`,
-                variant: "solid",
-                color: "success",
-              });
-
-              setIsGranting(false);
-              return;
-            }
-          } catch {
-            // Continue with new permission if resolution fails
-            console.debug(
-              "Failed to resolve existing permission, creating new one",
-            );
-          }
-        }
-
-        // No existing permission found, proceed with creating new one
-        setGrantStatus("Preparing new permission...");
-
+        // Add expiration to params if provided
         const paramsWithExpiry = customParams?.expiresAt
           ? { ...params, expiresAt: customParams.expiresAt }
           : params;
@@ -363,33 +316,18 @@ export function usePermissions(): UsePermissionsReturn {
         setIsGranting(false); // Reset here since modal will take over
         onOpenGrant();
       } catch (error) {
-        console.error("Failed to grant permission:", error);
+        console.error("Failed to prepare permission grant:", error);
         setGrantStatus(
-          `❌ Failed to grant permission: ${error instanceof Error ? error.message : "Unknown error"}`,
+          `❌ Failed to prepare permission: ${error instanceof Error ? error.message : "Unknown error"}`,
         );
         setIsGranting(false);
       }
     },
-    [
-      vana,
-      applicationAddress,
-      address,
-      onOpenGrant,
-      loadUserPermissions,
-      resolvePermissionDetails,
-      resolvedPermissions,
-    ],
+    [vana, applicationAddress, address, onOpenGrant],
   );
 
   const handleConfirmGrant = useCallback(
     async (updatedParams?: GrantPermissionParams & { expiresAt?: number }) => {
-      console.debug(
-        "handleConfirmGrant called with updatedParams:",
-        updatedParams,
-      );
-      console.debug("grantPreview:", grantPreview);
-      console.debug("vana:", !!vana);
-
       if (!grantPreview || !vana) {
         console.debug("Missing grantPreview or vana, returning");
         return;
@@ -401,49 +339,12 @@ export function usePermissions(): UsePermissionsReturn {
 
       setIsGranting(true);
       setGrantTxHash("");
-      setGrantStatus("Signing grant...");
+      setGrantStatus("Creating grant file...");
 
       try {
-        // Now create and sign the grant after user confirmation
-        setGrantStatus("Creating grant file via SDK...");
-
-        // Use the SDK to create and sign the grant with the latest params
-        console.debug("Creating grant with params:", paramsToUse);
+        // Create and sign the grant
         const { typedData, signature } =
           await vana.permissions.createAndSign(paramsToUse);
-
-        // Extract grant file for preview from the SDK
-        setGrantStatus("Retrieving grant file for preview...");
-
-        // The SDK stores the grant file in IPFS and puts the URL in typedData.message.grant
-        const grantUrl = typedData.message.grant;
-
-        // Try to retrieve the stored grant file, but don't fail if CORS issues occur
-        let grantFile = null;
-        try {
-          grantFile = await retrieveGrantFile(grantUrl);
-        } catch (error) {
-          console.warn(
-            "Failed to retrieve grant file (likely CORS issue):",
-            error,
-          );
-          // Create a minimal grant file from the typedData for preview
-          grantFile = {
-            grantee: grantPreview.params.grantee,
-            operation: grantPreview.params.operation || "llm_inference",
-            parameters: grantPreview.params.parameters || {},
-            expires: grantPreview.params.expiresAt,
-          };
-        }
-
-        // Update grant preview with signed data
-        setGrantPreview({
-          grantFile,
-          grantUrl,
-          params: grantPreview.params,
-          typedData,
-          signature,
-        });
 
         setGrantStatus("Submitting to blockchain...");
 
@@ -454,58 +355,38 @@ export function usePermissions(): UsePermissionsReturn {
         );
 
         setGrantTxHash(txHash);
+        setGrantStatus(`✅ Permission granted! Transaction: ${txHash}`);
+        setLastGrantedPermissionId("");
+
+        // Show success toast
+        addToast({
+          title: "Permission Granted",
+          description: `Successfully granted permission. Transaction: ${txHash}`,
+          variant: "solid",
+          color: "success",
+        });
+
+        // Close the modal and reset state
         onCloseGrant();
+        setGrantPreview(null);
 
-        // Store the grant URL and nonce to identify the newly created permission
-        const grantUrlToMatch = typedData.message.grant;
-        const nonceToMatch = typedData.message.nonce;
-
-        // Show status while looking for the new permission
-        setGrantStatus("Finding your new permission...");
-
-        const findNewPermission = async (attempt = 1) => {
-          setGrantStatus(`Finding your new permission... (attempt ${attempt})`);
-
-          const freshPermissions = await loadUserPermissions();
-
-          // Find the newly created permission by matching grant URL and nonce
-          const newPermission = freshPermissions.find(
-            (p: OnChainPermissionGrant) =>
-              p.grantUrl === grantUrlToMatch &&
-              p.nonce === BigInt(nonceToMatch),
-          );
-
-          if (newPermission) {
-            setGrantStatus(`✅ Permission granted! ID: ${newPermission.id}`);
-            setLastGrantedPermissionId(newPermission.id.toString());
-
-            // Show a success toast notification
-            addToast({
-              title: "Permission Granted",
-              description: `Successfully granted permission with ID: ${newPermission.id}`,
-              variant: "solid",
-              color: "success",
-            });
-
-            return newPermission;
-          } else if (attempt < 6) {
-            // Try up to 6 times with exponential backoff
-            const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
-            setTimeout(() => findNewPermission(attempt + 1), delay);
-          } else {
-            setGrantStatus(
-              "✅ Permission granted! (ID will appear in the table soon)",
-            );
-          }
-        };
-
-        // Start polling after a short delay for the blockchain to process
-        setTimeout(() => findNewPermission(), 3000);
+        // Refresh permissions list after a short delay
+        setTimeout(() => {
+          loadUserPermissions();
+        }, 3000);
       } catch (error) {
         console.error("Failed to confirm grant:", error);
         setGrantStatus(
           `❌ Failed to grant permission: ${error instanceof Error ? error.message : "Unknown error"}`,
         );
+
+        // Show error toast
+        addToast({
+          title: "Permission Grant Failed",
+          description: error instanceof Error ? error.message : "Unknown error",
+          variant: "solid",
+          color: "danger",
+        });
       } finally {
         setIsGranting(false);
       }

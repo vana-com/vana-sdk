@@ -945,10 +945,19 @@ export class PermissionsController {
   /**
    * Retrieves the user's current nonce from the DataPortabilityServers contract.
    *
-   * @returns Promise resolving to the user's current nonce value
+   * The nonce is used to prevent replay attacks in signed transactions and must
+   * be incremented with each transaction to maintain security.
+   *
+   * @returns Promise resolving to the user's current nonce value as a bigint
    * @throws {Error} When wallet account is not available
    * @throws {Error} When chain ID is not available
    * @throws {NonceError} When reading nonce from contract fails
+   * @private
+   * @example
+   * ```typescript
+   * const nonce = await this.getUserNonce();
+   * console.log(`Current nonce: ${nonce}`);
+   * ```
    */
   private async getUserNonce(): Promise<bigint> {
     try {
@@ -1423,23 +1432,37 @@ export class PermissionsController {
   }
 
   /**
-   * Adds and trusts a server for data processing.
+   * Registers a new server and immediately trusts it in the DataPortabilityServers contract.
+   *
+   * This is a combined operation that both registers a new data portability server
+   * and adds it to the user's trusted servers list in a single transaction.
+   * Trusted servers can handle data export and portability requests from the user.
    *
    * @param params - Parameters for adding and trusting the server
+   * @param params.owner - Ethereum address that will own this server registration
+   * @param params.serverAddress - Ethereum address of the server
+   * @param params.serverUrl - HTTPS URL where the server can be reached
+   * @param params.publicKey - Server's public key for encryption (hex string)
    * @returns Promise resolving to transaction hash
    * @throws {UserRejectedRequestError} When user rejects the transaction
    * @throws {BlockchainError} When chain ID is unavailable or transaction fails
+   * @throws {ServerAlreadyRegisteredError} When server address is already registered
    * @throws {Error} When wallet account is not available
+   *
    * @example
    * ```typescript
    * // Add and trust a server by providing all required details
    * const txHash = await vana.permissions.addAndTrustServer({
-   *   owner: '0x1234...',
+   *   owner: '0x1234567890abcdef1234567890abcdef12345678',
    *   serverAddress: '0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6',
    *   serverUrl: 'https://myserver.example.com',
-   *   publicKey: '0x456...'
+   *   publicKey: '0x456789abcdef456789abcdef456789abcdef456789abcdef'
    * });
    * console.log('Server added and trusted in transaction:', txHash);
+   *
+   * // Verify the server is now trusted
+   * const trustedServers = await vana.permissions.getTrustedServers();
+   * console.log('Now trusting servers:', trustedServers);
    * ```
    */
   async addAndTrustServer(params: AddAndTrustServerParams): Promise<Hash> {
@@ -1688,15 +1711,32 @@ export class PermissionsController {
   }
 
   /**
-   * Untrusts a server.
+   * Removes a server from the user's trusted servers list in the DataPortabilityServers contract.
+   *
+   * This revokes the server's authorization to handle data portability requests for the user.
+   * The server remains registered in the system but will no longer be trusted by this user.
    *
    * @param params - Parameters for untrusting the server
-   * @param params.serverId - The server's Ethereum address to untrust
+   * @param params.serverId - The numeric ID of the server to untrust
    * @returns Promise resolving to transaction hash
    * @throws {Error} When wallet account is not available
    * @throws {NonceError} When retrieving user nonce fails
    * @throws {UserRejectedRequestError} When user rejects the transaction
+   * @throws {ServerNotTrustedError} When the server is not currently trusted
    * @throws {BlockchainError} When untrust transaction fails
+   *
+   * @example
+   * ```typescript
+   * // Untrust a specific server
+   * const txHash = await vana.permissions.untrustServer({
+   *   serverId: 1
+   * });
+   * console.log('Server untrusted in transaction:', txHash);
+   *
+   * // Verify the server is no longer trusted
+   * const trustedServers = await vana.permissions.getTrustedServers();
+   * console.log('Still trusting servers:', trustedServers);
+   * ```
    */
   async untrustServer(params: UntrustServerParams): Promise<Hash> {
     // Convert UntrustServerParams to UntrustServerInput by adding nonce
@@ -1775,11 +1815,26 @@ export class PermissionsController {
   }
 
   /**
-   * Gets all servers trusted by a user.
+   * Retrieves all servers trusted by a user from the DataPortabilityServers contract.
    *
-   * @param userAddress - Optional user address (defaults to current user)
+   * Returns an array of server IDs that the specified user has explicitly trusted.
+   * Trusted servers are those that users have authorized to handle their data portability requests.
+   *
+   * @param userAddress - Optional user address to query (defaults to current wallet user)
    * @returns Promise resolving to array of trusted server IDs (numeric)
    * @throws {BlockchainError} When reading from contract fails or chain is unavailable
+   * @throws {NetworkError} When unable to connect to the blockchain network
+   *
+   * @example
+   * ```typescript
+   * // Get trusted servers for current user
+   * const myServers = await vana.permissions.getTrustedServers();
+   * console.log(`I trust ${myServers.length} servers: ${myServers.join(', ')}`);
+   *
+   * // Get trusted servers for another user
+   * const userServers = await vana.permissions.getTrustedServers("0x1234...");
+   * console.log(`User trusts servers: ${userServers.join(', ')}`);
+   * ```
    */
   async getTrustedServers(userAddress?: Address): Promise<number[]> {
     try {
@@ -1808,11 +1863,27 @@ export class PermissionsController {
   }
 
   /**
-   * Gets server information by server ID.
+   * Retrieves detailed information about a specific server from the DataPortabilityServers contract.
    *
-   * @param serverId - Server ID (numeric)
-   * @returns Promise resolving to server information
+   * Returns complete server information including owner, address, public key, and URL.
+   * This information is used to establish secure connections and verify server identity.
+   *
+   * @param serverId - The unique numeric ID of the server to query
+   * @returns Promise resolving to complete server information
    * @throws {BlockchainError} When reading from contract fails or chain is unavailable
+   * @throws {NetworkError} When unable to connect to the blockchain network
+   * @throws {ServerNotFoundError} When the server ID does not exist
+   *
+   * @example
+   * ```typescript
+   * const server = await vana.permissions.getServerInfo(1);
+   *
+   * console.log(`Server ${server.id}:`);
+   * console.log(`  Owner: ${server.owner}`);
+   * console.log(`  Address: ${server.serverAddress}`);
+   * console.log(`  URL: ${server.url}`);
+   * console.log(`  Public Key: ${server.publicKey}`);
+   * ```
    */
   async getServerInfo(serverId: number): Promise<Server> {
     try {
@@ -1852,10 +1923,26 @@ export class PermissionsController {
   }
 
   /**
-   * Checks if a server is active.
+   * Checks if a specific server is active in the DataPortabilityServers contract.
    *
-   * @param serverId - Server ID (numeric)
-   * @returns Promise resolving to boolean indicating if server is active
+   * An active server is one that is properly registered and operational, meaning
+   * it can receive and process data portability requests from users.
+   *
+   * @param serverId - The unique numeric ID of the server to check
+   * @returns Promise resolving to true if server is active, false otherwise
+   * @throws {BlockchainError} When reading from contract fails or chain is unavailable
+   * @throws {NetworkError} When unable to connect to the blockchain network
+   *
+   * @example
+   * ```typescript
+   * const isActive = await vana.permissions.isActiveServer(1);
+   *
+   * if (isActive) {
+   *   console.log('Server 1 is active and ready to process requests');
+   * } else {
+   *   console.log('Server 1 is inactive or not found');
+   * }
+   * ```
    */
   async isActiveServer(serverId: number): Promise<boolean> {
     try {
@@ -2432,10 +2519,19 @@ export class PermissionsController {
   // ===========================
 
   /**
-   * Registers a new grantee
+   * Registers a new grantee in the DataPortabilityGrantees contract.
+   *
+   * A grantee is an entity (like an application) that can receive data permissions
+   * from users. Once registered, users can grant the grantee access to their data.
    *
    * @param params - Parameters for registering the grantee
+   * @param params.owner - The Ethereum address that will own this grantee registration
+   * @param params.granteeAddress - The Ethereum address of the grantee (application)
+   * @param params.publicKey - The public key used for data encryption/decryption (hex string)
    * @returns Promise resolving to the transaction hash
+   * @throws {BlockchainError} When the grantee registration transaction fails
+   * @throws {UserRejectedRequestError} When user rejects the transaction
+   * @throws {ContractError} When grantee is already registered
    *
    * @example
    * ```typescript
@@ -2444,6 +2540,7 @@ export class PermissionsController {
    *   granteeAddress: "0xApp1234567890123456789012345678901234567890",
    *   publicKey: "0x1234567890abcdef..."
    * });
+   * console.log(`Grantee registered in transaction: ${txHash}`);
    * ```
    */
   async registerGrantee(params: RegisterGranteeParams): Promise<Hash> {
@@ -2523,17 +2620,35 @@ export class PermissionsController {
   }
 
   /**
-   * Gets all grantees
+   * Retrieves all registered grantees from the DataPortabilityGrantees contract.
    *
-   * @param options - Query options
-   * @returns Promise resolving to paginated grantees
+   * Returns a paginated list of all grantees (applications) that have been registered
+   * in the system and can receive data permissions from users.
+   *
+   * @param options - Query options for pagination and filtering
+   * @param options.limit - Maximum number of grantees to return (default: 50)
+   * @param options.offset - Number of grantees to skip for pagination (default: 0)
+   * @returns Promise resolving to paginated grantees with metadata
+   * @throws {BlockchainError} When contract read operation fails
+   * @throws {NetworkError} When unable to connect to the blockchain network
    *
    * @example
    * ```typescript
+   * // Get first 10 grantees
    * const result = await vana.permissions.getGrantees({
    *   limit: 10,
    *   offset: 0
    * });
+   *
+   * console.log(`Found ${result.total} total grantees`);
+   * result.grantees.forEach(grantee => {
+   *   console.log(`Grantee ${grantee.id}: ${grantee.granteeAddress}`);
+   * });
+   *
+   * // Check if there are more results
+   * if (result.hasMore) {
+   *   console.log('More grantees available');
+   * }
    * ```
    */
   async getGrantees(
@@ -2598,14 +2713,29 @@ export class PermissionsController {
   }
 
   /**
-   * Gets a grantee by their address
+   * Retrieves a specific grantee by their Ethereum address from the DataPortabilityGrantees contract.
    *
-   * @param granteeAddress - The grantee's address
-   * @returns Promise resolving to the grantee info or null if not found
+   * Looks up a registered grantee (application) using their Ethereum address
+   * and returns their complete registration information including permissions.
+   *
+   * @param granteeAddress - The Ethereum address of the grantee to look up
+   * @returns Promise resolving to the grantee information, or null if not found
+   * @throws {BlockchainError} When contract read operation fails
+   * @throws {NetworkError} When unable to connect to the blockchain network
    *
    * @example
    * ```typescript
-   * const grantee = await vana.permissions.getGranteeByAddress("0x1234...");
+   * const granteeAddress = "0xApp1234567890123456789012345678901234567890";
+   * const grantee = await vana.permissions.getGranteeByAddress(granteeAddress);
+   *
+   * if (grantee) {
+   *   console.log(`Found grantee ${grantee.id}`);
+   *   console.log(`Owner: ${grantee.owner}`);
+   *   console.log(`Public Key: ${grantee.publicKey}`);
+   *   console.log(`Permissions: ${grantee.permissionIds.join(', ')}`);
+   * } else {
+   *   console.log('Grantee not found');
+   * }
    * ```
    */
   async getGranteeByAddress(granteeAddress: Address): Promise<Grantee | null> {
@@ -2651,14 +2781,28 @@ export class PermissionsController {
   }
 
   /**
-   * Gets a grantee by their ID
+   * Retrieves a specific grantee by their unique ID from the DataPortabilityGrantees contract.
    *
-   * @param granteeId - The grantee's ID
-   * @returns Promise resolving to the grantee info or null if not found
+   * Looks up a registered grantee (application) using their numeric ID assigned during
+   * registration and returns their complete information including permissions.
+   *
+   * @param granteeId - The unique numeric ID of the grantee (1-indexed)
+   * @returns Promise resolving to the grantee information, or null if not found
+   * @throws {BlockchainError} When contract read operation fails
+   * @throws {NetworkError} When unable to connect to the blockchain network
    *
    * @example
    * ```typescript
    * const grantee = await vana.permissions.getGranteeById(1);
+   *
+   * if (grantee) {
+   *   console.log(`Grantee ID: ${grantee.id}`);
+   *   console.log(`Address: ${grantee.granteeAddress}`);
+   *   console.log(`Owner: ${grantee.owner}`);
+   *   console.log(`Total permissions: ${grantee.permissionIds.length}`);
+   * } else {
+   *   console.log('Grantee with ID 1 not found');
+   * }
    * ```
    */
   async getGranteeById(granteeId: number): Promise<Grantee | null> {

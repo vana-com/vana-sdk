@@ -25,10 +25,10 @@ export function PermissionDisplay({
   // Link to the DataPermissions contract with the permission hash
   const contractUrl = getContractUrl(
     chainId,
-    "0x9f03B01A17d54c6934F2735B5d38a60C56Bf0dBe",
+    "0xD54523048AdD05b4d734aFaE7C68324Ebb7373eF",
     {
       tab: "read_proxy",
-      sourceAddress: "0xEfcd140D3b740dEfCa423fC12F4B5548E1FC0B36",
+      sourceAddress: "0xc0908689CDc48742B5FaF5FC23b1D1Ce4DCA9EC8",
       hash: hashForUrl,
     },
   ); // TODO: change to the correct source address and contract address

@@ -265,15 +265,30 @@ export function usePermissions(): UsePermissionsReturn {
       promptText: string,
       customParams?: GrantPermissionParams & { expiresAt?: number },
     ) => {
-      if (!vana || selectedFiles.length === 0) return;
+      console.debug("🟢 [usePermissions] handleGrantPermission called");
+      console.debug("🟢 [usePermissions] selectedFiles:", selectedFiles);
+      console.debug("🟢 [usePermissions] promptText:", promptText);
+      console.debug("🟢 [usePermissions] customParams:", customParams);
+      console.debug("🟢 [usePermissions] vana:", !!vana);
+      console.debug(
+        "🟢 [usePermissions] applicationAddress:",
+        applicationAddress,
+      );
+
+      if (!vana || selectedFiles.length === 0) {
+        console.debug("🟢 [usePermissions] Early return - no vana or no files");
+        return;
+      }
 
       if (!applicationAddress) {
+        console.debug("🟢 [usePermissions] No application address");
         setGrantStatus(
           "❌ Application address not available. Please refresh the page.",
         );
         return;
       }
 
+      console.debug("🟢 [usePermissions] Starting permission preparation");
       setIsGranting(true);
       setGrantStatus("Preparing permission...");
       setGrantTxHash("");
@@ -294,16 +309,7 @@ export function usePermissions(): UsePermissionsReturn {
           ? { ...params, expiresAt: customParams.expiresAt }
           : params;
 
-        console.debug("🔍 Debug - Permission params:", {
-          selectedFiles,
-          paramsFiles: params.files,
-          filesLength: params.files.length,
-          appAddress: applicationAddress,
-          operation: params.operation,
-          parameters: params.parameters,
-          promptText: promptText,
-          customParams: customParams,
-        });
+        console.debug("🟢 [usePermissions] Final params:", paramsWithExpiry);
 
         // Show preview to user BEFORE signing
         setGrantPreview({
@@ -313,10 +319,16 @@ export function usePermissions(): UsePermissionsReturn {
           typedData: null,
           signature: null,
         });
+
+        console.debug("🟢 [usePermissions] Grant preview set, opening modal");
         setIsGranting(false); // Reset here since modal will take over
         onOpenGrant();
+        console.debug("🟢 [usePermissions] Modal should be open now");
       } catch (error) {
-        console.error("Failed to prepare permission grant:", error);
+        console.error(
+          "🟢 [usePermissions] Failed to prepare permission grant:",
+          error,
+        );
         setGrantStatus(
           `❌ Failed to prepare permission: ${error instanceof Error ? error.message : "Unknown error"}`,
         );
@@ -328,30 +340,54 @@ export function usePermissions(): UsePermissionsReturn {
 
   const handleConfirmGrant = useCallback(
     async (updatedParams?: GrantPermissionParams & { expiresAt?: number }) => {
+      console.debug("🔵 [usePermissions] handleConfirmGrant called");
+      console.debug("🔵 [usePermissions] updatedParams:", updatedParams);
+      console.debug("🔵 [usePermissions] grantPreview:", grantPreview);
+      console.debug("🔵 [usePermissions] vana:", !!vana);
+
       if (!grantPreview || !vana) {
-        console.debug("Missing grantPreview or vana, returning");
+        console.debug(
+          "🔵 [usePermissions] Missing grantPreview or vana, returning",
+        );
         return;
       }
 
       // Use updated params if provided, otherwise use original grant preview params
       const paramsToUse = updatedParams || grantPreview.params;
-      console.debug("Using params:", paramsToUse);
+      console.debug("🔵 [usePermissions] Using params:", paramsToUse);
 
       setIsGranting(true);
       setGrantTxHash("");
       setGrantStatus("Creating grant file...");
 
       try {
+        console.debug(
+          "🔵 [usePermissions] Calling vana.permissions.createAndSign",
+        );
         // Create and sign the grant
         const { typedData, signature } =
           await vana.permissions.createAndSign(paramsToUse);
 
+        console.debug(
+          "🔵 [usePermissions] createAndSign successful, typedData:",
+          typedData,
+        );
+        console.debug("🔵 [usePermissions] signature:", signature);
+
         setGrantStatus("Submitting to blockchain...");
 
+        console.debug(
+          "🔵 [usePermissions] Calling vana.permissions.submitSignedGrant",
+        );
         // Submit the signed grant
         const txHash = await vana.permissions.submitSignedGrant(
           typedData,
           signature as `0x${string}`,
+        );
+
+        console.debug(
+          "🔵 [usePermissions] submitSignedGrant successful, txHash:",
+          txHash,
         );
 
         setGrantTxHash(txHash);

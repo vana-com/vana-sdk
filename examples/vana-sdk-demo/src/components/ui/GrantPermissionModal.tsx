@@ -174,8 +174,21 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
   };
 
   const handleConfirm = async () => {
+    console.debug("🔴 [GrantPermissionModal] handleConfirm called");
+    console.debug("🔴 [GrantPermissionModal] selectedFiles:", selectedFiles);
+    console.debug(
+      "🔴 [GrantPermissionModal] selectedGranteeId:",
+      selectedGranteeId,
+    );
+    console.debug("🔴 [GrantPermissionModal] grantees:", grantees);
+    console.debug("🔴 [GrantPermissionModal] operation:", operation);
+    console.debug("🔴 [GrantPermissionModal] promptText:", promptText);
+
     const isValid = await validateGrantParams();
+    console.debug("🔴 [GrantPermissionModal] validation result:", isValid);
+
     if (!isValid) {
+      console.debug("🔴 [GrantPermissionModal] validation failed, returning");
       return;
     }
 
@@ -183,9 +196,17 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
     const selectedGrantee = grantees.find(
       (g) => g.id.toString() === selectedGranteeId,
     );
+    console.debug(
+      "🔴 [GrantPermissionModal] selectedGrantee:",
+      selectedGrantee,
+    );
+
     const granteeAddress = selectedGrantee?.address || "";
+    console.debug("🔴 [GrantPermissionModal] granteeAddress:", granteeAddress);
 
     const expiresAt = getExpirationTimestamp();
+    console.debug("🔴 [GrantPermissionModal] expiresAt:", expiresAt);
+
     const params: GrantPermissionParams & { expiresAt?: number } = {
       grantee: granteeAddress as `0x${string}`,
       operation,
@@ -196,7 +217,15 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
       ...(expiresAt && { expiresAt }),
     };
 
-    onConfirm(params);
+    console.debug("🔴 [GrantPermissionModal] final params:", params);
+    console.debug("🔴 [GrantPermissionModal] calling onConfirm with params");
+
+    try {
+      onConfirm(params);
+      console.debug("🔴 [GrantPermissionModal] onConfirm called successfully");
+    } catch (error) {
+      console.error("🔴 [GrantPermissionModal] onConfirm failed:", error);
+    }
   };
 
   const handleClose = () => {

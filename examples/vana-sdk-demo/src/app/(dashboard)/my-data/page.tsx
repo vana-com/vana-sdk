@@ -535,8 +535,23 @@ export default function MyDataPage() {
         isOpen={isGrantModalOpen}
         onClose={() => setIsGrantModalOpen(false)}
         onConfirm={(params) => {
+          console.debug(
+            "🟡 [MyDataPage] GrantPermissionModal onConfirm called with params:",
+            params,
+          );
+          console.debug("🟡 [MyDataPage] Setting modal closed");
           setIsGrantModalOpen(false);
-          onGrantPermission(params);
+          console.debug(
+            "🟡 [MyDataPage] Calling onGrantPermission with params",
+          );
+          try {
+            onGrantPermission(params);
+            console.debug(
+              "🟡 [MyDataPage] onGrantPermission called successfully",
+            );
+          } catch (error) {
+            console.error("🟡 [MyDataPage] onGrantPermission failed:", error);
+          }
         }}
         selectedFiles={selectedFiles}
         grantees={grantees}

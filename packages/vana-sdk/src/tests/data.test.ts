@@ -168,7 +168,7 @@ describe("DataController", () => {
       publicClient:
         mockPublicClient as unknown as ControllerContext["publicClient"],
       subgraphUrl:
-        "https://api.goldsky.com/api/public/project_cm168cz887zva010j39il7a6p/subgraphs/moksha/7.0.5/gn",
+        "https://api.goldsky.com/api/public/project_cm168cz887zva010j39il7a6p/subgraphs/moksha/7.0.6/gn",
       platform: mockPlatformAdapter,
     };
 

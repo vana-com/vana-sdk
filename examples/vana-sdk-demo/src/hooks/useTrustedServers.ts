@@ -36,8 +36,10 @@ export interface UseTrustedServersReturn {
   handleTrustServer: () => Promise<void>;
   handleTrustServerGasless: (
     clearFieldsOnSuccess?: boolean,
-    overrideServerId?: string,
+    overrideServerAddress?: string,
     overrideServerUrl?: string,
+    overrideServerOwner?: string,
+    overridePublicKey?: string,
   ) => Promise<void>;
   handleUntrustServer: (serverIdToUntrust: string) => Promise<void>;
   handleDiscoverHostedServer: () => Promise<{
@@ -176,14 +178,18 @@ export function useTrustedServers(): UseTrustedServersReturn {
   const handleTrustServerGasless = useCallback(
     async (
       clearFieldsOnSuccess = true,
-      overrideServerId?: string,
+      overrideServerAddress?: string,
       overrideServerUrl?: string,
+      overrideServerOwner?: string,
+      overridePublicKey?: string,
     ) => {
       if (!vana || !address) return;
 
       // Use override values if provided, otherwise use form state
-      const actualServerAddress = overrideServerId || serverAddress;
+      const actualServerAddress = overrideServerAddress || serverAddress;
       const actualServerUrl = overrideServerUrl || serverUrl;
+      const actualServerOwner = overrideServerOwner || serverOwner;
+      const actualPublicKey = overridePublicKey || publicKey;
 
       // Validate inputs
       if (
@@ -204,12 +210,12 @@ export function useTrustedServers(): UseTrustedServersReturn {
         return;
       }
 
-      if (!serverOwner.trim()) {
+      if (!actualServerOwner.trim()) {
         setTrustServerError("Please provide a server owner address");
         return;
       }
 
-      if (!publicKey.trim()) {
+      if (!actualPublicKey.trim()) {
         setTrustServerError("Please provide a server public key");
         return;
       }
@@ -219,10 +225,10 @@ export function useTrustedServers(): UseTrustedServersReturn {
 
       try {
         await vana.permissions.addAndTrustServerWithSignature({
-          owner: serverOwner as `0x${string}`,
+          owner: actualServerOwner as `0x${string}`,
           serverAddress: actualServerAddress as `0x${string}`,
           serverUrl: actualServerUrl,
-          publicKey: publicKey,
+          publicKey: actualPublicKey,
         });
 
         console.info("✅ Trust server with signature completed successfully!");
@@ -251,7 +257,7 @@ export function useTrustedServers(): UseTrustedServersReturn {
     [
       vana,
       address,
-      serverId,
+      serverAddress,
       serverUrl,
       serverOwner,
       publicKey,
@@ -330,6 +336,8 @@ export function useTrustedServers(): UseTrustedServersReturn {
       // Pre-fill the form with discovered server information
       setServerAddress(discoveredServerInfo.serverAddress);
       setServerUrl(discoveredServerInfo.serverUrl);
+      setPublicKey(discoveredServerInfo.publicKey);
+      setServerOwner(address); // Personal server is owned by the user
 
       return discoveredServerInfo;
     } catch (error) {

@@ -238,12 +238,9 @@ export default function MyDataPage() {
     [handleGrantPermission, selectedFiles, promptText],
   );
 
-  const onTrustServer = useCallback(
-    (serverId?: string, serverUrl?: string) => {
-      handleTrustServerGasless(false, serverId, serverUrl);
-    },
-    [handleTrustServerGasless],
-  );
+  const onTrustServer = useCallback(() => {
+    handleTrustServerGasless(false, serverAddress, serverUrl);
+  }, [handleTrustServerGasless, serverAddress, serverUrl]);
 
   const onRefreshServers = useCallback(() => {
     loadUserTrustedServers(queryMode);

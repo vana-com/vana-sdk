@@ -61,17 +61,18 @@ interface SubgraphPermissionsResponse {
     user?: {
       permissions?: Array<{
         id: string;
-        account: string;
-        publicKey: string;
-        encryptedKey: string;
-        grantSignature: string;
-        grantHash: string;
         grant: string;
-        user: { id: string };
-        addedAtBlock: string;
         nonce: string;
+        signature: string;
+        startBlock: string;
+        endBlock?: string;
+        addedAtBlock: string;
         addedAtTimestamp?: string;
         transactionHash?: string;
+        grantee: {
+          id: string;
+          address: string;
+        };
       }>;
     };
   };
@@ -1185,9 +1186,15 @@ export class PermissionsController {
               grant
               nonce
               signature
+              startBlock
+              endBlock
               addedAtBlock
               addedAtTimestamp
               transactionHash
+              grantee {
+                id
+                address
+              }
             }
           }
         }
@@ -1231,14 +1238,14 @@ export class PermissionsController {
         .map((permission) => ({
           id: BigInt(permission.id),
           grantUrl: permission.grant,
-          grantSignature: permission.grantSignature,
-          grantHash: permission.grantHash,
+          grantSignature: permission.signature,
+          grantHash: "", // Not available in new schema, compute if needed
           nonce: BigInt(permission.nonce),
           addedAtBlock: BigInt(permission.addedAtBlock),
           addedAtTimestamp: BigInt(permission.addedAtTimestamp || "0"),
           transactionHash: permission.transactionHash || "",
           grantor: userAddress as Address,
-          active: true, // TODO: Add revocation status from subgraph when available
+          active: !permission.endBlock || BigInt(permission.endBlock) === 0n, // Active if no end block or end block is 0
         }));
 
       return onChainGrants.sort((a, b) => {

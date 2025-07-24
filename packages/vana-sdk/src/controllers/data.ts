@@ -68,21 +68,25 @@ interface SubgraphPermission {
   };
 }
 
-interface SubgraphTrustedServer {
+interface SubgraphUserServer {
   id: string;
-  serverAddress: string;
-  serverUrl: string;
-  trustedAt: string;
-  user: {
+  server: {
     id: string;
+    serverAddress: string;
+    url: string;
+    publicKey: string;
   };
+  trustedAt: string;
+  trustedAtBlock: string;
+  untrustedAtBlock?: string;
+  transactionHash: string;
 }
 
 interface SubgraphUser {
   id: string;
   files: SubgraphFile[];
   permissions: SubgraphPermission[];
-  trustedServers: SubgraphTrustedServer[];
+  serverTrusts: SubgraphUserServer[];
 }
 
 interface SubgraphResponse {
@@ -1055,11 +1059,18 @@ export class DataController {
         query GetUserTrustedServers($userId: ID!) {
           user(id: $userId) {
             id
-            trustedServers {
+            serverTrusts {
               id
-              serverAddress
-              serverUrl
+              server {
+                id
+                serverAddress
+                url
+                publicKey
+              }
               trustedAt
+              trustedAtBlock
+              untrustedAtBlock
+              transactionHash
             }
           }
         }
@@ -1098,13 +1109,16 @@ export class DataController {
       }
 
       // Map subgraph results to TrustedServer format
-      return (result.data.user.trustedServers || []).map((server) => ({
-        id: server.id,
-        serverAddress: server.serverAddress as Address,
-        serverUrl: server.serverUrl,
-        trustedAt: BigInt(server.trustedAt),
-        user,
-      }));
+      return (result.data.user.serverTrusts || [])
+        .filter((trust) => !trust.untrustedAtBlock) // Only include trusted servers (not untrusted)
+        .map((trust) => ({
+          id: trust.server.id,
+          serverAddress: trust.server.serverAddress as Address,
+          serverUrl: trust.server.url,
+          trustedAt: BigInt(trust.trustedAt),
+          user,
+          name: "", // Not available in new schema, will be empty
+        }));
     } catch (error) {
       console.error("Failed to query trusted servers from subgraph:", error);
       throw error;

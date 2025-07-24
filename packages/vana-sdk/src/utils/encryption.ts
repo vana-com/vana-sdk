@@ -48,21 +48,24 @@ export async function generateEncryptionKey(
     throw new Error("Wallet account is required for encryption key generation");
   }
 
+  // Store account reference to satisfy TypeScript
+  const account = wallet.account;
+
   // Use signature cache for encryption key generation
   // Create a simple message object for cache key generation
   const messageData = { message: seed };
-  
+
   return await withSignatureCache(
     platformAdapter.cache,
-    wallet.account.address,
+    account.address,
     messageData,
     async () => {
       // Sign the encryption seed to generate a deterministic encryption key
       return await wallet.signMessage({
-        account: wallet.account!,
+        account: account,
         message: seed,
       });
-    }
+    },
   );
 }
 
@@ -74,7 +77,7 @@ export async function generateEncryptionKey(
  * enabling secure data sharing where only the holder of the corresponding private key
  * can decrypt the data. It automatically handles different data types and uses
  * platform-appropriate cryptographic libraries for maximum compatibility.
- * 
+ *
  * This is commonly used when granting permissions to applications or servers,
  * where the data needs to be encrypted for a specific recipient's public key.
  *
@@ -88,15 +91,15 @@ export async function generateEncryptionKey(
  * // Encrypt data for a specific application's public key
  * const appPublicKey = "0x04a1b2c3..."; // Application's public key
  * const sensitiveData = "User's private information";
- * 
+ *
  * const encrypted = await encryptWithWalletPublicKey(
  *   sensitiveData,
  *   appPublicKey,
  *   platformAdapter
  * );
- * 
+ *
  * console.log('Encrypted for app:', encrypted);
- * 
+ *
  * // Encrypt file data for server processing
  * const fileBlob = new File(['{"name":"John","age":30}'], 'profile.json');
  * const encryptedFile = await encryptWithWalletPublicKey(
@@ -130,7 +133,7 @@ export async function encryptWithWalletPublicKey(
  * to decrypt data that was encrypted with the corresponding public key. It's the
  * counterpart to `encryptWithWalletPublicKey` and is typically used by applications
  * or servers to decrypt data that was shared with them by users.
- * 
+ *
  * The function automatically handles platform-specific cryptographic operations
  * and provides consistent behavior across browser and Node.js environments.
  *
@@ -144,16 +147,16 @@ export async function encryptWithWalletPublicKey(
  * // Decrypt data received from a user (server-side)
  * const encryptedUserData = "encrypted_string_from_user";
  * const serverPrivateKey = process.env.SERVER_PRIVATE_KEY;
- * 
+ *
  * const decrypted = await decryptWithWalletPrivateKey(
  *   encryptedUserData,
  *   serverPrivateKey,
  *   platformAdapter
  * );
- * 
+ *
  * const userData = JSON.parse(decrypted);
  * console.log('User data:', userData);
- * 
+ *
  * // Handle decryption errors gracefully
  * try {
  *   const result = await decryptWithWalletPrivateKey(

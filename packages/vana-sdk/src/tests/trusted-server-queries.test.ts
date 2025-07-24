@@ -39,6 +39,7 @@ describe("Enhanced Trusted Server Queries", () => {
     "0x4444444444444444444444444444444444444444",
     "0x5555555555555555555555555555555555555555",
   ];
+  const serverIds: number[] = [1, 2, 3, 4, 5];
 
   beforeEach(() => {
     // Create mock clients
@@ -320,7 +321,7 @@ describe("Enhanced Trusted Server Queries", () => {
         { url: "https://server3.example.com" },
       ];
 
-      const serverIds = serverAddresses.slice(0, 3);
+      const serverIds = [1, 2, 3]; // Use numeric server IDs instead of addresses
 
       mockPublicClient.readContract
         .mockResolvedValueOnce(serverInfos[0])
@@ -337,7 +338,7 @@ describe("Enhanced Trusted Server Queries", () => {
     });
 
     it("should handle partial failures in batch requests", async () => {
-      const serverIds = serverAddresses.slice(0, 3);
+      const serverIds = [1, 2, 3]; // Use numeric server IDs instead of addresses
 
       mockPublicClient.readContract
         .mockResolvedValueOnce({ url: "https://server1.example.com" })
@@ -365,16 +366,17 @@ describe("Enhanced Trusted Server Queries", () => {
     });
 
     it("should handle all failures gracefully", async () => {
-      const serverIds = serverAddresses.slice(0, 2);
+      const testServerIds = serverIds.slice(0, 2);
 
       mockPublicClient.readContract
         .mockRejectedValueOnce(new Error("Server 1 not found"))
         .mockRejectedValueOnce(new Error("Server 2 not found"));
 
-      const result = await permissionsController.getServerInfoBatch(serverIds);
+      const result =
+        await permissionsController.getServerInfoBatch(testServerIds);
 
       expect(result.servers.size).toBe(0);
-      expect(result.failed).toEqual(serverIds);
+      expect(result.failed).toEqual(testServerIds);
     });
   });
 
@@ -382,17 +384,17 @@ describe("Enhanced Trusted Server Queries", () => {
     it("should correctly identify trusted servers", async () => {
       // Mock user's trusted servers
       mockPublicClient.readContract.mockResolvedValueOnce([
-        serverAddresses[0],
-        serverAddresses[2],
-        serverAddresses[4],
+        serverIds[0],
+        serverIds[2],
+        serverIds[4],
       ]);
 
       const result = await permissionsController.checkServerTrustStatus(
-        serverAddresses[0],
+        serverIds[0],
       );
 
       expect(result).toEqual({
-        serverId: serverAddresses[0],
+        serverId: serverIds[0],
         isTrusted: true,
         trustIndex: 0,
       });
@@ -401,16 +403,16 @@ describe("Enhanced Trusted Server Queries", () => {
     it("should correctly identify untrusted servers", async () => {
       // Mock user's trusted servers (doesn't include the queried server)
       mockPublicClient.readContract.mockResolvedValueOnce([
-        serverAddresses[1],
-        serverAddresses[3],
+        serverIds[1],
+        serverIds[3],
       ]);
 
       const result = await permissionsController.checkServerTrustStatus(
-        serverAddresses[0],
+        serverIds[0],
       );
 
       expect(result).toEqual({
-        serverId: serverAddresses[0],
+        serverId: serverIds[0],
         isTrusted: false,
         trustIndex: undefined,
       });
@@ -418,10 +420,10 @@ describe("Enhanced Trusted Server Queries", () => {
 
     it("should work with different user addresses", async () => {
       const otherUser: Address = "0x9999999999999999999999999999999999999999";
-      mockPublicClient.readContract.mockResolvedValueOnce([serverAddresses[0]]);
+      mockPublicClient.readContract.mockResolvedValueOnce([serverIds[0]]);
 
       const result = await permissionsController.checkServerTrustStatus(
-        serverAddresses[0],
+        serverIds[0],
         otherUser,
       );
 

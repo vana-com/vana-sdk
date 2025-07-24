@@ -66,10 +66,10 @@ export class UserRejectedRequestError extends VanaError {
  * parameters are missing, invalid, or incompatible. Common causes include
  * missing wallet clients, invalid chain IDs, malformed storage provider
  * configurations, or incompatible parameter combinations.
- * 
+ *
  * Applications should catch this error during initialization and provide
  * clear feedback to users about configuration requirements.
- * 
+ *
  * @example
  * ```typescript
  * try {
@@ -119,14 +119,14 @@ export class ContractNotFoundError extends VanaError {
  * transaction parameters, or smart contract reverts. The original error is
  * preserved to provide detailed debugging information while maintaining a
  * consistent SDK error interface.
- * 
+ *
  * Common causes:
  * - Network connectivity problems
  * - Insufficient gas or gas price too low
  * - Contract function reverts
  * - Invalid transaction parameters
  * - Blockchain congestion or downtime
- * 
+ *
  * @example
  * ```typescript
  * try {
@@ -137,7 +137,7 @@ export class ContractNotFoundError extends VanaError {
  * } catch (error) {
  *   if (error instanceof BlockchainError) {
  *     console.error('Blockchain operation failed:', error.message);
- *     
+ *
  *     // Check if it's a network issue
  *     if (error.originalError?.message.includes('network')) {
  *       // Retry with exponential backoff
@@ -166,14 +166,14 @@ export class BlockchainError extends VanaError {
  * circular references in objects, unsupported data types, or malformed JSON.
  * It's typically encountered during grant file creation, storage operations,
  * or when preparing transaction data.
- * 
+ *
  * @example
  * ```typescript
  * try {
  *   // Object with circular reference causes serialization error
  *   const obj = { name: 'test' };
  *   obj.self = obj; // Circular reference
- *   
+ *
  *   await vana.data.upload({
  *     content: obj,
  *     filename: 'data.json'

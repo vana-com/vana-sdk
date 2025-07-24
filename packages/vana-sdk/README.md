@@ -121,10 +121,12 @@ const result = await vana.data.upload({
   content: "Sensitive user data",
   filename: "user-data.json",
   schemaId: 123,
-  permissions: [{
-    account: "0xServerAddress...",  // Who can decrypt
-    publicKey: "0x04ServerKey..."   // Their public key
-  }]
+  permissions: [
+    {
+      account: "0xServerAddress...", // Who can decrypt
+      publicKey: "0x04ServerKey...", // Their public key
+    },
+  ],
 });
 ```
 
@@ -239,11 +241,13 @@ async function shareDataWithServer() {
     content: { data: "sensitive medical records" },
     filename: "health-data.json",
     schemaId: 123,
-    permissions: [{
-      // Grant decryption access to the AI server
-      account: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
-      publicKey: "0x04abc..." // Server's public key for encryption
-    }]
+    permissions: [
+      {
+        // Grant decryption access to the AI server
+        account: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+        publicKey: "0x04abc...", // Server's public key for encryption
+      },
+    ],
   });
 
   // Step 2: Grant operation permissions for what the server can do

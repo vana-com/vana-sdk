@@ -28,6 +28,7 @@ import {
   Activity,
 } from "lucide-react";
 import { GrantPermissionModal } from "@/components/ui/GrantPermissionModal";
+import { useGrantees } from "@/hooks/useGrantees";
 import { useTrustedServers } from "@/hooks/useTrustedServers";
 import { useUserFiles, ExtendedUserFile } from "@/hooks/useUserFiles";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -345,6 +346,8 @@ export default function DemoExperiencePage() {
     handleTrustServerGasless,
   } = useTrustedServers();
 
+  const { grantees } = useGrantees();
+
   const {
     userFiles,
     selectedFiles,
@@ -547,7 +550,7 @@ export default function DemoExperiencePage() {
 
     if (needsToCreateData && config.dataChoice === "new") {
       addActivity("info", "Creating sample data file...");
-      
+
       // Get server identity to get public key for encryption
       let serverIdentity = null;
       if (config.selectedServer && vana && address) {
@@ -558,38 +561,57 @@ export default function DemoExperiencePage() {
           });
           addActivity("info", "Encrypting file with server's public key...");
         } catch {
-          addActivity("warning", "Could not get server identity, uploading without encryption");
+          addActivity(
+            "warning",
+            "Could not get server identity, uploading without encryption",
+          );
         }
       }
-      
+
       await handleUploadText(
-        serverIdentity?.address, 
-        serverIdentity?.public_key
+        serverIdentity?.address,
+        serverIdentity?.public_key,
       );
       return;
     }
 
     if (!applicationAddress) {
-      addActivity("error", "Missing configuration", "Application address not available");
+      addActivity(
+        "error",
+        "Missing configuration",
+        "Application address not available",
+      );
       return;
     }
 
     // For existing data mode, we need files to be selected
     // For new data mode, we need either files selected (after upload) or text data to upload
     if (config.dataChoice === "existing" && config.selectedFiles.length === 0) {
-      addActivity("error", "Missing configuration", "Please select existing data files");
+      addActivity(
+        "error",
+        "Missing configuration",
+        "Please select existing data files",
+      );
       return;
     }
 
-    if (config.dataChoice === "new" && config.selectedFiles.length === 0 && !newTextData.trim()) {
-      addActivity("error", "Missing configuration", "Please enter sample text or select existing files");
+    if (
+      config.dataChoice === "new" &&
+      config.selectedFiles.length === 0 &&
+      !newTextData.trim()
+    ) {
+      addActivity(
+        "error",
+        "Missing configuration",
+        "Please enter sample text or select existing files",
+      );
       return;
     }
 
     // If we don't have a permission, open the modal to create one
     if (!lastGrantedPermissionId) {
       addActivity("info", "Opening permission configuration...");
-      
+
       // Set up initial grant preview before opening modal
       setGrantPreview({
         grantFile: null,
@@ -599,11 +621,12 @@ export default function DemoExperiencePage() {
           operation: "llm_inference",
           files: config.selectedFiles,
           parameters: {
-            prompt: "Generate a personality profile based on the following text: {{data}}",
+            prompt:
+              "Generate a personality profile based on the following text: {{data}}",
           },
         },
       });
-      
+
       onOpenGrant();
       return;
     }
@@ -781,9 +804,8 @@ export default function DemoExperiencePage() {
           await handleConfirmGrant(params);
         }}
         selectedFiles={config.selectedFiles}
-        applicationAddress={applicationAddress}
+        grantees={grantees}
         isGranting={isGranting}
-        existingPermissions={[]}
       />
     </div>
   );

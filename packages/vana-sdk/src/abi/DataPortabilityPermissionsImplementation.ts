@@ -1,7 +1,7 @@
 // DataPermissions Implementation Contract
 // Generated automatically - do not edit manually
 
-export const DataPermissionsABI = [
+export const DataPortabilityPermissionsABI = [
   {
     inputs: [],
     stateMutability: "nonpayable",
@@ -89,11 +89,6 @@ export const DataPermissionsABI = [
   },
   {
     inputs: [],
-    name: "EmptyUrl",
-    type: "error",
-  },
-  {
-    inputs: [],
     name: "EnforcedPause",
     type: "error",
   },
@@ -109,7 +104,7 @@ export const DataPermissionsABI = [
   },
   {
     inputs: [],
-    name: "GrantAlreadyUsed",
+    name: "GranteeNotFound",
     type: "error",
   },
   {
@@ -188,37 +183,6 @@ export const DataPermissionsABI = [
   },
   {
     inputs: [],
-    name: "ServerAlreadyRegistered",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "ServerNotFound",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "ServerNotTrusted",
-    type: "error",
-  },
-  {
-    inputs: [
-      {
-        internalType: "string",
-        name: "existingUrl",
-        type: "string",
-      },
-      {
-        internalType: "string",
-        name: "providedUrl",
-        type: "string",
-      },
-    ],
-    name: "ServerUrlMismatch",
-    type: "error",
-  },
-  {
-    inputs: [],
     name: "UUPSUnauthorizedCallContext",
     type: "error",
   },
@@ -284,6 +248,12 @@ export const DataPermissionsABI = [
         internalType: "address",
         name: "user",
         type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "granteeId",
+        type: "uint256",
       },
       {
         indexed: false,
@@ -393,69 +363,6 @@ export const DataPermissionsABI = [
     anonymous: false,
     inputs: [
       {
-        indexed: true,
-        internalType: "address",
-        name: "serverId",
-        type: "address",
-      },
-      {
-        indexed: false,
-        internalType: "string",
-        name: "url",
-        type: "string",
-      },
-    ],
-    name: "ServerAdded",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "address",
-        name: "user",
-        type: "address",
-      },
-      {
-        indexed: true,
-        internalType: "address",
-        name: "serverId",
-        type: "address",
-      },
-      {
-        indexed: false,
-        internalType: "string",
-        name: "serverUrl",
-        type: "string",
-      },
-    ],
-    name: "ServerTrusted",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "address",
-        name: "user",
-        type: "address",
-      },
-      {
-        indexed: true,
-        internalType: "address",
-        name: "serverId",
-        type: "address",
-      },
-    ],
-    name: "ServerUntrusted",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
         indexed: false,
         internalType: "address",
         name: "account",
@@ -527,6 +434,11 @@ export const DataPermissionsABI = [
             type: "uint256",
           },
           {
+            internalType: "uint256",
+            name: "granteeId",
+            type: "uint256",
+          },
+          {
             internalType: "string",
             name: "grant",
             type: "string",
@@ -537,8 +449,8 @@ export const DataPermissionsABI = [
             type: "uint256[]",
           },
         ],
-        internalType: "struct IDataPermissions.PermissionInput",
-        name: "permission",
+        internalType: "struct IDataPortabilityPermissions.PermissionInput",
+        name: "permissionInput",
         type: "tuple",
       },
       {
@@ -556,6 +468,32 @@ export const DataPermissionsABI = [
       },
     ],
     stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "dataPortabilityGrantees",
+    outputs: [
+      {
+        internalType: "contract IDataPortabilityGrantees",
+        name: "",
+        type: "address",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "dataPortabilityServers",
+    outputs: [
+      {
+        internalType: "contract IDataPortabilityServers",
+        name: "",
+        type: "address",
+      },
+    ],
+    stateMutability: "view",
     type: "function",
   },
   {
@@ -623,6 +561,25 @@ export const DataPermissionsABI = [
       },
     ],
     name: "filePermissionIds",
+    outputs: [
+      {
+        internalType: "uint256[]",
+        name: "",
+        type: "uint256[]",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "fileId",
+        type: "uint256",
+      },
+    ],
+    name: "filePermissions",
     outputs: [
       {
         internalType: "uint256[]",
@@ -709,6 +666,16 @@ export const DataPermissionsABI = [
       {
         internalType: "contract IDataRegistry",
         name: "dataRegistryAddress",
+        type: "address",
+      },
+      {
+        internalType: "contract IDataPortabilityServers",
+        name: "serversContractAddr",
+        type: "address",
+      },
+      {
+        internalType: "contract IDataPortabilityGrantees",
+        name: "granteesContractAddr",
         type: "address",
       },
     ],
@@ -816,25 +783,6 @@ export const DataPermissionsABI = [
   {
     inputs: [
       {
-        internalType: "string",
-        name: "grant",
-        type: "string",
-      },
-    ],
-    name: "permissionIdByGrant",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
         internalType: "uint256",
         name: "permissionId",
         type: "uint256",
@@ -860,6 +808,11 @@ export const DataPermissionsABI = [
             type: "uint256",
           },
           {
+            internalType: "uint256",
+            name: "granteeId",
+            type: "uint256",
+          },
+          {
             internalType: "string",
             name: "grant",
             type: "string",
@@ -870,9 +823,14 @@ export const DataPermissionsABI = [
             type: "bytes",
           },
           {
-            internalType: "bool",
-            name: "isActive",
-            type: "bool",
+            internalType: "uint256",
+            name: "startBlock",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "endBlock",
+            type: "uint256",
           },
           {
             internalType: "uint256[]",
@@ -880,7 +838,7 @@ export const DataPermissionsABI = [
             type: "uint256[]",
           },
         ],
-        internalType: "struct IDataPermissions.PermissionInfo",
+        internalType: "struct IDataPortabilityPermissions.PermissionInfo",
         name: "",
         type: "tuple",
       },
@@ -960,7 +918,8 @@ export const DataPermissionsABI = [
             type: "uint256",
           },
         ],
-        internalType: "struct IDataPermissions.RevokePermissionInput",
+        internalType:
+          "struct IDataPortabilityPermissions.RevokePermissionInput",
         name: "revokePermissionInput",
         type: "tuple",
       },
@@ -991,32 +950,6 @@ export const DataPermissionsABI = [
     name: "revokeRole",
     outputs: [],
     stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "serverId",
-        type: "address",
-      },
-    ],
-    name: "servers",
-    outputs: [
-      {
-        components: [
-          {
-            internalType: "string",
-            name: "url",
-            type: "string",
-          },
-        ],
-        internalType: "struct IDataPermissions.Server",
-        name: "",
-        type: "tuple",
-      },
-    ],
-    stateMutability: "view",
     type: "function",
   },
   {
@@ -1057,59 +990,6 @@ export const DataPermissionsABI = [
     type: "function",
   },
   {
-    inputs: [
-      {
-        internalType: "address",
-        name: "serverId",
-        type: "address",
-      },
-      {
-        internalType: "string",
-        name: "serverUrl",
-        type: "string",
-      },
-    ],
-    name: "trustServer",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        components: [
-          {
-            internalType: "uint256",
-            name: "nonce",
-            type: "uint256",
-          },
-          {
-            internalType: "address",
-            name: "serverId",
-            type: "address",
-          },
-          {
-            internalType: "string",
-            name: "serverUrl",
-            type: "string",
-          },
-        ],
-        internalType: "struct IDataPermissions.TrustServerInput",
-        name: "trustServerInput",
-        type: "tuple",
-      },
-      {
-        internalType: "bytes",
-        name: "signature",
-        type: "bytes",
-      },
-    ],
-    name: "trustServerWithSignature",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
     inputs: [],
     name: "trustedForwarder",
     outputs: [
@@ -1132,55 +1012,38 @@ export const DataPermissionsABI = [
   {
     inputs: [
       {
-        internalType: "address",
-        name: "serverId",
-        type: "address",
-      },
-    ],
-    name: "untrustServer",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        components: [
-          {
-            internalType: "uint256",
-            name: "nonce",
-            type: "uint256",
-          },
-          {
-            internalType: "address",
-            name: "serverId",
-            type: "address",
-          },
-        ],
-        internalType: "struct IDataPermissions.UntrustServerInput",
-        name: "untrustServerInput",
-        type: "tuple",
-      },
-      {
-        internalType: "bytes",
-        name: "signature",
-        type: "bytes",
-      },
-    ],
-    name: "untrustServerWithSignature",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
         internalType: "contract IDataRegistry",
         name: "newDataRegistry",
         type: "address",
       },
     ],
     name: "updateDataRegistry",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "contract IDataPortabilityGrantees",
+        name: "newGranteesContract",
+        type: "address",
+      },
+    ],
+    name: "updateGranteesContract",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "contract IDataPortabilityServers",
+        name: "newServersContract",
+        type: "address",
+      },
+    ],
+    name: "updateServersContract",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -1220,7 +1083,7 @@ export const DataPermissionsABI = [
     inputs: [
       {
         internalType: "address",
-        name: "user",
+        name: "userAddress",
         type: "address",
       },
     ],
@@ -1239,7 +1102,7 @@ export const DataPermissionsABI = [
     inputs: [
       {
         internalType: "address",
-        name: "user",
+        name: "userAddress",
         type: "address",
       },
       {
@@ -1263,7 +1126,7 @@ export const DataPermissionsABI = [
     inputs: [
       {
         internalType: "address",
-        name: "user",
+        name: "userAddress",
         type: "address",
       },
     ],
@@ -1282,7 +1145,7 @@ export const DataPermissionsABI = [
     inputs: [
       {
         internalType: "address",
-        name: "user",
+        name: "userAddress",
         type: "address",
       },
     ],
@@ -1301,121 +1164,21 @@ export const DataPermissionsABI = [
     inputs: [
       {
         internalType: "address",
-        name: "user",
-        type: "address",
-      },
-      {
-        internalType: "uint256",
-        name: "permissionIndex",
-        type: "uint256",
-      },
-    ],
-    name: "userRevokedPermissionIdsAt",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "user",
+        name: "userAddress",
         type: "address",
       },
     ],
-    name: "userRevokedPermissionIdsLength",
+    name: "users",
     outputs: [
       {
         internalType: "uint256",
-        name: "",
+        name: "nonce",
         type: "uint256",
       },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "user",
-        type: "address",
-      },
-    ],
-    name: "userRevokedPermissionIdsValues",
-    outputs: [
       {
         internalType: "uint256[]",
-        name: "",
+        name: "permissionIds",
         type: "uint256[]",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "user",
-        type: "address",
-      },
-      {
-        internalType: "uint256",
-        name: "serverIndex",
-        type: "uint256",
-      },
-    ],
-    name: "userServerIdsAt",
-    outputs: [
-      {
-        internalType: "address",
-        name: "",
-        type: "address",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "user",
-        type: "address",
-      },
-    ],
-    name: "userServerIdsLength",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "user",
-        type: "address",
-      },
-    ],
-    name: "userServerIdsValues",
-    outputs: [
-      {
-        internalType: "address[]",
-        name: "",
-        type: "address[]",
       },
     ],
     stateMutability: "view",
@@ -1436,4 +1199,4 @@ export const DataPermissionsABI = [
   },
 ] as const;
 
-export default DataPermissionsABI;
+export default DataPortabilityPermissionsABI;

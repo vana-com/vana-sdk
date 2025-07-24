@@ -1137,16 +1137,16 @@ export class DataController {
         throw new Error("Chain ID not available");
       }
 
-      const DataPermissionsAddress = getContractAddress(
+      const DataPortabilityServersAddress = getContractAddress(
         chainId,
-        "DataPermissions",
+        "DataPortabilityServers",
       );
-      const DataPermissionsAbi = getAbi("DataPermissions");
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
 
       // Get total count first
       const totalCount = (await this.context.publicClient.readContract({
-        address: DataPermissionsAddress,
-        abi: DataPermissionsAbi,
+        address: DataPortabilityServersAddress,
+        abi: DataPortabilityServersAbi,
         functionName: "userServerIdsLength",
         args: [user],
       })) as bigint;
@@ -1165,14 +1165,14 @@ export class DataController {
       const endIndex = Math.min(offset + limit, total);
 
       // Fetch server IDs using pagination
-      const serverIdPromises: Promise<Address>[] = [];
+      const serverIdPromises: Promise<bigint>[] = [];
       for (let i = offset; i < endIndex; i++) {
         const promise = this.context.publicClient.readContract({
-          address: DataPermissionsAddress,
-          abi: DataPermissionsAbi,
+          address: DataPortabilityServersAddress,
+          abi: DataPortabilityServersAbi,
           functionName: "userServerIdsAt",
           args: [user, BigInt(i)],
-        }) as Promise<Address>;
+        }) as Promise<bigint>;
         serverIdPromises.push(promise);
       }
 
@@ -1182,15 +1182,21 @@ export class DataController {
       const serverInfoPromises = serverIds.map(async (serverId, index) => {
         try {
           const serverInfo = (await this.context.publicClient.readContract({
-            address: DataPermissionsAddress,
-            abi: DataPermissionsAbi,
+            address: DataPortabilityServersAddress,
+            abi: DataPortabilityServersAbi,
             functionName: "servers",
             args: [serverId],
-          })) as { url: string };
+          })) as {
+            id: bigint;
+            owner: Address;
+            serverAddress: Address;
+            publicKey: `0x${string}`;
+            url: string;
+          };
 
           return {
-            id: `${user.toLowerCase()}-${serverId.toLowerCase()}`,
-            serverAddress: serverId,
+            id: `${user.toLowerCase()}-${serverId.toString()}`,
+            serverAddress: serverInfo.serverAddress,
             serverUrl: serverInfo.url,
             trustedAt: BigInt(Date.now()), // RPC mode doesn't have timestamp, use current time
             user,
@@ -1199,8 +1205,9 @@ export class DataController {
         } catch {
           // If server info fails, return basic info
           return {
-            id: `${user.toLowerCase()}-${serverId.toLowerCase()}`,
-            serverAddress: serverId,
+            id: `${user.toLowerCase()}-${serverId.toString()}`,
+            serverAddress:
+              "0x0000000000000000000000000000000000000000" as Address,
             serverUrl: "",
             trustedAt: BigInt(Date.now()),
             user,

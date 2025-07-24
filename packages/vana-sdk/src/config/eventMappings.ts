@@ -1,7 +1,7 @@
 // Event mapping configuration for transaction result parsing
 // Maps SDK operation names to their corresponding contract events
 
-import type { VanaContract } from '../abi/index';
+import type { VanaContract } from "../abi/index";
 
 export interface EventMapping {
   contract: VanaContract;
@@ -16,38 +16,38 @@ export interface EventMapping {
 export const EVENT_MAPPINGS = {
   // Permission operations
   grant: {
-    contract: 'DataPermissions',
-    event: 'PermissionAdded',
+    contract: "DataPermissions",
+    event: "PermissionAdded",
   },
   revoke: {
-    contract: 'DataPermissions',
-    event: 'PermissionRevoked',
+    contract: "DataPermissions",
+    event: "PermissionRevoked",
   },
   trustServer: {
-    contract: 'DataPermissions',
-    event: 'ServerTrusted',
+    contract: "DataPortabilityServers",
+    event: "ServerTrusted",
   },
   untrustServer: {
-    contract: 'DataPermissions',
-    event: 'ServerUntrusted',
+    contract: "DataPortabilityServers",
+    event: "ServerUntrusted",
   },
 
-  // Data registry operations  
+  // Data registry operations
   addFile: {
-    contract: 'DataRegistry',
-    event: 'FileAdded',
+    contract: "DataRegistry",
+    event: "FileAdded",
   },
   addRefinement: {
-    contract: 'DataRegistry',
-    event: 'RefinementAdded',
+    contract: "DataRegistry",
+    event: "RefinementAdded",
   },
   updateRefinement: {
-    contract: 'DataRegistry',
-    event: 'RefinementUpdated',
+    contract: "DataRegistry",
+    event: "RefinementUpdated",
   },
   addFilePermission: {
-    contract: 'DataRegistry',
-    event: 'PermissionGranted',
+    contract: "DataRegistry",
+    event: "PermissionGranted",
   },
 } as const satisfies Record<string, EventMapping>;
 

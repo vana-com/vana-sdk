@@ -24,7 +24,7 @@ class VanaBrowserImpl extends VanaCore {
  * automatically detects your configuration type and provides compile-time type safety:
  * - **With storage configured**: All methods including file upload/download are available
  * - **Without storage**: Storage-dependent methods throw runtime errors and are excluded from TypeScript
- * 
+ *
  * The SDK supports multiple wallet configurations (direct WalletClient or chain config),
  * various storage providers (IPFS, Pinata, Google Drive), and gasless transactions via relayers.
  * All operations are optimized for browser environments with proper bundle size optimization.
@@ -37,13 +37,13 @@ class VanaBrowserImpl extends VanaCore {
  * import { Vana } from '@opendatalabs/vana-sdk/browser';
  * import { createWalletClient, custom } from 'viem';
  * import { IPFSStorage } from '@opendatalabs/vana-sdk/browser';
- * 
+ *
  * // Complete setup with storage and wallet
  * const walletClient = createWalletClient({
  *   chain: mokshaTestnet,
  *   transport: custom(window.ethereum)
  * });
- * 
+ *
  * const vana = Vana({
  *   walletClient,
  *   storage: {
@@ -63,25 +63,25 @@ class VanaBrowserImpl extends VanaCore {
  *     }
  *   }
  * });
- * 
+ *
  * // All operations now available
  * const files = await vana.data.getUserFiles();
  * const permissions = await vana.permissions.getUserPermissions();
  * await vana.data.upload({ content: 'My data', filename: 'data.txt' });
  * ```
- * 
+ *
  * @example
  * ```typescript
  * // Minimal setup without storage (read-only operations)
  * const vanaReadOnly = Vana({ walletClient });
- * 
+ *
  * // These work without storage
  * const files = await vanaReadOnly.data.getUserFiles();
  * const permissions = await vanaReadOnly.permissions.getUserPermissions();
- * 
+ *
  * // This would throw a runtime error
  * // await vanaReadOnly.data.upload(params); // ❌ InvalidConfigurationError
- * 
+ *
  * // Safe runtime check
  * if (vanaReadOnly.isStorageEnabled()) {
  *   await vanaReadOnly.data.upload(params); // ✅ TypeScript allows this
@@ -89,7 +89,7 @@ class VanaBrowserImpl extends VanaCore {
  *   console.log('Storage not configured - upload unavailable');
  * }
  * ```
- * 
+ *
  * @example
  * ```typescript
  * // Using chain configuration instead of wallet client
@@ -103,7 +103,7 @@ class VanaBrowserImpl extends VanaCore {
  *   }
  * });
  * ```
- * 
+ *
  * @see {@link https://docs.vana.org/docs/sdk/getting-started | Getting Started Guide} for setup tutorials
  * @see {@link VanaCore} for the underlying implementation details
  * @category Core SDK

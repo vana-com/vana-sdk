@@ -16,16 +16,28 @@ import {
   Select,
   SelectItem,
 } from "@heroui/react";
-import { ExternalLink, RefreshCw, Shield, Trash2, Server } from "lucide-react";
+import {
+  ExternalLink,
+  RefreshCw,
+  Shield,
+  Trash2,
+  Server,
+  CheckCircle,
+  XCircle,
+} from "lucide-react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { CopyButton } from "@/components/ui/CopyButton";
 import { AddressDisplay } from "@/components/ui/AddressDisplay";
 import { FormBuilder } from "@/components/ui/FormBuilder";
 
 interface TrustedServer {
-  id: string;
+  id: number;
+  owner: string;
   url: string;
-  name: string;
+  serverAddress: string;
+  publicKey: string;
+  name?: string;
+  endBlock?: bigint; // Optional field for server expiration
 }
 
 interface ServersTabProps {
@@ -39,16 +51,20 @@ interface ServersTabProps {
 
   // Input state
   queryMode: "subgraph" | "rpc" | "auto";
-  serverId: string;
+  serverOwner: string;
+  serverAddress: string;
   serverUrl: string;
+  publicKey: string;
 
   // Callbacks
-  onServerIdChange: (id: string) => void;
+  onServerOwnerChange: (owner: string) => void;
+  onServerAddressChange: (address: string) => void;
   onServerUrlChange: (url: string) => void;
+  onPublicKeyChange: (key: string) => void;
   onQueryModeChange: (mode: "subgraph" | "rpc" | "auto") => void;
-  onTrustServer: (serverId?: string, serverUrl?: string) => void;
+  onTrustServer: () => void;
   onRefreshServers: () => void;
-  onUntrustServer: (serverId: string) => void;
+  onUntrustServer: (serverId: number) => void;
   onDiscoverReplicateServer: () => void;
 }
 
@@ -60,10 +76,14 @@ export function ServersTab({
   isDiscoveringServer,
   trustServerError,
   queryMode,
-  serverId,
+  serverOwner,
+  serverAddress,
   serverUrl,
-  onServerIdChange,
+  publicKey,
+  onServerOwnerChange,
+  onServerAddressChange,
   onServerUrlChange,
+  onPublicKeyChange,
   onQueryModeChange,
   onTrustServer,
   onRefreshServers,
@@ -86,13 +106,23 @@ export function ServersTab({
             singleColumn={true}
             fields={[
               {
-                name: "serverId",
-                label: "Server ID",
+                name: "owner",
+                label: "Server Owner",
                 type: "text",
-                value: serverId,
-                onChange: onServerIdChange,
+                value: serverOwner,
+                onChange: onServerOwnerChange,
                 placeholder: "0x...",
-                description: "The Ethereum address of the server to trust",
+                description: "The Ethereum address of the server owner",
+                required: true,
+              },
+              {
+                name: "serverAddress",
+                label: "Server Address",
+                type: "text",
+                value: serverAddress,
+                onChange: onServerAddressChange,
+                placeholder: "0x...",
+                description: "The Ethereum address of the server",
                 required: true,
               },
               {
@@ -105,10 +135,20 @@ export function ServersTab({
                 description: "The API endpoint URL of the server",
                 required: true,
               },
+              {
+                name: "publicKey",
+                label: "Public Key",
+                type: "text",
+                value: publicKey,
+                onChange: onPublicKeyChange,
+                placeholder: "0x...",
+                description: "The server's public key for encryption",
+                required: true,
+              },
             ]}
             onSubmit={onTrustServer}
             isSubmitting={isTrustingServer}
-            submitText="Trust Server"
+            submitText="Add and Trust Server"
             submitIcon={<Shield className="h-4 w-4" />}
             status={trustServerError}
             additionalButtons={
@@ -192,58 +232,108 @@ export function ServersTab({
           ) : (
             <Table aria-label="Trusted servers table" removeWrapper>
               <TableHeader>
+                <TableColumn>Server ID</TableColumn>
+                <TableColumn>Owner</TableColumn>
                 <TableColumn>Server Address</TableColumn>
                 <TableColumn>URL</TableColumn>
+                <TableColumn>Public Key</TableColumn>
+                <TableColumn>Status</TableColumn>
                 <TableColumn>Actions</TableColumn>
               </TableHeader>
               <TableBody>
-                {trustedServers.map((server) => (
-                  <TableRow key={server.id}>
-                    <TableCell>
-                      <AddressDisplay
-                        address={server.id}
-                        truncate={true}
-                        showCopy={true}
-                        showExternalLink={true}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      {server.url && (
+                {trustedServers.map((server) => {
+                  // For now, assume all servers in the list are Active since they're returned by the API
+                  // In the future, this would check: server.endBlock === 0n || server.endBlock >= currentBlockNumber
+                  const isActive = true; // Placeholder logic - all servers are Active for now
+                  const status = isActive ? "Active" : "Untrusted";
+
+                  return (
+                    <TableRow key={server.id}>
+                      <TableCell>
+                        <span className="font-mono text-sm">{server.id}</span>
+                      </TableCell>
+                      <TableCell>
+                        <AddressDisplay
+                          address={server.owner}
+                          truncate={true}
+                          showCopy={true}
+                          showExternalLink={true}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <AddressDisplay
+                          address={server.serverAddress}
+                          truncate={true}
+                          showCopy={true}
+                          showExternalLink={true}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {server.url && (
+                          <div className="flex items-center gap-2">
+                            <Button
+                              as="a"
+                              href={server.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              size="sm"
+                              variant="flat"
+                              isIconOnly
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                            </Button>
+                            <CopyButton
+                              value={server.url}
+                              tooltip="Copy server URL"
+                              isInline
+                            />
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <CopyButton
+                          value={server.publicKey}
+                          tooltip="Copy public key"
+                          isInline
+                        />
+                      </TableCell>
+                      <TableCell>
                         <div className="flex items-center gap-2">
-                          <Button
-                            as="a"
-                            href={server.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            size="sm"
-                            variant="flat"
-                            isIconOnly
+                          {isActive ? (
+                            <CheckCircle className="h-4 w-4 text-success" />
+                          ) : (
+                            <XCircle className="h-4 w-4 text-danger" />
+                          )}
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              isActive
+                                ? "bg-success/20 text-success-700"
+                                : "bg-danger/20 text-danger-700"
+                            }`}
                           >
-                            <ExternalLink className="h-3 w-3" />
-                          </Button>
-                          <CopyButton
-                            value={server.url}
-                            tooltip="Copy server URL"
-                            isInline
-                          />
+                            {status}
+                          </span>
                         </div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        color="danger"
-                        variant="flat"
-                        size="sm"
-                        onPress={() => onUntrustServer(server.id)}
-                        isLoading={isUntrusting}
-                        isDisabled={isUntrusting}
-                        startContent={<Trash2 className="h-3 w-3" />}
-                      >
-                        Untrust
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      </TableCell>
+                      <TableCell>
+                        {/* Only show Untrust button for Active servers */}
+                        {isActive && (
+                          <Button
+                            color="danger"
+                            variant="flat"
+                            size="sm"
+                            onPress={() => onUntrustServer(server.id)}
+                            isLoading={isUntrusting}
+                            isDisabled={isUntrusting}
+                            startContent={<Trash2 className="h-3 w-3" />}
+                          >
+                            Untrust
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}

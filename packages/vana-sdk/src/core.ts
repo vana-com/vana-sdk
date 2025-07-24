@@ -103,12 +103,12 @@ export class VanaCoreFactory {
  * For public usage, use the platform-specific factory functions:
  * - Browser: `import { Vana } from '@opendatalabs/vana-sdk/browser'`
  * - Node.js: `import { Vana } from '@opendatalabs/vana-sdk/node'`
- * 
+ *
  * @example
  * ```typescript
  * // Direct instantiation (advanced usage)
  * import { VanaCore, BrowserPlatformAdapter } from '@opendatalabs/vana-sdk/browser';
- * 
+ *
  * const core = new VanaCore(new BrowserPlatformAdapter(), {
  *   walletClient: myWalletClient,
  *   storage: {
@@ -116,7 +116,7 @@ export class VanaCoreFactory {
  *     defaultProvider: 'ipfs'
  *   }
  * });
- * 
+ *
  * // Access all controllers
  * const files = await core.data.getUserFiles();
  * const permissions = await core.permissions.grant({
@@ -561,7 +561,7 @@ export class VanaCore {
 
   /**
    * Encrypts data using the Vana protocol standard encryption.
-   * 
+   *
    * @remarks
    * This method implements the Vana network's standard encryption protocol using
    * platform-appropriate cryptographic libraries. It automatically handles different
@@ -576,18 +576,18 @@ export class VanaCore {
    * @example
    * ```typescript
    * import { generateEncryptionKey } from '@opendatalabs/vana-sdk/node';
-   * 
+   *
    * // Generate encryption key from wallet signature
    * const encryptionKey = await generateEncryptionKey(vana.walletClient);
-   * 
+   *
    * // Encrypt string data
    * const sensitiveData = "User's private information";
    * const encrypted = await vana.encryptBlob(sensitiveData, encryptionKey);
-   * 
+   *
    * // Encrypt file data
    * const fileBlob = new Blob([fileContent], { type: 'application/json' });
    * const encryptedFile = await vana.encryptBlob(fileBlob, encryptionKey);
-   * 
+   *
    * // Store encrypted data safely
    * await storageProvider.upload(encrypted, 'encrypted-data.bin');
    * ```
@@ -598,7 +598,7 @@ export class VanaCore {
 
   /**
    * Decrypts data that was encrypted using the Vana protocol.
-   * 
+   *
    * @remarks
    * This method decrypts data that was previously encrypted using the Vana network's
    * standard encryption protocol. It requires the same wallet signature that was used
@@ -612,36 +612,36 @@ export class VanaCore {
    * @example
    * ```typescript
    * import { generateEncryptionKey } from '@opendatalabs/vana-sdk/node';
-   * 
+   *
    * // Retrieve encrypted data from storage
    * const encryptedBlob = await storageProvider.download('encrypted-data.bin');
-   * 
+   *
    * // Generate the same key used for encryption
    * const decryptionKey = await generateEncryptionKey(vana.walletClient);
-   * 
+   *
    * // Decrypt the data
    * const decrypted = await vana.decryptBlob(encryptedBlob, decryptionKey);
-   * 
+   *
    * // Convert back to original format
    * const originalText = await decrypted.text();
    * const originalJson = JSON.parse(originalText);
-   * 
+   *
    * console.log('Decrypted data:', originalJson);
    * ```
-   * 
+   *
    * @example
    * ```typescript
    * // Decrypt file downloaded from Vana network
    * const userFiles = await vana.data.getUserFiles();
    * const file = userFiles[0];
-   * 
+   *
    * // Download encrypted content
    * const encrypted = await fetch(file.url).then(r => r.blob());
-   * 
+   *
    * // Decrypt with user's key
    * const decryptionKey = await generateEncryptionKey(vana.walletClient);
    * const decrypted = await vana.decryptBlob(encrypted, decryptionKey);
-   * 
+   *
    * // Process original data
    * const fileContent = await decrypted.arrayBuffer();
    * ```

@@ -7,10 +7,13 @@ import {
   GenericTypedData,
   OnChainPermissionGrant,
   GetUserPermissionsOptions,
+  AddAndTrustServerParams,
   TrustServerParams,
   UntrustServerParams,
+  AddAndTrustServerInput,
   TrustServerInput,
   UntrustServerInput,
+  AddAndTrustServerTypedData,
   TrustServerTypedData,
   UntrustServerTypedData,
   Server,
@@ -20,6 +23,12 @@ import {
   BatchServerInfoResult,
   ServerTrustStatus,
   GrantFile,
+  Grantee,
+  RegisterGranteeParams,
+  RegisterGranteeInput,
+  RegisterGranteeTypedData,
+  GranteeQueryOptions,
+  PaginatedGrantees,
 } from "../types/index";
 import {
   PermissionGrantResult,
@@ -595,7 +604,6 @@ export class PermissionsController {
       const trustServerInput: TrustServerInput = {
         nonce: BigInt(typedData.message.nonce),
         serverId: typedData.message.serverId,
-        serverUrl: typedData.message.serverUrl,
       };
 
       return await this.submitTrustServerTransaction(
@@ -628,7 +636,7 @@ export class PermissionsController {
           throw new ServerUrlMismatchError(
             existingUrl,
             providedUrl,
-            typedData.message.serverId,
+            typedData.message.serverId.toString(),
           );
         }
       }
@@ -745,6 +753,7 @@ export class PermissionsController {
     // Prepare the PermissionInput struct
     const permissionInput = {
       nonce: typedData.message.nonce,
+      granteeId: typedData.message.granteeId,
       grant: typedData.message.grant,
       fileIds: typedData.message.fileIds,
     };
@@ -931,7 +940,7 @@ export class PermissionsController {
   }
 
   /**
-   * Retrieves the user's current nonce from the DataPermissions contract.
+   * Retrieves the user's current nonce from the DataPortabilityServers contract.
    *
    * @returns Promise resolving to the user's current nonce value
    * @throws {Error} When wallet account is not available
@@ -943,15 +952,15 @@ export class PermissionsController {
       const userAddress = await this.getUserAddress();
       const chainId = await this.context.walletClient.getChainId();
 
-      const DataPermissionsAddress = getContractAddress(
+      const DataPortabilityServersAddress = getContractAddress(
         chainId,
-        "DataPermissions",
+        "DataPortabilityServers",
       );
-      const DataPermissionsAbi = getAbi("DataPermissions");
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
 
       const nonce = (await this.context.publicClient.readContract({
-        address: DataPermissionsAddress,
-        abi: DataPermissionsAbi,
+        address: DataPortabilityServersAddress,
+        abi: DataPortabilityServersAbi,
         functionName: "userNonce",
         args: [userAddress],
       })) as bigint;
@@ -991,6 +1000,21 @@ export class PermissionsController {
       params.grantUrl,
     );
 
+    // Get granteeId from grantee address
+    const chainId = await this.context.walletClient.getChainId();
+    const DataPortabilityGranteesAddress = getContractAddress(
+      chainId,
+      "DataPortabilityGrantees",
+    );
+    const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
+
+    const granteeId = await this.context.publicClient.readContract({
+      address: DataPortabilityGranteesAddress,
+      abi: DataPortabilityGranteesAbi,
+      functionName: "granteeAddressToId",
+      args: [params.grantee],
+    });
+
     // Warn if using HTTP gateway URL instead of ipfs:// protocol for on-chain storage
     if (
       !params.grantUrl.startsWith("ipfs://") &&
@@ -1012,6 +1036,7 @@ export class PermissionsController {
       types: {
         Permission: [
           { name: "nonce", type: "uint256" },
+          { name: "granteeId", type: "uint256" },
           { name: "grant", type: "string" },
           { name: "fileIds", type: "uint256[]" },
         ],
@@ -1019,6 +1044,7 @@ export class PermissionsController {
       primaryType: "Permission",
       message: {
         nonce: params.nonce,
+        granteeId: granteeId as bigint,
         grant: params.grantUrl,
         fileIds: params.files.map((fileId) => BigInt(fileId)),
       },
@@ -1388,44 +1414,86 @@ export class PermissionsController {
   }
 
   /**
-   * Trusts a server for data processing.
+   * Adds and trusts a server for data processing.
    *
-   * @param params - Parameters for trusting the server
-   * @param params.serverId - The server's Ethereum address
-   * @param params.serverUrl - The server's URL endpoint
+   * @param params - Parameters for adding and trusting the server
    * @returns Promise resolving to transaction hash
    * @throws {UserRejectedRequestError} When user rejects the transaction
    * @throws {BlockchainError} When chain ID is unavailable or transaction fails
    * @throws {Error} When wallet account is not available
    * @example
    * ```typescript
-   * // Trust a server by providing its ID and URL
-   * const txHash = await vana.permissions.trustServer({
-   *   serverId: '0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6',
-   *   serverUrl: 'https://personal-server.vana.org'
+   * // Add and trust a server by providing all required details
+   * const txHash = await vana.permissions.addAndTrustServer({
+   *   owner: '0x1234...',
+   *   serverAddress: '0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6',
+   *   serverUrl: 'https://myserver.example.com',
+   *   publicKey: '0x456...'
    * });
-   * console.log('Server trusted in transaction:', txHash);
-   *
-   * // Verify the server was added to trusted list
-   * const trustedServers = await vana.permissions.getTrustedServers();
-   * console.log('Trusted servers:', trustedServers.length);
+   * console.log('Server added and trusted in transaction:', txHash);
    * ```
+   */
+  async addAndTrustServer(params: AddAndTrustServerParams): Promise<Hash> {
+    try {
+      const chainId = await this.context.walletClient.getChainId();
+      const DataPortabilityServersAddress = getContractAddress(
+        chainId,
+        "DataPortabilityServers",
+      );
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
+
+      // Submit directly to the contract
+      const txHash = await this.context.walletClient.writeContract({
+        address: DataPortabilityServersAddress,
+        abi: DataPortabilityServersAbi,
+        functionName: "addAndTrustServer",
+        args: [
+          {
+            owner: params.owner,
+            serverAddress: params.serverAddress,
+            serverUrl: params.serverUrl,
+            publicKey: params.publicKey as `0x${string}`,
+          },
+        ],
+        account:
+          this.context.walletClient.account || (await this.getUserAddress()),
+        chain: this.context.walletClient.chain || null,
+      });
+
+      return txHash;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("rejected")) {
+        throw new UserRejectedRequestError();
+      }
+      throw new BlockchainError(
+        `Failed to add and trust server: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Trusts a server for data processing (legacy method).
+   *
+   * @param params - Parameters for trusting the server
+   * @returns Promise resolving to transaction hash
+   * @deprecated Use addAndTrustServer instead
    */
   async trustServer(params: TrustServerParams): Promise<Hash> {
     try {
       const chainId = await this.context.walletClient.getChainId();
-      const DataPermissionsAddress = getContractAddress(
+      const DataPortabilityServersAddress = getContractAddress(
         chainId,
-        "DataPermissions",
+        "DataPortabilityServers",
       );
-      const DataPermissionsAbi = getAbi("DataPermissions");
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
 
-      // Submit directly to the contract
+      // Submit directly to the contract using trustServer method
       const txHash = await this.context.walletClient.writeContract({
-        address: DataPermissionsAddress,
-        abi: DataPermissionsAbi,
+        address: DataPortabilityServersAddress,
+        abi: DataPortabilityServersAbi,
         functionName: "trustServer",
-        args: [params.serverId, params.serverUrl],
+        args: [BigInt(params.serverId)],
         account:
           this.context.walletClient.account || (await this.getUserAddress()),
         chain: this.context.walletClient.chain || null,
@@ -1444,10 +1512,73 @@ export class PermissionsController {
   }
 
   /**
-   * Trusts a server using a signature (gasless transaction).
+   * Adds and trusts a server using a signature (gasless transaction).
+   *
+   * @param params - Parameters for adding and trusting the server
+   * @returns Promise resolving to transaction hash
+   */
+  async addAndTrustServerWithSignature(
+    params: AddAndTrustServerParams,
+  ): Promise<Hash> {
+    try {
+      const nonce = await this.getUserNonce();
+
+      // Create add and trust server message
+      const addAndTrustServerInput: AddAndTrustServerInput = {
+        nonce,
+        owner: params.owner,
+        serverAddress: params.serverAddress,
+        publicKey: params.publicKey,
+        serverUrl: params.serverUrl,
+      };
+
+      // Create typed data
+      const typedData = await this.composeAddAndTrustServerMessage(
+        addAndTrustServerInput,
+      );
+
+      // Sign the typed data
+      const signature = await this.signTypedData(
+        typedData as unknown as GenericTypedData,
+      );
+
+      // Submit via relayer callbacks or direct transaction
+      // TODO: Add submitAddAndTrustServer to RelayerCallbacks interface
+      // For now, always use direct transaction
+      return await this.submitAddAndTrustServerTransaction(
+        addAndTrustServerInput,
+        signature,
+      );
+    } catch (error) {
+      if (error instanceof Error) {
+        // Re-throw known Vana errors directly
+        if (
+          error instanceof RelayerError ||
+          error instanceof UserRejectedRequestError ||
+          error instanceof SerializationError ||
+          error instanceof SignatureError ||
+          error instanceof NetworkError ||
+          error instanceof NonceError
+        ) {
+          throw error;
+        }
+        throw new BlockchainError(
+          `Add and trust server failed: ${error.message}`,
+          error,
+        );
+      }
+      throw new BlockchainError(
+        "Add and trust server failed with unknown error",
+      );
+    }
+  }
+
+  /**
+   * Trusts a server using a signature (gasless transaction - legacy method).
    *
    * @param params - Parameters for trusting the server
    * @returns Promise resolving to transaction hash
+   * @deprecated Use addAndTrustServerWithSignature instead
    * @throws {BlockchainError} When chain ID is not available
    * @throws {NonceError} When retrieving user nonce fails
    * @throws {SignatureError} When user rejects the signature request
@@ -1463,7 +1594,6 @@ export class PermissionsController {
       const trustServerInput: TrustServerInput = {
         nonce,
         serverId: params.serverId,
-        serverUrl: params.serverUrl,
       };
 
       // Create typed data
@@ -1519,18 +1649,18 @@ export class PermissionsController {
   ): Promise<Hash> {
     try {
       const chainId = await this.context.walletClient.getChainId();
-      const DataPermissionsAddress = getContractAddress(
+      const DataPortabilityServersAddress = getContractAddress(
         chainId,
-        "DataPermissions",
+        "DataPortabilityServers",
       );
-      const DataPermissionsAbi = getAbi("DataPermissions");
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
 
       // Submit directly to the contract
       const txHash = await this.context.walletClient.writeContract({
-        address: DataPermissionsAddress,
-        abi: DataPermissionsAbi,
+        address: DataPortabilityServersAddress,
+        abi: DataPortabilityServersAbi,
         functionName: "untrustServer",
-        args: [params.serverId],
+        args: [BigInt(params.serverId)],
         account:
           this.context.walletClient.account || (await this.getUserAddress()),
         chain: this.context.walletClient.chain || null,
@@ -1639,27 +1769,27 @@ export class PermissionsController {
    * Gets all servers trusted by a user.
    *
    * @param userAddress - Optional user address (defaults to current user)
-   * @returns Promise resolving to array of trusted server addresses
+   * @returns Promise resolving to array of trusted server IDs (numeric)
    * @throws {BlockchainError} When reading from contract fails or chain is unavailable
    */
-  async getTrustedServers(userAddress?: Address): Promise<Address[]> {
+  async getTrustedServers(userAddress?: Address): Promise<number[]> {
     try {
       const user = userAddress || (await this.getUserAddress());
       const chainId = await this.context.walletClient.getChainId();
-      const DataPermissionsAddress = getContractAddress(
+      const DataPortabilityServersAddress = getContractAddress(
         chainId,
-        "DataPermissions",
+        "DataPortabilityServers",
       );
-      const DataPermissionsAbi = getAbi("DataPermissions");
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
 
       const serverIds = (await this.context.publicClient.readContract({
-        address: DataPermissionsAddress,
-        abi: DataPermissionsAbi,
+        address: DataPortabilityServersAddress,
+        abi: DataPortabilityServersAbi,
         functionName: "userServerIdsValues",
         args: [user],
-      })) as Address[];
+      })) as bigint[];
 
-      return serverIds;
+      return serverIds.map((id) => Number(id));
     } catch (error) {
       throw new BlockchainError(
         `Failed to get trusted servers: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -1671,30 +1801,109 @@ export class PermissionsController {
   /**
    * Gets server information by server ID.
    *
-   * @param serverId - Server address
+   * @param serverId - Server ID (numeric)
    * @returns Promise resolving to server information
    * @throws {BlockchainError} When reading from contract fails or chain is unavailable
    */
-  async getServerInfo(serverId: Address): Promise<Server> {
+  async getServerInfo(serverId: number): Promise<Server> {
     try {
       const chainId = await this.context.walletClient.getChainId();
-      const DataPermissionsAddress = getContractAddress(
+      const DataPortabilityServersAddress = getContractAddress(
         chainId,
-        "DataPermissions",
+        "DataPortabilityServers",
       );
-      const DataPermissionsAbi = getAbi("DataPermissions");
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
 
-      const server = (await this.context.publicClient.readContract({
-        address: DataPermissionsAddress,
-        abi: DataPermissionsAbi,
+      const serverInfo = (await this.context.publicClient.readContract({
+        address: DataPortabilityServersAddress,
+        abi: DataPortabilityServersAbi,
         functionName: "servers",
-        args: [serverId],
-      })) as Server;
+        args: [BigInt(serverId)],
+      })) as {
+        id: bigint;
+        owner: Address;
+        url: string;
+        serverAddress: Address;
+        publicKey: string;
+      };
 
-      return server;
+      return {
+        id: Number(serverInfo.id),
+        owner: serverInfo.owner,
+        url: serverInfo.url,
+        serverAddress: serverInfo.serverAddress,
+        publicKey: serverInfo.publicKey,
+      };
     } catch (error) {
       throw new BlockchainError(
         `Failed to get server info: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Checks if a server is active.
+   *
+   * @param serverId - Server ID (numeric)
+   * @returns Promise resolving to boolean indicating if server is active
+   */
+  async isActiveServer(serverId: number): Promise<boolean> {
+    try {
+      const chainId = await this.context.walletClient.getChainId();
+      const DataPortabilityServersAddress = getContractAddress(
+        chainId,
+        "DataPortabilityServers",
+      );
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
+
+      const isActive = (await this.context.publicClient.readContract({
+        address: DataPortabilityServersAddress,
+        abi: DataPortabilityServersAbi,
+        functionName: "isActiveServer",
+        args: [BigInt(serverId)],
+      })) as boolean;
+
+      return isActive;
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to check server status: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Checks if a server is active for a specific user.
+   *
+   * @param serverId - Server ID (numeric)
+   * @param userAddress - Optional user address (defaults to current user)
+   * @returns Promise resolving to boolean indicating if server is active for the user
+   */
+  async isActiveServerForUser(
+    serverId: number,
+    userAddress?: Address,
+  ): Promise<boolean> {
+    try {
+      const user = userAddress || (await this.getUserAddress());
+      const chainId = await this.context.walletClient.getChainId();
+      const DataPortabilityServersAddress = getContractAddress(
+        chainId,
+        "DataPortabilityServers",
+      );
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
+
+      const isActive = (await this.context.publicClient.readContract({
+        address: DataPortabilityServersAddress,
+        abi: DataPortabilityServersAbi,
+        functionName: "isActiveServerForUser",
+        args: [user, BigInt(serverId)],
+      })) as boolean;
+
+      return isActive;
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to check server status for user: ${error instanceof Error ? error.message : "Unknown error"}`,
         error as Error,
       );
     }
@@ -1711,15 +1920,15 @@ export class PermissionsController {
     try {
       const user = userAddress || (await this.getUserAddress());
       const chainId = await this.context.walletClient.getChainId();
-      const DataPermissionsAddress = getContractAddress(
+      const DataPortabilityServersAddress = getContractAddress(
         chainId,
-        "DataPermissions",
+        "DataPortabilityServers",
       );
-      const DataPermissionsAbi = getAbi("DataPermissions");
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
 
       const count = (await this.context.publicClient.readContract({
-        address: DataPermissionsAddress,
-        abi: DataPermissionsAbi,
+        address: DataPortabilityServersAddress,
+        abi: DataPortabilityServersAbi,
         functionName: "userServerIdsLength",
         args: [user],
       })) as bigint;
@@ -1749,16 +1958,16 @@ export class PermissionsController {
       const offset = options.offset || 0;
 
       const chainId = await this.context.walletClient.getChainId();
-      const DataPermissionsAddress = getContractAddress(
+      const DataPortabilityServersAddress = getContractAddress(
         chainId,
-        "DataPermissions",
+        "DataPortabilityServers",
       );
-      const DataPermissionsAbi = getAbi("DataPermissions");
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
 
       // Get total count first
       const totalCount = (await this.context.publicClient.readContract({
-        address: DataPermissionsAddress,
-        abi: DataPermissionsAbi,
+        address: DataPortabilityServersAddress,
+        abi: DataPortabilityServersAbi,
         functionName: "userServerIdsLength",
         args: [user],
       })) as bigint;
@@ -1780,18 +1989,19 @@ export class PermissionsController {
       const endIndex = Math.min(offset + limit, total);
 
       // Fetch servers using userServerIdsAt for each index
-      const serverPromises: Promise<Address>[] = [];
+      const serverPromises: Promise<bigint>[] = [];
       for (let i = offset; i < endIndex; i++) {
         const promise = this.context.publicClient.readContract({
-          address: DataPermissionsAddress,
-          abi: DataPermissionsAbi,
+          address: DataPortabilityServersAddress,
+          abi: DataPortabilityServersAbi,
           functionName: "userServerIdsAt",
           args: [user, BigInt(i)],
-        }) as Promise<Address>;
+        }) as Promise<bigint>;
         serverPromises.push(promise);
       }
 
-      const servers = await Promise.all(serverPromises);
+      const serverIds = await Promise.all(serverPromises);
+      const servers = serverIds.map((id) => Number(id));
 
       return {
         servers,
@@ -1829,7 +2039,10 @@ export class PermissionsController {
             const serverInfo = await this.getServerInfo(serverId);
             return {
               serverId,
+              owner: serverInfo.owner,
               url: serverInfo.url,
+              serverAddress: serverInfo.serverAddress,
+              publicKey: serverInfo.publicKey,
               isTrusted: true,
               trustIndex: options.offset ? options.offset + index : index,
             };
@@ -1837,7 +2050,11 @@ export class PermissionsController {
             // If we can't get server info, return basic info
             return {
               serverId,
+              owner: "0x0000000000000000000000000000000000000000" as Address,
               url: "",
+              serverAddress:
+                "0x0000000000000000000000000000000000000000" as Address,
+              publicKey: "",
               isTrusted: true,
               trustIndex: options.offset ? options.offset + index : index,
             };
@@ -1862,7 +2079,7 @@ export class PermissionsController {
    * @throws {BlockchainError} When reading from contract fails or chain is unavailable
    */
   async getServerInfoBatch(
-    serverIds: Address[],
+    serverIds: number[],
   ): Promise<BatchServerInfoResult> {
     if (serverIds.length === 0) {
       return {
@@ -1873,21 +2090,36 @@ export class PermissionsController {
 
     try {
       const chainId = await this.context.walletClient.getChainId();
-      const DataPermissionsAddress = getContractAddress(
+      const DataPortabilityServersAddress = getContractAddress(
         chainId,
-        "DataPermissions",
+        "DataPortabilityServers",
       );
-      const DataPermissionsAbi = getAbi("DataPermissions");
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
 
       // Create promises for all server info requests
       const serverInfoPromises = serverIds.map(async (serverId) => {
         try {
-          const server = (await this.context.publicClient.readContract({
-            address: DataPermissionsAddress,
-            abi: DataPermissionsAbi,
+          const serverInfo = (await this.context.publicClient.readContract({
+            address: DataPortabilityServersAddress,
+            abi: DataPortabilityServersAbi,
             functionName: "servers",
-            args: [serverId],
-          })) as Server;
+            args: [BigInt(serverId)],
+          })) as {
+            id: bigint;
+            owner: Address;
+            url: string;
+            serverAddress: Address;
+            publicKey: string;
+          };
+
+          const server: Server = {
+            id: Number(serverInfo.id),
+            owner: serverInfo.owner,
+            url: serverInfo.url,
+            serverAddress: serverInfo.serverAddress,
+            publicKey: serverInfo.publicKey,
+          };
+
           return { serverId, server, success: true };
         } catch {
           return { serverId, server: null, success: false };
@@ -1897,8 +2129,8 @@ export class PermissionsController {
       const results = await Promise.all(serverInfoPromises);
 
       // Separate successful and failed requests
-      const servers = new Map<Address, { url: string }>();
-      const failed: Address[] = [];
+      const servers = new Map<number, Server>();
+      const failed: number[] = [];
 
       for (const result of results) {
         if (result.success && result.server) {
@@ -1920,12 +2152,12 @@ export class PermissionsController {
   /**
    * Checks whether a specific server is trusted by a user.
    *
-   * @param serverId - Server ID to check
+   * @param serverId - Server ID to check (numeric)
    * @param userAddress - Optional user address (defaults to current user)
    * @returns Promise resolving to server trust status
    */
   async checkServerTrustStatus(
-    serverId: Address,
+    serverId: number,
     userAddress?: Address,
   ): Promise<ServerTrustStatus> {
     try {
@@ -1933,7 +2165,7 @@ export class PermissionsController {
       const trustedServers = await this.getTrustedServers(user);
 
       const trustIndex = trustedServers.findIndex(
-        (server) => server.toLowerCase() === serverId.toLowerCase(),
+        (server) => server === serverId,
       );
 
       return {
@@ -1950,6 +2182,33 @@ export class PermissionsController {
   }
 
   /**
+   * Composes EIP-712 typed data for AddAndTrustServer.
+   *
+   * @param input - The add and trust server input data containing server details
+   * @returns Promise resolving to the typed data structure for server add and trust
+   */
+  private async composeAddAndTrustServerMessage(
+    input: AddAndTrustServerInput,
+  ): Promise<AddAndTrustServerTypedData> {
+    const domain = await this.getServersDomain();
+
+    return {
+      domain,
+      types: {
+        AddAndTrustServer: [
+          { name: "nonce", type: "uint256" },
+          { name: "owner", type: "address" },
+          { name: "serverAddress", type: "address" },
+          { name: "publicKey", type: "bytes" },
+          { name: "serverUrl", type: "string" },
+        ],
+      },
+      primaryType: "AddAndTrustServer",
+      message: input,
+    };
+  }
+
+  /**
    * Composes EIP-712 typed data for TrustServer.
    *
    * @param input - The trust server input data containing server details
@@ -1958,15 +2217,14 @@ export class PermissionsController {
   private async composeTrustServerMessage(
     input: TrustServerInput,
   ): Promise<TrustServerTypedData> {
-    const domain = await this.getPermissionDomain();
+    const domain = await this.getServersDomain();
 
     return {
       domain,
       types: {
         TrustServer: [
           { name: "nonce", type: "uint256" },
-          { name: "serverId", type: "address" },
-          { name: "serverUrl", type: "string" },
+          { name: "serverId", type: "uint256" },
         ],
       },
       primaryType: "TrustServer",
@@ -1983,19 +2241,79 @@ export class PermissionsController {
   private async composeUntrustServerMessage(
     input: UntrustServerInput,
   ): Promise<UntrustServerTypedData> {
-    const domain = await this.getPermissionDomain();
+    const domain = await this.getServersDomain();
 
     return {
       domain,
       types: {
         UntrustServer: [
           { name: "nonce", type: "uint256" },
-          { name: "serverId", type: "address" },
+          { name: "serverId", type: "uint256" },
         ],
       },
       primaryType: "UntrustServer",
       message: input,
     };
+  }
+
+  /**
+   * Gets the EIP-712 domain for DataPortabilityServers signatures.
+   *
+   * @returns Promise resolving to the EIP-712 domain configuration
+   */
+  private async getServersDomain() {
+    const chainId = await this.context.walletClient.getChainId();
+    const DataPortabilityServersAddress = getContractAddress(
+      chainId,
+      "DataPortabilityServers",
+    );
+
+    return {
+      name: "VanaDataPortabilityServers",
+      version: "1",
+      chainId,
+      verifyingContract: DataPortabilityServersAddress,
+    };
+  }
+
+  /**
+   * Submits an add and trust server transaction directly to the blockchain.
+   *
+   * @param addAndTrustServerInput - The add and trust server input data containing server details
+   * @param signature - The cryptographic signature for the transaction
+   * @returns Promise resolving to the transaction hash
+   */
+  private async submitAddAndTrustServerTransaction(
+    addAndTrustServerInput: AddAndTrustServerInput,
+    signature: Hash,
+  ): Promise<Hash> {
+    const chainId = await this.context.walletClient.getChainId();
+    const DataPortabilityServersAddress = getContractAddress(
+      chainId,
+      "DataPortabilityServers",
+    );
+    const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
+
+    const txHash = await this.context.walletClient.writeContract({
+      address: DataPortabilityServersAddress,
+      abi: DataPortabilityServersAbi,
+      functionName: "addAndTrustServerWithSignature",
+      args: [
+        {
+          nonce: addAndTrustServerInput.nonce,
+          owner: addAndTrustServerInput.owner,
+          serverAddress: addAndTrustServerInput.serverAddress,
+          publicKey: addAndTrustServerInput.publicKey as `0x${string}`,
+          serverUrl: addAndTrustServerInput.serverUrl,
+        },
+        signature,
+      ],
+      account:
+        this.context.walletClient.account || (await this.getUserAddress()),
+      chain: this.context.walletClient.chain || null,
+    });
+
+    return txHash;
   }
 
   /**
@@ -2010,21 +2328,20 @@ export class PermissionsController {
     signature: Hash,
   ): Promise<Hash> {
     const chainId = await this.context.walletClient.getChainId();
-    const DataPermissionsAddress = getContractAddress(
+    const DataPortabilityServersAddress = getContractAddress(
       chainId,
-      "DataPermissions",
+      "DataPortabilityServers",
     );
-    const DataPermissionsAbi = getAbi("DataPermissions");
+    const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
 
     const txHash = await this.context.walletClient.writeContract({
-      address: DataPermissionsAddress,
-      abi: DataPermissionsAbi,
+      address: DataPortabilityServersAddress,
+      abi: DataPortabilityServersAbi,
       functionName: "trustServerWithSignature",
       args: [
         {
           nonce: trustServerInput.nonce,
-          serverId: trustServerInput.serverId,
-          serverUrl: trustServerInput.serverUrl,
+          serverId: BigInt(trustServerInput.serverId),
         },
         signature,
       ],
@@ -2080,19 +2397,361 @@ export class PermissionsController {
     signature: Hash,
   ): Promise<Hash> {
     const chainId = await this.context.walletClient.getChainId();
-    const DataPermissionsAddress = getContractAddress(
+    const DataPortabilityServersAddress = getContractAddress(
       chainId,
-      "DataPermissions",
+      "DataPortabilityServers",
     );
-    const DataPermissionsAbi = getAbi("DataPermissions");
+    const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
 
     // Submit with signature to verify user authorization
     const txHash = await this.context.walletClient.writeContract({
-      address: DataPermissionsAddress,
-      abi: DataPermissionsAbi,
+      address: DataPortabilityServersAddress,
+      abi: DataPortabilityServersAbi,
       functionName: "untrustServerWithSignature",
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       args: [typedData.message as any, signature],
+      account:
+        this.context.walletClient.account || (await this.getUserAddress()),
+      chain: this.context.walletClient.chain || null,
+    });
+
+    return txHash;
+  }
+
+  // ===========================
+  // GRANTEE METHODS
+  // ===========================
+
+  /**
+   * Registers a new grantee
+   *
+   * @param params - Parameters for registering the grantee
+   * @returns Promise resolving to the transaction hash
+   *
+   * @example
+   * ```typescript
+   * const txHash = await vana.permissions.registerGrantee({
+   *   owner: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+   *   granteeAddress: "0xApp1234567890123456789012345678901234567890",
+   *   publicKey: "0x1234567890abcdef..."
+   * });
+   * ```
+   */
+  async registerGrantee(params: RegisterGranteeParams): Promise<Hash> {
+    const chainId = await this.context.walletClient.getChainId();
+    const DataPortabilityGranteesAddress = getContractAddress(
+      chainId,
+      "DataPortabilityGrantees",
+    );
+    const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
+
+    const txHash = await this.context.walletClient.writeContract({
+      address: DataPortabilityGranteesAddress,
+      abi: DataPortabilityGranteesAbi,
+      functionName: "registerGrantee",
+      args: [params.owner, params.granteeAddress, params.publicKey],
+      account:
+        this.context.walletClient.account || (await this.getUserAddress()),
+      chain: this.context.walletClient.chain || null,
+    });
+
+    return txHash;
+  }
+
+  /**
+   * Registers a grantee with a signature (gasless transaction)
+   *
+   * @param params - Parameters for registering the grantee
+   * @returns Promise resolving to the transaction hash
+   *
+   * @example
+   * ```typescript
+   * const txHash = await vana.permissions.registerGranteeWithSignature({
+   *   owner: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+   *   granteeAddress: "0xApp1234567890123456789012345678901234567890",
+   *   publicKey: "0x1234567890abcdef..."
+   * });
+   * ```
+   */
+  async registerGranteeWithSignature(
+    params: RegisterGranteeParams,
+  ): Promise<Hash> {
+    const nonce = await this.getUserNonce();
+
+    const registerGranteeInput: RegisterGranteeInput = {
+      nonce,
+      owner: params.owner,
+      granteeAddress: params.granteeAddress,
+      publicKey: params.publicKey,
+    };
+
+    const typedData =
+      await this.buildRegisterGranteeTypedData(registerGranteeInput);
+    const signature = await this.signTypedData(typedData);
+
+    // TODO: Add submitRegisterGrantee to RelayerCallbacks interface
+    // For now, always use direct transaction
+    return this.submitSignedRegisterGranteeTransaction(typedData, signature);
+  }
+
+  /**
+   * Submits a signed register grantee transaction via relayer
+   *
+   * @param typedData - The EIP-712 typed data for register grantee
+   * @param signature - The cryptographic signature
+   * @returns Promise resolving to the transaction hash
+   *
+   * @example
+   * ```typescript
+   * const result = await vana.permissions.submitSignedRegisterGrantee(typedData, signature);
+   * ```
+   */
+  async submitSignedRegisterGrantee(
+    typedData: RegisterGranteeTypedData,
+    signature: Hash,
+  ): Promise<Hash> {
+    return this.submitSignedRegisterGranteeTransaction(typedData, signature);
+  }
+
+  /**
+   * Gets all grantees
+   *
+   * @param options - Query options
+   * @returns Promise resolving to paginated grantees
+   *
+   * @example
+   * ```typescript
+   * const result = await vana.permissions.getGrantees({
+   *   limit: 10,
+   *   offset: 0
+   * });
+   * ```
+   */
+  async getGrantees(
+    options: GranteeQueryOptions = {},
+  ): Promise<PaginatedGrantees> {
+    const chainId = await this.context.publicClient.getChainId();
+    const DataPortabilityGranteesAddress = getContractAddress(
+      chainId,
+      "DataPortabilityGrantees",
+    );
+    const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
+
+    // Get total count
+    const totalCount = (await this.context.publicClient.readContract({
+      address: DataPortabilityGranteesAddress,
+      abi: DataPortabilityGranteesAbi,
+      functionName: "granteesCount",
+    })) as bigint;
+
+    const total = Number(totalCount);
+    const limit = options.limit || 50;
+    const offset = options.offset || 0;
+
+    const grantees: Grantee[] = [];
+
+    // Fetch grantees in the requested range
+    const endIndex = Math.min(offset + limit, total);
+
+    for (let i = offset; i < endIndex; i++) {
+      try {
+        const granteeInfo = (await this.context.publicClient.readContract({
+          address: DataPortabilityGranteesAddress,
+          abi: DataPortabilityGranteesAbi,
+          functionName: "grantees",
+          args: [BigInt(i + 1)], // Grantee IDs are 1-indexed
+        })) as {
+          owner: Address;
+          granteeAddress: Address;
+          publicKey: string;
+          permissionIds: readonly bigint[];
+        };
+
+        grantees.push({
+          id: i + 1,
+          owner: granteeInfo.owner,
+          address: granteeInfo.granteeAddress,
+          publicKey: granteeInfo.publicKey,
+          permissionIds: granteeInfo.permissionIds.map((id) => Number(id)),
+        });
+      } catch (error) {
+        console.warn(`Failed to fetch grantee ${i + 1}:`, error);
+      }
+    }
+
+    return {
+      grantees,
+      total,
+      offset,
+      limit,
+      hasMore: offset + limit < total,
+    };
+  }
+
+  /**
+   * Gets a grantee by their address
+   *
+   * @param granteeAddress - The grantee's address
+   * @returns Promise resolving to the grantee info or null if not found
+   *
+   * @example
+   * ```typescript
+   * const grantee = await vana.permissions.getGranteeByAddress("0x1234...");
+   * ```
+   */
+  async getGranteeByAddress(granteeAddress: Address): Promise<Grantee | null> {
+    const chainId = await this.context.publicClient.getChainId();
+    const DataPortabilityGranteesAddress = getContractAddress(
+      chainId,
+      "DataPortabilityGrantees",
+    );
+    const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
+
+    try {
+      const granteeInfo = (await this.context.publicClient.readContract({
+        address: DataPortabilityGranteesAddress,
+        abi: DataPortabilityGranteesAbi,
+        functionName: "granteeByAddress",
+        args: [granteeAddress],
+      })) as {
+        owner: Address;
+        granteeAddress: Address;
+        publicKey: string;
+        permissionIds: readonly bigint[];
+      };
+
+      // Get the grantee ID
+      const granteeId = (await this.context.publicClient.readContract({
+        address: DataPortabilityGranteesAddress,
+        abi: DataPortabilityGranteesAbi,
+        functionName: "granteeAddressToId",
+        args: [granteeAddress],
+      })) as bigint;
+
+      return {
+        id: Number(granteeId),
+        owner: granteeInfo.owner,
+        address: granteeInfo.granteeAddress,
+        publicKey: granteeInfo.publicKey,
+        permissionIds: granteeInfo.permissionIds.map((id) => Number(id)),
+      };
+    } catch (error) {
+      console.warn(`Failed to fetch grantee ${granteeAddress}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Gets a grantee by their ID
+   *
+   * @param granteeId - The grantee's ID
+   * @returns Promise resolving to the grantee info or null if not found
+   *
+   * @example
+   * ```typescript
+   * const grantee = await vana.permissions.getGranteeById(1);
+   * ```
+   */
+  async getGranteeById(granteeId: number): Promise<Grantee | null> {
+    const chainId = await this.context.publicClient.getChainId();
+    const DataPortabilityGranteesAddress = getContractAddress(
+      chainId,
+      "DataPortabilityGrantees",
+    );
+    const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
+
+    try {
+      const granteeInfo = (await this.context.publicClient.readContract({
+        address: DataPortabilityGranteesAddress,
+        abi: DataPortabilityGranteesAbi,
+        functionName: "grantees",
+        args: [BigInt(granteeId)],
+      })) as {
+        owner: Address;
+        granteeAddress: Address;
+        publicKey: string;
+        permissionIds: readonly bigint[];
+      };
+
+      return {
+        id: granteeId,
+        owner: granteeInfo.owner,
+        address: granteeInfo.granteeAddress,
+        publicKey: granteeInfo.publicKey,
+        permissionIds: granteeInfo.permissionIds.map((id) => Number(id)),
+      };
+    } catch (error) {
+      console.warn(`Failed to fetch grantee ${granteeId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Builds EIP-712 typed data for grantee registration
+   *
+   * @param input - The register grantee input
+   * @returns Promise resolving to the typed data structure
+   * @private
+   */
+  private async buildRegisterGranteeTypedData(
+    input: RegisterGranteeInput,
+  ): Promise<RegisterGranteeTypedData> {
+    const chainId = await this.context.walletClient.getChainId();
+    const verifyingContract = getContractAddress(
+      chainId,
+      "DataPortabilityGrantees",
+    );
+
+    return {
+      domain: {
+        name: "DataPortabilityGrantees",
+        version: "1",
+        chainId,
+        verifyingContract,
+      },
+      types: {
+        RegisterGrantee: [
+          { name: "nonce", type: "uint256" },
+          { name: "owner", type: "address" },
+          { name: "granteeAddress", type: "address" },
+          { name: "publicKey", type: "string" },
+        ],
+      },
+      primaryType: "RegisterGrantee",
+      message: input,
+    };
+  }
+
+  /**
+   * Submits a register grantee transaction with signature.
+   *
+   * @param typedData - The EIP-712 typed data structure for the registration
+   * @param _signature - The cryptographic signature authorizing the registration (currently unused)
+   * @returns Promise resolving to the transaction hash
+   * @private
+   */
+  private async submitSignedRegisterGranteeTransaction(
+    typedData: GenericTypedData,
+    _signature: Hash,
+  ): Promise<Hash> {
+    const chainId = await this.context.walletClient.getChainId();
+    const DataPortabilityGranteesAddress = getContractAddress(
+      chainId,
+      "DataPortabilityGrantees",
+    );
+    const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
+
+    // TODO: Add registerGranteeWithSignature to DataPortabilityGrantees contract
+    // For now, use direct registerGrantee function
+    const txHash = await this.context.walletClient.writeContract({
+      address: DataPortabilityGranteesAddress,
+      abi: DataPortabilityGranteesAbi,
+      functionName: "registerGrantee",
+      args: [
+        (typedData.message as RegisterGranteeInput).owner,
+        (typedData.message as RegisterGranteeInput).granteeAddress,
+        (typedData.message as RegisterGranteeInput).publicKey,
+      ],
       account:
         this.context.walletClient.account || (await this.getUserAddress()),
       chain: this.context.walletClient.chain || null,

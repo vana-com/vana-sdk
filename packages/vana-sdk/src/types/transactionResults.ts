@@ -1,9 +1,9 @@
-import type { Address } from 'viem';
-import type { BaseTransactionResult } from '../utils/transactionParsing';
+import type { Address } from "viem";
+import type { BaseTransactionResult } from "../utils/transactionParsing";
 
 /**
  * Transaction result types for all SDK operations.
- * These interfaces define the structure of data returned by enhanced 
+ * These interfaces define the structure of data returned by enhanced
  * transaction methods that parse blockchain events automatically.
  */
 
@@ -60,7 +60,7 @@ export interface ServerUntrustResult extends BaseTransactionResult {
 }
 
 // =============================================================================
-// DATA REGISTRY OPERATIONS  
+// DATA REGISTRY OPERATIONS
 // =============================================================================
 
 /**
@@ -144,9 +144,9 @@ export interface FilePermissionResult extends BaseTransactionResult {
  * Union type of all possible transaction result types.
  * Useful for generic functions that handle multiple operation types.
  */
-export type AnyTransactionResult = 
+export type AnyTransactionResult =
   | PermissionGrantResult
-  | PermissionRevokeResult  
+  | PermissionRevokeResult
   | ServerTrustResult
   | ServerUntrustResult
   | FileAddedResult

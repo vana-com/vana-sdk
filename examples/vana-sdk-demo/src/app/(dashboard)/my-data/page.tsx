@@ -13,10 +13,12 @@ import { GrantPermissionModal } from "@/components/ui/GrantPermissionModal";
 import { useUserFiles } from "@/hooks/useUserFiles";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useTrustedServers } from "@/hooks/useTrustedServers";
+import { useGrantees } from "@/hooks/useGrantees";
 import { useVana } from "@/providers/VanaProvider";
 import { FilesTab } from "./components/FilesTab";
 import { PermissionsTab } from "./components/PermissionsTab";
 import { ServersTab } from "./components/ServersTab";
+import { GranteesTab } from "./components/GranteesTab";
 
 /**
  * My Data page - User's personal data control panel
@@ -112,22 +114,56 @@ export default function MyDataPage() {
     serverUrl,
     loadUserTrustedServers,
     handleTrustServerGasless,
-    handleUntrustServer: onUntrustServer,
+    handleUntrustServer,
     handleDiscoverHostedServer: onDiscoverReplicateServer,
     setServerId: onServerIdChange,
     setServerUrl: onServerUrlChange,
+    serverOwner,
+    setServerOwner: onServerOwnerChange,
+    publicKey,
+    setPublicKey: onPublicKeyChange,
     setTrustedServerQueryMode: onQueryModeChange,
   } = useTrustedServers();
+
+  const {
+    grantees,
+    isLoadingGrantees,
+    isAddingGrantee,
+    isRemoving,
+    addGranteeError,
+    granteeQueryMode,
+    ownerAddress,
+    granteeAddress,
+    loadGrantees,
+    handleAddGranteeGasless,
+    handleRemoveGrantee,
+    setOwnerAddress,
+    setGranteeAddress,
+    granteePublicKey,
+    setGranteePublicKey,
+    setGranteeQueryMode: onGranteeQueryModeChange,
+  } = useGrantees();
 
   // Map trusted servers to the expected interface format
   const trustedServers = useMemo(
     () =>
       rawTrustedServers.map((server) => ({
-        id: server.serverAddress,
+        id: parseInt(server.id.split("-")[1] || server.id, 10), // Extract server ID from composite ID
+        owner: server.user || "", // Use user field as owner
         url: server.serverUrl,
-        name: server.serverAddress,
+        serverAddress: server.serverAddress,
+        publicKey: "", // TODO: Fetch from server info
+        name: server.name || server.serverAddress,
       })),
     [rawTrustedServers],
+  );
+
+  // Wrapper to convert number serverId to string for handleUntrustServer
+  const onUntrustServer = useCallback(
+    (serverId: number) => {
+      handleUntrustServer(serverId.toString());
+    },
+    [handleUntrustServer],
   );
 
   // Upload data handler
@@ -330,7 +366,7 @@ export default function MyDataPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
         <Card>
           <CardBody className="text-center">
             <div className="flex items-center justify-center gap-2 mb-2">
@@ -360,6 +396,15 @@ export default function MyDataPage() {
               </span>
             </div>
             <p className="text-sm text-default-500">Trusted Servers</p>
+          </CardBody>
+        </Card>
+        <Card>
+          <CardBody className="text-center">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <Users className="h-5 w-5 text-secondary" />
+              <span className="text-2xl font-bold">{grantees.length}</span>
+            </div>
+            <p className="text-sm text-default-500">Grantees</p>
           </CardBody>
         </Card>
         <Card>
@@ -448,10 +493,14 @@ export default function MyDataPage() {
             isDiscoveringServer={isDiscoveringServer}
             trustServerError={trustServerError}
             queryMode={queryMode}
-            serverId={serverId}
+            serverOwner={serverOwner}
+            serverAddress={serverId}
             serverUrl={serverUrl}
-            onServerIdChange={onServerIdChange}
+            publicKey={publicKey}
+            onServerOwnerChange={onServerOwnerChange}
+            onServerAddressChange={onServerIdChange}
             onServerUrlChange={onServerUrlChange}
+            onPublicKeyChange={onPublicKeyChange}
             onQueryModeChange={onQueryModeChange}
             onTrustServer={onTrustServer}
             onRefreshServers={onRefreshServers}
@@ -459,23 +508,55 @@ export default function MyDataPage() {
             onDiscoverReplicateServer={onDiscoverReplicateServer}
           />
         </Tab>
+        <Tab key="grantees" title="Grantees">
+          <GranteesTab
+            grantees={grantees}
+            isLoadingGrantees={isLoadingGrantees}
+            isAddingGrantee={isAddingGrantee}
+            isRemoving={isRemoving}
+            addGranteeError={addGranteeError}
+            queryMode={granteeQueryMode}
+            ownerAddress={ownerAddress}
+            granteeAddress={granteeAddress}
+            granteePublicKey={granteePublicKey}
+            onOwnerAddressChange={setOwnerAddress}
+            onGranteeAddressChange={setGranteeAddress}
+            onGranteePublicKeyChange={setGranteePublicKey}
+            onQueryModeChange={onGranteeQueryModeChange}
+            onAddGrantee={handleAddGranteeGasless}
+            onRefreshGrantees={loadGrantees}
+            onRemoveGrantee={handleRemoveGrantee}
+          />
+        </Tab>
       </Tabs>
 
       {/* Grant Permission Modal */}
-      {applicationAddress?.trim() ? (
-        <GrantPermissionModal
-          isOpen={isGrantModalOpen}
-          onClose={() => setIsGrantModalOpen(false)}
-          onConfirm={(params) => {
-            setIsGrantModalOpen(false);
+      <GrantPermissionModal
+        isOpen={isGrantModalOpen}
+        onClose={() => setIsGrantModalOpen(false)}
+        onConfirm={(params) => {
+          console.debug(
+            "🟡 [MyDataPage] GrantPermissionModal onConfirm called with params:",
+            params,
+          );
+          console.debug("🟡 [MyDataPage] Setting modal closed");
+          setIsGrantModalOpen(false);
+          console.debug(
+            "🟡 [MyDataPage] Calling onGrantPermission with params",
+          );
+          try {
             onGrantPermission(params);
-          }}
-          selectedFiles={selectedFiles}
-          applicationAddress={applicationAddress}
-          isGranting={isGranting}
-          allowEditAddress={true}
-        />
-      ) : null}
+            console.debug(
+              "🟡 [MyDataPage] onGrantPermission called successfully",
+            );
+          } catch (error) {
+            console.error("🟡 [MyDataPage] onGrantPermission failed:", error);
+          }
+        }}
+        selectedFiles={selectedFiles}
+        grantees={grantees}
+        isGranting={isGranting}
+      />
     </div>
   );
 }

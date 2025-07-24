@@ -342,7 +342,7 @@ class BrowserCacheAdapter implements VanaCacheAdapter {
       if (typeof sessionStorage === "undefined") {
         return;
       }
-      
+
       const keys = Object.keys(sessionStorage);
       for (const key of keys) {
         if (key.startsWith(this.prefix)) {

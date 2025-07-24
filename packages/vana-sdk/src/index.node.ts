@@ -24,7 +24,7 @@ class VanaNodeImpl extends VanaCore {
  * automatically detects your configuration type and provides compile-time type safety:
  * - **With storage configured**: All methods including file upload/download are available
  * - **Without storage**: Storage-dependent methods throw runtime errors and are excluded from TypeScript
- * 
+ *
  * The Node.js version provides enhanced capabilities including native file system access,
  * server-side cryptographic operations, and support for personal server deployment.
  * It includes all browser capabilities plus Node.js-specific optimizations and utilities.
@@ -39,7 +39,7 @@ class VanaNodeImpl extends VanaCore {
  * import { privateKeyToAccount } from 'viem/accounts';
  * import { IPFSStorage, PinataStorage } from '@opendatalabs/vana-sdk/node';
  * import { mokshaTestnet } from '@opendatalabs/vana-sdk/node';
- * 
+ *
  * // Server setup with private key
  * const account = privateKeyToAccount('0x...');
  * const walletClient = createWalletClient({
@@ -47,18 +47,18 @@ class VanaNodeImpl extends VanaCore {
  *   chain: mokshaTestnet,
  *   transport: http('https://rpc.moksha.vana.org')
  * });
- * 
+ *
  * const vana = Vana({
  *   walletClient,
  *   storage: {
  *     providers: {
- *       ipfs: new IPFSStorage({ 
+ *       ipfs: new IPFSStorage({
  *         gateway: 'https://gateway.pinata.cloud',
- *         timeout: 30000 
+ *         timeout: 30000
  *       }),
- *       pinata: new PinataStorage({ 
+ *       pinata: new PinataStorage({
  *         apiKey: process.env.PINATA_KEY,
- *         secretKey: process.env.PINATA_SECRET 
+ *         secretKey: process.env.PINATA_SECRET
  *       })
  *     },
  *     defaultProvider: 'pinata'
@@ -70,21 +70,21 @@ class VanaNodeImpl extends VanaCore {
  *     }
  *   }
  * });
- * 
+ *
  * // Server operations
  * const uploadResult = await vana.data.upload({
  *   content: await fs.readFile('./user-data.json'),
  *   filename: 'user-data.json',
  *   schemaId: 1
  * });
- * 
+ *
  * // Personal server setup
  * await vana.server.setupPersonalServer({
  *   serverUrl: 'https://my-server.example.com',
  *   capabilities: ['data_processing', 'ml_inference']
  * });
  * ```
- * 
+ *
  * @example
  * ```typescript
  * // CLI tool or script usage
@@ -97,26 +97,26 @@ class VanaNodeImpl extends VanaCore {
  *     defaultProvider: 'ipfs'
  *   }
  * });
- * 
+ *
  * // Batch operations for data processing
- * const userFiles = await vana.data.getUserFiles({ 
- *   owner: process.env.USER_ADDRESS 
+ * const userFiles = await vana.data.getUserFiles({
+ *   owner: process.env.USER_ADDRESS
  * });
- * 
+ *
  * for (const file of userFiles) {
  *   const decrypted = await vana.data.decryptFile(file);
  *   // Process file data...
  * }
  * ```
- * 
+ *
  * @example
  * ```typescript
  * // Express.js server integration
  * import express from 'express';
  * import { handleRelayerRequest } from '@opendatalabs/vana-sdk/node';
- * 
+ *
  * const app = express();
- * 
+ *
  * app.post('/api/relay/:operation', async (req, res) => {
  *   try {
  *     const result = await handleRelayerRequest(
@@ -130,7 +130,7 @@ class VanaNodeImpl extends VanaCore {
  *   }
  * });
  * ```
- * 
+ *
  * @see {@link https://docs.vana.org/docs/sdk/server-setup | Server Setup Guide} for Node.js-specific features
  * @see {@link VanaCore} for the underlying implementation details
  * @category Core SDK

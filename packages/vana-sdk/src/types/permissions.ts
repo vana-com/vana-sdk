@@ -81,8 +81,10 @@ export interface GrantPermissionParams {
   grantee: Address;
   /** The class of computation, e.g., "llm_inference" */
   operation: string;
-  /** Array of file IDs to grant permission for.
-   *   Obtain file IDs from `vana.data.getUserFiles()` or from upload results via `vana.data.upload().fileId`. */
+  /**
+   * Array of file IDs to grant permission for.
+   * Obtain file IDs from `vana.data.getUserFiles()` or from upload results via `vana.data.upload().fileId`.
+   */
   files: number[];
   /** The full, off-chain parameters (e.g., LLM prompt) */
   parameters: Record<string, unknown>;
@@ -207,6 +209,8 @@ export interface PermissionGrantMessage {
 export interface PermissionInputMessage {
   /** Nonce */
   nonce: bigint;
+  /** Grantee ID */
+  granteeId: bigint;
   /** Grant URL */
   grant: string;
   /** File IDs */
@@ -221,6 +225,8 @@ export interface PermissionInputMessage {
 export interface PermissionInput {
   /** Nonce */
   nonce: bigint;
+  /** Grantee ID */
+  granteeId: bigint;
   /** Grant URL */
   grant: string;
   /** File IDs to grant permission for */
@@ -251,14 +257,18 @@ export interface PermissionInfo {
   grantor: Address;
   /** Nonce used when creating */
   nonce: bigint;
+  /** Grantee ID */
+  granteeId: bigint;
   /** Grant URL */
   grant: string;
   /** Signature bytes */
   signature: `0x${string}`;
-  /** Whether the permission is active */
-  isActive: boolean;
+  /** Start block */
+  startBlock: bigint;
+  /** End block */
+  endBlock: bigint;
   /** File IDs associated with this permission */
-  fileIds: bigint[];
+  fileIds: readonly bigint[];
 }
 
 /**
@@ -473,20 +483,43 @@ export interface PermissionAnalytics {
  * @category Permissions
  */
 export interface Server {
+  /** Server ID (numeric) */
+  id: number;
+  /** Server owner address */
+  owner: Address;
   /** Server URL */
   url: string;
+  /** Server address */
+  serverAddress: Address;
+  /** Server public key */
+  publicKey: string;
 }
 
 /**
- * Parameters for trusting a server
+ * Parameters for adding and trusting a server
  *
  * @category Permissions
  */
-export interface TrustServerParams {
-  /** Server ID (address) */
-  serverId: Address;
+export interface AddAndTrustServerParams {
+  /** Server owner address */
+  owner: Address;
+  /** Server address */
+  serverAddress: Address;
   /** Server URL */
   serverUrl: string;
+  /** Server public key */
+  publicKey: string;
+}
+
+/**
+ * Parameters for trusting a server (legacy)
+ *
+ * @category Permissions
+ * @deprecated Use AddAndTrustServerParams instead
+ */
+export interface TrustServerParams {
+  /** Server ID (numeric) */
+  serverId: number;
 }
 
 /**
@@ -495,22 +528,39 @@ export interface TrustServerParams {
  * @category Permissions
  */
 export interface UntrustServerParams {
-  /** Server ID (address) */
-  serverId: Address;
+  /** Server ID (numeric) */
+  serverId: number;
+}
+
+/**
+ * Input for adding and trusting a server with signature (gasless)
+ *
+ * @category Permissions
+ */
+export interface AddAndTrustServerInput {
+  /** User nonce */
+  nonce: bigint;
+  /** Server owner address */
+  owner: Address;
+  /** Server address */
+  serverAddress: Address;
+  /** Server URL */
+  serverUrl: string;
+  /** Server public key */
+  publicKey: string;
 }
 
 /**
  * Input for trusting a server with signature (gasless)
  *
  * @category Permissions
+ * @deprecated Use AddAndTrustServerInput instead
  */
 export interface TrustServerInput {
   /** User nonce */
   nonce: bigint;
-  /** Server ID (address) */
-  serverId: Address;
-  /** Server URL */
-  serverUrl: string;
+  /** Server ID (numeric) */
+  serverId: number;
 }
 
 /**
@@ -521,14 +571,36 @@ export interface TrustServerInput {
 export interface UntrustServerInput {
   /** User nonce */
   nonce: bigint;
-  /** Server ID (address) */
-  serverId: Address;
+  /** Server ID (numeric) */
+  serverId: number;
+}
+
+/**
+ * EIP-712 typed data for AddAndTrustServer
+ *
+ * @category Permissions
+ */
+export interface AddAndTrustServerTypedData {
+  /** EIP-712 domain */
+  domain: PermissionGrantDomain;
+  /** EIP-712 types */
+  types: {
+    AddAndTrustServer: Array<{
+      name: string;
+      type: string;
+    }>;
+  };
+  /** Primary type */
+  primaryType: "AddAndTrustServer";
+  /** Message to sign */
+  message: AddAndTrustServerInput;
 }
 
 /**
  * EIP-712 typed data for TrustServer
  *
  * @category Permissions
+ * @deprecated Use AddAndTrustServerTypedData instead
  */
 export interface TrustServerTypedData {
   /** EIP-712 domain */
@@ -591,10 +663,16 @@ export interface PermissionEvent {
  * @category Permissions
  */
 export interface TrustedServerInfo {
-  /** Server ID (address) */
-  serverId: Address;
+  /** Server ID (numeric) */
+  serverId: number;
+  /** Server owner address */
+  owner: Address;
   /** Server URL */
   url: string;
+  /** Server address */
+  serverAddress: Address;
+  /** Server public key */
+  publicKey: string;
   /** Whether this server is trusted by the user */
   isTrusted: boolean;
   /** Index in user's trusted server list (if trusted) */
@@ -607,8 +685,8 @@ export interface TrustedServerInfo {
  * @category Permissions
  */
 export interface PaginatedTrustedServers {
-  /** Array of server addresses */
-  servers: Address[];
+  /** Array of server IDs (numeric) */
+  servers: number[];
   /** Total number of trusted servers */
   total: number;
   /** Offset used for this query */
@@ -642,9 +720,9 @@ export interface TrustedServerQueryOptions {
  */
 export interface BatchServerInfoResult {
   /** Successfully retrieved server info */
-  servers: Map<Address, { url: string }>;
+  servers: Map<number, Server>;
   /** Server IDs that failed to retrieve */
-  failed: Address[];
+  failed: number[];
 }
 
 /**
@@ -653,10 +731,111 @@ export interface BatchServerInfoResult {
  * @category Permissions
  */
 export interface ServerTrustStatus {
-  /** Server ID being checked */
-  serverId: Address;
+  /** Server ID being checked (numeric) */
+  serverId: number;
   /** Whether the server is trusted by the user */
   isTrusted: boolean;
   /** Index in user's trusted server list (if trusted) */
   trustIndex?: number;
+}
+
+/**
+ * Grantee information
+ *
+ * @category Permissions
+ */
+export interface Grantee {
+  /** Grantee ID (numeric) */
+  id: number;
+  /** Grantee owner address */
+  owner: Address;
+  /** Grantee address */
+  address: Address;
+  /** Grantee public key */
+  publicKey: string;
+  /** Permission IDs associated with this grantee */
+  permissionIds: number[];
+}
+
+/**
+ * Parameters for registering a grantee
+ *
+ * @category Permissions
+ */
+export interface RegisterGranteeParams {
+  /** Grantee owner address */
+  owner: Address;
+  /** Grantee address */
+  granteeAddress: Address;
+  /** Grantee public key */
+  publicKey: string;
+}
+
+/**
+ * Input for registering a grantee with signature (gasless)
+ *
+ * @category Permissions
+ */
+export interface RegisterGranteeInput extends Record<string, unknown> {
+  /** User nonce */
+  nonce: bigint;
+  /** Grantee owner address */
+  owner: Address;
+  /** Grantee address */
+  granteeAddress: Address;
+  /** Grantee public key */
+  publicKey: string;
+}
+
+/**
+ * EIP-712 typed data for RegisterGrantee
+ *
+ * @category Permissions
+ */
+export interface RegisterGranteeTypedData {
+  /** EIP-712 domain */
+  domain: PermissionGrantDomain;
+  /** EIP-712 types */
+  types: {
+    RegisterGrantee: Array<{
+      name: string;
+      type: string;
+    }>;
+  };
+  /** Primary type */
+  primaryType: "RegisterGrantee";
+  /** Message to sign */
+  message: RegisterGranteeInput;
+}
+
+/**
+ * Options for querying grantees
+ *
+ * @category Permissions
+ */
+export interface GranteeQueryOptions {
+  /** Maximum number of grantees to return */
+  limit?: number;
+  /** Offset for pagination */
+  offset?: number;
+  /** Whether to include permission info or just basic info */
+  includePermissions?: boolean;
+}
+
+/**
+ * Paginated result for grantee queries
+ *
+ * @category Permissions
+ */
+export interface PaginatedGrantees {
+  /** Array of grantees */
+  grantees: Grantee[];
+  /** Total number of grantees */
+  total: number;
+  /** Offset used for this query */
+  offset: number;
+  /** Limit used for this query */
+  limit: number;
+  /** Whether there are more grantees beyond this page */
+  hasMore: boolean;
 }

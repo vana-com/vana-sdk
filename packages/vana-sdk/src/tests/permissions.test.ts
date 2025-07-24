@@ -112,28 +112,32 @@ describe("PermissionsController", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    
+
     // Setup parseEventLogs mock - will be configured per test
     const { parseEventLogs } = await import("viem");
     vi.mocked(parseEventLogs).mockImplementation((params) => {
       // Return appropriate event based on the event name
-      if ((params as any).eventName === 'PermissionAdded') {
-        return [{
-          eventName: 'PermissionAdded',
-          args: {
-            permissionId: 75n,
-            user: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266' as Address,
-            grant: 'https://mock-grant-url.com',
-            fileIds: [],
-          }
-        }] as any;
-      } else if ((params as any).eventName === 'PermissionRevoked') {
-        return [{
-          eventName: 'PermissionRevoked',
-          args: {
-            permissionId: 123n,
-          }
-        }] as any;
+      if ((params as any).eventName === "PermissionAdded") {
+        return [
+          {
+            eventName: "PermissionAdded",
+            args: {
+              permissionId: 75n,
+              user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+              grant: "https://mock-grant-url.com",
+              fileIds: [],
+            },
+          },
+        ] as any;
+      } else if ((params as any).eventName === "PermissionRevoked") {
+        return [
+          {
+            eventName: "PermissionRevoked",
+            args: {
+              permissionId: 123n,
+            },
+          },
+        ] as any;
       }
       return [];
     });
@@ -173,10 +177,10 @@ describe("PermissionsController", () => {
     // Create a mock publicClient
     mockPublicClient = {
       readContract: vi.fn().mockResolvedValue(BigInt(0)),
-      waitForTransactionReceipt: vi.fn().mockResolvedValue({ 
+      waitForTransactionReceipt: vi.fn().mockResolvedValue({
         blockNumber: 12345n,
         gasUsed: 100000n,
-        logs: [] 
+        logs: [],
       }),
     };
 
@@ -211,8 +215,8 @@ describe("PermissionsController", () => {
 
       expect(result).toMatchObject({
         permissionId: 75n,
-        user: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
-        grant: 'https://mock-grant-url.com',
+        user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        grant: "https://mock-grant-url.com",
         fileIds: [],
         transactionHash: "0xtxhash",
         blockNumber: 12345n,
@@ -433,8 +437,8 @@ describe("PermissionsController", () => {
 
       expect(result).toMatchObject({
         permissionId: 75n,
-        user: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
-        grant: 'https://mock-grant-url.com',
+        user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        grant: "https://mock-grant-url.com",
         fileIds: [],
         transactionHash: "0xdirecttxhash",
         blockNumber: 12345n,
@@ -572,8 +576,8 @@ describe("PermissionsController", () => {
       );
       expect(result).toMatchObject({
         permissionId: 75n,
-        user: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
-        grant: 'https://mock-grant-url.com',
+        user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        grant: "https://mock-grant-url.com",
         fileIds: [],
         transactionHash: "0xtxhash",
         blockNumber: 12345n,
@@ -1006,8 +1010,8 @@ describe("PermissionsController", () => {
       const result = await directController.grant(mockParams);
       expect(result).toMatchObject({
         permissionId: 75n,
-        user: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
-        grant: 'https://mock-grant-url.com',
+        user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        grant: "https://mock-grant-url.com",
         fileIds: [],
         transactionHash: "0xtxhash",
         blockNumber: 12345n,
@@ -1190,7 +1194,8 @@ describe("PermissionsController", () => {
       // Should return event data from parsed transaction
       expect(result).toMatchObject({
         permissionId: 123n,
-        transactionHash: "0xmockabcdef1234567890abcdef1234567890abcdef1234567890abcdef123456",
+        transactionHash:
+          "0xmockabcdef1234567890abcdef1234567890abcdef1234567890abcdef123456",
         blockNumber: 12345n,
         gasUsed: 100000n,
       });
@@ -1361,8 +1366,8 @@ describe("PermissionsController", () => {
       const result = await controller.grant(mockParams);
       expect(result).toMatchObject({
         permissionId: 75n,
-        user: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
-        grant: 'https://mock-grant-url.com',
+        user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        grant: "https://mock-grant-url.com",
         fileIds: [],
         transactionHash: "0xtxhash",
         blockNumber: 12345n,

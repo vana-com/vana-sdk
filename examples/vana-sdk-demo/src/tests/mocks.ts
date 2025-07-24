@@ -123,6 +123,8 @@ export function createMockUseTrustedServers(
     trustedServerQueryMode: "auto" as const,
     serverId: "",
     serverUrl: "",
+    serverOwner: "",
+    publicKey: "",
     loadUserTrustedServers: vi.fn(),
     handleTrustServer: vi.fn(),
     handleTrustServerGasless: vi.fn(),
@@ -130,6 +132,8 @@ export function createMockUseTrustedServers(
     handleDiscoverHostedServer: vi.fn(),
     setServerId: vi.fn(),
     setServerUrl: vi.fn(),
+    setServerOwner: vi.fn(),
+    setPublicKey: vi.fn(),
     setTrustedServerQueryMode: vi.fn(),
     setTrustServerError: vi.fn(),
 

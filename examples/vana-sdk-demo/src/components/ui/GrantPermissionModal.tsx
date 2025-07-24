@@ -20,6 +20,7 @@ import { validateGrant } from "@opendatalabs/vana-sdk/browser";
 import type {
   GrantPermissionParams,
   GrantedPermission,
+  Grantee,
 } from "@opendatalabs/vana-sdk/browser";
 
 export interface GrantPermissionModalProps {
@@ -27,9 +28,8 @@ export interface GrantPermissionModalProps {
   onClose: () => void;
   onConfirm: (params: GrantPermissionParams & { expiresAt?: number }) => void;
   selectedFiles: number[];
-  applicationAddress?: string;
+  grantees: Grantee[];
   isGranting: boolean;
-  allowEditAddress?: boolean;
   existingPermissions?: GrantedPermission[]; // To check for duplicates
 }
 
@@ -38,9 +38,8 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
   onClose,
   onConfirm,
   selectedFiles,
-  applicationAddress,
+  grantees,
   isGranting,
-  allowEditAddress = false,
 }) => {
   const [operation, setOperation] = useState("llm_inference");
   const [promptText, setPromptText] = useState(
@@ -48,9 +47,7 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
   );
   const [expirationOption, setExpirationOption] = useState("never");
   const [customExpiration, setCustomExpiration] = useState("");
-  const [editableApplicationAddress, setEditableApplicationAddress] = useState(
-    applicationAddress || "",
-  );
+  const [selectedGranteeId, setSelectedGranteeId] = useState<string>("");
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [isValidating, setIsValidating] = useState(false);
 
@@ -63,10 +60,10 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
       );
       setExpirationOption("never");
       setCustomExpiration("");
-      setEditableApplicationAddress(applicationAddress || "");
+      setSelectedGranteeId("");
       setValidationErrors([]);
     }
-  }, [isOpen, applicationAddress]);
+  }, [isOpen]);
 
   // Calculate expiration timestamp
   const getExpirationTimestamp = (): number | undefined => {
@@ -101,9 +98,15 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
     try {
       const expiresAt = getExpirationTimestamp();
 
+      // Find selected grantee address
+      const selectedGrantee = grantees.find(
+        (g) => g.id.toString() === selectedGranteeId,
+      );
+      const granteeAddress = selectedGrantee?.address || "";
+
       // Create a mock grant file for validation
       const mockGrantFile = {
-        grantee: editableApplicationAddress || "",
+        grantee: granteeAddress,
         operation: operation,
         parameters: {
           prompt: promptText,
@@ -115,7 +118,7 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
       const result = validateGrant(mockGrantFile, {
         throwOnError: false,
         operation: operation,
-        grantee: (editableApplicationAddress || "") as `0x${string}`,
+        grantee: granteeAddress as `0x${string}`,
       });
 
       if (!result.valid) {
@@ -139,8 +142,12 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
         errors.push("At least one file must be selected");
       }
 
-      if (!editableApplicationAddress.trim()) {
-        errors.push("Application address is required");
+      if (!selectedGranteeId.trim()) {
+        errors.push(
+          grantees.length === 0
+            ? "No grantees available. Please add grantees in the Grantees tab first."
+            : "Grantee selection is required",
+        );
       }
 
       if (
@@ -167,19 +174,41 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
   };
 
   const handleConfirm = async () => {
-    console.debug("Modal handleConfirm called");
-    console.debug("Selected files in modal:", selectedFiles);
-    console.debug("Application address in modal:", editableApplicationAddress);
+    console.debug("🔴 [GrantPermissionModal] handleConfirm called");
+    console.debug("🔴 [GrantPermissionModal] selectedFiles:", selectedFiles);
+    console.debug(
+      "🔴 [GrantPermissionModal] selectedGranteeId:",
+      selectedGranteeId,
+    );
+    console.debug("🔴 [GrantPermissionModal] grantees:", grantees);
+    console.debug("🔴 [GrantPermissionModal] operation:", operation);
+    console.debug("🔴 [GrantPermissionModal] promptText:", promptText);
 
     const isValid = await validateGrantParams();
+    console.debug("🔴 [GrantPermissionModal] validation result:", isValid);
+
     if (!isValid) {
-      console.debug("Validation failed, not proceeding");
+      console.debug("🔴 [GrantPermissionModal] validation failed, returning");
       return;
     }
 
+    // Find selected grantee address
+    const selectedGrantee = grantees.find(
+      (g) => g.id.toString() === selectedGranteeId,
+    );
+    console.debug(
+      "🔴 [GrantPermissionModal] selectedGrantee:",
+      selectedGrantee,
+    );
+
+    const granteeAddress = selectedGrantee?.address || "";
+    console.debug("🔴 [GrantPermissionModal] granteeAddress:", granteeAddress);
+
     const expiresAt = getExpirationTimestamp();
+    console.debug("🔴 [GrantPermissionModal] expiresAt:", expiresAt);
+
     const params: GrantPermissionParams & { expiresAt?: number } = {
-      grantee: (editableApplicationAddress || "") as `0x${string}`,
+      grantee: granteeAddress as `0x${string}`,
       operation,
       files: selectedFiles,
       parameters: {
@@ -188,8 +217,15 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
       ...(expiresAt && { expiresAt }),
     };
 
-    console.debug("Calling onConfirm with params:", params);
-    onConfirm(params);
+    console.debug("🔴 [GrantPermissionModal] final params:", params);
+    console.debug("🔴 [GrantPermissionModal] calling onConfirm with params");
+
+    try {
+      onConfirm(params);
+      console.debug("🔴 [GrantPermissionModal] onConfirm called successfully");
+    } catch (error) {
+      console.error("🔴 [GrantPermissionModal] onConfirm failed:", error);
+    }
   };
 
   const handleClose = () => {
@@ -332,20 +368,42 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
               </div>
             </div>
 
-            {/* Application Address */}
-            <Input
-              label="Application Address"
-              value={editableApplicationAddress}
-              onChange={(e) => setEditableApplicationAddress(e.target.value)}
-              isReadOnly={!allowEditAddress}
-              description={
-                allowEditAddress
-                  ? "Enter the application address that will receive this permission"
-                  : "The application that will receive this permission"
+            {/* Grantee Selection */}
+            <Select
+              label="Grantee"
+              placeholder={
+                grantees.length === 0
+                  ? "No grantees available"
+                  : "Select a grantee"
               }
-              variant={allowEditAddress ? "bordered" : "flat"}
-              placeholder={allowEditAddress ? "0x..." : undefined}
-            />
+              selectedKeys={selectedGranteeId ? [selectedGranteeId] : []}
+              onSelectionChange={(keys) => {
+                const selectedKey = Array.from(keys)[0] as string;
+                setSelectedGranteeId(selectedKey || "");
+              }}
+              description={
+                grantees.length === 0
+                  ? "Please add grantees in the Grantees tab first"
+                  : "Select the grantee that will receive this permission"
+              }
+              isDisabled={grantees.length === 0}
+            >
+              {grantees.map((grantee) => (
+                <SelectItem
+                  key={grantee.id.toString()}
+                  textValue={`ID: ${grantee.id} - ${grantee.address}`}
+                >
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium">
+                      ID: {grantee.id}
+                    </span>
+                    <span className="text-xs text-default-500">
+                      {grantee.address}
+                    </span>
+                  </div>
+                </SelectItem>
+              ))}
+            </Select>
 
             {/* Validation Errors */}
             {validationErrors.length > 0 && (
@@ -387,7 +445,16 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
                 </p>
                 <p>
                   <strong>Grantee:</strong>{" "}
-                  {editableApplicationAddress || "Not set"}
+                  {selectedGranteeId
+                    ? (() => {
+                        const selectedGrantee = grantees.find(
+                          (g) => g.id.toString() === selectedGranteeId,
+                        );
+                        return selectedGrantee
+                          ? `ID: ${selectedGrantee.id} (${selectedGrantee.address})`
+                          : "Not found";
+                      })()
+                    : "Not selected"}
                 </p>
               </div>
             </div>
@@ -401,9 +468,7 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
             color="primary"
             onPress={handleConfirm}
             isLoading={isGranting || isValidating}
-            isDisabled={
-              selectedFiles.length === 0 || !editableApplicationAddress?.trim()
-            }
+            isDisabled={selectedFiles.length === 0 || !selectedGranteeId.trim()}
             startContent={
               !isGranting && !isValidating ? (
                 <Eye className="h-4 w-4" />

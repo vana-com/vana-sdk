@@ -16,7 +16,9 @@ describe("Upload Types with Type Safety", () => {
         publicKey: "0x04abcdef...",
       };
 
-      expect(permission.account).toBe("0x1234567890123456789012345678901234567890");
+      expect(permission.account).toBe(
+        "0x1234567890123456789012345678901234567890",
+      );
       expect(permission.publicKey).toBe("0x04abcdef...");
     });
 
@@ -41,7 +43,9 @@ describe("Upload Types with Type Safety", () => {
         publicKey: "0x04abcdef...",
       };
 
-      expect(permission.grantee).toBe("0x1234567890123456789012345678901234567890");
+      expect(permission.grantee).toBe(
+        "0x1234567890123456789012345678901234567890",
+      );
       expect(permission.operation).toBe("llm_inference");
       expect(permission.parameters).toEqual({ model: "gpt-4" });
       expect(permission.publicKey).toBe("0x04abcdef...");
@@ -85,7 +89,9 @@ describe("Upload Types with Type Safety", () => {
         ],
       };
 
-      expect(params.permissions?.[0].account).toBe("0x1234567890123456789012345678901234567890");
+      expect(params.permissions?.[0].account).toBe(
+        "0x1234567890123456789012345678901234567890",
+      );
       expect(params.permissions?.[0].publicKey).toBe("0x04abcdef...");
     });
   });

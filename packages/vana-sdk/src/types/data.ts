@@ -21,8 +21,10 @@ export interface UserFile {
   ownerAddress: Address;
   /** Block number when this file was registered on-chain. */
   addedAtBlock: bigint;
-  /** Schema identifier for data validation and structure definition.
-   *   Obtain schema IDs from `vana.schemas.list()` or when creating schemas via `vana.schemas.create()`. */
+  /**
+   * Schema identifier for data validation and structure definition.
+   * Obtain schema IDs from `vana.schemas.list()` or when creating schemas via `vana.schemas.create()`.
+   */
   schemaId?: number;
   /** Unix timestamp when the file was registered on-chain. */
   addedAtTimestamp?: bigint;
@@ -154,14 +156,14 @@ export interface UnencryptedUploadParams extends Omit<UploadParams, "encrypt"> {
 
 /**
  * Parameters for granting file decryption access during upload.
- * 
+ *
  * @remarks
  * This interface is used to grant decryption access to specific accounts when uploading
  * encrypted files. It only handles encryption key sharing, not operation permissions.
- * 
- * For granting operation permissions (like "llm_inference"), use the separate 
+ *
+ * For granting operation permissions (like "llm_inference"), use the separate
  * `vana.permissions.grant()` method after uploading.
- * 
+ *
  * @example
  * ```typescript
  * // Upload with decryption permission
@@ -184,11 +186,11 @@ export interface FilePermissionParams {
 
 /**
  * Permission parameters for granting data access.
- * 
+ *
  * @remarks
  * This interface defines parameters for granting permissions to access data.
  * It's used in the permissions system but kept here for compatibility.
- * 
+ *
  * @category Data Management
  */
 export interface PermissionParams {
@@ -202,22 +204,24 @@ export interface PermissionParams {
   nonce?: bigint;
   /** Optional expiration timestamp (Unix seconds, no expiration if not provided). */
   expiresAt?: number;
-  /** Public key of the recipient to encrypt the data key for (required for upload with permissions).
-   *   Obtain via `vana.server.getIdentity(recipientAddress).public_key` for personal servers. */
+  /**
+   * Public key of the recipient to encrypt the data key for (required for upload with permissions).
+   * Obtain via `vana.server.getIdentity(recipientAddress).public_key` for personal servers.
+   */
   publicKey?: string;
 }
 
 /**
  * Legacy permission parameters that conflated file encryption and data access grants.
- * 
+ *
  * @remarks
  * This interface was removed because it conflated two different concepts:
  * 1. File encryption permissions (handled during upload)
  * 2. Data access grants (operation permissions)
- * 
+ *
  * For file uploads, use FilePermissionParams instead.
  * For data access grants, use vana.permissions.grant() after uploading.
- * 
+ *
  * @deprecated Removed in v2.0.0. Use FilePermissionParams for uploads.
  * @category Data Management
  */
@@ -229,7 +233,6 @@ export interface LegacyPermissionParams {
   expiresAt?: number;
   publicKey?: string;
 }
-
 
 /**
  * Result of the high-level upload operation.

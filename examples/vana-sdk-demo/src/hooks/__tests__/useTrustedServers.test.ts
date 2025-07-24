@@ -544,7 +544,6 @@ describe("useTrustedServers", () => {
 
   describe("handleDiscoverHostedServer", () => {
     it("successfully discovers server", async () => {
-      
       mockVana.server.getIdentity.mockResolvedValue({
         address: "0xdiscovered",
         public_key: "0xpubkey",
@@ -578,7 +577,7 @@ describe("useTrustedServers", () => {
       const consoleSpy = vi
         .spyOn(console, "error")
         .mockImplementation(() => {});
-      
+
       mockVana.server.getIdentity.mockRejectedValue(new Error("Network error"));
 
       const { result } = renderHook(() => useTrustedServers());
@@ -599,12 +598,11 @@ describe("useTrustedServers", () => {
       const consoleSpy = vi
         .spyOn(console, "error")
         .mockImplementation(() => {});
-      
-      
+
       // Mock the SDK to return proper identity but environment variable is missing
       const originalEnv = process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL;
       delete process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL;
-      
+
       mockVana.server.getIdentity.mockResolvedValue({
         address: "0xdiscovered",
         public_key: "0xpubkey",
@@ -622,7 +620,7 @@ describe("useTrustedServers", () => {
 
       expect(discoveredInfo).toBe(null);
       expect(result.current.trustServerError).toBe(
-        "NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL is not configured"
+        "NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL is not configured",
       );
 
       // Restore environment variable
@@ -634,8 +632,7 @@ describe("useTrustedServers", () => {
       const consoleSpy = vi
         .spyOn(console, "error")
         .mockImplementation(() => {});
-      
-      
+
       mockVana.server.getIdentity.mockResolvedValue({
         address: "", // Empty address
         public_key: "0xpubkey",
@@ -666,10 +663,9 @@ describe("useTrustedServers", () => {
       const consoleSpy = vi
         .spyOn(console, "error")
         .mockImplementation(() => {});
-      
-      
+
       mockVana.server.getIdentity.mockRejectedValue(
-        new Error("Custom SDK error")
+        new Error("Custom SDK error"),
       );
 
       const { result } = renderHook(() => useTrustedServers());

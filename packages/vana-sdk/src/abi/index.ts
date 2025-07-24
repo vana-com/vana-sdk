@@ -2,7 +2,10 @@ import { ComputeEngineABI } from "./ComputeEngineImplementation";
 import { DataRegistryABI } from "./DataRegistryImplementation";
 import { TeePoolABI } from "./TeePoolImplementation";
 import { TeePoolPhalaABI } from "./TeePoolPhalaImplementation";
-import { DataPermissionsABI } from "./PermissionRegistryImplementation";
+// Data Portability Contracts
+import { DataPortabilityPermissionsABI } from "./DataPortabilityPermissionsImplementation";
+import { DataPortabilityServersABI } from "./DataPortabilityServersImplementation";
+import { DataPortabilityGranteesABI } from "./DataPortabilityGranteesImplementation";
 
 // Data Access Infrastructure
 import { DataRefinerRegistryABI } from "./DataRefinerRegistryImplementation";
@@ -41,7 +44,10 @@ import { DATPausableABI } from "./DATPausableImplementation";
 import { DATVotesABI } from "./DATVotesImplementation";
 
 const contractAbis = {
-  DataPermissions: DataPermissionsABI,
+  DataPermissions: DataPortabilityPermissionsABI,
+  DataPortabilityPermissions: DataPortabilityPermissionsABI,
+  DataPortabilityServers: DataPortabilityServersABI,
+  DataPortabilityGrantees: DataPortabilityGranteesABI,
   DataRegistry: DataRegistryABI,
   TeePoolPhala: TeePoolPhalaABI, // Main TeePool (Intel TDX)
   ComputeEngine: ComputeEngineABI,
@@ -106,6 +112,9 @@ export function getAbi<T extends VanaContract>(contract: T): ContractAbis[T] {
 
 // Export individual ABIs
 export {
+  DataPortabilityPermissionsABI,
+  DataPortabilityServersABI,
+  DataPortabilityGranteesABI,
   VanaEpochABI,
   DLPRegistryABI,
   DLPRegistryTreasuryABI,

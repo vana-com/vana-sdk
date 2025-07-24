@@ -27,6 +27,8 @@ export interface UseTrustedServersReturn {
   // Form state
   serverId: string;
   serverUrl: string;
+  serverOwner: string;
+  publicKey: string;
 
   // Actions
   loadUserTrustedServers: (mode?: "subgraph" | "rpc" | "auto") => Promise<void>;
@@ -45,6 +47,8 @@ export interface UseTrustedServersReturn {
   } | null>;
   setServerId: (id: string) => void;
   setServerUrl: (url: string) => void;
+  setServerOwner: (owner: string) => void;
+  setPublicKey: (publicKey: string) => void;
   setTrustedServerQueryMode: (mode: "subgraph" | "rpc" | "auto") => void;
   setTrustServerError: (error: string) => void;
 }
@@ -67,6 +71,8 @@ export function useTrustedServers(): UseTrustedServersReturn {
   // Form state
   const [serverId, setServerId] = useState<string>("");
   const [serverUrl, setServerUrl] = useState<string>("");
+  const [serverOwner, setServerOwner] = useState<string>("");
+  const [publicKey, setPublicKey] = useState<string>("");
 
   const loadUserTrustedServers = useCallback(
     async (mode: "subgraph" | "rpc" | "auto" = "auto") => {
@@ -123,13 +129,25 @@ export function useTrustedServers(): UseTrustedServersReturn {
       return;
     }
 
+    if (!serverOwner.trim()) {
+      setTrustServerError("Please provide a server owner address");
+      return;
+    }
+
+    if (!publicKey.trim()) {
+      setTrustServerError("Please provide a server public key");
+      return;
+    }
+
     setIsTrustingServer(true);
     setTrustServerError("");
 
     try {
-      await vana.permissions.trustServer({
-        serverId: serverId as `0x${string}`,
+      await vana.permissions.addAndTrustServer({
+        owner: serverOwner as `0x${string}`,
+        serverAddress: serverId as `0x${string}`,
         serverUrl: serverUrl,
+        publicKey: publicKey,
       });
 
       // Success - form shows success via trustServerError being cleared
@@ -142,7 +160,15 @@ export function useTrustedServers(): UseTrustedServersReturn {
     } finally {
       setIsTrustingServer(false);
     }
-  }, [vana, address, serverId, serverUrl, loadUserTrustedServers]);
+  }, [
+    vana,
+    address,
+    serverId,
+    serverUrl,
+    serverOwner,
+    publicKey,
+    loadUserTrustedServers,
+  ]);
 
   const handleTrustServerGasless = useCallback(
     async (
@@ -167,13 +193,25 @@ export function useTrustedServers(): UseTrustedServersReturn {
         return;
       }
 
+      if (!serverOwner.trim()) {
+        setTrustServerError("Please provide a server owner address");
+        return;
+      }
+
+      if (!publicKey.trim()) {
+        setTrustServerError("Please provide a server public key");
+        return;
+      }
+
       setIsTrustingServer(true);
       setTrustServerError("");
 
       try {
-        await vana.permissions.trustServerWithSignature({
-          serverId: actualServerId as `0x${string}`,
+        await vana.permissions.addAndTrustServerWithSignature({
+          owner: serverOwner as `0x${string}`,
+          serverAddress: actualServerId as `0x${string}`,
           serverUrl: actualServerUrl,
+          publicKey: publicKey,
         });
 
         console.info("✅ Trust server with signature completed successfully!");
@@ -183,6 +221,8 @@ export function useTrustedServers(): UseTrustedServersReturn {
         if (clearFieldsOnSuccess) {
           setServerId("");
           setServerUrl("");
+          setServerOwner("");
+          setPublicKey("");
         }
         // Refresh trusted servers list
         await loadUserTrustedServers();
@@ -196,7 +236,15 @@ export function useTrustedServers(): UseTrustedServersReturn {
         setIsTrustingServer(false);
       }
     },
-    [vana, address, serverId, serverUrl, loadUserTrustedServers],
+    [
+      vana,
+      address,
+      serverId,
+      serverUrl,
+      serverOwner,
+      publicKey,
+      loadUserTrustedServers,
+    ],
   );
 
   const handleUntrustServer = useCallback(
@@ -206,7 +254,7 @@ export function useTrustedServers(): UseTrustedServersReturn {
       setIsUntrusting(true);
       try {
         await vana.permissions.untrustServerWithSignature({
-          serverId: serverIdToUntrust as `0x${string}`,
+          serverId: parseInt(serverIdToUntrust, 10),
         });
 
         addToast({
@@ -297,6 +345,8 @@ export function useTrustedServers(): UseTrustedServersReturn {
       setTrustedServers([]);
       setServerId("");
       setServerUrl("");
+      setServerOwner("");
+      setPublicKey("");
       setTrustServerError("");
     }
   }, [address]);
@@ -314,6 +364,8 @@ export function useTrustedServers(): UseTrustedServersReturn {
     // Form state
     serverId,
     serverUrl,
+    serverOwner,
+    publicKey,
 
     // Actions
     loadUserTrustedServers,
@@ -323,6 +375,8 @@ export function useTrustedServers(): UseTrustedServersReturn {
     handleDiscoverHostedServer,
     setServerId,
     setServerUrl,
+    setServerOwner,
+    setPublicKey,
     setTrustedServerQueryMode,
     setTrustServerError,
   };

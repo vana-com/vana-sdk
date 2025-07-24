@@ -11,6 +11,7 @@ import {
   VanaCryptoAdapter,
   VanaPGPAdapter,
   VanaHttpAdapter,
+  VanaCacheAdapter,
 } from "./interface";
 import {
   processWalletPublicKey,
@@ -300,18 +301,75 @@ class BrowserHttpAdapter implements VanaHttpAdapter {
 }
 
 /**
+ * Browser implementation of cache operations using sessionStorage
+ */
+class BrowserCacheAdapter implements VanaCacheAdapter {
+  private readonly prefix = "vana_cache_";
+
+  get(key: string): string | null {
+    try {
+      if (typeof sessionStorage === "undefined") {
+        return null;
+      }
+      return sessionStorage.getItem(this.prefix + key);
+    } catch {
+      return null;
+    }
+  }
+
+  set(key: string, value: string): void {
+    try {
+      if (typeof sessionStorage !== "undefined") {
+        sessionStorage.setItem(this.prefix + key, value);
+      }
+    } catch {
+      // Silently ignore storage errors (quota exceeded, etc.)
+    }
+  }
+
+  delete(key: string): void {
+    try {
+      if (typeof sessionStorage !== "undefined") {
+        sessionStorage.removeItem(this.prefix + key);
+      }
+    } catch {
+      // Silently ignore storage errors
+    }
+  }
+
+  clear(): void {
+    try {
+      if (typeof sessionStorage === "undefined") {
+        return;
+      }
+
+      const keys = Object.keys(sessionStorage);
+      for (const key of keys) {
+        if (key.startsWith(this.prefix)) {
+          sessionStorage.removeItem(key);
+        }
+      }
+    } catch {
+      // Silently ignore storage errors
+    }
+  }
+}
+
+/**
  * Complete browser platform adapter implementation
  */
 export class BrowserPlatformAdapter implements VanaPlatformAdapter {
   crypto: VanaCryptoAdapter;
   pgp: VanaPGPAdapter;
   http: VanaHttpAdapter;
+  cache: VanaCacheAdapter;
   platform: "browser" = "browser" as const;
 
   constructor() {
     this.crypto = new BrowserCryptoAdapter();
     this.pgp = new BrowserPGPAdapter();
     this.http = new BrowserHttpAdapter();
+    this.cache = new BrowserCacheAdapter();
   }
 }
 

@@ -4,7 +4,8 @@ on:
   push:
     branches:
       - feature/data-portability-sdk-v1
-      - no-god-component
+      - feat/callbackstorage
+      - feat/return-values
 
 jobs:
   publish-prerelease:

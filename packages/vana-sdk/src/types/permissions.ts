@@ -81,7 +81,10 @@ export interface GrantPermissionParams {
   grantee: Address;
   /** The class of computation, e.g., "llm_inference" */
   operation: string;
-  /** Array of file IDs to grant permission for */
+  /**
+   * Array of file IDs to grant permission for.
+   * Obtain file IDs from `vana.data.getUserFiles()` or from upload results via `vana.data.upload().fileId`.
+   */
   files: number[];
   /** The full, off-chain parameters (e.g., LLM prompt) */
   parameters: Record<string, unknown>;

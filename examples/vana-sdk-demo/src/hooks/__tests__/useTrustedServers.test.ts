@@ -43,7 +43,7 @@ interface TrustedServer {
 }
 
 describe("useTrustedServers", () => {
-  const mockVana = {
+  const mockVana: any = {
     data: {
       getUserTrustedServers: vi.fn(),
     },
@@ -51,6 +51,9 @@ describe("useTrustedServers", () => {
       trustServer: vi.fn(),
       trustServerWithSignature: vi.fn(),
       untrustServerWithSignature: vi.fn(),
+    },
+    server: {
+      getIdentity: vi.fn(),
     },
   };
 
@@ -541,15 +544,12 @@ describe("useTrustedServers", () => {
 
   describe("handleDiscoverHostedServer", () => {
     it("successfully discovers server", async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            personal_server: {
-              address: "0xdiscovered",
-              public_key: "0xpubkey",
-            },
-          }),
+      mockVana.server.getIdentity.mockResolvedValue({
+        address: "0xdiscovered",
+        public_key: "0xpubkey",
+        base_url: "http://localhost:3001",
+        name: "Personal Server",
+        kind: "hosted",
       });
 
       const { result } = renderHook(() => useTrustedServers());
@@ -559,28 +559,17 @@ describe("useTrustedServers", () => {
         discoveredInfo = await result.current.handleDiscoverHostedServer();
       });
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        "http://localhost:3001/identity?address=0x123",
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      expect(mockVana.server.getIdentity).toHaveBeenCalledWith({
+        userAddress: "0x123",
+      });
       expect(discoveredInfo).toEqual({
         serverAddress: "0xdiscovered",
-        serverUrl:
-          process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL ||
-          "http://localhost:3001",
+        serverUrl: "http://localhost:3001",
         name: "Personal Server",
         publicKey: "0xpubkey",
       });
       expect(result.current.serverId).toBe("0xdiscovered");
-      expect(result.current.serverUrl).toBe(
-        process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL ||
-          "http://localhost:3001",
-      );
+      expect(result.current.serverUrl).toBe("http://localhost:3001");
       expect(result.current.isDiscoveringServer).toBe(false);
     });
 
@@ -588,7 +577,8 @@ describe("useTrustedServers", () => {
       const consoleSpy = vi
         .spyOn(console, "error")
         .mockImplementation(() => {});
-      mockFetch.mockRejectedValue(new Error("Network error"));
+
+      mockVana.server.getIdentity.mockRejectedValue(new Error("Network error"));
 
       const { result } = renderHook(() => useTrustedServers());
 
@@ -604,39 +594,21 @@ describe("useTrustedServers", () => {
       consoleSpy.mockRestore();
     });
 
-    it("handles HTTP error responses", async () => {
+    it("handles missing base URL configuration", async () => {
       const consoleSpy = vi
         .spyOn(console, "error")
         .mockImplementation(() => {});
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 404,
-        statusText: "Not Found",
-      });
 
-      const { result } = renderHook(() => useTrustedServers());
+      // Mock the SDK to return proper identity but environment variable is missing
+      const originalEnv = process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL;
+      delete process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL;
 
-      let discoveredInfo;
-      await act(async () => {
-        discoveredInfo = await result.current.handleDiscoverHostedServer();
-      });
-
-      expect(discoveredInfo).toBe(null);
-      expect(result.current.trustServerError).toBe("HTTP 404: Not Found");
-
-      consoleSpy.mockRestore();
-    });
-
-    it("handles unsuccessful response from gateway", async () => {
-      const consoleSpy = vi
-        .spyOn(console, "error")
-        .mockImplementation(() => {});
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            // Missing personal_server or personal_server.address
-          }),
+      mockVana.server.getIdentity.mockResolvedValue({
+        address: "0xdiscovered",
+        public_key: "0xpubkey",
+        base_url: "",
+        name: "Personal Server",
+        kind: "hosted",
       });
 
       const { result } = renderHook(() => useTrustedServers());
@@ -648,25 +620,25 @@ describe("useTrustedServers", () => {
 
       expect(discoveredInfo).toBe(null);
       expect(result.current.trustServerError).toBe(
-        "Invalid server discovery response: missing personal_server.address",
+        "NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL is not configured",
       );
 
+      // Restore environment variable
+      process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL = originalEnv;
       consoleSpy.mockRestore();
     });
 
-    it("handles invalid server discovery response", async () => {
+    it("handles unsuccessful response from gateway", async () => {
       const consoleSpy = vi
         .spyOn(console, "error")
         .mockImplementation(() => {});
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            personal_server: {
-              // Missing address field
-              public_key: "0xpubkey",
-            },
-          }),
+
+      mockVana.server.getIdentity.mockResolvedValue({
+        address: "", // Empty address
+        public_key: "0xpubkey",
+        base_url: "http://localhost:3001",
+        name: "Personal Server",
+        kind: "hosted",
       });
 
       const { result } = renderHook(() => useTrustedServers());
@@ -676,10 +648,35 @@ describe("useTrustedServers", () => {
         discoveredInfo = await result.current.handleDiscoverHostedServer();
       });
 
-      expect(discoveredInfo).toBe(null);
-      expect(result.current.trustServerError).toContain(
-        "Invalid server discovery response: missing personal_server.address",
+      // Even with empty address, it should still return the info
+      expect(discoveredInfo).toEqual({
+        serverAddress: "",
+        serverUrl: "http://localhost:3001",
+        name: "Personal Server",
+        publicKey: "0xpubkey",
+      });
+
+      consoleSpy.mockRestore();
+    });
+
+    it("handles SDK getIdentity error with custom message", async () => {
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+
+      mockVana.server.getIdentity.mockRejectedValue(
+        new Error("Custom SDK error"),
       );
+
+      const { result } = renderHook(() => useTrustedServers());
+
+      let discoveredInfo;
+      await act(async () => {
+        discoveredInfo = await result.current.handleDiscoverHostedServer();
+      });
+
+      expect(discoveredInfo).toBe(null);
+      expect(result.current.trustServerError).toBe("Custom SDK error");
 
       consoleSpy.mockRestore();
     });

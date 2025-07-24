@@ -21,7 +21,10 @@ export interface UserFile {
   ownerAddress: Address;
   /** Block number when this file was registered on-chain. */
   addedAtBlock: bigint;
-  /** Schema identifier for data validation and structure definition. */
+  /**
+   * Schema identifier for data validation and structure definition.
+   * Obtain schema IDs from `vana.schemas.list()` or when creating schemas via `vana.schemas.create()`.
+   */
   schemaId?: number;
   /** Unix timestamp when the file was registered on-chain. */
   addedAtTimestamp?: bigint;
@@ -113,25 +116,28 @@ export interface UploadParams {
   filename?: string;
   /** Optional schema ID for data validation. */
   schemaId?: number;
-  /** Optional permissions to grant during upload. */
-  permissions?: PermissionParams[];
+  /** Optional file permissions to grant decryption access during upload. */
+  permissions?: FilePermissionParams[];
   /** Whether to encrypt the data (defaults to true). */
   encrypt?: boolean;
   /** Optional storage provider name. */
   providerName?: string;
+  /** Optional owner address (defaults to current wallet address). */
+  owner?: Address;
 }
 
 /**
- * Upload parameters with encryption enabled (requires EncryptedPermissionParams).
+ * Upload parameters with encryption enabled.
  *
  * @remarks
  * This interface ensures type safety when using encrypted uploads with permissions.
+ * When encrypt is true, any permissions must include public keys for encryption.
  * @category Data Management
  */
 export interface EncryptedUploadParams
   extends Omit<UploadParams, "permissions" | "encrypt"> {
-  /** Permissions with required public keys for encrypted data sharing. */
-  permissions?: EncryptedPermissionParams[];
+  /** File permissions with required public keys for encrypted data sharing. */
+  permissions?: FilePermissionParams[];
   /** Encryption is enabled. */
   encrypt: true;
 }
@@ -149,38 +155,83 @@ export interface UnencryptedUploadParams extends Omit<UploadParams, "encrypt"> {
 }
 
 /**
- * Permission parameters for granting access during file upload.
+ * Parameters for granting file decryption access during upload.
  *
  * @remarks
- * Used within UploadParams to grant permissions to applications during the upload process.
+ * This interface is used to grant decryption access to specific accounts when uploading
+ * encrypted files. It only handles encryption key sharing, not operation permissions.
+ *
+ * For granting operation permissions (like "llm_inference"), use the separate
+ * `vana.permissions.grant()` method after uploading.
+ *
+ * @example
+ * ```typescript
+ * // Upload with decryption permission
+ * const result = await vana.data.upload({
+ *   content: "data",
+ *   permissions: [{
+ *     account: "0xServerAddress...",
+ *     publicKey: "0x04..." // Server's public key
+ *   }]
+ * });
+ * ```
+ * @category Data Management
+ */
+export interface FilePermissionParams {
+  /** The account address that will be able to decrypt this file. */
+  account: Address;
+  /** The public key to encrypt the file's encryption key with. */
+  publicKey: string;
+}
+
+/**
+ * Permission parameters for granting data access.
+ *
+ * @remarks
+ * This interface defines parameters for granting permissions to access data.
+ * It's used in the permissions system but kept here for compatibility.
+ *
  * @category Data Management
  */
 export interface PermissionParams {
   /** The address of the application to grant permission to. */
   grantee: Address;
-  /** The operation type (e.g., "llm_inference"). */
+  /** The operation type (e.g., "llm_inference", "data_analysis", "compute_task"). */
   operation: string;
-  /** Additional parameters for the permission. */
+  /** Additional parameters for the permission (operation-specific configuration). */
   parameters: Record<string, unknown>;
-  /** Optional nonce for the permission. */
+  /** Optional nonce for the permission (auto-generated if not provided). */
   nonce?: bigint;
-  /** Optional expiration timestamp. */
+  /** Optional expiration timestamp (Unix seconds, no expiration if not provided). */
   expiresAt?: number;
-  /** Public key of the recipient to encrypt the data key for (required for upload with permissions). */
+  /**
+   * Public key of the recipient to encrypt the data key for (required for upload with permissions).
+   * Obtain via `vana.server.getIdentity(recipientAddress).public_key` for personal servers.
+   */
   publicKey?: string;
 }
 
 /**
- * Permission parameters with required public key for encrypted uploads.
+ * Legacy permission parameters that conflated file encryption and data access grants.
  *
  * @remarks
- * This type extends PermissionParams and makes publicKey required, ensuring
- * compile-time safety when permissions are used with encryption.
+ * This interface was removed because it conflated two different concepts:
+ * 1. File encryption permissions (handled during upload)
+ * 2. Data access grants (operation permissions)
+ *
+ * For file uploads, use FilePermissionParams instead.
+ * For data access grants, use vana.permissions.grant() after uploading.
+ *
+ * @deprecated Removed in v2.0.0. Use FilePermissionParams for uploads.
  * @category Data Management
  */
-export interface EncryptedPermissionParams extends PermissionParams {
-  /** Public key of the recipient to encrypt the data key for. */
-  publicKey: string;
+export interface LegacyPermissionParams {
+  grantee: Address;
+  operation: string;
+  parameters: Record<string, unknown>;
+  nonce?: bigint;
+  expiresAt?: number;
+  publicKey?: string;
 }
 
 /**
@@ -237,11 +288,11 @@ export interface UploadFileParams {
   content: Uint8Array | Buffer | string;
   /** Descriptive metadata for file organization and tracking. */
   metadata?: FileMetadata;
-  /** Storage provider name or uses configured default if unspecified. */
+  /** Storage provider name ("ipfs" or custom provider, uses configured default if unspecified). */
   storageProvider?: string;
-  /** Enables automatic encryption before upload to storage. */
+  /** Enables automatic encryption before upload to storage (defaults to false). */
   encrypt?: boolean;
-  /** Custom encryption key or generates one automatically if encryption enabled. */
+  /** Custom encryption key (auto-generated if encryption enabled and not provided). */
   encryptionKey?: string;
 }
 

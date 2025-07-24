@@ -86,19 +86,43 @@ export class VanaCoreFactory {
  * @remarks
  * This environment-agnostic class contains all SDK logic and accepts a platform
  * adapter to handle environment-specific operations. It initializes all controllers
- * and manages shared context between them.
+ * and manages shared context between them, providing a unified interface for
+ * data management, permissions, smart contracts, and storage operations.
  *
  * The class uses TypeScript overloading to enforce storage requirements at compile time.
- * When storage is required for certain operations, the constructor will fail fast at runtime.
+ * Methods that require storage will throw `InvalidConfigurationError` at runtime if
+ * storage providers are not configured, implementing a fail-fast approach to prevent
+ * errors during expensive operations.
  *
- * For public usage, use the platform-specific Vana classes that extend this core:
- * - Use `Vana({config)` from the main package import
+ * **Core Architecture:**
+ * - **Controllers**: Specialized modules for different Vana features (data, permissions, etc.)
+ * - **Platform Adapters**: Environment-specific implementations (browser vs Node.js)
+ * - **Storage Managers**: Abstraction layer for multiple storage providers
+ * - **Context Sharing**: Unified configuration and services across all controllers
+ *
+ * For public usage, use the platform-specific factory functions:
+ * - Browser: `import { Vana } from '@opendatalabs/vana-sdk/browser'`
+ * - Node.js: `import { Vana } from '@opendatalabs/vana-sdk/node'`
+ *
  * @example
  * ```typescript
- * // Direct instantiation (typically used internally)
- * const core = new VanaCore({
+ * // Direct instantiation (advanced usage)
+ * import { VanaCore, BrowserPlatformAdapter } from '@opendatalabs/vana-sdk/browser';
+ *
+ * const core = new VanaCore(new BrowserPlatformAdapter(), {
  *   walletClient: myWalletClient,
- * }, platformAdapter);
+ *   storage: {
+ *     providers: { ipfs: new IPFSStorage() },
+ *     defaultProvider: 'ipfs'
+ *   }
+ * });
+ *
+ * // Access all controllers
+ * const files = await core.data.getUserFiles();
+ * const permissions = await core.permissions.grant({
+ *   grantee: '0x742d35...',
+ *   operation: 'read'
+ * });
  * ```
  * @category Core SDK
  */
@@ -537,15 +561,35 @@ export class VanaCore {
 
   /**
    * Encrypts data using the Vana protocol standard encryption.
-   * This method automatically uses the correct platform adapter for the current environment.
    *
-   * @param data The data to encrypt (string or Blob)
-   * @param key The key to use as encryption key
-   * @returns The encrypted data as Blob
+   * @remarks
+   * This method implements the Vana network's standard encryption protocol using
+   * platform-appropriate cryptographic libraries. It automatically handles different
+   * input types (string or Blob) and produces encrypted output suitable for secure
+   * storage or transmission. The encryption is compatible with the network's
+   * decryption protocols and can be decrypted by authorized parties.
+   *
+   * @param data - The data to encrypt (string or Blob)
+   * @param key - The encryption key (typically generated via `generateEncryptionKey`)
+   * @returns The encrypted data as a Blob
+   * @throws {Error} When encryption fails due to invalid key or data format
    * @example
    * ```typescript
-   * const encryptionKey = await generateEncryptionKey(walletClient);
-   * const encrypted = await vana.encryptBlob("sensitive data", encryptionKey);
+   * import { generateEncryptionKey } from '@opendatalabs/vana-sdk/node';
+   *
+   * // Generate encryption key from wallet signature
+   * const encryptionKey = await generateEncryptionKey(vana.walletClient);
+   *
+   * // Encrypt string data
+   * const sensitiveData = "User's private information";
+   * const encrypted = await vana.encryptBlob(sensitiveData, encryptionKey);
+   *
+   * // Encrypt file data
+   * const fileBlob = new Blob([fileContent], { type: 'application/json' });
+   * const encryptedFile = await vana.encryptBlob(fileBlob, encryptionKey);
+   *
+   * // Store encrypted data safely
+   * await storageProvider.upload(encrypted, 'encrypted-data.bin');
    * ```
    */
   public async encryptBlob(data: string | Blob, key: string): Promise<Blob> {
@@ -554,16 +598,52 @@ export class VanaCore {
 
   /**
    * Decrypts data that was encrypted using the Vana protocol.
-   * This method automatically uses the correct platform adapter for the current environment.
    *
-   * @param encryptedData The encrypted data (string or Blob)
-   * @param walletSignature The wallet signature to use as decryption key
-   * @returns The decrypted data as Blob
+   * @remarks
+   * This method decrypts data that was previously encrypted using the Vana network's
+   * standard encryption protocol. It requires the same wallet signature that was used
+   * for encryption and automatically uses the appropriate platform adapter for
+   * cryptographic operations. The decrypted output maintains the original data format.
+   *
+   * @param encryptedData - The encrypted data (string or Blob)
+   * @param walletSignature - The wallet signature used as decryption key
+   * @returns The decrypted data as a Blob
+   * @throws {Error} When decryption fails due to invalid signature or corrupted data
    * @example
    * ```typescript
-   * const encryptionKey = await generateEncryptionKey(walletClient);
-   * const decrypted = await vana.decryptBlob(encryptedData, encryptionKey);
-   * const text = await decrypted.text();
+   * import { generateEncryptionKey } from '@opendatalabs/vana-sdk/node';
+   *
+   * // Retrieve encrypted data from storage
+   * const encryptedBlob = await storageProvider.download('encrypted-data.bin');
+   *
+   * // Generate the same key used for encryption
+   * const decryptionKey = await generateEncryptionKey(vana.walletClient);
+   *
+   * // Decrypt the data
+   * const decrypted = await vana.decryptBlob(encryptedBlob, decryptionKey);
+   *
+   * // Convert back to original format
+   * const originalText = await decrypted.text();
+   * const originalJson = JSON.parse(originalText);
+   *
+   * console.log('Decrypted data:', originalJson);
+   * ```
+   *
+   * @example
+   * ```typescript
+   * // Decrypt file downloaded from Vana network
+   * const userFiles = await vana.data.getUserFiles();
+   * const file = userFiles[0];
+   *
+   * // Download encrypted content
+   * const encrypted = await fetch(file.url).then(r => r.blob());
+   *
+   * // Decrypt with user's key
+   * const decryptionKey = await generateEncryptionKey(vana.walletClient);
+   * const decrypted = await vana.decryptBlob(encrypted, decryptionKey);
+   *
+   * // Process original data
+   * const fileContent = await decrypted.arrayBuffer();
    * ```
    */
   public async decryptBlob(

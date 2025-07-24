@@ -19,6 +19,7 @@ import { mockPlatformAdapter } from "./mocks/platformAdapter";
 vi.mock("viem", () => ({
   createPublicClient: vi.fn(() => ({
     readContract: vi.fn(),
+    waitForTransactionReceipt: vi.fn(),
   })),
   getContract: vi.fn(() => ({
     read: {
@@ -29,6 +30,7 @@ vi.mock("viem", () => ({
   })),
   http: vi.fn(),
   createWalletClient: vi.fn(),
+  parseEventLogs: vi.fn(() => []),
 }));
 
 vi.mock("viem/accounts", () => ({
@@ -108,8 +110,37 @@ describe("PermissionsController", () => {
   let mockWalletClient: MockWalletClient;
   let mockPublicClient: MockPublicClient;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+
+    // Setup parseEventLogs mock - will be configured per test
+    const { parseEventLogs } = await import("viem");
+    vi.mocked(parseEventLogs).mockImplementation((params) => {
+      // Return appropriate event based on the event name
+      if ((params as any).eventName === "PermissionAdded") {
+        return [
+          {
+            eventName: "PermissionAdded",
+            args: {
+              permissionId: 75n,
+              user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+              grant: "https://mock-grant-url.com",
+              fileIds: [],
+            },
+          },
+        ] as any;
+      } else if ((params as any).eventName === "PermissionRevoked") {
+        return [
+          {
+            eventName: "PermissionRevoked",
+            args: {
+              permissionId: 123n,
+            },
+          },
+        ] as any;
+      }
+      return [];
+    });
 
     // Set up default mock for createGrantFile to return valid grant files
     const mockCreateGrantFile = createGrantFile as Mock;
@@ -146,7 +177,11 @@ describe("PermissionsController", () => {
     // Create a mock publicClient
     mockPublicClient = {
       readContract: vi.fn().mockResolvedValue(BigInt(0)),
-      waitForTransactionReceipt: vi.fn().mockResolvedValue({ logs: [] }),
+      waitForTransactionReceipt: vi.fn().mockResolvedValue({
+        blockNumber: 12345n,
+        gasUsed: 100000n,
+        logs: [],
+      }),
     };
 
     mockContext = {
@@ -178,7 +213,15 @@ describe("PermissionsController", () => {
     it("should successfully grant permission with complete flow", async () => {
       const result = await controller.grant(mockGrantParams);
 
-      expect(result).toBe("0xtxhash");
+      expect(result).toMatchObject({
+        permissionId: 75n,
+        user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        grant: "https://mock-grant-url.com",
+        fileIds: [],
+        transactionHash: "0xtxhash",
+        blockNumber: 12345n,
+        gasUsed: 100000n,
+      });
       expect(mockWalletClient.signTypedData).toHaveBeenCalled();
       // Should use relayerCallbacks pattern
       expect(mockContext.relayerCallbacks?.storeGrantFile).toHaveBeenCalled();
@@ -263,7 +306,12 @@ describe("PermissionsController", () => {
 
       const result = await controller.revoke(mockRevokeParams);
 
-      expect(result).toBe("0xrevokehash");
+      expect(result).toMatchObject({
+        permissionId: 123n,
+        transactionHash: "0xrevokehash",
+        blockNumber: 12345n,
+        gasUsed: 100000n,
+      });
       expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
         expect.objectContaining({
           address: "0x1234567890123456789012345678901234567890",
@@ -387,7 +435,15 @@ describe("PermissionsController", () => {
 
       const result = await directController.grant(mockParams);
 
-      expect(result).toBe("0xdirecttxhash");
+      expect(result).toMatchObject({
+        permissionId: 75n,
+        user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        grant: "https://mock-grant-url.com",
+        fileIds: [],
+        transactionHash: "0xdirecttxhash",
+        blockNumber: 12345n,
+        gasUsed: 100000n,
+      });
       expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
         expect.objectContaining({
           address: "0x1234567890123456789012345678901234567890",
@@ -518,7 +574,15 @@ describe("PermissionsController", () => {
           parameters: mockParams.parameters,
         }),
       );
-      expect(result).toBe("0xtxhash");
+      expect(result).toMatchObject({
+        permissionId: 75n,
+        user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        grant: "https://mock-grant-url.com",
+        fileIds: [],
+        transactionHash: "0xtxhash",
+        blockNumber: 12345n,
+        gasUsed: 100000n,
+      });
     });
   });
 
@@ -944,7 +1008,15 @@ describe("PermissionsController", () => {
       noAccountWallet.writeContract = vi.fn().mockResolvedValue("0xtxhash");
 
       const result = await directController.grant(mockParams);
-      expect(result).toBe("0xtxhash");
+      expect(result).toMatchObject({
+        permissionId: 75n,
+        user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        grant: "https://mock-grant-url.com",
+        fileIds: [],
+        transactionHash: "0xtxhash",
+        blockNumber: 12345n,
+        gasUsed: 100000n,
+      });
     });
 
     it("should handle revoke with missing chain ID", async () => {
@@ -1119,10 +1191,14 @@ describe("PermissionsController", () => {
 
       const result = await controller.revoke(mockRevokeParams);
 
-      // Should return mock hash for direct transaction (TODO implementation)
-      expect(result).toBe(
-        "0xmockabcdef1234567890abcdef1234567890abcdef1234567890abcdef123456",
-      );
+      // Should return event data from parsed transaction
+      expect(result).toMatchObject({
+        permissionId: 123n,
+        transactionHash:
+          "0xmockabcdef1234567890abcdef1234567890abcdef1234567890abcdef123456",
+        blockNumber: 12345n,
+        gasUsed: 100000n,
+      });
     });
 
     it("should handle relayTransaction with missing relayer URL", async () => {
@@ -1177,8 +1253,13 @@ describe("PermissionsController", () => {
       // Since we're mocking, we need to test this indirectly through revoke
       const result = await controllerWithChain.revoke(mockRevokeParams);
 
-      // Should use direct transaction path and return mock hash
-      expect(result).toMatch(/^0xmock/);
+      // Should return event data from parsed transaction
+      expect(result).toMatchObject({
+        permissionId: 123n,
+        transactionHash: "0xmockdirecttxhash",
+        blockNumber: 12345n,
+        gasUsed: 100000n,
+      });
     });
 
     it("should handle failed relayer response in submitToRelayer", async () => {
@@ -1283,7 +1364,15 @@ describe("PermissionsController", () => {
       };
 
       const result = await controller.grant(mockParams);
-      expect(result).toBe("0xtxhash");
+      expect(result).toMatchObject({
+        permissionId: 75n,
+        user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        grant: "https://mock-grant-url.com",
+        fileIds: [],
+        transactionHash: "0xtxhash",
+        blockNumber: 12345n,
+        gasUsed: 100000n,
+      });
     });
   });
 

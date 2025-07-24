@@ -1,6 +1,10 @@
 import type { WalletClient, Account, Hash, Address } from "viem";
 import type { VanaChainId, VanaChain } from "./chains";
-import type { StorageProvider } from "./storage";
+import type {
+  StorageProvider,
+  StorageUploadResult,
+  StorageListOptions,
+} from "./storage";
 import type {
   PermissionGrantTypedData,
   TrustServerTypedData,
@@ -26,6 +30,12 @@ export interface StorageRequiredMarker {
  * Allows you to configure multiple storage backends (IPFS, Pinata, Google Drive, etc.)
  * and specify which one to use by default for file operations.
  *
+ * **Provider Selection:**
+ * - IPFS: Decentralized, permanent storage ideal for production
+ * - Pinata: Managed IPFS with guaranteed availability
+ * - Google Drive: Centralized, suitable for development/testing
+ * - Custom providers: Implement StorageProvider interface
+ *
  * @category Configuration
  * @example
  * ```typescript
@@ -39,9 +49,16 @@ export interface StorageRequiredMarker {
  * ```
  */
 export interface StorageConfig {
-  /** Map of provider name to storage provider instance */
+  /**
+   * Map of provider name to storage provider instance.
+   *   Common provider names: "ipfs", "pinata", "googledrive", "s3".
+   *   Custom names allowed for custom provider implementations.
+   */
   providers: Record<string, StorageProvider>;
-  /** Default provider name to use when none specified */
+  /**
+   * Default provider name to use when none specified.
+   *   Must match a key in the providers map. Falls back to first provider if not specified.
+   */
   defaultProvider?: string;
 }
 
@@ -126,7 +143,21 @@ export interface RelayerCallbacks {
   /**
    * Submit a file addition for relay
    *
-   * @deprecated Use submitFileAdditionComplete for full support.
+   * @deprecated Since v2.0.0 - Use submitFileAdditionComplete() instead for full support.
+   * Will be removed in v3.0.0.
+   *
+   * Migration guide:
+   * ```typescript
+   * // Old:
+   * await submitFileAddition(url, userAddress);
+   *
+   * // New:
+   * await submitFileAdditionComplete({
+   *   url,
+   *   userAddress,
+   *   permissions: [] // Optional
+   * });
+   * ```
    * @param url - The file URL to register
    * @param userAddress - The user's address
    * @returns Promise resolving to object with fileId and transactionHash
@@ -139,7 +170,21 @@ export interface RelayerCallbacks {
   /**
    * Submit a file addition with permissions for relay
    *
-   * @deprecated Use submitFileAdditionComplete for full support.
+   * @deprecated Since v2.0.0 - Use submitFileAdditionComplete() instead for full support.
+   * Will be removed in v3.0.0.
+   *
+   * Migration guide:
+   * ```typescript
+   * // Old:
+   * await submitFileAdditionWithPermissions(url, userAddress, permissions);
+   *
+   * // New:
+   * await submitFileAdditionComplete({
+   *   url,
+   *   userAddress,
+   *   permissions
+   * });
+   * ```
    * @param url - The file URL to register
    * @param userAddress - The user's address
    * @param permissions - Array of encrypted permissions
@@ -159,9 +204,10 @@ export interface RelayerCallbacks {
    *
    * @param params - Complete parameters for file addition
    * @param params.url - The file URL to register
-   * @param params.userAddress - The user's address
+   * @param params.userAddress - The user's address (defaults to connected wallet if not specified)
    * @param params.permissions - Array of encrypted permissions (empty array if none)
    * @param params.schemaId - Schema ID for validation (0 if none)
+   * @param params.ownerAddress - Optional owner address (defaults to userAddress if not specified)
    * @returns Promise resolving to object with fileId and transactionHash
    */
   submitFileAdditionComplete?: (params: {
@@ -169,6 +215,7 @@ export interface RelayerCallbacks {
     userAddress: Address;
     permissions: Array<{ account: Address; key: string }>;
     schemaId: number;
+    ownerAddress?: Address;
   }) => Promise<{ fileId: number; transactionHash: Hash }>;
 
   /**
@@ -178,6 +225,135 @@ export interface RelayerCallbacks {
    * @returns Promise resolving to the storage URL
    */
   storeGrantFile?: (grantData: GrantFile) => Promise<string>;
+}
+
+/**
+ * Storage callback functions for flexible storage operations.
+ *
+ * Instead of hardcoding storage behavior (HTTP endpoints, etc.), users can provide
+ * custom callback functions to handle storage operations in any way they choose.
+ * This pattern matches the relayer callbacks approach, providing maximum flexibility.
+ *
+ * @category Configuration
+ * @example
+ * ```typescript
+ * const storageCallbacks: StorageCallbacks = {
+ *   async upload(blob, filename, metadata) {
+ *     // Custom implementation - could be HTTP, S3, local filesystem, etc.
+ *     const formData = new FormData();
+ *     formData.append('file', blob, filename);
+ *     const response = await fetch('/api/storage/upload', {
+ *       method: 'POST',
+ *       body: formData
+ *     });
+ *     const data = await response.json();
+ *     return {
+ *       url: data.url,
+ *       size: blob.size,
+ *       contentType: blob.type,
+ *       metadata: data.metadata
+ *     };
+ *   },
+ *
+ *   async download(identifier) {
+ *     const response = await fetch(`/api/storage/download/${identifier}`);
+ *     return response.blob();
+ *   }
+ * };
+ * ```
+ */
+export interface StorageCallbacks {
+  /**
+   * Upload a blob to storage
+   *
+   * @param blob - The data to upload
+   * @param filename - Optional filename hint
+   * @param metadata - Optional metadata for the upload
+   * @returns Upload result with identifier and metadata
+   */
+  upload: (
+    blob: Blob,
+    filename?: string,
+    metadata?: Record<string, unknown>,
+  ) => Promise<StorageUploadResult>;
+
+  /**
+   * Download data from storage
+   *
+   * @param identifier - The storage identifier (could be URL, hash, path, or any unique ID)
+   * @param options - Optional download options
+   * @returns The downloaded data as a Blob
+   */
+  download: (
+    identifier: string,
+    options?: StorageDownloadOptions,
+  ) => Promise<Blob>;
+
+  /**
+   * List stored items (optional)
+   *
+   * @param prefix - Optional prefix to filter results
+   * @param options - Optional listing options
+   * @returns Array of storage items with metadata
+   */
+  list?: (
+    prefix?: string,
+    options?: StorageListOptions,
+  ) => Promise<StorageListResult>;
+
+  /**
+   * Delete a stored item (optional)
+   *
+   * @param identifier - The storage identifier to delete
+   * @returns Promise that resolves to true if deletion succeeded
+   */
+  delete?: (identifier: string) => Promise<boolean>;
+
+  /**
+   * Extract identifier from a URL or return as-is (optional)
+   * Used for backward compatibility with URL-based systems
+   *
+   * @param url - The URL to extract from
+   * @returns The extracted identifier
+   */
+  extractIdentifier?: (url: string) => string;
+}
+
+/**
+ * Options for storage download operations
+ *
+ * @category Configuration
+ */
+export interface StorageDownloadOptions {
+  /** Optional HTTP headers */
+  headers?: Record<string, string>;
+  /** Optional abort signal for cancellation */
+  signal?: AbortSignal;
+  /** Optional byte range for partial downloads */
+  range?: { start?: number; end?: number };
+}
+
+/**
+ * Result from storage list operations
+ *
+ * @category Configuration
+ */
+export interface StorageListResult {
+  /** Array of storage items */
+  items: Array<{
+    /** Item identifier */
+    identifier: string;
+    /** Item size in bytes */
+    size?: number;
+    /** Last modified timestamp */
+    lastModified?: Date;
+    /** Item metadata */
+    metadata?: Record<string, unknown>;
+  }>;
+  /** Continuation token for pagination */
+  continuationToken?: string;
+  /** Whether more results are available */
+  hasMore?: boolean;
 }
 
 /**
@@ -192,18 +368,24 @@ export interface BaseConfig {
    */
   relayerCallbacks?: RelayerCallbacks;
 
-  /** Optional storage providers configuration for file upload/download */
+  /**
+   * Optional storage providers configuration for file upload/download.
+   *   Required for: upload(), grant() without pre-stored URLs, schema operations.
+   *   See StorageConfig for provider selection guidance.
+   */
   storage?: StorageConfig;
   /**
    * Optional subgraph URL for querying user files and permissions.
    * If not provided, defaults to the built-in subgraph URL for the current chain.
    * Can be overridden per method call if needed.
+   * Obtain chain-specific URLs from Vana documentation or deployment info.
    */
   subgraphUrl?: string;
   /**
    * Optional default IPFS gateways to use for fetching files.
    * These gateways will be used by default in fetchFromIPFS unless overridden per-call.
    * If not provided, the SDK will use public gateways.
+   * Order matters: first successful gateway is used.
    *
    * @example ['https://gateway.pinata.cloud', 'https://ipfs.io']
    */
@@ -270,11 +452,23 @@ export interface WalletConfigWithStorage extends BaseConfigWithStorage {
  * @category Configuration
  */
 export interface ChainConfig extends BaseConfig {
-  /** The chain ID for Vana network */
+  /**
+   * The chain ID for Vana network.
+   *   Supported: 14800 (Vana Mainnet), 14801 (Moksha Testnet), 31337 (Local Development).
+   *   Use chain constants from '@vana/sdk' for type safety.
+   */
   chainId: VanaChainId;
-  /** RPC URL for the chain (optional, will use default for the chain if not provided) */
+  /**
+   * RPC URL for the chain (optional, will use default for the chain if not provided).
+   *   Default URLs: mainnet (https://rpc.vana.org), testnet (https://rpc.moksha.vana.org).
+   *   Override for custom nodes or local development.
+   */
   rpcUrl?: string;
-  /** Optional account for signing transactions */
+  /**
+   * Optional account for signing transactions.
+   *   Can be: privateKeyToAccount(), mnemonicToAccount(), or custom Account implementation.
+   *   Required for write operations; read-only operations work without account.
+   */
   account?: Account;
 }
 

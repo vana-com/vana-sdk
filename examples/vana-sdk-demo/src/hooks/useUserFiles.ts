@@ -31,7 +31,10 @@ export interface UseUserFilesReturn {
   handleDownloadDecryptedFile: (file: UserFile) => void;
   handleClearFileError: (fileId: number) => void;
   handleLookupFile: (fileId: string) => Promise<void>;
-  handleUploadText: () => Promise<void>;
+  handleUploadText: (
+    serverAddress?: string,
+    serverPublicKey?: string,
+  ) => Promise<void>;
   setUserFiles: (
     files:
       | ExtendedUserFile[]
@@ -245,44 +248,61 @@ export function useUserFiles(): UseUserFilesReturn {
     [vana],
   );
 
-  const handleUploadText = useCallback(async () => {
-    if (!vana || !newTextData.trim()) return;
+  const handleUploadText = useCallback(
+    async (serverAddress?: string, serverPublicKey?: string) => {
+      if (!vana || !newTextData.trim()) return;
 
-    const handler = createApiHandler(
-      async () => {
-        // Create a file from the text data
-        const blob = new Blob([newTextData], { type: "text/plain" });
-        const file = new File([blob], "text-data.txt", { type: "text/plain" });
-
-        // Use the high-level upload method
-        return await vana.data.upload({
-          content: blob,
-          filename: file.name,
-        });
-      },
-      {
-        setLoading: setIsUploadingText,
-        loadingMessage: "Uploading text...",
-        toastTitle: "Failed to upload text",
-        onSuccess: (result) => {
-          setUploadResult({
-            fileId: result.fileId,
-            transactionHash: result.transactionHash,
+      const handler = createApiHandler(
+        async () => {
+          // Create a file from the text data
+          const blob = new Blob([newTextData], { type: "text/plain" });
+          const file = new File([blob], "text-data.txt", {
+            type: "text/plain",
           });
 
-          // Clear the text field after successful upload
-          setNewTextData("");
+          // Prepare file permissions if server public key is provided
+          const permissions =
+            serverPublicKey && serverAddress
+              ? [
+                  {
+                    account: serverAddress as `0x${string}`, // Server's address
+                    publicKey: serverPublicKey, // Server's public key
+                  },
+                ]
+              : undefined;
 
-          // Refresh the files list to include the new file
-          setTimeout(() => {
-            loadUserFiles();
-          }, 2000);
+          // Use the high-level upload method with permissions
+          return await vana.data.upload({
+            content: blob,
+            filename: file.name,
+            permissions,
+          });
         },
-      },
-    );
+        {
+          setLoading: setIsUploadingText,
+          loadingMessage: "Uploading text...",
+          toastTitle: "Failed to upload text",
+          onSuccess: (result) => {
+            setUploadResult({
+              fileId: result.fileId,
+              transactionHash: result.transactionHash,
+            });
 
-    await handler();
-  }, [vana, newTextData, loadUserFiles]);
+            // Clear the text field after successful upload
+            setNewTextData("");
+
+            // Refresh the files list to include the new file
+            setTimeout(() => {
+              loadUserFiles();
+            }, 2000);
+          },
+        },
+      );
+
+      await handler();
+    },
+    [vana, newTextData, loadUserFiles, address],
+  );
 
   // Load user files when Vana is initialized
   useEffect(() => {

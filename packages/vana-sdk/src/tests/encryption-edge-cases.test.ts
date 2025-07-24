@@ -27,7 +27,9 @@ describe("Encryption Edge Cases Coverage", () => {
         signMessage: vi.fn(),
       } as unknown as WalletClient;
 
-      await expect(generateEncryptionKey(mockWallet)).rejects.toThrow(
+      await expect(
+        generateEncryptionKey(mockWallet, mockPlatformAdapter),
+      ).rejects.toThrow(
         "Wallet account is required for encryption key generation",
       );
     });
@@ -38,7 +40,11 @@ describe("Encryption Edge Cases Coverage", () => {
         signMessage: vi.fn().mockResolvedValue("0xsignature"),
       } as unknown as WalletClient;
 
-      const result = await generateEncryptionKey(mockWallet, "custom-seed");
+      const result = await generateEncryptionKey(
+        mockWallet,
+        mockPlatformAdapter,
+        "custom-seed",
+      );
       expect(result).toBe("0xsignature");
       expect(mockWallet.signMessage).toHaveBeenCalledWith({
         account: { address: "0x123" },

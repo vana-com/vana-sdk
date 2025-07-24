@@ -28,26 +28,36 @@ import { ControllerContext } from "./permissions";
  * cryptographic keys for secure data sharing. All server interactions use the
  * Replicate API infrastructure with proper authentication and error handling.
  *
- * Personal servers enable privacy-preserving computation on user data, while identity
- * servers provide deterministic key derivation for secure communication without
- * requiring servers to be online during key retrieval.
+ * **Server Identity System:**
+ * Personal servers use deterministic key derivation: each user address maps to a specific server identity.
+ * This enables secure communication without requiring servers to be online during key retrieval.
+ *
+ * **Method Selection:**
+ * - `getIdentity()` retrieves server public keys and addresses for encryption setup
+ * - `createOperation()` submits computation requests with signed permission verification
+ * - `getOperation()` polls operation status and retrieves results when complete
+ * - `cancelOperation()` stops running operations when cancellation is supported
+ *
+ * **Workflow Pattern:**
+ * Typical flow: Get identity → Create operation → Poll status → Retrieve results
+ *
  * @example
  * ```typescript
- * // Post a request to a personal server
- * const response = await vana.server.postRequest({
+ * // Get a server's identity including public key for encryption
+ * const identity = await vana.server.getIdentity({
+ *   userAddress: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36"
+ * });
+ *
+ * // Create an operation using a granted permission
+ * const response = await vana.server.createOperation({
  *   permissionId: 123,
  * });
  *
- * // Get a server's identity including public key for encryption
- * const identity = await vana.server.getIdentity(
- *   "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36"
- * );
- *
  * // Poll for computation results
- * const result = await vana.server.pollStatus(response.urls.get);
+ * const result = await vana.server.getOperation(response.id);
  * ```
  * @category Server Management
- * @see {@link [URL_PLACEHOLDER] | Vana Personal Servers} for conceptual overview
+ * @see {@link https://docs.vana.com/developer/personal-servers | Vana Personal Servers} for conceptual overview
  */
 export class ServerController {
   public readonly PERSONAL_SERVER_BASE_URL =
@@ -55,6 +65,39 @@ export class ServerController {
 
   constructor(private readonly context: ControllerContext) {}
 
+  /**
+   * Retrieves the cryptographic identity of a personal server.
+   *
+   * @remarks
+   * This method fetches the public key and metadata for a personal server,
+   * which is required for encrypting data before sharing with the server.
+   * The identity includes the server's public key, address, and operational
+   * details needed for secure communication. This information is cached
+   * by identity servers to enable offline key retrieval.
+   *
+   * @param request - Parameters containing the user address
+   * @param request.userAddress - The wallet address associated with the personal server
+   * @returns Promise resolving to the server's identity information
+   * @throws {NetworkError} When the identity service is unavailable or returns invalid data
+   * @throws {PersonalServerError} When server identity cannot be retrieved
+   * @example
+   * ```typescript
+   * // Get server identity for data encryption
+   * const identity = await vana.server.getIdentity({
+   *   userAddress: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36"
+   * });
+   *
+   * console.log(`Server: ${identity.name}`);
+   * console.log(`Address: ${identity.address}`);
+   * console.log(`Public Key: ${identity.public_key}`);
+   *
+   * // Use the public key for encrypting data to share with this server
+   * const encryptedData = await encryptWithWalletPublicKey(
+   *   userData,
+   *   identity.public_key
+   * );
+   * ```
+   */
   async getIdentity(
     request: InitPersonalServerParams,
   ): Promise<PersonalServerIdentity> {
@@ -106,10 +149,13 @@ export class ServerController {
    * This method submits a computation request to the personal server API.
    * The response includes the operation ID.
    * @param params - The request parameters object
-   * @param params.permissionId - The permission ID authorizing this operation
+   * @param params.permissionId - The permission ID authorizing this operation.
+   *   Obtain from granted permissions via `vana.permissions.getUserPermissionGrantsOnChain()`.
    * @returns A Promise that resolves to an operation response with status and control URLs
-   * @throws {PersonalServerError} When server request fails or parameters are invalid
-   * @throws {NetworkError} When personal server API communication fails
+   * @throws {PersonalServerError} When server request fails or parameters are invalid.
+   *   Verify permissionId exists and is active for the target server.
+   * @throws {NetworkError} When personal server API communication fails.
+   *   Check server URL configuration and network connectivity.
    * @example
    * ```typescript
    * const response = await vana.server.createOperation({
@@ -233,6 +279,50 @@ export class ServerController {
     }
   }
 
+  /**
+   * Cancels a running operation on the personal server.
+   *
+   * @remarks
+   * This method attempts to cancel an operation that is currently processing
+   * on the personal server. The operation must be in a cancellable state
+   * (typically `starting` or `processing`). Not all operations support
+   * cancellation, and cancellation may not be immediate. The server will
+   * attempt to stop the operation and update its status to `canceled`.
+   *
+   * **Cancellation Behavior:**
+   * - Operations in `succeeded` or `failed` states cannot be canceled
+   * - Some long-running operations may take time to respond to cancellation
+   * - Always verify cancellation by polling the operation status afterward
+   *
+   * @param operationId - The unique identifier of the operation to cancel,
+   *   obtained from `createOperation()` response
+   * @returns Promise that resolves when the cancellation request is accepted
+   * @throws {PersonalServerError} When the operation cannot be canceled or doesn't exist.
+   *   Check operation status - it may already be completed or failed.
+   * @throws {NetworkError} When unable to reach the personal server API.
+   *   Verify server URL and network connectivity.
+   * @example
+   * ```typescript
+   * // Start a long-running operation
+   * const operation = await vana.server.createOperation({
+   *   permissionId: 123
+   * });
+   *
+   * // Cancel if needed
+   * try {
+   *   await vana.server.cancelOperation(operation.id);
+   *   console.log("Cancellation requested");
+   *
+   *   // Verify cancellation
+   *   const status = await vana.server.getOperation(operation.id);
+   *   if (status.status === "canceled") {
+   *     console.log("Operation successfully canceled");
+   *   }
+   * } catch (error) {
+   *   console.error("Failed to cancel:", error);
+   * }
+   * ```
+   */
   async cancelOperation(operationId: string): Promise<void> {
     try {
       const response = await fetch(

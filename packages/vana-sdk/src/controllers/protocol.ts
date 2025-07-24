@@ -20,19 +20,26 @@ import type { GetContractReturnType } from "viem";
  * Most developers should use the higher-level DataController and PermissionsController
  * instead of this advanced API.
  *
+ * **Contract Selection:**
  * The controller automatically handles chain detection and provides only contracts that
  * are deployed on the current network. All contract instances are fully typed for
  * enhanced developer experience and type safety.
  *
- * **Use this controller when:**
- * - High-level controllers don't provide needed functionality
- * - You need direct contract method calls or event access
- * - You're building custom integrations or tooling
- * - You need advanced querying capabilities
+ * **Method Selection:**
+ * - `getContract()` retrieves contract address and ABI for manual interaction
+ * - `createContract()` returns fully typed contract instance with read/write methods
+ * - `getAvailableContracts()` lists all contracts deployed on current chain
+ * - `isContractAvailable()` checks if specific contract exists on current chain
+ * - `getChainId()` and `getChainName()` provide current network information
  *
- * **Most developers should use instead:**
- * - `vana.data.*` for file management operations
- * - `vana.permissions.*` for access control workflows
+ * **Usage Guidelines:**
+ * Use this controller when high-level controllers don't provide needed functionality.
+ * Most developers should use `vana.data.*` for files and `vana.permissions.*` for access control.
+ *
+ * **Type Safety:**
+ * Use `as const` assertion with contract names for full TypeScript type inference.
+ * Contract instances provide complete typing for all methods, parameters, and return values.
+ *
  * @example
  * ```typescript
  * // Get contract info for direct interaction
@@ -47,7 +54,7 @@ import type { GetContractReturnType } from "viem";
  * const fileCount = await contract.read.filesCount();
  * ```
  * @category Advanced
- * @see {@link [URL_PLACEHOLDER] | Vana Protocol Contracts} for contract specifications
+ * @see {@link https://docs.vana.com/developer/protocol/contracts | Vana Protocol Contracts} for contract specifications
  */
 export class ProtocolController {
   private readonly contractFactory: ContractFactory;
@@ -66,7 +73,8 @@ export class ProtocolController {
    * are actually deployed on the current network.
    * @param contractName - The name of the Vana contract to retrieve (use const assertion for full typing)
    * @returns An object containing the contract's address and fully typed ABI
-   * @throws {ContractNotFoundError} When the contract is not deployed on the current chain
+   * @throws {ContractNotFoundError} When the contract is not deployed on the current chain.
+   *   Verify contract name spelling and check current network with `getChainId()`.
    * @example
    * ```typescript
    * // Get contract info with full type inference
@@ -187,6 +195,7 @@ export class ProtocolController {
    * Gets the current chain ID from the wallet client.
    *
    * @returns The chain ID
+   * @throws {Error} When chain ID is not available from wallet client
    */
   getChainId(): number {
     const chainId = this.context.walletClient.chain?.id;
@@ -200,6 +209,7 @@ export class ProtocolController {
    * Gets the current chain name from the wallet client.
    *
    * @returns The chain name
+   * @throws {Error} When chain name is not available from wallet client
    */
   getChainName(): string {
     const chainName = this.context.walletClient.chain?.name;

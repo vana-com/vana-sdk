@@ -116,11 +116,17 @@ const files = await vana.data.getUserFiles({
   owner: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
 });
 
-// Upload encrypted file
-const result = await vana.data.uploadEncryptedFile({
-  data: encryptedBlob,
-  schemaId: 123,
+// Upload encrypted file with decryption permissions
+const result = await vana.data.upload({
+  content: "Sensitive user data",
   filename: "user-data.json",
+  schemaId: 123,
+  permissions: [
+    {
+      account: "0xServerAddress...", // Who can decrypt
+      publicKey: "0x04ServerKey...", // Their public key
+    },
+  ],
 });
 ```
 
@@ -220,43 +226,42 @@ try {
 
 ## Examples
 
-### Complete Permission Flow
+### Complete Data Sharing Flow
 
 ```typescript
-import {
-  Vana,
-  generateEncryptionKey,
-  encryptBlobWithSignedKey,
-} from "@opendatalabs/vana-sdk/browser";
+import { Vana } from "@opendatalabs/vana-sdk/browser";
 // OR for server-side applications
 // } from "@opendatalabs/vana-sdk/node";
 
-async function grantDataPermission() {
+async function shareDataWithServer() {
   const vana = Vana({ walletClient });
 
-  // 1. Encrypt user data
-  const encryptionKey = await generateEncryptionKey(walletClient);
-  const userData = new Blob([JSON.stringify({ data: "sensitive info" })]);
-  const encryptedData = await encryptBlobWithSignedKey(userData, encryptionKey);
-
-  // 2. Upload encrypted file
-  const uploadResult = await vana.data.uploadEncryptedFile({
-    data: encryptedData,
+  // Step 1: Upload encrypted file with decryption permissions
+  const uploadResult = await vana.data.upload({
+    content: { data: "sensitive medical records" },
+    filename: "health-data.json",
     schemaId: 123,
-    filename: "user-data.json",
+    permissions: [
+      {
+        // Grant decryption access to the AI server
+        account: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+        publicKey: "0x04abc...", // Server's public key for encryption
+      },
+    ],
   });
 
-  // 3. Grant permission
-  const permissionTx = await vana.permissions.grant({
+  // Step 2: Grant operation permissions for what the server can do
+  const permissionResult = await vana.permissions.grant({
     grantee: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
-    operation: "ai_training",
+    fileIds: [BigInt(uploadResult.fileId)],
+    operation: "medical_analysis",
     parameters: {
-      files: [uploadResult.fileId],
-      model: "llm-v1",
+      model: "medical-ai-v2",
+      analysisType: "comprehensive",
     },
   });
 
-  return permissionTx;
+  return { uploadResult, permissionResult };
 }
 ```
 
@@ -294,13 +299,14 @@ vana.data.validateDataAgainstSchema(userData, schema);
 ### Permissions
 
 ```typescript
-// Grant permission
+// Grant operation permission
 await vana.permissions.grant({
   grantee: Address,
+  fileIds: bigint[],
   operation: string,
   parameters: object,
   expiresAt?: number
-}): Promise<Hash>
+}): Promise<PermissionGrantResult>
 
 // Revoke permission
 await vana.permissions.revoke({
@@ -321,11 +327,16 @@ await vana.data.getUserFiles({
   owner: Address
 }): Promise<UserFile[]>
 
-// Upload encrypted file
-await vana.data.uploadEncryptedFile({
-  data: Blob,
+// Upload data with automatic encryption
+await vana.data.upload({
+  content: string | Blob | Buffer,
+  filename?: string,
   schemaId?: number,
-  filename?: string
+  permissions?: Array<{
+    account: Address,     // Who can decrypt
+    publicKey: string     // Their public key
+  }>,
+  encrypt?: boolean       // Default: true
 }): Promise<UploadResult>
 
 // Validate schema

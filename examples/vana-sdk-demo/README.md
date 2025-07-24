@@ -152,7 +152,9 @@ const files = await vana.data.getUserFiles({
 
 ```typescript
 try {
-  const txHash = await vana.permissions.grant(params);
+  const result = await vana.permissions.grant(params);
+  console.log(`Permission granted with ID: ${result.permissionId}`);
+  console.log(`Transaction hash: ${result.transactionHash}`);
 } catch (error) {
   if (error instanceof UserRejectedRequestError) {
     setStatus("User cancelled signature request");

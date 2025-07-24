@@ -173,10 +173,20 @@ export function usePermissions(): UsePermissionsReturn {
 
       try {
         // Step 1: Get permission info and file IDs from contract
-        const [_permissionInfo, fileIds] = await Promise.all([
-          vana.permissions.getPermissionInfo(BigInt(permissionId)),
-          vana.permissions.getPermissionFileIds(BigInt(permissionId)),
-        ]);
+        let _permissionInfo, fileIds;
+        try {
+          [_permissionInfo, fileIds] = await Promise.all([
+            vana.permissions.getPermissionInfo(BigInt(permissionId)),
+            vana.permissions.getPermissionFileIds(BigInt(permissionId)),
+          ]);
+        } catch (contractError) {
+          console.warn(
+            `Permission ID ${permissionId} not found in contract (likely stale data):`,
+            contractError,
+          );
+          // Skip this permission and continue
+          return;
+        }
 
         // Step 2: Fetch grant file from IPFS
         let grantFile = null;

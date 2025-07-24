@@ -531,20 +531,17 @@ export default function MyDataPage() {
       </Tabs>
 
       {/* Grant Permission Modal */}
-      {applicationAddress?.trim() ? (
-        <GrantPermissionModal
-          isOpen={isGrantModalOpen}
-          onClose={() => setIsGrantModalOpen(false)}
-          onConfirm={(params) => {
-            setIsGrantModalOpen(false);
-            onGrantPermission(params);
-          }}
-          selectedFiles={selectedFiles}
-          applicationAddress={applicationAddress}
-          isGranting={isGranting}
-          allowEditAddress={true}
-        />
-      ) : null}
+      <GrantPermissionModal
+        isOpen={isGrantModalOpen}
+        onClose={() => setIsGrantModalOpen(false)}
+        onConfirm={(params) => {
+          setIsGrantModalOpen(false);
+          onGrantPermission(params);
+        }}
+        selectedFiles={selectedFiles}
+        grantees={grantees}
+        isGranting={isGranting}
+      />
     </div>
   );
 }

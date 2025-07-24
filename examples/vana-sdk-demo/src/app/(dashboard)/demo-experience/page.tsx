@@ -28,6 +28,7 @@ import {
   Activity,
 } from "lucide-react";
 import { GrantPermissionModal } from "@/components/ui/GrantPermissionModal";
+import { useGrantees } from "@/hooks/useGrantees";
 import { useTrustedServers } from "@/hooks/useTrustedServers";
 import { useUserFiles, ExtendedUserFile } from "@/hooks/useUserFiles";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -344,6 +345,8 @@ export default function DemoExperiencePage() {
     handleDiscoverHostedServer,
     handleTrustServerGasless,
   } = useTrustedServers();
+
+  const { grantees } = useGrantees();
 
   const {
     userFiles,
@@ -801,9 +804,8 @@ export default function DemoExperiencePage() {
           await handleConfirmGrant(params);
         }}
         selectedFiles={config.selectedFiles}
-        applicationAddress={applicationAddress}
+        grantees={grantees}
         isGranting={isGranting}
-        existingPermissions={[]}
       />
     </div>
   );

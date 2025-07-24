@@ -140,7 +140,7 @@ export interface ControllerContext {
  * // Trust a server for data processing
  * await vana.permissions.trustServer({
  *   serverId: "0x123...",
- *   serverUrl: "https://trusted-server.example.com",
+ *   serverUrl: "https://personal-server.vana.org",
  * });
  *
  * // Query current permissions
@@ -1402,7 +1402,7 @@ export class PermissionsController {
    * // Trust a server by providing its ID and URL
    * const txHash = await vana.permissions.trustServer({
    *   serverId: '0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6',
-   *   serverUrl: 'https://myserver.example.com'
+   *   serverUrl: 'https://personal-server.vana.org'
    * });
    * console.log('Server trusted in transaction:', txHash);
    *

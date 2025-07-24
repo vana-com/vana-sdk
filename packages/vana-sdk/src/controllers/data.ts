@@ -1675,6 +1675,7 @@ export class DataController {
    * Gets the user's address from the wallet client.
    *
    * @returns Promise resolving to the user's wallet address
+   * @throws {Error} When no addresses are available in wallet client
    */
   private async getUserAddress(): Promise<Address> {
     const addresses = await this.context.walletClient.getAddresses();
@@ -1691,6 +1692,10 @@ export class DataController {
    * @param ownerAddress - The address of the file owner
    * @param permissions - Array of permissions to set for the file
    * @returns Promise resolving to file ID and transaction hash
+   * @throws {Error} When chain ID is not available
+   * @throws {ContractError} When contract execution fails
+   * @throws {Error} When transaction receipt is not available
+   * @throws {Error} When FileAdded event cannot be parsed
    *
    * This method handles the core logic of registering a file
    * with specific permissions on the DataRegistry contract. It can be used
@@ -1772,6 +1777,10 @@ export class DataController {
    * @param permissions - Array of permissions to grant (account and encrypted key)
    * @param schemaId - The schema ID to associate with the file (0 for no schema)
    * @returns Promise resolving to object with fileId and transactionHash
+   * @throws {Error} When chain ID is not available
+   * @throws {ContractError} When contract execution fails
+   * @throws {Error} When transaction receipt is not available
+   * @throws {Error} When FileAdded event cannot be parsed
    */
   async addFileWithPermissionsAndSchema(
     url: string,

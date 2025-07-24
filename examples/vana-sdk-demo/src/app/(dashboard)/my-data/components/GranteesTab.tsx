@@ -20,13 +20,9 @@ import {
 import { RefreshCw, Users, Trash2, Plus } from "lucide-react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { AddressDisplay } from "@/components/ui/AddressDisplay";
+import { CopyButton } from "@/components/ui/CopyButton";
 import { FormBuilder } from "@/components/ui/FormBuilder";
-
-interface Grantee {
-  id: number;
-  address: string;
-  name?: string;
-}
+import { Grantee } from "@opendatalabs/vana-sdk/browser";
 
 interface GranteesTabProps {
   // Grantee data
@@ -39,12 +35,10 @@ interface GranteesTabProps {
   // Input state
   queryMode: "subgraph" | "rpc" | "auto";
   granteeAddress: string;
-  granteeName: string;
   granteePublicKey: string;
 
   // Callbacks
   onGranteeAddressChange: (address: string) => void;
-  onGranteeNameChange: (name: string) => void;
   onGranteePublicKeyChange: (publicKey: string) => void;
   onQueryModeChange: (mode: "subgraph" | "rpc" | "auto") => void;
   onAddGrantee: () => void;
@@ -60,10 +54,8 @@ export function GranteesTab({
   addGranteeError,
   queryMode,
   granteeAddress,
-  granteeName,
   granteePublicKey,
   onGranteeAddressChange,
-  onGranteeNameChange,
   onGranteePublicKeyChange,
   onQueryModeChange,
   onAddGrantee,
@@ -103,16 +95,6 @@ export function GranteesTab({
                 placeholder: "0x...",
                 description: "The Ethereum address of the grantee",
                 required: true,
-              },
-              {
-                name: "granteeName",
-                label: "Grantee Name (Optional)",
-                type: "text",
-                value: granteeName,
-                onChange: onGranteeNameChange,
-                placeholder: "Grantee display name",
-                description: "Optional display name for the grantee",
-                required: false,
               },
               {
                 name: "granteePublicKey",
@@ -202,8 +184,9 @@ export function GranteesTab({
             <Table aria-label="Grantees table" removeWrapper>
               <TableHeader>
                 <TableColumn>Grantee ID</TableColumn>
+                <TableColumn>Owner</TableColumn>
                 <TableColumn>Address</TableColumn>
-                <TableColumn>Name</TableColumn>
+                <TableColumn>Public Key</TableColumn>
                 <TableColumn>Actions</TableColumn>
               </TableHeader>
               <TableBody>
@@ -214,6 +197,14 @@ export function GranteesTab({
                     </TableCell>
                     <TableCell>
                       <AddressDisplay
+                        address={grantee.owner}
+                        truncate={true}
+                        showCopy={true}
+                        showExternalLink={true}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <AddressDisplay
                         address={grantee.address}
                         truncate={true}
                         showCopy={true}
@@ -221,7 +212,25 @@ export function GranteesTab({
                       />
                     </TableCell>
                     <TableCell>
-                      <span className="text-sm">{grantee.name || "—"}</span>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="font-mono text-sm cursor-default"
+                          title={grantee.publicKey}
+                        >
+                          {grantee.publicKey
+                            ? `${grantee.publicKey.slice(0, 8)}...${grantee.publicKey.slice(-6)}`
+                            : "—"}
+                        </span>
+                        {grantee.publicKey && (
+                          <CopyButton
+                            value={grantee.publicKey}
+                            isInline
+                            size="sm"
+                            variant="flat"
+                            tooltip="Copy public key"
+                          />
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Button

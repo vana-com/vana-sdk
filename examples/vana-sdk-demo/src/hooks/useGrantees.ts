@@ -20,7 +20,6 @@ export interface UseGranteesReturn {
 
   // Form state
   granteeAddress: string;
-  granteeName: string;
   granteePublicKey: string;
 
   // Actions
@@ -32,7 +31,6 @@ export interface UseGranteesReturn {
   ) => Promise<void>;
   handleRemoveGrantee: (granteeId: number) => Promise<void>;
   setGranteeAddress: (address: string) => void;
-  setGranteeName: (name: string) => void;
   setGranteePublicKey: (publicKey: string) => void;
   setGranteeQueryMode: (mode: "subgraph" | "rpc" | "auto") => void;
   setAddGranteeError: (error: string) => void;
@@ -54,7 +52,6 @@ export function useGrantees(): UseGranteesReturn {
 
   // Form state
   const [granteeAddress, setGranteeAddress] = useState<string>("");
-  const [granteeName, setGranteeName] = useState<string>("");
   const [granteePublicKey, setGranteePublicKey] = useState<string>("");
 
   const loadGrantees = useCallback(
@@ -116,7 +113,6 @@ export function useGrantees(): UseGranteesReturn {
 
       // Clear form
       setGranteeAddress("");
-      setGranteeName("");
       setGranteePublicKey("");
     } catch (error) {
       setAddGranteeError(
@@ -160,7 +156,6 @@ export function useGrantees(): UseGranteesReturn {
         // Success - clear the form fields on success only if requested
         if (clearFieldsOnSuccess) {
           setGranteeAddress("");
-          setGranteeName("");
           setGranteePublicKey("");
         }
 
@@ -228,7 +223,6 @@ export function useGrantees(): UseGranteesReturn {
     if (!address) {
       setGrantees([]);
       setGranteeAddress("");
-      setGranteeName("");
       setGranteePublicKey("");
       setAddGranteeError("");
     }
@@ -245,7 +239,6 @@ export function useGrantees(): UseGranteesReturn {
 
     // Form state
     granteeAddress,
-    granteeName,
     granteePublicKey,
 
     // Actions
@@ -254,7 +247,6 @@ export function useGrantees(): UseGranteesReturn {
     handleAddGranteeGasless,
     handleRemoveGrantee,
     setGranteeAddress,
-    setGranteeName,
     setGranteePublicKey,
     setGranteeQueryMode,
     setAddGranteeError,

@@ -1008,15 +1008,15 @@ export class PermissionsController {
       const userAddress = await this.getUserAddress();
       const chainId = await this.context.walletClient.getChainId();
 
-      const DataPortabilityServersAddress = getContractAddress(
+      const DataPermissionsAddress = getContractAddress(
         chainId,
-        "DataPortabilityServers",
+        "DataPermissions",
       );
-      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
+      const DataPermissionsAbi = getAbi("DataPermissions");
 
       const nonce = (await this.context.publicClient.readContract({
-        address: DataPortabilityServersAddress,
-        abi: DataPortabilityServersAbi,
+        address: DataPermissionsAddress,
+        abi: DataPermissionsAbi,
         functionName: "userNonce",
         args: [userAddress],
       })) as bigint;

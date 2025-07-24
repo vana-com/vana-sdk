@@ -1538,6 +1538,59 @@ describe("PermissionsController", () => {
     });
   });
 
+  describe("getUserNonce", () => {
+    it("should read nonce from DataPermissions contract, not DataPortabilityServers", async () => {
+      const userAddress = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
+      const expectedNonce = 5n;
+
+      // Mock getContractAddress to track which contract is being requested
+      const { getContractAddress } = await import("../config/addresses");
+      const getContractAddressSpy = vi.mocked(getContractAddress);
+      const originalImplementation =
+        getContractAddressSpy.getMockImplementation();
+
+      // Track contract address calls
+      const contractCalls: string[] = [];
+      getContractAddressSpy.mockImplementation((chainId, contractName) => {
+        contractCalls.push(contractName);
+        if (contractName === "DataPermissions") {
+          return "0xD54523048AdD05b4d734aFaE7C68324Ebb7373eF";
+        } else if (contractName === "DataPortabilityServers") {
+          return "0x1483B1F634DBA75AeaE60da7f01A679aabd5ee2c";
+        }
+        return "0x1234567890123456789012345678901234567890";
+      });
+
+      // Mock readContract to return the nonce
+      mockPublicClient.readContract.mockResolvedValueOnce(expectedNonce);
+
+      // Call getUserNonce (private method, so we need to use type assertion)
+      const getUserNonce = (controller as any).getUserNonce.bind(controller);
+      const nonce = await getUserNonce();
+
+      // Verify the correct contract was called
+      expect(contractCalls).toContain("DataPermissions");
+      expect(contractCalls).not.toContain("DataPortabilityServers");
+
+      // Verify readContract was called with DataPermissions address
+      expect(mockPublicClient.readContract).toHaveBeenCalledWith({
+        address: "0xD54523048AdD05b4d734aFaE7C68324Ebb7373eF",
+        abi: expect.any(Array),
+        functionName: "userNonce",
+        args: [userAddress],
+      });
+
+      expect(nonce).toBe(expectedNonce);
+
+      // Reset the mock to its original implementation
+      if (originalImplementation) {
+        getContractAddressSpy.mockImplementation(originalImplementation);
+      } else {
+        getContractAddressSpy.mockRestore();
+      }
+    });
+  });
+
   describe("New Permission Query Methods", () => {
     beforeEach(() => {
       // Mock the public client for contract reads

@@ -6,6 +6,7 @@ on:
       - feature/data-portability-sdk-v1
       - feat/callbackstorage
       - feat/return-values
+      - fix/nonce-wrong-contract
 
 jobs:
   publish-prerelease:

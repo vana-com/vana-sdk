@@ -26,6 +26,7 @@ export interface UseTrustedServersReturn {
 
   // Form state
   serverId: string;
+  serverAddress: string;
   serverUrl: string;
   serverOwner: string;
   publicKey: string;
@@ -46,6 +47,7 @@ export interface UseTrustedServersReturn {
     publicKey?: string;
   } | null>;
   setServerId: (id: string) => void;
+  setServerAddress: (address: string) => void;
   setServerUrl: (url: string) => void;
   setServerOwner: (owner: string) => void;
   setPublicKey: (publicKey: string) => void;
@@ -70,6 +72,7 @@ export function useTrustedServers(): UseTrustedServersReturn {
 
   // Form state
   const [serverId, setServerId] = useState<string>("");
+  const [serverAddress, setServerAddress] = useState<string>("");
   const [serverUrl, setServerUrl] = useState<string>("");
   const [serverOwner, setServerOwner] = useState<string>("");
   const [publicKey, setPublicKey] = useState<string>("");
@@ -119,8 +122,8 @@ export function useTrustedServers(): UseTrustedServersReturn {
     if (!vana || !address) return;
 
     // Validate inputs
-    if (!serverId.trim()) {
-      setTrustServerError("Please provide a server ID (address)");
+    if (!serverAddress.trim()) {
+      setTrustServerError("Please provide a server address");
       return;
     }
 
@@ -145,7 +148,7 @@ export function useTrustedServers(): UseTrustedServersReturn {
     try {
       await vana.permissions.addAndTrustServer({
         owner: serverOwner as `0x${string}`,
-        serverAddress: serverId as `0x${string}`,
+        serverAddress: serverAddress as `0x${string}`,
         serverUrl: serverUrl,
         publicKey: publicKey,
       });
@@ -163,7 +166,7 @@ export function useTrustedServers(): UseTrustedServersReturn {
   }, [
     vana,
     address,
-    serverId,
+    serverAddress,
     serverUrl,
     serverOwner,
     publicKey,
@@ -179,16 +182,16 @@ export function useTrustedServers(): UseTrustedServersReturn {
       if (!vana || !address) return;
 
       // Use override values if provided, otherwise use form state
-      const actualServerId = overrideServerId || serverId;
+      const actualServerAddress = overrideServerId || serverAddress;
       const actualServerUrl = overrideServerUrl || serverUrl;
 
       // Validate inputs
       if (
-        !actualServerId ||
-        typeof actualServerId !== "string" ||
-        !actualServerId.trim()
+        !actualServerAddress ||
+        typeof actualServerAddress !== "string" ||
+        !actualServerAddress.trim()
       ) {
-        setTrustServerError("Please provide a server ID (address)");
+        setTrustServerError("Please provide a server address");
         return;
       }
 
@@ -217,7 +220,7 @@ export function useTrustedServers(): UseTrustedServersReturn {
       try {
         await vana.permissions.addAndTrustServerWithSignature({
           owner: serverOwner as `0x${string}`,
-          serverAddress: actualServerId as `0x${string}`,
+          serverAddress: actualServerAddress as `0x${string}`,
           serverUrl: actualServerUrl,
           publicKey: publicKey,
         });
@@ -228,6 +231,7 @@ export function useTrustedServers(): UseTrustedServersReturn {
         // Clear the form fields on success only if requested
         if (clearFieldsOnSuccess) {
           setServerId("");
+          setServerAddress("");
           setServerUrl("");
           setServerOwner("");
           setPublicKey("");
@@ -324,7 +328,7 @@ export function useTrustedServers(): UseTrustedServersReturn {
       console.info("✅ Server discovered:", discoveredServerInfo);
 
       // Pre-fill the form with discovered server information
-      setServerId(discoveredServerInfo.serverAddress);
+      setServerAddress(discoveredServerInfo.serverAddress);
       setServerUrl(discoveredServerInfo.serverUrl);
 
       return discoveredServerInfo;
@@ -351,6 +355,7 @@ export function useTrustedServers(): UseTrustedServersReturn {
     if (!address) {
       setTrustedServers([]);
       setServerId("");
+      setServerAddress("");
       setServerUrl("");
       setServerOwner("");
       setPublicKey("");
@@ -370,6 +375,7 @@ export function useTrustedServers(): UseTrustedServersReturn {
 
     // Form state
     serverId,
+    serverAddress,
     serverUrl,
     serverOwner,
     publicKey,
@@ -381,6 +387,7 @@ export function useTrustedServers(): UseTrustedServersReturn {
     handleUntrustServer,
     handleDiscoverHostedServer,
     setServerId,
+    setServerAddress,
     setServerUrl,
     setServerOwner,
     setPublicKey,

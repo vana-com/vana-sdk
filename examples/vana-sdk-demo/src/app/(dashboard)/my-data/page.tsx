@@ -110,13 +110,13 @@ export default function MyDataPage() {
     isDiscoveringServer,
     trustServerError,
     trustedServerQueryMode: queryMode,
-    serverId,
+    serverAddress,
     serverUrl,
     loadUserTrustedServers,
     handleTrustServerGasless,
     handleUntrustServer,
     handleDiscoverHostedServer: onDiscoverReplicateServer,
-    setServerId: onServerIdChange,
+    setServerAddress: onServerAddressChange,
     setServerUrl: onServerUrlChange,
     serverOwner,
     setServerOwner: onServerOwnerChange,
@@ -494,11 +494,11 @@ export default function MyDataPage() {
             trustServerError={trustServerError}
             queryMode={queryMode}
             serverOwner={serverOwner}
-            serverAddress={serverId}
+            serverAddress={serverAddress}
             serverUrl={serverUrl}
             publicKey={publicKey}
             onServerOwnerChange={onServerOwnerChange}
-            onServerAddressChange={onServerIdChange}
+            onServerAddressChange={onServerAddressChange}
             onServerUrlChange={onServerUrlChange}
             onPublicKeyChange={onPublicKeyChange}
             onQueryModeChange={onQueryModeChange}

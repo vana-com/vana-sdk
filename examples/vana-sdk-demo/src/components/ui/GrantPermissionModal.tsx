@@ -143,7 +143,11 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
       }
 
       if (!selectedGranteeId.trim()) {
-        errors.push("Grantee selection is required");
+        errors.push(
+          grantees.length === 0
+            ? "No grantees available. Please add grantees in the Grantees tab first."
+            : "Grantee selection is required",
+        );
       }
 
       if (
@@ -170,13 +174,8 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
   };
 
   const handleConfirm = async () => {
-    console.debug("Modal handleConfirm called");
-    console.debug("Selected files in modal:", selectedFiles);
-    console.debug("Selected grantee ID in modal:", selectedGranteeId);
-
     const isValid = await validateGrantParams();
     if (!isValid) {
-      console.debug("Validation failed, not proceeding");
       return;
     }
 
@@ -197,7 +196,6 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
       ...(expiresAt && { expiresAt }),
     };
 
-    console.debug("Calling onConfirm with params:", params);
     onConfirm(params);
   };
 
@@ -344,13 +342,22 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
             {/* Grantee Selection */}
             <Select
               label="Grantee"
-              placeholder="Select a grantee"
+              placeholder={
+                grantees.length === 0
+                  ? "No grantees available"
+                  : "Select a grantee"
+              }
               selectedKeys={selectedGranteeId ? [selectedGranteeId] : []}
               onSelectionChange={(keys) => {
                 const selectedKey = Array.from(keys)[0] as string;
                 setSelectedGranteeId(selectedKey || "");
               }}
-              description="Select the grantee that will receive this permission"
+              description={
+                grantees.length === 0
+                  ? "Please add grantees in the Grantees tab first"
+                  : "Select the grantee that will receive this permission"
+              }
+              isDisabled={grantees.length === 0}
             >
               {grantees.map((grantee) => (
                 <SelectItem

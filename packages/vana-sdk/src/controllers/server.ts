@@ -57,7 +57,7 @@ import { ControllerContext } from "./permissions";
  * const result = await vana.server.getOperation(response.id);
  * ```
  * @category Server Management
- * @see {@link [URL_PLACEHOLDER] | Vana Personal Servers} for conceptual overview
+ * @see {@link https://docs.vana.com/developer/personal-servers | Vana Personal Servers} for conceptual overview
  */
 export class ServerController {
   public readonly PERSONAL_SERVER_BASE_URL =
@@ -86,11 +86,11 @@ export class ServerController {
    * const identity = await vana.server.getIdentity({
    *   userAddress: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36"
    * });
-   * 
+   *
    * console.log(`Server: ${identity.name}`);
    * console.log(`Address: ${identity.address}`);
    * console.log(`Public Key: ${identity.public_key}`);
-   * 
+   *
    * // Use the public key for encrypting data to share with this server
    * const encryptedData = await encryptWithWalletPublicKey(
    *   userData,
@@ -285,7 +285,7 @@ export class ServerController {
    * @remarks
    * This method attempts to cancel an operation that is currently processing
    * on the personal server. The operation must be in a cancellable state
-   * (typically `starting` or `processing`). Not all operations support 
+   * (typically `starting` or `processing`). Not all operations support
    * cancellation, and cancellation may not be immediate. The server will
    * attempt to stop the operation and update its status to `canceled`.
    *
@@ -312,7 +312,7 @@ export class ServerController {
    * try {
    *   await vana.server.cancelOperation(operation.id);
    *   console.log("Cancellation requested");
-   *   
+   *
    *   // Verify cancellation
    *   const status = await vana.server.getOperation(operation.id);
    *   if (status.status === "canceled") {

@@ -334,7 +334,7 @@ interface ActivityEntry {
 export default function DemoExperiencePage() {
   const { address } = useAccount();
   const chainId = useChainId();
-  const { applicationAddress } = useVana();
+  const { vana, applicationAddress } = useVana();
 
   const {
     trustedServers,
@@ -363,6 +363,7 @@ export default function DemoExperiencePage() {
     grantPreview,
     showGrantPreview,
     handleGrantPermission,
+    onOpenGrant,
     onCloseGrant,
     handleConfirmGrant,
     setGrantPreview,
@@ -399,10 +400,8 @@ export default function DemoExperiencePage() {
   );
 
   const needsToCreateData = useMemo(() => {
-    return (
-      config.dataChoice === "new" && !uploadResult && userFiles.length === 0
-    );
-  }, [config.dataChoice, uploadResult, userFiles]);
+    return config.dataChoice === "new" && !uploadResult;
+  }, [config.dataChoice, uploadResult]);
 
   useEffect(() => {
     if (trustedServers.length > 0 && !config.selectedServer) {
@@ -443,7 +442,7 @@ export default function DemoExperiencePage() {
         disabled: !newTextData.trim() || isUploadingText,
         icon: <FileText className="h-4 w-4" />,
       };
-    if (config.selectedFiles.length === 0)
+    if (config.selectedFiles.length === 0 && config.dataChoice === "existing")
       return {
         text: "Select Data",
         disabled: true,
@@ -548,22 +547,64 @@ export default function DemoExperiencePage() {
 
     if (needsToCreateData && config.dataChoice === "new") {
       addActivity("info", "Creating sample data file...");
-      await handleUploadText();
+      
+      // Get server identity to get public key for encryption
+      let serverIdentity = null;
+      if (config.selectedServer && vana && address) {
+        try {
+          addActivity("info", "Fetching server identity for encryption...");
+          serverIdentity = await vana.server.getIdentity({
+            userAddress: address,
+          });
+          addActivity("info", "Encrypting file with server's public key...");
+        } catch {
+          addActivity("warning", "Could not get server identity, uploading without encryption");
+        }
+      }
+      
+      await handleUploadText(
+        serverIdentity?.address, 
+        serverIdentity?.public_key
+      );
       return;
     }
 
-    if (!applicationAddress || config.selectedFiles.length === 0) {
-      addActivity("error", "Missing configuration", "Please select data files");
+    if (!applicationAddress) {
+      addActivity("error", "Missing configuration", "Application address not available");
+      return;
+    }
+
+    // For existing data mode, we need files to be selected
+    // For new data mode, we need either files selected (after upload) or text data to upload
+    if (config.dataChoice === "existing" && config.selectedFiles.length === 0) {
+      addActivity("error", "Missing configuration", "Please select existing data files");
+      return;
+    }
+
+    if (config.dataChoice === "new" && config.selectedFiles.length === 0 && !newTextData.trim()) {
+      addActivity("error", "Missing configuration", "Please enter sample text or select existing files");
       return;
     }
 
     // If we don't have a permission, open the modal to create one
     if (!lastGrantedPermissionId) {
       addActivity("info", "Opening permission configuration...");
-      await handleGrantPermission(
-        config.selectedFiles,
-        "Generate a personalized AI profile based on my data",
-      );
+      
+      // Set up initial grant preview before opening modal
+      setGrantPreview({
+        grantFile: null,
+        grantUrl: "",
+        params: {
+          grantee: applicationAddress as `0x${string}`,
+          operation: "llm_inference",
+          files: config.selectedFiles,
+          parameters: {
+            prompt: "Generate a personality profile based on the following text: {{data}}",
+          },
+        },
+      });
+      
+      onOpenGrant();
       return;
     }
 
@@ -737,7 +778,7 @@ export default function DemoExperiencePage() {
           if (grantPreview) {
             setGrantPreview({ ...grantPreview, params: params });
           }
-          await handleConfirmGrant();
+          await handleConfirmGrant(params);
         }}
         selectedFiles={config.selectedFiles}
         applicationAddress={applicationAddress}

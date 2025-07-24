@@ -49,12 +49,16 @@ export interface StorageRequiredMarker {
  * ```
  */
 export interface StorageConfig {
-  /** Map of provider name to storage provider instance.
+  /**
+   * Map of provider name to storage provider instance.
    *   Common provider names: "ipfs", "pinata", "googledrive", "s3".
-   *   Custom names allowed for custom provider implementations. */
+   *   Custom names allowed for custom provider implementations.
+   */
   providers: Record<string, StorageProvider>;
-  /** Default provider name to use when none specified.
-   *   Must match a key in the providers map. Falls back to first provider if not specified. */
+  /**
+   * Default provider name to use when none specified.
+   *   Must match a key in the providers map. Falls back to first provider if not specified.
+   */
   defaultProvider?: string;
 }
 
@@ -139,7 +143,21 @@ export interface RelayerCallbacks {
   /**
    * Submit a file addition for relay
    *
-   * @deprecated Use submitFileAdditionComplete for full support.
+   * @deprecated Since v2.0.0 - Use submitFileAdditionComplete() instead for full support.
+   * Will be removed in v3.0.0.
+   *
+   * Migration guide:
+   * ```typescript
+   * // Old:
+   * await submitFileAddition(url, userAddress);
+   *
+   * // New:
+   * await submitFileAdditionComplete({
+   *   url,
+   *   userAddress,
+   *   permissions: [] // Optional
+   * });
+   * ```
    * @param url - The file URL to register
    * @param userAddress - The user's address
    * @returns Promise resolving to object with fileId and transactionHash
@@ -152,7 +170,21 @@ export interface RelayerCallbacks {
   /**
    * Submit a file addition with permissions for relay
    *
-   * @deprecated Use submitFileAdditionComplete for full support.
+   * @deprecated Since v2.0.0 - Use submitFileAdditionComplete() instead for full support.
+   * Will be removed in v3.0.0.
+   *
+   * Migration guide:
+   * ```typescript
+   * // Old:
+   * await submitFileAdditionWithPermissions(url, userAddress, permissions);
+   *
+   * // New:
+   * await submitFileAdditionComplete({
+   *   url,
+   *   userAddress,
+   *   permissions
+   * });
+   * ```
    * @param url - The file URL to register
    * @param userAddress - The user's address
    * @param permissions - Array of encrypted permissions
@@ -336,9 +368,11 @@ export interface BaseConfig {
    */
   relayerCallbacks?: RelayerCallbacks;
 
-  /** Optional storage providers configuration for file upload/download.
+  /**
+   * Optional storage providers configuration for file upload/download.
    *   Required for: upload(), grant() without pre-stored URLs, schema operations.
-   *   See StorageConfig for provider selection guidance. */
+   *   See StorageConfig for provider selection guidance.
+   */
   storage?: StorageConfig;
   /**
    * Optional subgraph URL for querying user files and permissions.
@@ -418,17 +452,23 @@ export interface WalletConfigWithStorage extends BaseConfigWithStorage {
  * @category Configuration
  */
 export interface ChainConfig extends BaseConfig {
-  /** The chain ID for Vana network.
+  /**
+   * The chain ID for Vana network.
    *   Supported: 14800 (Vana Mainnet), 14801 (Moksha Testnet), 31337 (Local Development).
-   *   Use chain constants from '@vana/sdk' for type safety. */
+   *   Use chain constants from '@vana/sdk' for type safety.
+   */
   chainId: VanaChainId;
-  /** RPC URL for the chain (optional, will use default for the chain if not provided).
+  /**
+   * RPC URL for the chain (optional, will use default for the chain if not provided).
    *   Default URLs: mainnet (https://rpc.vana.org), testnet (https://rpc.moksha.vana.org).
-   *   Override for custom nodes or local development. */
+   *   Override for custom nodes or local development.
+   */
   rpcUrl?: string;
-  /** Optional account for signing transactions.
+  /**
+   * Optional account for signing transactions.
    *   Can be: privateKeyToAccount(), mnemonicToAccount(), or custom Account implementation.
-   *   Required for write operations; read-only operations work without account. */
+   *   Required for write operations; read-only operations work without account.
+   */
   account?: Account;
 }
 

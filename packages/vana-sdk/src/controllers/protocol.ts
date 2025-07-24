@@ -54,7 +54,7 @@ import type { GetContractReturnType } from "viem";
  * const fileCount = await contract.read.filesCount();
  * ```
  * @category Advanced
- * @see {@link [URL_PLACEHOLDER] | Vana Protocol Contracts} for contract specifications
+ * @see {@link https://docs.vana.com/developer/protocol/contracts | Vana Protocol Contracts} for contract specifications
  */
 export class ProtocolController {
   private readonly contractFactory: ContractFactory;
@@ -195,6 +195,7 @@ export class ProtocolController {
    * Gets the current chain ID from the wallet client.
    *
    * @returns The chain ID
+   * @throws {Error} When chain ID is not available from wallet client
    */
   getChainId(): number {
     const chainId = this.context.walletClient.chain?.id;
@@ -208,6 +209,7 @@ export class ProtocolController {
    * Gets the current chain name from the wallet client.
    *
    * @returns The chain name
+   * @throws {Error} When chain name is not available from wallet client
    */
   getChainName(): string {
     const chainName = this.context.walletClient.chain?.name;

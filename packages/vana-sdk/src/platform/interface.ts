@@ -161,6 +161,39 @@ export interface VanaHttpAdapter {
 }
 
 /**
+ * Simple cache operations that work across platforms
+ */
+export interface VanaCacheAdapter {
+  /**
+   * Get a value from the cache
+   *
+   * @param key The cache key
+   * @returns The cached value or null if not found/expired
+   */
+  get(key: string): string | null;
+
+  /**
+   * Set a value in the cache
+   *
+   * @param key The cache key
+   * @param value The value to cache
+   */
+  set(key: string, value: string): void;
+
+  /**
+   * Delete a value from the cache
+   *
+   * @param key The cache key
+   */
+  delete(key: string): void;
+
+  /**
+   * Clear all values from the cache
+   */
+  clear(): void;
+}
+
+/**
  * Main platform adapter interface that combines all platform-specific functionality
  *
  * **Implementation Guidelines:**
@@ -194,6 +227,11 @@ export interface VanaPlatformAdapter {
    * HTTP operations adapter
    */
   http: VanaHttpAdapter;
+
+  /**
+   * Cache operations adapter
+   */
+  cache: VanaCacheAdapter;
 
   /**
    * Platform identifier for debugging/telemetry

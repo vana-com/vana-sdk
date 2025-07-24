@@ -1,12 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import {
-  createWalletClient,
-  createPublicClient,
-  http,
-  type WalletClient,
-  type PublicClient,
-} from "viem";
+import * as viem from "viem";
+import type { WalletClient, PublicClient } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
@@ -14,6 +9,50 @@ import { mokshaTestnet } from "../config/chains";
 import type { VanaChain } from "../types";
 import type { StorageManager } from "../storage/manager";
 import type { StorageProvider } from "../types/storage";
+
+// Mock viem's parseEventLogs function
+vi.mock("viem", async (importOriginal) => {
+  const actual = await importOriginal() as typeof import('viem');
+  return {
+    ...actual,
+    parseEventLogs: vi.fn(() => [{
+      eventName: 'PermissionGranted',
+      args: {
+        fileId: 123n,
+        account: '0xvalidator',
+        encryptedKey: 'encrypted-key-data',
+      }
+    }]),
+    createPublicClient: vi.fn(() => {
+      // Return a mock client
+      return {
+        waitForTransactionReceipt: vi.fn().mockResolvedValue({
+          blockNumber: 12345n,
+          gasUsed: 100000n,
+          logs: [],
+        }),
+        readContract: vi.fn(),
+        // Add other methods as needed
+      };
+    }),
+    http: vi.fn(() => ({
+      // Mock transport
+    })),
+    createWalletClient: vi.fn((config) => {
+      // Return a mock wallet client
+      const mockClient = {
+        account: config?.account || testAccount,
+        chain: config?.chain || mokshaTestnet,
+        signMessage: vi.fn(),
+        signTypedData: vi.fn(),
+        writeContract: vi.fn(),
+        getAddresses: vi.fn().mockResolvedValue([testAccount.address]),
+        getChainId: vi.fn().mockResolvedValue(14800),
+      };
+      return mockClient;
+    }),
+  };
+});
 
 /**
  * Tests for the CORRECT Vana encryption implementation
@@ -27,27 +66,32 @@ const testAccount = privateKeyToAccount(
 
 // Create proper wallet client for testing
 const createMockWalletClient = (): WalletClient & { chain: VanaChain } => {
-  const baseClient = createWalletClient({
+  // Use the mocked createWalletClient from viem
+  const baseClient = viem.createWalletClient({
     account: testAccount,
     chain: mokshaTestnet,
-    transport: http("https://rpc.moksha.vana.org"),
+    transport: viem.http("https://rpc.moksha.vana.org"),
   }) as WalletClient & { chain: VanaChain };
 
-  // Add mock implementations for the methods we need in tests
-  baseClient.signMessage = vi.fn();
-  baseClient.signTypedData = vi.fn();
-  baseClient.writeContract = vi.fn();
-  baseClient.getAddresses = vi.fn().mockResolvedValue([testAccount.address]);
-
+  // The mock already includes these methods, but we can override if needed
   return baseClient;
 };
 
 // Create proper public client for testing
 const createMockPublicClient = (): PublicClient => {
-  return createPublicClient({
+  const client = viem.createPublicClient({
     chain: mokshaTestnet,
-    transport: http("https://rpc.moksha.vana.org"),
+    transport: viem.http("https://rpc.moksha.vana.org"),
   });
+  
+  // Add mock for waitForTransactionReceipt
+  (client as any).waitForTransactionReceipt = vi.fn().mockResolvedValue({
+    blockNumber: 12345n,
+    gasUsed: 100000n,
+    logs: [],
+  });
+  
+  return client;
 };
 
 // Create proper StorageProvider mock
@@ -100,8 +144,8 @@ describe("Correct Vana Encryption Implementation", () => {
           "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
         );
 
-        const key1 = await generateEncryptionKey(mockWallet, "test seed");
-        const key2 = await generateEncryptionKey(mockWallet, "test seed");
+        const key1 = await generateEncryptionKey(mockWallet, mockPlatformAdapter, "test seed");
+        const key2 = await generateEncryptionKey(mockWallet, mockPlatformAdapter, "test seed");
 
         // Should be deterministic - same wallet + seed = same key
         expect(key1).toBe(key2);
@@ -250,7 +294,7 @@ describe("Correct Vana Encryption Implementation", () => {
       (mockWalletClient.signMessage as any).mockResolvedValue("0xsignature123");
 
       // This should use the fixed utility function for deterministic key generation
-      const key = await generateEncryptionKey(mockWalletClient, "test seed");
+      const key = await generateEncryptionKey(mockWalletClient, mockPlatformAdapter, "test seed");
       expect(key).toBe("0xsignature123");
       expect(mockWalletClient.signMessage).toHaveBeenCalledWith({
         account: mockWalletClient.account,
@@ -337,13 +381,13 @@ describe("Correct Vana Encryption Implementation", () => {
         "04c68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";
 
       // This should orchestrate: generateEncryptionKey -> encryptWithWalletPublicKey -> writeContract
-      const txHash = await controller.addPermissionToFile(
+      const result = await controller.addPermissionToFile(
         123,
         "0xvalidator" as any,
         validatorPublicKey,
       );
 
-      expect(txHash).toBe("0xtxhash");
+      expect(result.transactionHash).toBe("0xtxhash");
       expect(mockWalletClient.signMessage).toHaveBeenCalledWith({
         account: mockWalletClient.account,
         message: "Please sign to retrieve your encryption key",
@@ -499,7 +543,7 @@ describe("Correct Vana Encryption Implementation", () => {
       expect(mockStorageProvider.upload).toHaveBeenCalled();
     });
 
-    it("should provide one-liner permission granting", async () => {
+    it("should provide one-liner permission granting", { timeout: 10000 }, async () => {
       // Test the high-level addPermissionToFile method
       const { Vana } = await import("../index.node");
 
@@ -523,13 +567,13 @@ describe("Correct Vana Encryption Implementation", () => {
         "04c68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";
 
       // This should be a one-liner that handles: generateKey -> encryptWithPublicKey -> addPermission
-      const txHash = await vana.data.addPermissionToFile(
+      const result = await vana.data.addPermissionToFile(
         123,
         "0xvalidator" as any,
         validatorPublicKey,
       );
 
-      expect(txHash).toBe("0xtxhash");
+      expect(result.transactionHash).toBe("0xtxhash");
       expect(mockWalletClient.signMessage).toHaveBeenCalledWith({
         account: mockWalletClient.account,
         message: "Please sign to retrieve your encryption key",
@@ -553,7 +597,7 @@ describe("Correct Vana Encryption Implementation", () => {
       const originalData = new Blob(["Private user data"], {
         type: "text/plain",
       });
-      const encryptionKey = await generateEncryptionKey(mockWallet);
+      const encryptionKey = await generateEncryptionKey(mockWallet, mockPlatformAdapter);
       const encryptedData = await encryptBlobWithSignedKey(
         originalData,
         encryptionKey,

@@ -63,7 +63,7 @@ export interface UsePermissionsReturn {
   handleLookupPermission: () => Promise<void>;
   onOpenGrant: () => void;
   onCloseGrant: () => void;
-  handleConfirmGrant: () => Promise<void>;
+  handleConfirmGrant: (updatedParams?: GrantPermissionParams & { expiresAt?: number }) => Promise<void>;
   handleCancelGrant: () => void;
   setGrantPreview: (preview: GrantPreview | null) => void;
   setGrantStatus: (status: string) => void;
@@ -396,9 +396,9 @@ export function usePermissions(): UsePermissionsReturn {
         setGrantStatus("Creating grant file via SDK...");
 
         // Use the SDK to create and sign the grant with the latest params
-        console.debug("Creating grant with params:", grantPreview.params);
+        console.debug("Creating grant with params:", paramsToUse);
         const { typedData, signature } = await vana.permissions.createAndSign(
-          grantPreview.params,
+          paramsToUse,
         );
 
         // Extract grant file for preview from the SDK

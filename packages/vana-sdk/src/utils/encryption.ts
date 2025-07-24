@@ -11,6 +11,7 @@
 
 import type { WalletClient } from "viem";
 import type { VanaPlatformAdapter } from "../platform/interface";
+import { withSignatureCache } from "./signatureCache";
 
 /**
  * Default encryption seed message used throughout Vana protocol
@@ -25,33 +26,44 @@ export const DEFAULT_ENCRYPTION_SEED =
  * The signature serves as a symmetric encryption key for user data.
  *
  * @param wallet The user's wallet client for signing
+ * @param platformAdapter Platform adapter for cache operations
  * @param seed Optional custom encryption seed (defaults to Vana standard)
  * @returns The signature that serves as the encryption key
  * @throws {Error} When wallet account is required but not provided
  * @example
  * ```typescript
- * const encryptionKey = await generateEncryptionKey(walletClient);
+ * const encryptionKey = await generateEncryptionKey(walletClient, platformAdapter);
  * console.log('Generated encryption key:', encryptionKey);
  *
  * // Use with custom seed
- * const customKey = await generateEncryptionKey(walletClient, 'my-custom-seed');
+ * const customKey = await generateEncryptionKey(walletClient, platformAdapter, 'my-custom-seed');
  * ```
  */
 export async function generateEncryptionKey(
   wallet: WalletClient,
+  platformAdapter: VanaPlatformAdapter,
   seed: string = DEFAULT_ENCRYPTION_SEED,
 ): Promise<string> {
   if (!wallet.account) {
     throw new Error("Wallet account is required for encryption key generation");
   }
 
-  // Sign the encryption seed to generate a deterministic encryption key
-  const signature = await wallet.signMessage({
-    account: wallet.account,
-    message: seed,
-  });
-
-  return signature;
+  // Use signature cache for encryption key generation
+  // Create a simple message object for cache key generation
+  const messageData = { message: seed };
+  
+  return await withSignatureCache(
+    platformAdapter.cache,
+    wallet.account.address,
+    messageData,
+    async () => {
+      // Sign the encryption seed to generate a deterministic encryption key
+      return await wallet.signMessage({
+        account: wallet.account!,
+        message: seed,
+      });
+    }
+  );
 }
 
 /**

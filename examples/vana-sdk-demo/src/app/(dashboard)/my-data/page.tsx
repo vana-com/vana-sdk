@@ -118,6 +118,10 @@ export default function MyDataPage() {
     handleDiscoverHostedServer: onDiscoverReplicateServer,
     setServerId: onServerIdChange,
     setServerUrl: onServerUrlChange,
+    serverOwner,
+    setServerOwner: onServerOwnerChange,
+    publicKey,
+    setPublicKey: onPublicKeyChange,
     setTrustedServerQueryMode: onQueryModeChange,
   } = useTrustedServers();
 
@@ -128,10 +132,12 @@ export default function MyDataPage() {
     isRemoving,
     addGranteeError,
     granteeQueryMode,
+    ownerAddress,
     granteeAddress,
     loadGrantees,
     handleAddGranteeGasless,
     handleRemoveGrantee,
+    setOwnerAddress,
     setGranteeAddress,
     granteePublicKey,
     setGranteePublicKey,
@@ -487,14 +493,14 @@ export default function MyDataPage() {
             isDiscoveringServer={isDiscoveringServer}
             trustServerError={trustServerError}
             queryMode={queryMode}
-            serverOwner={""} // TODO: Add owner field to hook
+            serverOwner={serverOwner}
             serverAddress={serverId}
             serverUrl={serverUrl}
-            publicKey={""} // TODO: Add publicKey field to hook
-            onServerOwnerChange={() => {}} // TODO: Implement owner change
+            publicKey={publicKey}
+            onServerOwnerChange={onServerOwnerChange}
             onServerAddressChange={onServerIdChange}
             onServerUrlChange={onServerUrlChange}
-            onPublicKeyChange={() => {}} // TODO: Implement publicKey change
+            onPublicKeyChange={onPublicKeyChange}
             onQueryModeChange={onQueryModeChange}
             onTrustServer={onTrustServer}
             onRefreshServers={onRefreshServers}
@@ -510,8 +516,10 @@ export default function MyDataPage() {
             isRemoving={isRemoving}
             addGranteeError={addGranteeError}
             queryMode={granteeQueryMode}
+            ownerAddress={ownerAddress}
             granteeAddress={granteeAddress}
             granteePublicKey={granteePublicKey}
+            onOwnerAddressChange={setOwnerAddress}
             onGranteeAddressChange={setGranteeAddress}
             onGranteePublicKeyChange={setGranteePublicKey}
             onQueryModeChange={onGranteeQueryModeChange}

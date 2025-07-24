@@ -19,6 +19,7 @@ export interface UseGranteesReturn {
   granteeQueryMode: "subgraph" | "rpc" | "auto";
 
   // Form state
+  ownerAddress: string;
   granteeAddress: string;
   granteePublicKey: string;
 
@@ -30,6 +31,7 @@ export interface UseGranteesReturn {
     overrideParams?: RegisterGranteeParams,
   ) => Promise<void>;
   handleRemoveGrantee: (granteeId: number) => Promise<void>;
+  setOwnerAddress: (address: string) => void;
   setGranteeAddress: (address: string) => void;
   setGranteePublicKey: (publicKey: string) => void;
   setGranteeQueryMode: (mode: "subgraph" | "rpc" | "auto") => void;
@@ -51,6 +53,7 @@ export function useGrantees(): UseGranteesReturn {
   >("auto");
 
   // Form state
+  const [ownerAddress, setOwnerAddress] = useState<string>("");
   const [granteeAddress, setGranteeAddress] = useState<string>("");
   const [granteePublicKey, setGranteePublicKey] = useState<string>("");
 
@@ -103,7 +106,7 @@ export function useGrantees(): UseGranteesReturn {
 
     try {
       await vana.permissions.registerGrantee({
-        owner: address,
+        owner: (ownerAddress || address) as `0x${string}`,
         granteeAddress: granteeAddress as `0x${string}`,
         publicKey: granteePublicKey || "0x", // Use provided public key or default
       });
@@ -112,6 +115,7 @@ export function useGrantees(): UseGranteesReturn {
       await loadGrantees();
 
       // Clear form
+      setOwnerAddress("");
       setGranteeAddress("");
       setGranteePublicKey("");
     } catch (error) {
@@ -132,12 +136,16 @@ export function useGrantees(): UseGranteesReturn {
 
       // Use override params if provided, otherwise use form state
       const actualParams = overrideParams || {
-        owner: address,
+        owner: (ownerAddress || address) as `0x${string}`,
         granteeAddress: granteeAddress as `0x${string}`,
         publicKey: granteePublicKey || "0x", // Use provided public key or default
       };
 
       // Validate inputs
+      if (!actualParams.owner) {
+        setAddGranteeError("Please provide an owner address");
+        return;
+      }
       if (!actualParams.granteeAddress.trim()) {
         setAddGranteeError("Please provide a grantee address");
         return;
@@ -155,6 +163,7 @@ export function useGrantees(): UseGranteesReturn {
 
         // Success - clear the form fields on success only if requested
         if (clearFieldsOnSuccess) {
+          setOwnerAddress("");
           setGranteeAddress("");
           setGranteePublicKey("");
         }
@@ -222,6 +231,7 @@ export function useGrantees(): UseGranteesReturn {
   useEffect(() => {
     if (!address) {
       setGrantees([]);
+      setOwnerAddress("");
       setGranteeAddress("");
       setGranteePublicKey("");
       setAddGranteeError("");
@@ -238,6 +248,7 @@ export function useGrantees(): UseGranteesReturn {
     granteeQueryMode,
 
     // Form state
+    ownerAddress,
     granteeAddress,
     granteePublicKey,
 
@@ -246,6 +257,7 @@ export function useGrantees(): UseGranteesReturn {
     handleAddGrantee,
     handleAddGranteeGasless,
     handleRemoveGrantee,
+    setOwnerAddress,
     setGranteeAddress,
     setGranteePublicKey,
     setGranteeQueryMode,

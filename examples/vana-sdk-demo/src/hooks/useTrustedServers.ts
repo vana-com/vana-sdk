@@ -27,6 +27,8 @@ export interface UseTrustedServersReturn {
   // Form state
   serverId: string;
   serverUrl: string;
+  serverOwner: string;
+  publicKey: string;
 
   // Actions
   loadUserTrustedServers: (mode?: "subgraph" | "rpc" | "auto") => Promise<void>;
@@ -45,6 +47,8 @@ export interface UseTrustedServersReturn {
   } | null>;
   setServerId: (id: string) => void;
   setServerUrl: (url: string) => void;
+  setServerOwner: (owner: string) => void;
+  setPublicKey: (publicKey: string) => void;
   setTrustedServerQueryMode: (mode: "subgraph" | "rpc" | "auto") => void;
   setTrustServerError: (error: string) => void;
 }
@@ -67,6 +71,8 @@ export function useTrustedServers(): UseTrustedServersReturn {
   // Form state
   const [serverId, setServerId] = useState<string>("");
   const [serverUrl, setServerUrl] = useState<string>("");
+  const [serverOwner, setServerOwner] = useState<string>("");
+  const [publicKey, setPublicKey] = useState<string>("");
 
   const loadUserTrustedServers = useCallback(
     async (mode: "subgraph" | "rpc" | "auto" = "auto") => {
@@ -181,6 +187,8 @@ export function useTrustedServers(): UseTrustedServersReturn {
         if (clearFieldsOnSuccess) {
           setServerId("");
           setServerUrl("");
+          setServerOwner("");
+          setPublicKey("");
         }
         // Refresh trusted servers list
         await loadUserTrustedServers();
@@ -295,6 +303,8 @@ export function useTrustedServers(): UseTrustedServersReturn {
       setTrustedServers([]);
       setServerId("");
       setServerUrl("");
+      setServerOwner("");
+      setPublicKey("");
       setTrustServerError("");
     }
   }, [address]);
@@ -312,6 +322,8 @@ export function useTrustedServers(): UseTrustedServersReturn {
     // Form state
     serverId,
     serverUrl,
+    serverOwner,
+    publicKey,
 
     // Actions
     loadUserTrustedServers,
@@ -321,6 +333,8 @@ export function useTrustedServers(): UseTrustedServersReturn {
     handleDiscoverHostedServer,
     setServerId,
     setServerUrl,
+    setServerOwner,
+    setPublicKey,
     setTrustedServerQueryMode,
     setTrustServerError,
   };

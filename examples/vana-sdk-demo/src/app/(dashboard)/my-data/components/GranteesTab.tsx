@@ -34,10 +34,12 @@ interface GranteesTabProps {
 
   // Input state
   queryMode: "subgraph" | "rpc" | "auto";
+  ownerAddress: string;
   granteeAddress: string;
   granteePublicKey: string;
 
   // Callbacks
+  onOwnerAddressChange: (address: string) => void;
   onGranteeAddressChange: (address: string) => void;
   onGranteePublicKeyChange: (publicKey: string) => void;
   onQueryModeChange: (mode: "subgraph" | "rpc" | "auto") => void;
@@ -53,8 +55,10 @@ export function GranteesTab({
   isRemoving,
   addGranteeError,
   queryMode,
+  ownerAddress,
   granteeAddress,
   granteePublicKey,
+  onOwnerAddressChange,
   onGranteeAddressChange,
   onGranteePublicKeyChange,
   onQueryModeChange,
@@ -86,6 +90,16 @@ export function GranteesTab({
             title=""
             singleColumn={true}
             fields={[
+              {
+                name: "ownerAddress",
+                label: "Owner Address",
+                type: "text",
+                value: ownerAddress,
+                onChange: onOwnerAddressChange,
+                placeholder: "0x...",
+                description: "The owner address for the grantee",
+                required: true,
+              },
               {
                 name: "granteeAddress",
                 label: "Grantee Address",

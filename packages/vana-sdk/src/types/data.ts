@@ -21,7 +21,8 @@ export interface UserFile {
   ownerAddress: Address;
   /** Block number when this file was registered on-chain. */
   addedAtBlock: bigint;
-  /** Schema identifier for data validation and structure definition. */
+  /** Schema identifier for data validation and structure definition.
+   *   Obtain schema IDs from `vana.schemas.list()` or when creating schemas via `vana.schemas.create()`. */
   schemaId?: number;
   /** Unix timestamp when the file was registered on-chain. */
   addedAtTimestamp?: bigint;
@@ -119,6 +120,8 @@ export interface UploadParams {
   encrypt?: boolean;
   /** Optional storage provider name. */
   providerName?: string;
+  /** Optional owner address (defaults to current wallet address). */
+  owner?: Address;
 }
 
 /**
@@ -177,6 +180,31 @@ export interface FilePermissionParams {
   account: Address;
   /** The public key to encrypt the file's encryption key with. */
   publicKey: string;
+}
+
+/**
+ * Permission parameters for granting data access.
+ * 
+ * @remarks
+ * This interface defines parameters for granting permissions to access data.
+ * It's used in the permissions system but kept here for compatibility.
+ * 
+ * @category Data Management
+ */
+export interface PermissionParams {
+  /** The address of the application to grant permission to. */
+  grantee: Address;
+  /** The operation type (e.g., "llm_inference", "data_analysis", "compute_task"). */
+  operation: string;
+  /** Additional parameters for the permission (operation-specific configuration). */
+  parameters: Record<string, unknown>;
+  /** Optional nonce for the permission (auto-generated if not provided). */
+  nonce?: bigint;
+  /** Optional expiration timestamp (Unix seconds, no expiration if not provided). */
+  expiresAt?: number;
+  /** Public key of the recipient to encrypt the data key for (required for upload with permissions).
+   *   Obtain via `vana.server.getIdentity(recipientAddress).public_key` for personal servers. */
+  publicKey?: string;
 }
 
 /**
@@ -257,11 +285,11 @@ export interface UploadFileParams {
   content: Uint8Array | Buffer | string;
   /** Descriptive metadata for file organization and tracking. */
   metadata?: FileMetadata;
-  /** Storage provider name or uses configured default if unspecified. */
+  /** Storage provider name ("ipfs" or custom provider, uses configured default if unspecified). */
   storageProvider?: string;
-  /** Enables automatic encryption before upload to storage. */
+  /** Enables automatic encryption before upload to storage (defaults to false). */
   encrypt?: boolean;
-  /** Custom encryption key or generates one automatically if encryption enabled. */
+  /** Custom encryption key (auto-generated if encryption enabled and not provided). */
   encryptionKey?: string;
 }
 

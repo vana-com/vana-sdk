@@ -3,6 +3,15 @@
  *
  * This interface abstracts all environment-specific dependencies to ensure
  * the SDK works seamlessly across Node.js and browser/SSR environments.
+ *
+ * **Implementation Context:**
+ * - Node.js: Uses native crypto modules and full OpenPGP support
+ * - Browser: Uses Web Crypto API and browser-compatible libraries
+ * - SSR: Automatically selects appropriate implementation based on runtime
+ *
+ * **Usage Notes:**
+ * Platform adapters are automatically selected by the SDK. Direct usage is only
+ * needed for custom implementations or testing.
  */
 
 /**
@@ -16,6 +25,11 @@ export type PlatformType = "node" | "browser";
 export interface VanaCryptoAdapter {
   /**
    * Encrypt data with a public key using asymmetric cryptography
+   *
+   * **Usage Context:**
+   * - Used internally for file encryption before storage
+   * - Public key format: Armored PGP public key string
+   * - Returns base64-encoded encrypted data
    *
    * @param data The data to encrypt
    * @param publicKey The public key for encryption
@@ -45,6 +59,11 @@ export interface VanaCryptoAdapter {
   /**
    * Encrypt data with a wallet's public key using ECDH cryptography
    * Uses platform-appropriate ECDH implementation (eccrypto vs eccrypto-js)
+   *
+   * **Usage Context:**
+   * - Used for sharing encryption keys with permission recipients
+   * - Public key format: Compressed or uncompressed secp256k1 hex string
+   * - Compatible with Ethereum wallet public keys
    *
    * @param data The data to encrypt (string)
    * @param publicKey The wallet's public key (secp256k1)
@@ -176,6 +195,22 @@ export interface VanaCacheAdapter {
 
 /**
  * Main platform adapter interface that combines all platform-specific functionality
+ *
+ * **Implementation Guidelines:**
+ * 1. All methods must maintain consistent behavior across platforms
+ * 2. Error types and messages should be unified
+ * 3. Data formats (encoding, serialization) must be identical
+ * 4. Performance characteristics can vary but API must be consistent
+ *
+ * **Custom Implementation Example:**
+ * ```typescript
+ * class CustomPlatformAdapter implements VanaPlatformAdapter {
+ *   crypto = new CustomCryptoAdapter();
+ *   pgp = new CustomPGPAdapter();
+ *   http = new CustomHttpAdapter();
+ *   platform = 'browser' as const;
+ * }
+ * ```
  */
 export interface VanaPlatformAdapter {
   /**

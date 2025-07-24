@@ -90,7 +90,15 @@ export class SignatureCache {
   static hashMessage(message: object): string {
     // Simple hash of the message for cache key
     // Using custom JSON.stringify with BigInt serializer to handle EIP-712 typed data
-    return toBase64(JSON.stringify(message, this.bigIntReplacer)).replace(/[^a-zA-Z0-9]/g, '').substring(0, 32);
+    const jsonString = JSON.stringify(message, this.bigIntReplacer);
+    const base64Hash = toBase64(jsonString);
+    // Use a longer substring and include some characters from the end to avoid collisions
+    const cleaned = base64Hash.replace(/[^a-zA-Z0-9]/g, '');
+    // Take first 16 characters + last 16 characters to create a 32-char hash that's more unique
+    if (cleaned.length > 32) {
+      return cleaned.substring(0, 16) + cleaned.substring(cleaned.length - 16);
+    }
+    return cleaned.substring(0, 32);
   }
 
   /**

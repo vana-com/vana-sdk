@@ -19,31 +19,94 @@ class VanaBrowserImpl extends VanaCore {
 /**
  * Creates a new Vana SDK instance configured for browser environments.
  *
- * This function automatically provides the correct TypeScript types based on your configuration:
- * - With storage config: All methods including storage-dependent ones are available
- * - Without storage: Storage-dependent methods are not available at compile time
+ * @remarks
+ * This is the primary entry point for browser applications using the Vana SDK. The function
+ * automatically detects your configuration type and provides compile-time type safety:
+ * - **With storage configured**: All methods including file upload/download are available
+ * - **Without storage**: Storage-dependent methods throw runtime errors and are excluded from TypeScript
+ * 
+ * The SDK supports multiple wallet configurations (direct WalletClient or chain config),
+ * various storage providers (IPFS, Pinata, Google Drive), and gasless transactions via relayers.
+ * All operations are optimized for browser environments with proper bundle size optimization.
  *
- * @param config - The configuration object containing wallet client and optional storage settings
- * @returns A Vana SDK instance configured for browser use
+ * @param config - Configuration object containing wallet, storage, and relayer settings
+ * @returns A fully configured Vana SDK instance for browser use
+ * @throws {InvalidConfigurationError} When configuration parameters are invalid or missing
  * @example
  * ```typescript
- * // With storage - all methods available
+ * import { Vana } from '@opendatalabs/vana-sdk/browser';
+ * import { createWalletClient, custom } from 'viem';
+ * import { IPFSStorage } from '@opendatalabs/vana-sdk/browser';
+ * 
+ * // Complete setup with storage and wallet
+ * const walletClient = createWalletClient({
+ *   chain: mokshaTestnet,
+ *   transport: custom(window.ethereum)
+ * });
+ * 
  * const vana = Vana({
  *   walletClient,
- *   storage: { providers: { ipfs: new IPFSStorage() }, defaultProvider: 'ipfs' }
+ *   storage: {
+ *     providers: {
+ *       ipfs: new IPFSStorage({ gateway: 'https://gateway.pinata.cloud' }),
+ *       pinata: new PinataStorage({ apiKey: process.env.PINATA_KEY })
+ *     },
+ *     defaultProvider: 'ipfs'
+ *   },
+ *   relayerCallbacks: {
+ *     async submitPermissionGrant(typedData, signature) {
+ *       const response = await fetch('/api/relay/grant', {
+ *         method: 'POST',
+ *         body: JSON.stringify({ typedData, signature })
+ *       });
+ *       return (await response.json()).transactionHash;
+ *     }
+ *   }
  * });
- * await vana.data.uploadFile(file); // ✅ Works - TypeScript knows storage is available
- *
- * // Without storage - storage methods unavailable at compile time
- * const vanaNoStorage = Vana({ walletClient });
- * // await vanaNoStorage.data.uploadFile(file); // ❌ TypeScript error
- *
- * // Runtime check still available
- * if (vanaNoStorage.isStorageEnabled()) {
- *   // TypeScript now knows storage methods are safe to use
- *   await vanaNoStorage.data.uploadFile(file); // ✅ Works
+ * 
+ * // All operations now available
+ * const files = await vana.data.getUserFiles();
+ * const permissions = await vana.permissions.getUserPermissions();
+ * await vana.data.upload({ content: 'My data', filename: 'data.txt' });
+ * ```
+ * 
+ * @example
+ * ```typescript
+ * // Minimal setup without storage (read-only operations)
+ * const vanaReadOnly = Vana({ walletClient });
+ * 
+ * // These work without storage
+ * const files = await vanaReadOnly.data.getUserFiles();
+ * const permissions = await vanaReadOnly.permissions.getUserPermissions();
+ * 
+ * // This would throw a runtime error
+ * // await vanaReadOnly.data.upload(params); // ❌ InvalidConfigurationError
+ * 
+ * // Safe runtime check
+ * if (vanaReadOnly.isStorageEnabled()) {
+ *   await vanaReadOnly.data.upload(params); // ✅ TypeScript allows this
+ * } else {
+ *   console.log('Storage not configured - upload unavailable');
  * }
  * ```
+ * 
+ * @example
+ * ```typescript
+ * // Using chain configuration instead of wallet client
+ * const vana = Vana({
+ *   chainId: 14800, // Moksha testnet
+ *   account: '0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36',
+ *   rpcUrl: 'https://rpc.moksha.vana.org',
+ *   storage: {
+ *     providers: { ipfs: new IPFSStorage() },
+ *     defaultProvider: 'ipfs'
+ *   }
+ * });
+ * ```
+ * 
+ * @see {@link https://docs.vana.org/docs/sdk/getting-started | Getting Started Guide} for setup tutorials
+ * @see {@link VanaCore} for the underlying implementation details
+ * @category Core SDK
  */
 export function Vana(
   config: VanaConfigWithStorage,

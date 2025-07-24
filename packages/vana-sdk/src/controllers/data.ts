@@ -345,7 +345,7 @@ export class DataController {
 
       // Prepare encrypted permissions if provided
       let encryptedPermissions: Array<{ account: Address; key: string }> = [];
-      if (permissions.length > 0 && encrypt) {
+      if (permissions.length > 0) {
         const userEncryptionKey = await generateEncryptionKey(
           this.context.walletClient,
           this.context.platform,

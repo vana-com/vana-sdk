@@ -148,7 +148,7 @@ export default function MyDataPage() {
   const trustedServers = useMemo(
     () =>
       rawTrustedServers.map((server) => ({
-        id: parseInt(server.id, 10), // Convert string id to number
+        id: parseInt(server.id.split("-")[1] || server.id, 10), // Extract server ID from composite ID
         owner: server.user || "", // Use user field as owner
         url: server.serverUrl,
         serverAddress: server.serverAddress,

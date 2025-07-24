@@ -129,12 +129,25 @@ export function useTrustedServers(): UseTrustedServersReturn {
       return;
     }
 
+    if (!serverOwner.trim()) {
+      setTrustServerError("Please provide a server owner address");
+      return;
+    }
+
+    if (!publicKey.trim()) {
+      setTrustServerError("Please provide a server public key");
+      return;
+    }
+
     setIsTrustingServer(true);
     setTrustServerError("");
 
     try {
-      await vana.permissions.trustServer({
-        serverId: parseInt(serverId, 10),
+      await vana.permissions.addAndTrustServer({
+        owner: serverOwner as `0x${string}`,
+        serverAddress: serverId as `0x${string}`,
+        serverUrl: serverUrl,
+        publicKey: publicKey,
       });
 
       // Success - form shows success via trustServerError being cleared
@@ -147,7 +160,15 @@ export function useTrustedServers(): UseTrustedServersReturn {
     } finally {
       setIsTrustingServer(false);
     }
-  }, [vana, address, serverId, serverUrl, loadUserTrustedServers]);
+  }, [
+    vana,
+    address,
+    serverId,
+    serverUrl,
+    serverOwner,
+    publicKey,
+    loadUserTrustedServers,
+  ]);
 
   const handleTrustServerGasless = useCallback(
     async (
@@ -172,12 +193,25 @@ export function useTrustedServers(): UseTrustedServersReturn {
         return;
       }
 
+      if (!serverOwner.trim()) {
+        setTrustServerError("Please provide a server owner address");
+        return;
+      }
+
+      if (!publicKey.trim()) {
+        setTrustServerError("Please provide a server public key");
+        return;
+      }
+
       setIsTrustingServer(true);
       setTrustServerError("");
 
       try {
-        await vana.permissions.trustServerWithSignature({
-          serverId: parseInt(actualServerId, 10),
+        await vana.permissions.addAndTrustServerWithSignature({
+          owner: serverOwner as `0x${string}`,
+          serverAddress: actualServerId as `0x${string}`,
+          serverUrl: actualServerUrl,
+          publicKey: publicKey,
         });
 
         console.info("✅ Trust server with signature completed successfully!");
@@ -202,7 +236,15 @@ export function useTrustedServers(): UseTrustedServersReturn {
         setIsTrustingServer(false);
       }
     },
-    [vana, address, serverId, serverUrl, loadUserTrustedServers],
+    [
+      vana,
+      address,
+      serverId,
+      serverUrl,
+      serverOwner,
+      publicKey,
+      loadUserTrustedServers,
+    ],
   );
 
   const handleUntrustServer = useCallback(

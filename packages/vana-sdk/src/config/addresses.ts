@@ -2,15 +2,13 @@
 // Contract-centric structure: contracts contain chain addresses
 
 export const CONTRACTS = {
-  // Core Platform Contracts
+  // Data Portability Contracts (New Architecture)
   DataPermissions: {
     addresses: {
-      14800: "0x31fb1D48f6B2265A4cAD516BC39E96a18fb7c8de",
-      1480: "0x31fb1D48f6B2265A4cAD516BC39E96a18fb7c8de",
+      14800: "0xD54523048AdD05b4d734aFaE7C68324Ebb7373eF", // Points to DataPortabilityPermissions for backwards compatibility
+      1480: "0xD54523048AdD05b4d734aFaE7C68324Ebb7373eF",
     },
   },
-
-  // Data Portability Contracts (New Architecture)
   DataPortabilityPermissions: {
     addresses: {
       14800: "0xD54523048AdD05b4d734aFaE7C68324Ebb7373eF",

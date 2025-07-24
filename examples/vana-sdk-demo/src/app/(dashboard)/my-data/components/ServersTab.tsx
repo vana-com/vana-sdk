@@ -16,7 +16,15 @@ import {
   Select,
   SelectItem,
 } from "@heroui/react";
-import { ExternalLink, RefreshCw, Shield, Trash2, Server } from "lucide-react";
+import {
+  ExternalLink,
+  RefreshCw,
+  Shield,
+  Trash2,
+  Server,
+  CheckCircle,
+  XCircle,
+} from "lucide-react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { CopyButton } from "@/components/ui/CopyButton";
 import { AddressDisplay } from "@/components/ui/AddressDisplay";
@@ -29,6 +37,7 @@ interface TrustedServer {
   serverAddress: string;
   publicKey: string;
   name?: string;
+  endBlock?: bigint; // Optional field for server expiration
 }
 
 interface ServersTabProps {
@@ -228,74 +237,103 @@ export function ServersTab({
                 <TableColumn>Server Address</TableColumn>
                 <TableColumn>URL</TableColumn>
                 <TableColumn>Public Key</TableColumn>
+                <TableColumn>Status</TableColumn>
                 <TableColumn>Actions</TableColumn>
               </TableHeader>
               <TableBody>
-                {trustedServers.map((server) => (
-                  <TableRow key={server.id}>
-                    <TableCell>
-                      <span className="font-mono text-sm">{server.id}</span>
-                    </TableCell>
-                    <TableCell>
-                      <AddressDisplay
-                        address={server.owner}
-                        truncate={true}
-                        showCopy={true}
-                        showExternalLink={true}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <AddressDisplay
-                        address={server.serverAddress}
-                        truncate={true}
-                        showCopy={true}
-                        showExternalLink={true}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      {server.url && (
+                {trustedServers.map((server) => {
+                  // For now, assume all servers in the list are Active since they're returned by the API
+                  // In the future, this would check: server.endBlock === 0n || server.endBlock >= currentBlockNumber
+                  const isActive = true; // Placeholder logic - all servers are Active for now
+                  const status = isActive ? "Active" : "Untrusted";
+
+                  return (
+                    <TableRow key={server.id}>
+                      <TableCell>
+                        <span className="font-mono text-sm">{server.id}</span>
+                      </TableCell>
+                      <TableCell>
+                        <AddressDisplay
+                          address={server.owner}
+                          truncate={true}
+                          showCopy={true}
+                          showExternalLink={true}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <AddressDisplay
+                          address={server.serverAddress}
+                          truncate={true}
+                          showCopy={true}
+                          showExternalLink={true}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {server.url && (
+                          <div className="flex items-center gap-2">
+                            <Button
+                              as="a"
+                              href={server.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              size="sm"
+                              variant="flat"
+                              isIconOnly
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                            </Button>
+                            <CopyButton
+                              value={server.url}
+                              tooltip="Copy server URL"
+                              isInline
+                            />
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <CopyButton
+                          value={server.publicKey}
+                          tooltip="Copy public key"
+                          isInline
+                        />
+                      </TableCell>
+                      <TableCell>
                         <div className="flex items-center gap-2">
-                          <Button
-                            as="a"
-                            href={server.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            size="sm"
-                            variant="flat"
-                            isIconOnly
+                          {isActive ? (
+                            <CheckCircle className="h-4 w-4 text-success" />
+                          ) : (
+                            <XCircle className="h-4 w-4 text-danger" />
+                          )}
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              isActive
+                                ? "bg-success/20 text-success-700"
+                                : "bg-danger/20 text-danger-700"
+                            }`}
                           >
-                            <ExternalLink className="h-3 w-3" />
-                          </Button>
-                          <CopyButton
-                            value={server.url}
-                            tooltip="Copy server URL"
-                            isInline
-                          />
+                            {status}
+                          </span>
                         </div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <CopyButton
-                        value={server.publicKey}
-                        tooltip="Copy public key"
-                        isInline
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        color="danger"
-                        variant="flat"
-                        size="sm"
-                        onPress={() => onUntrustServer(server.id)}
-                        isLoading={isUntrusting}
-                        isDisabled={isUntrusting}
-                        startContent={<Trash2 className="h-3 w-3" />}
-                      >
-                        Untrust
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      </TableCell>
+                      <TableCell>
+                        {/* Only show Untrust button for Active servers */}
+                        {isActive && (
+                          <Button
+                            color="danger"
+                            variant="flat"
+                            size="sm"
+                            onPress={() => onUntrustServer(server.id)}
+                            isLoading={isUntrusting}
+                            isDisabled={isUntrusting}
+                            startContent={<Trash2 className="h-3 w-3" />}
+                          >
+                            Untrust
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}

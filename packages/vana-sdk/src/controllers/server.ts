@@ -60,10 +60,17 @@ import { ControllerContext } from "./permissions";
  * @see {@link https://docs.vana.com/developer/personal-servers | Vana Personal Servers} for conceptual overview
  */
 export class ServerController {
-  public readonly PERSONAL_SERVER_BASE_URL =
-    process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL;
-
   constructor(private readonly context: ControllerContext) {}
+
+  private get personalServerBaseUrl(): string {
+    if (!this.context.personalServerUrl) {
+      throw new PersonalServerError(
+        "Personal server URL is required for server operations. " +
+          "Please configure personalServerUrl in your VanaConfig.",
+      );
+    }
+    return this.context.personalServerUrl;
+  }
 
   /**
    * Retrieves the cryptographic identity of a personal server.
@@ -103,7 +110,7 @@ export class ServerController {
   ): Promise<PersonalServerIdentity> {
     try {
       const response = await fetch(
-        `${this.PERSONAL_SERVER_BASE_URL}/identity?address=${request.userAddress}`,
+        `${this.personalServerBaseUrl}/identity?address=${request.userAddress}`,
         {
           method: "GET",
           headers: {
@@ -126,7 +133,7 @@ export class ServerController {
         kind: serverResponse.personal_server.kind,
         address: serverResponse.personal_server.address,
         public_key: serverResponse.personal_server.public_key,
-        base_url: this.PERSONAL_SERVER_BASE_URL || "",
+        base_url: this.personalServerBaseUrl,
         name: "Hosted Vana Server",
       };
     } catch (error) {
@@ -243,7 +250,7 @@ export class ServerController {
       console.debug("Polling Operation Status:", operationId);
 
       const response = await fetch(
-        `${this.PERSONAL_SERVER_BASE_URL}/operations/${operationId}`,
+        `${this.personalServerBaseUrl}/operations/${operationId}`,
         {
           method: "GET",
           headers: {
@@ -326,7 +333,7 @@ export class ServerController {
   async cancelOperation(operationId: string): Promise<void> {
     try {
       const response = await fetch(
-        `${this.PERSONAL_SERVER_BASE_URL}/operations/${operationId}/cancel`,
+        `${this.personalServerBaseUrl}/operations/${operationId}/cancel`,
         {
           method: "POST",
         },
@@ -359,7 +366,7 @@ export class ServerController {
   ): Promise<CreateOperationResponse> {
     try {
       console.debug("Personal Server Request:", {
-        url: `${this.PERSONAL_SERVER_BASE_URL}/operations`,
+        url: `${this.personalServerBaseUrl}/operations`,
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -367,16 +374,13 @@ export class ServerController {
         body: requestBody,
       });
 
-      const response = await fetch(
-        `${this.PERSONAL_SERVER_BASE_URL}/operations`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(requestBody),
+      const response = await fetch(`${this.personalServerBaseUrl}/operations`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify(requestBody),
+      });
 
       if (!response.ok) {
         const errorText = await response.text();

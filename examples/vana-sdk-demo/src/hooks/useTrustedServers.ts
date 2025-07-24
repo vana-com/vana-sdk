@@ -252,16 +252,15 @@ export function useTrustedServers(): UseTrustedServersReturn {
 
       console.info("🔍 Server identity response:", identity);
 
-      const baseUrl = process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL;
-      if (!baseUrl) {
+      if (!identity.base_url) {
         throw new Error(
-          "NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL is not configured",
+          "Personal server URL is not configured. Please configure personalServerUrl in SDK settings.",
         );
       }
 
       const discoveredServerInfo = {
         serverAddress: identity.address,
-        serverUrl: identity.base_url || baseUrl,
+        serverUrl: identity.base_url,
         name: identity.name || "Personal Server",
         publicKey: identity.public_key,
       };

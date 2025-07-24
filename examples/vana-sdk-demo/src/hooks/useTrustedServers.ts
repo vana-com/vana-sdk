@@ -157,12 +157,20 @@ export function useTrustedServers(): UseTrustedServersReturn {
       const actualServerUrl = overrideServerUrl || serverUrl;
 
       // Validate inputs
-      if (!actualServerId.trim()) {
+      if (
+        !actualServerId ||
+        typeof actualServerId !== "string" ||
+        !actualServerId.trim()
+      ) {
         setTrustServerError("Please provide a server ID (address)");
         return;
       }
 
-      if (!actualServerUrl.trim()) {
+      if (
+        !actualServerUrl ||
+        typeof actualServerUrl !== "string" ||
+        !actualServerUrl.trim()
+      ) {
         setTrustServerError("Please provide a server URL");
         return;
       }

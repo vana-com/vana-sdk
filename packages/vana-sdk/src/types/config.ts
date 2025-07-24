@@ -391,12 +391,12 @@ export interface BaseConfig {
    */
   ipfsGateways?: string[];
   /**
-   * Personal server base URL for server operations.
+   * Default personal server base URL for server operations.
    * Required for ServerController methods like getIdentity(), createOperation(), etc.
    *
    * @example 'https://my-personal-server.example.com'
    */
-  personalServerUrl?: string;
+  defaultPersonalServerUrl?: string;
 }
 
 /**
@@ -428,12 +428,12 @@ export interface BaseConfigWithStorage {
    */
   ipfsGateways?: string[];
   /**
-   * Personal server base URL for server operations.
+   * Default personal server base URL for server operations.
    * Required for ServerController methods like getIdentity(), createOperation(), etc.
    *
    * @example 'https://my-personal-server.example.com'
    */
-  personalServerUrl?: string;
+  defaultPersonalServerUrl?: string;
 }
 
 /**

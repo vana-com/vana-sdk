@@ -63,13 +63,13 @@ export class ServerController {
   constructor(private readonly context: ControllerContext) {}
 
   private get personalServerBaseUrl(): string {
-    if (!this.context.personalServerUrl) {
+    if (!this.context.defaultPersonalServerUrl) {
       throw new PersonalServerError(
         "Personal server URL is required for server operations. " +
-          "Please configure personalServerUrl in your VanaConfig.",
+          "Please configure defaultPersonalServerUrl in your VanaConfig.",
       );
     }
-    return this.context.personalServerUrl;
+    return this.context.defaultPersonalServerUrl;
   }
 
   /**

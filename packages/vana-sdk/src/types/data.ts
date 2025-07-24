@@ -113,8 +113,8 @@ export interface UploadParams {
   filename?: string;
   /** Optional schema ID for data validation. */
   schemaId?: number;
-  /** Optional permissions to grant during upload. */
-  permissions?: PermissionParams[];
+  /** Optional file permissions to grant decryption access during upload. */
+  permissions?: FilePermissionParams[];
   /** Whether to encrypt the data (defaults to true). */
   encrypt?: boolean;
   /** Optional storage provider name. */
@@ -122,16 +122,17 @@ export interface UploadParams {
 }
 
 /**
- * Upload parameters with encryption enabled (requires EncryptedPermissionParams).
+ * Upload parameters with encryption enabled.
  *
  * @remarks
  * This interface ensures type safety when using encrypted uploads with permissions.
+ * When encrypt is true, any permissions must include public keys for encryption.
  * @category Data Management
  */
 export interface EncryptedUploadParams
   extends Omit<UploadParams, "permissions" | "encrypt"> {
-  /** Permissions with required public keys for encrypted data sharing. */
-  permissions?: EncryptedPermissionParams[];
+  /** File permissions with required public keys for encrypted data sharing. */
+  permissions?: FilePermissionParams[];
   /** Encryption is enabled. */
   encrypt: true;
 }
@@ -149,39 +150,58 @@ export interface UnencryptedUploadParams extends Omit<UploadParams, "encrypt"> {
 }
 
 /**
- * Permission parameters for granting access during file upload.
- *
+ * Parameters for granting file decryption access during upload.
+ * 
  * @remarks
- * Used within UploadParams to grant permissions to applications during the upload process.
+ * This interface is used to grant decryption access to specific accounts when uploading
+ * encrypted files. It only handles encryption key sharing, not operation permissions.
+ * 
+ * For granting operation permissions (like "llm_inference"), use the separate 
+ * `vana.permissions.grant()` method after uploading.
+ * 
+ * @example
+ * ```typescript
+ * // Upload with decryption permission
+ * const result = await vana.data.upload({
+ *   content: "data",
+ *   permissions: [{
+ *     account: "0xServerAddress...",
+ *     publicKey: "0x04..." // Server's public key
+ *   }]
+ * });
+ * ```
  * @category Data Management
  */
-export interface PermissionParams {
-  /** The address of the application to grant permission to. */
-  grantee: Address;
-  /** The operation type (e.g., "llm_inference"). */
-  operation: string;
-  /** Additional parameters for the permission. */
-  parameters: Record<string, unknown>;
-  /** Optional nonce for the permission. */
-  nonce?: bigint;
-  /** Optional expiration timestamp. */
-  expiresAt?: number;
-  /** Public key of the recipient to encrypt the data key for (required for upload with permissions). */
-  publicKey?: string;
+export interface FilePermissionParams {
+  /** The account address that will be able to decrypt this file. */
+  account: Address;
+  /** The public key to encrypt the file's encryption key with. */
+  publicKey: string;
 }
 
 /**
- * Permission parameters with required public key for encrypted uploads.
- *
+ * Legacy permission parameters that conflated file encryption and data access grants.
+ * 
  * @remarks
- * This type extends PermissionParams and makes publicKey required, ensuring
- * compile-time safety when permissions are used with encryption.
+ * This interface was removed because it conflated two different concepts:
+ * 1. File encryption permissions (handled during upload)
+ * 2. Data access grants (operation permissions)
+ * 
+ * For file uploads, use FilePermissionParams instead.
+ * For data access grants, use vana.permissions.grant() after uploading.
+ * 
+ * @deprecated Removed in v2.0.0. Use FilePermissionParams for uploads.
  * @category Data Management
  */
-export interface EncryptedPermissionParams extends PermissionParams {
-  /** Public key of the recipient to encrypt the data key for. */
-  publicKey: string;
+export interface LegacyPermissionParams {
+  grantee: Address;
+  operation: string;
+  parameters: Record<string, unknown>;
+  nonce?: bigint;
+  expiresAt?: number;
+  publicKey?: string;
 }
+
 
 /**
  * Result of the high-level upload operation.

@@ -12,6 +12,7 @@ import {
   VanaCryptoAdapter,
   VanaPGPAdapter,
   VanaHttpAdapter,
+  VanaCacheAdapter,
 } from "./interface";
 import {
   processWalletPublicKey,
@@ -339,18 +340,58 @@ class NodeHttpAdapter implements VanaHttpAdapter {
 }
 
 /**
+ * Node.js implementation of cache operations using in-memory Map with TTL
+ */
+class NodeCacheAdapter implements VanaCacheAdapter {
+  private cache = new Map<string, { value: string; expires: number }>();
+  private readonly defaultTtl = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
+
+  get(key: string): string | null {
+    const entry = this.cache.get(key);
+    if (!entry) {
+      return null;
+    }
+
+    // Check if expired
+    if (Date.now() > entry.expires) {
+      this.cache.delete(key);
+      return null;
+    }
+
+    return entry.value;
+  }
+
+  set(key: string, value: string): void {
+    this.cache.set(key, {
+      value,
+      expires: Date.now() + this.defaultTtl,
+    });
+  }
+
+  delete(key: string): void {
+    this.cache.delete(key);
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+}
+
+/**
  * Complete Node.js platform adapter implementation
  */
 export class NodePlatformAdapter implements VanaPlatformAdapter {
   crypto: VanaCryptoAdapter;
   pgp: VanaPGPAdapter;
   http: VanaHttpAdapter;
+  cache: VanaCacheAdapter;
   platform: "node" = "node" as const;
 
   constructor() {
     this.crypto = new NodeCryptoAdapter();
     this.pgp = new NodePGPAdapter();
     this.http = new NodeHttpAdapter();
+    this.cache = new NodeCacheAdapter();
   }
 }
 

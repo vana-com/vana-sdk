@@ -4,7 +4,6 @@ import { useState, useCallback, useEffect } from "react";
 import { useVana } from "@/providers/VanaProvider";
 import { useAccount } from "wagmi";
 import { addToast } from "@heroui/react";
-import type { IdentityResponseModel } from "@opendatalabs/vana-sdk/browser";
 
 interface TrustedServer {
   id: string;
@@ -92,6 +91,8 @@ export function useTrustedServers(): UseTrustedServersReturn {
         });
 
         // For backward compatibility, extract just the servers array
+        // Note: Public keys will be fetched on-demand when needed for uploads
+        // until the contract upgrade that stores them onchain is deployed
         setTrustedServers(result.servers);
       } catch (error) {
         console.error("Failed to load trusted servers:", error);
@@ -234,8 +235,8 @@ export function useTrustedServers(): UseTrustedServersReturn {
   );
 
   const handleDiscoverHostedServer = useCallback(async () => {
-    if (!address) {
-      console.error("❌ Server discovery failed: No address provided");
+    if (!vana || !address) {
+      console.error("❌ Server discovery failed: No Vana instance or address");
       return null;
     }
 
@@ -244,30 +245,12 @@ export function useTrustedServers(): UseTrustedServersReturn {
     setTrustServerError("");
 
     try {
-      const gatewayUrl = `${process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL}/identity?address=${address}`;
-      console.info("🔍 Calling gateway URL:", gatewayUrl);
-
-      // Call the gateway directly to discover the server identity (no authentication required)
-      const response = await fetch(gatewayUrl, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
+      // Use the SDK's getIdentity method instead of direct fetch
+      const identity = await vana.server.getIdentity({
+        userAddress: address,
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const data: IdentityResponseModel = await response.json();
-      console.info("🔍 Gateway response:", data);
-
-      // Fixed: Check the correct nested structure of IdentityResponseModel
-      if (!data?.personal_server?.address) {
-        throw new Error(
-          "Invalid server discovery response: missing personal_server.address",
-        );
-      }
+      console.info("🔍 Server identity response:", identity);
 
       const baseUrl = process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL;
       if (!baseUrl) {
@@ -277,10 +260,10 @@ export function useTrustedServers(): UseTrustedServersReturn {
       }
 
       const discoveredServerInfo = {
-        serverAddress: data.personal_server.address,
-        serverUrl: baseUrl,
-        name: "Personal Server",
-        publicKey: data.personal_server.public_key,
+        serverAddress: identity.address,
+        serverUrl: identity.base_url || baseUrl,
+        name: identity.name || "Personal Server",
+        publicKey: identity.public_key,
       };
 
       console.info("✅ Server discovered:", discoveredServerInfo);
@@ -299,7 +282,7 @@ export function useTrustedServers(): UseTrustedServersReturn {
     } finally {
       setIsDiscoveringServer(false);
     }
-  }, [address]);
+  }, [vana, address]);
 
   // Load trusted servers when Vana is initialized
   useEffect(() => {

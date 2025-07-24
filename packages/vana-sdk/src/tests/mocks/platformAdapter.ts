@@ -64,6 +64,12 @@ export const createMockPlatformAdapter = (): VanaPlatformAdapter => ({
   http: {
     fetch: vi.fn(),
   },
+  cache: {
+    get: vi.fn().mockReturnValue(null),
+    set: vi.fn(),
+    delete: vi.fn(),
+    clear: vi.fn(),
+  },
   platform: "node" as const,
 });
 

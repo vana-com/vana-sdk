@@ -19,6 +19,8 @@ import {
   EncryptedUploadParams,
   UnencryptedUploadParams,
 } from "../types/index";
+import { FilePermissionResult } from "../types/transactionResults";
+import { parseTransactionResult } from "../utils/transactionParsing";
 import { ControllerContext } from "./permissions";
 import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../abi";
@@ -132,18 +134,21 @@ export class DataController {
    * @remarks
    * This is the primary method for uploading user data to the Vana network. It handles
    * the complete workflow including content normalization, schema validation, encryption,
-   * storage upload, permission granting, and blockchain registration.
+   * storage upload, file permission granting, and blockchain registration.
    *
    * The method automatically:
    * - Normalizes input content to a Blob
    * - Validates data against schema if provided
    * - Generates encryption keys and encrypts the data
    * - Uploads to the configured storage provider
-   * - Grants permissions to specified applications
+   * - Grants file decryption permissions to specified accounts
    * - Registers the file on the blockchain
    *
-   * When using permissions with encryption enabled (default), you must provide the public key
-   * for each permission recipient.
+   * IMPORTANT: The permissions parameter only grants decryption access to the file.
+   * To grant operation permissions (like "llm_inference"), use vana.permissions.grant()
+   * after uploading. This separation ensures clear distinction between:
+   * - File permissions: Who can decrypt and read the encrypted file
+   * - Operation permissions: What operations can be performed on the data
    *
    * @param params - Upload parameters including content, filename, schema, and permissions
    * @returns Promise resolving to upload results with file ID and transaction hash
@@ -165,28 +170,30 @@ export class DataController {
    *   schemaId: 1
    * });
    *
-   * // Upload with permissions (encrypted - requires publicKey)
+   * // Upload with file permissions (for decryption access)
    * const result = await vana.data.upload({
    *   content: "Data for AI analysis",
    *   filename: "analysis.txt",
    *   permissions: [{
-   *     grantee: "0x1234...",
-   *     operation: "llm_inference",
-   *     parameters: { model: "gpt-4" },
-   *     publicKey: "0x04..." // Required when encrypt is true (default)
+   *     account: "0x1234...", // Server address that can decrypt
+   *     publicKey: "0x04..."  // Server's public key for encryption
    *   }]
    * });
    *
-   * // Upload without encryption
+   * // After upload, grant operation permissions separately:
+   * // await vana.permissions.grant({
+   * //   grantee: "0x1234...",
+   * //   fileIds: [result.fileId],
+   * //   operation: "llm_inference",
+   * //   parameters: { model: "gpt-4" }
+   * // });
+   *
+   * // Upload without encryption (public data)
    * const result = await vana.data.upload({
    *   content: "Public data",
    *   filename: "public.txt",
-   *   encrypt: false,
-   *   permissions: [{
-   *     grantee: "0x1234...",
-   *     operation: "read",
-   *     parameters: {}
-   *   }]
+   *   encrypt: false
+   *   // No permissions needed for public unencrypted data
    * });
    * ```
    */
@@ -270,6 +277,7 @@ export class DataController {
         // Generate encryption key
         const encryptionKey = await generateEncryptionKey(
           this.context.walletClient,
+          this.context.platform,
           DEFAULT_ENCRYPTION_SEED,
         );
 
@@ -310,29 +318,20 @@ export class DataController {
       if (permissions.length > 0 && encrypt) {
         const userEncryptionKey = await generateEncryptionKey(
           this.context.walletClient,
+          this.context.platform,
           DEFAULT_ENCRYPTION_SEED,
         );
 
         encryptedPermissions = await Promise.all(
           permissions.map(async (permission) => {
-            // Get public key for the permission recipient
-            // TypeScript should enforce this at compile time with proper typing,
-            // but we keep the runtime check for robustness
-            const publicKey = permission.publicKey;
-            if (!publicKey) {
-              throw new Error(
-                `Public key required for permission to ${permission.grantee} when encryption is enabled`,
-              );
-            }
-
             const encryptedKey = await encryptWithWalletPublicKey(
               userEncryptionKey,
-              publicKey,
+              permission.publicKey,
               this.context.platform,
             );
 
             return {
-              account: permission.grantee,
+              account: permission.account,
               key: encryptedKey,
             };
           }),
@@ -448,6 +447,7 @@ export class DataController {
       // Step 1: Generate the decryption key from wallet signature
       const encryptionKey = await generateEncryptionKey(
         this.context.walletClient,
+        this.context.platform,
         encryptionSeed || DEFAULT_ENCRYPTION_SEED,
       );
 
@@ -2177,6 +2177,7 @@ export class DataController {
       // 1. Generate user's encryption key
       const userEncryptionKey = await generateEncryptionKey(
         this.context.walletClient,
+        this.context.platform,
         DEFAULT_ENCRYPTION_SEED,
       );
 
@@ -2258,21 +2259,57 @@ export class DataController {
    * 1. Gets the user's encryption key
    * 2. Encrypts the user's encryption key with the provided public key
    * 3. Adds the permission to the file
+   * 4. Returns the permission data from the blockchain event
+   *
+   * For advanced users who need more control over transaction timing,
+   * use `submitFilePermission()` instead.
    *
    * @param fileId - The ID of the file to add permissions for
    * @param account - The address of the account to grant permission to
    * @param publicKey - The public key to encrypt the user's encryption key with
-   * @returns Promise resolving to the transaction hash
+   * @returns Promise resolving to permission data from PermissionGranted event
+   * @example
+   * ```typescript
+   * const result = await vana.data.addPermissionToFile(fileId, account, publicKey);
+   * console.log(`Permission granted to ${result.account} for file ${result.fileId}`);
+   * console.log(`Transaction: ${result.transactionHash}`);
+   * ```
    */
   async addPermissionToFile(
     fileId: number,
     account: Address,
     publicKey: string,
-  ): Promise<string> {
+  ): Promise<FilePermissionResult> {
+    const txHash = await this.submitFilePermission(fileId, account, publicKey);
+    return parseTransactionResult(this.context, txHash, "addFilePermission");
+  }
+
+  /**
+   * Submits a file permission transaction and returns the transaction hash immediately.
+   *
+   * This is the lower-level method that provides maximum control over transaction timing.
+   * Use this when you want to handle transaction confirmation and event parsing separately.
+   *
+   * @param fileId - The ID of the file to add permissions for
+   * @param account - The address of the account to grant permission to
+   * @param publicKey - The public key to encrypt the user's encryption key with
+   * @returns Promise resolving to the transaction hash
+   * @example
+   * ```typescript
+   * const txHash = await vana.data.submitFilePermission(fileId, account, publicKey);
+   * console.log(`Transaction submitted: ${txHash}`);
+   * ```
+   */
+  async submitFilePermission(
+    fileId: number,
+    account: Address,
+    publicKey: string,
+  ): Promise<Hash> {
     try {
       // 1. Generate user's encryption key
       const userEncryptionKey = await generateEncryptionKey(
         this.context.walletClient,
+        this.context.platform,
         DEFAULT_ENCRYPTION_SEED,
       );
 

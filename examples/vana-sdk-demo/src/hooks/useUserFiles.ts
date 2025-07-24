@@ -31,7 +31,7 @@ export interface UseUserFilesReturn {
   handleDownloadDecryptedFile: (file: UserFile) => void;
   handleClearFileError: (fileId: number) => void;
   handleLookupFile: (fileId: string) => Promise<void>;
-  handleUploadText: () => Promise<void>;
+  handleUploadText: (serverAddress?: string, serverPublicKey?: string) => Promise<void>;
   setUserFiles: (
     files:
       | ExtendedUserFile[]
@@ -245,7 +245,7 @@ export function useUserFiles(): UseUserFilesReturn {
     [vana],
   );
 
-  const handleUploadText = useCallback(async () => {
+  const handleUploadText = useCallback(async (serverAddress?: string, serverPublicKey?: string) => {
     if (!vana || !newTextData.trim()) return;
 
     const handler = createApiHandler(
@@ -254,10 +254,21 @@ export function useUserFiles(): UseUserFilesReturn {
         const blob = new Blob([newTextData], { type: "text/plain" });
         const file = new File([blob], "text-data.txt", { type: "text/plain" });
 
-        // Use the high-level upload method
+        // Prepare file permissions if server public key is provided
+        const permissions = serverPublicKey && serverAddress
+          ? [
+              {
+                account: serverAddress as `0x${string}`, // Server's address
+                publicKey: serverPublicKey,              // Server's public key
+              },
+            ]
+          : undefined;
+
+        // Use the high-level upload method with permissions
         return await vana.data.upload({
           content: blob,
           filename: file.name,
+          permissions,
         });
       },
       {
@@ -282,7 +293,7 @@ export function useUserFiles(): UseUserFilesReturn {
     );
 
     await handler();
-  }, [vana, newTextData, loadUserFiles]);
+  }, [vana, newTextData, loadUserFiles, address]);
 
   // Load user files when Vana is initialized
   useEffect(() => {

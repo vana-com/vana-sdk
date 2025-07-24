@@ -21,6 +21,11 @@ import {
   ServerTrustStatus,
   GrantFile,
 } from "../types/index";
+import {
+  PermissionGrantResult,
+  PermissionRevokeResult,
+} from "../types/transactionResults";
+import { parseTransactionResult } from "../utils/transactionParsing";
 import { PermissionInfo } from "../types/permissions";
 import type { RelayerCallbacks } from "../types/config";
 import {
@@ -38,6 +43,7 @@ import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../abi";
 import { createGrantFile, getGrantFileHash } from "../utils/grantFiles";
 import { validateGrant } from "../utils/grantValidation";
+import { withSignatureCache } from "../utils/signatureCache";
 import { StorageManager } from "../storage";
 import type { VanaPlatformAdapter } from "../platform/interface";
 
@@ -136,22 +142,22 @@ export class PermissionsController {
 
   /**
    * Grants permission for an application to access user data with gasless transactions.
+   * 
+   * This method provides a complete end-to-end permission grant flow that returns
+   * the permission ID and other relevant data immediately after successful submission.
+   * For advanced users who need more control over the transaction lifecycle, use
+   * `submitPermissionGrant()` instead.
    *
-   * @remarks
-   * This method combines signature creation and gasless submission for a complete
-   * end-to-end permission grant flow. It creates the grant file, stores it on IPFS,
-   * generates an EIP-712 signature, and submits via relayer. The grant file contains
-   * detailed parameters while the blockchain stores only a reference to enable
-   * efficient permission queries.
    * @param params - The permission grant configuration object
-   * @returns A Promise that resolves to the transaction hash when successfully submitted
+   * @returns Promise resolving to permission data from the PermissionAdded event
    * @throws {RelayerError} When gasless transaction submission fails
    * @throws {SignatureError} When user rejects the signature request
    * @throws {SerializationError} When grant data cannot be serialized
-   * @throws {BlockchainError} When permission grant preparation fails
+   * @throws {BlockchainError} When permission grant fails or event parsing fails
+   * @throws {NetworkError} When transaction confirmation times out
    * @example
    * ```typescript
-   * const txHash = await vana.permissions.grant({
+   * const result = await vana.permissions.grant({
    *   grantee: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
    *   operation: "llm_inference",
    *   parameters: {
@@ -161,10 +167,43 @@ export class PermissionsController {
    *   },
    * });
    *
-   * console.log(`Permission granted: ${txHash}`);
+   * console.log(`Permission ${result.permissionId} granted to ${result.user}`);
+   * console.log(`Transaction: ${result.transactionHash}`);
+   * 
+   * // Can immediately use the permission ID for other operations
+   * await vana.permissions.revoke({ permissionId: result.permissionId });
    * ```
    */
-  async grant(params: GrantPermissionParams): Promise<Hash> {
+  async grant(params: GrantPermissionParams): Promise<PermissionGrantResult> {
+    const txHash = await this.submitPermissionGrant(params);
+    return parseTransactionResult(this.context, txHash, 'grant');
+  }
+
+  /**
+   * Submits a permission grant transaction and returns the transaction hash immediately.
+   * 
+   * This is the lower-level method that provides maximum control over transaction timing.
+   * Use this when you want to handle transaction confirmation and event parsing separately,
+   * or when submitting multiple transactions in batch.
+   *
+   * @param params - The permission grant configuration object  
+   * @returns Promise that resolves to the transaction hash when successfully submitted
+   * @throws {RelayerError} When gasless transaction submission fails
+   * @throws {SignatureError} When user rejects the signature request
+   * @throws {SerializationError} When grant data cannot be serialized
+   * @throws {BlockchainError} When permission grant preparation fails
+   * @example
+   * ```typescript
+   * // Submit transaction and handle confirmation later
+   * const txHash = await vana.permissions.submitPermissionGrant(params);
+   * console.log(`Transaction submitted: ${txHash}`);
+   * 
+   * // Later, when you need the permission data:
+   * const result = await parseTransactionResult(context, txHash, 'grant');
+   * console.log(`Permission ID: ${result.permissionId}`);
+   * ```
+   */
+  async submitPermissionGrant(params: GrantPermissionParams): Promise<Hash> {
     const { typedData, signature } = await this.createAndSign(params);
     return await this.submitSignedGrant(typedData, signature);
   }
@@ -723,23 +762,51 @@ export class PermissionsController {
 
   /**
    * Revokes a previously granted permission.
+   * 
+   * This method provides complete revocation with automatic event parsing to confirm
+   * the permission was successfully revoked. For advanced users who need more control,
+   * use `submitPermissionRevoke()` instead.
    *
    * @param params - Parameters for revoking the permission
-   * @returns Promise resolving to transaction hash
+   * @returns Promise resolving to revocation data from PermissionRevoked event
+   * @throws {BlockchainError} When revocation fails or event parsing fails
+   * @throws {UserRejectedRequestError} When user rejects the transaction
+   * @throws {NetworkError} When transaction confirmation times out
    * @example
    * ```typescript
-   * // Revoke a permission by its ID
-   * const txHash = await vana.permissions.revoke({
+   * // Revoke a permission and get confirmation
+   * const result = await vana.permissions.revoke({
    *   permissionId: 123n
    * });
-   * console.log('Permission revoked in transaction:', txHash);
-   *
-   * // Wait for confirmation if needed
-   * const receipt = await vana.core.waitForTransaction(txHash);
-   * console.log('Revocation confirmed in block:', receipt.blockNumber);
+   * console.log(`Permission ${result.permissionId} revoked in transaction ${result.transactionHash}`);
+   * console.log(`Revoked in block ${result.blockNumber}`);
    * ```
    */
-  async revoke(params: RevokePermissionParams): Promise<Hash> {
+  async revoke(params: RevokePermissionParams): Promise<PermissionRevokeResult> {
+    const txHash = await this.submitPermissionRevoke(params);
+    return parseTransactionResult(this.context, txHash, 'revoke');
+  }
+
+  /**
+   * Submits a permission revocation transaction and returns the transaction hash immediately.
+   * 
+   * This is the lower-level method that provides maximum control over transaction timing.
+   * Use this when you want to handle transaction confirmation and event parsing separately.
+   *
+   * @param params - Parameters for revoking the permission
+   * @returns Promise resolving to the transaction hash when successfully submitted
+   * @throws {BlockchainError} When revocation transaction fails
+   * @throws {UserRejectedRequestError} When user rejects the transaction
+   * @example
+   * ```typescript
+   * // Submit revocation and handle confirmation later
+   * const txHash = await vana.permissions.submitPermissionRevoke({
+   *   permissionId: 123n
+   * });
+   * console.log(`Revocation submitted: ${txHash}`);
+   * ```
+   */
+  async submitPermissionRevoke(params: RevokePermissionParams): Promise<Hash> {
     try {
       // Check chain ID availability early
       if (!this.context.walletClient.chain?.id) {
@@ -953,7 +1020,7 @@ export class PermissionsController {
   }
 
   /**
-   * Signs typed data using the wallet client.
+   * Signs typed data using the wallet client with signature caching.
    *
    * @param typedData - The EIP-712 typed data structure to sign
    * @returns Promise resolving to the cryptographic signature
@@ -962,12 +1029,25 @@ export class PermissionsController {
     typedData: PermissionGrantTypedData | GenericTypedData,
   ): Promise<Hash> {
     try {
-      const signature = await this.context.walletClient.signTypedData(
-        typedData as Parameters<
-          typeof this.context.walletClient.signTypedData
-        >[0],
+      // Get wallet address for cache key
+      const walletAddress = this.context.walletClient.account?.address;
+      if (!walletAddress) {
+        throw new SignatureError("No wallet address available for signing");
+      }
+
+      // Use signature cache to avoid repeated signing of identical messages
+      return await withSignatureCache(
+        this.context.platform.cache,
+        walletAddress,
+        typedData,
+        async () => {
+          return await this.context.walletClient.signTypedData(
+            typedData as Parameters<
+              typeof this.context.walletClient.signTypedData
+            >[0],
+          );
+        }
       );
-      return signature;
     } catch (error) {
       if (error instanceof Error && error.message.includes("rejected")) {
         throw new UserRejectedRequestError();

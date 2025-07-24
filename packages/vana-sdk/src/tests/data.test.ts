@@ -33,6 +33,7 @@ vi.mock("../storage", () => ({
 vi.mock("viem", () => ({
   createPublicClient: vi.fn(() => ({
     readContract: vi.fn(),
+    waitForTransactionReceipt: vi.fn(),
   })),
   getContract: vi.fn(() => ({
     read: {
@@ -64,6 +65,7 @@ vi.mock("viem", () => ({
   http: vi.fn(),
   createWalletClient: vi.fn(),
   decodeEventLog: vi.fn(),
+  parseEventLogs: vi.fn(() => []),
 }));
 
 vi.mock("viem/accounts", () => ({

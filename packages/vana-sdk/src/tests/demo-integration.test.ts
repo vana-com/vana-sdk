@@ -25,6 +25,7 @@ describe("Demo Integration - Correct Wallet-Based Encryption", () => {
     // Step 1: Generate encryption key from wallet signature (like demo's handleGenerateKey)
     const encryptionKey = await generateEncryptionKey(
       mockWallet as any,
+      mockPlatformAdapter,
       encryptionSeed,
     );
     expect(encryptionKey).toBe("0xsignature123");
@@ -66,6 +67,7 @@ describe("Demo Integration - Correct Wallet-Based Encryption", () => {
 
     const encryptionKey = await generateEncryptionKey(
       mockWallet as any,
+      mockPlatformAdapter,
       defaultSeed,
     );
 
@@ -99,7 +101,7 @@ describe("Demo Integration - Correct Wallet-Based Encryption", () => {
       signMessage: vi.fn().mockResolvedValue("0xfiletestsignature"),
     };
 
-    const encryptionKey = await generateEncryptionKey(mockWallet as any);
+    const encryptionKey = await generateEncryptionKey(mockWallet as any, mockPlatformAdapter);
 
     // Test with JSON data (like demo's test data)
     const jsonData = JSON.stringify({

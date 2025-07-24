@@ -390,6 +390,13 @@ export interface BaseConfig {
    * @example ['https://gateway.pinata.cloud', 'https://ipfs.io']
    */
   ipfsGateways?: string[];
+  /**
+   * Default personal server base URL for server operations.
+   * Required for ServerController methods like getIdentity(), createOperation(), etc.
+   *
+   * @example 'https://my-personal-server.example.com'
+   */
+  defaultPersonalServerUrl?: string;
 }
 
 /**
@@ -420,6 +427,13 @@ export interface BaseConfigWithStorage {
    * @example ['https://gateway.pinata.cloud', 'https://ipfs.io']
    */
   ipfsGateways?: string[];
+  /**
+   * Default personal server base URL for server operations.
+   * Required for ServerController methods like getIdentity(), createOperation(), etc.
+   *
+   * @example 'https://my-personal-server.example.com'
+   */
+  defaultPersonalServerUrl?: string;
 }
 
 /**

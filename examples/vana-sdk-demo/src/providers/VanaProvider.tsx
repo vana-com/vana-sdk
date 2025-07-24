@@ -37,6 +37,7 @@ interface VanaConfig {
   googleDriveAccessToken?: string;
   googleDriveRefreshToken?: string;
   googleDriveExpiresAt?: number | null;
+  defaultPersonalServerUrl?: string;
 }
 
 export interface VanaContextValue {
@@ -400,6 +401,7 @@ export function VanaProvider({
           walletClient: walletClient as WalletClient & { chain: VanaChain },
           relayerCallbacks,
           subgraphUrl: config.subgraphUrl || undefined,
+          defaultPersonalServerUrl: config.defaultPersonalServerUrl,
           storage: {
             providers: storageProviders,
             defaultProvider: actualDefaultProvider,

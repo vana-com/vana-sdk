@@ -111,6 +111,8 @@ export interface ControllerContext {
   hasStorage?: () => boolean;
   /** Default IPFS gateways to use for fetching files. */
   ipfsGateways?: string[];
+  /** Default personal server base URL for server operations. */
+  defaultPersonalServerUrl?: string;
 }
 
 /**

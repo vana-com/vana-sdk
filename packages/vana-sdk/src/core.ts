@@ -149,6 +149,7 @@ export class VanaCore {
   private readonly storageManager?: StorageManager;
   private readonly hasRequiredStorage: boolean;
   private readonly ipfsGateways?: string[];
+  private readonly defaultPersonalServerUrl?: string;
 
   /**
    * Initializes a new VanaCore client instance with the provided configuration.
@@ -183,6 +184,9 @@ export class VanaCore {
 
     // Store IPFS gateways if provided
     this.ipfsGateways = config.ipfsGateways;
+
+    // Store default personal server URL if provided
+    this.defaultPersonalServerUrl = config.defaultPersonalServerUrl;
 
     // Check if storage is properly configured
     this.hasRequiredStorage = hasStorageConfig(config);
@@ -265,6 +269,7 @@ export class VanaCore {
       validateStorageRequired: this.validateStorageRequired.bind(this),
       hasStorage: this.hasStorage.bind(this),
       ipfsGateways: this.ipfsGateways,
+      defaultPersonalServerUrl: this.defaultPersonalServerUrl,
     };
 
     // Initialize controllers

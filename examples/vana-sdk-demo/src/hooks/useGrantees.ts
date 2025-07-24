@@ -21,6 +21,7 @@ export interface UseGranteesReturn {
   // Form state
   granteeAddress: string;
   granteeName: string;
+  granteePublicKey: string;
 
   // Actions
   loadGrantees: (mode?: "subgraph" | "rpc" | "auto") => Promise<void>;
@@ -32,6 +33,7 @@ export interface UseGranteesReturn {
   handleRemoveGrantee: (granteeId: number) => Promise<void>;
   setGranteeAddress: (address: string) => void;
   setGranteeName: (name: string) => void;
+  setGranteePublicKey: (publicKey: string) => void;
   setGranteeQueryMode: (mode: "subgraph" | "rpc" | "auto") => void;
   setAddGranteeError: (error: string) => void;
 }
@@ -53,6 +55,7 @@ export function useGrantees(): UseGranteesReturn {
   // Form state
   const [granteeAddress, setGranteeAddress] = useState<string>("");
   const [granteeName, setGranteeName] = useState<string>("");
+  const [granteePublicKey, setGranteePublicKey] = useState<string>("");
 
   const loadGrantees = useCallback(
     async (_mode: "subgraph" | "rpc" | "auto" = "auto") => {
@@ -105,7 +108,7 @@ export function useGrantees(): UseGranteesReturn {
       await vana.permissions.registerGrantee({
         owner: address,
         granteeAddress: granteeAddress as `0x${string}`,
-        publicKey: "0x", // Default public key - applications should provide their own
+        publicKey: granteePublicKey || "0x", // Use provided public key or default
       });
 
       // Success - refresh grantees list
@@ -114,6 +117,7 @@ export function useGrantees(): UseGranteesReturn {
       // Clear form
       setGranteeAddress("");
       setGranteeName("");
+      setGranteePublicKey("");
     } catch (error) {
       setAddGranteeError(
         error instanceof Error ? error.message : "Failed to add grantee",
@@ -134,7 +138,7 @@ export function useGrantees(): UseGranteesReturn {
       const actualParams = overrideParams || {
         owner: address,
         granteeAddress: granteeAddress as `0x${string}`,
-        publicKey: "0x", // Default public key - applications should provide their own
+        publicKey: granteePublicKey || "0x", // Use provided public key or default
       };
 
       // Validate inputs
@@ -157,6 +161,7 @@ export function useGrantees(): UseGranteesReturn {
         if (clearFieldsOnSuccess) {
           setGranteeAddress("");
           setGranteeName("");
+          setGranteePublicKey("");
         }
 
         // Refresh grantees list
@@ -224,6 +229,7 @@ export function useGrantees(): UseGranteesReturn {
       setGrantees([]);
       setGranteeAddress("");
       setGranteeName("");
+      setGranteePublicKey("");
       setAddGranteeError("");
     }
   }, [address]);
@@ -240,6 +246,7 @@ export function useGrantees(): UseGranteesReturn {
     // Form state
     granteeAddress,
     granteeName,
+    granteePublicKey,
 
     // Actions
     loadGrantees,
@@ -248,6 +255,7 @@ export function useGrantees(): UseGranteesReturn {
     handleRemoveGrantee,
     setGranteeAddress,
     setGranteeName,
+    setGranteePublicKey,
     setGranteeQueryMode,
     setAddGranteeError,
   };

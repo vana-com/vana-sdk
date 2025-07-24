@@ -3,6 +3,7 @@ import type { VanaInstance } from "../index.node";
 import type {
   GenericTypedData,
   PermissionGrantTypedData,
+  RegisterGranteeTypedData,
   TrustServerTypedData,
 } from "../types";
 import { SignatureError } from "../errors";
@@ -128,6 +129,12 @@ export async function handleRelayerRequest(
     case "UntrustServer":
       return await sdk.permissions.submitSignedUntrustServer(
         typedData as unknown as GenericTypedData,
+        signature,
+      );
+
+    case "RegisterGrantee":
+      return await sdk.permissions.submitSignedRegisterGrantee(
+        typedData as unknown as RegisterGranteeTypedData,
         signature,
       );
 

@@ -2495,6 +2495,25 @@ export class PermissionsController {
   }
 
   /**
+   * Submits a signed register grantee transaction via relayer
+   *
+   * @param typedData - The EIP-712 typed data for register grantee
+   * @param signature - The cryptographic signature
+   * @returns Promise resolving to the transaction hash
+   *
+   * @example
+   * ```typescript
+   * const result = await vana.permissions.submitSignedRegisterGrantee(typedData, signature);
+   * ```
+   */
+  async submitSignedRegisterGrantee(
+    typedData: RegisterGranteeTypedData,
+    signature: Hash,
+  ): Promise<Hash> {
+    return this.submitSignedRegisterGranteeTransaction(typedData, signature);
+  }
+
+  /**
    * Gets all grantees
    *
    * @param options - Query options

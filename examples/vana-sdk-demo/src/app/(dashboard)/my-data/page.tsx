@@ -135,6 +135,8 @@ export default function MyDataPage() {
     handleRemoveGrantee,
     setGranteeAddress,
     setGranteeName,
+    granteePublicKey,
+    setGranteePublicKey,
     setGranteeQueryMode: onGranteeQueryModeChange,
   } = useGrantees();
 
@@ -512,8 +514,10 @@ export default function MyDataPage() {
             queryMode={granteeQueryMode}
             granteeAddress={granteeAddress}
             granteeName={granteeName}
+            granteePublicKey={granteePublicKey}
             onGranteeAddressChange={setGranteeAddress}
             onGranteeNameChange={setGranteeName}
+            onGranteePublicKeyChange={setGranteePublicKey}
             onQueryModeChange={onGranteeQueryModeChange}
             onAddGrantee={handleAddGranteeGasless}
             onRefreshGrantees={loadGrantees}

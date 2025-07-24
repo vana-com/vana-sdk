@@ -40,10 +40,12 @@ interface GranteesTabProps {
   queryMode: "subgraph" | "rpc" | "auto";
   granteeAddress: string;
   granteeName: string;
+  granteePublicKey: string;
 
   // Callbacks
   onGranteeAddressChange: (address: string) => void;
   onGranteeNameChange: (name: string) => void;
+  onGranteePublicKeyChange: (publicKey: string) => void;
   onQueryModeChange: (mode: "subgraph" | "rpc" | "auto") => void;
   onAddGrantee: () => void;
   onRefreshGrantees: () => void;
@@ -59,8 +61,10 @@ export function GranteesTab({
   queryMode,
   granteeAddress,
   granteeName,
+  granteePublicKey,
   onGranteeAddressChange,
   onGranteeNameChange,
+  onGranteePublicKeyChange,
   onQueryModeChange,
   onAddGrantee,
   onRefreshGrantees,
@@ -109,6 +113,16 @@ export function GranteesTab({
                 placeholder: "Grantee display name",
                 description: "Optional display name for the grantee",
                 required: false,
+              },
+              {
+                name: "granteePublicKey",
+                label: "Public Key",
+                type: "text",
+                value: granteePublicKey,
+                onChange: onGranteePublicKeyChange,
+                placeholder: "0x...",
+                description: "The public key for the grantee",
+                required: true,
               },
             ]}
             onSubmit={onAddGrantee}

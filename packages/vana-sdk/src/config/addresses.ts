@@ -9,6 +9,26 @@ export const CONTRACTS = {
       1480: "0x31fb1D48f6B2265A4cAD516BC39E96a18fb7c8de",
     },
   },
+
+  // Data Portability Contracts (New Architecture)
+  DataPortabilityPermissions: {
+    addresses: {
+      14800: "0xD54523048AdD05b4d734aFaE7C68324Ebb7373eF",
+      1480: "0xD54523048AdD05b4d734aFaE7C68324Ebb7373eF",
+    },
+  },
+  DataPortabilityServers: {
+    addresses: {
+      14800: "0x1483B1F634DBA75AeaE60da7f01A679aabd5ee2c",
+      1480: "0x1483B1F634DBA75AeaE60da7f01A679aabd5ee2c",
+    },
+  },
+  DataPortabilityGrantees: {
+    addresses: {
+      14800: "0x8325C0A0948483EdA023A1A2Fd895e62C5131234",
+      1480: "0x8325C0A0948483EdA023A1A2Fd895e62C5131234",
+    },
+  },
   DataRegistry: {
     addresses: {
       14800: "0x8C8788f98385F6ba1adD4234e551ABba0f82Cb7C",

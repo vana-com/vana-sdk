@@ -6,6 +6,9 @@ import type { GetContractReturnType } from "viem";
  */
 export type VanaContractName =
   | "DataPermissions"
+  | "DataPortabilityPermissions"
+  | "DataPortabilityServers"
+  | "DataPortabilityGrantees"
   | "DataRegistry"
   | "TeePool"
   | "ComputeEngine"

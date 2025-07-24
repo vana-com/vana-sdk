@@ -23,9 +23,12 @@ import { AddressDisplay } from "@/components/ui/AddressDisplay";
 import { FormBuilder } from "@/components/ui/FormBuilder";
 
 interface TrustedServer {
-  id: string;
+  id: number;
+  owner: string;
   url: string;
-  name: string;
+  serverAddress: string;
+  publicKey: string;
+  name?: string;
 }
 
 interface ServersTabProps {
@@ -39,16 +42,20 @@ interface ServersTabProps {
 
   // Input state
   queryMode: "subgraph" | "rpc" | "auto";
-  serverId: string;
+  serverOwner: string;
+  serverAddress: string;
   serverUrl: string;
+  publicKey: string;
 
   // Callbacks
-  onServerIdChange: (id: string) => void;
+  onServerOwnerChange: (owner: string) => void;
+  onServerAddressChange: (address: string) => void;
   onServerUrlChange: (url: string) => void;
+  onPublicKeyChange: (key: string) => void;
   onQueryModeChange: (mode: "subgraph" | "rpc" | "auto") => void;
-  onTrustServer: (serverId?: string, serverUrl?: string) => void;
+  onTrustServer: () => void;
   onRefreshServers: () => void;
-  onUntrustServer: (serverId: string) => void;
+  onUntrustServer: (serverId: number) => void;
   onDiscoverReplicateServer: () => void;
 }
 
@@ -60,10 +67,14 @@ export function ServersTab({
   isDiscoveringServer,
   trustServerError,
   queryMode,
-  serverId,
+  serverOwner,
+  serverAddress,
   serverUrl,
-  onServerIdChange,
+  publicKey,
+  onServerOwnerChange,
+  onServerAddressChange,
   onServerUrlChange,
+  onPublicKeyChange,
   onQueryModeChange,
   onTrustServer,
   onRefreshServers,
@@ -86,13 +97,23 @@ export function ServersTab({
             singleColumn={true}
             fields={[
               {
-                name: "serverId",
-                label: "Server ID",
+                name: "owner",
+                label: "Server Owner",
                 type: "text",
-                value: serverId,
-                onChange: onServerIdChange,
+                value: serverOwner,
+                onChange: onServerOwnerChange,
                 placeholder: "0x...",
-                description: "The Ethereum address of the server to trust",
+                description: "The Ethereum address of the server owner",
+                required: true,
+              },
+              {
+                name: "serverAddress",
+                label: "Server Address",
+                type: "text",
+                value: serverAddress,
+                onChange: onServerAddressChange,
+                placeholder: "0x...",
+                description: "The Ethereum address of the server",
                 required: true,
               },
               {
@@ -105,10 +126,20 @@ export function ServersTab({
                 description: "The API endpoint URL of the server",
                 required: true,
               },
+              {
+                name: "publicKey",
+                label: "Public Key",
+                type: "text",
+                value: publicKey,
+                onChange: onPublicKeyChange,
+                placeholder: "0x...",
+                description: "The server's public key for encryption",
+                required: true,
+              },
             ]}
             onSubmit={onTrustServer}
             isSubmitting={isTrustingServer}
-            submitText="Trust Server"
+            submitText="Add and Trust Server"
             submitIcon={<Shield className="h-4 w-4" />}
             status={trustServerError}
             additionalButtons={
@@ -192,16 +223,30 @@ export function ServersTab({
           ) : (
             <Table aria-label="Trusted servers table" removeWrapper>
               <TableHeader>
+                <TableColumn>Server ID</TableColumn>
+                <TableColumn>Owner</TableColumn>
                 <TableColumn>Server Address</TableColumn>
                 <TableColumn>URL</TableColumn>
+                <TableColumn>Public Key</TableColumn>
                 <TableColumn>Actions</TableColumn>
               </TableHeader>
               <TableBody>
                 {trustedServers.map((server) => (
                   <TableRow key={server.id}>
                     <TableCell>
+                      <span className="font-mono text-sm">{server.id}</span>
+                    </TableCell>
+                    <TableCell>
                       <AddressDisplay
-                        address={server.id}
+                        address={server.owner}
+                        truncate={true}
+                        showCopy={true}
+                        showExternalLink={true}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <AddressDisplay
+                        address={server.serverAddress}
                         truncate={true}
                         showCopy={true}
                         showExternalLink={true}
@@ -228,6 +273,13 @@ export function ServersTab({
                           />
                         </div>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <CopyButton
+                        value={server.publicKey}
+                        tooltip="Copy public key"
+                        isInline
+                      />
                     </TableCell>
                     <TableCell>
                       <Button

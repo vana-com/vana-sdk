@@ -268,6 +268,7 @@ describe("Permission Types", () => {
     it("should structure permission input message correctly", () => {
       const message: PermissionInputMessage = {
         nonce: 666n,
+        granteeId: 1n,
         grant: "ipfs://QmInputMessage",
         fileIds: [1n, 2n, 3n],
       };
@@ -296,6 +297,7 @@ describe("Permission Types", () => {
     it("should structure permission input correctly", () => {
       const input: PermissionInput = {
         nonce: 888n,
+        granteeId: 1n,
         grant: "ipfs://QmContractInput",
         fileIds: [10n, 20n, 30n],
       };
@@ -320,10 +322,12 @@ describe("Permission Types", () => {
         id: 54321n,
         grantor: "0x6666666666666666666666666666666666666666" as Address,
         nonce: 111n,
+        granteeId: 1n,
         grant: "ipfs://QmPermissionInfo",
         signature:
           "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12",
-        isActive: true,
+        startBlock: 1000n,
+        endBlock: 2000n,
         fileIds: [100n, 200n],
       };
 
@@ -332,7 +336,8 @@ describe("Permission Types", () => {
       expect(info.nonce).toBe(111n);
       expect(info.grant).toBe("ipfs://QmPermissionInfo");
       expect(info.signature).toMatch(/^0x[a-fA-F0-9]{130}$/);
-      expect(info.isActive).toBe(true);
+      expect(info.startBlock).toBe(1000n);
+      expect(info.endBlock).toBe(2000n);
       expect(info.fileIds).toEqual([100n, 200n]);
     });
   });
@@ -386,6 +391,7 @@ describe("Permission Types", () => {
         types: {
           Permission: [
             { name: "nonce", type: "uint256" },
+            { name: "granteeId", type: "uint256" },
             { name: "grant", type: "string" },
             { name: "fileIds", type: "uint256[]" },
           ],
@@ -393,6 +399,7 @@ describe("Permission Types", () => {
         primaryType: "Permission",
         message: {
           nonce: 123n,
+          granteeId: 1n,
           grant: "ipfs://QmTypedData",
           fileIds: [1n, 2n],
         },
@@ -400,7 +407,7 @@ describe("Permission Types", () => {
 
       expect(typedData.domain.name).toBe("DataPermissions");
       expect(typedData.primaryType).toBe("Permission");
-      expect(typedData.types.Permission).toHaveLength(3);
+      expect(typedData.types.Permission).toHaveLength(4);
       expect(typedData.message.nonce).toBe(123n);
       // Files are now only in message.fileIds, not at the top level
     });
@@ -571,54 +578,51 @@ describe("Permission Types", () => {
   describe("Server Trust Types", () => {
     it("should structure server correctly", () => {
       const server: Server = {
+        id: 1,
+        owner: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as Address,
         url: "https://trusted-server.example.com",
+        serverAddress: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" as Address,
+        publicKey: "0x04...",
       };
 
+      expect(server.id).toBe(1);
       expect(server.url).toBe("https://trusted-server.example.com");
     });
 
     it("should structure trust server parameters correctly", () => {
       const params: TrustServerParams = {
-        serverId: "0xcccccccccccccccccccccccccccccccccccccccc" as Address,
-        serverUrl: "https://new-server.example.com",
+        serverId: 2,
       };
 
-      expect(params.serverId).toBe(
-        "0xcccccccccccccccccccccccccccccccccccccccc",
-      );
-      expect(params.serverUrl).toBe("https://new-server.example.com");
+      expect(params.serverId).toBe(2);
     });
 
     it("should structure untrust server parameters correctly", () => {
       const params: UntrustServerParams = {
-        serverId: "0xdddddddddddddddddddddddddddddddddddddddd" as Address,
+        serverId: 3,
       };
 
-      expect(params.serverId).toBe(
-        "0xdddddddddddddddddddddddddddddddddddddddd",
-      );
+      expect(params.serverId).toBe(3);
     });
 
     it("should structure trust server input correctly", () => {
       const input: TrustServerInput = {
         nonce: 123n,
-        serverId: "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" as Address,
-        serverUrl: "https://trust-input.example.com",
+        serverId: 4,
       };
 
       expect(input.nonce).toBe(123n);
-      expect(input.serverId).toBe("0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
-      expect(input.serverUrl).toBe("https://trust-input.example.com");
+      expect(input.serverId).toBe(4);
     });
 
     it("should structure untrust server input correctly", () => {
       const input: UntrustServerInput = {
         nonce: 456n,
-        serverId: "0xffffffffffffffffffffffffffffffffffffff" as Address,
+        serverId: 5,
       };
 
       expect(input.nonce).toBe(456n);
-      expect(input.serverId).toBe("0xffffffffffffffffffffffffffffffffffffff");
+      expect(input.serverId).toBe(5);
     });
 
     it("should structure trust server typed data correctly", () => {
@@ -633,24 +637,20 @@ describe("Permission Types", () => {
         types: {
           TrustServer: [
             { name: "nonce", type: "uint256" },
-            { name: "serverId", type: "address" },
-            { name: "serverUrl", type: "string" },
+            { name: "serverId", type: "uint256" },
           ],
         },
         primaryType: "TrustServer",
         message: {
           nonce: 789n,
-          serverId: "0x2020202020202020202020202020202020202020" as Address,
-          serverUrl: "https://typed-trust.example.com",
+          serverId: 6,
         },
       };
 
       expect(typedData.primaryType).toBe("TrustServer");
-      expect(typedData.types.TrustServer).toHaveLength(3);
+      expect(typedData.types.TrustServer).toHaveLength(2);
       expect(typedData.message.nonce).toBe(789n);
-      expect(typedData.message.serverId).toBe(
-        "0x2020202020202020202020202020202020202020",
-      );
+      expect(typedData.message.serverId).toBe(6);
     });
 
     it("should structure untrust server typed data correctly", () => {
@@ -665,22 +665,20 @@ describe("Permission Types", () => {
         types: {
           UntrustServer: [
             { name: "nonce", type: "uint256" },
-            { name: "serverId", type: "address" },
+            { name: "serverId", type: "uint256" },
           ],
         },
         primaryType: "UntrustServer",
         message: {
           nonce: 101112n,
-          serverId: "0x4040404040404040404040404040404040404040" as Address,
+          serverId: 7,
         },
       };
 
       expect(typedData.primaryType).toBe("UntrustServer");
       expect(typedData.types.UntrustServer).toHaveLength(2);
       expect(typedData.message.nonce).toBe(101112n);
-      expect(typedData.message.serverId).toBe(
-        "0x4040404040404040404040404040404040404040",
-      );
+      expect(typedData.message.serverId).toBe(7);
     });
   });
 

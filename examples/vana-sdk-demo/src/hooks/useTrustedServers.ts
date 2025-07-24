@@ -127,8 +127,7 @@ export function useTrustedServers(): UseTrustedServersReturn {
 
     try {
       await vana.permissions.trustServer({
-        serverId: serverId as `0x${string}`,
-        serverUrl: serverUrl,
+        serverId: parseInt(serverId, 10),
       });
 
       // Success - form shows success via trustServerError being cleared
@@ -171,8 +170,7 @@ export function useTrustedServers(): UseTrustedServersReturn {
 
       try {
         await vana.permissions.trustServerWithSignature({
-          serverId: actualServerId as `0x${string}`,
-          serverUrl: actualServerUrl,
+          serverId: parseInt(actualServerId, 10),
         });
 
         console.info("✅ Trust server with signature completed successfully!");
@@ -205,7 +203,7 @@ export function useTrustedServers(): UseTrustedServersReturn {
       setIsUntrusting(true);
       try {
         await vana.permissions.untrustServerWithSignature({
-          serverId: serverIdToUntrust as `0x${string}`,
+          serverId: parseInt(serverIdToUntrust, 10),
         });
 
         addToast({

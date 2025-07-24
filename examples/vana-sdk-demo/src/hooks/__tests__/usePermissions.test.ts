@@ -328,6 +328,7 @@ describe("usePermissions", () => {
       },
       message: {
         grant: "ipfs://grant-url",
+        granteeId: BigInt(1),
         nonce: BigInt(123),
         fileIds: [BigInt(1), BigInt(2)],
       },

@@ -570,7 +570,9 @@ export function usePermissions(): UsePermissionsReturn {
           grantee: "0x0000000000000000000000000000000000000000", // Would need to resolve
           grantor: permissionInfo.grantor,
           parameters: {}, // Would need to resolve
-          active: permissionInfo.isActive,
+          active:
+            permissionInfo.endBlock === BigInt(0) ||
+            permissionInfo.endBlock > BigInt(0), // Active if no end block or end block in future
           nonce: Number(permissionInfo.nonce),
           grantedAt: 0, // Would need to get from transaction
           transactionHash: "", // Would need to get from lookup

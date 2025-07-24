@@ -155,7 +155,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
   describe("trustServer", () => {
     it("should successfully trust a server", async () => {
       const params = {
-        serverId: "0x0000000000000000000000000000000000000001" as Address,
+        serverId: 1,
         serverUrl: "https://example.com",
       };
 
@@ -181,7 +181,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       );
 
       const params = {
-        serverId: "0x0000000000000000000000000000000000000001" as Address,
+        serverId: 1,
         serverUrl: "https://example.com",
       };
 
@@ -198,7 +198,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       };
 
       const params = {
-        serverId: "0x0000000000000000000000000000000000000001" as Address,
+        serverId: 1,
         serverUrl: "https://example.com",
       };
 
@@ -211,7 +211,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
     it("should successfully trust server with signature via direct transaction", async () => {
       // No relayer callbacks, should use direct transaction
       const params = {
-        serverId: "0x0000000000000000000000000000000000000001" as Address,
+        serverId: 1,
         serverUrl: "https://example.com",
       };
 
@@ -234,7 +234,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       );
 
       const params = {
-        serverId: "0x0000000000000000000000000000000000000001" as Address,
+        serverId: 1,
         serverUrl: "https://example.com",
       };
 
@@ -249,7 +249,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       );
 
       const params = {
-        serverId: "0x0000000000000000000000000000000000000001" as Address,
+        serverId: 1,
         serverUrl: "https://example.com",
       };
 
@@ -266,7 +266,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       };
 
       const params = {
-        serverId: "0x0000000000000000000000000000000000000001" as Address,
+        serverId: 1,
         serverUrl: "https://example.com",
       };
 
@@ -279,7 +279,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       mockWalletClient.signTypedData.mockRejectedValue("String error");
 
       const params = {
-        serverId: "0x0000000000000000000000000000000000000001" as Address,
+        serverId: 1,
         serverUrl: "https://example.com",
       };
 
@@ -292,7 +292,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
   describe("untrustServer", () => {
     it("should successfully untrust a server", async () => {
       const params = {
-        serverId: "0x0000000000000000000000000000000000000001" as Address,
+        serverId: 1,
       };
 
       const result = await controller.untrustServer(params);
@@ -314,7 +314,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       );
 
       const params = {
-        serverId: "0x0000000000000000000000000000000000000001" as Address,
+        serverId: 1,
       };
 
       await expect(controller.untrustServer(params)).rejects.toThrow(
@@ -330,7 +330,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       };
 
       const params = {
-        serverId: "0x0000000000000000000000000000000000000001" as Address,
+        serverId: 1,
       };
 
       const result = await controller.untrustServerWithSignature(params);
@@ -344,7 +344,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
     it("should successfully untrust server with signature via direct transaction", async () => {
       // No relayer callbacks, should use direct transaction
       const params = {
-        serverId: "0x0000000000000000000000000000000000000001" as Address,
+        serverId: 1,
       };
 
       const result = await controller.untrustServerWithSignature(params);
@@ -366,7 +366,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       );
 
       const params = {
-        serverId: "0x0000000000000000000000000000000000000001" as Address,
+        serverId: 1,
       };
 
       await expect(
@@ -380,7 +380,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       );
 
       const params = {
-        serverId: "0x0000000000000000000000000000000000000001" as Address,
+        serverId: 1,
       };
 
       await expect(
@@ -396,7 +396,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       };
 
       const params = {
-        serverId: "0x0000000000000000000000000000000000000001" as Address,
+        serverId: 1,
       };
 
       await expect(
@@ -408,7 +408,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       mockWalletClient.signTypedData.mockRejectedValue("String error");
 
       const params = {
-        serverId: "0x0000000000000000000000000000000000000001" as Address,
+        serverId: 1,
       };
 
       await expect(
@@ -582,7 +582,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         primaryType: "TrustServer" as const,
         message: {
           nonce: BigInt(1),
-          serverId: "0x0000000000000000000000000000000000000001" as Address,
+          serverId: 1,
           serverUrl: "https://example.com",
         },
       };
@@ -608,7 +608,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         primaryType: "TrustServer" as const,
         message: {
           nonce: BigInt(1),
-          serverId: "0x0000000000000000000000000000000000000001" as Address,
+          serverId: 1,
           serverUrl: "https://example.com",
         },
       };
@@ -638,7 +638,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         primaryType: "TrustServer" as const,
         message: {
           nonce: BigInt(1),
-          serverId: "0x0000000000000000000000000000000000000001" as Address,
+          serverId: 1,
           serverUrl: "https://example.com",
         },
       };
@@ -667,7 +667,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         primaryType: "UntrustServer" as const,
         message: {
           nonce: BigInt(1),
-          serverId: "0x0000000000000000000000000000000000000001" as Address,
+          serverId: 1,
         },
       };
 
@@ -692,7 +692,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         primaryType: "UntrustServer" as const,
         message: {
           nonce: BigInt(1),
-          serverId: "0x0000000000000000000000000000000000000001" as Address,
+          serverId: 1,
         },
       };
 
@@ -721,7 +721,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         primaryType: "UntrustServer" as const,
         message: {
           nonce: BigInt(1),
-          serverId: "0x0000000000000000000000000000000000000001" as Address,
+          serverId: 1,
         },
       };
 

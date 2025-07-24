@@ -13,10 +13,12 @@ import { GrantPermissionModal } from "@/components/ui/GrantPermissionModal";
 import { useUserFiles } from "@/hooks/useUserFiles";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useTrustedServers } from "@/hooks/useTrustedServers";
+import { useGrantees } from "@/hooks/useGrantees";
 import { useVana } from "@/providers/VanaProvider";
 import { FilesTab } from "./components/FilesTab";
 import { PermissionsTab } from "./components/PermissionsTab";
 import { ServersTab } from "./components/ServersTab";
+import { GranteesTab } from "./components/GranteesTab";
 
 /**
  * My Data page - User's personal data control panel
@@ -112,22 +114,50 @@ export default function MyDataPage() {
     serverUrl,
     loadUserTrustedServers,
     handleTrustServerGasless,
-    handleUntrustServer: onUntrustServer,
+    handleUntrustServer,
     handleDiscoverHostedServer: onDiscoverReplicateServer,
     setServerId: onServerIdChange,
     setServerUrl: onServerUrlChange,
     setTrustedServerQueryMode: onQueryModeChange,
   } = useTrustedServers();
 
+  const {
+    grantees,
+    isLoadingGrantees,
+    isAddingGrantee,
+    isRemoving,
+    addGranteeError,
+    granteeQueryMode,
+    granteeAddress,
+    granteeName,
+    loadGrantees,
+    handleAddGranteeGasless,
+    handleRemoveGrantee,
+    setGranteeAddress,
+    setGranteeName,
+    setGranteeQueryMode: onGranteeQueryModeChange,
+  } = useGrantees();
+
   // Map trusted servers to the expected interface format
   const trustedServers = useMemo(
     () =>
       rawTrustedServers.map((server) => ({
-        id: server.serverAddress,
+        id: parseInt(server.id, 10), // Convert string id to number
+        owner: server.user || "", // Use user field as owner
         url: server.serverUrl,
-        name: server.serverAddress,
+        serverAddress: server.serverAddress,
+        publicKey: "", // TODO: Fetch from server info
+        name: server.name || server.serverAddress,
       })),
     [rawTrustedServers],
+  );
+
+  // Wrapper to convert number serverId to string for handleUntrustServer
+  const onUntrustServer = useCallback(
+    (serverId: number) => {
+      handleUntrustServer(serverId.toString());
+    },
+    [handleUntrustServer],
   );
 
   // Upload data handler
@@ -330,7 +360,7 @@ export default function MyDataPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
         <Card>
           <CardBody className="text-center">
             <div className="flex items-center justify-center gap-2 mb-2">
@@ -360,6 +390,15 @@ export default function MyDataPage() {
               </span>
             </div>
             <p className="text-sm text-default-500">Trusted Servers</p>
+          </CardBody>
+        </Card>
+        <Card>
+          <CardBody className="text-center">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <Users className="h-5 w-5 text-secondary" />
+              <span className="text-2xl font-bold">{grantees.length}</span>
+            </div>
+            <p className="text-sm text-default-500">Grantees</p>
           </CardBody>
         </Card>
         <Card>
@@ -448,15 +487,37 @@ export default function MyDataPage() {
             isDiscoveringServer={isDiscoveringServer}
             trustServerError={trustServerError}
             queryMode={queryMode}
-            serverId={serverId}
+            serverOwner={""} // TODO: Add owner field to hook
+            serverAddress={serverId}
             serverUrl={serverUrl}
-            onServerIdChange={onServerIdChange}
+            publicKey={""} // TODO: Add publicKey field to hook
+            onServerOwnerChange={() => {}} // TODO: Implement owner change
+            onServerAddressChange={onServerIdChange}
             onServerUrlChange={onServerUrlChange}
+            onPublicKeyChange={() => {}} // TODO: Implement publicKey change
             onQueryModeChange={onQueryModeChange}
             onTrustServer={onTrustServer}
             onRefreshServers={onRefreshServers}
             onUntrustServer={onUntrustServer}
             onDiscoverReplicateServer={onDiscoverReplicateServer}
+          />
+        </Tab>
+        <Tab key="grantees" title="Grantees">
+          <GranteesTab
+            grantees={grantees}
+            isLoadingGrantees={isLoadingGrantees}
+            isAddingGrantee={isAddingGrantee}
+            isRemoving={isRemoving}
+            addGranteeError={addGranteeError}
+            queryMode={granteeQueryMode}
+            granteeAddress={granteeAddress}
+            granteeName={granteeName}
+            onGranteeAddressChange={setGranteeAddress}
+            onGranteeNameChange={setGranteeName}
+            onQueryModeChange={onGranteeQueryModeChange}
+            onAddGrantee={handleAddGranteeGasless}
+            onRefreshGrantees={loadGrantees}
+            onRemoveGrantee={handleRemoveGrantee}
           />
         </Tab>
       </Tabs>

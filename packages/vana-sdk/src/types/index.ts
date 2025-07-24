@@ -125,10 +125,13 @@ export type {
   PermissionEvent,
   GrantedPermission,
   Server,
+  AddAndTrustServerParams,
   TrustServerParams,
   UntrustServerParams,
+  AddAndTrustServerInput,
   TrustServerInput,
   UntrustServerInput,
+  AddAndTrustServerTypedData,
   TrustServerTypedData,
   UntrustServerTypedData,
   PermissionInfo,
@@ -138,6 +141,12 @@ export type {
   TrustedServerQueryOptions,
   BatchServerInfoResult,
   ServerTrustStatus,
+  Grantee,
+  RegisterGranteeParams,
+  RegisterGranteeInput,
+  RegisterGranteeTypedData,
+  GranteeQueryOptions,
+  PaginatedGrantees,
 } from "./permissions";
 
 // Personal server types

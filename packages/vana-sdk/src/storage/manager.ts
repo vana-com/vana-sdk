@@ -42,7 +42,7 @@ import {
  * const result2 = await storage.upload(fileBlob, 'myfile.json', 'pinata');
  * ```
  * @category Storage
- * @see {@link [URL_PLACEHOLDER] | Storage Providers Guide} for configuration details
+ * @see {@link https://docs.vana.com/developer/vana-sdk-documentation/core-modules/storage-providers | Storage Providers Guide} for configuration details
  */
 export class StorageManager {
   private providers: Map<string, StorageProvider> = new Map();

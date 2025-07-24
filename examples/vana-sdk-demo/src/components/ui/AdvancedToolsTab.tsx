@@ -119,6 +119,7 @@ export const AdvancedToolsTab: React.FC<AdvancedToolsTabProps> = ({
     try {
       const key = await sdkGenerateEncryptionKey(
         walletClient,
+        platformAdapter,
         encryptionSeed || DEFAULT_ENCRYPTION_SEED,
       );
       setEncryptionKey(key);
@@ -224,7 +225,11 @@ export const AdvancedToolsTab: React.FC<AdvancedToolsTabProps> = ({
         // Use wallet-based decryption with custom seed
         decryptedBlob = await vana.data.decryptFile(file, decryptSeed);
         // Generate the key for display (this matches what the SDK would generate)
-        fileKey = await sdkGenerateEncryptionKey(walletClient, decryptSeed);
+        fileKey = await sdkGenerateEncryptionKey(
+          walletClient,
+          platformAdapter,
+          decryptSeed,
+        );
       } else {
         // Use private key (already-derived encryption key) for decryption
         fileKey = decryptPrivateKey.trim();

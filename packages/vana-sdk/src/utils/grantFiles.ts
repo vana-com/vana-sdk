@@ -11,8 +11,33 @@ interface GrantFileStorageResponse {
 /**
  * Creates a grant file structure from permission parameters.
  *
+ * @remarks
+ * This function constructs the JSON structure that represents a permission grant
+ * in the Vana protocol. The grant file contains all necessary information for
+ * a grantee to perform operations on behalf of the grantor.
+ *
  * @param params - The permission parameters to create the grant file from
  * @returns The constructed grant file object
+ * @example
+ * ```typescript
+ * const grantFile = createGrantFile({
+ *   grantee: '0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36',
+ *   operation: 'llm_inference',
+ *   parameters: {
+ *     model: 'gpt-4',
+ *     maxTokens: 1000
+ *   },
+ *   expiresAt: Date.now() + 86400000 // 24 hours
+ * });
+ *
+ * console.log(grantFile);
+ * // {
+ * //   grantee: '0x742d...',
+ * //   operation: 'llm_inference',
+ * //   parameters: { model: 'gpt-4', maxTokens: 1000 },
+ * //   expires: 1234567890
+ * // }
+ * ```
  */
 export function createGrantFile(params: GrantPermissionParams): GrantFile {
   const grantFile: GrantFile = {
@@ -32,9 +57,27 @@ export function createGrantFile(params: GrantPermissionParams): GrantFile {
 /**
  * Stores a grant file in IPFS via the relayer service.
  *
+ * @remarks
+ * This function uploads the grant file to IPFS through the relayer's upload endpoint.
+ * The returned URL can be stored on-chain as part of the permission grant, allowing
+ * anyone to retrieve the detailed permission parameters later.
+ *
  * @param grantFile - The grant file to store
  * @param relayerUrl - URL of the relayer service
  * @returns Promise resolving to the IPFS URL
+ * @throws {NetworkError} When the upload fails or relayer is unavailable
+ * @example
+ * ```typescript
+ * const grantFile = createGrantFile(params);
+ *
+ * try {
+ *   const ipfsUrl = await storeGrantFile(grantFile, 'https://relayer.vana.com');
+ *   console.log(`Grant file stored at: ${ipfsUrl}`);
+ *   // ipfsUrl: "ipfs://QmHash123..."
+ * } catch (error) {
+ *   console.error('Failed to store grant file:', error);
+ * }
+ * ```
  */
 export async function storeGrantFile(
   grantFile: GrantFile,
@@ -211,8 +254,37 @@ export async function retrieveGrantFile(
  * Generates a content hash for a grant file.
  * This can be used for integrity verification.
  *
+ * @remarks
+ * Creates a deterministic keccak256 hash of the grant file by first sorting
+ * all object keys recursively to ensure consistent hashing regardless of
+ * property order. This hash can be used to verify grant file integrity
+ * or as a unique identifier.
+ *
  * @param grantFile - The grant file to generate a hash for
  * @returns The keccak256 hash of the grant file as a hex string
+ * @throws {SerializationError} When the grant file cannot be serialized
+ * @example
+ * ```typescript
+ * const grantFile = {
+ *   grantee: '0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36',
+ *   operation: 'read',
+ *   parameters: { version: '1.0', mode: 'full' }
+ * };
+ *
+ * const hash = getGrantFileHash(grantFile);
+ * console.log(`Grant file hash: ${hash}`);
+ * // "0x1234567890abcdef..."
+ *
+ * // Same grant file with different property order produces same hash
+ * const grantFile2 = {
+ *   operation: 'read',
+ *   parameters: { mode: 'full', version: '1.0' },
+ *   grantee: '0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36'
+ * };
+ *
+ * const hash2 = getGrantFileHash(grantFile2);
+ * console.log(hash === hash2); // true
+ * ```
  */
 export function getGrantFileHash(grantFile: GrantFile): string {
   try {
@@ -269,8 +341,44 @@ function sortObjectKeys(obj: unknown): unknown {
 /**
  * Validates that a grant file has the required structure.
  *
+ * @remarks
+ * Performs runtime validation to ensure data conforms to the GrantFile interface.
+ * Checks for required fields (grantee, operation, parameters) and validates their
+ * types and formats. This is a type guard function that enables TypeScript to
+ * narrow the type when it returns true.
+ *
  * @param data - The data to validate as a grant file
  * @returns True if the data is a valid grant file, false otherwise
+ * @example
+ * ```typescript
+ * const unknownData = await fetch(url).then(r => r.json());
+ *
+ * if (validateGrantFile(unknownData)) {
+ *   // TypeScript now knows unknownData is a GrantFile
+ *   console.log(`Grant for operation: ${unknownData.operation}`);
+ *   console.log(`Grantee: ${unknownData.grantee}`);
+ * } else {
+ *   throw new Error('Invalid grant file format');
+ * }
+ *
+ * // Validation examples:
+ * validateGrantFile({
+ *   grantee: '0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36',
+ *   operation: 'read',
+ *   parameters: {}
+ * }); // true
+ *
+ * validateGrantFile({
+ *   grantee: 'invalid-address',
+ *   operation: 'read',
+ *   parameters: {}
+ * }); // false (invalid address format)
+ *
+ * validateGrantFile({
+ *   operation: 'read',
+ *   parameters: {}
+ * }); // false (missing grantee)
+ * ```
  */
 export function validateGrantFile(data: unknown): data is GrantFile {
   if (!data || typeof data !== "object") {

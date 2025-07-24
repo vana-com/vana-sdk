@@ -133,7 +133,7 @@ interface SubgraphResponse {
  * const decryptedData = await vana.data.decryptFile(files[0]);
  * ```
  * @category Data Management
- * @see {@link [URL_PLACEHOLDER] | Vana Data Registry Documentation} for conceptual overview
+ * @see {@link https://docs.vana.com/developer/data-registry | Vana Data Registry Documentation} for conceptual overview
  */
 export class DataController {
   constructor(private readonly context: ControllerContext) {}
@@ -154,23 +154,32 @@ export class DataController {
    * - Grants file decryption permissions to specified accounts
    * - Registers the file on the blockchain
    *
+   * **TypeScript Overloads:**
+   * This method has three overloads to ensure type safety:
+   * 1. `EncryptedUploadParams` - When `encrypt: true` (default), permissions require publicKey
+   * 2. `UnencryptedUploadParams` - When `encrypt: false`, permissions are optional
+   * 3. `UploadParams` - General signature for runtime determination
+   *
    * IMPORTANT: The permissions parameter only grants decryption access to the file.
    * To grant operation permissions (like "llm_inference"), use vana.permissions.grant()
    * after uploading. This separation ensures clear distinction between:
-   * - File permissions: Who can decrypt and read the encrypted file
-   * - Operation permissions: What operations can be performed on the data
+   * - File permissions: Who can decrypt and read the encrypted file (handled here)
+   * - Operation permissions: What operations can be performed on the data (handled separately)
    *
    * @param params - Upload parameters including content, filename, schema, and permissions
-   * @param params.permissions.publicKey - The recipient's public key for encryption.
+   * @param params.permissions[].account - The recipient's wallet address that will access the data.
+   * @param params.permissions[].publicKey - The recipient's public key for encryption (hex string with 0x prefix).
    *   Obtain via `vana.server.getIdentity(userAddress).public_key` for personal servers.
-   * @param params.permissions.grantee - The application's wallet address that will access the data.
+   * @param params.schemaId - Optional schema ID for data validation. Get available schemas from `vana.schemas.list()`.
+   * @param params.owner - Optional owner address if uploading on behalf of another user (requires delegation).
    * @returns Promise resolving to upload results with file ID and transaction hash
-   * @throws {Error} When wallet is not connected or storage is not configured.
-   *   Configure storage providers in VanaConfig or check wallet connection.
-   * @throws {SchemaValidationError} When data format doesn't match the specified schema.
-   *   Verify data structure matches schema definition from `vana.schemas.get(schemaId)`.
-   * @throws {Error} When upload or blockchain registration fails.
-   *   Check network connection and storage provider availability.
+   * @throws {Error} When storage manager is not configured - "Storage manager not configured. Please provide storage providers in VanaConfig."
+   * @throws {Error} When no wallet addresses available - "No addresses available in wallet client"
+   * @throws {Error} When chain ID is not available - "Chain ID not available"
+   * @throws {Error} When relay callback doesn't support required features - "The configured relay callback does not support schemas or permissions"
+   * @throws {Error} When schema fetch fails - "Failed to fetch schema definition: {status}"
+   * @throws {SchemaValidationError} When data doesn't match schema - includes specific validation errors
+   * @throws {Error} General upload failures - "Upload failed: {specific error message}"
    * @example
    * ```typescript
    * // Basic file upload
@@ -205,12 +214,12 @@ export class DataController {
    * // });
    *
    * // Upload without encryption (public data)
+   * // Note: Cast to UnencryptedUploadParams for TypeScript
    * const result = await vana.data.upload({
    *   content: "Public data",
    *   filename: "public.txt",
    *   encrypt: false
-   *   // No permissions needed for public unencrypted data
-   * });
+   * } as const);  // 'as const' ensures TypeScript infers encrypt: false literally
    *
    * // Upload on behalf of another user (delegation)
    * const result = await vana.data.upload({
@@ -218,10 +227,8 @@ export class DataController {
    *   filename: "delegated.txt",
    *   owner: "0x5678...", // Different from connected wallet
    *   permissions: [{
-   *     grantee: "0x1234...",
-   *     operation: "process",
-   *     parameters: { type: "analysis" },
-   *     publicKey: "0x04..."
+   *     account: "0x1234...",   // Address that can decrypt
+   *     publicKey: "0x04..."    // Their public key for encryption
    *   }]
    * });
    * ```
@@ -445,9 +452,14 @@ export class DataController {
    * @param file - The user file to decrypt (typically from getUserFiles)
    * @param encryptionSeed - Optional custom encryption seed (defaults to Vana standard)
    * @returns Promise resolving to the decrypted file content as a Blob
-   * @throws {Error} When the wallet is not connected
-   * @throws {Error} When fetching the encrypted content fails
-   * @throws {Error} When decryption fails (wrong key or corrupted data)
+   * @throws {Error} "No addresses available in wallet client" - When wallet is not connected
+   * @throws {Error} "Network error: Cannot access the file URL" - When file URL is inaccessible (CORS, server down)
+   * @throws {Error} "File not found: The encrypted file is no longer available" - When file returns 404
+   * @throws {Error} "Access denied" - When file returns 403 (no permission)
+   * @throws {Error} "File is empty or could not be retrieved" - When file has no content
+   * @throws {Error} "Invalid file format: This file doesn't appear to be encrypted with the Vana protocol" - When file is not properly encrypted
+   * @throws {Error} "Wrong encryption key" - When decryption fails due to incorrect key/seed
+   * @throws {Error} "Failed to decrypt file: {error}" - General decryption failures
    * @example
    * ```typescript
    * // Basic file decryption
@@ -610,11 +622,20 @@ export class DataController {
    * This method queries the Vana subgraph to find files directly owned by the user.
    * It efficiently handles large datasets by using the File entity's owner field
    * and returns complete file metadata without additional contract calls.
+   *
+   * **Deduplication Behavior:**
+   * The method automatically deduplicates files by ID, keeping only the latest version
+   * (highest timestamp) when duplicate file IDs are found. This handles cases where
+   * the subgraph may contain multiple entries for the same file due to re-indexing
+   * or blockchain reorganizations.
    * @param params - The query parameters object
    * @param params.owner - The wallet address of the file owner to query
    * @param params.subgraphUrl - Optional subgraph URL to override the default endpoint
-   * @returns A Promise that resolves to an array of UserFile objects with metadata
-   * @throws {Error} When the subgraph is unavailable or returns invalid data
+   * @returns A Promise that resolves to an array of UserFile objects with metadata, sorted by latest timestamp first
+   * @throws {Error} When subgraphUrl is not provided and not configured - "subgraphUrl is required"
+   * @throws {Error} When subgraph request fails - "Subgraph request failed: {status} {statusText}"
+   * @throws {Error} When subgraph returns errors - "Subgraph errors: {error messages}"
+   * @throws {Error} When JSON parsing fails - "Failed to fetch user files from subgraph: {error}"
    * @example
    * ```typescript
    * // Query files for a specific user
@@ -1255,6 +1276,9 @@ export class DataController {
    *
    * @param fileId - The file ID to look up
    * @returns Promise resolving to UserFile object
+   * @throws {Error} "Chain ID not available" - When wallet chain is not configured
+   * @throws {Error} "File not found" - When file ID doesn't exist or returns empty data
+   * @throws {Error} "Failed to fetch file {fileId}: {error}" - General contract read failures
    * @example
    * ```typescript
    * try {
@@ -1333,7 +1357,21 @@ export class DataController {
   /**
    * Uploads an encrypted file to storage and registers it on the blockchain.
    *
-   * @deprecated Use vana.data.upload() instead for the high-level API with automatic encryption
+   * @deprecated Since v2.0.0 - Use vana.data.upload() instead for the high-level API with automatic encryption
+   *
+   * Migration guide:
+   * ```typescript
+   * // Old way (deprecated):
+   * const encrypted = await encryptBlob(data, key);
+   * const result = await vana.data.uploadEncryptedFile(encrypted, filename);
+   *
+   * // New way:
+   * const result = await vana.data.upload({
+   *   content: data,
+   *   filename: filename,
+   *   encrypt: true  // Handles encryption automatically
+   * });
+   * ```
    * @param encryptedFile - The encrypted file blob to upload
    * @param filename - Optional filename for the upload
    * @param providerName - Optional storage provider to use
@@ -1444,7 +1482,22 @@ export class DataController {
   /**
    * Uploads an encrypted file to storage and registers it on the blockchain with a schema.
    *
-   * @deprecated Use vana.data.upload() instead for the high-level API with automatic encryption and schema validation
+   * @deprecated Since v2.0.0 - Use vana.data.upload() instead for the high-level API with automatic encryption and schema validation
+   *
+   * Migration guide:
+   * ```typescript
+   * // Old way (deprecated):
+   * const encrypted = await encryptBlob(data, key);
+   * const result = await vana.data.uploadEncryptedFileWithSchema(encrypted, schemaId, filename);
+   *
+   * // New way:
+   * const result = await vana.data.upload({
+   *   content: data,
+   *   filename: filename,
+   *   schemaId: schemaId,  // Automatic validation
+   *   encrypt: true
+   * });
+   * ```
    * @param encryptedFile - The encrypted file blob to upload
    * @param schemaId - The schema ID to associate with the file
    * @param filename - Optional filename for the upload
@@ -1791,7 +1844,24 @@ export class DataController {
   /**
    * Adds a new schema to the DataRefinerRegistry.
    *
-   * @deprecated Use vana.schemas.create() instead for the high-level API with automatic IPFS upload
+   * @deprecated Since v2.0.0 - Use vana.schemas.create() instead for the high-level API with automatic IPFS upload
+   *
+   * Migration guide:
+   * ```typescript
+   * // Old way (deprecated):
+   * const result = await vana.data.addSchema({
+   *   name: "UserProfile",
+   *   type: "JSON",
+   *   definitionUrl: "ipfs://..."
+   * });
+   *
+   * // New way:
+   * const result = await vana.schemas.create({
+   *   name: "UserProfile",
+   *   type: "JSON",
+   *   definition: schemaObject  // Automatically uploads to IPFS
+   * });
+   * ```
    * @param params - Schema parameters including name, type, and definition URL
    * @returns Promise resolving to the new schema ID and transaction hash
    */
@@ -1858,7 +1928,16 @@ export class DataController {
   /**
    * Retrieves a schema by its ID.
    *
-   * @deprecated Use vana.schemas.get() instead
+   * @deprecated Since v2.0.0 - Use vana.schemas.get() instead
+   *
+   * Migration guide:
+   * ```typescript
+   * // Old way (deprecated):
+   * const schema = await vana.data.getSchema(schemaId);
+   *
+   * // New way:
+   * const schema = await vana.schemas.get(schemaId);
+   * ```
    * @param schemaId - The schema ID to retrieve
    * @returns Promise resolving to the schema information
    */
@@ -1919,7 +1998,16 @@ export class DataController {
   /**
    * Gets the total number of schemas in the registry.
    *
-   * @deprecated Use vana.schemas.count() instead
+   * @deprecated Since v2.0.0 - Use vana.schemas.count() instead
+   *
+   * Migration guide:
+   * ```typescript
+   * // Old way (deprecated):
+   * const count = await vana.data.getSchemasCount();
+   *
+   * // New way:
+   * const count = await vana.schemas.count();
+   * ```
    * @returns Promise resolving to the total schema count
    */
   async getSchemasCount(): Promise<number> {
@@ -2297,8 +2385,11 @@ export class DataController {
    *
    * @param fileId - The ID of the file to add permissions for
    * @param account - The address of the account to grant permission to
-   * @param publicKey - The public key to encrypt the user's encryption key with
+   * @param publicKey - The public key to encrypt the user's encryption key with (hex string with 0x prefix)
    * @returns Promise resolving to permission data from PermissionGranted event
+   * @throws {Error} "No addresses available in wallet client" - When wallet is not connected
+   * @throws {Error} "Chain ID not available" - When wallet chain is not configured
+   * @throws {Error} "Failed to add permission to file: {error}" - When transaction fails or user doesn't own file
    * @example
    * ```typescript
    * const result = await vana.data.addPermissionToFile(fileId, account, publicKey);
@@ -2492,7 +2583,9 @@ export class DataController {
    *
    * @param url - The URL to fetch content from
    * @returns Promise resolving to the fetched content as a Blob
-   * @throws {Error} When the fetch fails or returns a non-ok response
+   * @throws {Error} "HTTP error! status: {status} {statusText}" - When server returns error status
+   * @throws {Error} "Empty response" - When server returns no content
+   * @throws {Error} "Network error: Failed to fetch from {url}" - When network request fails
    *
    * @example
    * ```typescript
@@ -2550,7 +2643,10 @@ export class DataController {
    * @param options - Optional configuration
    * @param options.gateways - Array of IPFS gateway URLs to try (must end with /)
    * @returns Promise resolving to the fetched content as a Blob
-   * @throws {Error} When all gateways fail to fetch the content
+   * @throws {Error} "Invalid IPFS URL format" - When URL is not ipfs:// or valid CID
+   * @throws {Error} "Empty response" - When gateway returns no content
+   * @throws {Error} "HTTP error! status: {status}" - When gateway returns error status
+   * @throws {Error} "Failed to fetch IPFS content {cid} from all gateways" - When all gateways fail
    *
    * @example
    * ```typescript

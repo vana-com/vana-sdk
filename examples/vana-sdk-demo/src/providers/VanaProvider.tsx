@@ -24,6 +24,7 @@ import {
   GenericTypedData,
   TrustServerTypedData,
   UntrustServerTypedData,
+  AddAndTrustServerTypedData,
 } from "@opendatalabs/vana-sdk/browser";
 import type { VanaChain } from "@opendatalabs/vana-sdk/browser";
 
@@ -226,6 +227,22 @@ const createTrustServerCallback =
     return result.transactionHash as Hash;
   };
 
+// Helper for add and trust server specific callback
+const createAddAndTrustServerCallback =
+  (endpoint: string, baseUrl: string, address: string | undefined) =>
+  async (typedData: AddAndTrustServerTypedData, signature: Hash) => {
+    const result = await submitToRelayer(
+      endpoint,
+      {
+        typedData: serializeBigInt(typedData),
+        signature,
+        expectedUserAddress: address,
+      },
+      baseUrl,
+    );
+    return result.transactionHash as Hash;
+  };
+
 // Helper for untrust server specific callback
 const createUntrustServerCallback =
   (endpoint: string, baseUrl: string, address: string | undefined) =>
@@ -304,6 +321,11 @@ export function VanaProvider({
                 address,
               ),
               submitTrustServer: createTrustServerCallback(
+                "/api/relay",
+                baseUrl,
+                address,
+              ),
+              submitAddAndTrustServer: createAddAndTrustServerCallback(
                 "/api/relay",
                 baseUrl,
                 address,

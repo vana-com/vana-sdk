@@ -5,6 +5,7 @@ import type {
   PermissionGrantTypedData,
   RegisterGranteeTypedData,
   TrustServerTypedData,
+  AddAndTrustServerTypedData,
 } from "../types";
 import { SignatureError } from "../errors";
 
@@ -123,6 +124,12 @@ export async function handleRelayerRequest(
     case "TrustServer":
       return await sdk.permissions.submitSignedTrustServer(
         typedData as unknown as TrustServerTypedData,
+        signature,
+      );
+
+    case "AddAndTrustServer":
+      return await sdk.permissions.submitSignedAddAndTrustServer(
+        typedData as unknown as AddAndTrustServerTypedData,
         signature,
       );
 

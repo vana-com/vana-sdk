@@ -652,6 +652,50 @@ export class PermissionsController {
   }
 
   /**
+   * Submits an already-signed add and trust server transaction to the blockchain.
+   * This method extracts the add and trust server input from typed data and submits it directly.
+   *
+   * @param typedData - The EIP-712 typed data for AddAndTrustServer
+   * @param signature - The user's signature
+   * @returns Promise resolving to the transaction hash
+   */
+  async submitSignedAddAndTrustServer(
+    typedData: AddAndTrustServerTypedData,
+    signature: Hash,
+  ): Promise<Hash> {
+    try {
+      const addAndTrustServerInput: AddAndTrustServerInput = {
+        nonce: BigInt(typedData.message.nonce),
+        owner: typedData.message.owner,
+        serverAddress: typedData.message.serverAddress,
+        serverUrl: typedData.message.serverUrl,
+        publicKey: typedData.message.publicKey,
+      };
+
+      return await this.submitAddAndTrustServerTransaction(
+        addAndTrustServerInput,
+        signature,
+      );
+    } catch (error) {
+      // Re-throw known Vana errors directly to preserve error types
+      if (
+        error instanceof RelayerError ||
+        error instanceof NetworkError ||
+        error instanceof UserRejectedRequestError ||
+        error instanceof SignatureError ||
+        error instanceof NonceError
+      ) {
+        throw error;
+      }
+
+      throw new BlockchainError(
+        `Add and trust server submission failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
    * Submits an already-signed permission revoke transaction to the blockchain.
    * This method handles the revocation of previously granted permissions.
    *
@@ -1569,18 +1613,35 @@ export class PermissionsController {
         addAndTrustServerInput,
       );
 
+      console.debug("🔍 AddAndTrustServer Debug Info:", {
+        nonce: nonce.toString(),
+        owner: params.owner,
+        serverAddress: params.serverAddress,
+        publicKey: params.publicKey,
+        serverUrl: params.serverUrl,
+        domain: typedData.domain,
+        typedDataMessage: typedData.message,
+      });
+
       // Sign the typed data
       const signature = await this.signTypedData(
         typedData as unknown as GenericTypedData,
       );
 
+      console.debug("🔍 Generated signature:", signature);
+
       // Submit via relayer callbacks or direct transaction
-      // TODO: Add submitAddAndTrustServer to RelayerCallbacks interface
-      // For now, always use direct transaction
-      return await this.submitAddAndTrustServerTransaction(
-        addAndTrustServerInput,
-        signature,
-      );
+      if (this.context.relayerCallbacks?.submitAddAndTrustServer) {
+        return await this.context.relayerCallbacks.submitAddAndTrustServer(
+          typedData,
+          signature,
+        );
+      } else {
+        return await this.submitAddAndTrustServerTransaction(
+          addAndTrustServerInput,
+          signature,
+        );
+      }
     } catch (error) {
       if (error instanceof Error) {
         // Re-throw known Vana errors directly
@@ -2389,6 +2450,19 @@ export class PermissionsController {
       "DataPortabilityServers",
     );
     const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
+
+    console.debug("🔍 Transaction Debug Info:", {
+      chainId,
+      contractAddress: DataPortabilityServersAddress,
+      input: {
+        nonce: addAndTrustServerInput.nonce.toString(),
+        owner: addAndTrustServerInput.owner,
+        serverAddress: addAndTrustServerInput.serverAddress,
+        publicKey: addAndTrustServerInput.publicKey,
+        serverUrl: addAndTrustServerInput.serverUrl,
+      },
+      signature,
+    });
 
     const txHash = await this.context.walletClient.writeContract({
       address: DataPortabilityServersAddress,

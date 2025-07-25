@@ -1120,7 +1120,7 @@ export class PermissionsController {
     );
 
     return {
-      name: "VanaDataPermissions",
+      name: "VanaDataPortabilityPermissions",
       version: "1",
       chainId,
       verifyingContract: DataPermissionsAddress,

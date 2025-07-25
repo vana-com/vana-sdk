@@ -374,7 +374,7 @@ describe("PermissionsController", () => {
         message: { nonce: bigint; grant: string };
       };
 
-      expect(typedData.domain.name).toBe("VanaDataPermissions");
+      expect(typedData.domain.name).toBe("VanaDataPortabilityPermissions");
       expect(typedData.domain.version).toBe("1");
       expect(typedData.domain.chainId).toBe(14800);
       expect(typedData.primaryType).toBe("Permission");
@@ -1535,6 +1535,47 @@ describe("PermissionsController", () => {
       await expect(controller.revokeWithSignature(params)).rejects.toThrow(
         "Failed to revoke permission with signature: Signature failed",
       );
+    });
+  });
+
+  describe("getUserNonce", () => {
+    it("should read nonce from DataPermissions contract, not DataPortabilityServers", async () => {
+      const expectedNonce = 5n;
+
+      // Import getContractAddress locally to avoid affecting other tests
+      const addresses = await import("../config/addresses");
+      const originalGetContractAddress = addresses.getContractAddress;
+      
+      // Track which contracts are requested
+      const contractRequests: string[] = [];
+      
+      // Temporarily replace getContractAddress for this test only
+      (addresses as any).getContractAddress = (chainId: number, contractName: string) => {
+        contractRequests.push(contractName);
+        return originalGetContractAddress(chainId, contractName);
+      };
+
+      try {
+        // Create a fresh controller instance for this test
+        const { PermissionsController: TestPermissionsController } = await import("../controllers/permissions");
+        const testController = new TestPermissionsController(mockContext);
+
+        // Mock readContract to return the nonce
+        mockPublicClient.readContract.mockResolvedValueOnce(expectedNonce);
+
+        // Call getUserNonce (private method, so we need to use type assertion)
+        const getUserNonce = (testController as any).getUserNonce.bind(testController);
+        const nonce = await getUserNonce();
+
+        // Verify the correct contract was requested
+        expect(contractRequests).toContain("DataPermissions");
+        expect(contractRequests).not.toContain("DataPortabilityServers");
+        
+        expect(nonce).toBe(expectedNonce);
+      } finally {
+        // Restore original function
+        (addresses as any).getContractAddress = originalGetContractAddress;
+      }
     });
   });
 

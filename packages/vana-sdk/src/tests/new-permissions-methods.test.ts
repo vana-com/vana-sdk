@@ -314,40 +314,6 @@ describe("New PermissionsController Methods", () => {
       });
     });
 
-    describe("isActivePermission", () => {
-      it("should return true for active permission", async () => {
-        mockPublicClient.readContract.mockResolvedValue(true);
-
-        const result = await controller.isActivePermission(789n);
-
-        expect(result).toBe(true);
-        expect(mockPublicClient.readContract).toHaveBeenCalledWith({
-          address: "0x1234567890123456789012345678901234567890",
-          abi: [],
-          functionName: "isActivePermission",
-          args: [789n],
-        });
-      });
-
-      it("should return false for inactive permission", async () => {
-        mockPublicClient.readContract.mockResolvedValue(false);
-
-        const result = await controller.isActivePermission(789n);
-
-        expect(result).toBe(false);
-      });
-
-      it("should handle contract read errors", async () => {
-        mockPublicClient.readContract.mockRejectedValue(
-          new Error("Contract read failed"),
-        );
-
-        await expect(controller.isActivePermission(789n)).rejects.toThrow(
-          "Failed to check permission status: Contract read failed",
-        );
-      });
-    });
-
     describe("getPermissionInfo", () => {
       it("should successfully get permission info", async () => {
         const mockPermissionInfo = {

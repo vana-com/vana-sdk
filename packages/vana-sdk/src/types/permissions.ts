@@ -496,6 +496,24 @@ export interface Server {
 }
 
 /**
+ * Contract ServerInfo structure returned from the contract
+ *
+ * @category Permissions
+ */
+export interface ServerInfo {
+  /** Server ID */
+  id: bigint;
+  /** Server owner address */
+  owner: Address;
+  /** Server address */
+  serverAddress: Address;
+  /** Server public key */
+  publicKey: string;
+  /** Server URL */
+  url: string;
+}
+
+/**
  * Parameters for adding and trusting a server
  *
  * @category Permissions
@@ -663,20 +681,20 @@ export interface PermissionEvent {
  * @category Permissions
  */
 export interface TrustedServerInfo {
-  /** Server ID (numeric) */
-  serverId: number;
+  /** Server ID */
+  id: bigint;
   /** Server owner address */
   owner: Address;
-  /** Server URL */
-  url: string;
   /** Server address */
   serverAddress: Address;
   /** Server public key */
   publicKey: string;
-  /** Whether this server is trusted by the user */
-  isTrusted: boolean;
-  /** Index in user's trusted server list (if trusted) */
-  trustIndex?: number;
+  /** Server URL */
+  url: string;
+  /** Start block when trust relationship began */
+  startBlock: bigint;
+  /** End block when trust relationship ended (0 if still active) */
+  endBlock: bigint;
 }
 
 /**
@@ -755,6 +773,22 @@ export interface Grantee {
   publicKey: string;
   /** Permission IDs associated with this grantee */
   permissionIds: number[];
+}
+
+/**
+ * Contract GranteeInfo structure returned from the contract
+ *
+ * @category Permissions
+ */
+export interface GranteeInfo {
+  /** Grantee owner address */
+  owner: Address;
+  /** Grantee address */
+  granteeAddress: Address;
+  /** Grantee public key */
+  publicKey: string;
+  /** Permission IDs associated with this grantee */
+  permissionIds: readonly bigint[];
 }
 
 /**

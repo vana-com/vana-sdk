@@ -102,6 +102,7 @@ interface MockWalletClient {
 interface MockPublicClient {
   readContract: ReturnType<typeof vi.fn>;
   waitForTransactionReceipt: ReturnType<typeof vi.fn>;
+  getChainId: ReturnType<typeof vi.fn>;
 }
 
 describe("PermissionsController", () => {
@@ -182,6 +183,7 @@ describe("PermissionsController", () => {
         gasUsed: 100000n,
         logs: [],
       }),
+      getChainId: vi.fn().mockResolvedValue(14800),
     };
 
     mockContext = {
@@ -1545,32 +1547,38 @@ describe("PermissionsController", () => {
       // Import getContractAddress locally to avoid affecting other tests
       const addresses = await import("../config/addresses");
       const originalGetContractAddress = addresses.getContractAddress;
-      
+
       // Track which contracts are requested
       const contractRequests: string[] = [];
-      
+
       // Temporarily replace getContractAddress for this test only
-      (addresses as any).getContractAddress = (chainId: number, contractName: string) => {
+      (addresses as any).getContractAddress = (
+        chainId: number,
+        contractName: any,
+      ) => {
         contractRequests.push(contractName);
         return originalGetContractAddress(chainId, contractName);
       };
 
       try {
         // Create a fresh controller instance for this test
-        const { PermissionsController: TestPermissionsController } = await import("../controllers/permissions");
+        const { PermissionsController: TestPermissionsController } =
+          await import("../controllers/permissions");
         const testController = new TestPermissionsController(mockContext);
 
         // Mock readContract to return the nonce
         mockPublicClient.readContract.mockResolvedValueOnce(expectedNonce);
 
         // Call getUserNonce (private method, so we need to use type assertion)
-        const getUserNonce = (testController as any).getUserNonce.bind(testController);
+        const getUserNonce = (testController as any).getUserNonce.bind(
+          testController,
+        );
         const nonce = await getUserNonce();
 
         // Verify the correct contract was requested
         expect(contractRequests).toContain("DataPermissions");
         expect(contractRequests).not.toContain("DataPortabilityServers");
-        
+
         expect(nonce).toBe(expectedNonce);
       } finally {
         // Restore original function
@@ -1637,40 +1645,6 @@ describe("PermissionsController", () => {
 
         await expect(controller.getPermissionFileIds(456n)).rejects.toThrow(
           "Failed to get permission file IDs: Contract read failed",
-        );
-      });
-    });
-
-    describe("isActivePermission", () => {
-      it("should return true for active permission", async () => {
-        vi.mocked(mockPublicClient.readContract).mockResolvedValue(true);
-
-        const result = await controller.isActivePermission(789n);
-
-        expect(result).toBe(true);
-        expect(mockPublicClient.readContract).toHaveBeenCalledWith({
-          address: "0x1234567890123456789012345678901234567890",
-          abi: expect.any(Array),
-          functionName: "isActivePermission",
-          args: [789n],
-        });
-      });
-
-      it("should return false for inactive permission", async () => {
-        vi.mocked(mockPublicClient.readContract).mockResolvedValue(false);
-
-        const result = await controller.isActivePermission(789n);
-
-        expect(result).toBe(false);
-      });
-
-      it("should handle contract read errors", async () => {
-        vi.mocked(mockPublicClient.readContract).mockRejectedValue(
-          new Error("Contract read failed"),
-        );
-
-        await expect(controller.isActivePermission(789n)).rejects.toThrow(
-          "Failed to check permission status: Contract read failed",
         );
       });
     });

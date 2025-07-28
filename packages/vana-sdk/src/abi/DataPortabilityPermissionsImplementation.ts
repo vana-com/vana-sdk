@@ -1,4 +1,4 @@
-// DataPermissions Implementation Contract
+// DataPortabilityPermissions Implementation Contract
 // Generated automatically - do not edit manually
 
 export const DataPortabilityPermissionsABI = [
@@ -471,6 +471,68 @@ export const DataPortabilityPermissionsABI = [
     type: "function",
   },
   {
+    inputs: [
+      {
+        components: [
+          {
+            internalType: "uint256",
+            name: "nonce",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "granteeId",
+            type: "uint256",
+          },
+          {
+            internalType: "string",
+            name: "grant",
+            type: "string",
+          },
+          {
+            internalType: "string[]",
+            name: "fileUrls",
+            type: "string[]",
+          },
+          {
+            internalType: "address",
+            name: "serverAddress",
+            type: "address",
+          },
+          {
+            internalType: "string",
+            name: "serverUrl",
+            type: "string",
+          },
+          {
+            internalType: "string",
+            name: "serverPublicKey",
+            type: "string",
+          },
+        ],
+        internalType:
+          "struct IDataPortabilityPermissions.ServerFilesAndPermissionInput",
+        name: "serverFilesAndPermissionInput",
+        type: "tuple",
+      },
+      {
+        internalType: "bytes",
+        name: "signature",
+        type: "bytes",
+      },
+    ],
+    name: "addServerFilesAndPermissions",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
     inputs: [],
     name: "dataPortabilityGrantees",
     outputs: [
@@ -682,25 +744,6 @@ export const DataPortabilityPermissionsABI = [
     name: "initialize",
     outputs: [],
     stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "permissionId",
-        type: "uint256",
-      },
-    ],
-    name: "isActivePermission",
-    outputs: [
-      {
-        internalType: "bool",
-        name: "",
-        type: "bool",
-      },
-    ],
-    stateMutability: "view",
     type: "function",
   },
   {

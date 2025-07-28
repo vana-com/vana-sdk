@@ -140,11 +140,21 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       readContract: vi.fn().mockImplementation((args) => {
         // Mock the users function from DataPortabilityServers contract
         if (args.functionName === "users") {
-          return { nonce: BigInt(0) };
+          return [BigInt(0), []]; // [nonce, trustedServerIds]
         }
         // Mock the userNonce function from DataPermissions contract
         if (args.functionName === "userNonce") {
           return BigInt(0);
+        }
+        // Mock the servers function for getServerInfo
+        if (args.functionName === "servers") {
+          return {
+            id: args.args[0], // Use the serverId that was passed in
+            owner: "0x1234567890123456789012345678901234567890",
+            serverAddress: "0xabcdef1234567890123456789012345678901234",
+            publicKey: "0xpublickey",
+            url: "https://server1.com",
+          };
         }
         return BigInt(0);
       }),
@@ -525,49 +535,87 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
 
   describe("getTrustedServersWithInfo", () => {
     it("should successfully get trusted servers with info", async () => {
-      // Mock getTrustedServersPaginated return
-      mockPublicClient.readContract
-        .mockResolvedValueOnce(BigInt(1)) // userServerIdsLength
-        .mockResolvedValueOnce(BigInt(1)) // userServerIdsAt(0)
-        .mockResolvedValueOnce({
-          owner: "0x1234567890123456789012345678901234567890",
-          serverAddress: "0xabcdef1234567890123456789012345678901234",
-          publicKey: "0xpublickey",
-          url: "https://server1.com",
-        }); // getServerInfo
+      // Reset the mock to use the function name-based implementation only
+      mockPublicClient.readContract.mockImplementation((args) => {
+        // Mock the users function from DataPortabilityServers contract
+        if (args.functionName === "users") {
+          return [BigInt(0), []]; // [nonce, trustedServerIds]
+        }
+        // Mock for getTrustedServersPaginated
+        if (args.functionName === "userServerIdsLength") {
+          return BigInt(1);
+        }
+        if (args.functionName === "userServerIdsAt") {
+          return BigInt(1);
+        }
+        // Mock the servers function for getServerInfo
+        if (args.functionName === "servers") {
+          return {
+            id: args.args[0], // Use the serverId that was passed in
+            owner: "0x1234567890123456789012345678901234567890",
+            serverAddress: "0xabcdef1234567890123456789012345678901234",
+            publicKey: "0xpublickey",
+            url: "https://server1.com",
+          };
+        }
+        // Mock the userNonce function from DataPermissions contract
+        if (args.functionName === "userNonce") {
+          return BigInt(0);
+        }
+        return BigInt(0);
+      });
 
       const result = await controller.getTrustedServersWithInfo();
 
       expect(result).toEqual([
         {
-          serverId: 1,
+          id: 1n,
           owner: "0x1234567890123456789012345678901234567890",
           serverAddress: "0xabcdef1234567890123456789012345678901234",
           publicKey: "0xpublickey",
           url: "https://server1.com",
-          isTrusted: true,
-          trustIndex: 0,
+          startBlock: 0n,
+          endBlock: 0n,
         },
       ]);
     });
 
     it("should handle fetch errors when getting server info", async () => {
-      mockPublicClient.readContract
-        .mockResolvedValueOnce(BigInt(1)) // userServerIdsLength
-        .mockResolvedValueOnce(BigInt(1)) // userServerIdsAt(0)
-        .mockRejectedValueOnce(new Error("Server info failed")); // getServerInfo fails
+      // Mock with server info failure
+      mockPublicClient.readContract.mockImplementation((args) => {
+        // Mock the users function from DataPortabilityServers contract
+        if (args.functionName === "users") {
+          return [BigInt(0), []]; // [nonce, trustedServerIds]
+        }
+        // Mock for getTrustedServersPaginated
+        if (args.functionName === "userServerIdsLength") {
+          return BigInt(1);
+        }
+        if (args.functionName === "userServerIdsAt") {
+          return BigInt(1);
+        }
+        // Simulate failure for servers function
+        if (args.functionName === "servers") {
+          throw new Error("Server info failed");
+        }
+        // Mock the userNonce function from DataPermissions contract
+        if (args.functionName === "userNonce") {
+          return BigInt(0);
+        }
+        return BigInt(0);
+      });
 
       const result = await controller.getTrustedServersWithInfo();
 
       expect(result).toEqual([
         {
-          serverId: 1,
+          id: 1n,
           owner: "0x0000000000000000000000000000000000000000",
           serverAddress: "0x0000000000000000000000000000000000000000",
           publicKey: "",
           url: "",
-          isTrusted: true,
-          trustIndex: 0,
+          startBlock: 0n,
+          endBlock: 0n,
         },
       ]);
     });

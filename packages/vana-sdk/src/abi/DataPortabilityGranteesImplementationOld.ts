@@ -1,4 +1,4 @@
-// DataPortabilityGrantees Implementation Contract
+// DataPermissions Implementation Contract
 // Generated automatically - do not edit manually
 
 export const DataPortabilityGranteesABI = [

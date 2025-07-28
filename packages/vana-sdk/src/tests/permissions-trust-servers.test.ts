@@ -137,7 +137,17 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
 
     // Create a mock publicClient
     mockPublicClient = {
-      readContract: vi.fn().mockResolvedValue(BigInt(0)),
+      readContract: vi.fn().mockImplementation((args) => {
+        // Mock the users function from DataPortabilityServers contract
+        if (args.functionName === "users") {
+          return { nonce: BigInt(0) };
+        }
+        // Mock the userNonce function from DataPermissions contract
+        if (args.functionName === "userNonce") {
+          return BigInt(0);
+        }
+        return BigInt(0);
+      }),
       waitForTransactionReceipt: vi.fn().mockResolvedValue({ logs: [] }),
     };
 
@@ -166,10 +176,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         address: "0x1234567890123456789012345678901234567890",
         abi: expect.any(Array),
         functionName: "trustServer",
-        args: [
-          "0x0000000000000000000000000000000000000001",
-          "https://example.com",
-        ],
+        args: [BigInt(1)],
         account: mockWalletClient.account,
         chain: mockWalletClient.chain,
       });
@@ -302,7 +309,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         address: "0x1234567890123456789012345678901234567890",
         abi: expect.any(Array),
         functionName: "untrustServer",
-        args: ["0x0000000000000000000000000000000000000001"],
+        args: [BigInt(1)],
         account: mockWalletClient.account,
         chain: mockWalletClient.chain,
       });
@@ -419,14 +426,11 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
 
   describe("getTrustedServers", () => {
     it("should successfully get trusted servers", async () => {
-      mockPublicClient.readContract.mockResolvedValue([
-        "0xserver1",
-        "0xserver2",
-      ]);
+      mockPublicClient.readContract.mockResolvedValue([BigInt(1), BigInt(2)]);
 
       const result = await controller.getTrustedServers();
 
-      expect(result).toEqual(["0xserver1", "0xserver2"]);
+      expect(result).toEqual([1, 2]);
     });
 
     it("should return empty array when no trusted servers", async () => {
@@ -472,8 +476,8 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
     it("should successfully get paginated trusted servers", async () => {
       mockPublicClient.readContract
         .mockResolvedValueOnce(BigInt(3)) // userServerIdsLength
-        .mockResolvedValueOnce("0xserver1") // userServerIdsAt(0)
-        .mockResolvedValueOnce("0xserver2"); // userServerIdsAt(1)
+        .mockResolvedValueOnce(BigInt(1)) // userServerIdsAt(0)
+        .mockResolvedValueOnce(BigInt(2)); // userServerIdsAt(1)
 
       const result = await controller.getTrustedServersPaginated({
         limit: 2,
@@ -481,7 +485,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       });
 
       expect(result).toEqual({
-        servers: ["0xserver1", "0xserver2"],
+        servers: [1, 2],
         total: 3,
         offset: 0,
         limit: 2,
@@ -492,7 +496,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
     it("should handle pagination edge cases", async () => {
       mockPublicClient.readContract
         .mockResolvedValueOnce(BigInt(1)) // userServerIdsLength
-        .mockResolvedValueOnce("0xserver1"); // userServerIdsAt(0)
+        .mockResolvedValueOnce(BigInt(1)); // userServerIdsAt(0)
 
       const result = await controller.getTrustedServersPaginated({
         limit: 10,
@@ -500,7 +504,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       });
 
       expect(result).toEqual({
-        servers: ["0xserver1"],
+        servers: [1],
         total: 1,
         offset: 0,
         limit: 10,
@@ -524,14 +528,22 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       // Mock getTrustedServersPaginated return
       mockPublicClient.readContract
         .mockResolvedValueOnce(BigInt(1)) // userServerIdsLength
-        .mockResolvedValueOnce("0xserver1") // userServerIdsAt(0)
-        .mockResolvedValueOnce({ url: "https://server1.com" }); // getServerInfo
+        .mockResolvedValueOnce(BigInt(1)) // userServerIdsAt(0)
+        .mockResolvedValueOnce({
+          owner: "0x1234567890123456789012345678901234567890",
+          serverAddress: "0xabcdef1234567890123456789012345678901234",
+          publicKey: "0xpublickey",
+          url: "https://server1.com",
+        }); // getServerInfo
 
       const result = await controller.getTrustedServersWithInfo();
 
       expect(result).toEqual([
         {
-          serverId: "0xserver1",
+          serverId: 1,
+          owner: "0x1234567890123456789012345678901234567890",
+          serverAddress: "0xabcdef1234567890123456789012345678901234",
+          publicKey: "0xpublickey",
           url: "https://server1.com",
           isTrusted: true,
           trustIndex: 0,
@@ -542,14 +554,17 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
     it("should handle fetch errors when getting server info", async () => {
       mockPublicClient.readContract
         .mockResolvedValueOnce(BigInt(1)) // userServerIdsLength
-        .mockResolvedValueOnce("0xserver1") // userServerIdsAt(0)
+        .mockResolvedValueOnce(BigInt(1)) // userServerIdsAt(0)
         .mockRejectedValueOnce(new Error("Server info failed")); // getServerInfo fails
 
       const result = await controller.getTrustedServersWithInfo();
 
       expect(result).toEqual([
         {
-          serverId: "0xserver1",
+          serverId: 1,
+          owner: "0x0000000000000000000000000000000000000000",
+          serverAddress: "0x0000000000000000000000000000000000000000",
+          publicKey: "",
           url: "",
           isTrusted: true,
           trustIndex: 0,

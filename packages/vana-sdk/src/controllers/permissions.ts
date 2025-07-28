@@ -1030,6 +1030,45 @@ export class PermissionsController {
   }
 
   /**
+   * Retrieves the user's current nonce from the DataPortabilityServers contract.
+   * This nonce is used for server-related operations (AddAndTrustServer, TrustServer, UntrustServer).
+   *
+   * @returns Promise resolving to the current nonce
+   * @private
+   *
+   * @example
+   * ```typescript
+   * const nonce = await this.getServerNonce();
+   * console.log(`Current server nonce: ${nonce}`);
+   * ```
+   */
+  private async getServerNonce(): Promise<bigint> {
+    try {
+      const userAddress = await this.getUserAddress();
+      const chainId = await this.context.walletClient.getChainId();
+
+      const DataPortabilityServersAddress = getContractAddress(
+        chainId,
+        "DataPortabilityServers",
+      );
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
+
+      const user = (await this.context.publicClient.readContract({
+        address: DataPortabilityServersAddress,
+        abi: DataPortabilityServersAbi,
+        functionName: "users",
+        args: [userAddress],
+      })) as { nonce: bigint };
+
+      return user.nonce;
+    } catch (error) {
+      throw new NonceError(
+        `Failed to retrieve server nonce: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
    * Composes the EIP-712 typed data for PermissionGrant (new simplified format).
    *
    * @param params - The parameters for composing the permission grant message
@@ -1597,7 +1636,7 @@ export class PermissionsController {
     params: AddAndTrustServerParams,
   ): Promise<Hash> {
     try {
-      const nonce = await this.getUserNonce();
+      const nonce = await this.getServerNonce();
 
       // Create add and trust server message
       const addAndTrustServerInput: AddAndTrustServerInput = {
@@ -1681,7 +1720,7 @@ export class PermissionsController {
    */
   async trustServerWithSignature(params: TrustServerParams): Promise<Hash> {
     try {
-      const nonce = await this.getUserNonce();
+      const nonce = await this.getServerNonce();
 
       // Create trust server message
       const trustServerInput: TrustServerInput = {
@@ -1824,7 +1863,7 @@ export class PermissionsController {
    */
   async untrustServerWithSignature(params: UntrustServerParams): Promise<Hash> {
     try {
-      const nonce = await this.getUserNonce();
+      const nonce = await this.getServerNonce();
 
       // Create untrust server message
       const untrustServerInput: UntrustServerInput = {

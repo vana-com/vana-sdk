@@ -149,6 +149,9 @@ export type {
   RegisterGranteeTypedData,
   GranteeQueryOptions,
   PaginatedGrantees,
+  ServerFilesAndPermissionParams,
+  ServerFilesAndPermissionTypedData,
+  Permission,
 } from "./permissions";
 
 // Personal server types

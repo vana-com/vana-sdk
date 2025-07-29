@@ -105,7 +105,7 @@ export function useGrantees(): UseGranteesReturn {
     setAddGranteeError("");
 
     try {
-      await vana.permissions.registerGrantee({
+      await vana.permissions.submitRegisterGrantee({
         owner: (ownerAddress || address) as `0x${string}`,
         granteeAddress: granteeAddress as `0x${string}`,
         publicKey: granteePublicKey || "0x", // Use provided public key or default
@@ -155,7 +155,7 @@ export function useGrantees(): UseGranteesReturn {
       setAddGranteeError("");
 
       try {
-        await vana.permissions.registerGranteeWithSignature(actualParams);
+        await vana.permissions.submitRegisterGranteeWithSignature(actualParams);
 
         console.info(
           "✅ Register grantee with signature completed successfully!",

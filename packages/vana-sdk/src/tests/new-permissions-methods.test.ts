@@ -72,7 +72,7 @@ describe("New PermissionsController Methods", () => {
     controller = new PermissionsController(mockContext);
   });
 
-  describe("revokeWithSignature", () => {
+  describe("submitRevokeWithSignature", () => {
     beforeEach(() => {
       // Mock getUserNonce for typed data creation
       vi.spyOn(
@@ -152,7 +152,8 @@ describe("New PermissionsController Methods", () => {
         permissionId: 42n,
       };
 
-      const result = await controllerWithRelayer.revokeWithSignature(params);
+      const result =
+        await controllerWithRelayer.submitRevokeWithSignature(params);
 
       expect(result).toBe(
         "0xhash123456789012345678901234567890123456789012345678901234567890",
@@ -224,7 +225,7 @@ describe("New PermissionsController Methods", () => {
         permissionId: 42n,
       };
 
-      const result = await directController.revokeWithSignature(params);
+      const result = await directController.submitRevokeWithSignature(params);
 
       expect(result).toBe(
         "0xhash123456789012345678901234567890123456789012345678901234567890",
@@ -247,7 +248,7 @@ describe("New PermissionsController Methods", () => {
       };
 
       await expect(
-        noChainController.revokeWithSignature(params),
+        noChainController.submitRevokeWithSignature(params),
       ).rejects.toThrow(
         "Failed to revoke permission with signature: Chain ID not available",
       );

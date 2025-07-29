@@ -140,6 +140,22 @@ export const DataPortabilityPermissionsABI = [
     type: "error",
   },
   {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "filesLength",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "permissionsLength",
+        type: "uint256",
+      },
+    ],
+    name: "InvalidPermissionsLength",
+    type: "error",
+  },
+  {
     inputs: [],
     name: "InvalidSignature",
     type: "error",
@@ -509,6 +525,23 @@ export const DataPortabilityPermissionsABI = [
             name: "serverPublicKey",
             type: "string",
           },
+          {
+            components: [
+              {
+                internalType: "address",
+                name: "account",
+                type: "address",
+              },
+              {
+                internalType: "string",
+                name: "key",
+                type: "string",
+              },
+            ],
+            internalType: "struct IDataRegistry.Permission[][]",
+            name: "filePermissions",
+            type: "tuple[][]",
+          },
         ],
         internalType:
           "struct IDataPortabilityPermissions.ServerFilesAndPermissionInput",
@@ -859,11 +892,6 @@ export const DataPortabilityPermissionsABI = [
             internalType: "string",
             name: "grant",
             type: "string",
-          },
-          {
-            internalType: "bytes",
-            name: "signature",
-            type: "bytes",
           },
           {
             internalType: "uint256",

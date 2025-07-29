@@ -179,7 +179,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         serverUrl: "https://example.com",
       };
 
-      const result = await controller.trustServer(params);
+      const result = await controller.submitTrustServer(params);
 
       expect(result).toBe("0xtxhash");
       expect(mockWalletClient.writeContract).toHaveBeenCalledWith({
@@ -202,13 +202,13 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         serverUrl: "https://example.com",
       };
 
-      await expect(controller.trustServer(params)).rejects.toThrow(
+      await expect(controller.submitTrustServer(params)).rejects.toThrow(
         BlockchainError,
       );
     });
   });
 
-  describe("trustServerWithSignature", () => {
+  describe("submitTrustServerWithSignature", () => {
     it("should successfully trust server with signature via relayer", async () => {
       mockContext.relayerCallbacks = {
         submitTrustServer: vi.fn().mockResolvedValue("0xrelayerhash" as Hash),
@@ -219,7 +219,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         serverUrl: "https://example.com",
       };
 
-      const result = await controller.trustServerWithSignature(params);
+      const result = await controller.submitTrustServerWithSignature(params);
 
       expect(result).toBe("0xrelayerhash");
       expect(mockContext.relayerCallbacks.submitTrustServer).toHaveBeenCalled();
@@ -232,7 +232,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         serverUrl: "https://example.com",
       };
 
-      const result = await controller.trustServerWithSignature(params);
+      const result = await controller.submitTrustServerWithSignature(params);
 
       expect(result).toBe("0xtxhash");
       expect(mockWalletClient.writeContract).toHaveBeenCalledWith({
@@ -245,7 +245,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       });
     });
 
-    it("should handle getUserNonce errors in trustServerWithSignature", async () => {
+    it("should handle getUserNonce errors in submitTrustServerWithSignature", async () => {
       mockPublicClient.readContract.mockRejectedValue(
         new Error("Nonce read failed"),
       );
@@ -255,12 +255,12 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         serverUrl: "https://example.com",
       };
 
-      await expect(controller.trustServerWithSignature(params)).rejects.toThrow(
-        NonceError,
-      );
+      await expect(
+        controller.submitTrustServerWithSignature(params),
+      ).rejects.toThrow(NonceError);
     });
 
-    it("should handle signature errors in trustServerWithSignature", async () => {
+    it("should handle signature errors in submitTrustServerWithSignature", async () => {
       mockWalletClient.signTypedData.mockRejectedValue(
         new Error("User rejected"),
       );
@@ -270,12 +270,12 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         serverUrl: "https://example.com",
       };
 
-      await expect(controller.trustServerWithSignature(params)).rejects.toThrow(
-        UserRejectedRequestError,
-      );
+      await expect(
+        controller.submitTrustServerWithSignature(params),
+      ).rejects.toThrow(UserRejectedRequestError);
     });
 
-    it("should handle relayer errors in trustServerWithSignature", async () => {
+    it("should handle relayer errors in submitTrustServerWithSignature", async () => {
       mockContext.relayerCallbacks = {
         submitTrustServer: vi
           .fn()
@@ -287,12 +287,12 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         serverUrl: "https://example.com",
       };
 
-      await expect(controller.trustServerWithSignature(params)).rejects.toThrow(
-        RelayerError,
-      );
+      await expect(
+        controller.submitTrustServerWithSignature(params),
+      ).rejects.toThrow(RelayerError);
     });
 
-    it("should handle non-Error exceptions in trustServerWithSignature", async () => {
+    it("should handle non-Error exceptions in submitTrustServerWithSignature", async () => {
       mockWalletClient.signTypedData.mockRejectedValue("String error");
 
       const params = {
@@ -300,9 +300,9 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         serverUrl: "https://example.com",
       };
 
-      await expect(controller.trustServerWithSignature(params)).rejects.toThrow(
-        SignatureError,
-      );
+      await expect(
+        controller.submitTrustServerWithSignature(params),
+      ).rejects.toThrow(SignatureError);
     });
   });
 
@@ -312,7 +312,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         serverId: 1,
       };
 
-      const result = await controller.untrustServer(params);
+      const result = await controller.submitUntrustServer(params);
 
       expect(result).toBe("0xtxhash");
       expect(mockWalletClient.writeContract).toHaveBeenCalledWith({
@@ -334,13 +334,13 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         serverId: 1,
       };
 
-      await expect(controller.untrustServer(params)).rejects.toThrow(
+      await expect(controller.submitUntrustServer(params)).rejects.toThrow(
         BlockchainError,
       );
     });
   });
 
-  describe("untrustServerWithSignature", () => {
+  describe("submitUntrustServerWithSignature", () => {
     it("should successfully untrust server with signature via relayer", async () => {
       mockContext.relayerCallbacks = {
         submitUntrustServer: vi.fn().mockResolvedValue("0xrelayerhash" as Hash),
@@ -350,7 +350,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         serverId: 1,
       };
 
-      const result = await controller.untrustServerWithSignature(params);
+      const result = await controller.submitUntrustServerWithSignature(params);
 
       expect(result).toBe("0xrelayerhash");
       expect(
@@ -364,7 +364,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         serverId: 1,
       };
 
-      const result = await controller.untrustServerWithSignature(params);
+      const result = await controller.submitUntrustServerWithSignature(params);
 
       expect(result).toBe("0xtxhash");
       expect(mockWalletClient.writeContract).toHaveBeenCalledWith({
@@ -377,7 +377,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       });
     });
 
-    it("should handle getUserNonce errors in untrustServerWithSignature", async () => {
+    it("should handle getUserNonce errors in submitUntrustServerWithSignature", async () => {
       mockPublicClient.readContract.mockRejectedValue(
         new Error("Nonce read failed"),
       );
@@ -387,11 +387,11 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       };
 
       await expect(
-        controller.untrustServerWithSignature(params),
+        controller.submitUntrustServerWithSignature(params),
       ).rejects.toThrow(NonceError);
     });
 
-    it("should handle signature errors in untrustServerWithSignature", async () => {
+    it("should handle signature errors in submitUntrustServerWithSignature", async () => {
       mockWalletClient.signTypedData.mockRejectedValue(
         new Error("User rejected"),
       );
@@ -401,11 +401,11 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       };
 
       await expect(
-        controller.untrustServerWithSignature(params),
+        controller.submitUntrustServerWithSignature(params),
       ).rejects.toThrow(UserRejectedRequestError);
     });
 
-    it("should handle relayer errors in untrustServerWithSignature", async () => {
+    it("should handle relayer errors in submitUntrustServerWithSignature", async () => {
       mockContext.relayerCallbacks = {
         submitUntrustServer: vi
           .fn()
@@ -417,11 +417,11 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       };
 
       await expect(
-        controller.untrustServerWithSignature(params),
+        controller.submitUntrustServerWithSignature(params),
       ).rejects.toThrow(RelayerError);
     });
 
-    it("should handle non-Error exceptions in untrustServerWithSignature", async () => {
+    it("should handle non-Error exceptions in submitUntrustServerWithSignature", async () => {
       mockWalletClient.signTypedData.mockRejectedValue("String error");
 
       const params = {
@@ -429,7 +429,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       };
 
       await expect(
-        controller.untrustServerWithSignature(params),
+        controller.submitUntrustServerWithSignature(params),
       ).rejects.toThrow(SignatureError);
     });
   });

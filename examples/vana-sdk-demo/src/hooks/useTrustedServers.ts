@@ -224,7 +224,7 @@ export function useTrustedServers(): UseTrustedServersReturn {
       setTrustServerError("");
 
       try {
-        await vana.permissions.addAndTrustServerWithSignature({
+        await vana.permissions.submitAddAndTrustServerWithSignature({
           owner: actualServerOwner as `0x${string}`,
           serverAddress: actualServerAddress as `0x${string}`,
           serverUrl: actualServerUrl,
@@ -271,7 +271,7 @@ export function useTrustedServers(): UseTrustedServersReturn {
 
       setIsUntrusting(true);
       try {
-        await vana.permissions.untrustServerWithSignature({
+        await vana.permissions.submitUntrustServerWithSignature({
           serverId: parseInt(serverIdToUntrust, 10),
         });
 

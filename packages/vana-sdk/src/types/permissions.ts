@@ -261,8 +261,8 @@ export interface PermissionInfo {
   granteeId: bigint;
   /** Grant URL */
   grant: string;
-  /** Signature bytes */
-  signature: `0x${string}`;
+  /** Signature bytes (removed in newer contract versions) */
+  signature?: `0x${string}`;
   /** Start block */
   startBlock: bigint;
   /** End block */
@@ -872,4 +872,89 @@ export interface PaginatedGrantees {
   limit: number;
   /** Whether there are more grantees beyond this page */
   hasMore: boolean;
+}
+
+/**
+ * Contract Permission structure as used in ServerFilesAndPermissionInput
+ *
+ * @category Permissions
+ */
+export interface Permission {
+  /** Account address for the permission */
+  account: Address;
+  /** Permission key */
+  key: string;
+}
+
+/**
+ * Contract ServerFilesAndPermissionInput structure
+ *
+ * @category Permissions
+ */
+export interface ServerFilesAndPermissionInput {
+  /** User nonce */
+  nonce: bigint;
+  /** Grantee ID */
+  granteeId: bigint;
+  /** Grant URL */
+  grant: string;
+  /** File URLs */
+  fileUrls: string[];
+  /** Server address */
+  serverAddress: Address;
+  /** Server URL */
+  serverUrl: string;
+  /** Server public key */
+  serverPublicKey: string;
+  /** File permissions array - permissions for each file */
+  filePermissions: Permission[][];
+}
+
+/**
+ * Parameters for server files and permissions operations
+ *
+ * @category Permissions
+ */
+export interface ServerFilesAndPermissionParams {
+  /** Grantee ID */
+  granteeId: bigint;
+  /** Grant URL or grant data */
+  grant: string;
+  /** File URLs */
+  fileUrls: string[];
+  /** Server address */
+  serverAddress: Address;
+  /** Server URL */
+  serverUrl: string;
+  /** Server public key */
+  serverPublicKey: string;
+  /** File permissions array - permissions for each file */
+  filePermissions: Permission[][];
+}
+
+/**
+ * EIP-712 typed data for server files and permissions messages
+ *
+ * @category Permissions
+ */
+export interface ServerFilesAndPermissionTypedData extends GenericTypedData {
+  /** Message data structure */
+  message: {
+    /** User nonce */
+    nonce: bigint;
+    /** Grantee ID */
+    granteeId: bigint;
+    /** Grant URL */
+    grant: string;
+    /** File URLs */
+    fileUrls: string[];
+    /** Server address */
+    serverAddress: Address;
+    /** Server URL */
+    serverUrl: string;
+    /** Server public key */
+    serverPublicKey: string;
+    /** File permissions array - permissions for each file */
+    filePermissions: Permission[][];
+  };
 }

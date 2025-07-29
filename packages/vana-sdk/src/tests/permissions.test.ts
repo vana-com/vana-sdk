@@ -1282,7 +1282,7 @@ describe("PermissionsController", () => {
       };
 
       await expect(
-        failingController.revokeWithSignature(mockRevokeParams),
+        failingController.submitRevokeWithSignature(mockRevokeParams),
       ).rejects.toThrow(PermissionError);
     });
 
@@ -1304,7 +1304,7 @@ describe("PermissionsController", () => {
       };
 
       await expect(
-        failingController.revokeWithSignature(mockRevokeParams),
+        failingController.submitRevokeWithSignature(mockRevokeParams),
       ).rejects.toThrow(PermissionError);
     });
 
@@ -1378,7 +1378,7 @@ describe("PermissionsController", () => {
     });
   });
 
-  describe("revokeWithSignature", () => {
+  describe("submitRevokeWithSignature", () => {
     beforeEach(() => {
       // Mock getUserNonce for typed data creation
       vi.spyOn(
@@ -1395,7 +1395,7 @@ describe("PermissionsController", () => {
         },
         "getPermissionDomain",
       ).mockResolvedValue({
-        name: "DataPermissions",
+        name: "VanaDataPortabilityPermissions",
         version: "1",
         chainId: 14800,
         verifyingContract: "0x1234567890123456789012345678901234567890",
@@ -1427,7 +1427,7 @@ describe("PermissionsController", () => {
         permissionId: 42n,
       };
 
-      const result = await controller.revokeWithSignature(params);
+      const result = await controller.submitRevokeWithSignature(params);
 
       expect(result).toBe("0xtxhash");
     });
@@ -1458,7 +1458,7 @@ describe("PermissionsController", () => {
         permissionId: 42n,
       };
 
-      const result = await controller.revokeWithSignature(params);
+      const result = await controller.submitRevokeWithSignature(params);
 
       expect(result).toBe(
         "0xhash123456789012345678901234567890123456789012345678901234567890",
@@ -1480,9 +1480,9 @@ describe("PermissionsController", () => {
         permissionId: 42n,
       };
 
-      await expect(controller.revokeWithSignature(params)).rejects.toThrow(
-        PermissionError,
-      );
+      await expect(
+        controller.submitRevokeWithSignature(params),
+      ).rejects.toThrow(PermissionError);
     });
 
     it("should handle getUserNonce errors", async () => {
@@ -1507,7 +1507,9 @@ describe("PermissionsController", () => {
         permissionId: 42n,
       };
 
-      await expect(controller.revokeWithSignature(params)).rejects.toThrow(
+      await expect(
+        controller.submitRevokeWithSignature(params),
+      ).rejects.toThrow(
         "Failed to revoke permission with signature: Nonce retrieval failed",
       );
     });
@@ -1534,14 +1536,16 @@ describe("PermissionsController", () => {
         permissionId: 42n,
       };
 
-      await expect(controller.revokeWithSignature(params)).rejects.toThrow(
+      await expect(
+        controller.submitRevokeWithSignature(params),
+      ).rejects.toThrow(
         "Failed to revoke permission with signature: Signature failed",
       );
     });
   });
 
   describe("getUserNonce", () => {
-    it("should read nonce from DataPermissions contract, not DataPortabilityServers", async () => {
+    it("should read nonce from DataPortabilityServers contract", async () => {
       const expectedNonce = 5n;
 
       // Import getContractAddress locally to avoid affecting other tests
@@ -1576,8 +1580,8 @@ describe("PermissionsController", () => {
         const nonce = await getUserNonce();
 
         // Verify the correct contract was requested
-        expect(contractRequests).toContain("DataPermissions");
-        expect(contractRequests).not.toContain("DataPortabilityServers");
+        expect(contractRequests).toContain("DataPortabilityServers");
+        expect(contractRequests).not.toContain("DataPermissions");
 
         expect(nonce).toBe(expectedNonce);
       } finally {
@@ -1710,7 +1714,7 @@ describe("PermissionsController", () => {
       it("should successfully submit direct revoke transaction", async () => {
         const typedData = {
           domain: {
-            name: "DataPermissions",
+            name: "VanaDataPortabilityPermissions",
             version: "1",
             chainId: 14800,
             verifyingContract:
@@ -1762,7 +1766,7 @@ describe("PermissionsController", () => {
 
         const typedData = {
           domain: {
-            name: "DataPermissions",
+            name: "VanaDataPortabilityPermissions",
             version: "1",
             chainId: 14800,
             verifyingContract:

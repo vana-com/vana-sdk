@@ -44,7 +44,6 @@ import { DATPausableABI } from "./DATPausableImplementation";
 import { DATVotesABI } from "./DATVotesImplementation";
 
 const contractAbis = {
-  DataPermissions: DataPortabilityPermissionsABI,
   DataPortabilityPermissions: DataPortabilityPermissionsABI,
   DataPortabilityServers: DataPortabilityServersABI,
   DataPortabilityGrantees: DataPortabilityGranteesABI,

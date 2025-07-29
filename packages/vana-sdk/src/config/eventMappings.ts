@@ -16,11 +16,11 @@ export interface EventMapping {
 export const EVENT_MAPPINGS = {
   // Permission operations
   grant: {
-    contract: "DataPermissions",
+    contract: "DataPortabilityPermissions",
     event: "PermissionAdded",
   },
   revoke: {
-    contract: "DataPermissions",
+    contract: "DataPortabilityPermissions",
     event: "PermissionRevoked",
   },
   trustServer: {

@@ -1,4 +1,5 @@
-import { defineConfig } from "vitest/config";
+/// <reference types="vitest" />
+import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tsconfigPaths from "vite-tsconfig-paths";
 
@@ -34,13 +35,13 @@ export default defineConfig({
         branches: 25, // Conservative threshold
         statements: 15, // Match lines coverage
         // Per-file thresholds for critical components
-        'src/hooks/**/*.ts': {
+        "src/hooks/**/*.ts": {
           lines: 60,
           functions: 80,
           branches: 40,
           statements: 60,
         },
-        'src/providers/**/*.tsx': {
+        "src/providers/**/*.tsx": {
           lines: 15,
           functions: 25, // Below current 27.27% to allow for variation
           branches: 10,

@@ -61,7 +61,7 @@ export default function DeveloperToolsPage() {
     // Schema creation state
     schemaName,
     schemaType,
-    schemaDefinitionUrl: _schemaDefinitionUrl,
+    schemaDefinition,
     isCreatingSchema,
     schemaStatus,
     lastCreatedSchemaId,
@@ -96,7 +96,7 @@ export default function DeveloperToolsPage() {
     // Setters
     setSchemaName,
     setSchemaType,
-    setSchemaDefinitionUrl,
+    setSchemaDefinition,
     setRefinerName,
     setRefinerDlpId,
     setRefinerSchemaId,
@@ -152,12 +152,9 @@ export default function DeveloperToolsPage() {
           onSchemaNameChange={setSchemaName}
           schemaType={schemaType}
           onSchemaTypeChange={setSchemaType}
-          onCreateSchema={({ name: _name, type: _type, definitionUrl }) => {
-            // Update the URL field in the hook state
-            setSchemaDefinitionUrl(definitionUrl);
-            // Call the hook's create schema handler
-            handleCreateSchema();
-          }}
+          schemaDefinition={schemaDefinition}
+          onSchemaDefinitionChange={setSchemaDefinition}
+          onCreateSchema={handleCreateSchema}
           isCreatingSchema={isCreatingSchema}
           schemaStatus={schemaStatus}
           lastCreatedSchemaId={lastCreatedSchemaId}

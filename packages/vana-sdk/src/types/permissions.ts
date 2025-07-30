@@ -599,13 +599,13 @@ export interface AddAndTrustServerTypedData {
   domain: PermissionGrantDomain;
   /** EIP-712 types */
   types: {
-    AddAndTrustServer: Array<{
+    AddServer: Array<{
       name: string;
       type: string;
     }>;
   };
   /** Primary type */
-  primaryType: "AddAndTrustServer";
+  primaryType: "AddServer";
   /** Message to sign */
   message: AddAndTrustServerInput;
 }

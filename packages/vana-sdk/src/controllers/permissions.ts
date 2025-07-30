@@ -2214,14 +2214,14 @@ export class PermissionsController {
     return {
       domain,
       types: {
-        AddAndTrustServer: [
+        AddServer: [
           { name: "nonce", type: "uint256" },
           { name: "serverAddress", type: "address" },
           { name: "publicKey", type: "string" },
           { name: "serverUrl", type: "string" },
         ],
       },
-      primaryType: "AddAndTrustServer",
+      primaryType: "AddServer",
       message: input,
     };
   }

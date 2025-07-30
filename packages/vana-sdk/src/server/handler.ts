@@ -135,7 +135,7 @@ export async function handleRelayerRequest(
         signature,
       );
 
-    case "AddAndTrustServer":
+    case "AddServer":
       return await sdk.permissions.submitSignedAddAndTrustServer(
         typedData as unknown as AddAndTrustServerTypedData,
         signature,

@@ -19,6 +19,7 @@ import { FilesTab } from "./components/FilesTab";
 import { PermissionsTab } from "./components/PermissionsTab";
 import { ServersTab } from "./components/ServersTab";
 import { GranteesTab } from "./components/GranteesTab";
+import { ContractCallsTab } from "@/components/ui/ContractCallsTab";
 
 /**
  * My Data page - User's personal data control panel
@@ -520,6 +521,9 @@ export default function MyDataPage() {
             onRefreshGrantees={loadGrantees}
             onRemoveGrantee={handleRemoveGrantee}
           />
+        </Tab>
+        <Tab key="contract-calls" title="Contract Calls">
+          {vana && <ContractCallsTab vana={vana} chainId={chainId || 14800} />}
         </Tab>
       </Tabs>
 

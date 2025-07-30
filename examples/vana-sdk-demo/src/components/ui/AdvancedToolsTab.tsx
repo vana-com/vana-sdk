@@ -28,7 +28,6 @@ import {
 } from "@opendatalabs/vana-sdk/browser";
 import { InputModeToggle } from "./InputModeToggle";
 import { CodeDisplay } from "./CodeDisplay";
-import { BatchOperationsTab } from "./BatchOperationsTab";
 
 export interface AdvancedToolsTabProps {
   /** Vana SDK instance */
@@ -835,9 +834,6 @@ export const AdvancedToolsTab: React.FC<AdvancedToolsTabProps> = ({
         </Tab>
         <Tab key="storage" title="Storage Testing">
           {renderStorageTab()}
-        </Tab>
-        <Tab key="batch-operations" title="Batch Operations">
-          <BatchOperationsTab vana={vana} chainId={_chainId} />
         </Tab>
       </Tabs>
     </div>

@@ -24,11 +24,16 @@ import {
   ServerTrustStatus,
   GrantFile,
   Grantee,
+  GranteeInfo,
   RegisterGranteeParams,
   RegisterGranteeInput,
   RegisterGranteeTypedData,
   GranteeQueryOptions,
   PaginatedGrantees,
+  ServerInfo,
+  ServerFilesAndPermissionParams,
+  ServerFilesAndPermissionTypedData,
+  Permission,
 } from "../types/index";
 import {
   PermissionGrantResult,
@@ -353,7 +358,7 @@ export class PermissionsController {
       }
 
       // Step 2: Get user nonce
-      const nonce = await this.getUserNonce();
+      const nonce = await this.getPermissionsUserNonce();
 
       // Step 3: Create EIP-712 message with compatibility placeholders
       console.debug(
@@ -477,7 +482,7 @@ export class PermissionsController {
       }
 
       // Step 3: Get user nonce
-      const nonce = await this.getUserNonce();
+      const nonce = await this.getPermissionsUserNonce();
 
       // Step 4: Create EIP-712 message with compatibility placeholders
       console.debug(
@@ -666,7 +671,6 @@ export class PermissionsController {
     try {
       const addAndTrustServerInput: AddAndTrustServerInput = {
         nonce: BigInt(typedData.message.nonce),
-        owner: typedData.message.owner,
         serverAddress: typedData.message.serverAddress,
         serverUrl: typedData.message.serverUrl,
         publicKey: typedData.message.publicKey,
@@ -689,7 +693,7 @@ export class PermissionsController {
       }
 
       throw new BlockchainError(
-        `Add and trust server submission failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        `Add and trust server submission failed444444: ${error instanceof Error ? error.message : "Unknown error"}`,
         error as Error,
       );
     }
@@ -791,11 +795,11 @@ export class PermissionsController {
     signature: Hash,
   ): Promise<Hash> {
     const chainId = await this.context.walletClient.getChainId();
-    const DataPermissionsAddress = getContractAddress(
+    const DataPortabilityPermissionsAddress = getContractAddress(
       chainId,
-      "DataPermissions",
+      "DataPortabilityPermissions",
     );
-    const DataPermissionsAbi = getAbi("DataPermissions");
+    const DataPortabilityPermissionsAbi = getAbi("DataPortabilityPermissions");
 
     // Prepare the PermissionInput struct
     const permissionInput = {
@@ -818,8 +822,8 @@ export class PermissionsController {
 
     // Submit directly to the contract using the provided wallet client
     const txHash = await this.context.walletClient.writeContract({
-      address: DataPermissionsAddress,
-      abi: DataPermissionsAbi,
+      address: DataPortabilityPermissionsAddress,
+      abi: DataPortabilityPermissionsAbi,
       functionName: "addPermission",
       args: [permissionInput, signature],
       account:
@@ -888,16 +892,18 @@ export class PermissionsController {
       }
 
       const chainId = await this.context.walletClient.getChainId();
-      const DataPermissionsAddress = getContractAddress(
+      const DataPortabilityPermissionsAddress = getContractAddress(
         chainId,
-        "DataPermissions",
+        "DataPortabilityPermissions",
       );
-      const DataPermissionsAbi = getAbi("DataPermissions");
+      const DataPortabilityPermissionsAbi = getAbi(
+        "DataPortabilityPermissions",
+      );
 
       // Direct contract call for revocation
       const txHash = await this.context.walletClient.writeContract({
-        address: DataPermissionsAddress,
-        abi: DataPermissionsAbi,
+        address: DataPortabilityPermissionsAddress,
+        abi: DataPortabilityPermissionsAbi,
         functionName: "revokePermission",
         args: [params.permissionId],
         account:
@@ -939,14 +945,16 @@ export class PermissionsController {
    * @throws {RelayerError} When gasless submission fails
    * @throws {PermissionError} When revocation fails for any other reason
    */
-  async revokeWithSignature(params: RevokePermissionParams): Promise<Hash> {
+  async submitRevokeWithSignature(
+    params: RevokePermissionParams,
+  ): Promise<Hash> {
     try {
       // Check chain ID availability early
       if (!this.context.walletClient.chain?.id) {
         throw new BlockchainError("Chain ID not available");
       }
 
-      const nonce = await this.getUserNonce();
+      const nonce = await this.getPermissionsUserNonce();
 
       // Create revoke permission input
       const revokePermissionInput = {
@@ -987,7 +995,10 @@ export class PermissionsController {
   }
 
   /**
+   * @deprecated Use getPermissionsUserNonce() for permission operations or getServersUserNonce() for server operations
+   *
    * Retrieves the user's current nonce from the DataPortabilityServers contract.
+   * This method is deprecated in favor of more specific nonce methods.
    *
    * The nonce is used to prevent replay attacks in signed transactions and must
    * be incremented with each transaction to maintain security.
@@ -999,8 +1010,12 @@ export class PermissionsController {
    * @private
    * @example
    * ```typescript
+   * // Deprecated - use specific methods instead
    * const nonce = await this.getUserNonce();
-   * console.log(`Current nonce: ${nonce}`);
+   *
+   * // Use these instead:
+   * const permissionsNonce = await this.getPermissionsUserNonce();
+   * const serversNonce = await this.getServersUserNonce();
    * ```
    */
   private async getUserNonce(): Promise<bigint> {
@@ -1008,15 +1023,15 @@ export class PermissionsController {
       const userAddress = await this.getUserAddress();
       const chainId = await this.context.walletClient.getChainId();
 
-      const DataPermissionsAddress = getContractAddress(
+      const DataPortabilityServersAddress = getContractAddress(
         chainId,
-        "DataPermissions",
+        "DataPortabilityServers",
       );
-      const DataPermissionsAbi = getAbi("DataPermissions");
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
 
       const nonce = (await this.context.publicClient.readContract({
-        address: DataPermissionsAddress,
-        abi: DataPermissionsAbi,
+        address: DataPortabilityServersAddress,
+        abi: DataPortabilityServersAbi,
         functionName: "userNonce",
         args: [userAddress],
       })) as bigint;
@@ -1025,6 +1040,88 @@ export class PermissionsController {
     } catch (error) {
       throw new NonceError(
         `Failed to retrieve user nonce: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Retrieves the user's current nonce from the DataPortabilityServers contract.
+   * This nonce is used for server-related operations (AddAndTrustServer, TrustServer, UntrustServer).
+   *
+   * @returns Promise resolving to the current servers nonce
+   * @throws {NonceError} When reading nonce from contract fails
+   * @private
+   *
+   * @example
+   * ```typescript
+   * const nonce = await this.getServersUserNonce();
+   * console.log(`Current servers nonce: ${nonce}`);
+   * ```
+   */
+  private async getServersUserNonce(): Promise<bigint> {
+    try {
+      const userAddress = await this.getUserAddress();
+      const chainId = await this.context.walletClient.getChainId();
+
+      const DataPortabilityServersAddress = getContractAddress(
+        chainId,
+        "DataPortabilityServers",
+      );
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
+
+      const [nonce] = await this.context.publicClient.readContract({
+        address: DataPortabilityServersAddress,
+        abi: DataPortabilityServersAbi,
+        functionName: "users",
+        args: [userAddress],
+      });
+
+      return nonce;
+    } catch (error) {
+      throw new NonceError(
+        `Failed to retrieve server nonce: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Retrieves the user's current nonce from the DataPortabilityPermissions contract.
+   * This nonce is used for permission-related operations (addPermission, addServerFilesAndPermissions).
+   *
+   * @returns Promise resolving to the current permissions nonce
+   * @throws {NonceError} When reading nonce from contract fails
+   * @private
+   *
+   * @example
+   * ```typescript
+   * const nonce = await this.getPermissionsUserNonce();
+   * console.log(`Current permissions nonce: ${nonce}`);
+   * ```
+   */
+  private async getPermissionsUserNonce(): Promise<bigint> {
+    try {
+      const userAddress = await this.getUserAddress();
+      const chainId = await this.context.walletClient.getChainId();
+
+      const DataPortabilityPermissionsAddress = getContractAddress(
+        chainId,
+        "DataPortabilityPermissions",
+      );
+      const DataPortabilityPermissionsAbi = getAbi(
+        "DataPortabilityPermissions",
+      );
+
+      const nonce = (await this.context.publicClient.readContract({
+        address: DataPortabilityPermissionsAddress,
+        abi: DataPortabilityPermissionsAbi,
+        functionName: "userNonce",
+        args: [userAddress],
+      })) as bigint;
+
+      return nonce;
+    } catch (error) {
+      throw new NonceError(
+        `Failed to retrieve permissions nonce: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }
@@ -1108,22 +1205,101 @@ export class PermissionsController {
   }
 
   /**
+   * Creates EIP-712 typed data structure for server files and permissions.
+   *
+   * @param params - Parameters for the server files and permissions message
+   * @param params.granteeId - Grantee ID
+   * @param params.grant - Grant URL or grant data
+   * @param params.fileUrls - Array of file URLs
+   * @param params.serverAddress - Server address
+   * @param params.serverUrl - Server URL
+   * @param params.serverPublicKey - Server public key
+   * @param params.filePermissions - File permissions array
+   * @param params.nonce - Unique number to prevent replay attacks
+   * @returns Promise resolving to the typed data structure
+   */
+  private async composeServerFilesAndPermissionMessage(params: {
+    granteeId: bigint;
+    grant: string;
+    fileUrls: string[];
+    serverAddress: Address;
+    serverUrl: string;
+    serverPublicKey: string;
+    filePermissions: Permission[][];
+    nonce: bigint;
+  }): Promise<ServerFilesAndPermissionTypedData> {
+    const domain = await this.getPermissionDomain();
+
+    console.debug(
+      "🔍 Debug - Composing server files and permission message with grant:",
+      params.grant,
+    );
+
+    // Warn if using HTTP gateway URL instead of ipfs:// protocol for on-chain storage
+    if (
+      !params.grant.startsWith("ipfs://") &&
+      params.grant.includes("/ipfs/")
+    ) {
+      const { extractIpfsHash } = await import("../utils/ipfs");
+      const hash = extractIpfsHash(params.grant);
+      if (hash) {
+        console.warn(
+          `⚠️  Storing HTTP gateway URL on-chain instead of ipfs:// protocol. ` +
+            `Found: ${params.grant}. ` +
+            `Consider using ipfs://${hash} for better protocol-agnostic on-chain storage.`,
+        );
+      }
+    }
+
+    return {
+      domain,
+      types: {
+        Permission: [
+          { name: "account", type: "address" },
+          { name: "key", type: "string" },
+        ],
+        ServerFilesAndPermission: [
+          { name: "nonce", type: "uint256" },
+          { name: "granteeId", type: "uint256" },
+          { name: "grant", type: "string" },
+          { name: "fileUrls", type: "string[]" },
+          { name: "serverAddress", type: "address" },
+          { name: "serverUrl", type: "string" },
+          { name: "serverPublicKey", type: "string" },
+          { name: "filePermissions", type: "Permission[][]" },
+        ],
+      },
+      primaryType: "ServerFilesAndPermission",
+      message: {
+        nonce: params.nonce,
+        granteeId: params.granteeId,
+        grant: params.grant,
+        fileUrls: params.fileUrls,
+        serverAddress: params.serverAddress,
+        serverUrl: params.serverUrl,
+        serverPublicKey: params.serverPublicKey,
+        filePermissions: params.filePermissions,
+      },
+    };
+  }
+
+  /**
    * Gets the EIP-712 domain for PermissionGrant signatures.
    *
    * @returns Promise resolving to the EIP-712 domain configuration
    */
   private async getPermissionDomain() {
     const chainId = await this.context.walletClient.getChainId();
-    const DataPermissionsAddress = getContractAddress(
+    const DataPortabilityPermissionsAddress = getContractAddress(
       chainId,
-      "DataPermissions",
+      "DataPortabilityPermissions",
     );
 
     return {
       name: "VanaDataPortabilityPermissions",
       version: "1",
       chainId,
-      verifyingContract: DataPermissionsAddress,
+      verifyingContract: DataPortabilityPermissionsAddress,
     };
   }
 
@@ -1320,134 +1496,6 @@ export class PermissionsController {
   }
 
   /**
-   * Gets all permission IDs for a specific file.
-   *
-   * @param fileId - The file ID to query permissions for
-   * @returns Promise resolving to array of permission IDs
-   * @throws {BlockchainError} When reading from contract fails or chain is unavailable
-   */
-  async getFilePermissionIds(fileId: bigint): Promise<bigint[]> {
-    try {
-      const chainId = await this.context.walletClient.getChainId();
-      const DataPermissionsAddress = getContractAddress(
-        chainId,
-        "DataPermissions",
-      );
-      const DataPermissionsAbi = getAbi("DataPermissions");
-
-      const permissionIds = (await this.context.publicClient.readContract({
-        address: DataPermissionsAddress,
-        abi: DataPermissionsAbi,
-        functionName: "filePermissionIds",
-        args: [fileId],
-      })) as bigint[];
-
-      return permissionIds;
-    } catch (error) {
-      throw new BlockchainError(
-        `Failed to get file permission IDs: ${error instanceof Error ? error.message : "Unknown error"}`,
-        error as Error,
-      );
-    }
-  }
-
-  /**
-   * Gets all file IDs associated with a permission.
-   *
-   * @param permissionId - The permission ID to query files for
-   * @returns Promise resolving to array of file IDs
-   * @throws {BlockchainError} When reading from contract fails or chain is unavailable
-   */
-  async getPermissionFileIds(permissionId: bigint): Promise<bigint[]> {
-    try {
-      const chainId = await this.context.walletClient.getChainId();
-      const DataPermissionsAddress = getContractAddress(
-        chainId,
-        "DataPermissions",
-      );
-      const DataPermissionsAbi = getAbi("DataPermissions");
-
-      const fileIds = (await this.context.publicClient.readContract({
-        address: DataPermissionsAddress,
-        abi: DataPermissionsAbi,
-        functionName: "permissionFileIds",
-        args: [permissionId],
-      })) as bigint[];
-
-      return fileIds;
-    } catch (error) {
-      throw new BlockchainError(
-        `Failed to get permission file IDs: ${error instanceof Error ? error.message : "Unknown error"}`,
-        error as Error,
-      );
-    }
-  }
-
-  /**
-   * Checks if a permission is active.
-   *
-   * @param permissionId - The permission ID to check
-   * @returns Promise resolving to boolean indicating if permission is active
-   * @throws {BlockchainError} When reading from contract fails or chain is unavailable
-   */
-  async isActivePermission(permissionId: bigint): Promise<boolean> {
-    try {
-      const chainId = await this.context.walletClient.getChainId();
-      const DataPermissionsAddress = getContractAddress(
-        chainId,
-        "DataPermissions",
-      );
-      const DataPermissionsAbi = getAbi("DataPermissions");
-
-      const isActive = (await this.context.publicClient.readContract({
-        address: DataPermissionsAddress,
-        abi: DataPermissionsAbi,
-        functionName: "isActivePermission",
-        args: [permissionId],
-      })) as boolean;
-
-      return isActive;
-    } catch (error) {
-      throw new BlockchainError(
-        `Failed to check permission status: ${error instanceof Error ? error.message : "Unknown error"}`,
-        error as Error,
-      );
-    }
-  }
-
-  /**
-   * Gets permission details from the contract.
-   *
-   * @param permissionId - The permission ID to query
-   * @returns Promise resolving to permission info
-   * @throws {BlockchainError} When reading from contract fails or chain is unavailable
-   */
-  async getPermissionInfo(permissionId: bigint): Promise<PermissionInfo> {
-    try {
-      const chainId = await this.context.walletClient.getChainId();
-      const DataPermissionsAddress = getContractAddress(
-        chainId,
-        "DataPermissions",
-      );
-      const DataPermissionsAbi = getAbi("DataPermissions");
-
-      const permissionInfo = (await this.context.publicClient.readContract({
-        address: DataPermissionsAddress,
-        abi: DataPermissionsAbi,
-        functionName: "permissions",
-        args: [permissionId],
-      })) as PermissionInfo;
-
-      return permissionInfo;
-    } catch (error) {
-      throw new BlockchainError(
-        `Failed to get permission info: ${error instanceof Error ? error.message : "Unknown error"}`,
-        error as Error,
-      );
-    }
-  }
-
-  /**
    * Normalizes grant ID to hex format.
    * Handles conversion from permission ID (bigint/number/string) to proper hex hash format.
    *
@@ -1519,16 +1567,19 @@ export class PermissionsController {
       const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
 
       // Submit directly to the contract
+      const userAddress =
+        this.context.walletClient.account?.address ||
+        (await this.getUserAddress());
       const txHash = await this.context.walletClient.writeContract({
         address: DataPortabilityServersAddress,
         abi: DataPortabilityServersAbi,
-        functionName: "addAndTrustServer",
+        functionName: "addAndTrustServerOnBehalf",
         args: [
+          userAddress,
           {
-            owner: params.owner,
             serverAddress: params.serverAddress,
             serverUrl: params.serverUrl,
-            publicKey: params.publicKey as `0x${string}`,
+            publicKey: params.publicKey,
           },
         ],
         account:
@@ -1555,7 +1606,7 @@ export class PermissionsController {
    * @returns Promise resolving to transaction hash
    * @deprecated Use addAndTrustServer instead
    */
-  async trustServer(params: TrustServerParams): Promise<Hash> {
+  async submitTrustServer(params: TrustServerParams): Promise<Hash> {
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
@@ -1593,16 +1644,15 @@ export class PermissionsController {
    * @param params - Parameters for adding and trusting the server
    * @returns Promise resolving to transaction hash
    */
-  async addAndTrustServerWithSignature(
+  async submitAddAndTrustServerWithSignature(
     params: AddAndTrustServerParams,
   ): Promise<Hash> {
     try {
-      const nonce = await this.getUserNonce();
+      const nonce = await this.getServersUserNonce();
 
       // Create add and trust server message
       const addAndTrustServerInput: AddAndTrustServerInput = {
         nonce,
-        owner: params.owner,
         serverAddress: params.serverAddress,
         publicKey: params.publicKey,
         serverUrl: params.serverUrl,
@@ -1615,7 +1665,6 @@ export class PermissionsController {
 
       console.debug("🔍 AddAndTrustServer Debug Info:", {
         nonce: nonce.toString(),
-        owner: params.owner,
         serverAddress: params.serverAddress,
         publicKey: params.publicKey,
         serverUrl: params.serverUrl,
@@ -1679,9 +1728,11 @@ export class PermissionsController {
    * @throws {ServerUrlMismatchError} When server URL doesn't match existing registration
    * @throws {BlockchainError} When trust operation fails for any other reason
    */
-  async trustServerWithSignature(params: TrustServerParams): Promise<Hash> {
+  async submitTrustServerWithSignature(
+    params: TrustServerParams,
+  ): Promise<Hash> {
     try {
-      const nonce = await this.getUserNonce();
+      const nonce = await this.getServersUserNonce();
 
       // Create trust server message
       const trustServerInput: TrustServerInput = {
@@ -1799,9 +1850,9 @@ export class PermissionsController {
    * console.log('Still trusting servers:', trustedServers);
    * ```
    */
-  async untrustServer(params: UntrustServerParams): Promise<Hash> {
+  async submitUntrustServer(params: UntrustServerParams): Promise<Hash> {
     // Convert UntrustServerParams to UntrustServerInput by adding nonce
-    const nonce = await this.getUserNonce();
+    const nonce = await this.getServersUserNonce();
     const untrustServerInput: UntrustServerInput = {
       nonce,
       serverId: params.serverId,
@@ -1822,9 +1873,11 @@ export class PermissionsController {
    * @throws {RelayerError} When gasless submission fails
    * @throws {BlockchainError} When untrust transaction fails
    */
-  async untrustServerWithSignature(params: UntrustServerParams): Promise<Hash> {
+  async submitUntrustServerWithSignature(
+    params: UntrustServerParams,
+  ): Promise<Hash> {
     try {
-      const nonce = await this.getUserNonce();
+      const nonce = await this.getServersUserNonce();
 
       // Create untrust server message
       const untrustServerInput: UntrustServerInput = {
@@ -1918,149 +1971,6 @@ export class PermissionsController {
     } catch (error) {
       throw new BlockchainError(
         `Failed to get trusted servers: ${error instanceof Error ? error.message : "Unknown error"}`,
-        error as Error,
-      );
-    }
-  }
-
-  /**
-   * Retrieves detailed information about a specific server from the DataPortabilityServers contract.
-   *
-   * Returns complete server information including owner, address, public key, and URL.
-   * This information is used to establish secure connections and verify server identity.
-   *
-   * @param serverId - The unique numeric ID of the server to query
-   * @returns Promise resolving to complete server information
-   * @throws {BlockchainError} When reading from contract fails or chain is unavailable
-   * @throws {NetworkError} When unable to connect to the blockchain network
-   * @throws {ServerNotFoundError} When the server ID does not exist
-   *
-   * @example
-   * ```typescript
-   * const server = await vana.permissions.getServerInfo(1);
-   *
-   * console.log(`Server ${server.id}:`);
-   * console.log(`  Owner: ${server.owner}`);
-   * console.log(`  Address: ${server.serverAddress}`);
-   * console.log(`  URL: ${server.url}`);
-   * console.log(`  Public Key: ${server.publicKey}`);
-   * ```
-   */
-  async getServerInfo(serverId: number): Promise<Server> {
-    try {
-      const chainId = await this.context.walletClient.getChainId();
-      const DataPortabilityServersAddress = getContractAddress(
-        chainId,
-        "DataPortabilityServers",
-      );
-      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
-
-      const serverInfo = (await this.context.publicClient.readContract({
-        address: DataPortabilityServersAddress,
-        abi: DataPortabilityServersAbi,
-        functionName: "servers",
-        args: [BigInt(serverId)],
-      })) as {
-        id: bigint;
-        owner: Address;
-        url: string;
-        serverAddress: Address;
-        publicKey: string;
-      };
-
-      return {
-        id: Number(serverInfo.id),
-        owner: serverInfo.owner,
-        url: serverInfo.url,
-        serverAddress: serverInfo.serverAddress,
-        publicKey: serverInfo.publicKey,
-      };
-    } catch (error) {
-      throw new BlockchainError(
-        `Failed to get server info: ${error instanceof Error ? error.message : "Unknown error"}`,
-        error as Error,
-      );
-    }
-  }
-
-  /**
-   * Checks if a specific server is active in the DataPortabilityServers contract.
-   *
-   * An active server is one that is properly registered and operational, meaning
-   * it can receive and process data portability requests from users.
-   *
-   * @param serverId - The unique numeric ID of the server to check
-   * @returns Promise resolving to true if server is active, false otherwise
-   * @throws {BlockchainError} When reading from contract fails or chain is unavailable
-   * @throws {NetworkError} When unable to connect to the blockchain network
-   *
-   * @example
-   * ```typescript
-   * const isActive = await vana.permissions.isActiveServer(1);
-   *
-   * if (isActive) {
-   *   console.log('Server 1 is active and ready to process requests');
-   * } else {
-   *   console.log('Server 1 is inactive or not found');
-   * }
-   * ```
-   */
-  async isActiveServer(serverId: number): Promise<boolean> {
-    try {
-      const chainId = await this.context.walletClient.getChainId();
-      const DataPortabilityServersAddress = getContractAddress(
-        chainId,
-        "DataPortabilityServers",
-      );
-      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
-
-      const isActive = (await this.context.publicClient.readContract({
-        address: DataPortabilityServersAddress,
-        abi: DataPortabilityServersAbi,
-        functionName: "isActiveServer",
-        args: [BigInt(serverId)],
-      })) as boolean;
-
-      return isActive;
-    } catch (error) {
-      throw new BlockchainError(
-        `Failed to check server status: ${error instanceof Error ? error.message : "Unknown error"}`,
-        error as Error,
-      );
-    }
-  }
-
-  /**
-   * Checks if a server is active for a specific user.
-   *
-   * @param serverId - Server ID (numeric)
-   * @param userAddress - Optional user address (defaults to current user)
-   * @returns Promise resolving to boolean indicating if server is active for the user
-   */
-  async isActiveServerForUser(
-    serverId: number,
-    userAddress?: Address,
-  ): Promise<boolean> {
-    try {
-      const user = userAddress || (await this.getUserAddress());
-      const chainId = await this.context.walletClient.getChainId();
-      const DataPortabilityServersAddress = getContractAddress(
-        chainId,
-        "DataPortabilityServers",
-      );
-      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
-
-      const isActive = (await this.context.publicClient.readContract({
-        address: DataPortabilityServersAddress,
-        abi: DataPortabilityServersAbi,
-        functionName: "isActiveServerForUser",
-        args: [user, BigInt(serverId)],
-      })) as boolean;
-
-      return isActive;
-    } catch (error) {
-      throw new BlockchainError(
-        `Failed to check server status for user: ${error instanceof Error ? error.message : "Unknown error"}`,
         error as Error,
       );
     }
@@ -2191,29 +2101,29 @@ export class PermissionsController {
 
       // Fetch server info for each server ID
       const serverInfoPromises = paginatedResult.servers.map(
-        async (serverId, index) => {
+        async (serverId, _index) => {
           try {
-            const serverInfo = await this.getServerInfo(serverId);
+            const serverInfo = await this.getServerInfo(BigInt(serverId));
             return {
-              serverId,
+              id: BigInt(serverId),
               owner: serverInfo.owner,
-              url: serverInfo.url,
               serverAddress: serverInfo.serverAddress,
               publicKey: serverInfo.publicKey,
-              isTrusted: true,
-              trustIndex: options.offset ? options.offset + index : index,
+              url: serverInfo.url,
+              startBlock: 0n, // We don't have this info from the old method structure
+              endBlock: 0n, // 0 means still active
             };
           } catch {
             // If we can't get server info, return basic info
             return {
-              serverId,
+              id: BigInt(serverId),
               owner: "0x0000000000000000000000000000000000000000" as Address,
-              url: "",
               serverAddress:
                 "0x0000000000000000000000000000000000000000" as Address,
               publicKey: "",
-              isTrusted: true,
-              trustIndex: options.offset ? options.offset + index : index,
+              url: "",
+              startBlock: 0n,
+              endBlock: 0n,
             };
           }
         },
@@ -2349,18 +2259,19 @@ export class PermissionsController {
   ): Promise<AddAndTrustServerTypedData> {
     const domain = await this.getServersDomain();
 
+    console.debug(domain);
+
     return {
       domain,
       types: {
-        AddAndTrustServer: [
+        AddServer: [
           { name: "nonce", type: "uint256" },
-          { name: "owner", type: "address" },
           { name: "serverAddress", type: "address" },
-          { name: "publicKey", type: "bytes" },
+          { name: "publicKey", type: "string" },
           { name: "serverUrl", type: "string" },
         ],
       },
-      primaryType: "AddAndTrustServer",
+      primaryType: "AddServer",
       message: input,
     };
   }
@@ -2456,7 +2367,6 @@ export class PermissionsController {
       contractAddress: DataPortabilityServersAddress,
       input: {
         nonce: addAndTrustServerInput.nonce.toString(),
-        owner: addAndTrustServerInput.owner,
         serverAddress: addAndTrustServerInput.serverAddress,
         publicKey: addAndTrustServerInput.publicKey,
         serverUrl: addAndTrustServerInput.serverUrl,
@@ -2471,9 +2381,8 @@ export class PermissionsController {
       args: [
         {
           nonce: addAndTrustServerInput.nonce,
-          owner: addAndTrustServerInput.owner,
           serverAddress: addAndTrustServerInput.serverAddress,
-          publicKey: addAndTrustServerInput.publicKey as `0x${string}`,
+          publicKey: addAndTrustServerInput.publicKey,
           serverUrl: addAndTrustServerInput.serverUrl,
         },
         signature,
@@ -2535,15 +2444,15 @@ export class PermissionsController {
     signature: Hash,
   ): Promise<Hash> {
     const chainId = await this.context.walletClient.getChainId();
-    const DataPermissionsAddress = getContractAddress(
+    const DataPortabilityPermissionsAddress = getContractAddress(
       chainId,
-      "DataPermissions",
+      "DataPortabilityPermissions",
     );
-    const DataPermissionsAbi = getAbi("DataPermissions");
+    const DataPortabilityPermissionsAbi = getAbi("DataPortabilityPermissions");
 
     const txHash = await this.context.walletClient.writeContract({
-      address: DataPermissionsAddress,
-      abi: DataPermissionsAbi,
+      address: DataPortabilityPermissionsAddress,
+      abi: DataPortabilityPermissionsAbi,
       functionName: "revokePermissionWithSignature",
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       args: [typedData.message as any, signature] as any,
@@ -2617,7 +2526,7 @@ export class PermissionsController {
    * console.log(`Grantee registered in transaction: ${txHash}`);
    * ```
    */
-  async registerGrantee(params: RegisterGranteeParams): Promise<Hash> {
+  async submitRegisterGrantee(params: RegisterGranteeParams): Promise<Hash> {
     const chainId = await this.context.walletClient.getChainId();
     const DataPortabilityGranteesAddress = getContractAddress(
       chainId,
@@ -2653,10 +2562,10 @@ export class PermissionsController {
    * });
    * ```
    */
-  async registerGranteeWithSignature(
+  async submitRegisterGranteeWithSignature(
     params: RegisterGranteeParams,
   ): Promise<Hash> {
-    const nonce = await this.getUserNonce();
+    const nonce = await this.getServersUserNonce();
 
     const registerGranteeInput: RegisterGranteeInput = {
       nonce,
@@ -2985,5 +2894,1329 @@ export class PermissionsController {
     });
 
     return txHash;
+  }
+
+  // ===========================
+  // DATA PORTABILITY SERVERS HELPER METHODS
+  // ===========================
+
+  /**
+   * Get all trusted server IDs for a user
+   *
+   * @param userAddress - User address to query (defaults to current user)
+   * @returns Promise resolving to array of server IDs
+   */
+  async getUserServerIds(userAddress?: Address): Promise<bigint[]> {
+    try {
+      const targetAddress = userAddress || (await this.getUserAddress());
+      const chainId = await this.context.publicClient.getChainId();
+      const DataPortabilityServersAddress = getContractAddress(
+        chainId,
+        "DataPortabilityServers",
+      );
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
+
+      const serverIds = await this.context.publicClient.readContract({
+        address: DataPortabilityServersAddress,
+        abi: DataPortabilityServersAbi,
+        functionName: "userServerIdsValues",
+        args: [targetAddress],
+      });
+
+      return [...serverIds];
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get user server IDs: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Get server ID at specific index for a user
+   *
+   * @param userAddress - User address to query
+   * @param serverIndex - Index in the user's server list
+   * @returns Promise resolving to server ID
+   */
+  async getUserServerIdAt(
+    userAddress: Address,
+    serverIndex: bigint,
+  ): Promise<bigint> {
+    try {
+      const chainId = await this.context.publicClient.getChainId();
+      const DataPortabilityServersAddress = getContractAddress(
+        chainId,
+        "DataPortabilityServers",
+      );
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
+
+      const serverId = await this.context.publicClient.readContract({
+        address: DataPortabilityServersAddress,
+        abi: DataPortabilityServersAbi,
+        functionName: "userServerIdsAt",
+        args: [userAddress, serverIndex],
+      });
+
+      return serverId;
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get user server ID at index: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Get the number of trusted servers for a user
+   *
+   * @param userAddress - User address to query (defaults to current user)
+   * @returns Promise resolving to number of trusted servers
+   */
+  async getUserServerCount(userAddress?: Address): Promise<bigint> {
+    try {
+      const targetAddress = userAddress || (await this.getUserAddress());
+      const chainId = await this.context.publicClient.getChainId();
+      const DataPortabilityServersAddress = getContractAddress(
+        chainId,
+        "DataPortabilityServers",
+      );
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
+
+      const count = await this.context.publicClient.readContract({
+        address: DataPortabilityServersAddress,
+        abi: DataPortabilityServersAbi,
+        functionName: "userServerIdsLength",
+        args: [targetAddress],
+      });
+
+      return count;
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get user server count: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Get detailed information about trusted servers for a user
+   *
+   * @param userAddress - User address to query (defaults to current user)
+   * @returns Promise resolving to array of trusted server info
+   */
+  async getUserTrustedServers(
+    userAddress?: Address,
+  ): Promise<TrustedServerInfo[]> {
+    try {
+      const targetAddress = userAddress || (await this.getUserAddress());
+      const chainId = await this.context.publicClient.getChainId();
+      const DataPortabilityServersAddress = getContractAddress(
+        chainId,
+        "DataPortabilityServers",
+      );
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
+
+      const servers = await this.context.publicClient.readContract({
+        address: DataPortabilityServersAddress,
+        abi: DataPortabilityServersAbi,
+        functionName: "userServerValues",
+        args: [targetAddress],
+      });
+
+      return [...servers];
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get user trusted servers: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Get trusted server info for a specific server ID and user
+   *
+   * @param userAddress - User address to query
+   * @param serverId - Server ID to get info for
+   * @returns Promise resolving to trusted server info
+   */
+  async getUserTrustedServer(
+    userAddress: Address,
+    serverId: bigint,
+  ): Promise<TrustedServerInfo> {
+    try {
+      const chainId = await this.context.publicClient.getChainId();
+      const DataPortabilityServersAddress = getContractAddress(
+        chainId,
+        "DataPortabilityServers",
+      );
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
+
+      const serverInfo = await this.context.publicClient.readContract({
+        address: DataPortabilityServersAddress,
+        abi: DataPortabilityServersAbi,
+        functionName: "userServers",
+        args: [userAddress, serverId],
+      });
+
+      return serverInfo;
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get user trusted server: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Get server information by server ID
+   *
+   * @param serverId - Server ID to get info for
+   * @returns Promise resolving to server info
+   */
+  async getServerInfo(serverId: bigint): Promise<ServerInfo> {
+    try {
+      const chainId = await this.context.publicClient.getChainId();
+      const DataPortabilityServersAddress = getContractAddress(
+        chainId,
+        "DataPortabilityServers",
+      );
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
+
+      const serverInfo = await this.context.publicClient.readContract({
+        address: DataPortabilityServersAddress,
+        abi: DataPortabilityServersAbi,
+        functionName: "servers",
+        args: [serverId],
+      });
+
+      return serverInfo;
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get server info: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Get server information by server address
+   *
+   * @param serverAddress - Server address to get info for
+   * @returns Promise resolving to server info
+   */
+  async getServerInfoByAddress(serverAddress: Address): Promise<ServerInfo> {
+    try {
+      const chainId = await this.context.publicClient.getChainId();
+      const DataPortabilityServersAddress = getContractAddress(
+        chainId,
+        "DataPortabilityServers",
+      );
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
+
+      const serverInfo = await this.context.publicClient.readContract({
+        address: DataPortabilityServersAddress,
+        abi: DataPortabilityServersAbi,
+        functionName: "serverByAddress",
+        args: [serverAddress],
+      });
+
+      return serverInfo;
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get server info by address: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  // ===========================
+  // DATA PORTABILITY PERMISSIONS HELPER METHODS
+  // ===========================
+
+  /**
+   * Get all permission IDs for a user
+   *
+   * @param userAddress - User address to query (defaults to current user)
+   * @returns Promise resolving to array of permission IDs
+   */
+  async getUserPermissionIds(userAddress?: Address): Promise<bigint[]> {
+    try {
+      const targetAddress = userAddress || (await this.getUserAddress());
+      const chainId = await this.context.publicClient.getChainId();
+      const DataPortabilityPermissionsAddress = getContractAddress(
+        chainId,
+        "DataPortabilityPermissions",
+      );
+      const DataPortabilityPermissionsAbi = getAbi(
+        "DataPortabilityPermissions",
+      );
+
+      const permissionIds = await this.context.publicClient.readContract({
+        address: DataPortabilityPermissionsAddress,
+        abi: DataPortabilityPermissionsAbi,
+        functionName: "userPermissionIdsValues",
+        args: [targetAddress],
+      });
+
+      return [...permissionIds];
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get user permission IDs: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Get permission ID at specific index for a user
+   *
+   * @param userAddress - User address to query
+   * @param permissionIndex - Index in the user's permission list
+   * @returns Promise resolving to permission ID
+   */
+  async getUserPermissionIdAt(
+    userAddress: Address,
+    permissionIndex: bigint,
+  ): Promise<bigint> {
+    try {
+      const chainId = await this.context.publicClient.getChainId();
+      const DataPortabilityPermissionsAddress = getContractAddress(
+        chainId,
+        "DataPortabilityPermissions",
+      );
+      const DataPortabilityPermissionsAbi = getAbi(
+        "DataPortabilityPermissions",
+      );
+
+      const permissionId = await this.context.publicClient.readContract({
+        address: DataPortabilityPermissionsAddress,
+        abi: DataPortabilityPermissionsAbi,
+        functionName: "userPermissionIdsAt",
+        args: [userAddress, permissionIndex],
+      });
+
+      return permissionId;
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get user permission ID at index: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Get the number of permissions for a user
+   *
+   * @param userAddress - User address to query (defaults to current user)
+   * @returns Promise resolving to number of permissions
+   */
+  async getUserPermissionCount(userAddress?: Address): Promise<bigint> {
+    try {
+      const targetAddress = userAddress || (await this.getUserAddress());
+      const chainId = await this.context.publicClient.getChainId();
+      const DataPortabilityPermissionsAddress = getContractAddress(
+        chainId,
+        "DataPortabilityPermissions",
+      );
+      const DataPortabilityPermissionsAbi = getAbi(
+        "DataPortabilityPermissions",
+      );
+
+      const count = await this.context.publicClient.readContract({
+        address: DataPortabilityPermissionsAddress,
+        abi: DataPortabilityPermissionsAbi,
+        functionName: "userPermissionIdsLength",
+        args: [targetAddress],
+      });
+
+      return count;
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get user permission count: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Get detailed permission information by permission ID
+   *
+   * @param permissionId - Permission ID to get info for
+   * @returns Promise resolving to permission info
+   */
+  async getPermissionInfo(permissionId: bigint): Promise<PermissionInfo> {
+    try {
+      const chainId = await this.context.publicClient.getChainId();
+      const DataPortabilityPermissionsAddress = getContractAddress(
+        chainId,
+        "DataPortabilityPermissions",
+      );
+      const DataPortabilityPermissionsAbi = getAbi(
+        "DataPortabilityPermissions",
+      );
+
+      const permissionInfo = await this.context.publicClient.readContract({
+        address: DataPortabilityPermissionsAddress,
+        abi: DataPortabilityPermissionsAbi,
+        functionName: "permissions",
+        args: [permissionId],
+      });
+
+      return permissionInfo;
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get permission info: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Get all permission IDs for a specific file
+   *
+   * @param fileId - File ID to get permissions for
+   * @returns Promise resolving to array of permission IDs
+   */
+  async getFilePermissionIds(fileId: bigint): Promise<bigint[]> {
+    try {
+      const chainId = await this.context.publicClient.getChainId();
+      const DataPortabilityPermissionsAddress = getContractAddress(
+        chainId,
+        "DataPortabilityPermissions",
+      );
+      const DataPortabilityPermissionsAbi = getAbi(
+        "DataPortabilityPermissions",
+      );
+
+      const permissionIds = await this.context.publicClient.readContract({
+        address: DataPortabilityPermissionsAddress,
+        abi: DataPortabilityPermissionsAbi,
+        functionName: "filePermissionIds",
+        args: [fileId],
+      });
+
+      return [...permissionIds];
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get file permission IDs: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Get all file IDs for a specific permission
+   *
+   * @param permissionId - Permission ID to get files for
+   * @returns Promise resolving to array of file IDs
+   */
+  async getPermissionFileIds(permissionId: bigint): Promise<bigint[]> {
+    try {
+      const chainId = await this.context.publicClient.getChainId();
+      const DataPortabilityPermissionsAddress = getContractAddress(
+        chainId,
+        "DataPortabilityPermissions",
+      );
+      const DataPortabilityPermissionsAbi = getAbi(
+        "DataPortabilityPermissions",
+      );
+
+      const fileIds = await this.context.publicClient.readContract({
+        address: DataPortabilityPermissionsAddress,
+        abi: DataPortabilityPermissionsAbi,
+        functionName: "permissionFileIds",
+        args: [permissionId],
+      });
+
+      return [...fileIds];
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get permission file IDs: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Get all permissions for a specific file (alias for getFilePermissionIds)
+   *
+   * @param fileId - File ID to get permissions for
+   * @returns Promise resolving to array of permission IDs
+   */
+  async getFilePermissions(fileId: bigint): Promise<bigint[]> {
+    const chainId = await this.context.publicClient.getChainId();
+    const DataPortabilityPermissionsAddress = getContractAddress(
+      chainId,
+      "DataPortabilityPermissions",
+    );
+    const DataPortabilityPermissionsAbi = getAbi("DataPortabilityPermissions");
+
+    const permissions = await this.context.publicClient.readContract({
+      address: DataPortabilityPermissionsAddress,
+      abi: DataPortabilityPermissionsAbi,
+      functionName: "filePermissions",
+      args: [fileId],
+    });
+
+    return [...permissions];
+  }
+
+  // ===========================
+  // DATA PORTABILITY GRANTEES HELPER METHODS
+  // ===========================
+
+  /**
+   * Get grantee information by grantee ID
+   *
+   * @param granteeId - Grantee ID to get info for
+   * @returns Promise resolving to grantee info
+   */
+  async getGranteeInfo(granteeId: bigint): Promise<GranteeInfo> {
+    try {
+      const chainId = await this.context.publicClient.getChainId();
+      const DataPortabilityGranteesAddress = getContractAddress(
+        chainId,
+        "DataPortabilityGrantees",
+      );
+      const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
+
+      const granteeInfo = await this.context.publicClient.readContract({
+        address: DataPortabilityGranteesAddress,
+        abi: DataPortabilityGranteesAbi,
+        functionName: "granteeInfo",
+        args: [granteeId],
+      });
+
+      return granteeInfo;
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get grantee info: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Get grantee information by grantee address
+   *
+   * @param granteeAddress - Grantee address to get info for
+   * @returns Promise resolving to grantee info
+   */
+  async getGranteeInfoByAddress(granteeAddress: Address): Promise<GranteeInfo> {
+    try {
+      const chainId = await this.context.publicClient.getChainId();
+      const DataPortabilityGranteesAddress = getContractAddress(
+        chainId,
+        "DataPortabilityGrantees",
+      );
+      const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
+
+      const granteeInfo = await this.context.publicClient.readContract({
+        address: DataPortabilityGranteesAddress,
+        abi: DataPortabilityGranteesAbi,
+        functionName: "granteeByAddress",
+        args: [granteeAddress],
+      });
+
+      return granteeInfo;
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get grantee info by address: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Get all permission IDs for a specific grantee
+   *
+   * @param granteeId - Grantee ID to get permissions for
+   * @returns Promise resolving to array of permission IDs
+   */
+  async getGranteePermissionIds(granteeId: bigint): Promise<bigint[]> {
+    try {
+      const chainId = await this.context.publicClient.getChainId();
+      const DataPortabilityGranteesAddress = getContractAddress(
+        chainId,
+        "DataPortabilityGrantees",
+      );
+      const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
+
+      const permissionIds = await this.context.publicClient.readContract({
+        address: DataPortabilityGranteesAddress,
+        abi: DataPortabilityGranteesAbi,
+        functionName: "granteePermissionIds",
+        args: [granteeId],
+      });
+
+      return [...permissionIds];
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get grantee permission IDs: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Get all permissions for a specific grantee (alias for getGranteePermissionIds)
+   *
+   * @param granteeId - Grantee ID to get permissions for
+   * @returns Promise resolving to array of permission IDs
+   */
+  async getGranteePermissions(granteeId: bigint): Promise<bigint[]> {
+    try {
+      const chainId = await this.context.publicClient.getChainId();
+      const DataPortabilityGranteesAddress = getContractAddress(
+        chainId,
+        "DataPortabilityGrantees",
+      );
+      const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
+
+      const permissions = await this.context.publicClient.readContract({
+        address: DataPortabilityGranteesAddress,
+        abi: DataPortabilityGranteesAbi,
+        functionName: "granteePermissions",
+        args: [granteeId],
+      });
+
+      return [...permissions];
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get grantee permissions: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  // ===== DataPortabilityServersImplementation Methods =====
+
+  /**
+   * Get all server IDs for a user
+   *
+   * @param userAddress - User address to get server IDs for
+   * @returns Promise resolving to array of server IDs
+   */
+  async getUserServerIdsValues(userAddress: Address): Promise<bigint[]> {
+    try {
+      const chainId = await this.context.publicClient.getChainId();
+      const DataPortabilityServersAddress = getContractAddress(
+        chainId,
+        "DataPortabilityServers",
+      );
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
+
+      const serverIds = await this.context.publicClient.readContract({
+        address: DataPortabilityServersAddress,
+        abi: DataPortabilityServersAbi,
+        functionName: "userServerIdsValues",
+        args: [userAddress],
+      });
+
+      return [...serverIds];
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get user server IDs: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Get server ID at specific index for a user
+   *
+   * @param userAddress - User address
+   * @param serverIndex - Index of the server ID
+   * @returns Promise resolving to server ID
+   */
+  async getUserServerIdsAt(
+    userAddress: Address,
+    serverIndex: bigint,
+  ): Promise<bigint> {
+    try {
+      const chainId = await this.context.publicClient.getChainId();
+      const DataPortabilityServersAddress = getContractAddress(
+        chainId,
+        "DataPortabilityServers",
+      );
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
+
+      const serverId = await this.context.publicClient.readContract({
+        address: DataPortabilityServersAddress,
+        abi: DataPortabilityServersAbi,
+        functionName: "userServerIdsAt",
+        args: [userAddress, serverIndex],
+      });
+
+      return serverId;
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get user server ID at index: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Get the number of servers a user has
+   *
+   * @param userAddress - User address
+   * @returns Promise resolving to number of servers
+   */
+  async getUserServerIdsLength(userAddress: Address): Promise<bigint> {
+    try {
+      const chainId = await this.context.publicClient.getChainId();
+      const DataPortabilityServersAddress = getContractAddress(
+        chainId,
+        "DataPortabilityServers",
+      );
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
+
+      const length = await this.context.publicClient.readContract({
+        address: DataPortabilityServersAddress,
+        abi: DataPortabilityServersAbi,
+        functionName: "userServerIdsLength",
+        args: [userAddress],
+      });
+
+      return length;
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get user server IDs length: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Get trusted server info for a specific user and server ID
+   *
+   * @param userAddress - User address
+   * @param serverId - Server ID
+   * @returns Promise resolving to trusted server info
+   */
+  async getUserServers(
+    userAddress: Address,
+    serverId: bigint,
+  ): Promise<TrustedServerInfo> {
+    try {
+      const chainId = await this.context.publicClient.getChainId();
+      const DataPortabilityServersAddress = getContractAddress(
+        chainId,
+        "DataPortabilityServers",
+      );
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
+
+      const serverInfo = await this.context.publicClient.readContract({
+        address: DataPortabilityServersAddress,
+        abi: DataPortabilityServersAbi,
+        functionName: "userServers",
+        args: [userAddress, serverId],
+      });
+
+      return {
+        id: serverInfo.id,
+        owner: serverInfo.owner,
+        serverAddress: serverInfo.serverAddress,
+        publicKey: serverInfo.publicKey,
+        url: serverInfo.url,
+        startBlock: serverInfo.startBlock,
+        endBlock: serverInfo.endBlock,
+      };
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get user server info: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Get server info by server ID
+   *
+   * @param serverId - Server ID
+   * @returns Promise resolving to server info
+   */
+  async getServers(serverId: bigint): Promise<ServerInfo> {
+    try {
+      const chainId = await this.context.publicClient.getChainId();
+      const DataPortabilityServersAddress = getContractAddress(
+        chainId,
+        "DataPortabilityServers",
+      );
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
+
+      const serverInfo = await this.context.publicClient.readContract({
+        address: DataPortabilityServersAddress,
+        abi: DataPortabilityServersAbi,
+        functionName: "servers",
+        args: [serverId],
+      });
+
+      return {
+        id: serverInfo.id,
+        owner: serverInfo.owner,
+        serverAddress: serverInfo.serverAddress,
+        publicKey: serverInfo.publicKey,
+        url: serverInfo.url,
+      };
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get server info: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Get user info including nonce and trusted server IDs
+   *
+   * @param userAddress - User address
+   * @returns Promise resolving to user info
+   */
+  async getUsers(
+    userAddress: Address,
+  ): Promise<{ nonce: bigint; trustedServerIds: bigint[] }> {
+    try {
+      const chainId = await this.context.publicClient.getChainId();
+      const DataPortabilityServersAddress = getContractAddress(
+        chainId,
+        "DataPortabilityServers",
+      );
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
+
+      const userInfo = await this.context.publicClient.readContract({
+        address: DataPortabilityServersAddress,
+        abi: DataPortabilityServersAbi,
+        functionName: "users",
+        args: [userAddress],
+      });
+
+      return {
+        nonce: userInfo[0],
+        trustedServerIds: [...userInfo[1]],
+      };
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get user info: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Update server URL
+   *
+   * @param serverId - Server ID to update
+   * @param url - New URL for the server
+   * @returns Promise resolving to transaction hash
+   */
+  async submitUpdateServer(serverId: bigint, url: string): Promise<Hash> {
+    try {
+      const chainId = await this.context.walletClient.getChainId();
+      const DataPortabilityServersAddress = getContractAddress(
+        chainId,
+        "DataPortabilityServers",
+      );
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
+
+      const hash = await this.context.walletClient.writeContract({
+        address: DataPortabilityServersAddress,
+        abi: DataPortabilityServersAbi,
+        functionName: "updateServer",
+        args: [serverId, url],
+        chain: this.context.walletClient.chain,
+        account: this.context.walletClient.account || null,
+      });
+
+      return hash;
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to update server: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  // ===== DataPortabilityPermissionsImplementation Methods =====
+
+  /**
+   * Get all permission IDs for a user
+   *
+   * @param userAddress - User address to get permission IDs for
+   * @returns Promise resolving to array of permission IDs
+   */
+  async getUserPermissionIdsValues(userAddress: Address): Promise<bigint[]> {
+    try {
+      const chainId = await this.context.publicClient.getChainId();
+      const DataPortabilityPermissionsAddress = getContractAddress(
+        chainId,
+        "DataPortabilityPermissions",
+      );
+      const DataPortabilityPermissionsAbi = getAbi(
+        "DataPortabilityPermissions",
+      );
+
+      const permissionIds = await this.context.publicClient.readContract({
+        address: DataPortabilityPermissionsAddress,
+        abi: DataPortabilityPermissionsAbi,
+        functionName: "userPermissionIdsValues",
+        args: [userAddress],
+      });
+
+      return [...permissionIds];
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get user permission IDs: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Get permission ID at specific index for a user
+   *
+   * @param userAddress - User address
+   * @param permissionIndex - Index of the permission ID
+   * @returns Promise resolving to permission ID
+   */
+  async getUserPermissionIdsAt(
+    userAddress: Address,
+    permissionIndex: bigint,
+  ): Promise<bigint> {
+    try {
+      const chainId = await this.context.publicClient.getChainId();
+      const DataPortabilityPermissionsAddress = getContractAddress(
+        chainId,
+        "DataPortabilityPermissions",
+      );
+      const DataPortabilityPermissionsAbi = getAbi(
+        "DataPortabilityPermissions",
+      );
+
+      const permissionId = await this.context.publicClient.readContract({
+        address: DataPortabilityPermissionsAddress,
+        abi: DataPortabilityPermissionsAbi,
+        functionName: "userPermissionIdsAt",
+        args: [userAddress, permissionIndex],
+      });
+
+      return permissionId;
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get user permission ID at index: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Get the number of permissions a user has
+   *
+   * @param userAddress - User address
+   * @returns Promise resolving to number of permissions
+   */
+  async getUserPermissionIdsLength(userAddress: Address): Promise<bigint> {
+    try {
+      const chainId = await this.context.publicClient.getChainId();
+      const DataPortabilityPermissionsAddress = getContractAddress(
+        chainId,
+        "DataPortabilityPermissions",
+      );
+      const DataPortabilityPermissionsAbi = getAbi(
+        "DataPortabilityPermissions",
+      );
+
+      const length = await this.context.publicClient.readContract({
+        address: DataPortabilityPermissionsAddress,
+        abi: DataPortabilityPermissionsAbi,
+        functionName: "userPermissionIdsLength",
+        args: [userAddress],
+      });
+
+      return length;
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get user permission IDs length: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Get permission info by permission ID
+   *
+   * @param permissionId - Permission ID
+   * @returns Promise resolving to permission info
+   */
+  async getPermissions(permissionId: bigint): Promise<PermissionInfo> {
+    try {
+      const chainId = await this.context.publicClient.getChainId();
+      const DataPortabilityPermissionsAddress = getContractAddress(
+        chainId,
+        "DataPortabilityPermissions",
+      );
+      const DataPortabilityPermissionsAbi = getAbi(
+        "DataPortabilityPermissions",
+      );
+
+      const permissionInfo = await this.context.publicClient.readContract({
+        address: DataPortabilityPermissionsAddress,
+        abi: DataPortabilityPermissionsAbi,
+        functionName: "permissions",
+        args: [permissionId],
+      });
+
+      return {
+        id: permissionInfo.id,
+        grantor: permissionInfo.grantor,
+        nonce: permissionInfo.nonce,
+        granteeId: permissionInfo.granteeId,
+        grant: permissionInfo.grant,
+        startBlock: permissionInfo.startBlock,
+        endBlock: permissionInfo.endBlock,
+        fileIds: [...permissionInfo.fileIds],
+      };
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get permission info: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Submit permission with signature to the blockchain (supports gasless transactions)
+   *
+   * @param params - Parameters for adding permission
+   * @returns Promise resolving to transaction hash
+   * @throws {RelayerError} When gasless transaction submission fails
+   * @throws {SignatureError} When user rejects the signature request
+   * @throws {BlockchainError} When permission addition fails
+   * @throws {NetworkError} When network communication fails
+   */
+  async submitAddPermission(
+    params: ServerFilesAndPermissionParams,
+  ): Promise<Hash> {
+    try {
+      const nonce = await this.getPermissionsUserNonce();
+
+      // Create add permission input
+      const addPermissionInput = {
+        nonce,
+        granteeId: params.granteeId,
+        grant: params.grant,
+        fileUrls: params.fileUrls,
+        serverAddress: params.serverAddress,
+        serverUrl: params.serverUrl,
+        serverPublicKey: params.serverPublicKey,
+        filePermissions: params.filePermissions,
+      };
+
+      // Create and sign typed data
+      const typedData =
+        await this.composeServerFilesAndPermissionMessage(addPermissionInput);
+      const signature = await this.signTypedData(typedData);
+
+      // Use the signed relay method to support gasless transactions
+      return await this.submitSignedAddPermission(typedData, signature);
+    } catch (error) {
+      // Re-throw known Vana errors directly
+      if (
+        error instanceof RelayerError ||
+        error instanceof UserRejectedRequestError ||
+        error instanceof SerializationError ||
+        error instanceof SignatureError ||
+        error instanceof NetworkError ||
+        error instanceof NonceError
+      ) {
+        throw error;
+      }
+      throw new BlockchainError(
+        `Failed to add permission: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Submits an already-signed add permission transaction to the blockchain.
+   * This method supports both relayer-based gasless transactions and direct transactions.
+   *
+   * @param typedData - The EIP-712 typed data for AddPermission
+   * @param signature - The user's signature
+   * @returns Promise resolving to the transaction hash
+   * @throws {RelayerError} When gasless transaction submission fails
+   * @throws {BlockchainError} When permission addition fails
+   * @throws {NetworkError} When network communication fails
+   */
+  async submitSignedAddPermission(
+    typedData: GenericTypedData,
+    signature: Hash,
+  ): Promise<Hash> {
+    try {
+      // Use relayer callbacks or direct transaction
+      if (this.context.relayerCallbacks?.submitAddPermission) {
+        // Create a JSON-safe version for relayer
+        const jsonSafeTypedData = JSON.parse(
+          JSON.stringify(typedData, (_key, value) =>
+            typeof value === "bigint" ? value.toString() : value,
+          ),
+        );
+        return await this.context.relayerCallbacks.submitAddPermission(
+          jsonSafeTypedData,
+          signature,
+        );
+      } else {
+        return await this.submitDirectAddPermissionTransaction(
+          typedData,
+          signature,
+        );
+      }
+    } catch (error) {
+      // Re-throw known Vana errors directly to preserve error types
+      if (
+        error instanceof RelayerError ||
+        error instanceof NetworkError ||
+        error instanceof UserRejectedRequestError ||
+        error instanceof SignatureError ||
+        error instanceof NonceError
+      ) {
+        throw error;
+      }
+      throw new BlockchainError(
+        `Add permission submission failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Submit server files and permissions with signature to the blockchain (supports gasless transactions)
+   *
+   * @param params - Parameters for adding server files and permissions
+   * @returns Promise resolving to transaction hash
+   * @throws {RelayerError} When gasless transaction submission fails
+   * @throws {SignatureError} When user rejects the signature request
+   * @throws {BlockchainError} When server files and permissions addition fails
+   * @throws {NetworkError} When network communication fails
+   */
+  async submitAddServerFilesAndPermissions(
+    params: ServerFilesAndPermissionParams,
+  ): Promise<Hash> {
+    try {
+      const nonce = await this.getPermissionsUserNonce();
+
+      // Create server files and permission input
+      const serverFilesAndPermissionInput = {
+        nonce,
+        granteeId: params.granteeId,
+        grant: params.grant,
+        fileUrls: params.fileUrls,
+        serverAddress: params.serverAddress,
+        serverUrl: params.serverUrl,
+        serverPublicKey: params.serverPublicKey,
+        filePermissions: params.filePermissions,
+      };
+
+      // Create and sign typed data
+      const typedData = await this.composeServerFilesAndPermissionMessage(
+        serverFilesAndPermissionInput,
+      );
+      const signature = await this.signTypedData(typedData);
+
+      // Use the signed relay method to support gasless transactions
+      return await this.submitSignedAddServerFilesAndPermissions(
+        typedData,
+        signature,
+      );
+    } catch (error) {
+      // Re-throw known Vana errors directly
+      if (
+        error instanceof RelayerError ||
+        error instanceof UserRejectedRequestError ||
+        error instanceof SerializationError ||
+        error instanceof SignatureError ||
+        error instanceof NetworkError ||
+        error instanceof NonceError
+      ) {
+        throw error;
+      }
+      throw new BlockchainError(
+        `Failed to add server files and permissions: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Submits an already-signed add server files and permissions transaction to the blockchain.
+   * This method supports both relayer-based gasless transactions and direct transactions.
+   *
+   * @param typedData - The EIP-712 typed data for AddServerFilesAndPermissions
+   * @param signature - The user's signature
+   * @returns Promise resolving to the transaction hash
+   * @throws {RelayerError} When gasless transaction submission fails
+   * @throws {BlockchainError} When server files and permissions addition fails
+   * @throws {NetworkError} When network communication fails
+   */
+  async submitSignedAddServerFilesAndPermissions(
+    typedData: ServerFilesAndPermissionTypedData,
+    signature: Hash,
+  ): Promise<Hash> {
+    try {
+      // Use relayer callbacks or direct transaction
+      if (this.context.relayerCallbacks?.submitAddServerFilesAndPermissions) {
+        // Create a JSON-safe version for relayer
+        const jsonSafeTypedData = JSON.parse(
+          JSON.stringify(typedData, (_key, value) =>
+            typeof value === "bigint" ? value.toString() : value,
+          ),
+        );
+        return await this.context.relayerCallbacks.submitAddServerFilesAndPermissions(
+          jsonSafeTypedData,
+          signature,
+        );
+      } else {
+        return await this.submitDirectAddServerFilesAndPermissionsTransaction(
+          typedData,
+          signature,
+        );
+      }
+    } catch (error) {
+      // Re-throw known Vana errors directly to preserve error types
+      if (
+        error instanceof RelayerError ||
+        error instanceof NetworkError ||
+        error instanceof UserRejectedRequestError ||
+        error instanceof SignatureError ||
+        error instanceof NonceError
+      ) {
+        throw error;
+      }
+      throw new BlockchainError(
+        `Add server files and permissions submission failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Submit permission revocation with signature to the blockchain
+   *
+   * @param permissionId - Permission ID to revoke
+   * @returns Promise resolving to transaction hash
+   */
+  async submitRevokePermission(permissionId: bigint): Promise<Hash> {
+    try {
+      const chainId = await this.context.walletClient.getChainId();
+      const DataPortabilityPermissionsAddress = getContractAddress(
+        chainId,
+        "DataPortabilityPermissions",
+      );
+      const DataPortabilityPermissionsAbi = getAbi(
+        "DataPortabilityPermissions",
+      );
+
+      const hash = await this.context.walletClient.writeContract({
+        address: DataPortabilityPermissionsAddress,
+        abi: DataPortabilityPermissionsAbi,
+        functionName: "revokePermission",
+        args: [permissionId],
+        chain: this.context.walletClient.chain,
+        account: this.context.walletClient.account || null,
+      });
+
+      return hash;
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to revoke permission: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Submits a signed add permission transaction directly to the blockchain.
+   *
+   * @param typedData - The typed data structure for the permission addition
+   * @param signature - The cryptographic signature authorizing the transaction
+   * @returns Promise resolving to the transaction hash
+   */
+  private async submitDirectAddPermissionTransaction(
+    typedData: GenericTypedData,
+    signature: Hash,
+  ): Promise<Hash> {
+    const chainId = await this.context.walletClient.getChainId();
+    const DataPortabilityPermissionsAddress = getContractAddress(
+      chainId,
+      "DataPortabilityPermissions",
+    );
+    const DataPortabilityPermissionsAbi = getAbi("DataPortabilityPermissions");
+
+    // Prepare the PermissionInput struct from the typed data message
+    const permissionInput = {
+      nonce: typedData.message.nonce as bigint,
+      granteeId: typedData.message.granteeId as bigint,
+      grant: typedData.message.grant as string,
+      fileIds: (typedData.message.fileIds as bigint[]) || [],
+    };
+
+    const hash = await this.context.walletClient.writeContract({
+      address: DataPortabilityPermissionsAddress,
+      abi: DataPortabilityPermissionsAbi,
+      functionName: "addPermission",
+      args: [permissionInput, signature],
+      account:
+        this.context.walletClient.account || (await this.getUserAddress()),
+      chain: this.context.walletClient.chain || null,
+    });
+
+    return hash;
+  }
+
+  /**
+   * Submits a signed add server files and permissions transaction directly to the blockchain.
+   *
+   * @param typedData - The typed data structure for the server files and permissions addition
+   * @param signature - The cryptographic signature authorizing the transaction
+   * @returns Promise resolving to the transaction hash
+   */
+  private async submitDirectAddServerFilesAndPermissionsTransaction(
+    typedData: ServerFilesAndPermissionTypedData,
+    signature: Hash,
+  ): Promise<Hash> {
+    const chainId = await this.context.walletClient.getChainId();
+    const DataPortabilityPermissionsAddress = getContractAddress(
+      chainId,
+      "DataPortabilityPermissions",
+    );
+    const DataPortabilityPermissionsAbi = getAbi("DataPortabilityPermissions");
+
+    // Prepare the ServerFilesAndPermissionInput struct from the typed data message
+    const serverFilesAndPermissionInput = {
+      nonce: typedData.message.nonce,
+      granteeId: typedData.message.granteeId,
+      grant: typedData.message.grant,
+      fileUrls: typedData.message.fileUrls,
+      serverAddress: typedData.message.serverAddress,
+      serverUrl: typedData.message.serverUrl,
+      serverPublicKey: typedData.message.serverPublicKey,
+      filePermissions: typedData.message.filePermissions,
+    };
+
+    const hash = await this.context.walletClient.writeContract({
+      address: DataPortabilityPermissionsAddress,
+      abi: DataPortabilityPermissionsAbi,
+      functionName: "addServerFilesAndPermissions",
+      // @ts-expect-error - Complex nested array types cause compatibility issues with viem's generated types
+      args: [serverFilesAndPermissionInput, signature],
+      account:
+        this.context.walletClient.account || (await this.getUserAddress()),
+      chain: this.context.walletClient.chain || null,
+    });
+
+    return hash;
   }
 }

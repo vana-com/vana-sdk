@@ -4,7 +4,8 @@ import { useState, useCallback, useEffect } from "react";
 import {
   Schema,
   Refiner,
-  AddSchemaParams,
+  CreateSchemaParams,
+  CreateSchemaResult,
   AddRefinerParams,
   UpdateSchemaIdParams,
 } from "@opendatalabs/vana-sdk/browser";
@@ -29,7 +30,7 @@ export interface UseSchemasAndRefinersReturn {
   // Schema creation state
   schemaName: string;
   schemaType: string;
-  schemaDefinitionUrl: string;
+  schemaDefinition: string;
   isCreatingSchema: boolean;
   schemaStatus: string;
   lastCreatedSchemaId: number | null;
@@ -64,7 +65,7 @@ export interface UseSchemasAndRefinersReturn {
   // Setters
   setSchemaName: (name: string) => void;
   setSchemaType: (type: string) => void;
-  setSchemaDefinitionUrl: (url: string) => void;
+  setSchemaDefinition: (definition: string) => void;
   setRefinerName: (name: string) => void;
   setRefinerDlpId: (id: string) => void;
   setRefinerSchemaId: (id: string) => void;
@@ -85,7 +86,7 @@ export function useSchemasAndRefiners(): UseSchemasAndRefinersReturn {
   // Schema creation state
   const [schemaName, setSchemaName] = useState<string>("");
   const [schemaType, setSchemaType] = useState<string>("");
-  const [schemaDefinitionUrl, setSchemaDefinitionUrl] = useState<string>("");
+  const [schemaDefinition, setSchemaDefinition] = useState<string>("");
   const [isCreatingSchema, setIsCreatingSchema] = useState(false);
   const [schemaStatus, setSchemaStatus] = useState<string>("");
   const [lastCreatedSchemaId, setLastCreatedSchemaId] = useState<number | null>(
@@ -178,7 +179,7 @@ export function useSchemasAndRefiners(): UseSchemasAndRefinersReturn {
       !vana ||
       !schemaName.trim() ||
       !schemaType.trim() ||
-      !schemaDefinitionUrl.trim()
+      !schemaDefinition.trim()
     ) {
       setSchemaStatus("❌ Please fill in all schema fields");
       return;
@@ -186,27 +187,35 @@ export function useSchemasAndRefiners(): UseSchemasAndRefinersReturn {
 
     const handler = createApiHandler(
       async () => {
-        const params: AddSchemaParams = {
+        // Parse the schema definition JSON
+        let definitionObject;
+        try {
+          definitionObject = JSON.parse(schemaDefinition);
+        } catch {
+          throw new Error("Invalid JSON in schema definition");
+        }
+
+        const params: CreateSchemaParams = {
           name: schemaName,
           type: schemaType,
-          definitionUrl: schemaDefinitionUrl,
+          definition: definitionObject,
         };
 
-        return await vana.data.addSchema(params);
+        return await vana.schemas.create(params);
       },
       {
         setLoading: setIsCreatingSchema,
         setStatus: setSchemaStatus,
-        loadingMessage: "Creating schema...",
-        successMessage: (result) =>
-          `✅ Schema created with ID: ${result.schemaId}`,
+        loadingMessage: "Creating schema and uploading to IPFS...",
+        successMessage: (result: CreateSchemaResult) =>
+          `✅ Schema created with ID: ${result.schemaId}. Definition URL: ${result.definitionUrl}`,
         errorMessage: "Error",
         onSuccess: (result) => {
           setLastCreatedSchemaId(result.schemaId);
           // Clear form
           setSchemaName("");
           setSchemaType("");
-          setSchemaDefinitionUrl("");
+          setSchemaDefinition("");
           // Refresh counts
           setTimeout(() => {
             loadSchemas();
@@ -216,7 +225,7 @@ export function useSchemasAndRefiners(): UseSchemasAndRefinersReturn {
     );
 
     await handler();
-  }, [vana, schemaName, schemaType, schemaDefinitionUrl, loadSchemas]);
+  }, [vana, schemaName, schemaType, schemaDefinition, loadSchemas]);
 
   const handleCreateRefiner = useCallback(async () => {
     if (
@@ -342,7 +351,7 @@ export function useSchemasAndRefiners(): UseSchemasAndRefinersReturn {
       setRefiners([]);
       setSchemaName("");
       setSchemaType("");
-      setSchemaDefinitionUrl("");
+      setSchemaDefinition("");
       setRefinerName("");
       setRefinerDlpId("");
       setRefinerSchemaId("");
@@ -361,7 +370,7 @@ export function useSchemasAndRefiners(): UseSchemasAndRefinersReturn {
     // Schema creation state
     schemaName,
     schemaType,
-    schemaDefinitionUrl,
+    schemaDefinition,
     isCreatingSchema,
     schemaStatus,
     lastCreatedSchemaId,
@@ -396,7 +405,7 @@ export function useSchemasAndRefiners(): UseSchemasAndRefinersReturn {
     // Setters
     setSchemaName,
     setSchemaType,
-    setSchemaDefinitionUrl,
+    setSchemaDefinition,
     setRefinerName,
     setRefinerDlpId,
     setRefinerSchemaId,

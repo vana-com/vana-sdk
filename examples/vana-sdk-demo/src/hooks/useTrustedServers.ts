@@ -149,7 +149,6 @@ export function useTrustedServers(): UseTrustedServersReturn {
 
     try {
       await vana.permissions.addAndTrustServer({
-        owner: serverOwner as `0x${string}`,
         serverAddress: serverAddress as `0x${string}`,
         serverUrl: serverUrl,
         publicKey: publicKey,
@@ -180,7 +179,6 @@ export function useTrustedServers(): UseTrustedServersReturn {
       clearFieldsOnSuccess = true,
       overrideServerAddress?: string,
       overrideServerUrl?: string,
-      overrideServerOwner?: string,
       overridePublicKey?: string,
     ) => {
       if (!vana || !address) return;
@@ -188,7 +186,6 @@ export function useTrustedServers(): UseTrustedServersReturn {
       // Use override values if provided, otherwise use form state
       const actualServerAddress = overrideServerAddress || serverAddress;
       const actualServerUrl = overrideServerUrl || serverUrl;
-      const actualServerOwner = overrideServerOwner || serverOwner;
       const actualPublicKey = overridePublicKey || publicKey;
 
       // Validate inputs
@@ -210,11 +207,6 @@ export function useTrustedServers(): UseTrustedServersReturn {
         return;
       }
 
-      if (!actualServerOwner.trim()) {
-        setTrustServerError("Please provide a server owner address");
-        return;
-      }
-
       if (!actualPublicKey.trim()) {
         setTrustServerError("Please provide a server public key");
         return;
@@ -224,8 +216,7 @@ export function useTrustedServers(): UseTrustedServersReturn {
       setTrustServerError("");
 
       try {
-        await vana.permissions.addAndTrustServerWithSignature({
-          owner: actualServerOwner as `0x${string}`,
+        await vana.permissions.submitAddAndTrustServerWithSignature({
           serverAddress: actualServerAddress as `0x${string}`,
           serverUrl: actualServerUrl,
           publicKey: actualPublicKey,
@@ -271,7 +262,7 @@ export function useTrustedServers(): UseTrustedServersReturn {
 
       setIsUntrusting(true);
       try {
-        await vana.permissions.untrustServerWithSignature({
+        await vana.permissions.submitUntrustServerWithSignature({
           serverId: parseInt(serverIdToUntrust, 10),
         });
 

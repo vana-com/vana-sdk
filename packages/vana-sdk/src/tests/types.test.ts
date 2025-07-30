@@ -193,7 +193,7 @@ describe("TypeScript Types", () => {
   describe("VanaContract union type", () => {
     it("should accept all valid contract names", () => {
       const contracts: VanaContract[] = [
-        "DataPermissions",
+        "DataPortabilityPermissions",
         "DataRegistry",
         "TeePool",
         "ComputeEngine",
@@ -224,7 +224,7 @@ describe("TypeScript Types", () => {
       ];
 
       expect(contracts).toHaveLength(28);
-      expect(contracts.includes("DataPermissions")).toBe(true);
+      expect(contracts.includes("DataPortabilityPermissions")).toBe(true);
       expect(contracts.includes("DataRegistry")).toBe(true);
     });
   });
@@ -232,13 +232,13 @@ describe("TypeScript Types", () => {
   describe("PermissionGrantDomain", () => {
     it("should have all required EIP-712 domain properties", () => {
       const domain: PermissionGrantDomain = {
-        name: "DataPermissions",
+        name: "DataPortabilityPermissions",
         version: "1",
         chainId: 14800,
         verifyingContract: "0x1234567890123456789012345678901234567890",
       };
 
-      expect(domain.name).toBe("DataPermissions");
+      expect(domain.name).toBe("DataPortabilityPermissions");
       expect(domain.version).toBe("1");
       expect(domain.chainId).toBe(14800);
       expect(domain.verifyingContract).toBe(
@@ -315,7 +315,7 @@ describe("TypeScript Types", () => {
     it("should support PermissionGrantTypedData structure", () => {
       const typedData: PermissionGrantTypedData = {
         domain: {
-          name: "DataPermissions",
+          name: "DataPortabilityPermissions",
           version: "1",
           chainId: 14800,
           verifyingContract: "0x1234567890123456789012345678901234567890",
@@ -337,7 +337,7 @@ describe("TypeScript Types", () => {
         },
       };
 
-      expect(typedData.domain.name).toBe("DataPermissions");
+      expect(typedData.domain.name).toBe("DataPortabilityPermissions");
       expect(typedData.types.Permission).toHaveLength(4);
       expect(typedData.primaryType).toBe("Permission");
       expect(typedData.message.nonce).toBe(BigInt(123));
@@ -347,7 +347,7 @@ describe("TypeScript Types", () => {
     it("should support GenericTypedData structure", () => {
       const typedData: GenericTypedData = {
         domain: {
-          name: "DataPermissions",
+          name: "DataPortabilityPermissions",
           version: "1",
           chainId: 14800,
           verifyingContract: "0x1234567890123456789012345678901234567890",
@@ -365,7 +365,7 @@ describe("TypeScript Types", () => {
         },
       };
 
-      expect(typedData.domain.name).toBe("DataPermissions");
+      expect(typedData.domain.name).toBe("DataPortabilityPermissions");
       expect(typedData.types.CustomType).toHaveLength(2);
       expect(typedData.primaryType).toBe("CustomType");
       expect(typedData.message.field1).toBe("test");
@@ -988,7 +988,7 @@ describe("TypeScript Types", () => {
 
   describe("Contract Type Inference", () => {
     it("should provide proper type inference for contract methods", () => {
-      const contractInfo = getContractInfo("DataPermissions");
+      const contractInfo = getContractInfo("DataPortabilityPermissions");
       expect(contractInfo.address).toBeDefined();
       expect(contractInfo.abi).toBeDefined();
     });
@@ -1010,7 +1010,7 @@ describe("TypeScript Types", () => {
       });
 
       const factory = new ContractFactory(walletClient);
-      const contract = factory.create("DataPermissions");
+      const contract = factory.create("DataPortabilityPermissions");
       expect(contract).toBeDefined();
     });
 

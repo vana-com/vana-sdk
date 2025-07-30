@@ -210,7 +210,7 @@ describe("contractController", () => {
         "DataRegistry",
         "TeePool",
         "DataLiquidityPool",
-        "DataPermissions",
+        "DataPortabilityPermissions",
         "DLPRegistry",
       ];
 

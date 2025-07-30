@@ -72,7 +72,7 @@ describe("New PermissionsController Methods", () => {
     controller = new PermissionsController(mockContext);
   });
 
-  describe("revokeWithSignature", () => {
+  describe("submitRevokeWithSignature", () => {
     beforeEach(() => {
       // Mock getUserNonce for typed data creation
       vi.spyOn(
@@ -152,7 +152,8 @@ describe("New PermissionsController Methods", () => {
         permissionId: 42n,
       };
 
-      const result = await controllerWithRelayer.revokeWithSignature(params);
+      const result =
+        await controllerWithRelayer.submitRevokeWithSignature(params);
 
       expect(result).toBe(
         "0xhash123456789012345678901234567890123456789012345678901234567890",
@@ -224,7 +225,7 @@ describe("New PermissionsController Methods", () => {
         permissionId: 42n,
       };
 
-      const result = await directController.revokeWithSignature(params);
+      const result = await directController.submitRevokeWithSignature(params);
 
       expect(result).toBe(
         "0xhash123456789012345678901234567890123456789012345678901234567890",
@@ -247,7 +248,7 @@ describe("New PermissionsController Methods", () => {
       };
 
       await expect(
-        noChainController.revokeWithSignature(params),
+        noChainController.submitRevokeWithSignature(params),
       ).rejects.toThrow(
         "Failed to revoke permission with signature: Chain ID not available",
       );
@@ -310,40 +311,6 @@ describe("New PermissionsController Methods", () => {
 
         await expect(controller.getPermissionFileIds(456n)).rejects.toThrow(
           "Failed to get permission file IDs: Contract read failed",
-        );
-      });
-    });
-
-    describe("isActivePermission", () => {
-      it("should return true for active permission", async () => {
-        mockPublicClient.readContract.mockResolvedValue(true);
-
-        const result = await controller.isActivePermission(789n);
-
-        expect(result).toBe(true);
-        expect(mockPublicClient.readContract).toHaveBeenCalledWith({
-          address: "0x1234567890123456789012345678901234567890",
-          abi: [],
-          functionName: "isActivePermission",
-          args: [789n],
-        });
-      });
-
-      it("should return false for inactive permission", async () => {
-        mockPublicClient.readContract.mockResolvedValue(false);
-
-        const result = await controller.isActivePermission(789n);
-
-        expect(result).toBe(false);
-      });
-
-      it("should handle contract read errors", async () => {
-        mockPublicClient.readContract.mockRejectedValue(
-          new Error("Contract read failed"),
-        );
-
-        await expect(controller.isActivePermission(789n)).rejects.toThrow(
-          "Failed to check permission status: Contract read failed",
         );
       });
     });

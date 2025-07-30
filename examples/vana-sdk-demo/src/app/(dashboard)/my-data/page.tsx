@@ -19,6 +19,7 @@ import { FilesTab } from "./components/FilesTab";
 import { PermissionsTab } from "./components/PermissionsTab";
 import { ServersTab } from "./components/ServersTab";
 import { GranteesTab } from "./components/GranteesTab";
+import { ContractCallsTab } from "@/components/ui/ContractCallsTab";
 
 /**
  * My Data page - User's personal data control panel
@@ -118,8 +119,6 @@ export default function MyDataPage() {
     handleDiscoverHostedServer: onDiscoverReplicateServer,
     setServerAddress: onServerAddressChange,
     setServerUrl: onServerUrlChange,
-    serverOwner,
-    setServerOwner: onServerOwnerChange,
     publicKey,
     setPublicKey: onPublicKeyChange,
     setTrustedServerQueryMode: onQueryModeChange,
@@ -239,8 +238,8 @@ export default function MyDataPage() {
   );
 
   const onTrustServer = useCallback(() => {
-    handleTrustServerGasless(false, serverAddress, serverUrl);
-  }, [handleTrustServerGasless, serverAddress, serverUrl]);
+    handleTrustServerGasless(false, serverAddress, serverUrl, publicKey);
+  }, [handleTrustServerGasless, serverAddress, serverUrl, publicKey]);
 
   const onRefreshServers = useCallback(() => {
     loadUserTrustedServers(queryMode);
@@ -490,11 +489,9 @@ export default function MyDataPage() {
             isDiscoveringServer={isDiscoveringServer}
             trustServerError={trustServerError}
             queryMode={queryMode}
-            serverOwner={serverOwner}
             serverAddress={serverAddress}
             serverUrl={serverUrl}
             publicKey={publicKey}
-            onServerOwnerChange={onServerOwnerChange}
             onServerAddressChange={onServerAddressChange}
             onServerUrlChange={onServerUrlChange}
             onPublicKeyChange={onPublicKeyChange}
@@ -524,6 +521,9 @@ export default function MyDataPage() {
             onRefreshGrantees={loadGrantees}
             onRemoveGrantee={handleRemoveGrantee}
           />
+        </Tab>
+        <Tab key="contract-calls" title="Contract Calls">
+          {vana && <ContractCallsTab vana={vana} chainId={chainId || 14800} />}
         </Tab>
       </Tabs>
 

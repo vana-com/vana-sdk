@@ -51,13 +51,11 @@ interface ServersTabProps {
 
   // Input state
   queryMode: "subgraph" | "rpc" | "auto";
-  serverOwner: string;
   serverAddress: string;
   serverUrl: string;
   publicKey: string;
 
   // Callbacks
-  onServerOwnerChange: (owner: string) => void;
   onServerAddressChange: (address: string) => void;
   onServerUrlChange: (url: string) => void;
   onPublicKeyChange: (key: string) => void;
@@ -76,11 +74,9 @@ export function ServersTab({
   isDiscoveringServer,
   trustServerError,
   queryMode,
-  serverOwner,
   serverAddress,
   serverUrl,
   publicKey,
-  onServerOwnerChange,
   onServerAddressChange,
   onServerUrlChange,
   onPublicKeyChange,
@@ -105,16 +101,6 @@ export function ServersTab({
             title=""
             singleColumn={true}
             fields={[
-              {
-                name: "owner",
-                label: "Server Owner",
-                type: "text",
-                value: serverOwner,
-                onChange: onServerOwnerChange,
-                placeholder: "0x...",
-                description: "The Ethereum address of the server owner",
-                required: true,
-              },
               {
                 name: "serverAddress",
                 label: "Server Address",

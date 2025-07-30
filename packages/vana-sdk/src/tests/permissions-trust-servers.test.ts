@@ -137,7 +137,27 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
 
     // Create a mock publicClient
     mockPublicClient = {
-      readContract: vi.fn().mockResolvedValue(BigInt(0)),
+      readContract: vi.fn().mockImplementation((args) => {
+        // Mock the users function from DataPortabilityServers contract
+        if (args.functionName === "users") {
+          return [BigInt(0), []]; // [nonce, trustedServerIds]
+        }
+        // Mock the userNonce function from DataPermissions contract
+        if (args.functionName === "userNonce") {
+          return BigInt(0);
+        }
+        // Mock the servers function for getServerInfo
+        if (args.functionName === "servers") {
+          return {
+            id: args.args[0], // Use the serverId that was passed in
+            owner: "0x1234567890123456789012345678901234567890",
+            serverAddress: "0xabcdef1234567890123456789012345678901234",
+            publicKey: "0xpublickey",
+            url: "https://server1.com",
+          };
+        }
+        return BigInt(0);
+      }),
       waitForTransactionReceipt: vi.fn().mockResolvedValue({ logs: [] }),
     };
 
@@ -159,17 +179,14 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         serverUrl: "https://example.com",
       };
 
-      const result = await controller.trustServer(params);
+      const result = await controller.submitTrustServer(params);
 
       expect(result).toBe("0xtxhash");
       expect(mockWalletClient.writeContract).toHaveBeenCalledWith({
         address: "0x1234567890123456789012345678901234567890",
         abi: expect.any(Array),
         functionName: "trustServer",
-        args: [
-          "0x0000000000000000000000000000000000000001",
-          "https://example.com",
-        ],
+        args: [BigInt(1)],
         account: mockWalletClient.account,
         chain: mockWalletClient.chain,
       });
@@ -185,13 +202,13 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         serverUrl: "https://example.com",
       };
 
-      await expect(controller.trustServer(params)).rejects.toThrow(
+      await expect(controller.submitTrustServer(params)).rejects.toThrow(
         BlockchainError,
       );
     });
   });
 
-  describe("trustServerWithSignature", () => {
+  describe("submitTrustServerWithSignature", () => {
     it("should successfully trust server with signature via relayer", async () => {
       mockContext.relayerCallbacks = {
         submitTrustServer: vi.fn().mockResolvedValue("0xrelayerhash" as Hash),
@@ -202,7 +219,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         serverUrl: "https://example.com",
       };
 
-      const result = await controller.trustServerWithSignature(params);
+      const result = await controller.submitTrustServerWithSignature(params);
 
       expect(result).toBe("0xrelayerhash");
       expect(mockContext.relayerCallbacks.submitTrustServer).toHaveBeenCalled();
@@ -215,7 +232,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         serverUrl: "https://example.com",
       };
 
-      const result = await controller.trustServerWithSignature(params);
+      const result = await controller.submitTrustServerWithSignature(params);
 
       expect(result).toBe("0xtxhash");
       expect(mockWalletClient.writeContract).toHaveBeenCalledWith({
@@ -228,7 +245,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       });
     });
 
-    it("should handle getUserNonce errors in trustServerWithSignature", async () => {
+    it("should handle getUserNonce errors in submitTrustServerWithSignature", async () => {
       mockPublicClient.readContract.mockRejectedValue(
         new Error("Nonce read failed"),
       );
@@ -238,12 +255,12 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         serverUrl: "https://example.com",
       };
 
-      await expect(controller.trustServerWithSignature(params)).rejects.toThrow(
-        NonceError,
-      );
+      await expect(
+        controller.submitTrustServerWithSignature(params),
+      ).rejects.toThrow(NonceError);
     });
 
-    it("should handle signature errors in trustServerWithSignature", async () => {
+    it("should handle signature errors in submitTrustServerWithSignature", async () => {
       mockWalletClient.signTypedData.mockRejectedValue(
         new Error("User rejected"),
       );
@@ -253,12 +270,12 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         serverUrl: "https://example.com",
       };
 
-      await expect(controller.trustServerWithSignature(params)).rejects.toThrow(
-        UserRejectedRequestError,
-      );
+      await expect(
+        controller.submitTrustServerWithSignature(params),
+      ).rejects.toThrow(UserRejectedRequestError);
     });
 
-    it("should handle relayer errors in trustServerWithSignature", async () => {
+    it("should handle relayer errors in submitTrustServerWithSignature", async () => {
       mockContext.relayerCallbacks = {
         submitTrustServer: vi
           .fn()
@@ -270,12 +287,12 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         serverUrl: "https://example.com",
       };
 
-      await expect(controller.trustServerWithSignature(params)).rejects.toThrow(
-        RelayerError,
-      );
+      await expect(
+        controller.submitTrustServerWithSignature(params),
+      ).rejects.toThrow(RelayerError);
     });
 
-    it("should handle non-Error exceptions in trustServerWithSignature", async () => {
+    it("should handle non-Error exceptions in submitTrustServerWithSignature", async () => {
       mockWalletClient.signTypedData.mockRejectedValue("String error");
 
       const params = {
@@ -283,9 +300,9 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         serverUrl: "https://example.com",
       };
 
-      await expect(controller.trustServerWithSignature(params)).rejects.toThrow(
-        SignatureError,
-      );
+      await expect(
+        controller.submitTrustServerWithSignature(params),
+      ).rejects.toThrow(SignatureError);
     });
   });
 
@@ -295,14 +312,14 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         serverId: 1,
       };
 
-      const result = await controller.untrustServer(params);
+      const result = await controller.submitUntrustServer(params);
 
       expect(result).toBe("0xtxhash");
       expect(mockWalletClient.writeContract).toHaveBeenCalledWith({
         address: "0x1234567890123456789012345678901234567890",
         abi: expect.any(Array),
         functionName: "untrustServer",
-        args: ["0x0000000000000000000000000000000000000001"],
+        args: [BigInt(1)],
         account: mockWalletClient.account,
         chain: mockWalletClient.chain,
       });
@@ -317,13 +334,13 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         serverId: 1,
       };
 
-      await expect(controller.untrustServer(params)).rejects.toThrow(
+      await expect(controller.submitUntrustServer(params)).rejects.toThrow(
         BlockchainError,
       );
     });
   });
 
-  describe("untrustServerWithSignature", () => {
+  describe("submitUntrustServerWithSignature", () => {
     it("should successfully untrust server with signature via relayer", async () => {
       mockContext.relayerCallbacks = {
         submitUntrustServer: vi.fn().mockResolvedValue("0xrelayerhash" as Hash),
@@ -333,7 +350,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         serverId: 1,
       };
 
-      const result = await controller.untrustServerWithSignature(params);
+      const result = await controller.submitUntrustServerWithSignature(params);
 
       expect(result).toBe("0xrelayerhash");
       expect(
@@ -347,7 +364,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         serverId: 1,
       };
 
-      const result = await controller.untrustServerWithSignature(params);
+      const result = await controller.submitUntrustServerWithSignature(params);
 
       expect(result).toBe("0xtxhash");
       expect(mockWalletClient.writeContract).toHaveBeenCalledWith({
@@ -360,7 +377,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       });
     });
 
-    it("should handle getUserNonce errors in untrustServerWithSignature", async () => {
+    it("should handle getUserNonce errors in submitUntrustServerWithSignature", async () => {
       mockPublicClient.readContract.mockRejectedValue(
         new Error("Nonce read failed"),
       );
@@ -370,11 +387,11 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       };
 
       await expect(
-        controller.untrustServerWithSignature(params),
+        controller.submitUntrustServerWithSignature(params),
       ).rejects.toThrow(NonceError);
     });
 
-    it("should handle signature errors in untrustServerWithSignature", async () => {
+    it("should handle signature errors in submitUntrustServerWithSignature", async () => {
       mockWalletClient.signTypedData.mockRejectedValue(
         new Error("User rejected"),
       );
@@ -384,11 +401,11 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       };
 
       await expect(
-        controller.untrustServerWithSignature(params),
+        controller.submitUntrustServerWithSignature(params),
       ).rejects.toThrow(UserRejectedRequestError);
     });
 
-    it("should handle relayer errors in untrustServerWithSignature", async () => {
+    it("should handle relayer errors in submitUntrustServerWithSignature", async () => {
       mockContext.relayerCallbacks = {
         submitUntrustServer: vi
           .fn()
@@ -400,11 +417,11 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       };
 
       await expect(
-        controller.untrustServerWithSignature(params),
+        controller.submitUntrustServerWithSignature(params),
       ).rejects.toThrow(RelayerError);
     });
 
-    it("should handle non-Error exceptions in untrustServerWithSignature", async () => {
+    it("should handle non-Error exceptions in submitUntrustServerWithSignature", async () => {
       mockWalletClient.signTypedData.mockRejectedValue("String error");
 
       const params = {
@@ -412,21 +429,18 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       };
 
       await expect(
-        controller.untrustServerWithSignature(params),
+        controller.submitUntrustServerWithSignature(params),
       ).rejects.toThrow(SignatureError);
     });
   });
 
   describe("getTrustedServers", () => {
     it("should successfully get trusted servers", async () => {
-      mockPublicClient.readContract.mockResolvedValue([
-        "0xserver1",
-        "0xserver2",
-      ]);
+      mockPublicClient.readContract.mockResolvedValue([BigInt(1), BigInt(2)]);
 
       const result = await controller.getTrustedServers();
 
-      expect(result).toEqual(["0xserver1", "0xserver2"]);
+      expect(result).toEqual([1, 2]);
     });
 
     it("should return empty array when no trusted servers", async () => {
@@ -472,8 +486,8 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
     it("should successfully get paginated trusted servers", async () => {
       mockPublicClient.readContract
         .mockResolvedValueOnce(BigInt(3)) // userServerIdsLength
-        .mockResolvedValueOnce("0xserver1") // userServerIdsAt(0)
-        .mockResolvedValueOnce("0xserver2"); // userServerIdsAt(1)
+        .mockResolvedValueOnce(BigInt(1)) // userServerIdsAt(0)
+        .mockResolvedValueOnce(BigInt(2)); // userServerIdsAt(1)
 
       const result = await controller.getTrustedServersPaginated({
         limit: 2,
@@ -481,7 +495,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       });
 
       expect(result).toEqual({
-        servers: ["0xserver1", "0xserver2"],
+        servers: [1, 2],
         total: 3,
         offset: 0,
         limit: 2,
@@ -492,7 +506,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
     it("should handle pagination edge cases", async () => {
       mockPublicClient.readContract
         .mockResolvedValueOnce(BigInt(1)) // userServerIdsLength
-        .mockResolvedValueOnce("0xserver1"); // userServerIdsAt(0)
+        .mockResolvedValueOnce(BigInt(1)); // userServerIdsAt(0)
 
       const result = await controller.getTrustedServersPaginated({
         limit: 10,
@@ -500,7 +514,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       });
 
       expect(result).toEqual({
-        servers: ["0xserver1"],
+        servers: [1],
         total: 1,
         offset: 0,
         limit: 10,
@@ -521,38 +535,87 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
 
   describe("getTrustedServersWithInfo", () => {
     it("should successfully get trusted servers with info", async () => {
-      // Mock getTrustedServersPaginated return
-      mockPublicClient.readContract
-        .mockResolvedValueOnce(BigInt(1)) // userServerIdsLength
-        .mockResolvedValueOnce("0xserver1") // userServerIdsAt(0)
-        .mockResolvedValueOnce({ url: "https://server1.com" }); // getServerInfo
+      // Reset the mock to use the function name-based implementation only
+      mockPublicClient.readContract.mockImplementation((args) => {
+        // Mock the users function from DataPortabilityServers contract
+        if (args.functionName === "users") {
+          return [BigInt(0), []]; // [nonce, trustedServerIds]
+        }
+        // Mock for getTrustedServersPaginated
+        if (args.functionName === "userServerIdsLength") {
+          return BigInt(1);
+        }
+        if (args.functionName === "userServerIdsAt") {
+          return BigInt(1);
+        }
+        // Mock the servers function for getServerInfo
+        if (args.functionName === "servers") {
+          return {
+            id: args.args[0], // Use the serverId that was passed in
+            owner: "0x1234567890123456789012345678901234567890",
+            serverAddress: "0xabcdef1234567890123456789012345678901234",
+            publicKey: "0xpublickey",
+            url: "https://server1.com",
+          };
+        }
+        // Mock the userNonce function from DataPermissions contract
+        if (args.functionName === "userNonce") {
+          return BigInt(0);
+        }
+        return BigInt(0);
+      });
 
       const result = await controller.getTrustedServersWithInfo();
 
       expect(result).toEqual([
         {
-          serverId: "0xserver1",
+          id: 1n,
+          owner: "0x1234567890123456789012345678901234567890",
+          serverAddress: "0xabcdef1234567890123456789012345678901234",
+          publicKey: "0xpublickey",
           url: "https://server1.com",
-          isTrusted: true,
-          trustIndex: 0,
+          startBlock: 0n,
+          endBlock: 0n,
         },
       ]);
     });
 
     it("should handle fetch errors when getting server info", async () => {
-      mockPublicClient.readContract
-        .mockResolvedValueOnce(BigInt(1)) // userServerIdsLength
-        .mockResolvedValueOnce("0xserver1") // userServerIdsAt(0)
-        .mockRejectedValueOnce(new Error("Server info failed")); // getServerInfo fails
+      // Mock with server info failure
+      mockPublicClient.readContract.mockImplementation((args) => {
+        // Mock the users function from DataPortabilityServers contract
+        if (args.functionName === "users") {
+          return [BigInt(0), []]; // [nonce, trustedServerIds]
+        }
+        // Mock for getTrustedServersPaginated
+        if (args.functionName === "userServerIdsLength") {
+          return BigInt(1);
+        }
+        if (args.functionName === "userServerIdsAt") {
+          return BigInt(1);
+        }
+        // Simulate failure for servers function
+        if (args.functionName === "servers") {
+          throw new Error("Server info failed");
+        }
+        // Mock the userNonce function from DataPermissions contract
+        if (args.functionName === "userNonce") {
+          return BigInt(0);
+        }
+        return BigInt(0);
+      });
 
       const result = await controller.getTrustedServersWithInfo();
 
       expect(result).toEqual([
         {
-          serverId: "0xserver1",
+          id: 1n,
+          owner: "0x0000000000000000000000000000000000000000",
+          serverAddress: "0x0000000000000000000000000000000000000000",
+          publicKey: "",
           url: "",
-          isTrusted: true,
-          trustIndex: 0,
+          startBlock: 0n,
+          endBlock: 0n,
         },
       ]);
     });

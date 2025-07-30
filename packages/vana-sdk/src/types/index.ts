@@ -141,12 +141,17 @@ export type {
   TrustedServerQueryOptions,
   BatchServerInfoResult,
   ServerTrustStatus,
+  ServerInfo,
   Grantee,
+  GranteeInfo,
   RegisterGranteeParams,
   RegisterGranteeInput,
   RegisterGranteeTypedData,
   GranteeQueryOptions,
   PaginatedGrantees,
+  ServerFilesAndPermissionParams,
+  ServerFilesAndPermissionTypedData,
+  Permission,
 } from "./permissions";
 
 // Personal server types

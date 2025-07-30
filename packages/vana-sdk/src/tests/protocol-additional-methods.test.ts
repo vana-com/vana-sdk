@@ -57,7 +57,7 @@ vi.mock("../contracts/contractController", () => ({
       .fn()
       .mockReturnValue([
         "DataRegistry",
-        "DataPermissions",
+        "DataPortabilityPermissions",
         "TeePool",
         "ComputeEngine",
         "DLPRegistry",
@@ -104,7 +104,9 @@ describe("ProtocolController - Additional Methods", () => {
     });
 
     it("should return true for DataPermissions contract", () => {
-      const result = controller.isContractAvailable("DataPermissions");
+      const result = controller.isContractAvailable(
+        "DataPortabilityPermissions",
+      );
 
       expect(result).toBe(true);
     });
@@ -173,7 +175,7 @@ describe("ProtocolController - Additional Methods", () => {
     it("should work with all known contract types", () => {
       const contractTypes = [
         "DataRegistry",
-        "DataPermissions",
+        "DataPortabilityPermissions",
         "TeePool",
         "TeePoolPhala",
         "ComputeEngine",

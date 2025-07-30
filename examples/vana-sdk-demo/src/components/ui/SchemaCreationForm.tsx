@@ -22,12 +22,12 @@ export interface SchemaCreationFormProps {
   schemaType: string;
   onSchemaTypeChange: (type: string) => void;
 
+  /** Schema definition */
+  schemaDefinition: string;
+  onSchemaDefinitionChange: (definition: string) => void;
+
   /** Schema creation handler */
-  onCreateSchema: (data: {
-    name: string;
-    type: string;
-    definitionUrl: string;
-  }) => void;
+  onCreateSchema: () => void;
   isCreatingSchema: boolean;
   schemaStatus: string;
   lastCreatedSchemaId: number | null;
@@ -52,11 +52,13 @@ export interface SchemaCreationFormProps {
  * 4. Create the schema on the blockchain
  */
 export const SchemaCreationForm: React.FC<SchemaCreationFormProps> = ({
-  vana,
+  vana: _vana,
   schemaName,
   onSchemaNameChange,
   schemaType,
   onSchemaTypeChange,
+  schemaDefinition,
+  onSchemaDefinitionChange,
   onCreateSchema,
   isCreatingSchema,
   schemaStatus,
@@ -66,15 +68,11 @@ export const SchemaCreationForm: React.FC<SchemaCreationFormProps> = ({
   description = "Create a new data schema with automatic IPFS upload",
   className = "",
 }) => {
-  const [schemaDefinition, setSchemaDefinition] = useState("");
   const [isValidating, setIsValidating] = useState(false);
   const [validationResult, setValidationResult] = useState<{
     isValid: boolean;
     errors: string[];
   } | null>(null);
-  const [_isUploading, setIsUploading] = useState(false);
-  const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
-  const [uploadError, setUploadError] = useState<string | null>(null);
 
   /**
    * Validates the schema definition
@@ -110,43 +108,6 @@ export const SchemaCreationForm: React.FC<SchemaCreationFormProps> = ({
       });
     } finally {
       setIsValidating(false);
-    }
-  };
-
-  /**
-   * Handles the schema creation process using the new high-level API
-   */
-  const handleCreateSchema = async () => {
-    if (!schemaName.trim() || !schemaType.trim() || !schemaDefinition.trim()) {
-      return;
-    }
-
-    setIsUploading(true);
-    setUploadError(null);
-
-    try {
-      // Use the new high-level schema creation API
-      const result = await vana.schemas.create({
-        name: schemaName,
-        type: schemaType,
-        definition: schemaDefinition,
-      });
-
-      setUploadedUrl(result.definitionUrl);
-      setUploadError(null);
-
-      // Call the callback with the new schema information
-      onCreateSchema({
-        name: schemaName,
-        type: schemaType,
-        definitionUrl: result.definitionUrl,
-      });
-    } catch (error) {
-      setUploadError(
-        error instanceof Error ? error.message : "Schema creation failed",
-      );
-    } finally {
-      setIsUploading(false);
     }
   };
 
@@ -223,7 +184,7 @@ export const SchemaCreationForm: React.FC<SchemaCreationFormProps> = ({
   "required": ["name"]
 }`}
               value={schemaDefinition}
-              onChange={(e) => setSchemaDefinition(e.target.value)}
+              onChange={(e) => onSchemaDefinitionChange(e.target.value)}
               minRows={10}
               maxRows={20}
               description="JSON Schema definition for your data structure"
@@ -270,34 +231,6 @@ export const SchemaCreationForm: React.FC<SchemaCreationFormProps> = ({
             </div>
           )}
 
-          {/* Upload Error Display */}
-          {uploadError && (
-            <div className="p-3 bg-danger/10 rounded-lg">
-              <div className="flex items-center gap-2 mb-1">
-                <AlertCircle className="h-4 w-4 text-danger" />
-                <span className="text-sm font-medium text-danger">
-                  Schema creation failed
-                </span>
-              </div>
-              <div className="text-xs text-danger">{uploadError}</div>
-            </div>
-          )}
-
-          {/* Success Display */}
-          {uploadedUrl && (
-            <div className="p-3 bg-success/10 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <CheckCircle className="h-4 w-4 text-success" />
-                <span className="text-sm font-medium text-success">
-                  Schema created successfully!
-                </span>
-              </div>
-              <div className="text-xs">
-                <strong>Definition URL:</strong> {uploadedUrl}
-              </div>
-            </div>
-          )}
-
           {/* Schema Status */}
           {schemaStatus && (
             <div className="p-3 bg-info/10 rounded-lg">
@@ -310,7 +243,7 @@ export const SchemaCreationForm: React.FC<SchemaCreationFormProps> = ({
 
           {/* Create Schema Button */}
           <Button
-            onPress={handleCreateSchema}
+            onPress={onCreateSchema}
             isLoading={isCreatingSchema}
             color="primary"
             size="lg"

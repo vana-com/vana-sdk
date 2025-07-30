@@ -157,7 +157,7 @@ describe("ProtocolController", () => {
       // Test a few different contract types
       const contracts = [
         "DataRegistry",
-        "DataPermissions",
+        "DataPortabilityPermissions",
         "TeePoolPhala",
         "ComputeEngine",
       ] as const;
@@ -221,7 +221,7 @@ describe("ProtocolController", () => {
       expect(contracts.length).toBeGreaterThan(0);
 
       // Should include core contracts
-      expect(contracts).toContain("DataPermissions");
+      expect(contracts).toContain("DataPortabilityPermissions");
       expect(contracts).toContain("DataRegistry");
       expect(contracts).toContain("TeePoolPhala");
       expect(contracts).toContain("ComputeEngine");

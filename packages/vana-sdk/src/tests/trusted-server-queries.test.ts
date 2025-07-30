@@ -282,8 +282,8 @@ describe("Enhanced Trusted Server Queries", () => {
       });
 
       expect(result).toHaveLength(2);
-      expect(result[0].serverId).toBe(serverAddresses[0]);
-      expect(result[1].serverId).toBe(serverAddresses[1]);
+      expect(result[0].id).toBe(BigInt(serverAddresses[0]));
+      expect(result[1].id).toBe(BigInt(serverAddresses[1]));
     });
 
     it("should handle servers with missing info gracefully", async () => {

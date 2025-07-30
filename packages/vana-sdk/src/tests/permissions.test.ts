@@ -102,6 +102,7 @@ interface MockWalletClient {
 interface MockPublicClient {
   readContract: ReturnType<typeof vi.fn>;
   waitForTransactionReceipt: ReturnType<typeof vi.fn>;
+  getChainId: ReturnType<typeof vi.fn>;
 }
 
 describe("PermissionsController", () => {
@@ -182,6 +183,7 @@ describe("PermissionsController", () => {
         gasUsed: 100000n,
         logs: [],
       }),
+      getChainId: vi.fn().mockResolvedValue(14800),
     };
 
     mockContext = {
@@ -1280,7 +1282,7 @@ describe("PermissionsController", () => {
       };
 
       await expect(
-        failingController.revokeWithSignature(mockRevokeParams),
+        failingController.submitRevokeWithSignature(mockRevokeParams),
       ).rejects.toThrow(PermissionError);
     });
 
@@ -1302,7 +1304,7 @@ describe("PermissionsController", () => {
       };
 
       await expect(
-        failingController.revokeWithSignature(mockRevokeParams),
+        failingController.submitRevokeWithSignature(mockRevokeParams),
       ).rejects.toThrow(PermissionError);
     });
 
@@ -1376,7 +1378,7 @@ describe("PermissionsController", () => {
     });
   });
 
-  describe("revokeWithSignature", () => {
+  describe("submitRevokeWithSignature", () => {
     beforeEach(() => {
       // Mock getUserNonce for typed data creation
       vi.spyOn(
@@ -1393,7 +1395,7 @@ describe("PermissionsController", () => {
         },
         "getPermissionDomain",
       ).mockResolvedValue({
-        name: "DataPermissions",
+        name: "VanaDataPortabilityPermissions",
         version: "1",
         chainId: 14800,
         verifyingContract: "0x1234567890123456789012345678901234567890",
@@ -1425,7 +1427,7 @@ describe("PermissionsController", () => {
         permissionId: 42n,
       };
 
-      const result = await controller.revokeWithSignature(params);
+      const result = await controller.submitRevokeWithSignature(params);
 
       expect(result).toBe("0xtxhash");
     });
@@ -1456,7 +1458,7 @@ describe("PermissionsController", () => {
         permissionId: 42n,
       };
 
-      const result = await controller.revokeWithSignature(params);
+      const result = await controller.submitRevokeWithSignature(params);
 
       expect(result).toBe(
         "0xhash123456789012345678901234567890123456789012345678901234567890",
@@ -1478,9 +1480,9 @@ describe("PermissionsController", () => {
         permissionId: 42n,
       };
 
-      await expect(controller.revokeWithSignature(params)).rejects.toThrow(
-        PermissionError,
-      );
+      await expect(
+        controller.submitRevokeWithSignature(params),
+      ).rejects.toThrow(PermissionError);
     });
 
     it("should handle getUserNonce errors", async () => {
@@ -1505,7 +1507,9 @@ describe("PermissionsController", () => {
         permissionId: 42n,
       };
 
-      await expect(controller.revokeWithSignature(params)).rejects.toThrow(
+      await expect(
+        controller.submitRevokeWithSignature(params),
+      ).rejects.toThrow(
         "Failed to revoke permission with signature: Nonce retrieval failed",
       );
     });
@@ -1532,45 +1536,53 @@ describe("PermissionsController", () => {
         permissionId: 42n,
       };
 
-      await expect(controller.revokeWithSignature(params)).rejects.toThrow(
+      await expect(
+        controller.submitRevokeWithSignature(params),
+      ).rejects.toThrow(
         "Failed to revoke permission with signature: Signature failed",
       );
     });
   });
 
   describe("getUserNonce", () => {
-    it("should read nonce from DataPermissions contract, not DataPortabilityServers", async () => {
+    it("should read nonce from DataPortabilityServers contract", async () => {
       const expectedNonce = 5n;
 
       // Import getContractAddress locally to avoid affecting other tests
       const addresses = await import("../config/addresses");
       const originalGetContractAddress = addresses.getContractAddress;
-      
+
       // Track which contracts are requested
       const contractRequests: string[] = [];
-      
+
       // Temporarily replace getContractAddress for this test only
-      (addresses as any).getContractAddress = (chainId: number, contractName: string) => {
+      (addresses as any).getContractAddress = (
+        chainId: number,
+        contractName: any,
+      ) => {
         contractRequests.push(contractName);
         return originalGetContractAddress(chainId, contractName);
       };
 
       try {
         // Create a fresh controller instance for this test
-        const { PermissionsController: TestPermissionsController } = await import("../controllers/permissions");
+        const { PermissionsController: TestPermissionsController } =
+          await import("../controllers/permissions");
         const testController = new TestPermissionsController(mockContext);
 
         // Mock readContract to return the nonce
         mockPublicClient.readContract.mockResolvedValueOnce(expectedNonce);
 
         // Call getUserNonce (private method, so we need to use type assertion)
-        const getUserNonce = (testController as any).getUserNonce.bind(testController);
+        const getUserNonce = (testController as any).getUserNonce.bind(
+          testController,
+        );
         const nonce = await getUserNonce();
 
         // Verify the correct contract was requested
-        expect(contractRequests).toContain("DataPermissions");
-        expect(contractRequests).not.toContain("DataPortabilityServers");
-        
+        expect(contractRequests).toContain("DataPortabilityServers");
+        expect(contractRequests).not.toContain("DataPermissions");
+
         expect(nonce).toBe(expectedNonce);
       } finally {
         // Restore original function
@@ -1641,40 +1653,6 @@ describe("PermissionsController", () => {
       });
     });
 
-    describe("isActivePermission", () => {
-      it("should return true for active permission", async () => {
-        vi.mocked(mockPublicClient.readContract).mockResolvedValue(true);
-
-        const result = await controller.isActivePermission(789n);
-
-        expect(result).toBe(true);
-        expect(mockPublicClient.readContract).toHaveBeenCalledWith({
-          address: "0x1234567890123456789012345678901234567890",
-          abi: expect.any(Array),
-          functionName: "isActivePermission",
-          args: [789n],
-        });
-      });
-
-      it("should return false for inactive permission", async () => {
-        vi.mocked(mockPublicClient.readContract).mockResolvedValue(false);
-
-        const result = await controller.isActivePermission(789n);
-
-        expect(result).toBe(false);
-      });
-
-      it("should handle contract read errors", async () => {
-        vi.mocked(mockPublicClient.readContract).mockRejectedValue(
-          new Error("Contract read failed"),
-        );
-
-        await expect(controller.isActivePermission(789n)).rejects.toThrow(
-          "Failed to check permission status: Contract read failed",
-        );
-      });
-    });
-
     describe("getPermissionInfo", () => {
       it("should successfully get permission info", async () => {
         const mockPermissionInfo = {
@@ -1736,7 +1714,7 @@ describe("PermissionsController", () => {
       it("should successfully submit direct revoke transaction", async () => {
         const typedData = {
           domain: {
-            name: "DataPermissions",
+            name: "VanaDataPortabilityPermissions",
             version: "1",
             chainId: 14800,
             verifyingContract:
@@ -1788,7 +1766,7 @@ describe("PermissionsController", () => {
 
         const typedData = {
           domain: {
-            name: "DataPermissions",
+            name: "VanaDataPortabilityPermissions",
             version: "1",
             chainId: 14800,
             verifyingContract:

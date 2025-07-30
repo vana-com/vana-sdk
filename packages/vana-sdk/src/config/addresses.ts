@@ -3,12 +3,6 @@
 
 export const CONTRACTS = {
   // Data Portability Contracts (New Architecture)
-  DataPermissions: {
-    addresses: {
-      14800: "0xD54523048AdD05b4d734aFaE7C68324Ebb7373eF", // Points to DataPortabilityPermissions for backwards compatibility
-      1480: "0xD54523048AdD05b4d734aFaE7C68324Ebb7373eF",
-    },
-  },
   DataPortabilityPermissions: {
     addresses: {
       14800: "0xD54523048AdD05b4d734aFaE7C68324Ebb7373eF",

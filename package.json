@@ -30,7 +30,7 @@
     "validate": "turbo run lint && turbo run typecheck && turbo run test:coverage"
   },
   "devDependencies": {
-    "eslint-plugin-jsdoc": "^51.4.0",
+    "eslint-plugin-jsdoc": "^50.8.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.1.2",
     "prettier": "^3.5.3",

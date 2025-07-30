@@ -11,7 +11,7 @@ describe("Contract Types", () => {
   describe("VanaContractName", () => {
     it("should accept valid contract names", () => {
       const validNames: VanaContractName[] = [
-        "DataPermissions",
+        "DataPortabilityPermissions",
         "DataRegistry",
         "TeePool",
         "ComputeEngine",
@@ -44,7 +44,7 @@ describe("Contract Types", () => {
       ];
 
       expect(validNames).toHaveLength(30);
-      expect(validNames[0]).toBe("DataPermissions");
+      expect(validNames[0]).toBe("DataPortabilityPermissions");
       expect(validNames[29]).toBe("DLPRoot");
     });
   });
@@ -106,23 +106,23 @@ describe("Contract Types", () => {
     it("should properly structure contract addresses mapping", () => {
       const addresses: ContractAddresses = {
         14800: {
-          DataPermissions:
+          DataPortabilityPermissions:
             "0x1234567890123456789012345678901234567890" as Address,
           DataRegistry: "0x2345678901234567890123456789012345678901" as Address,
         },
         1: {
-          DataPermissions:
+          DataPortabilityPermissions:
             "0x3456789012345678901234567890123456789012" as Address,
         },
       };
 
-      expect(addresses[14800].DataPermissions).toBe(
+      expect(addresses[14800].DataPortabilityPermissions).toBe(
         "0x1234567890123456789012345678901234567890",
       );
       expect(addresses[14800].DataRegistry).toBe(
         "0x2345678901234567890123456789012345678901",
       );
-      expect(addresses[1].DataPermissions).toBe(
+      expect(addresses[1].DataPortabilityPermissions).toBe(
         "0x3456789012345678901234567890123456789012",
       );
     });
@@ -130,13 +130,13 @@ describe("Contract Types", () => {
     it("should allow optional contract entries", () => {
       const addresses: ContractAddresses = {
         14800: {
-          DataPermissions:
+          DataPortabilityPermissions:
             "0x1234567890123456789012345678901234567890" as Address,
           // Other contracts are optional
         },
       };
 
-      expect(addresses[14800].DataPermissions).toBe(
+      expect(addresses[14800].DataPortabilityPermissions).toBe(
         "0x1234567890123456789012345678901234567890",
       );
       expect(addresses[14800].DataRegistry).toBeUndefined();
@@ -173,7 +173,7 @@ describe("Contract Types", () => {
   describe("Contract Name Validation", () => {
     it("should include all major Vana contracts", () => {
       const coreContracts: VanaContractName[] = [
-        "DataPermissions",
+        "DataPortabilityPermissions",
         "DataRegistry",
         "TeePool",
         "ComputeEngine",

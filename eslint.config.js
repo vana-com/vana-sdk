@@ -86,6 +86,7 @@ export default [
   // SDK package JSDoc configuration
   {
     files: ["packages/vana-sdk/**/*.ts"],
+    ignores: ["examples/**"],
     plugins: {
       jsdoc,
     },

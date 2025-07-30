@@ -3887,10 +3887,14 @@ export class PermissionsController {
   }
 
   /**
-   * Submit permission with signature to the blockchain
+   * Submit permission with signature to the blockchain (supports gasless transactions)
    *
    * @param params - Parameters for adding permission
    * @returns Promise resolving to transaction hash
+   * @throws {RelayerError} When gasless transaction submission fails
+   * @throws {SignatureError} When user rejects the signature request
+   * @throws {BlockchainError} When permission addition fails
+   * @throws {NetworkError} When network communication fails
    */
   async submitAddPermission(
     params: ServerFilesAndPermissionParams,
@@ -3915,34 +3919,20 @@ export class PermissionsController {
         await this.composeServerFilesAndPermissionMessage(addPermissionInput);
       const signature = await this.signTypedData(typedData);
 
-      const chainId = await this.context.walletClient.getChainId();
-      const DataPortabilityPermissionsAddress = getContractAddress(
-        chainId,
-        "DataPortabilityPermissions",
-      );
-      const DataPortabilityPermissionsAbi = getAbi(
-        "DataPortabilityPermissions",
-      );
-
-      const hash = await this.context.walletClient.writeContract({
-        address: DataPortabilityPermissionsAddress,
-        abi: DataPortabilityPermissionsAbi,
-        functionName: "addPermission",
-        args: [
-          {
-            nonce: addPermissionInput.nonce,
-            granteeId: addPermissionInput.granteeId,
-            grant: addPermissionInput.grant,
-            fileIds: [], // Note: This should be handled differently for addPermission vs addServerFilesAndPermissions
-          },
-          signature,
-        ],
-        chain: this.context.walletClient.chain,
-        account: this.context.walletClient.account || null,
-      });
-
-      return hash;
+      // Use the signed relay method to support gasless transactions
+      return await this.submitSignedAddPermission(typedData, signature);
     } catch (error) {
+      // Re-throw known Vana errors directly
+      if (
+        error instanceof RelayerError ||
+        error instanceof UserRejectedRequestError ||
+        error instanceof SerializationError ||
+        error instanceof SignatureError ||
+        error instanceof NetworkError ||
+        error instanceof NonceError
+      ) {
+        throw error;
+      }
       throw new BlockchainError(
         `Failed to add permission: ${error instanceof Error ? error.message : "Unknown error"}`,
         error as Error,
@@ -3951,10 +3941,66 @@ export class PermissionsController {
   }
 
   /**
-   * Submit server files and permissions with signature to the blockchain
+   * Submits an already-signed add permission transaction to the blockchain.
+   * This method supports both relayer-based gasless transactions and direct transactions.
+   *
+   * @param typedData - The EIP-712 typed data for AddPermission
+   * @param signature - The user's signature
+   * @returns Promise resolving to the transaction hash
+   * @throws {RelayerError} When gasless transaction submission fails
+   * @throws {BlockchainError} When permission addition fails
+   * @throws {NetworkError} When network communication fails
+   */
+  async submitSignedAddPermission(
+    typedData: GenericTypedData,
+    signature: Hash,
+  ): Promise<Hash> {
+    try {
+      // Use relayer callbacks or direct transaction
+      if (this.context.relayerCallbacks?.submitAddPermission) {
+        // Create a JSON-safe version for relayer
+        const jsonSafeTypedData = JSON.parse(
+          JSON.stringify(typedData, (_key, value) =>
+            typeof value === "bigint" ? value.toString() : value,
+          ),
+        );
+        return await this.context.relayerCallbacks.submitAddPermission(
+          jsonSafeTypedData,
+          signature,
+        );
+      } else {
+        return await this.submitDirectAddPermissionTransaction(
+          typedData,
+          signature,
+        );
+      }
+    } catch (error) {
+      // Re-throw known Vana errors directly to preserve error types
+      if (
+        error instanceof RelayerError ||
+        error instanceof NetworkError ||
+        error instanceof UserRejectedRequestError ||
+        error instanceof SignatureError ||
+        error instanceof NonceError
+      ) {
+        throw error;
+      }
+      throw new BlockchainError(
+        `Add permission submission failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Submit server files and permissions with signature to the blockchain (supports gasless transactions)
    *
    * @param params - Parameters for adding server files and permissions
    * @returns Promise resolving to transaction hash
+   * @throws {RelayerError} When gasless transaction submission fails
+   * @throws {SignatureError} When user rejects the signature request
+   * @throws {BlockchainError} When server files and permissions addition fails
+   * @throws {NetworkError} When network communication fails
    */
   async submitAddServerFilesAndPermissions(
     params: ServerFilesAndPermissionParams,
@@ -3980,29 +4026,77 @@ export class PermissionsController {
       );
       const signature = await this.signTypedData(typedData);
 
-      const chainId = await this.context.walletClient.getChainId();
-      const DataPortabilityPermissionsAddress = getContractAddress(
-        chainId,
-        "DataPortabilityPermissions",
+      // Use the signed relay method to support gasless transactions
+      return await this.submitSignedAddServerFilesAndPermissions(
+        typedData,
+        signature,
       );
-      const DataPortabilityPermissionsAbi = getAbi(
-        "DataPortabilityPermissions",
-      );
-
-      const hash = await this.context.walletClient.writeContract({
-        address: DataPortabilityPermissionsAddress,
-        abi: DataPortabilityPermissionsAbi,
-        functionName: "addServerFilesAndPermissions",
-        // @ts-expect-error - Complex nested array types cause compatibility issues with viem's generated types
-        args: [serverFilesAndPermissionInput, signature],
-        chain: this.context.walletClient.chain,
-        account: this.context.walletClient.account || null,
-      });
-
-      return hash;
     } catch (error) {
+      // Re-throw known Vana errors directly
+      if (
+        error instanceof RelayerError ||
+        error instanceof UserRejectedRequestError ||
+        error instanceof SerializationError ||
+        error instanceof SignatureError ||
+        error instanceof NetworkError ||
+        error instanceof NonceError
+      ) {
+        throw error;
+      }
       throw new BlockchainError(
         `Failed to add server files and permissions: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Submits an already-signed add server files and permissions transaction to the blockchain.
+   * This method supports both relayer-based gasless transactions and direct transactions.
+   *
+   * @param typedData - The EIP-712 typed data for AddServerFilesAndPermissions
+   * @param signature - The user's signature
+   * @returns Promise resolving to the transaction hash
+   * @throws {RelayerError} When gasless transaction submission fails
+   * @throws {BlockchainError} When server files and permissions addition fails
+   * @throws {NetworkError} When network communication fails
+   */
+  async submitSignedAddServerFilesAndPermissions(
+    typedData: ServerFilesAndPermissionTypedData,
+    signature: Hash,
+  ): Promise<Hash> {
+    try {
+      // Use relayer callbacks or direct transaction
+      if (this.context.relayerCallbacks?.submitAddServerFilesAndPermissions) {
+        // Create a JSON-safe version for relayer
+        const jsonSafeTypedData = JSON.parse(
+          JSON.stringify(typedData, (_key, value) =>
+            typeof value === "bigint" ? value.toString() : value,
+          ),
+        );
+        return await this.context.relayerCallbacks.submitAddServerFilesAndPermissions(
+          jsonSafeTypedData,
+          signature,
+        );
+      } else {
+        return await this.submitDirectAddServerFilesAndPermissionsTransaction(
+          typedData,
+          signature,
+        );
+      }
+    } catch (error) {
+      // Re-throw known Vana errors directly to preserve error types
+      if (
+        error instanceof RelayerError ||
+        error instanceof NetworkError ||
+        error instanceof UserRejectedRequestError ||
+        error instanceof SignatureError ||
+        error instanceof NonceError
+      ) {
+        throw error;
+      }
+      throw new BlockchainError(
+        `Add server files and permissions submission failed: ${error instanceof Error ? error.message : "Unknown error"}`,
         error as Error,
       );
     }
@@ -4041,5 +4135,88 @@ export class PermissionsController {
         error as Error,
       );
     }
+  }
+
+  /**
+   * Submits a signed add permission transaction directly to the blockchain.
+   *
+   * @param typedData - The typed data structure for the permission addition
+   * @param signature - The cryptographic signature authorizing the transaction
+   * @returns Promise resolving to the transaction hash
+   */
+  private async submitDirectAddPermissionTransaction(
+    typedData: GenericTypedData,
+    signature: Hash,
+  ): Promise<Hash> {
+    const chainId = await this.context.walletClient.getChainId();
+    const DataPortabilityPermissionsAddress = getContractAddress(
+      chainId,
+      "DataPortabilityPermissions",
+    );
+    const DataPortabilityPermissionsAbi = getAbi("DataPortabilityPermissions");
+
+    // Prepare the PermissionInput struct from the typed data message
+    const permissionInput = {
+      nonce: typedData.message.nonce as bigint,
+      granteeId: typedData.message.granteeId as bigint,
+      grant: typedData.message.grant as string,
+      fileIds: (typedData.message.fileIds as bigint[]) || [],
+    };
+
+    const hash = await this.context.walletClient.writeContract({
+      address: DataPortabilityPermissionsAddress,
+      abi: DataPortabilityPermissionsAbi,
+      functionName: "addPermission",
+      args: [permissionInput, signature],
+      account:
+        this.context.walletClient.account || (await this.getUserAddress()),
+      chain: this.context.walletClient.chain || null,
+    });
+
+    return hash;
+  }
+
+  /**
+   * Submits a signed add server files and permissions transaction directly to the blockchain.
+   *
+   * @param typedData - The typed data structure for the server files and permissions addition
+   * @param signature - The cryptographic signature authorizing the transaction
+   * @returns Promise resolving to the transaction hash
+   */
+  private async submitDirectAddServerFilesAndPermissionsTransaction(
+    typedData: ServerFilesAndPermissionTypedData,
+    signature: Hash,
+  ): Promise<Hash> {
+    const chainId = await this.context.walletClient.getChainId();
+    const DataPortabilityPermissionsAddress = getContractAddress(
+      chainId,
+      "DataPortabilityPermissions",
+    );
+    const DataPortabilityPermissionsAbi = getAbi("DataPortabilityPermissions");
+
+    // Prepare the ServerFilesAndPermissionInput struct from the typed data message
+    const serverFilesAndPermissionInput = {
+      nonce: typedData.message.nonce,
+      granteeId: typedData.message.granteeId,
+      grant: typedData.message.grant,
+      fileUrls: typedData.message.fileUrls,
+      serverAddress: typedData.message.serverAddress,
+      serverUrl: typedData.message.serverUrl,
+      serverPublicKey: typedData.message.serverPublicKey,
+      filePermissions: typedData.message.filePermissions,
+    };
+
+    const hash = await this.context.walletClient.writeContract({
+      address: DataPortabilityPermissionsAddress,
+      abi: DataPortabilityPermissionsAbi,
+      functionName: "addServerFilesAndPermissions",
+      // @ts-expect-error - Complex nested array types cause compatibility issues with viem's generated types
+      args: [serverFilesAndPermissionInput, signature],
+      account:
+        this.context.walletClient.account || (await this.getUserAddress()),
+      chain: this.context.walletClient.chain || null,
+    });
+
+    return hash;
   }
 }

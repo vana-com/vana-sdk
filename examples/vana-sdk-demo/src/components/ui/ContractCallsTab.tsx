@@ -141,7 +141,9 @@ export const ContractCallsTab: React.FC<ContractCallsTabProps> = ({
 
       const transactionHash = grantResult.transactionHash;
 
-      setPermissionStatus("✅ Permission added successfully!");
+      setPermissionStatus(
+        `✅ Permission added successfully! Transaction: ${transactionHash}`,
+      );
 
       // Clear form on success
       setPermissionGranteeId("");
@@ -203,7 +205,7 @@ export const ContractCallsTab: React.FC<ContractCallsTabProps> = ({
         await vana.permissions.submitAddServerFilesAndPermissions(batchParams);
 
       setServerFilesStatus(
-        "✅ Server files and permissions added successfully!",
+        `✅ Server files and permissions added successfully! Transaction: ${transactionHash}`,
       );
 
       // Clear form on success

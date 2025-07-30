@@ -12,6 +12,7 @@ import type {
   AddAndTrustServerTypedData,
   GenericTypedData,
   GrantFile,
+  ServerFilesAndPermissionTypedData,
 } from "./permissions";
 
 /**
@@ -150,6 +151,30 @@ export interface RelayerCallbacks {
    */
   submitAddAndTrustServer?: (
     typedData: AddAndTrustServerTypedData,
+    signature: Hash,
+  ) => Promise<Hash>;
+
+  /**
+   * Submit a signed permission addition transaction for relay
+   *
+   * @param typedData - The EIP-712 typed data that was signed
+   * @param signature - The user's signature
+   * @returns Promise resolving to the transaction hash
+   */
+  submitAddPermission?: (
+    typedData: GenericTypedData,
+    signature: Hash,
+  ) => Promise<Hash>;
+
+  /**
+   * Submit a signed server files and permissions transaction for relay
+   *
+   * @param typedData - The EIP-712 typed data that was signed
+   * @param signature - The user's signature
+   * @returns Promise resolving to the transaction hash
+   */
+  submitAddServerFilesAndPermissions?: (
+    typedData: ServerFilesAndPermissionTypedData,
     signature: Hash,
   ) => Promise<Hash>;
 

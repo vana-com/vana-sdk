@@ -80,6 +80,14 @@ export async function handleRelayerRequest(
 ): Promise<Hash> {
   const { typedData, signature, expectedUserAddress } = payload;
 
+  console.debug({
+    domain: typedData.domain,
+    types: typedData.types,
+    primaryType: typedData.primaryType,
+    message: typedData.message as unknown as Record<string, unknown>,
+    signature,
+  });
+
   // Step 1: Verify signature and recover signer address
   const signerAddress = await recoverTypedDataAddress({
     domain: typedData.domain,

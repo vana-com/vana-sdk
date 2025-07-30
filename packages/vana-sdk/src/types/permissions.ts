@@ -519,8 +519,6 @@ export interface ServerInfo {
  * @category Permissions
  */
 export interface AddAndTrustServerParams {
-  /** Server owner address */
-  owner: Address;
   /** Server address */
   serverAddress: Address;
   /** Server URL */
@@ -558,8 +556,6 @@ export interface UntrustServerParams {
 export interface AddAndTrustServerInput {
   /** User nonce */
   nonce: bigint;
-  /** Server owner address */
-  owner: Address;
   /** Server address */
   serverAddress: Address;
   /** Server URL */

@@ -118,8 +118,6 @@ export default function MyDataPage() {
     handleDiscoverHostedServer: onDiscoverReplicateServer,
     setServerAddress: onServerAddressChange,
     setServerUrl: onServerUrlChange,
-    serverOwner,
-    setServerOwner: onServerOwnerChange,
     publicKey,
     setPublicKey: onPublicKeyChange,
     setTrustedServerQueryMode: onQueryModeChange,
@@ -239,8 +237,8 @@ export default function MyDataPage() {
   );
 
   const onTrustServer = useCallback(() => {
-    handleTrustServerGasless(false, serverAddress, serverUrl);
-  }, [handleTrustServerGasless, serverAddress, serverUrl]);
+    handleTrustServerGasless(false, serverAddress, serverUrl, publicKey);
+  }, [handleTrustServerGasless, serverAddress, serverUrl, publicKey]);
 
   const onRefreshServers = useCallback(() => {
     loadUserTrustedServers(queryMode);
@@ -490,11 +488,9 @@ export default function MyDataPage() {
             isDiscoveringServer={isDiscoveringServer}
             trustServerError={trustServerError}
             queryMode={queryMode}
-            serverOwner={serverOwner}
             serverAddress={serverAddress}
             serverUrl={serverUrl}
             publicKey={publicKey}
-            onServerOwnerChange={onServerOwnerChange}
             onServerAddressChange={onServerAddressChange}
             onServerUrlChange={onServerUrlChange}
             onPublicKeyChange={onPublicKeyChange}

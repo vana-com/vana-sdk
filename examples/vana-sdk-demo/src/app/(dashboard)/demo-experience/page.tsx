@@ -529,7 +529,6 @@ export default function DemoExperiencePage() {
             false,
             discoveredServer.serverAddress,
             discoveredServer.serverUrl,
-            address, // serverOwner is the user's address for personal server
             discoveredServer.publicKey,
           );
           setConfig((prev) => ({

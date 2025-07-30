@@ -48,9 +48,9 @@ describe("useTrustedServers", () => {
       getUserTrustedServers: vi.fn(),
     },
     permissions: {
-      trustServer: vi.fn(),
-      trustServerWithSignature: vi.fn(),
-      untrustServerWithSignature: vi.fn(),
+      addAndTrustServer: vi.fn(),
+      submitAddAndTrustServerWithSignature: vi.fn(),
+      submitUntrustServerWithSignature: vi.fn(),
     },
     server: {
       getIdentity: vi.fn(),
@@ -115,7 +115,7 @@ describe("useTrustedServers", () => {
       expect(result.current.isDiscoveringServer).toBe(false);
       expect(result.current.trustServerError).toBe("");
       expect(result.current.trustedServerQueryMode).toBe("auto");
-      expect(result.current.serverId).toBe("");
+      expect(result.current.serverAddress).toBe("");
       expect(result.current.serverUrl).toBe("");
 
       // Wait for auto-loading to complete
@@ -274,7 +274,7 @@ describe("useTrustedServers", () => {
       const { result } = renderHook(() => useTrustedServers());
 
       act(() => {
-        result.current.setServerId("0xserver3");
+        result.current.setServerAddress("0xserver3");
         result.current.setServerUrl("https://server3.com");
       });
 
@@ -282,9 +282,10 @@ describe("useTrustedServers", () => {
         await result.current.handleTrustServer();
       });
 
-      expect(mockVana.permissions.trustServer).toHaveBeenCalledWith({
-        serverId: "0xserver3",
+      expect(mockVana.permissions.addAndTrustServer).toHaveBeenCalledWith({
+        serverAddress: "0xserver3",
         serverUrl: "https://server3.com",
+        publicKey: "0xpublickey123",
       });
       expect(mockVana.data.getUserTrustedServers).toHaveBeenCalled();
       expect(result.current.isTrustingServer).toBe(false);
@@ -295,7 +296,7 @@ describe("useTrustedServers", () => {
       const { result } = renderHook(() => useTrustedServers());
 
       act(() => {
-        result.current.setServerId("  ");
+        result.current.setServerAddress("  ");
         result.current.setServerUrl("https://server3.com");
       });
 
@@ -306,14 +307,14 @@ describe("useTrustedServers", () => {
       expect(result.current.trustServerError).toBe(
         "Please provide a server ID (address)",
       );
-      expect(mockVana.permissions.trustServer).not.toHaveBeenCalled();
+      expect(mockVana.permissions.addAndTrustServer).not.toHaveBeenCalled();
     });
 
     it("validates server URL is provided", async () => {
       const { result } = renderHook(() => useTrustedServers());
 
       act(() => {
-        result.current.setServerId("0xserver3");
+        result.current.setServerAddress("0xserver3");
         result.current.setServerUrl("  ");
       });
 
@@ -324,18 +325,18 @@ describe("useTrustedServers", () => {
       expect(result.current.trustServerError).toBe(
         "Please provide a server URL",
       );
-      expect(mockVana.permissions.trustServer).not.toHaveBeenCalled();
+      expect(mockVana.permissions.addAndTrustServer).not.toHaveBeenCalled();
     });
 
     it("handles trust server errors", async () => {
-      mockVana.permissions.trustServer.mockRejectedValue(
+      mockVana.permissions.addAndTrustServer.mockRejectedValue(
         new Error("Trust failed"),
       );
 
       const { result } = renderHook(() => useTrustedServers());
 
       act(() => {
-        result.current.setServerId("0xserver3");
+        result.current.setServerAddress("0xserver3");
         result.current.setServerUrl("https://server3.com");
       });
 
@@ -358,7 +359,7 @@ describe("useTrustedServers", () => {
       const { result } = renderHook(() => useTrustedServers());
 
       act(() => {
-        result.current.setServerId("0xserver3");
+        result.current.setServerAddress("0xserver3");
         result.current.setServerUrl("https://server3.com");
       });
 
@@ -366,7 +367,7 @@ describe("useTrustedServers", () => {
         await result.current.handleTrustServer();
       });
 
-      expect(mockVana.permissions.trustServer).not.toHaveBeenCalled();
+      expect(mockVana.permissions.addAndTrustServer).not.toHaveBeenCalled();
     });
   });
 
@@ -375,8 +376,9 @@ describe("useTrustedServers", () => {
       const { result } = renderHook(() => useTrustedServers());
 
       act(() => {
-        result.current.setServerId("0xserver3");
+        result.current.setServerAddress("0xserver3");
         result.current.setServerUrl("https://server3.com");
+        result.current.setPublicKey("0xpublickey123");
       });
 
       await act(async () => {
@@ -384,13 +386,15 @@ describe("useTrustedServers", () => {
       });
 
       expect(
-        mockVana.permissions.trustServerWithSignature,
+        mockVana.permissions.submitAddAndTrustServerWithSignature,
       ).toHaveBeenCalledWith({
-        serverId: "0xserver3",
+        serverAddress: "0xserver3",
         serverUrl: "https://server3.com",
+        publicKey: "0xpublickey123",
       });
-      expect(result.current.serverId).toBe(""); // Fields cleared on success
+      expect(result.current.serverAddress).toBe(""); // Fields cleared on success
       expect(result.current.serverUrl).toBe("");
+      expect(result.current.publicKey).toBe("");
       expect(result.current.isTrustingServer).toBe(false);
     });
 
@@ -402,14 +406,16 @@ describe("useTrustedServers", () => {
           false,
           "0xoverride",
           "https://override.com",
+          "0xoverridepubkey",
         );
       });
 
       expect(
-        mockVana.permissions.trustServerWithSignature,
+        mockVana.permissions.submitAddAndTrustServerWithSignature,
       ).toHaveBeenCalledWith({
-        serverId: "0xoverride",
+        serverAddress: "0xoverride",
         serverUrl: "https://override.com",
+        publicKey: "0xoverridepubkey",
       });
     });
 
@@ -417,24 +423,27 @@ describe("useTrustedServers", () => {
       const { result } = renderHook(() => useTrustedServers());
 
       act(() => {
-        result.current.setServerId("0xserver3");
+        result.current.setServerAddress("0xserver3");
         result.current.setServerUrl("https://server3.com");
+        result.current.setPublicKey("0xpublickey123");
       });
 
       await act(async () => {
         await result.current.handleTrustServerGasless(false);
       });
 
-      expect(result.current.serverId).toBe("0xserver3");
+      expect(result.current.serverAddress).toBe("0xserver3");
       expect(result.current.serverUrl).toBe("https://server3.com");
+      expect(result.current.publicKey).toBe("0xpublickey123");
     });
 
-    it("validates server ID when using form state", async () => {
+    it("validates server address when using form state", async () => {
       const { result } = renderHook(() => useTrustedServers());
 
       act(() => {
-        result.current.setServerId("");
+        result.current.setServerAddress("");
         result.current.setServerUrl("https://server3.com");
+        result.current.setPublicKey("0xpublickey123");
       });
 
       await act(async () => {
@@ -442,10 +451,10 @@ describe("useTrustedServers", () => {
       });
 
       expect(result.current.trustServerError).toBe(
-        "Please provide a server ID (address)",
+        "Please provide a server address",
       );
       expect(
-        mockVana.permissions.trustServerWithSignature,
+        mockVana.permissions.submitAddAndTrustServerWithSignature,
       ).not.toHaveBeenCalled();
     });
 
@@ -453,15 +462,16 @@ describe("useTrustedServers", () => {
       const consoleSpy = vi
         .spyOn(console, "error")
         .mockImplementation(() => {});
-      mockVana.permissions.trustServerWithSignature.mockRejectedValue(
+      mockVana.permissions.submitAddAndTrustServerWithSignature.mockRejectedValue(
         new Error("Signature failed"),
       );
 
       const { result } = renderHook(() => useTrustedServers());
 
       act(() => {
-        result.current.setServerId("0xserver3");
+        result.current.setServerAddress("0xserver3");
         result.current.setServerUrl("https://server3.com");
+        result.current.setPublicKey("0xpublickey123");
       });
 
       await act(async () => {
@@ -484,9 +494,9 @@ describe("useTrustedServers", () => {
       });
 
       expect(
-        mockVana.permissions.untrustServerWithSignature,
+        mockVana.permissions.submitUntrustServerWithSignature,
       ).toHaveBeenCalledWith({
-        serverId: "0xserver1",
+        serverId: 1,
       });
       expect(addToastMock).toHaveBeenCalledWith({
         title: "Server Untrusted",
@@ -501,7 +511,7 @@ describe("useTrustedServers", () => {
       const consoleSpy = vi
         .spyOn(console, "error")
         .mockImplementation(() => {});
-      mockVana.permissions.untrustServerWithSignature.mockRejectedValue(
+      mockVana.permissions.submitUntrustServerWithSignature.mockRejectedValue(
         new Error("Untrust failed"),
       );
 
@@ -537,7 +547,7 @@ describe("useTrustedServers", () => {
       });
 
       expect(
-        mockVana.permissions.untrustServerWithSignature,
+        mockVana.permissions.submitUntrustServerWithSignature,
       ).not.toHaveBeenCalled();
     });
   });
@@ -568,7 +578,7 @@ describe("useTrustedServers", () => {
         name: "Personal Server",
         publicKey: "0xpubkey",
       });
-      expect(result.current.serverId).toBe("0xdiscovered");
+      expect(result.current.serverAddress).toBe("0xdiscovered");
       expect(result.current.serverUrl).toBe("http://localhost:3001");
       expect(result.current.isDiscoveringServer).toBe(false);
     });
@@ -620,7 +630,7 @@ describe("useTrustedServers", () => {
 
       expect(discoveredInfo).toBe(null);
       expect(result.current.trustServerError).toBe(
-        "NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL is not configured",
+        "Personal server URL is not configured. Please configure personalServerUrl in SDK settings.",
       );
 
       // Restore environment variable
@@ -709,7 +719,7 @@ describe("useTrustedServers", () => {
 
       // Set some state
       act(() => {
-        result.current.setServerId("0xtest");
+        result.current.setServerAddress("0xtest");
         result.current.setServerUrl("https://test.com");
         result.current.setTrustServerError("test error");
       });
@@ -722,7 +732,7 @@ describe("useTrustedServers", () => {
       rerender();
 
       expect(result.current.trustedServers).toEqual([]);
-      expect(result.current.serverId).toBe("");
+      expect(result.current.serverAddress).toBe("");
       expect(result.current.serverUrl).toBe("");
       expect(result.current.trustServerError).toBe("");
     });
@@ -733,10 +743,10 @@ describe("useTrustedServers", () => {
       const { result } = renderHook(() => useTrustedServers());
 
       act(() => {
-        result.current.setServerId("0xnewserver");
+        result.current.setServerAddress("0xnewserver");
       });
 
-      expect(result.current.serverId).toBe("0xnewserver");
+      expect(result.current.serverAddress).toBe("0xnewserver");
     });
 
     it("setServerUrl updates server URL correctly", () => {

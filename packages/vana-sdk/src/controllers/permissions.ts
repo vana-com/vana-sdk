@@ -671,7 +671,6 @@ export class PermissionsController {
     try {
       const addAndTrustServerInput: AddAndTrustServerInput = {
         nonce: BigInt(typedData.message.nonce),
-        owner: typedData.message.owner,
         serverAddress: typedData.message.serverAddress,
         serverUrl: typedData.message.serverUrl,
         publicKey: typedData.message.publicKey,
@@ -694,7 +693,7 @@ export class PermissionsController {
       }
 
       throw new BlockchainError(
-        `Add and trust server submission failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        `Add and trust server submission failed444444: ${error instanceof Error ? error.message : "Unknown error"}`,
         error as Error,
       );
     }
@@ -1518,12 +1517,15 @@ export class PermissionsController {
       const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
 
       // Submit directly to the contract
+      const userAddress =
+        this.context.walletClient.account?.address ||
+        (await this.getUserAddress());
       const txHash = await this.context.walletClient.writeContract({
         address: DataPortabilityServersAddress,
         abi: DataPortabilityServersAbi,
         functionName: "addAndTrustServerOnBehalf",
         args: [
-          params.owner,
+          userAddress,
           {
             serverAddress: params.serverAddress,
             serverUrl: params.serverUrl,
@@ -1601,7 +1603,6 @@ export class PermissionsController {
       // Create add and trust server message
       const addAndTrustServerInput: AddAndTrustServerInput = {
         nonce,
-        owner: params.owner,
         serverAddress: params.serverAddress,
         publicKey: params.publicKey,
         serverUrl: params.serverUrl,
@@ -1614,7 +1615,6 @@ export class PermissionsController {
 
       console.debug("🔍 AddAndTrustServer Debug Info:", {
         nonce: nonce.toString(),
-        owner: params.owner,
         serverAddress: params.serverAddress,
         publicKey: params.publicKey,
         serverUrl: params.serverUrl,
@@ -2209,14 +2209,15 @@ export class PermissionsController {
   ): Promise<AddAndTrustServerTypedData> {
     const domain = await this.getServersDomain();
 
+    console.debug(domain);
+
     return {
       domain,
       types: {
         AddAndTrustServer: [
           { name: "nonce", type: "uint256" },
-          { name: "owner", type: "address" },
           { name: "serverAddress", type: "address" },
-          { name: "publicKey", type: "bytes" },
+          { name: "publicKey", type: "string" },
           { name: "serverUrl", type: "string" },
         ],
       },
@@ -2316,7 +2317,6 @@ export class PermissionsController {
       contractAddress: DataPortabilityServersAddress,
       input: {
         nonce: addAndTrustServerInput.nonce.toString(),
-        owner: addAndTrustServerInput.owner,
         serverAddress: addAndTrustServerInput.serverAddress,
         publicKey: addAndTrustServerInput.publicKey,
         serverUrl: addAndTrustServerInput.serverUrl,
@@ -2331,9 +2331,8 @@ export class PermissionsController {
       args: [
         {
           nonce: addAndTrustServerInput.nonce,
-          owner: addAndTrustServerInput.owner,
           serverAddress: addAndTrustServerInput.serverAddress,
-          publicKey: addAndTrustServerInput.publicKey as `0x${string}`,
+          publicKey: addAndTrustServerInput.publicKey,
           serverUrl: addAndTrustServerInput.serverUrl,
         },
         signature,

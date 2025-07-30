@@ -358,7 +358,7 @@ export class PermissionsController {
       }
 
       // Step 2: Get user nonce
-      const nonce = await this.getUserNonce();
+      const nonce = await this.getPermissionsUserNonce();
 
       // Step 3: Create EIP-712 message with compatibility placeholders
       console.debug(
@@ -482,7 +482,7 @@ export class PermissionsController {
       }
 
       // Step 3: Get user nonce
-      const nonce = await this.getUserNonce();
+      const nonce = await this.getPermissionsUserNonce();
 
       // Step 4: Create EIP-712 message with compatibility placeholders
       console.debug(
@@ -954,7 +954,7 @@ export class PermissionsController {
         throw new BlockchainError("Chain ID not available");
       }
 
-      const nonce = await this.getUserNonce();
+      const nonce = await this.getPermissionsUserNonce();
 
       // Create revoke permission input
       const revokePermissionInput = {
@@ -995,7 +995,10 @@ export class PermissionsController {
   }
 
   /**
+   * @deprecated Use getPermissionsUserNonce() for permission operations or getServersUserNonce() for server operations
+   *
    * Retrieves the user's current nonce from the DataPortabilityServers contract.
+   * This method is deprecated in favor of more specific nonce methods.
    *
    * The nonce is used to prevent replay attacks in signed transactions and must
    * be incremented with each transaction to maintain security.
@@ -1007,8 +1010,12 @@ export class PermissionsController {
    * @private
    * @example
    * ```typescript
+   * // Deprecated - use specific methods instead
    * const nonce = await this.getUserNonce();
-   * console.log(`Current nonce: ${nonce}`);
+   *
+   * // Use these instead:
+   * const permissionsNonce = await this.getPermissionsUserNonce();
+   * const serversNonce = await this.getServersUserNonce();
    * ```
    */
   private async getUserNonce(): Promise<bigint> {
@@ -1041,16 +1048,17 @@ export class PermissionsController {
    * Retrieves the user's current nonce from the DataPortabilityServers contract.
    * This nonce is used for server-related operations (AddAndTrustServer, TrustServer, UntrustServer).
    *
-   * @returns Promise resolving to the current nonce
+   * @returns Promise resolving to the current servers nonce
+   * @throws {NonceError} When reading nonce from contract fails
    * @private
    *
    * @example
    * ```typescript
-   * const nonce = await this.getServerNonce();
-   * console.log(`Current server nonce: ${nonce}`);
+   * const nonce = await this.getServersUserNonce();
+   * console.log(`Current servers nonce: ${nonce}`);
    * ```
    */
-  private async getServerNonce(): Promise<bigint> {
+  private async getServersUserNonce(): Promise<bigint> {
     try {
       const userAddress = await this.getUserAddress();
       const chainId = await this.context.walletClient.getChainId();
@@ -1072,6 +1080,48 @@ export class PermissionsController {
     } catch (error) {
       throw new NonceError(
         `Failed to retrieve server nonce: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Retrieves the user's current nonce from the DataPortabilityPermissions contract.
+   * This nonce is used for permission-related operations (addPermission, addServerFilesAndPermissions).
+   *
+   * @returns Promise resolving to the current permissions nonce
+   * @throws {NonceError} When reading nonce from contract fails
+   * @private
+   *
+   * @example
+   * ```typescript
+   * const nonce = await this.getPermissionsUserNonce();
+   * console.log(`Current permissions nonce: ${nonce}`);
+   * ```
+   */
+  private async getPermissionsUserNonce(): Promise<bigint> {
+    try {
+      const userAddress = await this.getUserAddress();
+      const chainId = await this.context.walletClient.getChainId();
+
+      const DataPortabilityPermissionsAddress = getContractAddress(
+        chainId,
+        "DataPortabilityPermissions",
+      );
+      const DataPortabilityPermissionsAbi = getAbi(
+        "DataPortabilityPermissions",
+      );
+
+      const nonce = (await this.context.publicClient.readContract({
+        address: DataPortabilityPermissionsAddress,
+        abi: DataPortabilityPermissionsAbi,
+        functionName: "userNonce",
+        args: [userAddress],
+      })) as bigint;
+
+      return nonce;
+    } catch (error) {
+      throw new NonceError(
+        `Failed to retrieve permissions nonce: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }
@@ -1598,7 +1648,7 @@ export class PermissionsController {
     params: AddAndTrustServerParams,
   ): Promise<Hash> {
     try {
-      const nonce = await this.getServerNonce();
+      const nonce = await this.getServersUserNonce();
 
       // Create add and trust server message
       const addAndTrustServerInput: AddAndTrustServerInput = {
@@ -1682,7 +1732,7 @@ export class PermissionsController {
     params: TrustServerParams,
   ): Promise<Hash> {
     try {
-      const nonce = await this.getServerNonce();
+      const nonce = await this.getServersUserNonce();
 
       // Create trust server message
       const trustServerInput: TrustServerInput = {
@@ -1802,7 +1852,7 @@ export class PermissionsController {
    */
   async submitUntrustServer(params: UntrustServerParams): Promise<Hash> {
     // Convert UntrustServerParams to UntrustServerInput by adding nonce
-    const nonce = await this.getUserNonce();
+    const nonce = await this.getServersUserNonce();
     const untrustServerInput: UntrustServerInput = {
       nonce,
       serverId: params.serverId,
@@ -1827,7 +1877,7 @@ export class PermissionsController {
     params: UntrustServerParams,
   ): Promise<Hash> {
     try {
-      const nonce = await this.getServerNonce();
+      const nonce = await this.getServersUserNonce();
 
       // Create untrust server message
       const untrustServerInput: UntrustServerInput = {
@@ -2515,7 +2565,7 @@ export class PermissionsController {
   async submitRegisterGranteeWithSignature(
     params: RegisterGranteeParams,
   ): Promise<Hash> {
-    const nonce = await this.getUserNonce();
+    const nonce = await this.getServersUserNonce();
 
     const registerGranteeInput: RegisterGranteeInput = {
       nonce,
@@ -3846,7 +3896,7 @@ export class PermissionsController {
     params: ServerFilesAndPermissionParams,
   ): Promise<Hash> {
     try {
-      const nonce = await this.getUserNonce();
+      const nonce = await this.getPermissionsUserNonce();
 
       // Create add permission input
       const addPermissionInput = {
@@ -3910,7 +3960,7 @@ export class PermissionsController {
     params: ServerFilesAndPermissionParams,
   ): Promise<Hash> {
     try {
-      const nonce = await this.getUserNonce();
+      const nonce = await this.getPermissionsUserNonce();
 
       // Create server files and permission input
       const serverFilesAndPermissionInput = {

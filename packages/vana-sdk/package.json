@@ -62,7 +62,7 @@
     "build:node": "tsup src/index.node.ts --platform node --format esm,cjs --target node18 --out-dir dist --no-clean",
     "build:browser": "tsup src/index.browser.ts --platform browser --format esm --target es2020 --out-dir dist --dts --no-clean",
     "build:chains": "tsup src/chains.ts src/chains.node.ts src/chains.browser.ts --platform node --format esm,cjs --target node18 --out-dir dist --dts --no-clean",
-    "build:platform": "tsup src/platform.ts src/platform.node.ts --platform node --format esm,cjs --target node18 --out-dir dist --dts --no-clean && tsup src/platform.browser.ts --platform browser --format esm --target es2020 --out-dir dist --dts --no-clean",
+    "build:platform": "tsup src/platform.ts src/platform.node.ts src/node.ts --platform node --format esm,cjs --target node18 --out-dir dist --dts --no-clean && tsup src/platform.browser.ts src/browser.ts --platform browser --format esm --target es2020 --out-dir dist --dts --no-clean",
     "build": "npm run clean && npm run build:types && npm run build:node && npm run build:browser && npm run build:chains && npm run build:platform",
     "prepare": "npm run build",
     "dev": "npm run build -- --watch",

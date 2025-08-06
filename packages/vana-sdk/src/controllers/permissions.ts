@@ -565,14 +565,8 @@ export class PermissionsController {
 
       // Use relayer callbacks or direct transaction
       if (this.context.relayerCallbacks?.submitPermissionGrant) {
-        // Create a JSON-safe version for relayer
-        const jsonSafeTypedData = JSON.parse(
-          JSON.stringify(typedData, (_key, value) =>
-            typeof value === "bigint" ? value.toString() : value,
-          ),
-        );
         return await this.context.relayerCallbacks.submitPermissionGrant(
-          jsonSafeTypedData,
+          typedData,
           signature,
         );
       } else {
@@ -714,14 +708,8 @@ export class PermissionsController {
     try {
       // Use relayer callbacks or direct transaction
       if (this.context.relayerCallbacks?.submitPermissionRevoke) {
-        // Create a JSON-safe version for relayer
-        const jsonSafeTypedData = JSON.parse(
-          JSON.stringify(typedData, (_key, value) =>
-            typeof value === "bigint" ? value.toString() : value,
-          ),
-        );
         return await this.context.relayerCallbacks.submitPermissionRevoke(
-          jsonSafeTypedData,
+          typedData,
           signature,
         );
       } else {
@@ -3958,14 +3946,8 @@ export class PermissionsController {
     try {
       // Use relayer callbacks or direct transaction
       if (this.context.relayerCallbacks?.submitAddPermission) {
-        // Create a JSON-safe version for relayer
-        const jsonSafeTypedData = JSON.parse(
-          JSON.stringify(typedData, (_key, value) =>
-            typeof value === "bigint" ? value.toString() : value,
-          ),
-        );
         return await this.context.relayerCallbacks.submitAddPermission(
-          jsonSafeTypedData,
+          typedData,
           signature,
         );
       } else {
@@ -4066,19 +4048,29 @@ export class PermissionsController {
     signature: Hash,
   ): Promise<Hash> {
     try {
+      // Debug logging to understand relayer callback availability
+      console.debug("🔍 submitSignedAddServerFilesAndPermissions Debug Info:", {
+        hasRelayerCallbacks: !!this.context.relayerCallbacks,
+        hasSubmitMethod:
+          !!this.context.relayerCallbacks?.submitAddServerFilesAndPermissions,
+        availableRelayerMethods: this.context.relayerCallbacks
+          ? Object.keys(this.context.relayerCallbacks)
+          : [],
+      });
+
       // Use relayer callbacks or direct transaction
       if (this.context.relayerCallbacks?.submitAddServerFilesAndPermissions) {
-        // Create a JSON-safe version for relayer
-        const jsonSafeTypedData = JSON.parse(
-          JSON.stringify(typedData, (_key, value) =>
-            typeof value === "bigint" ? value.toString() : value,
-          ),
+        console.debug(
+          "🚀 Using relayer for submitAddServerFilesAndPermissions",
         );
         return await this.context.relayerCallbacks.submitAddServerFilesAndPermissions(
-          jsonSafeTypedData,
+          typedData,
           signature,
         );
       } else {
+        console.debug(
+          "📝 Using direct transaction for submitAddServerFilesAndPermissions",
+        );
         return await this.submitDirectAddServerFilesAndPermissionsTransaction(
           typedData,
           signature,

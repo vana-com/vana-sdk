@@ -6,6 +6,7 @@ import type {
   RegisterGranteeTypedData,
   TrustServerTypedData,
   AddAndTrustServerTypedData,
+  ServerFilesAndPermissionTypedData,
 } from "../types";
 import { SignatureError } from "../errors";
 
@@ -38,6 +39,9 @@ export interface RelayerRequestPayload {
  * - PermissionRevoke: Permission revocations
  * - TrustServer: Trust server operations
  * - UntrustServer: Untrust server operations
+ * - AddServer: Add and trust server operations
+ * - RegisterGrantee: Register grantee operations
+ * - ServerFilesAndPermission: Batch operation for server, files, and permissions
  *
  * @param sdk - Initialized Vana SDK instance
  * @param payload - Request payload containing typed data, signature, and optional security check
@@ -150,6 +154,12 @@ export async function handleRelayerRequest(
     case "RegisterGrantee":
       return await sdk.permissions.submitSignedRegisterGrantee(
         typedData as unknown as RegisterGranteeTypedData,
+        signature,
+      );
+
+    case "ServerFilesAndPermission":
+      return await sdk.permissions.submitSignedAddServerFilesAndPermissions(
+        typedData as unknown as ServerFilesAndPermissionTypedData,
         signature,
       );
 

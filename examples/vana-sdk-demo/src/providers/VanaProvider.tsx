@@ -25,6 +25,7 @@ import {
   TrustServerTypedData,
   UntrustServerTypedData,
   AddAndTrustServerTypedData,
+  ServerFilesAndPermissionTypedData,
 } from "@opendatalabs/vana-sdk/browser";
 import type { VanaChain } from "@opendatalabs/vana-sdk/browser";
 
@@ -259,6 +260,22 @@ const createUntrustServerCallback =
     return result.transactionHash as Hash;
   };
 
+// Helper for add server files and permissions specific callback
+const createAddServerFilesAndPermissionsCallback =
+  (endpoint: string, baseUrl: string, address: string | undefined) =>
+  async (typedData: ServerFilesAndPermissionTypedData, signature: Hash) => {
+    const result = await submitToRelayer(
+      endpoint,
+      {
+        typedData: serializeBigInt(typedData),
+        signature,
+        expectedUserAddress: address,
+      },
+      baseUrl,
+    );
+    return result.transactionHash as Hash;
+  };
+
 // Helper to fetch application address
 const fetchApplicationAddress = async (): Promise<string | null> => {
   try {
@@ -335,6 +352,12 @@ export function VanaProvider({
                 baseUrl,
                 address,
               ),
+              submitAddServerFilesAndPermissions:
+                createAddServerFilesAndPermissionsCallback(
+                  "/api/relay",
+                  baseUrl,
+                  address,
+                ),
 
               async submitFileAddition(url: string, userAddress: string) {
                 const result = await submitToRelayer(

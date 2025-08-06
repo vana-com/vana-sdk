@@ -7,7 +7,7 @@ on:
       - feat/callbackstorage
       - feat/return-values
       - fix/nonce-wrong-contract
-      - feature/data-portability-sdk-v1-batch-transactions
+      - feature/data-portability-sdk-v1-fixes
 
 jobs:
   publish-prerelease:

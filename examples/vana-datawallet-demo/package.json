@@ -6,7 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"Warning: no test specified\" && exit 0",
+    "test:watch": "echo \"Warning: no test specified\" && exit 0",
+    "test:coverage": "echo \"Warning: no test specified\" && exit 0"
   },
   "dependencies": {
     "@getpara/react-sdk": "2.0.0-alpha.38",
@@ -45,5 +50,8 @@
     "tailwindcss": "^4",
     "tw-animate-css": "^1.3.6",
     "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=20.0.0"
   }
 }

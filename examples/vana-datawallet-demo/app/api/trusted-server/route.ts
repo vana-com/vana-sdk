@@ -3,13 +3,16 @@ import { privateKeyToAccount } from "viem/accounts";
 import { Vana } from "@opendatalabs/vana-sdk/node";
 
 export async function POST(request: NextRequest) {
+  console.debug("🔍 Debug - POST /api/trusted-server");
   try {
     const body = await request.json();
-    const { operationId, chainId } = body;
+    const { permissionId, chainId } = body;
 
-    if (!operationId || !chainId) {
+    // Validate required fields
+    if (!permissionId || !chainId) {
+      console.debug("🔍 Debug - Missing required fields");
       return NextResponse.json(
-        { success: false, error: "Missing operationId or chainId parameter" },
+        { success: false, error: "Missing permissionId or chainId field" },
         { status: 400 },
       );
     }
@@ -32,17 +35,23 @@ export async function POST(request: NextRequest) {
     const vana = Vana({
       chainId,
       account: applicationAccount,
+      defaultPersonalServerUrl:
+        process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL,
     });
 
-    // Poll the status
-    const response = await vana.server.getOperation(operationId);
+    console.debug("🔍 Debug - vana", vana);
+
+    // Make trusted server request
+    const response = await vana.server.createOperation({
+      permissionId: +permissionId,
+    });
 
     return NextResponse.json({
       success: true,
       data: response,
     });
   } catch (error) {
-    console.error("Trusted server polling failed:", error);
+    console.error("Trusted server request failed:", error);
     return NextResponse.json(
       {
         success: false,

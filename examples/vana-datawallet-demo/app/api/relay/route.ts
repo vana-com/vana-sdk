@@ -123,8 +123,8 @@ export async function POST(request: NextRequest) {
     const vana = await createRelayerVana(chainId);
 
     // Read grantee ID from environment variable
-    const granteeId = process.env.DEFAULT_GRANTEE_ID
-      ? BigInt(process.env.DEFAULT_GRANTEE_ID)
+    const granteeId = process.env.NEXT_PUBLIC_DEFAULT_GRANTEE_ID
+      ? BigInt(process.env.NEXT_PUBLIC_DEFAULT_GRANTEE_ID)
       : BigInt(1);
 
     // Execute the batch operation using the relayer

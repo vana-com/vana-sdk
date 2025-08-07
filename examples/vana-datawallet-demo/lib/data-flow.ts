@@ -173,7 +173,7 @@ export class DataPortabilityFlow {
         grantee: granteeAddress,
         operation,
         parameters,
-        files: [], // Will be populated by the contract
+        //files: [],
       };
 
       // Create grant file blob
@@ -214,7 +214,7 @@ export class DataPortabilityFlow {
           "What is the best light weight model to use for coding?: {{data}}",
       };
       const grantUrl = await this.createAndUploadGrantFile(
-        userAddress,
+        process.env.NEXT_PUBLIC_DATA_WALLET_APP_ADDRESS,
         operation,
         parameters,
       );

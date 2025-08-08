@@ -8,9 +8,6 @@ import {
 } from "@opendatalabs/vana-sdk/browser";
 import type { WalletClient } from "viem";
 
-const DEMO_FILE_URL =
-  "https://raw.githubusercontent.com/BerriAI/litellm/refs/heads/main/model_prices_and_context_window.json";
-
 /**
  * Get network configuration for blockchain explorer URLs
  * Browser-compatible version of the network config
@@ -124,23 +121,15 @@ export class DataPortabilityFlow {
     this.platformAdapter = new BrowserPlatformAdapter();
   }
 
-  async downloadDemoFile(): Promise<string> {
-    this.callbacks.onStatusUpdate("Downloading demo file...");
+  async processUserData(userData: string): Promise<string> {
+    this.callbacks.onStatusUpdate("Processing user data...");
 
     try {
-      const response = await fetch(DEMO_FILE_URL);
-      if (!response.ok) {
-        throw new Error(`Failed to download demo file: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      const jsonString = JSON.stringify(data, null, 2);
-
-      this.callbacks.onStatusUpdate("Demo file downloaded successfully");
-      return jsonString;
+      this.callbacks.onStatusUpdate("User data processed successfully");
+      return userData;
     } catch (error) {
       throw new Error(
-        `Demo file download failed: ${
+        `User data processing failed: ${
           error instanceof Error ? error.message : "Unknown error"
         }`,
       );
@@ -246,6 +235,7 @@ export class DataPortabilityFlow {
   async executeTransaction(
     fileUrl: string,
     userAddress: string,
+    customPrompt: string,
   ): Promise<string> {
     this.callbacks.onStatusUpdate("Preparing data portability transaction...");
 
@@ -253,8 +243,7 @@ export class DataPortabilityFlow {
       // First, create and upload the grant file
       const operation = "llm_inference";
       const parameters = {
-        prompt:
-          "What is the best light weight model to use for coding?: {{data}}",
+        prompt: customPrompt,
       };
       const appAddress = process.env.NEXT_PUBLIC_DATA_WALLET_APP_ADDRESS;
       if (!appAddress) {
@@ -448,20 +437,25 @@ export class DataPortabilityFlow {
     throw new Error("AI inference timed out after maximum polling attempts");
   }
 
-  async executeCompleteFlow(userAddress: string): Promise<void> {
+  async executeCompleteFlow(
+    userAddress: string,
+    userData: string,
+    prompt: string,
+  ): Promise<void> {
     try {
-      // Step 1: Download demo file
-      const fileData = await this.downloadDemoFile();
-
       // Step 2: Encrypt file with wallet signature
-      const { encryptedBlob, encryptionKey } = await this.encryptFile(fileData);
+      const { encryptedBlob, encryptionKey } = await this.encryptFile(userData);
       this.encryptionKey = encryptionKey;
 
       // Step 3: Upload to storage (Google Drive or IPFS)
       const fileUrl = await this.uploadToStorage(encryptedBlob);
 
       // Step 4: Execute blockchain transaction with permissions
-      const permissionId = await this.executeTransaction(fileUrl, userAddress);
+      const permissionId = await this.executeTransaction(
+        fileUrl,
+        userAddress,
+        prompt,
+      );
 
       // Step 5: Submit AI inference request
       const operationId = await this.submitInferenceRequest(permissionId);

@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useModal } from "@getpara/react-sdk";
-import { useParaAuth } from "../hooks/useParaAuth";
+import { useModal, useAccount, useWallet } from "@getpara/react-sdk";
 import { useGoogleDriveAuth } from "../hooks/useGoogleDriveAuth";
 import { DataPortabilityFlow } from "../lib/data-flow";
 import { Button } from "@/components/ui/button";
@@ -12,15 +11,9 @@ import { useVana } from "../providers/vana-provider";
 
 function HomeContent() {
   const { openModal } = useModal();
-  const {
-    user,
-    isAuthenticated,
-    isAuthenticating,
-    error,
-    walletConnected,
-    walletLoading,
-    disconnect,
-  } = useParaAuth();
+  const { isConnected: walletConnected, isLoading: walletLoading } =
+    useAccount();
+  const { data: wallet } = useWallet();
   const { vana, isInitialized: isVanaInitialized, walletClient } = useVana();
   const {
     isConnected: googleDriveConnected,
@@ -30,12 +23,18 @@ function HomeContent() {
     disconnect: disconnectGoogleDrive,
   } = useGoogleDriveAuth();
   const [status, setStatus] = useState<string>(
-    "Please connect and authenticate your wallet first",
+    "Please connect your wallet first",
   );
   const [result, setResult] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [userData, setUserData] = useState<string>(
+    "Vana is a layer 1 blockchain for user-owned data",
+  );
+  const [aiPrompt, setAiPrompt] = useState<string>(
+    "Based on this: {{data}}, what is Vana?",
+  );
 
-  // Update status based on authentication state
+  // Update status based on wallet connection state
   useEffect(() => {
     if (isProcessing) {
       // Don't update status while processing
@@ -43,47 +42,20 @@ function HomeContent() {
     }
 
     if (!walletConnected) {
-      setStatus("Please connect and authenticate your wallet first");
-    } else if (isAuthenticating) {
-      setStatus("Authenticating with wallet...");
-    } else if (error) {
-      setStatus(`Authentication error: ${error}`);
-    } else if (!googleDriveConnected && isAuthenticated && user?.address) {
+      setStatus("Please connect your wallet first");
+    } else if (!googleDriveConnected && wallet?.address) {
       setStatus("Wallet connected. Please connect Google Drive to continue.");
-    } else if (isAuthenticated && googleDriveConnected && user?.address) {
+    } else if (walletConnected && googleDriveConnected && wallet?.address) {
       setStatus("Ready to start data portability flow");
-    } else if (walletConnected && !isAuthenticated) {
-      setStatus("Wallet connected, completing authentication...");
     }
-  }, [
-    walletConnected,
-    isAuthenticating,
-    isAuthenticated,
-    error,
-    user?.address,
-    googleDriveConnected,
-    isProcessing,
-  ]);
+  }, [walletConnected, wallet?.address, googleDriveConnected, isProcessing]);
 
-  const handleConnect = () => {
-    console.debug("handleConnect");
+  const handleWalletModal = () => {
     openModal();
   };
 
-  const handleDisconnectClick = async () => {
-    setStatus("Disconnecting wallet...");
-    setResult("");
-    setIsProcessing(true);
-
-    try {
-      await disconnect();
-    } catch (error) {
-      console.error("Disconnect error:", error);
-    }
-  };
-
   const handleStartFlow = async () => {
-    if (!isVanaInitialized || !vana || !user?.address || !walletClient) {
+    if (!isVanaInitialized || !vana || !wallet?.address || !walletClient) {
       setStatus("Vana not initialized. Please connect your wallet.");
       return;
     }
@@ -101,7 +73,7 @@ function HomeContent() {
         },
       });
 
-      await flow.executeCompleteFlow(user.address);
+      await flow.executeCompleteFlow(wallet.address, userData, aiPrompt);
     } catch (error) {
       setStatus(
         `Flow failed: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -123,90 +95,29 @@ function HomeContent() {
 
         {/* Wallet Connection */}
         <div>
-          {!walletConnected ? (
-            <Button
-              onClick={handleConnect}
-              disabled={walletLoading}
-              className="w-full"
-            >
-              {walletLoading ? "Loading..." : "Connect Para Wallet"}
-            </Button>
-          ) : (
-            <div className="space-y-4">
-              {isAuthenticating ? (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <p className="text-yellow-800 font-medium">
-                    Authenticating...
-                  </p>
-                  <p className="text-yellow-600 text-sm mt-1">
-                    Please sign the message in your wallet to complete
-                    authentication
-                  </p>
-                </div>
-              ) : isAuthenticated ? (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <p className="text-green-800 font-medium">
-                    Wallet Connected & Authenticated
-                  </p>
-                  <p className="text-green-600 text-sm font-mono mt-1">
-                    {user?.address}
-                  </p>
-                  {user?.email && (
-                    <p className="text-green-600 text-xs mt-1">
-                      Email: {user.email}
-                    </p>
-                  )}
-                </div>
-              ) : error ? (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <p className="text-red-800 font-medium">
-                    Authentication Failed
-                  </p>
-                  <p className="text-red-600 text-sm mt-1">{error}</p>
-                  <Button
-                    onClick={() => window.location.reload()}
-                    variant="ghost"
-                    size="sm"
-                    className="mt-2 text-red-700"
-                  >
-                    Try Again
-                  </Button>
-                </div>
-              ) : (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <p className="text-yellow-800 font-medium">
-                    Wallet Connected
-                  </p>
-                  <p className="text-yellow-600 text-sm mt-1">
-                    Authentication in progress...
-                  </p>
-                </div>
-              )}
-
-              <Button
-                onClick={handleDisconnectClick}
-                disabled={isProcessing}
-                variant="destructive"
-                className="w-full"
-              >
-                Disconnect Wallet
-              </Button>
-            </div>
-          )}
+          <Button
+            onClick={handleWalletModal}
+            disabled={walletLoading || isProcessing}
+            className="w-full"
+          >
+            {walletLoading
+              ? "Loading..."
+              : walletConnected && wallet?.address
+                ? wallet.address
+                : "Connect Para Wallet"}
+          </Button>
         </div>
 
         {/* Google Drive Connection */}
-        {isAuthenticated && (
+        {walletConnected && wallet?.address && (
           <div>
             {!googleDriveConnected ? (
               <div className="space-y-4">
                 <Button
                   onClick={() =>
-                    user?.address && connectGoogleDrive(user.address)
+                    wallet?.address && connectGoogleDrive(wallet.address)
                   }
-                  disabled={
-                    googleDriveConnecting || isProcessing || !user?.address
-                  }
+                  disabled={googleDriveConnecting || isProcessing}
                   className="w-full"
                 >
                   {googleDriveConnecting
@@ -235,12 +146,53 @@ function HomeContent() {
           </div>
         )}
 
+        {/* User Data Input */}
+        {walletConnected && wallet?.address && googleDriveConnected && (
+          <div className="space-y-4">
+            <div>
+              <Label
+                htmlFor="userData"
+                className="text-sm font-medium text-gray-700 mb-2 block"
+              >
+                Your Data
+              </Label>
+              <Textarea
+                id="userData"
+                value={userData}
+                onChange={(e) => setUserData(e.target.value)}
+                rows={4}
+                className="resize-none"
+                placeholder="Enter your data here..."
+                disabled={isProcessing}
+              />
+            </div>
+            <div>
+              <Label
+                htmlFor="aiPrompt"
+                className="text-sm font-medium text-gray-700 mb-2 block"
+              >
+                AI Prompt
+              </Label>
+              <Textarea
+                id="aiPrompt"
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                rows={2}
+                className="resize-none"
+                placeholder="Enter your AI prompt here..."
+                disabled={isProcessing}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Start Data Portability Flow */}
         <Button
           onClick={handleStartFlow}
           disabled={
             isProcessing ||
-            !isAuthenticated ||
+            !walletConnected ||
+            !wallet?.address ||
             !googleDriveConnected ||
             !isVanaInitialized
           }

@@ -17,7 +17,7 @@ import {
   ServerFilesAndPermissionTypedData,
 } from "@opendatalabs/vana-sdk/browser";
 import type { VanaChain } from "@opendatalabs/vana-sdk/browser";
-import { useParaAuth } from "../hooks/useParaAuth";
+import { useWalletClient, useAccount as useWagmiAccount } from "wagmi";
 
 export interface VanaContextValue {
   vana: VanaInstance | null;
@@ -139,16 +139,17 @@ export function VanaProvider({
   children,
   useGaslessTransactions = true,
 }: VanaProviderProps) {
-  const { walletClient, user } = useParaAuth();
   const [vana, setVana] = useState<VanaInstance | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [currentWalletClient, setCurrentWalletClient] =
     useState<WalletClient | null>(null);
+  const { address } = useWagmiAccount();
+  const { data: walletClient } = useWalletClient();
 
   // Initialize Vana SDK when wallet is connected
   useEffect(() => {
-    if (!walletClient || !user?.address) {
+    if (!walletClient || !address) {
       setVana(null);
       setIsInitialized(false);
       return;
@@ -165,7 +166,7 @@ export function VanaProvider({
               submitAddServerFilesAndPermissions:
                 createAddServerFilesAndPermissionsCallback(
                   "/api/relay",
-                  user.address,
+                  address,
                 ),
             }
           : undefined;
@@ -198,7 +199,7 @@ export function VanaProvider({
     };
 
     initializeVana();
-  }, [walletClient, user?.address, useGaslessTransactions]);
+  }, [walletClient, address, useGaslessTransactions]);
 
   return (
     <VanaContext.Provider

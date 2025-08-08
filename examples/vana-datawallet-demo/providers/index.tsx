@@ -3,7 +3,6 @@
 import React, { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ParaProvider } from "./para-provider";
-import { ParaAuthHandler } from "../components/ParaAuthHandler";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,10 +20,7 @@ interface ProvidersProps {
 export function Providers({ children }: ProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
-      <ParaProvider>
-        <ParaAuthHandler />
-        {children}
-      </ParaProvider>
+      <ParaProvider>{children}</ParaProvider>
     </QueryClientProvider>
   );
 }

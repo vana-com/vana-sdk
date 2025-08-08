@@ -58,6 +58,7 @@ import { getAbi } from "../abi";
 import { createGrantFile, getGrantFileHash } from "../utils/grantFiles";
 import { validateGrant } from "../utils/grantValidation";
 import { withSignatureCache } from "../utils/signatureCache";
+import { formatSignatureForContract } from "../utils/signatureFormatter";
 import { StorageManager } from "../storage";
 import type { VanaPlatformAdapter } from "../platform/interface";
 
@@ -808,12 +809,15 @@ export class PermissionsController {
       typedData.message.grant?.length || 0,
     );
 
+    // Format signature for contract compatibility
+    const formattedSignature = formatSignatureForContract(signature);
+
     // Submit directly to the contract using the provided wallet client
     const txHash = await this.context.walletClient.writeContract({
       address: DataPortabilityPermissionsAddress,
       abi: DataPortabilityPermissionsAbi,
       functionName: "addPermission",
-      args: [permissionInput, signature],
+      args: [permissionInput, formattedSignature],
       account:
         this.context.walletClient.account || (await this.getUserAddress()),
       chain: this.context.walletClient.chain || null,
@@ -2362,6 +2366,9 @@ export class PermissionsController {
       signature,
     });
 
+    // Format signature for contract compatibility
+    const formattedSignature = formatSignatureForContract(signature);
+
     const txHash = await this.context.walletClient.writeContract({
       address: DataPortabilityServersAddress,
       abi: DataPortabilityServersAbi,
@@ -2373,7 +2380,7 @@ export class PermissionsController {
           publicKey: addAndTrustServerInput.publicKey,
           serverUrl: addAndTrustServerInput.serverUrl,
         },
-        signature,
+        formattedSignature,
       ],
       account:
         this.context.walletClient.account || (await this.getUserAddress()),
@@ -2401,6 +2408,9 @@ export class PermissionsController {
     );
     const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
 
+    // Format signature for contract compatibility
+    const formattedSignature = formatSignatureForContract(signature);
+
     const txHash = await this.context.walletClient.writeContract({
       address: DataPortabilityServersAddress,
       abi: DataPortabilityServersAbi,
@@ -2410,7 +2420,7 @@ export class PermissionsController {
           nonce: trustServerInput.nonce,
           serverId: BigInt(trustServerInput.serverId),
         },
-        signature,
+        formattedSignature,
       ],
       account:
         this.context.walletClient.account || (await this.getUserAddress()),
@@ -2438,12 +2448,15 @@ export class PermissionsController {
     );
     const DataPortabilityPermissionsAbi = getAbi("DataPortabilityPermissions");
 
+    // Format signature for contract compatibility
+    const formattedSignature = formatSignatureForContract(signature);
+
     const txHash = await this.context.walletClient.writeContract({
       address: DataPortabilityPermissionsAddress,
       abi: DataPortabilityPermissionsAbi,
       functionName: "revokePermissionWithSignature",
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      args: [typedData.message as any, signature] as any,
+      args: [typedData.message as any, formattedSignature] as any,
       account:
         this.context.walletClient.account || (await this.getUserAddress()),
       chain: this.context.walletClient.chain || null,
@@ -2470,13 +2483,16 @@ export class PermissionsController {
     );
     const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
 
+    // Format signature for contract compatibility
+    const formattedSignature = formatSignatureForContract(signature);
+
     // Submit with signature to verify user authorization
     const txHash = await this.context.walletClient.writeContract({
       address: DataPortabilityServersAddress,
       abi: DataPortabilityServersAbi,
       functionName: "untrustServerWithSignature",
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      args: [typedData.message as any, signature],
+      args: [typedData.message as any, formattedSignature],
       account:
         this.context.walletClient.account || (await this.getUserAddress()),
       chain: this.context.walletClient.chain || null,
@@ -4155,11 +4171,14 @@ export class PermissionsController {
       fileIds: (typedData.message.fileIds as bigint[]) || [],
     };
 
+    // Format signature for contract compatibility
+    const formattedSignature = formatSignatureForContract(signature);
+
     const hash = await this.context.walletClient.writeContract({
       address: DataPortabilityPermissionsAddress,
       abi: DataPortabilityPermissionsAbi,
       functionName: "addPermission",
-      args: [permissionInput, signature],
+      args: [permissionInput, formattedSignature],
       account:
         this.context.walletClient.account || (await this.getUserAddress()),
       chain: this.context.walletClient.chain || null,
@@ -4198,12 +4217,15 @@ export class PermissionsController {
       filePermissions: typedData.message.filePermissions,
     };
 
+    // Format signature for contract compatibility
+    const formattedSignature = formatSignatureForContract(signature);
+
     const hash = await this.context.walletClient.writeContract({
       address: DataPortabilityPermissionsAddress,
       abi: DataPortabilityPermissionsAbi,
       functionName: "addServerFilesAndPermissions",
       // @ts-expect-error - Complex nested array types cause compatibility issues with viem's generated types
-      args: [serverFilesAndPermissionInput, signature],
+      args: [serverFilesAndPermissionInput, formattedSignature],
       account:
         this.context.walletClient.account || (await this.getUserAddress()),
       chain: this.context.walletClient.chain || null,

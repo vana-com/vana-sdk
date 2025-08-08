@@ -2402,6 +2402,85 @@ export class DataController {
   }
 
   /**
+   * Uploads content to storage without registering it on the blockchain.
+   * This method only handles the storage upload and returns the file URL.
+   *
+   * @param content - The content to upload (string, Blob, Buffer, or object - objects will be JSON stringified)
+   * @param filename - Filename for the uploaded file
+   * @param encrypt  - Optional flag to encrypt the content before upload
+   * @param providerName - Optional specific storage provider to use
+   * @returns Promise resolving to the storage file URL
+   */
+  async uploadToStorage(
+    content: string | Blob | Buffer | object,
+    filename: string,
+    encrypt: boolean = false,
+    providerName?: string,
+  ): Promise<string> {
+    try {
+      // Step 1: Normalize content to Blob
+      let blob: Blob;
+      if (content instanceof Blob) {
+        blob = content;
+      } else if (typeof content === "string") {
+        blob = new Blob([content], { type: "text/plain" });
+      } else if (content instanceof Buffer) {
+        blob = new Blob([content], { type: "application/octet-stream" });
+      } else {
+        // Handle objects by JSON stringifying them
+        blob = new Blob([JSON.stringify(content)], {
+          type: "application/json",
+        });
+      }
+
+      // Step 3: Handle encryption
+      let finalBlob = blob;
+      if (encrypt) {
+        // Generate encryption key
+        const encryptionKey = await generateEncryptionKey(
+          this.context.walletClient,
+          this.context.platform,
+          DEFAULT_ENCRYPTION_SEED,
+        );
+
+        // Encrypt the data
+        finalBlob = await encryptBlobWithSignedKey(
+          blob,
+          encryptionKey,
+          this.context.platform,
+        );
+      }
+
+      // Step 4: Upload to storage
+      if (!this.context.storageManager) {
+        // Use centralized validation if available, otherwise fall back to old behavior
+        if (this.context.validateStorageRequired) {
+          this.context.validateStorageRequired();
+          // The validateStorageRequired method throws, so this line should never be reached
+          // but TypeScript doesn't know that, so we need this fallback
+          throw new Error("Storage validation failed");
+        } else {
+          throw new Error(
+            "Storage manager not configured. Please provide storage providers in VanaConfig.",
+          );
+        }
+      }
+
+      const uploadResult = await this.context.storageManager.upload(
+        finalBlob,
+        filename,
+        providerName,
+      );
+
+      return uploadResult.url;
+    } catch (error) {
+      throw new Error(
+        `Upload failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
    * Adds a permission for a party to access an existing file.
    *
    * This method handles the complete workflow:

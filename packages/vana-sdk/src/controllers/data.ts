@@ -2405,14 +2405,14 @@ export class DataController {
    * Uploads content to storage without registering it on the blockchain.
    * This method only handles the storage upload and returns the file URL.
    *
-   * @param content - The content to upload (string, Blob, or Buffer)
+   * @param content - The content to upload (string, Blob, Buffer, or object - objects will be JSON stringified)
    * @param filename - Filename for the uploaded file
    * @param encrypt  - Optional flag to encrypt the content before upload
    * @param providerName - Optional specific storage provider to use
    * @returns Promise resolving to the storage file URL
    */
   async uploadToStorage(
-    content: string | Blob | Buffer,
+    content: string | Blob | Buffer | object,
     filename: string,
     encrypt: boolean = false,
     providerName?: string,

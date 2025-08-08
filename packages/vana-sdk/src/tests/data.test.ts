@@ -2107,18 +2107,35 @@ describe("DataController", () => {
   });
 
   describe("uploadToStorage", () => {
+    // Helper to create a mock storage manager with all required public methods
+    const createMockStorageManager = () => {
+      const mock = {
+        register: vi.fn(),
+        getProvider: vi.fn(),
+        listProviders: vi.fn().mockReturnValue(["mock"]),
+        getDefaultProvider: vi.fn().mockReturnValue("mock"),
+        setDefaultProvider: vi.fn(),
+        upload: vi.fn(),
+        download: vi.fn(),
+        list: vi.fn(),
+        delete: vi.fn(),
+        getStorageProviders: vi.fn().mockReturnValue(["mock"]),
+        getDefaultStorageProvider: vi.fn().mockReturnValue("mock"),
+      };
+      return mock as unknown as StorageManager & typeof mock;
+    };
+
     it("should upload a Blob to storage and return the file URL", async () => {
       const testBlob = new Blob(["test data"], { type: "text/plain" });
       const expectedUrl = "https://storage.example.com/file123";
 
       // Create mock storage manager
-      const mockStorageManager = {
-        upload: vi.fn().mockResolvedValue({
-          url: expectedUrl,
-          size: testBlob.size,
-          contentType: "text/plain",
-        }),
-      };
+      const mockStorageManager = createMockStorageManager();
+      mockStorageManager.upload.mockResolvedValue({
+        url: expectedUrl,
+        size: testBlob.size,
+        contentType: "text/plain",
+      });
 
       // Create context with storage manager
       const contextWithStorage = {
@@ -2152,13 +2169,12 @@ describe("DataController", () => {
       const testString = "test data";
       const expectedUrl = "ipfs://QmTestHash";
 
-      const mockStorageManager = {
-        upload: vi.fn().mockResolvedValue({
-          url: expectedUrl,
-          size: 9,
-          contentType: "text/plain",
-        }),
-      };
+      const mockStorageManager = createMockStorageManager();
+      mockStorageManager.upload.mockResolvedValue({
+        url: expectedUrl,
+        size: 9,
+        contentType: "text/plain",
+      });
 
       const contextWithStorage = {
         ...mockContext,
@@ -2188,13 +2204,12 @@ describe("DataController", () => {
       const testBuffer = Buffer.from("test data");
       const expectedUrl = "https://storage.example.com/buffer-file";
 
-      const mockStorageManager = {
-        upload: vi.fn().mockResolvedValue({
-          url: expectedUrl,
-          size: testBuffer.length,
-          contentType: "application/octet-stream",
-        }),
-      };
+      const mockStorageManager = createMockStorageManager();
+      mockStorageManager.upload.mockResolvedValue({
+        url: expectedUrl,
+        size: testBuffer.length,
+        contentType: "application/octet-stream",
+      });
 
       const contextWithStorage = {
         ...mockContext,
@@ -2242,9 +2257,8 @@ describe("DataController", () => {
       const testContent = "test data";
       const errorMessage = "Network error during upload";
 
-      const mockStorageManager = {
-        upload: vi.fn().mockRejectedValue(new Error(errorMessage)),
-      };
+      const mockStorageManager = createMockStorageManager();
+      mockStorageManager.upload.mockRejectedValue(new Error(errorMessage));
 
       const contextWithStorage = {
         ...mockContext,
@@ -2288,9 +2302,7 @@ describe("DataController", () => {
         },
       ];
 
-      const mockStorageManager = {
-        upload: vi.fn(),
-      };
+      const mockStorageManager = createMockStorageManager();
 
       const contextWithStorage = {
         ...mockContext,
@@ -2309,7 +2321,7 @@ describe("DataController", () => {
         });
 
         const result = await controllerWithStorage.uploadToStorage(
-          item.content as string | Blob | object,
+          item.content as string | Blob | Buffer,
           item.name,
         );
 
@@ -2332,9 +2344,7 @@ describe("DataController", () => {
       const testContent = "test data";
       const providers = ["ipfs", "pinata", "arweave", "filecoin"];
 
-      const mockStorageManager = {
-        upload: vi.fn(),
-      };
+      const mockStorageManager = createMockStorageManager();
 
       const contextWithStorage = {
         ...mockContext,
@@ -2371,9 +2381,8 @@ describe("DataController", () => {
     it("should handle non-Error objects in catch block", async () => {
       const testContent = "test data";
 
-      const mockStorageManager = {
-        upload: vi.fn().mockRejectedValue("String error"),
-      };
+      const mockStorageManager = createMockStorageManager();
+      mockStorageManager.upload.mockRejectedValue("String error");
 
       const contextWithStorage = {
         ...mockContext,
@@ -2391,13 +2400,12 @@ describe("DataController", () => {
       const testObject = { key: "value", nested: { data: 123 } };
       const expectedUrl = "https://storage.example.com/object.json";
 
-      const mockStorageManager = {
-        upload: vi.fn().mockResolvedValue({
-          url: expectedUrl,
-          size: JSON.stringify(testObject).length,
-          contentType: "application/json",
-        }),
-      };
+      const mockStorageManager = createMockStorageManager();
+      mockStorageManager.upload.mockResolvedValue({
+        url: expectedUrl,
+        size: JSON.stringify(testObject).length,
+        contentType: "application/json",
+      });
 
       const contextWithStorage = {
         ...mockContext,
@@ -2408,7 +2416,7 @@ describe("DataController", () => {
 
       // uploadToStorage should handle objects by JSON stringifying
       const result = await controllerWithStorage.uploadToStorage(
-        testObject as object,
+        testObject,
         "object.json",
       );
 
@@ -2444,13 +2452,12 @@ describe("DataController", () => {
         new Blob(["encrypted"], { type: "application/octet-stream" }),
       );
 
-      const mockStorageManager = {
-        upload: vi.fn().mockResolvedValue({
-          url: expectedUrl,
-          size: 9,
-          contentType: "application/octet-stream",
-        }),
-      };
+      const mockStorageManager = createMockStorageManager();
+      mockStorageManager.upload.mockResolvedValue({
+        url: expectedUrl,
+        size: 9,
+        contentType: "application/octet-stream",
+      });
 
       const contextWithStorage = {
         ...mockContext,
@@ -2484,13 +2491,12 @@ describe("DataController", () => {
       const testContent = "plain data";
       const expectedUrl = "https://storage.example.com/plain.txt";
 
-      const mockStorageManager = {
-        upload: vi.fn().mockResolvedValue({
-          url: expectedUrl,
-          size: 10,
-          contentType: "text/plain",
-        }),
-      };
+      const mockStorageManager = createMockStorageManager();
+      mockStorageManager.upload.mockResolvedValue({
+        url: expectedUrl,
+        size: 10,
+        contentType: "text/plain",
+      });
 
       const contextWithStorage = {
         ...mockContext,

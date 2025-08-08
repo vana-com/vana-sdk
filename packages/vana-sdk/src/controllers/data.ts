@@ -259,7 +259,12 @@ export class DataController {
       } else if (typeof content === "string") {
         blob = new Blob([content], { type: "text/plain" });
       } else if (content instanceof Buffer) {
-        blob = new Blob([content], { type: "application/octet-stream" });
+        // Convert Buffer to ArrayBuffer for BlobPart compatibility in browser typings
+        const arrayBuffer = content.buffer.slice(
+          content.byteOffset,
+          content.byteOffset + content.byteLength,
+        ) as ArrayBuffer;
+        blob = new Blob([arrayBuffer], { type: "application/octet-stream" });
       } else {
         // Handle objects by JSON stringifying them
         blob = new Blob([JSON.stringify(content)], {
@@ -2425,7 +2430,12 @@ export class DataController {
       } else if (typeof content === "string") {
         blob = new Blob([content], { type: "text/plain" });
       } else if (content instanceof Buffer) {
-        blob = new Blob([content], { type: "application/octet-stream" });
+        // Convert Buffer to ArrayBuffer for BlobPart compatibility in browser typings
+        const arrayBuffer = content.buffer.slice(
+          content.byteOffset,
+          content.byteOffset + content.byteLength,
+        ) as ArrayBuffer;
+        blob = new Blob([arrayBuffer], { type: "application/octet-stream" });
       } else {
         // Handle objects by JSON stringifying them
         blob = new Blob([JSON.stringify(content)], {

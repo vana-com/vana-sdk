@@ -406,9 +406,9 @@ export class DataPortabilityFlow {
         const data = result.data;
 
         // Check if inference is completed
-        if (data?.output?.status !== "processing") {
+        if (data?.status !== "processing") {
           this.callbacks.onStatusUpdate("AI inference completed!");
-          return JSON.stringify(data.output?.result || data, null, 2);
+          return JSON.stringify(data?.result || data, null, 2);
         } else {
           this.callbacks.onStatusUpdate(
             `Polling attempt ${attempt}/${maxAttempts}: Still processing...`,

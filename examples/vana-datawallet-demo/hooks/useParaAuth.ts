@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useAccount, useIssueJwt } from "@getpara/react-sdk";
 import { useWalletClient, useAccount as useWagmiAccount } from "wagmi";
 
@@ -19,35 +19,40 @@ export function useParaAuth() {
   const { address } = useWagmiAccount();
   const { issueJwtAsync } = useIssueJwt();
   const { data: walletClient } = useWalletClient();
-  
+
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [hasAuthenticated, setHasAuthenticated] = useState(false);
 
   const walletAddress = address;
 
-  console.log('useParaAuth Debug:', {
+  console.debug("useParaAuth Debug:", {
     isConnected,
     walletAddress,
     walletClient: !!walletClient,
     hasAuthenticated,
-    isAuthenticating
+    isAuthenticating,
   });
 
-  const user: ParaAuthUser | null = isConnected && walletAddress ? {
-    id: walletAddress,
-    address: walletAddress,
-    isAuthenticated: hasAuthenticated,
-  } : null;
+  const user: ParaAuthUser | null =
+    isConnected && walletAddress
+      ? {
+          id: walletAddress,
+          address: walletAddress,
+          isAuthenticated: hasAuthenticated,
+        }
+      : null;
 
-  const authenticate = async () => {
+  const authenticate = useCallback(async () => {
     if (!isConnected || !walletAddress) {
-      console.log("Not connected or no wallet address, skipping authentication.");
+      console.debug(
+        "Not connected or no wallet address, skipping authentication.",
+      );
       return;
     }
 
     if (hasAuthenticated) {
-      console.log("Already authenticated, skipping.");
+      console.debug("Already authenticated, skipping.");
       return;
     }
 
@@ -55,25 +60,32 @@ export function useParaAuth() {
     setAuthError(null);
 
     try {
-      console.log("Issuing JWT...");
+      console.debug("Issuing JWT...");
       const token = await issueJwtAsync({});
-      console.log("JWT issued:", token);
-      
+      console.debug("JWT issued:", token);
+
       // Mark as authenticated after successful JWT issuance
       setHasAuthenticated(true);
-      console.log("Authentication successful");
+      console.debug("Authentication successful");
     } catch (error) {
       console.error("Para authentication error:", error);
-      setAuthError(error instanceof Error ? error.message : 'Authentication failed');
+      setAuthError(
+        error instanceof Error ? error.message : "Authentication failed",
+      );
       setHasAuthenticated(false);
     } finally {
       setIsAuthenticating(false);
     }
-  };
+  }, [isConnected, walletAddress, hasAuthenticated, issueJwtAsync]);
 
   useEffect(() => {
-    console.log("Connection state changed:", { isConnected, walletAddress });
-    if (isConnected && walletAddress && !hasAuthenticated && !isAuthenticating) {
+    console.debug("Connection state changed:", { isConnected, walletAddress });
+    if (
+      isConnected &&
+      walletAddress &&
+      !hasAuthenticated &&
+      !isAuthenticating
+    ) {
       authenticate();
     } else if (!isConnected) {
       // Reset authentication state when disconnected
@@ -81,7 +93,13 @@ export function useParaAuth() {
       setAuthError(null);
       setIsAuthenticating(false);
     }
-  }, [isConnected, walletAddress, hasAuthenticated, isAuthenticating]);
+  }, [
+    isConnected,
+    walletAddress,
+    hasAuthenticated,
+    isAuthenticating,
+    authenticate,
+  ]);
 
   const handleDisconnect = async () => {
     try {
@@ -89,55 +107,59 @@ export function useParaAuth() {
       setHasAuthenticated(false);
       setAuthError(null);
       setIsAuthenticating(false);
-      
+
       // Clear localStorage and sessionStorage
-      if (typeof window !== 'undefined') {
+      if (typeof window !== "undefined") {
         // Clear wallet-related localStorage keys
         const keysToRemove = [];
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
-          if (key && (
-            key.includes('walletconnect') ||
-            key.includes('para') ||
-            key.includes('wallet') ||
-            key.includes('connector')
-          )) {
+          if (
+            key &&
+            (key.includes("walletconnect") ||
+              key.includes("para") ||
+              key.includes("wallet") ||
+              key.includes("connector"))
+          ) {
             keysToRemove.push(key);
           }
         }
-        keysToRemove.forEach(key => localStorage.removeItem(key));
-        
+        keysToRemove.forEach((key) => localStorage.removeItem(key));
+
         // Clear sessionStorage
         sessionStorage.clear();
-        
+
         // Clear indexedDB if available
-        if ('indexedDB' in window) {
+        if ("indexedDB" in window) {
           try {
             const databases = await indexedDB.databases();
             await Promise.all(
               databases
-                .filter(db => db.name?.includes('walletconnect') || db.name?.includes('para'))
-                .map(db => {
+                .filter(
+                  (db) =>
+                    db.name?.includes("walletconnect") ||
+                    db.name?.includes("para"),
+                )
+                .map((db) => {
                   return new Promise((resolve, reject) => {
-                    const deleteReq = indexedDB.deleteDatabase(db.name!);
+                    const deleteReq = indexedDB.deleteDatabase(db.name || "");
                     deleteReq.onsuccess = () => resolve(true);
                     deleteReq.onerror = () => reject(deleteReq.error);
                   });
-                })
+                }),
             );
           } catch (e) {
-            console.warn('Failed to clear indexedDB:', e);
+            console.warn("Failed to clear indexedDB:", e);
           }
         }
       }
-      
+
       // Force reload to ensure complete reset
       setTimeout(() => {
         window.location.reload();
       }, 500);
-      
     } catch (error) {
-      console.error('Error during disconnect:', error);
+      console.error("Error during disconnect:", error);
       // Force reload even if disconnect fails
       window.location.reload();
     }

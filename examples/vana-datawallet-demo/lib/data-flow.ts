@@ -1,18 +1,104 @@
 import {
-  Vana,
   VanaInstance,
-  GoogleDriveStorage,
-  StorageProvider,
   generateEncryptionKey,
   encryptBlobWithSignedKey,
+  encryptWithWalletPublicKey,
   BrowserPlatformAdapter,
   DEFAULT_ENCRYPTION_SEED,
-  WalletClient,
-  VanaChain,
 } from "@opendatalabs/vana-sdk/browser";
+import type { WalletClient } from "viem";
 
 const DEMO_FILE_URL =
   "https://raw.githubusercontent.com/BerriAI/litellm/refs/heads/main/model_prices_and_context_window.json";
+
+/**
+ * Get network configuration for blockchain explorer URLs
+ * Browser-compatible version of the network config
+ */
+function getNetworkConfig() {
+  const isTestnet = !!process.env.NEXT_PUBLIC_MOKSHA;
+  return {
+    networkName: isTestnet ? "moksha" : "mainnet",
+    explorerUrl: isTestnet
+      ? "https://moksha.vanascan.io"
+      : "https://vanascan.io",
+    chainId: isTestnet ? 14800 : 1480,
+  };
+}
+
+/**
+ * Extract permissionId from transaction logs using Blockscout API with retries
+ *
+ * This function handles the delay between transaction relay and blockchain indexing
+ * by implementing exponential backoff retry logic.
+ *
+ * @param txHash - The transaction hash to fetch logs for
+ * @returns Promise<string | undefined> - The extracted permissionId or undefined if not found
+ */
+async function getPermissionIdFromTransactionLogs(
+  txHash: string,
+): Promise<string | undefined> {
+  // Get network configuration
+  const { explorerUrl } = getNetworkConfig();
+
+  // Retry configuration
+  const maxRetries = 10;
+  const baseDelay = 1000; // 1 second
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(
+        `${explorerUrl}/api/v2/transactions/${txHash}/logs`,
+        {
+          headers: { accept: "application/json" },
+        },
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+
+        // Check if transaction is indexed and has logs
+        if (data.items && data.items.length > 0) {
+          // Find the PermissionAdded event in the logs
+          const permissionAddedLog = data.items.find(
+            (log: { decoded?: { method_call?: string } }) =>
+              log.decoded?.method_call?.includes("PermissionAdded"),
+          );
+
+          if (permissionAddedLog?.decoded?.parameters) {
+            const permissionIdParam = (
+              permissionAddedLog.decoded.parameters as {
+                name: string;
+                value: string;
+              }[]
+            ).find((param) => param.name === "permissionId");
+
+            if (permissionIdParam?.value) {
+              return permissionIdParam.value;
+            }
+          }
+        }
+      }
+
+      // If this isn't the last attempt, wait before retrying
+      if (attempt < maxRetries) {
+        const delay = baseDelay * Math.pow(2, attempt - 1); // Exponential backoff
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    } catch (apiError) {
+      console.warn(`API error on attempt ${attempt}:`, apiError);
+
+      // If this isn't the last attempt, wait before retrying
+      if (attempt < maxRetries) {
+        const delay = baseDelay * Math.pow(2, attempt - 1);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  console.warn("Could not extract permissionId after all retries");
+  return undefined;
+}
 
 interface FlowStepCallbacks {
   onStatusUpdate: (status: string) => void;
@@ -21,59 +107,21 @@ interface FlowStepCallbacks {
 }
 
 export class DataPortabilityFlow {
+  private vana: VanaInstance;
   private walletClient: WalletClient;
-  private vana: VanaInstance | null = null;
   private callbacks: FlowStepCallbacks;
   private platformAdapter: BrowserPlatformAdapter;
-  private googleDriveStorage: StorageProvider | null = null;
+  private encryptionKey?: string;
 
-  constructor(walletClient: WalletClient, callbacks: FlowStepCallbacks) {
+  constructor(
+    vana: VanaInstance,
+    walletClient: WalletClient,
+    callbacks: FlowStepCallbacks,
+  ) {
+    this.vana = vana;
     this.walletClient = walletClient;
     this.callbacks = callbacks;
     this.platformAdapter = new BrowserPlatformAdapter();
-  }
-
-  async initializeVana() {
-    this.callbacks.onStatusUpdate("Initializing Vana SDK...");
-
-    try {
-      // Get Google Drive tokens from session/API
-      const googleDriveTokens = await this.getGoogleDriveTokens();
-
-      if (!googleDriveTokens) {
-        throw new Error(
-          "Google Drive not connected. Please connect your Google Drive account first.",
-        );
-      }
-
-      // Set up Google Drive storage - this is the only storage provider we use
-      this.googleDriveStorage = new GoogleDriveStorage({
-        accessToken: googleDriveTokens.accessToken,
-        refreshToken: googleDriveTokens.refreshToken,
-        folderId: googleDriveTokens.folderId,
-      });
-
-      const storageProviders: Record<string, StorageProvider> = {
-        "google-drive": this.googleDriveStorage,
-      };
-
-      this.callbacks.onStatusUpdate("Google Drive storage configured");
-
-      // Initialize Vana SDK with Google Drive as the only storage provider
-      this.vana = Vana({
-        walletClient: this.walletClient as WalletClient & { chain: VanaChain },
-        storage: {
-          providers: storageProviders,
-          defaultProvider: "google-drive",
-        },
-      });
-
-      this.callbacks.onStatusUpdate("Vana SDK initialized successfully");
-    } catch (error) {
-      throw new Error(
-        `Failed to initialize Vana SDK: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-    }
   }
 
   async downloadDemoFile(): Promise<string> {
@@ -92,12 +140,16 @@ export class DataPortabilityFlow {
       return jsonString;
     } catch (error) {
       throw new Error(
-        `Demo file download failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        `Demo file download failed: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
       );
     }
   }
 
-  async encryptFile(data: string): Promise<Blob> {
+  async encryptFile(
+    data: string,
+  ): Promise<{ encryptedBlob: Blob; encryptionKey: string }> {
     this.callbacks.onStatusUpdate("Encrypting file with wallet signature...");
 
     try {
@@ -121,10 +173,12 @@ export class DataPortabilityFlow {
       this.callbacks.onStatusUpdate(
         "File encrypted successfully with wallet signature",
       );
-      return encryptedBlob;
+      return { encryptedBlob, encryptionKey };
     } catch (error) {
       throw new Error(
-        `File encryption failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        `File encryption failed: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
       );
     }
   }
@@ -133,25 +187,20 @@ export class DataPortabilityFlow {
     this.callbacks.onStatusUpdate("Uploading encrypted file to storage...");
 
     try {
-      if (!this.vana) {
-        throw new Error("Vana SDK not initialized");
-      }
-
-      // Use the storage provider directly for upload
+      // Use the data controller upload method
       const fileName = `vana_demo_${Date.now()}.json`;
-      if (!this.googleDriveStorage) {
-        throw new Error("Google Drive storage not initialized");
-      }
-      const result = await this.googleDriveStorage.upload(
-        encryptedData,
-        fileName,
-      );
+      const result = await this.vana.data.upload({
+        content: encryptedData,
+        filename: fileName,
+      });
 
       this.callbacks.onStatusUpdate("File uploaded to storage successfully");
       return result.url;
     } catch (error) {
       throw new Error(
-        `Storage upload failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        `Storage upload failed: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
       );
     }
   }
@@ -164,16 +213,11 @@ export class DataPortabilityFlow {
     this.callbacks.onStatusUpdate("Creating and uploading grant file...");
 
     try {
-      if (!this.vana) {
-        throw new Error("Vana SDK not initialized");
-      }
-
       // Create grant data following datawallet pattern
       const grantData = {
         grantee: granteeAddress,
         operation,
         parameters,
-        //files: [],
       };
 
       // Create grant file blob
@@ -183,19 +227,18 @@ export class DataPortabilityFlow {
 
       // Upload grant file to storage using the same provider
       const grantFileName = `grant_${Date.now()}.json`;
-      if (!this.googleDriveStorage) {
-        throw new Error("Google Drive storage not initialized");
-      }
-      const result = await this.googleDriveStorage.upload(
-        grantBlob,
-        grantFileName,
-      );
+      const result = await this.vana.data.upload({
+        content: grantBlob,
+        filename: grantFileName,
+      });
 
       this.callbacks.onStatusUpdate("Grant file uploaded successfully");
       return result.url;
     } catch (error) {
       throw new Error(
-        `Grant file creation failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        `Grant file creation failed: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
       );
     }
   }
@@ -204,7 +247,7 @@ export class DataPortabilityFlow {
     fileUrl: string,
     userAddress: string,
   ): Promise<string> {
-    this.callbacks.onStatusUpdate("Executing data portability transaction...");
+    this.callbacks.onStatusUpdate("Preparing data portability transaction...");
 
     try {
       // First, create and upload the grant file
@@ -213,112 +256,87 @@ export class DataPortabilityFlow {
         prompt:
           "What is the best light weight model to use for coding?: {{data}}",
       };
+      const appAddress = process.env.NEXT_PUBLIC_DATA_WALLET_APP_ADDRESS;
+      if (!appAddress) {
+        throw new Error(
+          "NEXT_PUBLIC_DATA_WALLET_APP_ADDRESS environment variable is not set",
+        );
+      }
+
       const grantUrl = await this.createAndUploadGrantFile(
-        process.env.NEXT_PUBLIC_DATA_WALLET_APP_ADDRESS,
+        appAddress,
         operation,
         parameters,
       );
 
-      this.callbacks.onStatusUpdate("Executing batch transaction...");
-
-      // Use the relay API to execute submitAddServerFilesAndPermissions
-      const response = await fetch("/api/relay", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          operation,
-          fileUrl,
-          parameters,
-          userAddress,
-          grantUrl,
-        }),
+      const serverInfo = await this.vana.server.getIdentity({
+        userAddress: userAddress as `0x${string}`,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
+      // Encrypt the encryption key with the server's public key
+      if (!this.encryptionKey) {
         throw new Error(
-          `Relay transaction failed: ${errorData.error || response.statusText}`,
+          "Encryption key not found - file must be encrypted first",
         );
       }
 
-      const result = await response.json();
-
-      if (!result.success) {
-        throw new Error(
-          `Transaction failed: ${result.error || "Unknown error"}`,
-        );
-      }
-
-      this.callbacks.onStatusUpdate(
-        `Batch transaction completed: ${result.transactionHash}`,
+      const encryptedKey = await encryptWithWalletPublicKey(
+        this.encryptionKey,
+        serverInfo.public_key,
+        this.platformAdapter,
       );
 
-      if (result.warning) {
-        console.warn("⚠️ Transaction warning:", result.warning);
-        this.callbacks.onStatusUpdate(`Warning: ${result.warning}`);
-      }
-
-      if (!result.permissionId) {
+      const granteeId = process.env.NEXT_PUBLIC_DEFAULT_GRANTEE_ID;
+      if (!granteeId) {
         throw new Error(
-          "Permission ID not found in transaction. Cannot proceed with polling.",
+          "NEXT_PUBLIC_DEFAULT_GRANTEE_ID environment variable is not set",
         );
       }
 
+      const transactionHash =
+        await this.vana.permissions.submitAddServerFilesAndPermissions({
+          granteeId: BigInt(granteeId),
+          grant: grantUrl,
+          fileUrls: [fileUrl],
+          serverAddress: serverInfo.address as `0x${string}`,
+          serverUrl: serverInfo.base_url,
+          serverPublicKey: serverInfo.public_key,
+          filePermissions: [
+            [
+              {
+                account: serverInfo.address as `0x${string}`,
+                key: encryptedKey, // Encryption key encrypted with server's public key
+              },
+            ],
+          ],
+        });
+
       this.callbacks.onStatusUpdate(
-        `Permission ID extracted: ${result.permissionId}`,
+        `Batch transaction completed: ${transactionHash}`,
       );
-      return result.permissionId; // Return permissionId for polling
+
+      // Extract permission ID from transaction logs using blockchain polling
+      this.callbacks.onStatusUpdate(
+        "Extracting permission ID from transaction logs...",
+      );
+
+      const permissionId =
+        await getPermissionIdFromTransactionLogs(transactionHash);
+
+      if (!permissionId) {
+        throw new Error(
+          "Permission ID not found in transaction logs. Cannot proceed with inference request.",
+        );
+      }
+
+      this.callbacks.onStatusUpdate(`Permission ID extracted: ${permissionId}`);
+      return permissionId;
     } catch (error) {
       throw new Error(
-        `Transaction failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        `Transaction failed: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
       );
-    }
-  }
-
-  private async getGoogleDriveTokens(): Promise<{
-    accessToken: string;
-    refreshToken?: string;
-    folderId?: string;
-  } | null> {
-    try {
-      // Try to get tokens from localStorage first
-      const storedTokens = localStorage.getItem("google-drive-tokens");
-      if (!storedTokens) {
-        return null;
-      }
-
-      const tokens = JSON.parse(storedTokens);
-
-      // Validate tokens with the API (handles refresh if needed)
-      const response = await fetch("/api/auth/google-drive/status", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ tokens }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.authenticated && data.tokens) {
-          // If tokens were refreshed, update localStorage
-          if (data.refreshed) {
-            localStorage.setItem(
-              "google-drive-tokens",
-              JSON.stringify(data.tokens),
-            );
-          }
-          return data.tokens;
-        }
-      }
-
-      // If validation failed, clear invalid tokens
-      localStorage.removeItem("google-drive-tokens");
-      return null;
-    } catch {
-      return null;
     }
   }
 
@@ -332,24 +350,21 @@ export class DataPortabilityFlow {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          permissionId,
-          chainId: 14800, // Moksha testnet
+          permissionId: Number(permissionId),
         }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorText = await response.text();
         throw new Error(
-          `Inference request failed: ${errorData.error || response.statusText}`,
+          `API request failed: ${response.status} ${response.statusText} - ${errorText}`,
         );
       }
 
       const result = await response.json();
 
       if (!result.success) {
-        throw new Error(
-          `Inference request failed: ${result.error || "Unknown error"}`,
-        );
+        throw new Error(result.error || "API request failed");
       }
 
       if (!result.data?.id) {
@@ -363,7 +378,9 @@ export class DataPortabilityFlow {
     } catch (error) {
       console.error("🔍 Debug - Inference submission failed:", error);
       throw new Error(
-        `Inference submission failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        `Inference submission failed: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
       );
     }
   }
@@ -421,7 +438,9 @@ export class DataPortabilityFlow {
           );
           await new Promise((resolve) => setTimeout(resolve, pollInterval));
         } else {
-          throw error;
+          throw new Error(
+            "AI inference timed out after maximum polling attempts",
+          );
         }
       }
     }
@@ -431,25 +450,23 @@ export class DataPortabilityFlow {
 
   async executeCompleteFlow(userAddress: string): Promise<void> {
     try {
-      // Step 1: Initialize Vana SDK with storage providers
-      await this.initializeVana();
-
-      // Step 2: Download demo file
+      // Step 1: Download demo file
       const fileData = await this.downloadDemoFile();
 
-      // Step 3: Encrypt file with wallet signature
-      const encryptedBlob = await this.encryptFile(fileData);
+      // Step 2: Encrypt file with wallet signature
+      const { encryptedBlob, encryptionKey } = await this.encryptFile(fileData);
+      this.encryptionKey = encryptionKey;
 
-      // Step 4: Upload to storage (Google Drive or IPFS)
+      // Step 3: Upload to storage (Google Drive or IPFS)
       const fileUrl = await this.uploadToStorage(encryptedBlob);
 
-      // Step 5: Execute blockchain transaction with permissions
+      // Step 4: Execute blockchain transaction with permissions
       const permissionId = await this.executeTransaction(fileUrl, userAddress);
 
-      // Step 6: Submit AI inference request
+      // Step 5: Submit AI inference request
       const operationId = await this.submitInferenceRequest(permissionId);
 
-      // Step 7: Poll for AI inference results
+      // Step 6: Poll for AI inference results
       const result = await this.pollForResults(operationId);
 
       this.callbacks.onResultUpdate(result);

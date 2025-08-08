@@ -1,45 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { privateKeyToAccount } from "viem/accounts";
-import { Vana } from "@opendatalabs/vana-sdk/node";
+import { getApiVanaInstance } from "../../../lib/api-vana";
 
 export async function POST(request: NextRequest) {
-  console.debug("🔍 Debug - POST /api/trusted-server");
   try {
     const body = await request.json();
-    const { permissionId, chainId } = body;
+    const { permissionId } = body;
 
     // Validate required fields
-    if (!permissionId || !chainId) {
-      console.debug("🔍 Debug - Missing required fields");
+    if (!permissionId) {
       return NextResponse.json(
-        { success: false, error: "Missing permissionId or chainId field" },
+        { success: false, error: "Missing permissionId field" },
         { status: 400 },
       );
     }
 
-    // Get private key from server-side environment variable
-    const applicationPrivateKey = process.env.RELAYER_PRIVATE_KEY;
-    if (!applicationPrivateKey) {
-      return NextResponse.json(
-        { success: false, error: "Server configuration error" },
-        { status: 500 },
-      );
-    }
-
-    // Create wallet client with private key (server-side only)
-    const applicationAccount = privateKeyToAccount(
-      applicationPrivateKey as `0x${string}`,
-    );
-
-    // Use the SDK's chain configuration approach
-    const vana = Vana({
-      chainId,
-      account: applicationAccount,
-      defaultPersonalServerUrl:
-        process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL,
-    });
-
-    console.debug("🔍 Debug - vana", vana);
+    const vana = getApiVanaInstance();
 
     // Make trusted server request
     const response = await vana.server.createOperation({

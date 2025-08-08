@@ -8,6 +8,7 @@ import { DataPortabilityFlow } from "../lib/data-flow";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { useVana } from "../providers/vana-provider";
 
 function HomeContent() {
   const { openModal } = useModal();
@@ -18,9 +19,9 @@ function HomeContent() {
     error,
     walletConnected,
     walletLoading,
-    walletClient,
     disconnect,
   } = useParaAuth();
+  const { vana, isInitialized: isVanaInitialized, walletClient } = useVana();
   const {
     isConnected: googleDriveConnected,
     isConnecting: googleDriveConnecting,
@@ -33,7 +34,6 @@ function HomeContent() {
   );
   const [result, setResult] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
-
 
   // Update status based on authentication state
   useEffect(() => {
@@ -66,7 +66,7 @@ function HomeContent() {
   ]);
 
   const handleConnect = () => {
-    console.log("handleConnect");
+    console.debug("handleConnect");
     openModal();
   };
 
@@ -83,26 +83,8 @@ function HomeContent() {
   };
 
   const handleStartFlow = async () => {
-    console.log("handleStartFlow Debug:", {
-      isAuthenticated,
-      userAddress: user?.address,
-      walletClient: !!walletClient,
-      walletConnected,
-      googleDriveConnected,
-    });
-
-    if (!isAuthenticated || !user?.address) {
-      setStatus("Please connect and authenticate your wallet first");
-      return;
-    }
-
-    if (!googleDriveConnected) {
-      setStatus("Please connect Google Drive first");
-      return;
-    }
-
-    if (!walletClient) {
-      setStatus("Wallet client not available. Please reconnect your wallet.");
+    if (!isVanaInitialized || !vana || !user?.address || !walletClient) {
+      setStatus("Vana not initialized. Please connect your wallet.");
       return;
     }
 
@@ -111,7 +93,7 @@ function HomeContent() {
     setResult("");
 
     try {
-      const flow = new DataPortabilityFlow(walletClient, {
+      const flow = new DataPortabilityFlow(vana, walletClient, {
         onStatusUpdate: setStatus,
         onResultUpdate: setResult,
         onError: (error) => {
@@ -233,9 +215,7 @@ function HomeContent() {
                 </Button>
                 {googleDriveError && (
                   <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                    <p className="text-red-800 font-medium">
-                      Connection Error
-                    </p>
+                    <p className="text-red-800 font-medium">Connection Error</p>
                     <p className="text-red-600 text-sm mt-1">
                       {googleDriveError}
                     </p>
@@ -259,7 +239,10 @@ function HomeContent() {
         <Button
           onClick={handleStartFlow}
           disabled={
-            isProcessing || !isAuthenticated || !googleDriveConnected
+            isProcessing ||
+            !isAuthenticated ||
+            !googleDriveConnected ||
+            !isVanaInitialized
           }
           variant="default"
           className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400"

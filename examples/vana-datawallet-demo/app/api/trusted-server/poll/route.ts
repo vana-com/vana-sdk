@@ -1,38 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { privateKeyToAccount } from "viem/accounts";
-import { Vana } from "@opendatalabs/vana-sdk/node";
+import { getApiVanaInstance } from "../../../../lib/api-vana";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { operationId, chainId } = body;
+    const { operationId } = body;
 
-    if (!operationId || !chainId) {
+    if (!operationId) {
       return NextResponse.json(
-        { success: false, error: "Missing operationId or chainId parameter" },
+        { success: false, error: "Missing operationId parameter" },
         { status: 400 },
       );
     }
 
-    // Get private key from server-side environment variable
-    const applicationPrivateKey = process.env.RELAYER_PRIVATE_KEY;
-    if (!applicationPrivateKey) {
-      return NextResponse.json(
-        { success: false, error: "Server configuration error" },
-        { status: 500 },
-      );
-    }
-
-    // Create wallet client with private key (server-side only)
-    const applicationAccount = privateKeyToAccount(
-      applicationPrivateKey as `0x${string}`,
-    );
-
-    // Use the SDK's chain configuration approach
-    const vana = Vana({
-      chainId,
-      account: applicationAccount,
-    });
+    const vana = getApiVanaInstance();
 
     // Poll the status
     const response = await vana.server.getOperation(operationId);

@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import React from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ClientProviders } from "../components/ClientProviders";
+import { VanaProvider } from "../providers/vana-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,7 +31,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ClientProviders>
-          {children}
+          <VanaProvider>{children}</VanaProvider>
         </ClientProviders>
       </body>
     </html>

@@ -2105,4 +2105,416 @@ describe("DataController", () => {
       );
     });
   });
+
+  describe("uploadToStorage", () => {
+    it("should upload a Blob to storage and return the file URL", async () => {
+      const testBlob = new Blob(["test data"], { type: "text/plain" });
+      const expectedUrl = "https://storage.example.com/file123";
+
+      // Create mock storage manager
+      const mockStorageManager = {
+        upload: vi.fn().mockResolvedValue({
+          url: expectedUrl,
+          size: testBlob.size,
+          contentType: "text/plain",
+        }),
+      };
+
+      // Create context with storage manager
+      const contextWithStorage = {
+        ...mockContext,
+        storageManager: mockStorageManager,
+      };
+
+      const controllerWithStorage = new DataController(contextWithStorage);
+
+      // Call the method with provider as 4th param
+      const result = await controllerWithStorage.uploadToStorage(
+        testBlob,
+        "test.txt",
+        false,
+        "ipfs",
+      );
+
+      // Verify the result
+      expect(result).toBe(expectedUrl);
+
+      // Verify storage manager was called correctly
+      expect(mockStorageManager.upload).toHaveBeenCalledWith(
+        testBlob,
+        "test.txt",
+        "ipfs",
+      );
+      expect(mockStorageManager.upload).toHaveBeenCalledTimes(1);
+    });
+
+    it("should upload a string to storage and return the file URL", async () => {
+      const testString = "test data";
+      const expectedUrl = "ipfs://QmTestHash";
+
+      const mockStorageManager = {
+        upload: vi.fn().mockResolvedValue({
+          url: expectedUrl,
+          size: 9,
+          contentType: "text/plain",
+        }),
+      };
+
+      const contextWithStorage = {
+        ...mockContext,
+        storageManager: mockStorageManager,
+      };
+
+      const controllerWithStorage = new DataController(contextWithStorage);
+
+      const result = await controllerWithStorage.uploadToStorage(
+        testString,
+        "test.txt",
+      );
+
+      expect(result).toBe(expectedUrl);
+      // Verify it was converted to a Blob with text/plain type
+      expect(mockStorageManager.upload).toHaveBeenCalledWith(
+        expect.any(Blob),
+        "test.txt",
+        undefined,
+      );
+      const uploadedBlob = mockStorageManager.upload.mock.calls[0][0];
+      expect(uploadedBlob.type).toBe("text/plain");
+    });
+
+    it("should upload a Buffer to storage and return the file URL", async () => {
+      // Create a Buffer
+      const testBuffer = Buffer.from("test data");
+      const expectedUrl = "https://storage.example.com/buffer-file";
+
+      const mockStorageManager = {
+        upload: vi.fn().mockResolvedValue({
+          url: expectedUrl,
+          size: testBuffer.length,
+          contentType: "application/octet-stream",
+        }),
+      };
+
+      const contextWithStorage = {
+        ...mockContext,
+        storageManager: mockStorageManager,
+      };
+
+      const controllerWithStorage = new DataController(contextWithStorage);
+
+      const result = await controllerWithStorage.uploadToStorage(
+        testBuffer,
+        "buffer-file.bin",
+      );
+
+      expect(result).toBe(expectedUrl);
+      // Verify it was converted to a Blob with application/octet-stream type
+      expect(mockStorageManager.upload).toHaveBeenCalledWith(
+        expect.any(Blob),
+        "buffer-file.bin",
+        undefined,
+      );
+      const uploadedBlob = mockStorageManager.upload.mock.calls[0][0];
+      expect(uploadedBlob.type).toBe("application/octet-stream");
+    });
+
+    it("should throw an error if storage manager is not configured", async () => {
+      // Create context without storage manager
+      const contextWithoutStorage = {
+        ...mockContext,
+        storageManager: undefined,
+      };
+
+      const controllerWithoutStorage = new DataController(
+        contextWithoutStorage,
+      );
+      const testContent = "test data";
+
+      await expect(
+        controllerWithoutStorage.uploadToStorage(testContent, "test.txt"),
+      ).rejects.toThrow(
+        "Storage manager not configured. Please provide storage providers in VanaConfig.",
+      );
+    });
+
+    it("should handle storage upload errors", async () => {
+      const testContent = "test data";
+      const errorMessage = "Network error during upload";
+
+      const mockStorageManager = {
+        upload: vi.fn().mockRejectedValue(new Error(errorMessage)),
+      };
+
+      const contextWithStorage = {
+        ...mockContext,
+        storageManager: mockStorageManager,
+      };
+
+      const controllerWithStorage = new DataController(contextWithStorage);
+
+      await expect(
+        controllerWithStorage.uploadToStorage(testContent, "test.txt"),
+      ).rejects.toThrow(`Upload failed: ${errorMessage}`);
+
+      expect(mockStorageManager.upload).toHaveBeenCalledWith(
+        expect.any(Blob),
+        "test.txt",
+        undefined,
+      );
+    });
+
+    it("should handle different content types", async () => {
+      const contentTypes = [
+        {
+          content: "text content",
+          name: "text.txt",
+          expectedType: "text/plain",
+        },
+        {
+          content: Buffer.from("buffer data"),
+          name: "buffer.bin",
+          expectedType: "application/octet-stream",
+        },
+        {
+          content: new Blob(["blob data"], { type: "image/png" }),
+          name: "image.png",
+          expectedType: "image/png",
+        },
+        {
+          content: { key: "value" },
+          name: "data.json",
+          expectedType: "application/json",
+        },
+      ];
+
+      const mockStorageManager = {
+        upload: vi.fn(),
+      };
+
+      const contextWithStorage = {
+        ...mockContext,
+        storageManager: mockStorageManager,
+      };
+
+      const controllerWithStorage = new DataController(contextWithStorage);
+
+      for (const item of contentTypes) {
+        const expectedUrl = `https://storage.example.com/${item.name}`;
+
+        mockStorageManager.upload.mockResolvedValue({
+          url: expectedUrl,
+          size: 100,
+          contentType: item.expectedType,
+        });
+
+        const result = await controllerWithStorage.uploadToStorage(
+          item.content as string | Blob | object,
+          item.name,
+        );
+
+        expect(result).toBe(expectedUrl);
+        expect(mockStorageManager.upload).toHaveBeenCalledWith(
+          expect.any(Blob),
+          item.name,
+          undefined,
+        );
+
+        const uploadedBlob =
+          mockStorageManager.upload.mock.calls[
+            mockStorageManager.upload.mock.calls.length - 1
+          ][0];
+        expect(uploadedBlob.type).toBe(item.expectedType);
+      }
+    });
+
+    it("should use specified storage provider", async () => {
+      const testContent = "test data";
+      const providers = ["ipfs", "pinata", "arweave", "filecoin"];
+
+      const mockStorageManager = {
+        upload: vi.fn(),
+      };
+
+      const contextWithStorage = {
+        ...mockContext,
+        storageManager: mockStorageManager,
+      };
+
+      const controllerWithStorage = new DataController(contextWithStorage);
+
+      for (const provider of providers) {
+        const expectedUrl = `https://${provider}.example.com/file`;
+
+        mockStorageManager.upload.mockResolvedValue({
+          url: expectedUrl,
+          size: 9,
+          contentType: "text/plain",
+        });
+
+        const result = await controllerWithStorage.uploadToStorage(
+          testContent,
+          "test.txt",
+          false,
+          provider,
+        );
+
+        expect(result).toBe(expectedUrl);
+        expect(mockStorageManager.upload).toHaveBeenCalledWith(
+          expect.any(Blob),
+          "test.txt",
+          provider,
+        );
+      }
+    });
+
+    it("should handle non-Error objects in catch block", async () => {
+      const testContent = "test data";
+
+      const mockStorageManager = {
+        upload: vi.fn().mockRejectedValue("String error"),
+      };
+
+      const contextWithStorage = {
+        ...mockContext,
+        storageManager: mockStorageManager,
+      };
+
+      const controllerWithStorage = new DataController(contextWithStorage);
+
+      await expect(
+        controllerWithStorage.uploadToStorage(testContent, "test.txt"),
+      ).rejects.toThrow("Upload failed: Unknown error");
+    });
+
+    it("should handle objects by JSON stringifying them", async () => {
+      const testObject = { key: "value", nested: { data: 123 } };
+      const expectedUrl = "https://storage.example.com/object.json";
+
+      const mockStorageManager = {
+        upload: vi.fn().mockResolvedValue({
+          url: expectedUrl,
+          size: JSON.stringify(testObject).length,
+          contentType: "application/json",
+        }),
+      };
+
+      const contextWithStorage = {
+        ...mockContext,
+        storageManager: mockStorageManager,
+      };
+
+      const controllerWithStorage = new DataController(contextWithStorage);
+
+      // uploadToStorage should handle objects by JSON stringifying
+      const result = await controllerWithStorage.uploadToStorage(
+        testObject as object,
+        "object.json",
+      );
+
+      expect(result).toBe(expectedUrl);
+      // Verify it was converted to a Blob with application/json type
+      expect(mockStorageManager.upload).toHaveBeenCalledWith(
+        expect.any(Blob),
+        "object.json",
+        undefined,
+      );
+      const uploadedBlob = mockStorageManager.upload.mock.calls[0][0];
+      expect(uploadedBlob.type).toBe("application/json");
+
+      // Verify no blockchain methods were called
+      expect(
+        contextWithStorage.walletClient.writeContract,
+      ).not.toHaveBeenCalled();
+      expect(
+        contextWithStorage.publicClient.waitForTransactionReceipt,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("should encrypt content when encrypt parameter is true", async () => {
+      const testContent = "sensitive data";
+      const expectedUrl = "https://storage.example.com/encrypted.txt";
+
+      // Mock encryption functions
+      const { generateEncryptionKey, encryptBlobWithSignedKey } = await import(
+        "../utils/encryption"
+      );
+      (generateEncryptionKey as Mock).mockResolvedValue("mock-encryption-key");
+      (encryptBlobWithSignedKey as Mock).mockResolvedValue(
+        new Blob(["encrypted"], { type: "application/octet-stream" }),
+      );
+
+      const mockStorageManager = {
+        upload: vi.fn().mockResolvedValue({
+          url: expectedUrl,
+          size: 9,
+          contentType: "application/octet-stream",
+        }),
+      };
+
+      const contextWithStorage = {
+        ...mockContext,
+        storageManager: mockStorageManager,
+      };
+
+      const controllerWithStorage = new DataController(contextWithStorage);
+
+      // Call with encrypt = true
+      const result = await controllerWithStorage.uploadToStorage(
+        testContent,
+        "encrypted.txt",
+        true,
+      );
+
+      expect(result).toBe(expectedUrl);
+
+      // Verify encryption functions were called
+      expect(generateEncryptionKey).toHaveBeenCalled();
+      expect(encryptBlobWithSignedKey).toHaveBeenCalled();
+
+      // Verify the encrypted blob was uploaded
+      expect(mockStorageManager.upload).toHaveBeenCalledWith(
+        expect.any(Blob),
+        "encrypted.txt",
+        undefined,
+      );
+    });
+
+    it("should not encrypt content when encrypt parameter is false", async () => {
+      const testContent = "plain data";
+      const expectedUrl = "https://storage.example.com/plain.txt";
+
+      const mockStorageManager = {
+        upload: vi.fn().mockResolvedValue({
+          url: expectedUrl,
+          size: 10,
+          contentType: "text/plain",
+        }),
+      };
+
+      const contextWithStorage = {
+        ...mockContext,
+        storageManager: mockStorageManager,
+      };
+
+      const controllerWithStorage = new DataController(contextWithStorage);
+
+      // Call with encrypt = false (default)
+      const result = await controllerWithStorage.uploadToStorage(
+        testContent,
+        "plain.txt",
+      );
+
+      expect(result).toBe(expectedUrl);
+
+      // Verify the plain text blob was uploaded
+      expect(mockStorageManager.upload).toHaveBeenCalledWith(
+        expect.any(Blob),
+        "plain.txt",
+        undefined,
+      );
+      const uploadedBlob = mockStorageManager.upload.mock.calls[0][0];
+      expect(uploadedBlob.type).toBe("text/plain");
+    });
+  });
 });

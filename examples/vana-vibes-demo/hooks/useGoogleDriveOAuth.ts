@@ -34,7 +34,6 @@ export function useGoogleDriveOAuth(): UseGoogleDriveOAuthReturn {
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Validate stored tokens
   const validateStoredTokens = useCallback((): GoogleDriveTokens | null => {
     try {
       const storedData = sessionStorage.getItem("@vana/google-tokens");
@@ -44,7 +43,6 @@ export function useGoogleDriveOAuth(): UseGoogleDriveOAuthReturn {
 
       const tokenData = JSON.parse(storedData);
 
-      // Check if token is expired
       if (tokenData.expiresAt && Date.now() >= tokenData.expiresAt) {
         sessionStorage.removeItem("@vana/google-tokens");
         return null;
@@ -58,13 +56,11 @@ export function useGoogleDriveOAuth(): UseGoogleDriveOAuthReturn {
         refreshToken: tokenData.refreshToken,
       };
     } catch {
-      // Invalid token data - clear it
       sessionStorage.removeItem("@vana/google-tokens");
       return null;
     }
   }, []);
 
-  // Set tokens with storage
   const setTokens = (newTokens: GoogleDriveTokens | null) => {
     if (newTokens) {
       const tokenData = {
@@ -79,7 +75,6 @@ export function useGoogleDriveOAuth(): UseGoogleDriveOAuthReturn {
         );
         setTokensState(tokenData);
         setIsConnected(true);
-        console.info("Google tokens updated successfully");
       } catch (error) {
         console.error("Failed to store Google tokens:", error);
         setTokensState(null);
@@ -90,7 +85,6 @@ export function useGoogleDriveOAuth(): UseGoogleDriveOAuthReturn {
     }
   };
 
-  // Clear tokens
   const clearTokens = () => {
     try {
       sessionStorage.removeItem("@vana/google-tokens");
@@ -100,7 +94,6 @@ export function useGoogleDriveOAuth(): UseGoogleDriveOAuthReturn {
 
     setTokensState(null);
     setIsConnected(false);
-    console.info("Google tokens cleared");
   };
 
   // Initialize tokens from storage on mount
@@ -131,12 +124,10 @@ export function useGoogleDriveOAuth(): UseGoogleDriveOAuthReturn {
         setIsConnecting(true);
         setError(null);
 
-        // Validate token response
         if (!tokenResponse.access_token) {
           throw new Error("No access token received");
         }
 
-        // Calculate expiration time
         const expiresAt = Date.now() + tokenResponse.expires_in * 1000;
 
         const newTokens = {
@@ -145,12 +136,10 @@ export function useGoogleDriveOAuth(): UseGoogleDriveOAuthReturn {
           tokenType: tokenResponse.token_type || "Bearer",
         };
 
-        // Store tokens
         setTokens(newTokens);
         setIsConnecting(false);
 
         // Log success without exposing sensitive data
-        console.info("Google Drive authentication successful");
       } catch {
         // Sanitize error message for user display
         const userMessage = "Authentication failed. Please try again.";
@@ -178,28 +167,19 @@ export function useGoogleDriveOAuth(): UseGoogleDriveOAuthReturn {
     state: generateStateToken(),
   });
 
-  // Connect function
   const connect = useCallback(() => {
     setError(null);
     googleLogin();
   }, [googleLogin]);
 
-  // Disconnect function
   const disconnect = useCallback(() => {
     try {
-      // Logout from Google OAuth
       googleLogout();
-
-      // Clear tokens
       clearTokens();
 
-      // Reset local state
       setError(null);
       setIsConnecting(false);
-
-      console.info("Successfully disconnected from Google Drive");
     } catch {
-      // Even if logout fails, clear local state
       clearTokens();
       setError(null);
       setIsConnecting(false);

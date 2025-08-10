@@ -34,10 +34,8 @@ function HomeContent() {
     "Based on this: {{data}}, what is Vana?",
   );
 
-  // Update status based on wallet connection state
   useEffect(() => {
     if (isProcessing) {
-      // Don't update status while processing
       return;
     }
 
@@ -121,12 +119,9 @@ function HomeContent() {
                     : "Connect Google Drive"}
                 </Button>
                 {googleDriveError && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                    <p className="text-red-800 font-medium">Connection Error</p>
-                    <p className="text-red-600 text-sm mt-1">
-                      {googleDriveError}
-                    </p>
-                  </div>
+                  <p className="text-red-600 text-sm mt-1">
+                    {googleDriveError}
+                  </p>
                 )}
               </div>
             ) : (

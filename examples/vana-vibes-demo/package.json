@@ -8,10 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "typecheck": "tsc --noEmit",
-    "test": "echo \"Warning: no test specified\" && exit 0",
-    "test:watch": "echo \"Warning: no test specified\" && exit 0",
-    "test:coverage": "echo \"Warning: no test specified\" && exit 0"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@getpara/react-sdk": "2.0.0-alpha.38",

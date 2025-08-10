@@ -15,7 +15,6 @@ export async function POST(request: NextRequest) {
 
     const vana = getApiVanaInstance();
 
-    // Poll the status
     const response = await vana.server.getOperation(operationId);
 
     return NextResponse.json({

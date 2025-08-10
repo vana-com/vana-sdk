@@ -6,7 +6,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { permissionId } = body;
 
-    // Validate required fields
     if (!permissionId) {
       return NextResponse.json(
         { success: false, error: "Missing permissionId field" },
@@ -16,7 +15,6 @@ export async function POST(request: NextRequest) {
 
     const vana = getApiVanaInstance();
 
-    // Make trusted server request
     const response = await vana.server.createOperation({
       permissionId: +permissionId,
     });

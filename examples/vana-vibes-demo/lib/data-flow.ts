@@ -35,10 +35,8 @@ function getNetworkConfig() {
 async function getPermissionIdFromTransactionLogs(
   txHash: string,
 ): Promise<string | undefined> {
-  // Get network configuration
   const { explorerUrl } = getNetworkConfig();
 
-  // Retry configuration
   const maxRetries = 10;
   const baseDelay = 1000; // 1 second
 
@@ -77,15 +75,11 @@ async function getPermissionIdFromTransactionLogs(
         }
       }
 
-      // If this isn't the last attempt, wait before retrying
       if (attempt < maxRetries) {
-        const delay = baseDelay * Math.pow(2, attempt - 1); // Exponential backoff
+        const delay = baseDelay * Math.pow(2, attempt - 1);
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
-    } catch (apiError) {
-      console.warn(`API error on attempt ${attempt}:`, apiError);
-
-      // If this isn't the last attempt, wait before retrying
+    } catch {
       if (attempt < maxRetries) {
         const delay = baseDelay * Math.pow(2, attempt - 1);
         await new Promise((resolve) => setTimeout(resolve, delay));
@@ -365,7 +359,7 @@ export class DataPortabilityFlow {
       );
       return result.data.id; // Return operationId for polling
     } catch (error) {
-      console.error("🔍 Debug - Inference submission failed:", error);
+      console.error("Debug - Inference submission failed:", error);
       throw new Error(
         `Inference submission failed: ${
           error instanceof Error ? error.message : "Unknown error"
@@ -418,9 +412,7 @@ export class DataPortabilityFlow {
             await new Promise((resolve) => setTimeout(resolve, pollInterval));
           }
         }
-      } catch (error) {
-        console.warn(`Polling attempt ${attempt} failed:`, error);
-
+      } catch {
         if (attempt < maxAttempts) {
           this.callbacks.onStatusUpdate(
             `Polling attempt ${attempt} failed, retrying...`,
@@ -443,24 +435,24 @@ export class DataPortabilityFlow {
     prompt: string,
   ): Promise<void> {
     try {
-      // Step 2: Encrypt file with wallet signature
+      // Step 1: Encrypt file with wallet signature
       const { encryptedBlob, encryptionKey } = await this.encryptFile(userData);
       this.encryptionKey = encryptionKey;
 
-      // Step 3: Upload to storage (Google Drive or IPFS)
+      // Step 2: Upload to storage (Google Drive or IPFS)
       const fileUrl = await this.uploadToStorage(encryptedBlob);
 
-      // Step 4: Execute blockchain transaction with permissions
+      // Step 3: Execute blockchain transaction with permissions
       const permissionId = await this.executeTransaction(
         fileUrl,
         userAddress,
         prompt,
       );
 
-      // Step 5: Submit AI inference request
+      // Step 4: Submit AI inference request
       const operationId = await this.submitInferenceRequest(permissionId);
 
-      // Step 6: Poll for AI inference results
+      // Step 5: Poll for AI inference results
       const result = await this.pollForResults(operationId);
 
       this.callbacks.onResultUpdate(result);

@@ -28,17 +28,3 @@ export function getApiVanaInstance(): VanaInstance {
     defaultPersonalServerUrl: process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL,
   });
 }
-
-/**
- * Helper to get the network configuration for blockchain explorer URLs
- */
-export function getNetworkConfig() {
-  const isTestnet = process.env.NEXT_PUBLIC_MOKSHA === "true";
-  return {
-    networkName: isTestnet ? "moksha" : "mainnet",
-    explorerUrl: isTestnet
-      ? "https://moksha.vanascan.io"
-      : "https://vanascan.io",
-    chainId: isTestnet ? 14800 : 1480,
-  };
-}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useModal, useAccount, useWallet } from "@getpara/react-sdk";
-import { useGoogleDriveAuth } from "../hooks/useGoogleDriveAuth";
+import { useGoogleDriveOAuth } from "../hooks/useGoogleDriveOAuth";
 import { DataPortabilityFlow } from "../lib/data-flow";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,7 +21,7 @@ function HomeContent() {
     error: googleDriveError,
     connect: connectGoogleDrive,
     disconnect: disconnectGoogleDrive,
-  } = useGoogleDriveAuth();
+  } = useGoogleDriveOAuth();
   const [status, setStatus] = useState<string>(
     "Please connect your wallet first",
   );
@@ -112,9 +112,7 @@ function HomeContent() {
             {!googleDriveConnected ? (
               <div className="space-y-4">
                 <Button
-                  onClick={() =>
-                    wallet?.address && connectGoogleDrive(wallet.address)
-                  }
+                  onClick={() => connectGoogleDrive()}
                   disabled={googleDriveConnecting || isProcessing}
                   className="w-full"
                 >

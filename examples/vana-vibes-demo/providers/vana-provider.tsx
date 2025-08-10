@@ -18,6 +18,10 @@ import {
 } from "@opendatalabs/vana-sdk/browser";
 import type { VanaChain } from "@opendatalabs/vana-sdk/browser";
 import { useWalletClient, useAccount as useWagmiAccount } from "wagmi";
+import {
+  useGoogleDriveOAuth,
+  GoogleDriveTokens,
+} from "../hooks/useGoogleDriveOAuth";
 
 export interface VanaContextValue {
   vana: VanaInstance | null;
@@ -41,12 +45,17 @@ const serializeBigInt = (data: unknown) =>
     ),
   );
 
-// Helper to setup Google Drive storage
+// Helper to setup Google Drive storage with tokens from context
 const setupGoogleDriveStorage = async (
   providers: Record<string, StorageProvider>,
+  googleDriveTokens: GoogleDriveTokens | null,
 ) => {
-  const googleDriveTokens = await getGoogleDriveTokens();
-  if (!googleDriveTokens) return;
+  if (!googleDriveTokens?.accessToken) {
+    console.info(
+      "🔍 Google Drive tokens not available, skipping storage setup",
+    );
+    return;
+  }
 
   console.info("🔗 Adding Google Drive storage");
   const baseStorage = new GoogleDriveStorage({
@@ -65,51 +74,6 @@ const setupGoogleDriveStorage = async (
   } catch (error) {
     console.warn("⚠️ Failed to create Google Drive folder, using root:", error);
     providers["google-drive"] = baseStorage;
-  }
-};
-
-const getGoogleDriveTokens = async (): Promise<{
-  accessToken: string;
-  refreshToken?: string;
-  folderId?: string;
-} | null> => {
-  try {
-    // Try to get tokens from localStorage first
-    const storedTokens = localStorage.getItem("google-drive-tokens");
-    if (!storedTokens) {
-      return null;
-    }
-
-    const tokens = JSON.parse(storedTokens);
-
-    // Validate tokens with the API (handles refresh if needed)
-    const response = await fetch("/api/auth/google-drive/status", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ tokens }),
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      if (data.authenticated && data.tokens) {
-        // If tokens were refreshed, update localStorage
-        if (data.refreshed) {
-          localStorage.setItem(
-            "google-drive-tokens",
-            JSON.stringify(data.tokens),
-          );
-        }
-        return data.tokens;
-      }
-    }
-
-    // If validation failed, clear invalid tokens
-    localStorage.removeItem("google-drive-tokens");
-    return null;
-  } catch {
-    return null;
   }
 };
 
@@ -147,7 +111,11 @@ export function VanaProvider({
   const { address } = useWagmiAccount();
   const { data: walletClient } = useWalletClient();
 
-  // Initialize Vana SDK when wallet is connected
+  // Get Google tokens from hook
+  const { tokens: googleTokens, isConnected: hasGoogleTokens } =
+    useGoogleDriveOAuth();
+
+  // Initialize Vana SDK when wallet is connected, reactive to token changes
   useEffect(() => {
     if (!walletClient || !address) {
       setVana(null);
@@ -158,7 +126,9 @@ export function VanaProvider({
     const initializeVana = async () => {
       try {
         const storageProviders: Record<string, StorageProvider> = {};
-        await setupGoogleDriveStorage(storageProviders);
+
+        // Setup Google Drive storage if tokens are available
+        await setupGoogleDriveStorage(storageProviders, googleTokens);
 
         // Create relayer callbacks if using gasless transactions
         const relayerCallbacks = useGaslessTransactions
@@ -171,6 +141,17 @@ export function VanaProvider({
             }
           : undefined;
 
+        // Determine default provider based on available storage
+        const defaultProvider = storageProviders["google-drive"]
+          ? "google-drive"
+          : undefined;
+
+        if (!defaultProvider) {
+          console.info(
+            "🔍 No storage providers available - initializing Vana SDK without storage",
+          );
+        }
+
         // Initialize Vana SDK
         const vanaInstance = Vana({
           walletClient: walletClient as WalletClient & { chain: VanaChain },
@@ -179,14 +160,18 @@ export function VanaProvider({
             process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL,
           storage: {
             providers: storageProviders,
-            defaultProvider: "google-drive",
+            defaultProvider,
           },
         });
 
         setVana(vanaInstance);
         setCurrentWalletClient(walletClient);
         setIsInitialized(true);
-        console.info("✅ Vana SDK initialized:", vanaInstance.getConfig());
+        console.info("✅ Vana SDK initialized:", {
+          hasGoogleDrive: !!storageProviders["google-drive"],
+          defaultProvider,
+          config: vanaInstance.getConfig(),
+        });
       } catch (err) {
         console.error("Failed to initialize Vana SDK:", err);
         setError(
@@ -199,7 +184,13 @@ export function VanaProvider({
     };
 
     initializeVana();
-  }, [walletClient, address, useGaslessTransactions]);
+  }, [
+    walletClient,
+    address,
+    useGaslessTransactions,
+    googleTokens,
+    hasGoogleTokens,
+  ]);
 
   return (
     <VanaContext.Provider

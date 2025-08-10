@@ -62,7 +62,7 @@ function GoogleDriveOAuthManager({ children }: { children: ReactNode }) {
 
   // Google OAuth configuration
   const googleLogin = useGoogleLogin({
-    scope: "https://www.googleapis.com/auth/drive",
+    scope: "https://www.googleapis.com/auth/drive.file",
     flow: "implicit",
     prompt: "select_account",
     onSuccess: (tokenResponse: TokenResponse) => {

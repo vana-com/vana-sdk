@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useModal, useAccount, useWallet } from "@getpara/react-sdk";
-import { useGoogleDriveOAuth } from "../hooks/useGoogleDriveOAuth";
+import { useGoogleDriveOAuth } from "../providers/google-drive-oauth";
 import { DataPortabilityFlow } from "../lib/data-flow";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";

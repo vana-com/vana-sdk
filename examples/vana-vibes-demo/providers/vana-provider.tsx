@@ -18,10 +18,7 @@ import {
 } from "@opendatalabs/vana-sdk/browser";
 import type { VanaChain } from "@opendatalabs/vana-sdk/browser";
 import { useWalletClient, useAccount as useWagmiAccount } from "wagmi";
-import {
-  useGoogleDriveOAuth,
-  GoogleDriveTokens,
-} from "../hooks/useGoogleDriveOAuth";
+import { useGoogleDriveOAuth, GoogleDriveTokens } from "./google-drive-oauth";
 
 export interface VanaContextValue {
   vana: VanaInstance | null;
@@ -111,6 +108,12 @@ export function VanaProvider({
 
   useEffect(() => {
     if (!walletClient || !address) {
+      setVana(null);
+      setIsInitialized(false);
+      return;
+    }
+
+    if (!googleTokens?.accessToken) {
       setVana(null);
       setIsInitialized(false);
       return;

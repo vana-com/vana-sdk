@@ -3,6 +3,8 @@
 import React, { ReactNode, useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ParaProvider } from "./para-provider";
+import { VanaProvider } from "./vana-provider";
+import { GoogleDriveOAuthProvider } from "./google-drive-oauth";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,8 +35,14 @@ export function Providers({ children }: ProvidersProps) {
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ParaProvider>{children}</ParaProvider>
-    </QueryClientProvider>
+    <GoogleDriveOAuthProvider
+      clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""}
+    >
+      <QueryClientProvider client={queryClient}>
+        <ParaProvider>
+          <VanaProvider>{children}</VanaProvider>
+        </ParaProvider>
+      </QueryClientProvider>
+    </GoogleDriveOAuthProvider>
   );
 }

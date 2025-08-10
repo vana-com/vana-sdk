@@ -5,7 +5,6 @@ import "./globals.css";
 import { Providers } from "../providers";
 import { VanaProvider } from "../providers/vana-provider";
 import { GoogleOAuthProvider } from "@react-oauth/google";
-import { GoogleTokenProvider } from "../contexts/GoogleTokenContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,11 +34,9 @@ export default function RootLayout({
         <GoogleOAuthProvider
           clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""}
         >
-          <GoogleTokenProvider>
-            <Providers>
-              <VanaProvider>{children}</VanaProvider>
-            </Providers>
-          </GoogleTokenProvider>
+          <Providers>
+            <VanaProvider>{children}</VanaProvider>
+          </Providers>
         </GoogleOAuthProvider>
       </body>
     </html>

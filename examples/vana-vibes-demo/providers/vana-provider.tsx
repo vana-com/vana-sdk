@@ -19,9 +19,9 @@ import {
 import type { VanaChain } from "@opendatalabs/vana-sdk/browser";
 import { useWalletClient, useAccount as useWagmiAccount } from "wagmi";
 import {
-  useGoogleTokens,
+  useGoogleDriveOAuth,
   GoogleDriveTokens,
-} from "../contexts/GoogleTokenContext";
+} from "../hooks/useGoogleDriveOAuth";
 
 export interface VanaContextValue {
   vana: VanaInstance | null;
@@ -111,9 +111,9 @@ export function VanaProvider({
   const { address } = useWagmiAccount();
   const { data: walletClient } = useWalletClient();
 
-  // Get Google tokens from context
+  // Get Google tokens from hook
   const { tokens: googleTokens, isConnected: hasGoogleTokens } =
-    useGoogleTokens();
+    useGoogleDriveOAuth();
 
   // Initialize Vana SDK when wallet is connected, reactive to token changes
   useEffect(() => {

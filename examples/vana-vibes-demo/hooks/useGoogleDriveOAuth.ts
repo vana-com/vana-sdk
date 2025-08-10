@@ -1,15 +1,19 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   useGoogleLogin,
   googleLogout,
   TokenResponse,
 } from "@react-oauth/google";
-import {
-  useGoogleTokens,
-  GoogleDriveTokens,
-} from "../contexts/GoogleTokenContext";
+
+export interface GoogleDriveTokens {
+  accessToken: string;
+  expiresAt?: number;
+  tokenType?: string;
+  timestamp?: number;
+  refreshToken?: string;
+}
 
 interface UseGoogleDriveOAuthReturn {
   isConnected: boolean;
@@ -21,22 +25,92 @@ interface UseGoogleDriveOAuthReturn {
 }
 
 /**
- * SECURE Implementation of Google Drive OAuth for SPAs
- *
- * Security features:
- * - Uses implicit flow appropriate for SPAs (no client secret needed)
- * - Implements token validation
- * - Uses sessionStorage instead of localStorage
- * - Validates token expiration
- * - Sanitizes error messages
- * - Implements CSRF protection via state parameter
+ * Google Drive OAuth
+ * Uses sessionStorage to store auth tokens
  */
 export function useGoogleDriveOAuth(): UseGoogleDriveOAuthReturn {
+  const [tokens, setTokensState] = useState<GoogleDriveTokens | null>(null);
+  const [isConnected, setIsConnected] = useState<boolean>(false);
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Use the centralized token context
-  const { tokens, setTokens, isConnected, clearTokens } = useGoogleTokens();
+  // Validate stored tokens
+  const validateStoredTokens = useCallback((): GoogleDriveTokens | null => {
+    try {
+      const storedData = sessionStorage.getItem("@vana/google-tokens");
+      if (!storedData) {
+        return null;
+      }
+
+      const tokenData = JSON.parse(storedData);
+
+      // Check if token is expired
+      if (tokenData.expiresAt && Date.now() >= tokenData.expiresAt) {
+        sessionStorage.removeItem("@vana/google-tokens");
+        return null;
+      }
+
+      return {
+        accessToken: tokenData.accessToken,
+        expiresAt: tokenData.expiresAt,
+        tokenType: tokenData.tokenType,
+        timestamp: tokenData.timestamp,
+        refreshToken: tokenData.refreshToken,
+      };
+    } catch {
+      // Invalid token data - clear it
+      sessionStorage.removeItem("@vana/google-tokens");
+      return null;
+    }
+  }, []);
+
+  // Set tokens with storage
+  const setTokens = (newTokens: GoogleDriveTokens | null) => {
+    if (newTokens) {
+      const tokenData = {
+        ...newTokens,
+        timestamp: newTokens.timestamp || Date.now(),
+      };
+
+      try {
+        sessionStorage.setItem(
+          "@vana/google-tokens",
+          JSON.stringify(tokenData),
+        );
+        setTokensState(tokenData);
+        setIsConnected(true);
+        console.info("Google tokens updated successfully");
+      } catch (error) {
+        console.error("Failed to store Google tokens:", error);
+        setTokensState(null);
+        setIsConnected(false);
+      }
+    } else {
+      clearTokens();
+    }
+  };
+
+  // Clear tokens
+  const clearTokens = () => {
+    try {
+      sessionStorage.removeItem("@vana/google-tokens");
+    } catch (error) {
+      console.error("Failed to clear Google tokens:", error);
+    }
+
+    setTokensState(null);
+    setIsConnected(false);
+    console.info("Google tokens cleared");
+  };
+
+  // Initialize tokens from storage on mount
+  useEffect(() => {
+    const validTokens = validateStoredTokens();
+    if (validTokens) {
+      setTokensState(validTokens);
+      setIsConnected(true);
+    }
+  }, [validateStoredTokens]);
 
   // Generate CSRF token for state parameter
   const generateStateToken = (): string => {
@@ -71,7 +145,7 @@ export function useGoogleDriveOAuth(): UseGoogleDriveOAuthReturn {
           tokenType: tokenResponse.token_type || "Bearer",
         };
 
-        // Store tokens using context (handles secure storage)
+        // Store tokens
         setTokens(newTokens);
         setIsConnecting(false);
 
@@ -104,30 +178,19 @@ export function useGoogleDriveOAuth(): UseGoogleDriveOAuthReturn {
     state: generateStateToken(),
   });
 
-  // Connect function with rate limiting
+  // Connect function
   const connect = useCallback(() => {
-    // Simple rate limiting
-    const lastAttempt = sessionStorage.getItem("last_oauth_attempt");
-    const now = Date.now();
-    const minInterval = 3000; // 3 seconds between attempts
-
-    if (lastAttempt && now - parseInt(lastAttempt) < minInterval) {
-      setError("Please wait before trying again.");
-      return;
-    }
-
-    sessionStorage.setItem("last_oauth_attempt", now.toString());
     setError(null);
     googleLogin();
   }, [googleLogin]);
 
-  // Secure disconnect function
+  // Disconnect function
   const disconnect = useCallback(() => {
     try {
       // Logout from Google OAuth
       googleLogout();
 
-      // Clear tokens using context (handles secure cleanup)
+      // Clear tokens
       clearTokens();
 
       // Reset local state
@@ -143,7 +206,7 @@ export function useGoogleDriveOAuth(): UseGoogleDriveOAuthReturn {
 
       console.error("Error during disconnect (state cleared)");
     }
-  }, [clearTokens]);
+  }, []);
 
   return {
     isConnected,

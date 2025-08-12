@@ -391,7 +391,7 @@ describe("DataController - Schema Validation Methods", () => {
         SchemaValidationError,
       );
       await expect(controller.getValidatedSchema(123)).rejects.toThrow(
-        "Failed to get validated schema 123: Failed to get schema 123: Unknown error",
+        "Failed to get validated schema 123: Unknown error",
       );
     });
 

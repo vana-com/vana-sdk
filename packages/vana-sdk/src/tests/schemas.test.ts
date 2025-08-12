@@ -9,6 +9,7 @@ import {
   fetchSchemaFromChain,
   fetchSchemaCountFromChain,
 } from "../utils/blockchain/registry";
+import { Address } from "viem";
 
 // Mock dependencies
 vi.mock("../utils/blockchain/registry", () => ({
@@ -575,9 +576,9 @@ describe("SchemaController", () => {
         ...mockContext,
         walletClient: {
           ...mockContext.walletClient,
-          account: "0xStringAddress",
+          account: "0xStringAddress" as Address,
         },
-      };
+      } as unknown as ControllerContext;
       const controllerWithStringAccount = new SchemaController(
         contextWithStringAccount,
       );

@@ -139,6 +139,12 @@ export function Vana(
   config: VanaConfigWithStorage,
 ): VanaNodeImpl & StorageRequiredMarker;
 export function Vana(config: VanaConfig): VanaNodeImpl;
+/**
+ * Creates a new Vana SDK instance.
+ *
+ * @param config - The configuration for the Vana SDK
+ * @returns A new Vana SDK instance
+ */
 export function Vana(config: VanaConfig) {
   return new VanaNodeImpl(config);
 }

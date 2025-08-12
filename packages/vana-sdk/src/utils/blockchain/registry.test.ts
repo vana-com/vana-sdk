@@ -34,9 +34,9 @@ describe("Blockchain Registry Utilities", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getContractAddress).mockReturnValue("0xContractAddress");
-    vi.mocked(getAbi).mockReturnValue([]);
-    vi.mocked(getContract).mockReturnValue(mockContract as any);
+    (getContractAddress as any).mockReturnValue("0xContractAddress");
+    (getAbi as any).mockReturnValue([]);
+    (getContract as any).mockReturnValue(mockContract);
   });
 
   describe("fetchSchemaFromChain", () => {

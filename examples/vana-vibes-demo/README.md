@@ -24,7 +24,7 @@ A minimal demonstration of data portability using the Vana SDK. This app shows h
    npm install
    ```
 
-2. Set up environment variables (copy `.env.example` to `.env` and fill in values)
+2. Set up environment variables (copy `.env.example` to `.env.local` and fill in values)
 
 3. Run the development server:
    ```bash

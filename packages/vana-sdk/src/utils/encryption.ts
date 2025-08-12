@@ -318,7 +318,13 @@ export async function encryptBlobWithSignedKey(
       key,
     );
 
-    return new Blob([encrypted], {
+    // Convert Uint8Array<ArrayBufferLike> to ArrayBuffer to satisfy BlobPart type
+    const encryptedArrayBuffer = encrypted.buffer.slice(
+      encrypted.byteOffset,
+      encrypted.byteOffset + encrypted.byteLength,
+    ) as ArrayBuffer;
+
+    return new Blob([encryptedArrayBuffer], {
       type: "application/octet-stream",
     });
   } catch (error) {
@@ -437,8 +443,14 @@ export async function decryptBlobWithSignedKey(
       key,
     );
 
+    // Convert Uint8Array<ArrayBufferLike> to ArrayBuffer to satisfy BlobPart type
+    const decryptedArrayBuffer = decrypted.buffer.slice(
+      decrypted.byteOffset,
+      decrypted.byteOffset + decrypted.byteLength,
+    ) as ArrayBuffer;
+
     // Convert decrypted data back to Blob
-    return new Blob([decrypted], { type: "text/plain" });
+    return new Blob([decryptedArrayBuffer], { type: "text/plain" });
   } catch (error) {
     throw new Error(`Failed to decrypt data: ${error}`);
   }

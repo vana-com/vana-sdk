@@ -7,6 +7,7 @@ import { useAccount } from "wagmi";
 import { createApiHandler } from "./utils";
 
 export interface ExtendedUserFile extends UserFile {
+  id: number;
   source?: "discovered" | "looked-up" | "uploaded";
 }
 

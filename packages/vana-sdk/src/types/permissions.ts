@@ -1,6 +1,15 @@
 import type { Address, Hash } from "viem";
 
 /**
+ * Base interface for types that need to be compatible with Record<string, unknown>
+ *
+ * @category Permissions
+ */
+export interface RecordCompatible {
+  [key: string]: unknown;
+}
+
+/**
  * Represents on-chain permission grant data without expensive off-chain resolution.
  *
  * This interface contains only the fast, on-chain data that can be retrieved
@@ -206,7 +215,7 @@ export interface PermissionGrantMessage {
  *
  * @category Permissions
  */
-export interface PermissionInputMessage {
+export interface PermissionInputMessage extends RecordCompatible {
   /** Nonce */
   nonce: bigint;
   /** Grantee ID */
@@ -215,8 +224,6 @@ export interface PermissionInputMessage {
   grant: string;
   /** File IDs */
   fileIds: bigint[];
-  /** Index signature for Record compatibility */
-  [key: string]: unknown;
 }
 
 /**
@@ -240,13 +247,11 @@ export interface PermissionInput {
  *
  * @category Permissions
  */
-export interface RevokePermissionInput {
+export interface RevokePermissionInput extends RecordCompatible {
   /** Nonce */
   nonce: bigint;
   /** Permission ID to revoke */
   permissionId: bigint;
-  /** Index signature for Record compatibility */
-  [key: string]: unknown;
 }
 
 /**
@@ -346,7 +351,7 @@ export interface PermissionGrantTypedData extends GenericTypedData {
  *
  * @category Permissions
  */
-export interface GenericTypedData {
+export interface GenericTypedData extends RecordCompatible {
   /** EIP-712 domain */
   domain: PermissionGrantDomain;
   /** EIP-712 types */
@@ -355,8 +360,6 @@ export interface GenericTypedData {
   primaryType: string;
   /** Message to sign */
   message: Record<string, unknown>;
-  /** Index signature for Record compatibility */
-  [key: string]: unknown;
 }
 
 /**
@@ -557,7 +560,7 @@ export interface UntrustServerParams {
  *
  * @category Permissions
  */
-export interface AddAndTrustServerInput {
+export interface AddAndTrustServerInput extends RecordCompatible {
   /** User nonce */
   nonce: bigint;
   /** Server address */
@@ -566,8 +569,6 @@ export interface AddAndTrustServerInput {
   serverUrl: string;
   /** Server public key */
   publicKey: string;
-  /** Index signature for Record compatibility */
-  [key: string]: unknown;
 }
 
 /**
@@ -576,13 +577,11 @@ export interface AddAndTrustServerInput {
  * @category Permissions
  * @deprecated Use AddAndTrustServerInput instead
  */
-export interface TrustServerInput {
+export interface TrustServerInput extends RecordCompatible {
   /** User nonce */
   nonce: bigint;
   /** Server ID (numeric) */
   serverId: number;
-  /** Index signature for Record compatibility */
-  [key: string]: unknown;
 }
 
 /**
@@ -590,13 +589,11 @@ export interface TrustServerInput {
  *
  * @category Permissions
  */
-export interface UntrustServerInput {
+export interface UntrustServerInput extends RecordCompatible {
   /** User nonce */
   nonce: bigint;
   /** Server ID (numeric) */
   serverId: number;
-  /** Index signature for Record compatibility */
-  [key: string]: unknown;
 }
 
 /**
@@ -810,7 +807,7 @@ export interface RegisterGranteeParams {
  *
  * @category Permissions
  */
-export interface RegisterGranteeInput extends Record<string, unknown> {
+export interface RegisterGranteeInput extends RecordCompatible {
   /** User nonce */
   nonce: bigint;
   /** Grantee owner address */

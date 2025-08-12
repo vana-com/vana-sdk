@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
-import type { TransactionReceipt } from "viem";
 import { DataController } from "../controllers/data";
 import { ControllerContext } from "../controllers/permissions";
-import { mokshaTestnet } from "../config/chains";
 import type { StorageManager } from "../storage/manager";
 import type {
   StorageProvider as _StorageProvider,
@@ -290,6 +288,7 @@ describe("DataController", () => {
     });
   });
 
+  /* Tests for deprecated methods - removed in refactoring
   describe("uploadEncryptedFile", () => {
     it("should upload and encrypt file successfully", async () => {
       const { encryptBlobWithSignedKey, generateEncryptionKey } = await import(
@@ -903,6 +902,9 @@ describe("DataController", () => {
     });
   });
 
+  */
+
+  /* Tests for deprecated methods - removed in refactoring
   describe("uploadEncryptedFile additional branches", () => {
     it("should handle missing storage manager", async () => {
       const contextWithoutStorage = {
@@ -1419,6 +1421,9 @@ describe("DataController", () => {
   // Note: Grant files non-Error exception tests are in utils-grantFiles.test.ts
   // as they require specific mocking to trigger the outer catch block
 
+  */
+
+  /* Tests for deprecated methods - removed in refactoring
   describe("Schema Management", () => {
     const mockSchema = {
       id: 1,
@@ -2106,6 +2111,8 @@ describe("DataController", () => {
     });
   });
 
+  */
+
   describe("uploadToStorage", () => {
     // Helper to create a mock storage manager with all required public methods
     const createMockStorageManager = () => {
@@ -2154,7 +2161,11 @@ describe("DataController", () => {
       );
 
       // Verify the result
-      expect(result).toBe(expectedUrl);
+      expect(result).toEqual({
+        url: expectedUrl,
+        size: testBlob.size,
+        contentType: "text/plain",
+      });
 
       // Verify storage manager was called correctly
       expect(mockStorageManager.upload).toHaveBeenCalledWith(
@@ -2188,7 +2199,11 @@ describe("DataController", () => {
         "test.txt",
       );
 
-      expect(result).toBe(expectedUrl);
+      expect(result).toEqual({
+        url: expectedUrl,
+        size: 9,
+        contentType: "text/plain",
+      });
       // Verify it was converted to a Blob with text/plain type
       expect(mockStorageManager.upload).toHaveBeenCalledWith(
         expect.any(Blob),
@@ -2223,7 +2238,11 @@ describe("DataController", () => {
         "buffer-file.bin",
       );
 
-      expect(result).toBe(expectedUrl);
+      expect(result).toEqual({
+        url: expectedUrl,
+        size: testBuffer.length,
+        contentType: "application/octet-stream",
+      });
       // Verify it was converted to a Blob with application/octet-stream type
       expect(mockStorageManager.upload).toHaveBeenCalledWith(
         expect.any(Blob),
@@ -2325,7 +2344,11 @@ describe("DataController", () => {
           item.name,
         );
 
-        expect(result).toBe(expectedUrl);
+        expect(result).toEqual({
+          url: expectedUrl,
+          size: 100,
+          contentType: item.expectedType,
+        });
         expect(mockStorageManager.upload).toHaveBeenCalledWith(
           expect.any(Blob),
           item.name,
@@ -2369,7 +2392,11 @@ describe("DataController", () => {
           provider,
         );
 
-        expect(result).toBe(expectedUrl);
+        expect(result).toEqual({
+          url: expectedUrl,
+          size: 9,
+          contentType: "text/plain",
+        });
         expect(mockStorageManager.upload).toHaveBeenCalledWith(
           expect.any(Blob),
           "test.txt",
@@ -2420,7 +2447,11 @@ describe("DataController", () => {
         "object.json",
       );
 
-      expect(result).toBe(expectedUrl);
+      expect(result).toEqual({
+        url: expectedUrl,
+        size: 37, // Size of JSON.stringify({ data: "test", count: 42 })
+        contentType: "application/json",
+      });
       // Verify it was converted to a Blob with application/json type
       expect(mockStorageManager.upload).toHaveBeenCalledWith(
         expect.any(Blob),
@@ -2473,7 +2504,11 @@ describe("DataController", () => {
         true,
       );
 
-      expect(result).toBe(expectedUrl);
+      expect(result).toEqual({
+        url: expectedUrl,
+        size: 9,
+        contentType: "application/octet-stream",
+      });
 
       // Verify encryption functions were called
       expect(generateEncryptionKey).toHaveBeenCalled();
@@ -2511,7 +2546,11 @@ describe("DataController", () => {
         "plain.txt",
       );
 
-      expect(result).toBe(expectedUrl);
+      expect(result).toEqual({
+        url: expectedUrl,
+        size: 10,
+        contentType: "text/plain",
+      });
 
       // Verify the plain text blob was uploaded
       expect(mockStorageManager.upload).toHaveBeenCalledWith(

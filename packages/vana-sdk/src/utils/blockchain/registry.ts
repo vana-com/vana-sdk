@@ -1,0 +1,109 @@
+import { getContract } from "viem";
+import { PublicClient, WalletClient } from "viem";
+import { getContractAddress } from "../../config/addresses";
+import { getAbi } from "../../abi";
+import { Schema } from "../../types/index";
+
+/**
+ * Shared context for blockchain operations.
+ * Only includes the minimal required fields to avoid coupling.
+ */
+interface BlockchainContext {
+  walletClient: WalletClient;
+  publicClient: PublicClient;
+}
+
+/**
+ * Contract data structure returned by the blockchain.
+ *
+ * @internal
+ */
+interface SchemaContractData {
+  name: string;
+  typ: string;
+  definitionUrl: string;
+}
+
+/**
+ * Fetches a schema from the blockchain by its ID.
+ *
+ * @param context - The blockchain context containing wallet and public clients
+ * @param schemaId - The ID of the schema to fetch
+ * @returns The schema object with id, name, type, and definitionUrl
+ * @throws Error if chain ID is not available, schema not found, or data is incomplete
+ *
+ * @internal
+ */
+export async function fetchSchemaFromChain(
+  context: BlockchainContext,
+  schemaId: number,
+): Promise<Schema> {
+  const chainId = context.walletClient.chain?.id;
+  if (!chainId) {
+    throw new Error("Chain ID not available");
+  }
+
+  const dataRefinerRegistryAddress = getContractAddress(
+    chainId,
+    "DataRefinerRegistry",
+  );
+  const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
+
+  const dataRefinerRegistry = getContract({
+    address: dataRefinerRegistryAddress,
+    abi: dataRefinerRegistryAbi,
+    client: context.publicClient,
+  });
+
+  const schemaData = await dataRefinerRegistry.read.schemas([BigInt(schemaId)]);
+
+  if (!schemaData) {
+    throw new Error(`Schema with ID ${schemaId} not found`);
+  }
+
+  const schemaObj = schemaData as unknown as SchemaContractData;
+
+  if (!schemaObj.name || !schemaObj.typ || !schemaObj.definitionUrl) {
+    throw new Error("Incomplete schema data");
+  }
+
+  return {
+    id: schemaId,
+    name: schemaObj.name,
+    type: schemaObj.typ,
+    definitionUrl: schemaObj.definitionUrl,
+  };
+}
+
+/**
+ * Fetches the total count of schemas from the blockchain.
+ *
+ * @param context - The blockchain context containing wallet and public clients
+ * @returns The total number of schemas
+ * @throws Error if chain ID is not available or operation fails
+ *
+ * @internal
+ */
+export async function fetchSchemaCountFromChain(
+  context: BlockchainContext,
+): Promise<number> {
+  const chainId = context.walletClient.chain?.id;
+  if (!chainId) {
+    throw new Error("Chain ID not available");
+  }
+
+  const dataRefinerRegistryAddress = getContractAddress(
+    chainId,
+    "DataRefinerRegistry",
+  );
+  const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
+
+  const dataRefinerRegistry = getContract({
+    address: dataRefinerRegistryAddress,
+    abi: dataRefinerRegistryAbi,
+    client: context.publicClient,
+  });
+
+  const count = await dataRefinerRegistry.read.schemasCount();
+  return Number(count);
+}

@@ -215,6 +215,8 @@ export interface PermissionInputMessage {
   grant: string;
   /** File IDs */
   fileIds: bigint[];
+  /** Index signature for Record compatibility */
+  [key: string]: unknown;
 }
 
 /**

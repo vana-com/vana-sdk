@@ -116,18 +116,19 @@ describe("Enhanced Trusted Server Queries", () => {
   describe("getTrustedServersPaginated", () => {
     it("should return paginated trusted servers with default parameters", async () => {
       // Mock total count
+      const serverIds = [1n, 2n, 3n, 4n, 5n];
       mockPublicClient.readContract
         .mockResolvedValueOnce(5n) // userServerIdsLength
-        .mockResolvedValueOnce(serverAddresses[0]) // userServerIdsAt(0)
-        .mockResolvedValueOnce(serverAddresses[1]) // userServerIdsAt(1)
-        .mockResolvedValueOnce(serverAddresses[2]) // userServerIdsAt(2)
-        .mockResolvedValueOnce(serverAddresses[3]) // userServerIdsAt(3)
-        .mockResolvedValueOnce(serverAddresses[4]); // userServerIdsAt(4)
+        .mockResolvedValueOnce(serverIds[0]) // userServerIdsAt(0)
+        .mockResolvedValueOnce(serverIds[1]) // userServerIdsAt(1)
+        .mockResolvedValueOnce(serverIds[2]) // userServerIdsAt(2)
+        .mockResolvedValueOnce(serverIds[3]) // userServerIdsAt(3)
+        .mockResolvedValueOnce(serverIds[4]); // userServerIdsAt(4)
 
       const result = await permissionsController.getTrustedServersPaginated();
 
       expect(result).toEqual({
-        servers: serverAddresses,
+        servers: [1, 2, 3, 4, 5], // Numeric IDs, not addresses
         total: 5,
         offset: 0,
         limit: 50, // Default limit
@@ -138,8 +139,8 @@ describe("Enhanced Trusted Server Queries", () => {
     it("should respect pagination parameters", async () => {
       mockPublicClient.readContract
         .mockResolvedValueOnce(10n) // Total count is 10
-        .mockResolvedValueOnce(serverAddresses[2]) // userServerIdsAt(2)
-        .mockResolvedValueOnce(serverAddresses[3]); // userServerIdsAt(3)
+        .mockResolvedValueOnce(3n) // userServerIdsAt(2)
+        .mockResolvedValueOnce(4n); // userServerIdsAt(3)
 
       const result = await permissionsController.getTrustedServersPaginated({
         offset: 2,
@@ -147,7 +148,7 @@ describe("Enhanced Trusted Server Queries", () => {
       });
 
       expect(result).toEqual({
-        servers: [serverAddresses[2], serverAddresses[3]],
+        servers: [3, 4], // Numeric IDs, not addresses
         total: 10,
         offset: 2,
         limit: 2,
@@ -204,14 +205,14 @@ describe("Enhanced Trusted Server Queries", () => {
       const otherUser: Address = "0x9999999999999999999999999999999999999999";
       mockPublicClient.readContract
         .mockResolvedValueOnce(2n)
-        .mockResolvedValueOnce(serverAddresses[0])
-        .mockResolvedValueOnce(serverAddresses[1]);
+        .mockResolvedValueOnce(1n)
+        .mockResolvedValueOnce(2n);
 
       const result = await permissionsController.getTrustedServersPaginated({
         userAddress: otherUser,
       });
 
-      expect(result.servers).toEqual([serverAddresses[0], serverAddresses[1]]);
+      expect(result.servers).toEqual([1, 2]); // Numeric IDs, not addresses
       expect(mockPublicClient.readContract).toHaveBeenNthCalledWith(1, {
         address: expect.any(String),
         abi: expect.any(Array),

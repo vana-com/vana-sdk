@@ -11,9 +11,21 @@ import type { GenericTypedData } from "../types/permissions";
 export function toViemTypedDataDefinition(
   typedData: GenericTypedData,
 ): TypedDataDefinition {
+  // Transform the types to match viem's expected format with readonly arrays
+  const viemTypes: Record<string, readonly { name: string; type: string }[]> =
+    {};
+
+  for (const [typeName, typeArray] of Object.entries(typedData.types)) {
+    // Create a new readonly array for each type
+    viemTypes[typeName] = typeArray.map((field) => ({
+      name: field.name,
+      type: field.type,
+    })) as readonly { name: string; type: string }[];
+  }
+
   return {
     domain: typedData.domain,
-    types: typedData.types,
+    types: viemTypes as TypedDataDefinition["types"],
     primaryType: typedData.primaryType,
     message: typedData.message,
   };

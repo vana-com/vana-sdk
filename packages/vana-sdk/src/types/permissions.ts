@@ -355,6 +355,8 @@ export interface GenericTypedData {
   primaryType: string;
   /** Message to sign */
   message: Record<string, unknown>;
+  /** Index signature for Record compatibility */
+  [key: string]: unknown;
 }
 
 /**

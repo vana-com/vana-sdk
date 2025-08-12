@@ -1316,12 +1316,11 @@ export class PermissionsController {
         typedData as Record<string, unknown>,
         async () => {
           const viemCompatibleTypedData = toViemTypedDataDefinition(typedData);
-          if (!this.context.walletClient.account) {
-            throw new Error("Wallet account not available");
-          }
           return await this.context.walletClient.signTypedData({
             ...viemCompatibleTypedData,
-            account: this.context.walletClient.account,
+            // Non-null assertion is safe here because getUserAddress() above ensures account exists
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+            account: this.context.walletClient.account!,
           });
         },
       );

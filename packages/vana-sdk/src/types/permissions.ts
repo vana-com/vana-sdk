@@ -243,6 +243,8 @@ export interface RevokePermissionInput {
   nonce: bigint;
   /** Permission ID to revoke */
   permissionId: bigint;
+  /** Index signature for Record compatibility */
+  [key: string]: unknown;
 }
 
 /**
@@ -323,9 +325,7 @@ export interface GrantFile {
  *
  * @category Permissions
  */
-export interface PermissionGrantTypedData {
-  /** EIP-712 domain */
-  domain: PermissionGrantDomain;
+export interface PermissionGrantTypedData extends GenericTypedData {
   /** EIP-712 types */
   types: {
     Permission: Array<{
@@ -562,6 +562,8 @@ export interface AddAndTrustServerInput {
   serverUrl: string;
   /** Server public key */
   publicKey: string;
+  /** Index signature for Record compatibility */
+  [key: string]: unknown;
 }
 
 /**
@@ -575,6 +577,8 @@ export interface TrustServerInput {
   nonce: bigint;
   /** Server ID (numeric) */
   serverId: number;
+  /** Index signature for Record compatibility */
+  [key: string]: unknown;
 }
 
 /**
@@ -587,6 +591,8 @@ export interface UntrustServerInput {
   nonce: bigint;
   /** Server ID (numeric) */
   serverId: number;
+  /** Index signature for Record compatibility */
+  [key: string]: unknown;
 }
 
 /**
@@ -594,9 +600,7 @@ export interface UntrustServerInput {
  *
  * @category Permissions
  */
-export interface AddAndTrustServerTypedData {
-  /** EIP-712 domain */
-  domain: PermissionGrantDomain;
+export interface AddAndTrustServerTypedData extends GenericTypedData {
   /** EIP-712 types */
   types: {
     AddServer: Array<{
@@ -616,9 +620,7 @@ export interface AddAndTrustServerTypedData {
  * @category Permissions
  * @deprecated Use AddAndTrustServerTypedData instead
  */
-export interface TrustServerTypedData {
-  /** EIP-712 domain */
-  domain: PermissionGrantDomain;
+export interface TrustServerTypedData extends GenericTypedData {
   /** EIP-712 types */
   types: {
     TrustServer: Array<{
@@ -637,9 +639,7 @@ export interface TrustServerTypedData {
  *
  * @category Permissions
  */
-export interface UntrustServerTypedData {
-  /** EIP-712 domain */
-  domain: PermissionGrantDomain;
+export interface UntrustServerTypedData extends GenericTypedData {
   /** EIP-712 types */
   types: {
     UntrustServer: Array<{
@@ -822,9 +822,7 @@ export interface RegisterGranteeInput extends Record<string, unknown> {
  *
  * @category Permissions
  */
-export interface RegisterGranteeTypedData {
-  /** EIP-712 domain */
-  domain: PermissionGrantDomain;
+export interface RegisterGranteeTypedData extends GenericTypedData {
   /** EIP-712 types */
   types: {
     RegisterGrantee: Array<{

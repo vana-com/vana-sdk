@@ -434,7 +434,7 @@ describe("usePermissions", () => {
         expect(addToastMock).toHaveBeenCalledWith({
           title: "Permission Granted",
           description: expect.stringContaining(
-            "Successfully granted permission with ID: 3",
+            "Successfully granted permission. Transaction: 0xtxhash",
           ),
           variant: "solid",
           color: "success",

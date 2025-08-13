@@ -463,14 +463,15 @@ describe("useSchemasAndRefiners", () => {
       const consoleSpy = vi
         .spyOn(console, "error")
         .mockImplementation(() => {});
-      mockVana.data.addSchema.mockRejectedValue(new Error("Creation failed"));
+      mockVana.schemas.create.mockRejectedValue(new Error("Creation failed"));
 
       const { result } = renderHook(() => useSchemasAndRefiners());
 
       act(() => {
         result.current.setSchemaName("Schema");
         result.current.setSchemaType("json");
-        result.current.setSchemaDefinition("https://schema.com");
+        // Use valid JSON so we get past the parsing and hit the mock error
+        result.current.setSchemaDefinition('{"type": "object"}');
       });
 
       await act(async () => {

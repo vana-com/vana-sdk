@@ -31,15 +31,23 @@ export const createMockPlatformAdapter = (): VanaPlatformAdapter => ({
     encryptWithPassword: vi
       .fn()
       .mockImplementation(async (data: Uint8Array) => {
-        // Return the data as-is for round-trip testing, but as a string
-        return new TextDecoder().decode(data);
+        // Return a Uint8Array with the data for round-trip testing
+        // Add some simple transformation to simulate encryption
+        const result = new Uint8Array(data.length);
+        for (let i = 0; i < data.length; i++) {
+          result[i] = data[i] ^ 0x42; // Simple XOR for testing
+        }
+        return result;
       }),
     decryptWithPassword: vi
       .fn()
       .mockImplementation(async (encryptedData: Uint8Array) => {
-        // Convert the encrypted data back to string, then back to Uint8Array for round-trip testing
-        const dataString = new TextDecoder().decode(encryptedData);
-        return new TextEncoder().encode(dataString);
+        // Reverse the XOR transformation from encryptWithPassword
+        const result = new Uint8Array(encryptedData.length);
+        for (let i = 0; i < encryptedData.length; i++) {
+          result[i] = encryptedData[i] ^ 0x42; // Same XOR reverses the encryption
+        }
+        return result;
       }),
   },
   pgp: {

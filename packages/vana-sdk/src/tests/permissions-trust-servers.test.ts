@@ -103,6 +103,7 @@ interface MockWalletClient {
 interface MockPublicClient {
   readContract: ReturnType<typeof vi.fn>;
   waitForTransactionReceipt: ReturnType<typeof vi.fn>;
+  getChainId: ReturnType<typeof vi.fn>;
 }
 
 describe("PermissionsController - Trust/Untrust Server Methods", () => {
@@ -159,6 +160,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         return BigInt(0);
       }),
       waitForTransactionReceipt: vi.fn().mockResolvedValue({ logs: [] }),
+      getChainId: vi.fn().mockResolvedValue(14800),
     };
 
     // Set up the context with all required mocks

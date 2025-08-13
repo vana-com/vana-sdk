@@ -41,6 +41,7 @@ describe("New PermissionsController Methods", () => {
     account: { address: string };
     chain: { id: number };
     getChainId: ReturnType<typeof vi.fn>;
+    getAddresses: ReturnType<typeof vi.fn>;
   };
   let mockPublicClient: {
     readContract: ReturnType<typeof vi.fn>;
@@ -54,6 +55,9 @@ describe("New PermissionsController Methods", () => {
       account: { address: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" },
       chain: { id: 14800 },
       getChainId: vi.fn().mockResolvedValue(14800),
+      getAddresses: vi
+        .fn()
+        .mockResolvedValue(["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"]),
     };
 
     mockPublicClient = {
@@ -74,11 +78,8 @@ describe("New PermissionsController Methods", () => {
 
   describe("submitRevokeWithSignature", () => {
     beforeEach(() => {
-      // Mock getUserNonce for typed data creation
-      vi.spyOn(
-        controller as unknown as { getUserNonce: () => Promise<bigint> },
-        "getUserNonce",
-      ).mockResolvedValue(123n);
+      // Mock publicClient.readContract for userNonce call
+      mockPublicClient.readContract.mockResolvedValueOnce(123n); // userNonce call for getPermissionsUserNonce
 
       // Mock getPermissionDomain
       vi.spyOn(

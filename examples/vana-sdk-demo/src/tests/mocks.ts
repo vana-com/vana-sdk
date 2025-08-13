@@ -219,7 +219,7 @@ export function createMockUseVana(
   } as any;
 
   return {
-    vana: overrides.vana ?? defaultVana,
+    vana: overrides.vana === null ? null : (overrides.vana ?? defaultVana),
     isInitialized: overrides.isInitialized ?? true,
     error: overrides.error ?? null,
     applicationAddress: overrides.applicationAddress ?? "0xapp123",

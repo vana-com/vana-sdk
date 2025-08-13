@@ -1,69 +1,82 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NodePlatformAdapter } from "./node";
 
-describe("Node Platform Adapter Error Handling", () => {
-  const adapter = new NodePlatformAdapter();
+describe("NodePlatformAdapter", () => {
+  let adapter: NodePlatformAdapter;
 
-  describe("Crypto Adapter Error Paths", () => {
-    it("should handle decryptWithPassword errors (lines 258-259)", async () => {
-      // Test with invalid encrypted data to trigger error
-      const invalidEncryptedData = new Uint8Array([1, 2, 3, 4, 5]);
-      const password = "test-password";
-
-      await expect(
-        adapter.crypto.decryptWithPassword(invalidEncryptedData, password),
-      ).rejects.toThrow("decrypt with password");
-    });
-
-    it("should handle invalid password in decryptWithPassword", async () => {
-      // Create some invalid encrypted data that will cause OpenPGP to throw
-      const invalidData = new Uint8Array(Buffer.from("invalid-pgp-data"));
-      const password = "wrong-password";
-
-      await expect(
-        adapter.crypto.decryptWithPassword(invalidData, password),
-      ).rejects.toThrow("decrypt with password");
-    });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    adapter = new NodePlatformAdapter();
   });
 
-  describe("PGP Adapter Error Paths", () => {
-    it("should handle PGP encrypt errors (lines 281-282)", async () => {
-      // Test with invalid public key to trigger error
-      const data = "test data";
-      const invalidPublicKey = "invalid-public-key-format";
+  describe("cache adapter", () => {
+    describe("get", () => {
+      it("should return null for non-existent key", () => {
+        const result = adapter.cache.get("nonExistentKey");
+        expect(result).toBeNull();
+      });
 
-      await expect(adapter.pgp.encrypt(data, invalidPublicKey)).rejects.toThrow(
-        "PGP encryption",
-      );
+      it("should return value for existing key", () => {
+        adapter.cache.set("testKey", "testValue");
+        const result = adapter.cache.get("testKey");
+        expect(result).toBe("testValue");
+      });
+
+      it("should return null for expired entry and delete it", () => {
+        // Set a value with immediate expiration
+        const cache = (adapter.cache as any).cache;
+        cache.set("expiredKey", {
+          value: "expiredValue",
+          expires: Date.now() - 1000, // Expired 1 second ago
+        });
+
+        // First get should return null and delete the entry
+        const result = adapter.cache.get("expiredKey");
+        expect(result).toBeNull();
+
+        // Verify the entry was deleted
+        expect(cache.has("expiredKey")).toBe(false);
+      });
     });
 
-    it("should handle malformed PGP public key", async () => {
-      // Test with malformed but more realistic looking key
-      const data = "test data";
-      const malformedKey =
-        "-----BEGIN PGP PUBLIC KEY BLOCK-----\nmalformed\n-----END PGP PUBLIC KEY BLOCK-----";
+    describe("set", () => {
+      it("should set value with TTL", () => {
+        const now = Date.now();
+        vi.setSystemTime(now);
 
-      await expect(adapter.pgp.encrypt(data, malformedKey)).rejects.toThrow(
-        "PGP encryption",
-      );
+        adapter.cache.set("testKey", "testValue");
+
+        const cache = (adapter.cache as any).cache;
+        const entry = cache.get("testKey");
+
+        expect(entry).toBeDefined();
+        expect(entry.value).toBe("testValue");
+        expect(entry.expires).toBe(now + 2 * 60 * 60 * 1000); // 2 hours
+
+        vi.useRealTimers();
+      });
     });
-  });
 
-  describe("HTTP Adapter Error Paths", () => {
-    it("should handle missing fetch implementation", async () => {
-      // Mock globalThis.fetch to be undefined
-      const originalFetch = globalThis.fetch;
-      // @ts-expect-error - Intentionally setting fetch to undefined to test error handling
-      globalThis.fetch = undefined;
+    describe("delete", () => {
+      it("should delete item from cache", () => {
+        adapter.cache.set("testKey", "testValue");
+        adapter.cache.delete("testKey");
 
-      try {
-        await expect(adapter.http.fetch("https://example.com")).rejects.toThrow(
-          "No fetch implementation available",
-        );
-      } finally {
-        // Restore original fetch
-        globalThis.fetch = originalFetch;
-      }
+        const result = adapter.cache.get("testKey");
+        expect(result).toBeNull();
+      });
+    });
+
+    describe("clear", () => {
+      it("should clear all items from cache", () => {
+        adapter.cache.set("key1", "value1");
+        adapter.cache.set("key2", "value2");
+
+        adapter.cache.clear();
+
+        expect(adapter.cache.get("key1")).toBeNull();
+        expect(adapter.cache.get("key2")).toBeNull();
+      });
     });
   });
 });

@@ -34,14 +34,19 @@ describe("NodePlatformAdapter - PGP Methods", () => {
       const openpgp = await import("openpgp");
       const mockPublicKey = { id: "mock-key" };
       const mockMessage = { text: "mock-message" };
-      
+
       vi.mocked(openpgp.readKey).mockResolvedValue(mockPublicKey as any);
       vi.mocked(openpgp.createMessage).mockResolvedValue(mockMessage as any);
-      vi.mocked(openpgp.encrypt).mockResolvedValue("encrypted-data");
+      vi.mocked(openpgp.encrypt).mockResolvedValue("encrypted-data" as any);
 
-      const result = await adapter.pgp.encrypt("test data", "public-key-armored");
+      const result = await adapter.pgp.encrypt(
+        "test data",
+        "public-key-armored",
+      );
 
-      expect(openpgp.readKey).toHaveBeenCalledWith({ armoredKey: "public-key-armored" });
+      expect(openpgp.readKey).toHaveBeenCalledWith({
+        armoredKey: "public-key-armored",
+      });
       expect(openpgp.createMessage).toHaveBeenCalledWith({ text: "test data" });
       expect(openpgp.encrypt).toHaveBeenCalledWith({
         message: mockMessage,
@@ -59,15 +64,26 @@ describe("NodePlatformAdapter - PGP Methods", () => {
       const openpgp = await import("openpgp");
       const mockPrivateKey = { id: "mock-private-key" };
       const mockMessage = { text: "encrypted-message" };
-      
-      vi.mocked(openpgp.readPrivateKey).mockResolvedValue(mockPrivateKey as any);
+
+      vi.mocked(openpgp.readPrivateKey).mockResolvedValue(
+        mockPrivateKey as any,
+      );
       vi.mocked(openpgp.readMessage).mockResolvedValue(mockMessage as any);
-      vi.mocked(openpgp.decrypt).mockResolvedValue({ data: "decrypted-data" } as any);
+      vi.mocked(openpgp.decrypt).mockResolvedValue({
+        data: "decrypted-data",
+      } as any);
 
-      const result = await adapter.pgp.decrypt("encrypted-data", "private-key-armored");
+      const result = await adapter.pgp.decrypt(
+        "encrypted-data",
+        "private-key-armored",
+      );
 
-      expect(openpgp.readPrivateKey).toHaveBeenCalledWith({ armoredKey: "private-key-armored" });
-      expect(openpgp.readMessage).toHaveBeenCalledWith({ armoredMessage: "encrypted-data" });
+      expect(openpgp.readPrivateKey).toHaveBeenCalledWith({
+        armoredKey: "private-key-armored",
+      });
+      expect(openpgp.readMessage).toHaveBeenCalledWith({
+        armoredMessage: "encrypted-data",
+      });
       expect(openpgp.decrypt).toHaveBeenCalledWith({
         message: mockMessage,
         decryptionKeys: mockPrivateKey,
@@ -79,7 +95,7 @@ describe("NodePlatformAdapter - PGP Methods", () => {
   describe("pgp.generateKeyPair", () => {
     it("should generate key pair with default options", async () => {
       const openpgp = await import("openpgp");
-      
+
       vi.mocked(openpgp.generateKey).mockResolvedValue({
         publicKey: "public-key-armored",
         privateKey: "private-key-armored",
@@ -105,7 +121,7 @@ describe("NodePlatformAdapter - PGP Methods", () => {
 
     it("should generate key pair with custom options", async () => {
       const openpgp = await import("openpgp");
-      
+
       vi.mocked(openpgp.generateKey).mockResolvedValue({
         publicKey: "public-key-armored",
         privateKey: "private-key-armored",

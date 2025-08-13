@@ -9,9 +9,30 @@ import { BrowserPlatformAdapter } from "./browser";
 // Mock the browser module
 vi.mock("./browser", () => ({
   BrowserPlatformAdapter: vi.fn().mockImplementation(() => ({
-    isNode: false,
-    isBrowser: true,
-    environment: "browser",
+    platform: "browser" as const,
+    crypto: {
+      encryptWithPublicKey: vi.fn(),
+      decryptWithPrivateKey: vi.fn(),
+      generateKeyPair: vi.fn(),
+      encryptWithWalletPublicKey: vi.fn(),
+      decryptWithWalletPrivateKey: vi.fn(),
+      encryptWithPassword: vi.fn(),
+      decryptWithPassword: vi.fn(),
+    },
+    pgp: {
+      encrypt: vi.fn(),
+      decrypt: vi.fn(),
+      generateKeyPair: vi.fn(),
+    },
+    http: {
+      fetch: vi.fn(),
+    },
+    cache: {
+      get: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+      clear: vi.fn(),
+    },
   })),
 }));
 
@@ -35,7 +56,7 @@ describe("browser-safe", () => {
       global.window = {} as any;
 
       await expect(createNodePlatformAdapter()).rejects.toThrow(
-        "NodePlatformAdapter is not available in browser environments. Use BrowserPlatformAdapter instead."
+        "NodePlatformAdapter is not available in browser environments. Use BrowserPlatformAdapter instead.",
       );
     });
 
@@ -49,36 +70,53 @@ describe("browser-safe", () => {
       // Mock dynamic import
       vi.doMock("./node", () => ({
         NodePlatformAdapter: vi.fn().mockImplementation(() => ({
-          isNode: true,
-          isBrowser: false,
-          environment: "node",
+          platform: "node" as const,
+          crypto: {
+            encryptWithPublicKey: vi.fn(),
+            decryptWithPrivateKey: vi.fn(),
+            generateKeyPair: vi.fn(),
+            encryptWithWalletPublicKey: vi.fn(),
+            decryptWithWalletPrivateKey: vi.fn(),
+            encryptWithPassword: vi.fn(),
+            decryptWithPassword: vi.fn(),
+          },
+          pgp: {
+            encrypt: vi.fn(),
+            decrypt: vi.fn(),
+            generateKeyPair: vi.fn(),
+          },
+          http: {
+            fetch: vi.fn(),
+          },
+          cache: {
+            get: vi.fn(),
+            set: vi.fn(),
+            delete: vi.fn(),
+            clear: vi.fn(),
+          },
         })),
       }));
 
       const adapter = await createNodePlatformAdapter();
-      
+
       expect(adapter).toBeDefined();
-      expect(adapter.isNode).toBe(true);
-      expect(adapter.isBrowser).toBe(false);
-      expect(adapter.environment).toBe("node");
+      expect(adapter.platform).toBe("node");
     });
   });
 
   describe("createBrowserPlatformAdapter", () => {
     it("should create and return a BrowserPlatformAdapter instance", () => {
       const adapter = createBrowserPlatformAdapter();
-      
+
       expect(adapter).toBeDefined();
-      expect(adapter.isNode).toBe(false);
-      expect(adapter.isBrowser).toBe(true);
-      expect(adapter.environment).toBe("browser");
+      expect(adapter.platform).toBe("browser");
       expect(BrowserPlatformAdapter).toHaveBeenCalled();
     });
 
     it("should create a new instance each time it is called", () => {
       const adapter1 = createBrowserPlatformAdapter();
       const adapter2 = createBrowserPlatformAdapter();
-      
+
       expect(adapter1).not.toBe(adapter2);
       expect(BrowserPlatformAdapter).toHaveBeenCalledTimes(2);
     });
@@ -90,11 +128,9 @@ describe("browser-safe", () => {
       global.window = {} as any;
 
       const adapter = await createPlatformAdapterSafe();
-      
+
       expect(adapter).toBeDefined();
-      expect(adapter.isNode).toBe(false);
-      expect(adapter.isBrowser).toBe(true);
-      expect(adapter.environment).toBe("browser");
+      expect(adapter.platform).toBe("browser");
       expect(BrowserPlatformAdapter).toHaveBeenCalled();
     });
 
@@ -108,18 +144,37 @@ describe("browser-safe", () => {
       // Mock dynamic import
       vi.doMock("./node", () => ({
         NodePlatformAdapter: vi.fn().mockImplementation(() => ({
-          isNode: true,
-          isBrowser: false,
-          environment: "node",
+          platform: "node" as const,
+          crypto: {
+            encryptWithPublicKey: vi.fn(),
+            decryptWithPrivateKey: vi.fn(),
+            generateKeyPair: vi.fn(),
+            encryptWithWalletPublicKey: vi.fn(),
+            decryptWithWalletPrivateKey: vi.fn(),
+            encryptWithPassword: vi.fn(),
+            decryptWithPassword: vi.fn(),
+          },
+          pgp: {
+            encrypt: vi.fn(),
+            decrypt: vi.fn(),
+            generateKeyPair: vi.fn(),
+          },
+          http: {
+            fetch: vi.fn(),
+          },
+          cache: {
+            get: vi.fn(),
+            set: vi.fn(),
+            delete: vi.fn(),
+            clear: vi.fn(),
+          },
         })),
       }));
 
       const adapter = await createPlatformAdapterSafe();
-      
+
       expect(adapter).toBeDefined();
-      expect(adapter.isNode).toBe(true);
-      expect(adapter.isBrowser).toBe(false);
-      expect(adapter.environment).toBe("node");
+      expect(adapter.platform).toBe("node");
     });
 
     it("should return BrowserPlatformAdapter when process exists but window is defined", async () => {
@@ -130,11 +185,9 @@ describe("browser-safe", () => {
       } as any;
 
       const adapter = await createPlatformAdapterSafe();
-      
+
       expect(adapter).toBeDefined();
-      expect(adapter.isNode).toBe(false);
-      expect(adapter.isBrowser).toBe(true);
-      expect(adapter.environment).toBe("browser");
+      expect(adapter.platform).toBe("browser");
       expect(BrowserPlatformAdapter).toHaveBeenCalled();
     });
 
@@ -144,11 +197,9 @@ describe("browser-safe", () => {
       global.process = {} as any; // process exists but no versions.node
 
       const adapter = await createPlatformAdapterSafe();
-      
+
       expect(adapter).toBeDefined();
-      expect(adapter.isNode).toBe(false);
-      expect(adapter.isBrowser).toBe(true);
-      expect(adapter.environment).toBe("browser");
+      expect(adapter.platform).toBe("browser");
       expect(BrowserPlatformAdapter).toHaveBeenCalled();
     });
 
@@ -158,11 +209,9 @@ describe("browser-safe", () => {
       delete (global as any).process;
 
       const adapter = await createPlatformAdapterSafe();
-      
+
       expect(adapter).toBeDefined();
-      expect(adapter.isNode).toBe(false);
-      expect(adapter.isBrowser).toBe(true);
-      expect(adapter.environment).toBe("browser");
+      expect(adapter.platform).toBe("browser");
       expect(BrowserPlatformAdapter).toHaveBeenCalled();
     });
   });

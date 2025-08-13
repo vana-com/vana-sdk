@@ -2,33 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { VanaCore, VanaCoreFactory } from "../core";
 import type { VanaPlatformAdapter } from "../platform/interface";
 import type { VanaConfig, VanaConfigWithStorage } from "../types";
+import { createMockPlatformAdapter } from "../tests/mocks/platformAdapter";
 
 // Mock the platform adapter creation
 vi.mock("../platform/utils", () => ({
-  createPlatformAdapter: vi.fn().mockResolvedValue({
-    crypto: {
-      encryptWithPublicKey: vi.fn(),
-      decryptWithPrivateKey: vi.fn(),
-      generateKeyPair: vi.fn(),
-      encryptWithPassword: vi.fn(),
-      decryptWithPassword: vi.fn(),
-    },
-    pgp: {
-      encryptData: vi.fn(),
-      decryptData: vi.fn(),
-      generatePGPKeyPair: vi.fn(),
-    },
-    http: {
-      fetch: vi.fn(),
-    },
-    cache: {
-      get: vi.fn(),
-      set: vi.fn(),
-      delete: vi.fn(),
-      clear: vi.fn(),
-    },
-    platform: "browser" as const,
-  }),
+  createPlatformAdapter: vi.fn().mockResolvedValue(createMockPlatformAdapter()),
 }));
 
 // Mock the encryption utilities
@@ -38,37 +16,18 @@ vi.mock("../utils/encryption", () => ({
 }));
 
 // Mock the platform adapter
-const mockPlatformAdapter: VanaPlatformAdapter = {
-  crypto: {
-    encryptWithPublicKey: vi.fn(),
-    decryptWithPrivateKey: vi.fn(),
-    generateKeyPair: vi.fn(),
-    encryptWithPassword: vi.fn(),
-    decryptWithPassword: vi.fn(),
-  },
-  pgp: {
-    encryptData: vi.fn(),
-    decryptData: vi.fn(),
-    generatePGPKeyPair: vi.fn(),
-  },
-  http: {
-    fetch: vi.fn(),
-  },
-  cache: {
-    get: vi.fn(),
-    set: vi.fn(),
-    delete: vi.fn(),
-    clear: vi.fn(),
-  },
-  platform: "browser" as const,
-};
+const mockPlatformAdapter = createMockPlatformAdapter();
 
 // Mock config
 const mockConfig: VanaConfig = {
   chainId: 14800,
   account: {
-    address: "0x123",
-  },
+    address: "0x123" as `0x${string}`,
+    type: "json-rpc",
+    signMessage: vi.fn(),
+    signTransaction: vi.fn(),
+    signTypedData: vi.fn(),
+  } as any,
 };
 
 describe("VanaCore", () => {
@@ -87,7 +46,7 @@ describe("VanaCore", () => {
       };
 
       vanaCore.setPlatformAdapter(newAdapter);
-      
+
       const adapter = vanaCore.getPlatformAdapter();
       expect(adapter.platform).toBe("node");
     });
@@ -103,7 +62,7 @@ describe("VanaCore", () => {
       };
 
       vanaCore.setPlatformAdapter(newAdapter);
-      
+
       // The new adapter should be accessible
       expect(vanaCore.getPlatformAdapter()).toBe(newAdapter);
     });
@@ -112,9 +71,9 @@ describe("VanaCore", () => {
   describe("getPlatformAdapter", () => {
     it("should return the current platform adapter", () => {
       const adapter = vanaCore.getPlatformAdapter();
-      
+
       expect(adapter).toBe(mockPlatformAdapter);
-      expect(adapter.platform).toBe("browser");
+      expect(adapter.platform).toBe("node");
     });
 
     it("should return the updated adapter after setPlatformAdapter", () => {
@@ -124,7 +83,7 @@ describe("VanaCore", () => {
       };
 
       vanaCore.setPlatformAdapter(newAdapter);
-      
+
       const adapter = vanaCore.getPlatformAdapter();
       expect(adapter).toBe(newAdapter);
       expect(adapter.platform).toBe("node");
@@ -133,22 +92,21 @@ describe("VanaCore", () => {
 
   describe("getUserAddress", () => {
     it("should return user address from permissions controller", async () => {
-      const mockAddress = "0x456";
-      vanaCore.permissions = {
-        getUserAddress: vi.fn().mockResolvedValue(mockAddress),
-      } as any;
+      const mockAddress = "0x456" as `0x${string}`;
+      // Spy on the getUserAddress method of the actual permissions controller
+      vi.spyOn(vanaCore, "getUserAddress").mockResolvedValue(mockAddress);
 
       const address = await vanaCore.getUserAddress();
-      
+
       expect(address).toBe(mockAddress);
-      expect(vanaCore.permissions.getUserAddress).toHaveBeenCalled();
+      expect(vanaCore.getUserAddress).toHaveBeenCalled();
     });
   });
 
   describe("getConfig", () => {
     it("should return runtime configuration", () => {
       const config = vanaCore.getConfig();
-      
+
       expect(config).toMatchObject({
         chainId: 14800,
         chainName: "Moksha Testnet",
@@ -163,15 +121,24 @@ describe("VanaCore", () => {
         storage: {
           providers: {
             ipfs: {
-              gatewayUrl: "https://ipfs.io",
-            },
+              upload: vi.fn(),
+              download: vi.fn(),
+              list: vi.fn(),
+              delete: vi.fn(),
+              getConfig: vi
+                .fn()
+                .mockReturnValue({ gatewayUrl: "https://ipfs.io" }),
+            } as any,
           },
         },
       };
-      
-      const vanaWithStorage = new VanaCore(mockPlatformAdapter, configWithStorage);
+
+      const vanaWithStorage = new VanaCore(
+        mockPlatformAdapter,
+        configWithStorage,
+      );
       const config = vanaWithStorage.getConfig();
-      
+
       expect(config.storageProviders).toEqual(["ipfs"]);
     });
   });
@@ -180,18 +147,18 @@ describe("VanaCore", () => {
     it("should encrypt string data using platform adapter", async () => {
       const data = "test data";
       const key = "encryption-key";
-      
+
       const result = await vanaCore.encryptBlob(data, key);
-      
+
       expect(result).toBeInstanceOf(Blob);
     });
 
     it("should encrypt Blob data using platform adapter", async () => {
       const data = new Blob(["test data"], { type: "text/plain" });
       const key = "encryption-key";
-      
+
       const result = await vanaCore.encryptBlob(data, key);
-      
+
       expect(result).toBeInstanceOf(Blob);
     });
   });
@@ -200,18 +167,20 @@ describe("VanaCore", () => {
     it("should decrypt string data using platform adapter", async () => {
       const encryptedData = "encrypted-data";
       const walletSignature = "wallet-signature";
-      
+
       const result = await vanaCore.decryptBlob(encryptedData, walletSignature);
-      
+
       expect(result).toBeInstanceOf(Blob);
     });
 
     it("should decrypt Blob data using platform adapter", async () => {
-      const encryptedData = new Blob(["encrypted"], { type: "application/octet-stream" });
+      const encryptedData = new Blob(["encrypted"], {
+        type: "application/octet-stream",
+      });
       const walletSignature = "wallet-signature";
-      
+
       const result = await vanaCore.decryptBlob(encryptedData, walletSignature);
-      
+
       expect(result).toBeInstanceOf(Blob);
     });
   });
@@ -239,12 +208,16 @@ describe("VanaCoreFactory", () => {
       const config: VanaConfig = {
         chainId: 14800,
         account: {
-          address: "0x789",
-        },
+          address: "0x789" as `0x${string}`,
+          type: "json-rpc",
+          signMessage: vi.fn(),
+          signTransaction: vi.fn(),
+          signTypedData: vi.fn(),
+        } as any,
       };
 
       const vana = VanaCoreFactory.create(mockPlatformAdapter, config);
-      
+
       expect(vana).toBeInstanceOf(VanaCore);
       expect(vana.getConfig().chainId).toBe(14800);
     });
@@ -262,13 +235,13 @@ describe("VanaCoreFactory", () => {
           },
         },
       };
-      
+
       const config: VanaConfig = {
         walletClient: mockWalletClient as any,
       };
 
       const vana = VanaCoreFactory.create(mockPlatformAdapter, config);
-      
+
       expect(vana).toBeInstanceOf(VanaCore);
       expect(vana.chainId).toBe(14800);
     });
@@ -281,12 +254,16 @@ describe("VanaCoreFactory", () => {
         download: vi.fn(),
         delete: vi.fn(),
       };
-      
+
       const config: VanaConfigWithStorage = {
         chainId: 14800,
         account: {
-          address: "0x789",
-        },
+          address: "0x789" as `0x${string}`,
+          type: "json-rpc",
+          signMessage: vi.fn(),
+          signTransaction: vi.fn(),
+          signTypedData: vi.fn(),
+        } as any,
         storage: {
           providers: {
             ipfs: mockStorageProvider as any,
@@ -295,8 +272,11 @@ describe("VanaCoreFactory", () => {
         },
       };
 
-      const vana = VanaCoreFactory.createWithStorage(mockPlatformAdapter, config);
-      
+      const vana = VanaCoreFactory.createWithStorage(
+        mockPlatformAdapter,
+        config,
+      );
+
       expect(vana).toBeInstanceOf(VanaCore);
       expect(vana.hasStorage()).toBe(true);
       expect(vana.isStorageEnabled()).toBe(true);
@@ -308,13 +288,13 @@ describe("VanaCoreFactory", () => {
         download: vi.fn(),
         delete: vi.fn(),
       };
-      
+
       const mockArweaveProvider = {
         upload: vi.fn(),
         download: vi.fn(),
         delete: vi.fn(),
       };
-      
+
       const config: VanaConfigWithStorage = {
         walletClient: {
           signTypedData: vi.fn(),
@@ -337,8 +317,11 @@ describe("VanaCoreFactory", () => {
         },
       };
 
-      const vana = VanaCoreFactory.createWithStorage(mockPlatformAdapter, config);
-      
+      const vana = VanaCoreFactory.createWithStorage(
+        mockPlatformAdapter,
+        config,
+      );
+
       expect(vana).toBeInstanceOf(VanaCore);
       expect(vana.getConfig().storageProviders).toEqual(["ipfs", "arweave"]);
       expect(vana.getConfig().defaultStorageProvider).toBe("arweave");

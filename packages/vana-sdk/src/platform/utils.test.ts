@@ -10,17 +10,59 @@ import {
 // Mock the browser and node modules
 vi.mock("./browser", () => ({
   BrowserPlatformAdapter: vi.fn().mockImplementation(() => ({
-    isNode: false,
-    isBrowser: true,
-    environment: "browser",
+    platform: "browser" as const,
+    crypto: {
+      encryptWithPublicKey: vi.fn(),
+      decryptWithPrivateKey: vi.fn(),
+      generateKeyPair: vi.fn(),
+      encryptWithWalletPublicKey: vi.fn(),
+      decryptWithWalletPrivateKey: vi.fn(),
+      encryptWithPassword: vi.fn(),
+      decryptWithPassword: vi.fn(),
+    },
+    pgp: {
+      encrypt: vi.fn(),
+      decrypt: vi.fn(),
+      generateKeyPair: vi.fn(),
+    },
+    http: {
+      fetch: vi.fn(),
+    },
+    cache: {
+      get: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+      clear: vi.fn(),
+    },
   })),
 }));
 
 vi.mock("./node", () => ({
   NodePlatformAdapter: vi.fn().mockImplementation(() => ({
-    isNode: true,
-    isBrowser: false,
-    environment: "node",
+    platform: "node" as const,
+    crypto: {
+      encryptWithPublicKey: vi.fn(),
+      decryptWithPrivateKey: vi.fn(),
+      generateKeyPair: vi.fn(),
+      encryptWithWalletPublicKey: vi.fn(),
+      decryptWithWalletPrivateKey: vi.fn(),
+      encryptWithPassword: vi.fn(),
+      decryptWithPassword: vi.fn(),
+    },
+    pgp: {
+      encrypt: vi.fn(),
+      decrypt: vi.fn(),
+      generateKeyPair: vi.fn(),
+    },
+    http: {
+      fetch: vi.fn(),
+    },
+    cache: {
+      get: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+      clear: vi.fn(),
+    },
   })),
 }));
 
@@ -41,35 +83,35 @@ describe("platform utils", () => {
   afterEach(() => {
     // Restore original values using Object.defineProperty
     if (originalWindow !== undefined) {
-      Object.defineProperty(global, 'window', {
+      Object.defineProperty(global, "window", {
         value: originalWindow,
         writable: true,
-        configurable: true
+        configurable: true,
       });
     } else {
       delete (global as any).window;
     }
-    
+
     if (originalDocument !== undefined) {
-      Object.defineProperty(global, 'document', {
+      Object.defineProperty(global, "document", {
         value: originalDocument,
         writable: true,
-        configurable: true
+        configurable: true,
       });
     } else {
       delete (global as any).document;
     }
-    
+
     if (originalProcess !== undefined) {
-      Object.defineProperty(global, 'process', {
+      Object.defineProperty(global, "process", {
         value: originalProcess,
         writable: true,
-        configurable: true
+        configurable: true,
       });
     } else {
       delete (global as any).process;
     }
-    
+
     vi.unstubAllGlobals();
   });
 
@@ -122,11 +164,9 @@ describe("platform utils", () => {
       } as any;
 
       const adapter = await createPlatformAdapter();
-      
+
       expect(adapter).toBeDefined();
-      expect(adapter.isNode).toBe(true);
-      expect(adapter.isBrowser).toBe(false);
-      expect(adapter.environment).toBe("node");
+      expect(adapter.platform).toBe("node");
     });
 
     it("should create BrowserPlatformAdapter in browser environment", async () => {
@@ -136,11 +176,9 @@ describe("platform utils", () => {
       delete (global as any).process;
 
       const adapter = await createPlatformAdapter();
-      
+
       expect(adapter).toBeDefined();
-      expect(adapter.isNode).toBe(false);
-      expect(adapter.isBrowser).toBe(true);
-      expect(adapter.environment).toBe("browser");
+      expect(adapter.platform).toBe("browser");
     });
 
     it("should throw error when trying to create NodePlatformAdapter in browser", async () => {
@@ -151,7 +189,7 @@ describe("platform utils", () => {
       } as any;
 
       await expect(createPlatformAdapter()).rejects.toThrow(
-        "Failed to create platform adapter for node: NodePlatformAdapter is not available in browser environments. Use BrowserPlatformAdapter instead."
+        "Failed to create platform adapter for node: NodePlatformAdapter is not available in browser environments. Use BrowserPlatformAdapter instead.",
       );
     });
 
@@ -168,7 +206,7 @@ describe("platform utils", () => {
       });
 
       await expect(createPlatformAdapter()).rejects.toThrow(
-        "Failed to create platform adapter for browser: Constructor failed"
+        "Failed to create platform adapter for browser: Constructor failed",
       );
     });
   });
@@ -182,21 +220,17 @@ describe("platform utils", () => {
       } as any;
 
       const adapter = await createPlatformAdapterFor("node");
-      
+
       expect(adapter).toBeDefined();
-      expect(adapter.isNode).toBe(true);
-      expect(adapter.isBrowser).toBe(false);
-      expect(adapter.environment).toBe("node");
+      expect(adapter.platform).toBe("node");
     });
 
     it("should create BrowserPlatformAdapter when specified", async () => {
       // Any environment should work for browser adapter
       const adapter = await createPlatformAdapterFor("browser");
-      
+
       expect(adapter).toBeDefined();
-      expect(adapter.isNode).toBe(false);
-      expect(adapter.isBrowser).toBe(true);
-      expect(adapter.environment).toBe("browser");
+      expect(adapter.platform).toBe("browser");
     });
 
     it("should throw error when trying to create NodePlatformAdapter in browser", async () => {
@@ -204,7 +238,7 @@ describe("platform utils", () => {
       global.window = {} as any;
 
       await expect(createPlatformAdapterFor("node")).rejects.toThrow(
-        "Failed to create platform adapter for node: NodePlatformAdapter is not available in browser environments. Use BrowserPlatformAdapter instead."
+        "Failed to create platform adapter for node: NodePlatformAdapter is not available in browser environments. Use BrowserPlatformAdapter instead.",
       );
     });
 
@@ -216,7 +250,7 @@ describe("platform utils", () => {
       });
 
       await expect(createPlatformAdapterFor("browser")).rejects.toThrow(
-        "Failed to create platform adapter for browser: Browser constructor failed"
+        "Failed to create platform adapter for browser: Browser constructor failed",
       );
     });
 
@@ -228,7 +262,7 @@ describe("platform utils", () => {
       });
 
       await expect(createPlatformAdapterFor("browser")).rejects.toThrow(
-        "Failed to create platform adapter for browser: Unknown error"
+        "Failed to create platform adapter for browser: Unknown error",
       );
     });
   });
@@ -247,7 +281,7 @@ describe("platform utils", () => {
       });
 
       await expect(createPlatformAdapter()).rejects.toThrow(
-        "Failed to create platform adapter for browser: Unknown error"
+        "Failed to create platform adapter for browser: Unknown error",
       );
     });
   });
@@ -284,14 +318,14 @@ describe("platform utils", () => {
       global.process = {
         versions: { node: "16.0.0" },
       } as any;
-      vi.stubGlobal('crypto', {
+      vi.stubGlobal("crypto", {
         subtle: {} as any,
       });
-      vi.stubGlobal('fetch', vi.fn());
-      vi.stubGlobal('ReadableStream', vi.fn());
+      vi.stubGlobal("fetch", vi.fn());
+      vi.stubGlobal("ReadableStream", vi.fn());
 
       const capabilities = getPlatformCapabilities();
-      
+
       expect(capabilities).toEqual({
         platform: "node",
         crypto: {
@@ -308,14 +342,14 @@ describe("platform utils", () => {
       global.window = {} as any;
       global.document = {} as any;
       delete (global as any).process;
-      vi.stubGlobal('crypto', {
+      vi.stubGlobal("crypto", {
         subtle: {} as any,
       });
-      vi.stubGlobal('fetch', vi.fn());
-      vi.stubGlobal('ReadableStream', vi.fn());
+      vi.stubGlobal("fetch", vi.fn());
+      vi.stubGlobal("ReadableStream", vi.fn());
 
       const capabilities = getPlatformCapabilities();
-      
+
       expect(capabilities).toEqual({
         platform: "browser",
         crypto: {
@@ -337,7 +371,7 @@ describe("platform utils", () => {
       delete (global as any).ReadableStream;
 
       const capabilities = getPlatformCapabilities();
-      
+
       expect(capabilities).toEqual({
         platform: "node",
         crypto: {
@@ -355,15 +389,15 @@ describe("platform utils", () => {
       delete (global as any).document;
       delete (global as any).process;
       vi.unstubAllGlobals(); // Clear any previous stubs
-      vi.stubGlobal('fetch', undefined); // Remove direct fetch
-      Object.defineProperty(globalThis, 'fetch', {
+      vi.stubGlobal("fetch", undefined); // Remove direct fetch
+      Object.defineProperty(globalThis, "fetch", {
         value: vi.fn(),
         writable: true,
-        configurable: true
+        configurable: true,
       });
 
       const capabilities = getPlatformCapabilities();
-      
+
       expect(capabilities.fetch).toBe(true);
     });
   });

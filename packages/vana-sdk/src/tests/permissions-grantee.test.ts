@@ -3,14 +3,25 @@ import {
   PermissionsController,
   ControllerContext,
 } from "../controllers/permissions";
-import { getContractAddress, getAbi } from "../contracts";
+import { getContractAddress } from "../config/addresses";
 import type { Address, Hash } from "viem";
 import { UserRejectedRequestError } from "../errors";
 
 // Mock the contract imports
-vi.mock("../contracts", () => ({
+vi.mock("../config/addresses", () => ({
   getContractAddress: vi.fn(),
-  getAbi: vi.fn(),
+}));
+
+vi.mock("../abi", () => ({
+  getAbi: vi.fn().mockReturnValue([
+    {
+      inputs: [],
+      name: "mockFunction",
+      outputs: [],
+      stateMutability: "view",
+      type: "function",
+    },
+  ]),
 }));
 
 describe("PermissionsController - Grantee Methods", () => {
@@ -43,11 +54,10 @@ describe("PermissionsController - Grantee Methods", () => {
 
     controller = new PermissionsController(mockContext);
 
-    // Mock contract address and ABI
+    // Mock contract address
     vi.mocked(getContractAddress).mockReturnValue(
       "0xGranteeContract" as Address,
     );
-    vi.mocked(getAbi).mockReturnValue([]);
   });
 
   describe("getGranteeByAddress", () => {

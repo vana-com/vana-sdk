@@ -38,6 +38,7 @@ import { SchemaValidationTab } from "@/components/ui/SchemaValidationTab";
 import { AdvancedToolsTab } from "@/components/ui/AdvancedToolsTab";
 import { useSchemasAndRefiners } from "@/hooks/useSchemasAndRefiners";
 import { useVana } from "@/providers/VanaProvider";
+import { getContractUrl } from "@/lib/explorer";
 
 /**
  * Developer Tools page - Manage protocol-level entities and server integrations
@@ -339,7 +340,9 @@ export default function DeveloperToolsPage() {
                           <TableCell>
                             <Button
                               as="a"
-                              href={`https://vanascan.io/address/${contract.address}?tab=contract`}
+                              href={getContractUrl(chainId, contract.address, {
+                                tab: "contract",
+                              })}
                               target="_blank"
                               rel="noopener noreferrer"
                               size="sm"

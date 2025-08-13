@@ -59,6 +59,7 @@ import { createGrantFile, getGrantFileHash } from "../utils/grantFiles";
 import { validateGrant } from "../utils/grantValidation";
 import { withSignatureCache } from "../utils/signatureCache";
 import { formatSignatureForContract } from "../utils/signatureFormatter";
+import { toViemTypedDataDefinition } from "../utils/typedDataConverter";
 import { StorageManager } from "../storage";
 import type { VanaPlatformAdapter } from "../platform/interface";
 
@@ -749,7 +750,7 @@ export class PermissionsController {
       // Use relayer callbacks or direct transaction
       if (this.context.relayerCallbacks?.submitUntrustServer) {
         return await this.context.relayerCallbacks.submitUntrustServer(
-          typedData as unknown as UntrustServerTypedData,
+          typedData as UntrustServerTypedData,
           signature,
         );
       } else {
@@ -1301,9 +1302,7 @@ export class PermissionsController {
    * @param typedData - The EIP-712 typed data structure to sign
    * @returns Promise resolving to the cryptographic signature
    */
-  private async signTypedData(
-    typedData: PermissionGrantTypedData | GenericTypedData,
-  ): Promise<Hash> {
+  private async signTypedData(typedData: GenericTypedData): Promise<Hash> {
     try {
       // Get wallet address for cache key - use account if available, otherwise get from wallet
       const walletAddress =
@@ -1314,13 +1313,15 @@ export class PermissionsController {
       return await withSignatureCache(
         this.context.platform.cache,
         walletAddress,
-        typedData as unknown as Record<string, unknown>,
+        typedData as Record<string, unknown>,
         async () => {
-          return await this.context.walletClient.signTypedData(
-            typedData as Parameters<
-              typeof this.context.walletClient.signTypedData
-            >[0],
-          );
+          const viemCompatibleTypedData = toViemTypedDataDefinition(typedData);
+          return await this.context.walletClient.signTypedData({
+            ...viemCompatibleTypedData,
+            // Non-null assertion is safe here because getUserAddress() above ensures account exists
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+            account: this.context.walletClient.account!,
+          });
         },
       );
     } catch (error) {
@@ -1665,9 +1666,7 @@ export class PermissionsController {
       });
 
       // Sign the typed data
-      const signature = await this.signTypedData(
-        typedData as unknown as GenericTypedData,
-      );
+      const signature = await this.signTypedData(typedData);
 
       console.debug("🔍 Generated signature:", signature);
 
@@ -1736,9 +1735,7 @@ export class PermissionsController {
       const typedData = await this.composeTrustServerMessage(trustServerInput);
 
       // Sign the typed data
-      const signature = await this.signTypedData(
-        typedData as unknown as GenericTypedData,
-      );
+      const signature = await this.signTypedData(typedData);
 
       // Submit via relayer callbacks or direct transaction
       if (this.context.relayerCallbacks?.submitTrustServer) {
@@ -1882,9 +1879,7 @@ export class PermissionsController {
         await this.composeUntrustServerMessage(untrustServerInput);
 
       // Sign the typed data
-      const signature = await this.signTypedData(
-        typedData as unknown as GenericTypedData,
-      );
+      const signature = await this.signTypedData(typedData);
 
       // Submit via relayer callbacks or direct transaction
       if (this.context.relayerCallbacks?.submitUntrustServer) {
@@ -1893,10 +1888,7 @@ export class PermissionsController {
           signature,
         );
       } else {
-        return await this.submitSignedUntrustTransaction(
-          typedData as unknown as GenericTypedData,
-          signature,
-        );
+        return await this.submitSignedUntrustTransaction(typedData, signature);
       }
     } catch (error) {
       if (error instanceof Error) {

@@ -1,14 +1,13 @@
 import { Address, getContract, decodeEventLog, Hash } from "viem";
+import { fetchSchemaFromChain } from "../utils/blockchain/registry";
+import { StorageUploadResult } from "../types/storage";
 
 import {
   UserFile,
   UploadParams,
   UploadResult,
   UploadEncryptedFileResult,
-  Schema,
   Refiner,
-  AddSchemaParams,
-  AddSchemaResult,
   AddRefinerParams,
   AddRefinerResult,
   UpdateSchemaIdParams,
@@ -252,33 +251,13 @@ export class DataController {
     } = params;
 
     try {
-      // Step 1: Normalize content to Blob
-      let blob: Blob;
-      if (content instanceof Blob) {
-        blob = content;
-      } else if (typeof content === "string") {
-        blob = new Blob([content], { type: "text/plain" });
-      } else if (content instanceof Buffer) {
-        // Convert Buffer to ArrayBuffer for BlobPart compatibility in browser typings
-        const arrayBuffer = content.buffer.slice(
-          content.byteOffset,
-          content.byteOffset + content.byteLength,
-        ) as ArrayBuffer;
-        blob = new Blob([arrayBuffer], { type: "application/octet-stream" });
-      } else {
-        // Handle objects by JSON stringifying them
-        blob = new Blob([JSON.stringify(content)], {
-          type: "application/json",
-        });
-      }
-
       let isValid = true;
       let validationErrors: string[] = [];
 
-      // Step 2: Schema validation if provided
+      // Step 1: Schema validation if provided
       if (schemaId !== undefined) {
         try {
-          const schema = await this.getSchema(schemaId);
+          const schema = await fetchSchemaFromChain(this.context, schemaId);
           const response = await fetch(schema.definitionUrl);
           if (!response.ok) {
             throw new Error(
@@ -317,51 +296,20 @@ export class DataController {
         }
       }
 
-      // Step 3: Handle encryption
-      let finalBlob = blob;
-      if (encrypt) {
-        // Generate encryption key
-        const encryptionKey = await generateEncryptionKey(
-          this.context.walletClient,
-          this.context.platform,
-          DEFAULT_ENCRYPTION_SEED,
-        );
-
-        // Encrypt the data
-        finalBlob = await encryptBlobWithSignedKey(
-          blob,
-          encryptionKey,
-          this.context.platform,
-        );
-      }
-
-      // Step 4: Upload to storage
-      if (!this.context.storageManager) {
-        // Use centralized validation if available, otherwise fall back to old behavior
-        if (this.context.validateStorageRequired) {
-          this.context.validateStorageRequired();
-          // The validateStorageRequired method throws, so this line should never be reached
-          // but TypeScript doesn't know that, so we need this fallback
-          throw new Error("Storage validation failed");
-        } else {
-          throw new Error(
-            "Storage manager not configured. Please provide storage providers in VanaConfig.",
-          );
-        }
-      }
-
-      const uploadResult = await this.context.storageManager.upload(
-        finalBlob,
+      // Step 2: Upload to storage using the centralized method
+      const uploadResult = await this.uploadToStorage(
+        content,
         filename,
+        encrypt,
         providerName,
       );
 
-      // Step 5: Register on blockchain
+      // Step 3: Register on blockchain
       const userAddress = owner || (await this.getUserAddress());
 
       // Prepare encrypted permissions if provided
       let encryptedPermissions: Array<{ account: Address; key: string }> = [];
-      if (permissions.length > 0) {
+      if (permissions.length > 0 && encrypt) {
         const userEncryptionKey = await generateEncryptionKey(
           this.context.walletClient,
           this.context.platform,
@@ -1381,251 +1329,6 @@ export class DataController {
   }
 
   /**
-   * Uploads an encrypted file to storage and registers it on the blockchain.
-   *
-   * @deprecated Since v2.0.0 - Use vana.data.upload() instead for the high-level API with automatic encryption
-   *
-   * Migration guide:
-   * ```typescript
-   * // Old way (deprecated):
-   * const encrypted = await encryptBlob(data, key);
-   * const result = await vana.data.uploadEncryptedFile(encrypted, filename);
-   *
-   * // New way:
-   * const result = await vana.data.upload({
-   *   content: data,
-   *   filename: filename,
-   *   encrypt: true  // Handles encryption automatically
-   * });
-   * ```
-   * @param encryptedFile - The encrypted file blob to upload
-   * @param filename - Optional filename for the upload
-   * @param providerName - Optional storage provider to use
-   * @returns Promise resolving to upload result with file ID and storage URL
-   *
-   * This method handles the complete flow of:
-   * 1. Uploading the encrypted file to the specified storage provider
-   * 2. Registering the file URL on the DataRegistry contract via relayer
-   * 3. Returning the assigned file ID and storage URL
-   */
-  async uploadEncryptedFile(
-    encryptedFile: Blob,
-    filename?: string,
-    providerName?: string,
-  ): Promise<UploadEncryptedFileResult> {
-    try {
-      // Check if storage manager is available
-      if (!this.context.storageManager) {
-        throw new Error(
-          "Storage manager not configured. Please provide storage providers in VanaConfig.",
-        );
-      }
-
-      // Step 1: Upload encrypted file to storage
-      const uploadResult = await this.context.storageManager.upload(
-        encryptedFile,
-        filename,
-        providerName,
-      );
-
-      // Step 2: Register file on blockchain (either via relayer or direct)
-      const userAddress = await this.getUserAddress();
-
-      if (this.context.relayerCallbacks?.submitFileAddition) {
-        // Use callback for file addition
-        const result = await this.context.relayerCallbacks.submitFileAddition(
-          uploadResult.url,
-          userAddress,
-        );
-
-        return {
-          fileId: result.fileId,
-          url: uploadResult.url,
-          size: uploadResult.size,
-          transactionHash: result.transactionHash,
-        };
-      } else {
-        // Direct transaction (user pays gas)
-        const chainId = this.context.walletClient.chain?.id;
-        if (!chainId) {
-          throw new Error("Chain ID not available");
-        }
-
-        const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
-        const dataRegistryAbi = getAbi("DataRegistry");
-
-        const txHash = await this.context.walletClient.writeContract({
-          address: dataRegistryAddress,
-          abi: dataRegistryAbi,
-          functionName: "addFile",
-          args: [uploadResult.url],
-          account: this.context.walletClient.account || userAddress,
-          chain: this.context.walletClient.chain || null,
-        });
-
-        // Wait for transaction receipt to parse the FileAdded event
-        const receipt =
-          await this.context.publicClient.waitForTransactionReceipt({
-            hash: txHash,
-            timeout: 30_000, // 30 seconds timeout
-          });
-
-        // Parse the FileAdded event to get the actual fileId
-        let fileId = 0;
-        for (const log of receipt.logs) {
-          try {
-            const decoded = decodeEventLog({
-              abi: dataRegistryAbi,
-              data: log.data,
-              topics: log.topics,
-            });
-
-            if (decoded.eventName === "FileAdded") {
-              fileId = Number(decoded.args.fileId);
-              break;
-            }
-          } catch {
-            // Ignore logs that don't match our ABI
-            continue;
-          }
-        }
-
-        return {
-          fileId: fileId,
-          url: uploadResult.url,
-          size: uploadResult.size,
-          transactionHash: txHash,
-        };
-      }
-    } catch (error) {
-      console.error("Failed to upload encrypted file:", error);
-      throw new Error(
-        `Upload failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-    }
-  }
-
-  /**
-   * Uploads an encrypted file to storage and registers it on the blockchain with a schema.
-   *
-   * @deprecated Since v2.0.0 - Use vana.data.upload() instead for the high-level API with automatic encryption and schema validation
-   *
-   * Migration guide:
-   * ```typescript
-   * // Old way (deprecated):
-   * const encrypted = await encryptBlob(data, key);
-   * const result = await vana.data.uploadEncryptedFileWithSchema(encrypted, schemaId, filename);
-   *
-   * // New way:
-   * const result = await vana.data.upload({
-   *   content: data,
-   *   filename: filename,
-   *   schemaId: schemaId,  // Automatic validation
-   *   encrypt: true
-   * });
-   * ```
-   * @param encryptedFile - The encrypted file blob to upload
-   * @param schemaId - The schema ID to associate with the file
-   * @param filename - Optional filename for the upload
-   * @param providerName - Optional storage provider to use
-   * @returns Promise resolving to upload result with file ID and storage URL
-   *
-   * This method handles the complete flow of:
-   * 1. Uploading the encrypted file to the specified storage provider
-   * 2. Registering the file URL on the DataRegistry contract with a schema ID
-   * 3. Returning the assigned file ID and storage URL
-   */
-  async uploadEncryptedFileWithSchema(
-    encryptedFile: Blob,
-    schemaId: number,
-    filename?: string,
-    providerName?: string,
-  ): Promise<UploadEncryptedFileResult> {
-    try {
-      // Check if storage manager is available
-      if (!this.context.storageManager) {
-        throw new Error(
-          "Storage manager not configured. Please provide storage providers in VanaConfig.",
-        );
-      }
-
-      // Step 1: Upload encrypted file to storage
-      const uploadResult = await this.context.storageManager.upload(
-        encryptedFile,
-        filename,
-        providerName,
-      );
-
-      // Step 2: Register file on blockchain with schema
-      const userAddress = await this.getUserAddress();
-
-      if (this.context.relayerCallbacks?.submitFileAddition) {
-        // Gasless registration via relayer - need to update relayer to support schema
-        throw new Error(
-          "Relayer does not yet support uploading files with schema. Please use direct transaction mode.",
-        );
-      } else {
-        // Direct transaction (user pays gas)
-        const chainId = this.context.walletClient.chain?.id;
-        if (!chainId) {
-          throw new Error("Chain ID not available");
-        }
-
-        const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
-        const dataRegistryAbi = getAbi("DataRegistry");
-
-        const txHash = await this.context.walletClient.writeContract({
-          address: dataRegistryAddress,
-          abi: dataRegistryAbi,
-          functionName: "addFileWithSchema",
-          args: [uploadResult.url, BigInt(schemaId)],
-          account: this.context.walletClient.account || userAddress,
-          chain: this.context.walletClient.chain || null,
-        });
-
-        // Wait for transaction receipt to parse the FileAdded event
-        const receipt =
-          await this.context.publicClient.waitForTransactionReceipt({
-            hash: txHash,
-            timeout: 30_000, // 30 seconds timeout
-          });
-
-        // Parse the FileAdded event to get the actual fileId
-        let fileId = 0;
-        for (const log of receipt.logs) {
-          try {
-            const decoded = decodeEventLog({
-              abi: dataRegistryAbi,
-              data: log.data,
-              topics: log.topics,
-            });
-
-            if (decoded.eventName === "FileAdded") {
-              fileId = Number(decoded.args.fileId);
-              break;
-            }
-          } catch {
-            // Ignore logs that don't match our ABI
-            continue;
-          }
-        }
-
-        return {
-          fileId: fileId,
-          url: uploadResult.url,
-          size: uploadResult.size,
-          transactionHash: txHash,
-        };
-      }
-    } catch (error) {
-      console.error("Failed to upload encrypted file with schema:", error);
-      throw new Error(
-        `Upload failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-    }
-  }
-
-  /**
    * Registers a file URL directly on the blockchain with a schema ID.
    *
    * @param url - The URL of the file to register
@@ -1873,202 +1576,6 @@ export class DataController {
       throw new Error(
         `Failed to add file with permissions and schema: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
-    }
-  }
-
-  /**
-   * Adds a new schema to the DataRefinerRegistry.
-   *
-   * @deprecated Since v2.0.0 - Use vana.schemas.create() instead for the high-level API with automatic IPFS upload
-   *
-   * Migration guide:
-   * ```typescript
-   * // Old way (deprecated):
-   * const result = await vana.data.addSchema({
-   *   name: "UserProfile",
-   *   type: "JSON",
-   *   definitionUrl: "ipfs://..."
-   * });
-   *
-   * // New way:
-   * const result = await vana.schemas.create({
-   *   name: "UserProfile",
-   *   type: "JSON",
-   *   definition: schemaObject  // Automatically uploads to IPFS
-   * });
-   * ```
-   * @param params - Schema parameters including name, type, and definition URL
-   * @returns Promise resolving to the new schema ID and transaction hash
-   */
-  async addSchema(params: AddSchemaParams): Promise<AddSchemaResult> {
-    try {
-      const chainId = this.context.walletClient.chain?.id;
-      if (!chainId) {
-        throw new Error("Chain ID not available");
-      }
-
-      const dataRefinerRegistryAddress = getContractAddress(
-        chainId,
-        "DataRefinerRegistry",
-      );
-      const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
-
-      const txHash = await this.context.walletClient.writeContract({
-        address: dataRefinerRegistryAddress,
-        abi: dataRefinerRegistryAbi,
-        functionName: "addSchema",
-        args: [params.name, params.type, params.definitionUrl],
-        account:
-          this.context.walletClient.account || (await this.getUserAddress()),
-        chain: this.context.walletClient.chain || null,
-      });
-
-      const receipt = await this.context.publicClient.waitForTransactionReceipt(
-        {
-          hash: txHash,
-          timeout: 30_000,
-        },
-      );
-
-      let schemaId = 0;
-      for (const log of receipt.logs) {
-        try {
-          const decoded = decodeEventLog({
-            abi: dataRefinerRegistryAbi,
-            data: log.data,
-            topics: log.topics,
-          });
-
-          if (decoded.eventName === "SchemaAdded") {
-            schemaId = Number(decoded.args.schemaId);
-            break;
-          }
-        } catch {
-          continue;
-        }
-      }
-
-      return {
-        schemaId,
-        transactionHash: txHash,
-      };
-    } catch (error) {
-      console.error("Failed to add schema:", error);
-      throw new Error(
-        `Failed to add schema: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-    }
-  }
-
-  /**
-   * Retrieves a schema by its ID.
-   *
-   * @deprecated Since v2.0.0 - Use vana.schemas.get() instead
-   *
-   * Migration guide:
-   * ```typescript
-   * // Old way (deprecated):
-   * const schema = await vana.data.getSchema(schemaId);
-   *
-   * // New way:
-   * const schema = await vana.schemas.get(schemaId);
-   * ```
-   * @param schemaId - The schema ID to retrieve
-   * @returns Promise resolving to the schema information
-   */
-  async getSchema(schemaId: number): Promise<Schema> {
-    try {
-      const chainId = this.context.walletClient.chain?.id;
-      if (!chainId) {
-        throw new Error("Chain ID not available");
-      }
-
-      const dataRefinerRegistryAddress = getContractAddress(
-        chainId,
-        "DataRefinerRegistry",
-      );
-      const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
-
-      const dataRefinerRegistry = getContract({
-        address: dataRefinerRegistryAddress,
-        abi: dataRefinerRegistryAbi,
-        client: this.context.walletClient,
-      });
-
-      const schemaData = await dataRefinerRegistry.read.schemas([
-        BigInt(schemaId),
-      ]);
-
-      if (!schemaData) {
-        throw new Error("Schema not found");
-      }
-
-      // Contract returns an object with {name, typ, definitionUrl}
-      interface SchemaContractData {
-        name: string;
-        typ: string;
-        definitionUrl: string;
-      }
-
-      const schemaObj = schemaData as unknown as SchemaContractData;
-
-      if (!schemaObj.name || !schemaObj.typ || !schemaObj.definitionUrl) {
-        throw new Error("Incomplete schema data");
-      }
-
-      return {
-        id: schemaId,
-        name: schemaObj.name,
-        type: schemaObj.typ,
-        definitionUrl: schemaObj.definitionUrl,
-      };
-    } catch (error) {
-      console.error("Failed to get schema:", error);
-      throw new Error(
-        `Failed to get schema ${schemaId}: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-    }
-  }
-
-  /**
-   * Gets the total number of schemas in the registry.
-   *
-   * @deprecated Since v2.0.0 - Use vana.schemas.count() instead
-   *
-   * Migration guide:
-   * ```typescript
-   * // Old way (deprecated):
-   * const count = await vana.data.getSchemasCount();
-   *
-   * // New way:
-   * const count = await vana.schemas.count();
-   * ```
-   * @returns Promise resolving to the total schema count
-   */
-  async getSchemasCount(): Promise<number> {
-    try {
-      const chainId = this.context.walletClient.chain?.id;
-      if (!chainId) {
-        throw new Error("Chain ID not available");
-      }
-
-      const dataRefinerRegistryAddress = getContractAddress(
-        chainId,
-        "DataRefinerRegistry",
-      );
-      const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
-
-      const dataRefinerRegistry = getContract({
-        address: dataRefinerRegistryAddress,
-        abi: dataRefinerRegistryAbi,
-        client: this.context.walletClient,
-      });
-
-      const count = await dataRefinerRegistry.read.schemasCount();
-      return Number(count);
-    } catch (error) {
-      console.error("Failed to get schemas count:", error);
-      return 0;
     }
   }
 
@@ -2328,37 +1835,25 @@ export class DataController {
     providerName?: string,
   ): Promise<UploadEncryptedFileResult> {
     try {
-      // 1. Generate user's encryption key
+      // 1. Upload the file with encryption using the centralized method
+      const uploadResult = await this.uploadToStorage(
+        data,
+        filename,
+        true, // Always encrypt for uploadFileWithPermissions
+        providerName,
+      );
+
+      // 2. Get user address
+      const userAddress = await this.getUserAddress();
+
+      // 3. Generate user's encryption key (same as used in uploadToStorage)
       const userEncryptionKey = await generateEncryptionKey(
         this.context.walletClient,
         this.context.platform,
         DEFAULT_ENCRYPTION_SEED,
       );
 
-      // 2. Encrypt data with user's key
-      const encryptedData = await encryptBlobWithSignedKey(
-        data,
-        userEncryptionKey,
-        this.context.platform,
-      );
-
-      // 3. Upload the encrypted file
-      if (!this.context.storageManager) {
-        throw new Error(
-          "Storage manager not configured. Please provide storage providers in VanaConfig.",
-        );
-      }
-
-      const uploadResult = await this.context.storageManager.upload(
-        encryptedData,
-        filename,
-        providerName,
-      );
-
-      // 4. Get user address
-      const userAddress = await this.getUserAddress();
-
-      // 5. Encrypt user's encryption key for each permission
+      // 4. Encrypt user's encryption key for each permission
       const encryptedPermissions = await Promise.all(
         permissions.map(async (permission) => {
           const encryptedKey = await encryptWithWalletPublicKey(
@@ -2373,7 +1868,7 @@ export class DataController {
         }),
       );
 
-      // 6. Register file with permissions (either via relayer or direct)
+      // 5. Register file with permissions (either via relayer or direct)
       let result;
       if (this.context.relayerCallbacks?.submitFileAdditionWithPermissions) {
         // Use callback for file addition with permissions
@@ -2411,17 +1906,17 @@ export class DataController {
    * This method only handles the storage upload and returns the file URL.
    *
    * @param content - The content to upload (string, Blob, Buffer, or object - objects will be JSON stringified)
-   * @param filename - Filename for the uploaded file
+   * @param filename - Optional filename for the uploaded file (defaults to timestamp-based name)
    * @param encrypt  - Optional flag to encrypt the content before upload
    * @param providerName - Optional specific storage provider to use
-   * @returns Promise resolving to the storage file URL
+   * @returns Promise resolving to the storage upload result with url, size, and contentType
    */
   async uploadToStorage(
     content: string | Blob | Buffer | object,
-    filename: string,
+    filename?: string,
     encrypt: boolean = false,
     providerName?: string,
-  ): Promise<string> {
+  ): Promise<StorageUploadResult> {
     try {
       // Step 1: Normalize content to Blob
       let blob: Blob;
@@ -2476,13 +1971,16 @@ export class DataController {
         }
       }
 
+      // Generate default filename if not provided
+      const finalFilename = filename || `upload-${Date.now()}.dat`;
+
       const uploadResult = await this.context.storageManager.upload(
         finalBlob,
-        filename,
+        finalFilename,
         providerName,
       );
 
-      return uploadResult.url;
+      return uploadResult;
     } catch (error) {
       throw new Error(
         `Upload failed: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -2993,7 +2491,7 @@ export class DataController {
   async getValidatedSchema(schemaId: number): Promise<DataSchema> {
     try {
       // First get the schema metadata from the registry
-      const schema = await this.getSchema(schemaId);
+      const schema = await fetchSchemaFromChain(this.context, schemaId);
 
       // Then fetch and validate the full data schema from the definition URL
       const dataSchema = await this.fetchAndValidateSchema(

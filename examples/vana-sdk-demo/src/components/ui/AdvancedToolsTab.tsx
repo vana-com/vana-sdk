@@ -320,10 +320,12 @@ export const AdvancedToolsTab: React.FC<AdvancedToolsTabProps> = ({
         type: testFile.type,
       });
 
-      // Upload test file (unencrypted for testing purposes)
-      const result = await vana.data.uploadEncryptedFile(
+      // Upload test file (unencrypted for storage provider testing)
+      const result = await vana.data.uploadToStorage(
         fileBlob,
         testFile.name,
+        false, // encrypt
+        storageProvider,
       );
 
       const endTime = performance.now();

@@ -72,6 +72,7 @@ describe("ServerController", () => {
         mockApplicationClient as unknown as ControllerContext["applicationClient"],
       publicClient: {} as unknown as ControllerContext["publicClient"],
       platform: mockPlatformAdapter,
+      defaultPersonalServerUrl: "https://test-personal-server.com",
     };
 
     serverController = new ServerController(mockContext);

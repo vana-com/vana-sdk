@@ -19,40 +19,10 @@ describe("DataController Additional Methods", () => {
 
   const dataController = new DataController(mockContext);
 
-  it("should call getSchemasCount method", async () => {
-    // This should hit lines around 1474-1506 in getSchemasCount
-    const result = await dataController.getSchemasCount();
-    expect(typeof result).toBe("number");
-  });
-
-  it("should call getSchema method", async () => {
-    // This should hit lines around 1428-1473 in getSchema
-    try {
-      await dataController.getSchema(123);
-    } catch (error) {
-      // Expected to fail with mocked context, but hits the code path
-      expect(error).toBeDefined();
-    }
-  });
-
   it("should call getRefiner method", async () => {
     // This should hit lines around 1578-1626 in getRefiner
     try {
       await dataController.getRefiner(123);
-    } catch (error) {
-      // Expected to fail with mocked context, but hits the code path
-      expect(error).toBeDefined();
-    }
-  });
-
-  it("should call addSchema method", async () => {
-    // This should hit lines around 1362-1427 in addSchema
-    try {
-      await dataController.addSchema({
-        definitionUrl: "https://example.com/schema",
-        name: "Test Schema",
-        type: "json",
-      });
     } catch (error) {
       // Expected to fail with mocked context, but hits the code path
       expect(error).toBeDefined();

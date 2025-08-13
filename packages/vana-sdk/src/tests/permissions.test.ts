@@ -1134,7 +1134,7 @@ describe("PermissionsController", () => {
       };
 
       await expect(controller.grant(mockParams)).rejects.toThrow(
-        "Failed to retrieve user nonce: Unknown error",
+        "Failed to retrieve permissions nonce: Unknown error",
       );
     });
 
@@ -1498,9 +1498,9 @@ describe("PermissionsController", () => {
 
       vi.spyOn(
         controller as unknown as {
-          getUserNonce: () => Promise<bigint>;
+          getPermissionsUserNonce: () => Promise<bigint>;
         },
-        "getUserNonce",
+        "getPermissionsUserNonce",
       ).mockRejectedValue(new Error("Nonce retrieval failed"));
 
       const params = {

@@ -276,6 +276,8 @@ describe("useTrustedServers", () => {
       act(() => {
         result.current.setServerAddress("0xserver3");
         result.current.setServerUrl("https://server3.com");
+        result.current.setServerOwner("0xowner123");
+        result.current.setPublicKey("0xpublickey123");
       });
 
       await act(async () => {
@@ -305,7 +307,7 @@ describe("useTrustedServers", () => {
       });
 
       expect(result.current.trustServerError).toBe(
-        "Please provide a server ID (address)",
+        "Please provide a server address",
       );
       expect(mockVana.permissions.addAndTrustServer).not.toHaveBeenCalled();
     });
@@ -338,6 +340,8 @@ describe("useTrustedServers", () => {
       act(() => {
         result.current.setServerAddress("0xserver3");
         result.current.setServerUrl("https://server3.com");
+        result.current.setServerOwner("0xowner123");
+        result.current.setPublicKey("0xpublickey123");
       });
 
       await act(async () => {
@@ -490,7 +494,7 @@ describe("useTrustedServers", () => {
       const { result } = renderHook(() => useTrustedServers());
 
       await act(async () => {
-        await result.current.handleUntrustServer("0xserver1");
+        await result.current.handleUntrustServer("1");
       });
 
       expect(
@@ -500,7 +504,7 @@ describe("useTrustedServers", () => {
       });
       expect(addToastMock).toHaveBeenCalledWith({
         title: "Server Untrusted",
-        description: "Successfully untrusted server 0xserver1",
+        description: "Successfully untrusted server 1",
         variant: "solid",
         color: "success",
       });

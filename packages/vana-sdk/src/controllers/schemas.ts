@@ -1,4 +1,4 @@
-import { Address, getContract, decodeEventLog } from "viem";
+import { Address, decodeEventLog } from "viem";
 import { Schema, AddSchemaParams, AddSchemaResult } from "../types/index";
 import { ControllerContext } from "./permissions";
 import { getContractAddress } from "../config/addresses";
@@ -8,6 +8,10 @@ import {
   SchemaValidationError,
   type DataSchema,
 } from "../utils/schemaValidation";
+import {
+  fetchSchemaFromChain,
+  fetchSchemaCountFromChain,
+} from "../utils/blockchain/registry";
 
 /**
  * Parameters for creating a new schema with automatic IPFS upload.
@@ -262,50 +266,7 @@ export class SchemaController {
    */
   async get(schemaId: number): Promise<Schema> {
     try {
-      const chainId = this.context.walletClient.chain?.id;
-      if (!chainId) {
-        throw new Error("Chain ID not available");
-      }
-
-      const dataRefinerRegistryAddress = getContractAddress(
-        chainId,
-        "DataRefinerRegistry",
-      );
-      const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
-
-      const dataRefinerRegistry = getContract({
-        address: dataRefinerRegistryAddress,
-        abi: dataRefinerRegistryAbi,
-        client: this.context.publicClient,
-      });
-
-      const schemaData = await dataRefinerRegistry.read.schemas([
-        BigInt(schemaId),
-      ]);
-
-      if (!schemaData) {
-        throw new Error(`Schema with ID ${schemaId} not found`);
-      }
-
-      // Contract returns an object with {name, typ, definitionUrl}
-      interface SchemaContractData {
-        name: string;
-        typ: string;
-        definitionUrl: string;
-      }
-
-      const schemaObj = schemaData as unknown as SchemaContractData;
-
-      if (!schemaObj.name || !schemaObj.typ || !schemaObj.definitionUrl) {
-        throw new Error("Incomplete schema data");
-      }
-
-      return {
-        id: schemaId,
-        name: schemaObj.name,
-        type: schemaObj.typ,
-        definitionUrl: schemaObj.definitionUrl,
-      };
+      return await fetchSchemaFromChain(this.context, schemaId);
     } catch (error) {
       throw new Error(
         `Failed to get schema: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -326,25 +287,7 @@ export class SchemaController {
    */
   async count(): Promise<number> {
     try {
-      const chainId = this.context.walletClient.chain?.id;
-      if (!chainId) {
-        throw new Error("Chain ID not available");
-      }
-
-      const dataRefinerRegistryAddress = getContractAddress(
-        chainId,
-        "DataRefinerRegistry",
-      );
-      const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
-
-      const dataRefinerRegistry = getContract({
-        address: dataRefinerRegistryAddress,
-        abi: dataRefinerRegistryAbi,
-        client: this.context.publicClient,
-      });
-
-      const count = await dataRefinerRegistry.read.schemasCount();
-      return Number(count);
+      return await fetchSchemaCountFromChain(this.context);
     } catch (error) {
       throw new Error(
         `Failed to get schemas count: ${error instanceof Error ? error.message : "Unknown error"}`,

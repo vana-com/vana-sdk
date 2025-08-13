@@ -188,14 +188,33 @@ describe("Dual-Mode Trusted Server Queries", () => {
   describe("Mode: rpc", () => {
     it("should successfully query trusted servers via RPC", async () => {
       // Mock contract calls for RPC mode
+      const serverIds = [1n, 2n, 3n]; // Numeric server IDs
       mockPublicClient.readContract
         .mockResolvedValueOnce(3n) // userServerIdsLength
-        .mockResolvedValueOnce(serverAddresses[0]) // userServerIdsAt(0)
-        .mockResolvedValueOnce(serverAddresses[1]) // userServerIdsAt(1)
-        .mockResolvedValueOnce(serverAddresses[2]) // userServerIdsAt(2)
-        .mockResolvedValueOnce({ url: "https://server1.example.com" }) // servers(serverAddresses[0])
-        .mockResolvedValueOnce({ url: "https://server2.example.com" }) // servers(serverAddresses[1])
-        .mockResolvedValueOnce({ url: "https://server3.example.com" }); // servers(serverAddresses[2])
+        .mockResolvedValueOnce(serverIds[0]) // userServerIdsAt(0)
+        .mockResolvedValueOnce(serverIds[1]) // userServerIdsAt(1)
+        .mockResolvedValueOnce(serverIds[2]) // userServerIdsAt(2)
+        .mockResolvedValueOnce({
+          id: serverIds[0],
+          owner: userAddress,
+          serverAddress: serverAddresses[0],
+          publicKey: "0x" + "0".repeat(64),
+          url: "https://server1.example.com",
+        }) // servers(serverIds[0])
+        .mockResolvedValueOnce({
+          id: serverIds[1],
+          owner: userAddress,
+          serverAddress: serverAddresses[1],
+          publicKey: "0x" + "0".repeat(64),
+          url: "https://server2.example.com",
+        }) // servers(serverIds[1])
+        .mockResolvedValueOnce({
+          id: serverIds[2],
+          owner: userAddress,
+          serverAddress: serverAddresses[2],
+          publicKey: "0x" + "0".repeat(64),
+          url: "https://server3.example.com",
+        }); // servers(serverIds[2])
 
       const result = await dataController.getUserTrustedServers({
         user: userAddress,
@@ -208,7 +227,7 @@ describe("Dual-Mode Trusted Server Queries", () => {
       expect(result.total).toBe(3);
       expect(result.hasMore).toBe(false);
       expect(result.servers[0]).toEqual({
-        id: `${userAddress.toLowerCase()}-${serverAddresses[0].toLowerCase()}`,
+        id: `${userAddress.toLowerCase()}-1`,
         serverAddress: serverAddresses[0],
         serverUrl: "https://server1.example.com",
         trustedAt: expect.any(BigInt),
@@ -220,10 +239,22 @@ describe("Dual-Mode Trusted Server Queries", () => {
     it("should handle pagination correctly", async () => {
       mockPublicClient.readContract
         .mockResolvedValueOnce(10n) // Total count is 10
-        .mockResolvedValueOnce(serverAddresses[2]) // userServerIdsAt(2)
-        .mockResolvedValueOnce(serverAddresses[0]) // userServerIdsAt(3) (reusing for test)
-        .mockResolvedValueOnce({ url: "https://server3.example.com" })
-        .mockResolvedValueOnce({ url: "https://server1.example.com" });
+        .mockResolvedValueOnce(3n) // userServerIdsAt(2)
+        .mockResolvedValueOnce(4n) // userServerIdsAt(3)
+        .mockResolvedValueOnce({
+          id: 3n,
+          owner: userAddress,
+          serverAddress: serverAddresses[2],
+          publicKey: "0x" + "0".repeat(64),
+          url: "https://server3.example.com",
+        })
+        .mockResolvedValueOnce({
+          id: 4n,
+          owner: userAddress,
+          serverAddress: serverAddresses[0],
+          publicKey: "0x" + "0".repeat(64),
+          url: "https://server1.example.com",
+        });
 
       const result = await dataController.getUserTrustedServers({
         user: userAddress,
@@ -378,10 +409,22 @@ describe("Dual-Mode Trusted Server Queries", () => {
       // Should default to 'auto' mode, but will now fall back to RPC
       mockPublicClient.readContract
         .mockResolvedValueOnce(2n) // userServerIdsLength
-        .mockResolvedValueOnce(serverAddresses[0]) // userServerIdsAt
-        .mockResolvedValueOnce(serverAddresses[1]) // userServerIdsAt
-        .mockResolvedValueOnce({ url: "https://server1.example.com" }) // servers
-        .mockResolvedValueOnce({ url: "https://server2.example.com" }); // servers
+        .mockResolvedValueOnce(1n) // userServerIdsAt(0)
+        .mockResolvedValueOnce(2n) // userServerIdsAt(1)
+        .mockResolvedValueOnce({
+          id: 1n,
+          owner: userAddress,
+          serverAddress: serverAddresses[0],
+          publicKey: "0x" + "0".repeat(64),
+          url: "https://server1.example.com",
+        }) // servers(1)
+        .mockResolvedValueOnce({
+          id: 2n,
+          owner: userAddress,
+          serverAddress: serverAddresses[1],
+          publicKey: "0x" + "0".repeat(64),
+          url: "https://server2.example.com",
+        }); // servers(2)
 
       const result = await dataController.getUserTrustedServers({
         user: userAddress,
@@ -401,8 +444,14 @@ describe("Dual-Mode Trusted Server Queries", () => {
       // Mock RPC calls since subgraph mode now falls back to RPC
       mockPublicClient.readContract
         .mockResolvedValueOnce(1n) // userServerIdsLength
-        .mockResolvedValueOnce(serverAddresses[0]) // userServerIdsAt
-        .mockResolvedValueOnce({ url: "https://server1.example.com" }); // servers
+        .mockResolvedValueOnce(1n) // userServerIdsAt(0)
+        .mockResolvedValueOnce({
+          id: 1n,
+          owner: userAddress,
+          serverAddress: serverAddresses[0],
+          publicKey: "0x" + "0".repeat(64),
+          url: "https://server1.example.com",
+        }); // servers(1)
 
       const result = await dataController.getUserTrustedServers({
         user: userAddress,
@@ -571,12 +620,19 @@ describe("Dual-Mode Trusted Server Queries", () => {
             data: {
               user: {
                 id: userAddress.toLowerCase(),
-                trustedServers: [
+                serverTrusts: [
                   {
-                    id: "subgraph-server-1",
-                    serverAddress: serverAddresses[0],
-                    serverUrl: "https://server1.example.com",
+                    id: "trust-1",
+                    server: {
+                      id: "1",
+                      serverAddress: serverAddresses[0],
+                      url: "https://server1.example.com",
+                      publicKey: "0x" + "0".repeat(64),
+                    },
                     trustedAt: "1234567890",
+                    trustedAtBlock: "100",
+                    untrustedAtBlock: null,
+                    transactionHash: "0x" + "0".repeat(64),
                   },
                 ],
               },
@@ -604,24 +660,45 @@ describe("Dual-Mode Trusted Server Queries", () => {
             data: {
               user: {
                 id: userAddress.toLowerCase(),
-                trustedServers: [
+                serverTrusts: [
                   {
-                    id: "subgraph-server-1",
-                    serverAddress: serverAddresses[0],
-                    serverUrl: "https://server1.example.com",
+                    id: "trust-1",
+                    server: {
+                      id: "1",
+                      serverAddress: serverAddresses[0],
+                      url: "https://server1.example.com",
+                      publicKey: "0x" + "0".repeat(64),
+                    },
                     trustedAt: "1234567890",
+                    trustedAtBlock: "100",
+                    untrustedAtBlock: null,
+                    transactionHash: "0x" + "0".repeat(64),
                   },
                   {
-                    id: "subgraph-server-2",
-                    serverAddress: serverAddresses[1],
-                    serverUrl: "https://server2.example.com",
+                    id: "trust-2",
+                    server: {
+                      id: "2",
+                      serverAddress: serverAddresses[1],
+                      url: "https://server2.example.com",
+                      publicKey: "0x" + "0".repeat(64),
+                    },
                     trustedAt: "1234567891",
+                    trustedAtBlock: "101",
+                    untrustedAtBlock: null,
+                    transactionHash: "0x" + "0".repeat(64),
                   },
                   {
-                    id: "subgraph-server-3",
-                    serverAddress: serverAddresses[2],
-                    serverUrl: "https://server3.example.com",
+                    id: "trust-3",
+                    server: {
+                      id: "3",
+                      serverAddress: serverAddresses[2],
+                      url: "https://server3.example.com",
+                      publicKey: "0x" + "0".repeat(64),
+                    },
                     trustedAt: "1234567892",
+                    trustedAtBlock: "102",
+                    untrustedAtBlock: null,
+                    transactionHash: "0x" + "0".repeat(64),
                   },
                 ],
               },

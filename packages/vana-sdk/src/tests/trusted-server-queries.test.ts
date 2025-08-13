@@ -23,6 +23,7 @@ describe("Enhanced Trusted Server Queries", () => {
   let permissionsController: PermissionsController;
   let mockPublicClient: {
     readContract: ReturnType<typeof vi.fn>;
+    getChainId: ReturnType<typeof vi.fn>;
   };
   let mockWalletClient: {
     getAddresses: ReturnType<typeof vi.fn>;
@@ -32,19 +33,13 @@ describe("Enhanced Trusted Server Queries", () => {
   let context: ControllerContext;
 
   const userAddress: Address = "0x1234567890123456789012345678901234567890";
-  const serverAddresses: Address[] = [
-    "0x1111111111111111111111111111111111111111",
-    "0x2222222222222222222222222222222222222222",
-    "0x3333333333333333333333333333333333333333",
-    "0x4444444444444444444444444444444444444444",
-    "0x5555555555555555555555555555555555555555",
-  ];
   const serverIds: number[] = [1, 2, 3, 4, 5];
 
   beforeEach(() => {
     // Create mock clients
     mockPublicClient = {
       readContract: vi.fn(),
+      getChainId: vi.fn().mockResolvedValue(vanaMainnet.id),
     };
 
     mockWalletClient = {
@@ -116,18 +111,19 @@ describe("Enhanced Trusted Server Queries", () => {
   describe("getTrustedServersPaginated", () => {
     it("should return paginated trusted servers with default parameters", async () => {
       // Mock total count
+      const serverIds = [1n, 2n, 3n, 4n, 5n];
       mockPublicClient.readContract
         .mockResolvedValueOnce(5n) // userServerIdsLength
-        .mockResolvedValueOnce(serverAddresses[0]) // userServerIdsAt(0)
-        .mockResolvedValueOnce(serverAddresses[1]) // userServerIdsAt(1)
-        .mockResolvedValueOnce(serverAddresses[2]) // userServerIdsAt(2)
-        .mockResolvedValueOnce(serverAddresses[3]) // userServerIdsAt(3)
-        .mockResolvedValueOnce(serverAddresses[4]); // userServerIdsAt(4)
+        .mockResolvedValueOnce(serverIds[0]) // userServerIdsAt(0)
+        .mockResolvedValueOnce(serverIds[1]) // userServerIdsAt(1)
+        .mockResolvedValueOnce(serverIds[2]) // userServerIdsAt(2)
+        .mockResolvedValueOnce(serverIds[3]) // userServerIdsAt(3)
+        .mockResolvedValueOnce(serverIds[4]); // userServerIdsAt(4)
 
       const result = await permissionsController.getTrustedServersPaginated();
 
       expect(result).toEqual({
-        servers: serverAddresses,
+        servers: [1, 2, 3, 4, 5], // Numeric IDs, not addresses
         total: 5,
         offset: 0,
         limit: 50, // Default limit
@@ -138,8 +134,8 @@ describe("Enhanced Trusted Server Queries", () => {
     it("should respect pagination parameters", async () => {
       mockPublicClient.readContract
         .mockResolvedValueOnce(10n) // Total count is 10
-        .mockResolvedValueOnce(serverAddresses[2]) // userServerIdsAt(2)
-        .mockResolvedValueOnce(serverAddresses[3]); // userServerIdsAt(3)
+        .mockResolvedValueOnce(3n) // userServerIdsAt(2)
+        .mockResolvedValueOnce(4n); // userServerIdsAt(3)
 
       const result = await permissionsController.getTrustedServersPaginated({
         offset: 2,
@@ -147,7 +143,7 @@ describe("Enhanced Trusted Server Queries", () => {
       });
 
       expect(result).toEqual({
-        servers: [serverAddresses[2], serverAddresses[3]],
+        servers: [3, 4], // Numeric IDs, not addresses
         total: 10,
         offset: 2,
         limit: 2,
@@ -204,14 +200,14 @@ describe("Enhanced Trusted Server Queries", () => {
       const otherUser: Address = "0x9999999999999999999999999999999999999999";
       mockPublicClient.readContract
         .mockResolvedValueOnce(2n)
-        .mockResolvedValueOnce(serverAddresses[0])
-        .mockResolvedValueOnce(serverAddresses[1]);
+        .mockResolvedValueOnce(1n)
+        .mockResolvedValueOnce(2n);
 
       const result = await permissionsController.getTrustedServersPaginated({
         userAddress: otherUser,
       });
 
-      expect(result.servers).toEqual([serverAddresses[0], serverAddresses[1]]);
+      expect(result.servers).toEqual([1, 2]); // Numeric IDs, not addresses
       expect(mockPublicClient.readContract).toHaveBeenNthCalledWith(1, {
         address: expect.any(String),
         abi: expect.any(Array),
@@ -224,90 +220,170 @@ describe("Enhanced Trusted Server Queries", () => {
   describe("getTrustedServersWithInfo", () => {
     it("should return trusted servers with their info", async () => {
       const serverInfos = [
-        { url: "https://server1.example.com" },
-        { url: "https://server2.example.com" },
-        { url: "https://server3.example.com" },
+        {
+          owner: "0x1111111111111111111111111111111111111111",
+          serverAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          publicKey: "0xpubkey1",
+          url: "https://server1.example.com",
+        },
+        {
+          owner: "0x2222222222222222222222222222222222222222",
+          serverAddress: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          publicKey: "0xpubkey2",
+          url: "https://server2.example.com",
+        },
+        {
+          owner: "0x3333333333333333333333333333333333333333",
+          serverAddress: "0xcccccccccccccccccccccccccccccccccccccccc",
+          publicKey: "0xpubkey3",
+          url: "https://server3.example.com",
+        },
       ];
 
-      // Mock getting server IDs
-      mockPublicClient.readContract
-        .mockResolvedValueOnce(3n) // count
-        .mockResolvedValueOnce(serverAddresses[0]) // server 0
-        .mockResolvedValueOnce(serverAddresses[1]) // server 1
-        .mockResolvedValueOnce(serverAddresses[2]) // server 2
-        // Mock getting server info
-        .mockResolvedValueOnce(serverInfos[0]) // server info 0
-        .mockResolvedValueOnce(serverInfos[1]) // server info 1
-        .mockResolvedValueOnce(serverInfos[2]); // server info 2
+      // Create a proper mock implementation that handles different contract calls
+      mockPublicClient.readContract.mockImplementation(async (args: any) => {
+        // Handle pagination calls to DataPortabilityServers contract
+        if (args.functionName === "userServerIdsLength") {
+          return 3n;
+        }
+        if (args.functionName === "userServerIdsAt") {
+          const index = Number(args.args[1]);
+          return BigInt(index + 1); // Return server IDs 1, 2, 3
+        }
+        // Handle server info calls
+        if (args.functionName === "servers") {
+          const serverId = Number(args.args[0]);
+          return serverInfos[serverId - 1]; // Return server info for IDs 1, 2, 3
+        }
+        throw new Error(`Unexpected contract call: ${args.functionName}`);
+      });
 
       const result = await permissionsController.getTrustedServersWithInfo();
 
       expect(result).toEqual([
         {
-          serverId: serverAddresses[0],
+          id: 1n,
+          owner: serverInfos[0].owner,
+          serverAddress: serverInfos[0].serverAddress,
+          publicKey: serverInfos[0].publicKey,
           url: serverInfos[0].url,
-          isTrusted: true,
-          trustIndex: 0,
+          startBlock: 0n,
+          endBlock: 0n,
         },
         {
-          serverId: serverAddresses[1],
+          id: 2n,
+          owner: serverInfos[1].owner,
+          serverAddress: serverInfos[1].serverAddress,
+          publicKey: serverInfos[1].publicKey,
           url: serverInfos[1].url,
-          isTrusted: true,
-          trustIndex: 1,
+          startBlock: 0n,
+          endBlock: 0n,
         },
         {
-          serverId: serverAddresses[2],
+          id: 3n,
+          owner: serverInfos[2].owner,
+          serverAddress: serverInfos[2].serverAddress,
+          publicKey: serverInfos[2].publicKey,
           url: serverInfos[2].url,
-          isTrusted: true,
-          trustIndex: 2,
+          startBlock: 0n,
+          endBlock: 0n,
         },
       ]);
     });
 
     it("should respect limit parameter", async () => {
       const serverInfos = [
-        { url: "https://server1.example.com" },
-        { url: "https://server2.example.com" },
+        {
+          owner: "0x1111111111111111111111111111111111111111",
+          serverAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          publicKey: "0xpubkey1",
+          url: "https://server1.example.com",
+        },
+        {
+          owner: "0x2222222222222222222222222222222222222222",
+          serverAddress: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          publicKey: "0xpubkey2",
+          url: "https://server2.example.com",
+        },
       ];
 
-      mockPublicClient.readContract
-        .mockResolvedValueOnce(5n) // total count
-        .mockResolvedValueOnce(serverAddresses[0])
-        .mockResolvedValueOnce(serverAddresses[1])
-        .mockResolvedValueOnce(serverInfos[0])
-        .mockResolvedValueOnce(serverInfos[1]);
+      // Reset and setup mock implementation
+      mockPublicClient.readContract.mockReset();
+      mockPublicClient.readContract.mockImplementation(async (args: any) => {
+        if (args.functionName === "userServerIdsLength") {
+          return 5n; // Total count is 5
+        }
+        if (args.functionName === "userServerIdsAt") {
+          const index = Number(args.args[1]);
+          return BigInt(index + 1); // Return server IDs 1, 2, 3, 4, 5
+        }
+        if (args.functionName === "servers") {
+          const serverId = Number(args.args[0]);
+          if (serverId <= 2) {
+            return serverInfos[serverId - 1]; // Only return first 2 servers
+          }
+          throw new Error("Server not found");
+        }
+        throw new Error(`Unexpected contract call: ${args.functionName}`);
+      });
 
       const result = await permissionsController.getTrustedServersWithInfo({
         limit: 2,
       });
 
       expect(result).toHaveLength(2);
-      expect(result[0].id).toBe(BigInt(serverAddresses[0]));
-      expect(result[1].id).toBe(BigInt(serverAddresses[1]));
+      expect(result[0].id).toBe(1n);
+      expect(result[1].id).toBe(2n);
     });
 
     it("should handle servers with missing info gracefully", async () => {
-      mockPublicClient.readContract
-        .mockResolvedValueOnce(2n)
-        .mockResolvedValueOnce(serverAddresses[0])
-        .mockResolvedValueOnce(serverAddresses[1])
-        .mockResolvedValueOnce({ url: "https://server1.example.com" })
-        .mockRejectedValueOnce(new Error("Server not found")); // Second server info fails
+      const goodServerInfo = {
+        owner: "0x1111111111111111111111111111111111111111",
+        serverAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        publicKey: "0xpubkey1",
+        url: "https://server1.example.com",
+      };
+
+      // Reset and setup mock implementation
+      mockPublicClient.readContract.mockReset();
+      mockPublicClient.readContract.mockImplementation(async (args: any) => {
+        if (args.functionName === "userServerIdsLength") {
+          return 2n;
+        }
+        if (args.functionName === "userServerIdsAt") {
+          const index = Number(args.args[1]);
+          return BigInt(index + 1); // Return server IDs 1, 2
+        }
+        if (args.functionName === "servers") {
+          const serverId = Number(args.args[0]);
+          if (serverId === 1) {
+            return goodServerInfo; // First server succeeds
+          }
+          throw new Error("Server not found"); // Second server fails
+        }
+        throw new Error(`Unexpected contract call: ${args.functionName}`);
+      });
 
       const result = await permissionsController.getTrustedServersWithInfo();
 
       expect(result).toEqual([
         {
-          serverId: serverAddresses[0],
-          url: "https://server1.example.com",
-          isTrusted: true,
-          trustIndex: 0,
+          id: 1n,
+          owner: goodServerInfo.owner,
+          serverAddress: goodServerInfo.serverAddress,
+          publicKey: goodServerInfo.publicKey,
+          url: goodServerInfo.url,
+          startBlock: 0n,
+          endBlock: 0n,
         },
         {
-          serverId: serverAddresses[1],
+          id: 2n,
+          owner: "0x0000000000000000000000000000000000000000",
+          serverAddress: "0x0000000000000000000000000000000000000000",
+          publicKey: "",
           url: "",
-          isTrusted: true,
-          trustIndex: 1,
+          startBlock: 0n,
+          endBlock: 0n,
         },
       ]);
     });
@@ -316,43 +392,122 @@ describe("Enhanced Trusted Server Queries", () => {
   describe("getServerInfoBatch", () => {
     it("should retrieve info for multiple servers efficiently", async () => {
       const serverInfos = [
-        { url: "https://server1.example.com" },
-        { url: "https://server2.example.com" },
-        { url: "https://server3.example.com" },
+        {
+          id: 1n,
+          owner: "0x1111111111111111111111111111111111111111",
+          serverAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          publicKey: "0xpubkey1",
+          url: "https://server1.example.com",
+        },
+        {
+          id: 2n,
+          owner: "0x2222222222222222222222222222222222222222",
+          serverAddress: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          publicKey: "0xpubkey2",
+          url: "https://server2.example.com",
+        },
+        {
+          id: 3n,
+          owner: "0x3333333333333333333333333333333333333333",
+          serverAddress: "0xcccccccccccccccccccccccccccccccccccccccc",
+          publicKey: "0xpubkey3",
+          url: "https://server3.example.com",
+        },
       ];
 
       const serverIds = [1, 2, 3]; // Use numeric server IDs instead of addresses
 
-      mockPublicClient.readContract
-        .mockResolvedValueOnce(serverInfos[0])
-        .mockResolvedValueOnce(serverInfos[1])
-        .mockResolvedValueOnce(serverInfos[2]);
+      // Reset and setup mock
+      mockPublicClient.readContract.mockReset();
+      mockWalletClient.getChainId = vi.fn().mockResolvedValue(vanaMainnet.id);
+      mockPublicClient.readContract.mockImplementation(async (args: any) => {
+        if (args.functionName === "servers") {
+          const serverId = Number(args.args[0]);
+          return serverInfos[serverId - 1]; // Return server info for IDs 1, 2, 3
+        }
+        throw new Error(`Unexpected contract call: ${args.functionName}`);
+      });
 
       const result = await permissionsController.getServerInfoBatch(serverIds);
 
       expect(result.servers.size).toBe(3);
-      expect(result.servers.get(serverIds[0])).toEqual(serverInfos[0]);
-      expect(result.servers.get(serverIds[1])).toEqual(serverInfos[1]);
-      expect(result.servers.get(serverIds[2])).toEqual(serverInfos[2]);
+      expect(result.servers.get(serverIds[0])).toEqual({
+        id: 1,
+        owner: serverInfos[0].owner,
+        serverAddress: serverInfos[0].serverAddress,
+        publicKey: serverInfos[0].publicKey,
+        url: serverInfos[0].url,
+      });
+      expect(result.servers.get(serverIds[1])).toEqual({
+        id: 2,
+        owner: serverInfos[1].owner,
+        serverAddress: serverInfos[1].serverAddress,
+        publicKey: serverInfos[1].publicKey,
+        url: serverInfos[1].url,
+      });
+      expect(result.servers.get(serverIds[2])).toEqual({
+        id: 3,
+        owner: serverInfos[2].owner,
+        serverAddress: serverInfos[2].serverAddress,
+        publicKey: serverInfos[2].publicKey,
+        url: serverInfos[2].url,
+      });
       expect(result.failed).toEqual([]);
     });
 
     it("should handle partial failures in batch requests", async () => {
       const serverIds = [1, 2, 3]; // Use numeric server IDs instead of addresses
 
-      mockPublicClient.readContract
-        .mockResolvedValueOnce({ url: "https://server1.example.com" })
-        .mockRejectedValueOnce(new Error("Server not found"))
-        .mockResolvedValueOnce({ url: "https://server3.example.com" });
+      const goodServerInfos = [
+        {
+          id: 1n,
+          owner: "0x1111111111111111111111111111111111111111",
+          serverAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          publicKey: "0xpubkey1",
+          url: "https://server1.example.com",
+        },
+        {
+          id: 3n,
+          owner: "0x3333333333333333333333333333333333333333",
+          serverAddress: "0xcccccccccccccccccccccccccccccccccccccccc",
+          publicKey: "0xpubkey3",
+          url: "https://server3.example.com",
+        },
+      ];
+
+      // Reset and setup mock
+      mockPublicClient.readContract.mockReset();
+      mockWalletClient.getChainId = vi.fn().mockResolvedValue(vanaMainnet.id);
+      mockPublicClient.readContract.mockImplementation(async (args: any) => {
+        if (args.functionName === "servers") {
+          const serverId = Number(args.args[0]);
+          if (serverId === 1) {
+            return goodServerInfos[0];
+          } else if (serverId === 3) {
+            return goodServerInfos[1];
+          } else {
+            throw new Error("Server not found");
+          }
+        }
+        throw new Error(`Unexpected contract call: ${args.functionName}`);
+      });
 
       const result = await permissionsController.getServerInfoBatch(serverIds);
 
       expect(result.servers.size).toBe(2);
       expect(result.servers.get(serverIds[0])).toEqual({
-        url: "https://server1.example.com",
+        id: 1,
+        owner: goodServerInfos[0].owner,
+        serverAddress: goodServerInfos[0].serverAddress,
+        publicKey: goodServerInfos[0].publicKey,
+        url: goodServerInfos[0].url,
       });
       expect(result.servers.get(serverIds[2])).toEqual({
-        url: "https://server3.example.com",
+        id: 3,
+        owner: goodServerInfos[1].owner,
+        serverAddress: goodServerInfos[1].serverAddress,
+        publicKey: goodServerInfos[1].publicKey,
+        url: goodServerInfos[1].url,
       });
       expect(result.failed).toEqual([serverIds[1]]);
     });

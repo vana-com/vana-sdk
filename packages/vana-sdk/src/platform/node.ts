@@ -1,13 +1,12 @@
 /**
  * Node.js implementation of the Vana Platform Adapter
  *
- * This implementation uses Node.js-specific libraries and configurations
- * to provide crypto, PGP, and HTTP functionality.
+ * WARNING: Dependencies that access globals during init
+ * MUST be dynamically imported to support Turbopack.
+ * See: https://github.com/vercel/next.js/issues/82632
  */
 
-import { randomBytes } from "crypto";
-import * as openpgp from "openpgp";
-import {
+import type {
   VanaPlatformAdapter,
   VanaCryptoAdapter,
   VanaPGPAdapter,
@@ -22,55 +21,11 @@ import {
 import { getPGPKeyGenParams } from "./shared/pgp-utils";
 import { wrapCryptoError } from "./shared/error-utils";
 import { streamToUint8Array } from "./shared/stream-utils";
+import { lazyImport } from "../utils/lazy-import";
 
-// Eccrypto type definitions removed - using dynamic imports instead
-
-// Dynamically import eccrypto for Node.js
-let eccrypto: {
-  encrypt: (
-    publicKey: Buffer,
-    message: Buffer,
-  ) => Promise<{
-    iv: Buffer;
-    ephemPublicKey: Buffer;
-    ciphertext: Buffer;
-    mac: Buffer;
-  }>;
-  decrypt: (
-    privateKey: Buffer,
-    encrypted: {
-      iv: Buffer;
-      ephemPublicKey: Buffer;
-      ciphertext: Buffer;
-      mac: Buffer;
-    },
-  ) => Promise<Buffer>;
-  getPublicCompressed: (privateKey: Buffer) => Buffer;
-} | null = null;
-
-// Lazy load eccrypto
-/**
- * Lazy loads the eccrypto library for Node.js crypto operations
- *
- * @returns Promise resolving to the eccrypto library instance
- */
-async function getEccrypto() {
-  if (!eccrypto) {
-    try {
-      // Import the eccrypto library for Node.js
-      const eccryptoLib = await import("eccrypto");
-
-      eccrypto = {
-        encrypt: eccryptoLib.encrypt,
-        decrypt: eccryptoLib.decrypt,
-        getPublicCompressed: eccryptoLib.getPublicCompressed,
-      };
-    } catch (error) {
-      throw new Error(`Failed to load eccrypto library: ${error}`);
-    }
-  }
-  return eccrypto;
-}
+// Lazy-loaded dependencies to avoid Turbopack TDZ issues
+const getOpenPGP = lazyImport(() => import("openpgp"));
+const getEccrypto = lazyImport(() => import("eccrypto"));
 
 /**
  * Node.js implementation of crypto operations using secp256k1
@@ -81,11 +36,11 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
     publicKeyHex: string,
   ): Promise<string> {
     try {
-      const eccryptoLib = await getEccrypto();
+      const eccrypto = await getEccrypto();
       const publicKey = Buffer.from(publicKeyHex, "hex");
       const message = Buffer.from(data, "utf8");
 
-      const encrypted = await eccryptoLib.encrypt(publicKey, message);
+      const encrypted = await eccrypto.encrypt(publicKey, message);
 
       // Concatenate all components and return as hex string for API consistency
       const result = Buffer.concat([
@@ -106,7 +61,7 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
     privateKeyHex: string,
   ): Promise<string> {
     try {
-      const eccryptoLib = await getEccrypto();
+      const eccrypto = await getEccrypto();
 
       // Use shared utilities to process keys and parse data
       const privateKeyBuffer = processWalletPrivateKey(privateKeyHex);
@@ -117,10 +72,7 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
       // Reconstruct the encrypted data structure for eccrypto
       const encryptedObj = { iv, ephemPublicKey, ciphertext, mac };
 
-      const decrypted = await eccryptoLib.decrypt(
-        privateKeyBuffer,
-        encryptedObj,
-      );
+      const decrypted = await eccrypto.decrypt(privateKeyBuffer, encryptedObj);
       return decrypted.toString("utf8");
     } catch (error) {
       throw new Error(`Decryption failed: ${error}`);
@@ -129,9 +81,9 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
 
   async generateKeyPair(): Promise<{ publicKey: string; privateKey: string }> {
     try {
-      const eccryptoLib = await getEccrypto();
-      const privateKey = randomBytes(32);
-      const publicKey = eccryptoLib.getPublicCompressed(privateKey);
+      const eccrypto = await getEccrypto();
+      const privateKey = eccrypto.generatePrivate();
+      const publicKey = eccrypto.getPublicCompressed(privateKey);
 
       return {
         privateKey: privateKey.toString("hex"),
@@ -147,12 +99,12 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
     publicKey: string,
   ): Promise<string> {
     try {
-      const eccryptoLib = await getEccrypto();
+      const eccrypto = await getEccrypto();
 
       // Use shared utility to process public key
       const uncompressedKey = processWalletPublicKey(publicKey);
 
-      const encrypted = await eccryptoLib.encrypt(
+      const encrypted = await eccrypto.encrypt(
         uncompressedKey,
         Buffer.from(data),
       );
@@ -176,7 +128,7 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
     privateKey: string,
   ): Promise<string> {
     try {
-      const eccryptoLib = await getEccrypto();
+      const eccrypto = await getEccrypto();
 
       // Use shared utilities to process keys and parse data
       const privateKeyBuffer = processWalletPrivateKey(privateKey);
@@ -188,7 +140,7 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
       const encryptedObj = { iv, ephemPublicKey, ciphertext, mac };
 
       // Decrypt using ECDH
-      const decryptedBuffer = await eccryptoLib.decrypt(
+      const decryptedBuffer = await eccrypto.decrypt(
         privateKeyBuffer,
         encryptedObj,
       );
@@ -204,6 +156,7 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
     password: string,
   ): Promise<Uint8Array> {
     try {
+      const openpgp = await getOpenPGP();
       const message = await openpgp.createMessage({
         binary: data,
       });
@@ -244,6 +197,7 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
     password: string,
   ): Promise<Uint8Array> {
     try {
+      const openpgp = await getOpenPGP();
       const message = await openpgp.readMessage({
         binaryMessage: encryptedData,
       });
@@ -269,6 +223,7 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
 class NodePGPAdapter implements VanaPGPAdapter {
   async encrypt(data: string, publicKeyArmored: string): Promise<string> {
     try {
+      const openpgp = await getOpenPGP();
       const publicKey = await openpgp.readKey({ armoredKey: publicKeyArmored });
 
       const encrypted = await openpgp.encrypt({
@@ -290,6 +245,7 @@ class NodePGPAdapter implements VanaPGPAdapter {
     privateKeyArmored: string,
   ): Promise<string> {
     try {
+      const openpgp = await getOpenPGP();
       const privateKey = await openpgp.readPrivateKey({
         armoredKey: privateKeyArmored,
       });
@@ -314,6 +270,7 @@ class NodePGPAdapter implements VanaPGPAdapter {
     passphrase?: string;
   }): Promise<{ publicKey: string; privateKey: string }> {
     try {
+      const openpgp = await getOpenPGP();
       // Use shared utility to get standardized parameters
       const keyGenParams = getPGPKeyGenParams(options);
 

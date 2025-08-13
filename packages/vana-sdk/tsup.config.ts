@@ -7,6 +7,10 @@ export default defineConfig((options) => ({
   sourcemap: true,
   clean: true,
   dts: true,
-  // Exclude Node.js-specific dependencies from browser builds
-  external: options.platform === "browser" ? ["eccrypto"] : [],
+  external: [
+    // Only mark Node-specific deps as external for Node builds
+    ...(options.platform === "node" ? ["eccrypto"] : []),
+    // Only mark browser-specific deps as external for browser builds
+    ...(options.platform === "browser" ? ["eccrypto-js"] : []),
+  ],
 }));

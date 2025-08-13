@@ -3,6 +3,7 @@ import { ExternalLink } from "lucide-react";
 import { CopyButton } from "./CopyButton";
 import { getContractAddress } from "@opendatalabs/vana-sdk/browser";
 import { keccak256, toBytes } from "viem";
+import { getContractUrl } from "@/lib/explorer";
 
 interface FileIdDisplayProps {
   fileId: number | string;
@@ -23,14 +24,6 @@ const getFunctionHash = (functionSignature: string): string => {
 
 // Block explorer URLs for different chains
 const getBlockExplorerUrl = (chainId: number, _fileId: number | string) => {
-  const baseUrls: Record<number, string> = {
-    14800: "https://moksha.vanascan.io", // Moksha testnet
-    1480: "https://vanascan.io", // Vana mainnet
-  };
-
-  const baseUrl = baseUrls[chainId];
-  if (!baseUrl) return null;
-
   try {
     // Get DataRegistry contract address using SDK
     const contractAddress = getContractAddress(chainId, "DataRegistry");
@@ -40,7 +33,10 @@ const getBlockExplorerUrl = (chainId: number, _fileId: number | string) => {
 
     // Link to the specific function in the DataRegistry contract
     // Users can then directly access the files(uint256) function to look up file details
-    return `${baseUrl}/address/${contractAddress}?tab=read_write_proxy#${functionHash}`;
+    return getContractUrl(chainId, contractAddress, {
+      tab: "read_write_proxy",
+      hash: functionHash,
+    });
   } catch (error) {
     console.warn(
       `Failed to get DataRegistry address for chain ${chainId}:`,

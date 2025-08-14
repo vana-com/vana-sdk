@@ -7,14 +7,14 @@ import { DataPortabilityFlow } from "../lib/data-flow";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { useVana } from "../providers/vana-provider";
+import { useVana, isVanaInitialized } from "../providers/vana-provider";
 
 function HomeContent() {
   const { openModal } = useModal();
   const { isConnected: walletConnected, isLoading: walletLoading } =
     useAccount();
   const { data: wallet } = useWallet();
-  const { vana, isInitialized: isVanaInitialized, walletClient } = useVana();
+  const vanaContext = useVana();
   const {
     isConnected: googleDriveConnected,
     isConnecting: googleDriveConnecting,
@@ -53,7 +53,7 @@ function HomeContent() {
   };
 
   const handleStartFlow = async () => {
-    if (!isVanaInitialized || !vana || !wallet?.address || !walletClient) {
+    if (!isVanaInitialized(vanaContext) || !wallet?.address) {
       setStatus("Vana not initialized. Please connect your wallet.");
       return;
     }
@@ -63,13 +63,17 @@ function HomeContent() {
     setResult("");
 
     try {
-      const flow = new DataPortabilityFlow(vana, walletClient, {
-        onStatusUpdate: setStatus,
-        onResultUpdate: setResult,
-        onError: (error) => {
-          console.error("Flow error:", error);
+      const flow = new DataPortabilityFlow(
+        vanaContext.vana,
+        vanaContext.walletClient,
+        {
+          onStatusUpdate: setStatus,
+          onResultUpdate: setResult,
+          onError: (error) => {
+            console.error("Flow error:", error);
+          },
         },
-      });
+      );
 
       await flow.executeCompleteFlow(wallet.address, userData, aiPrompt);
     } catch (error) {
@@ -185,7 +189,7 @@ function HomeContent() {
             !walletConnected ||
             !wallet?.address ||
             !googleDriveConnected ||
-            !isVanaInitialized
+            !vanaContext.isInitialized
           }
           variant="default"
           className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400"

@@ -380,11 +380,12 @@ export function usePermissions(): UsePermissionsReturn {
           "🔵 [usePermissions] Calling vana.permissions.submitSignedGrant",
         );
         // Submit the signed grant
-        const txHash = await vana.permissions.submitSignedGrant(
+        const txHandle = await vana.permissions.submitSignedGrant(
           typedData,
           signature as `0x${string}`,
         );
 
+        const txHash = txHandle.hash;
         console.debug(
           "🔵 [usePermissions] submitSignedGrant successful, txHash:",
           txHash,

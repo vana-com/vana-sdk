@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
 
     const vana = getApiVanaInstance();
 
-    const transactionHash = await handleRelayerRequest(vana, {
+    const txHandle = await handleRelayerRequest(vana, {
       typedData,
       signature,
       expectedUserAddress: expectedUserAddress as `0x${string}` | undefined,
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      transactionHash,
+      transactionHash: txHandle.hash,
     });
   } catch (error) {
     console.error("Error relaying transaction:", error);

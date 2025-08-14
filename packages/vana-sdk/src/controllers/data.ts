@@ -1,4 +1,4 @@
-import { Address, getContract, decodeEventLog, Hash } from "viem";
+import { Address, getContract, Hash } from "viem";
 import { fetchSchemaFromChain } from "../utils/blockchain/registry";
 import { StorageUploadResult } from "../types/storage";
 
@@ -17,8 +17,12 @@ import {
   EncryptedUploadParams,
   UnencryptedUploadParams,
 } from "../types/index";
-import { FilePermissionResult } from "../types/transactionResults";
-import { parseTransactionResult } from "../utils/transactionParsing";
+import {
+  FilePermissionResult,
+  FileAddedResult,
+  RefinerAddedResult,
+} from "../types/transactionResults";
+import { TransactionHandle } from "../utils/transactionHandle";
 import { ControllerContext } from "./permissions";
 import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../generated/abi";
@@ -1478,35 +1482,17 @@ export class DataController {
         chain: this.context.walletClient.chain || null,
       });
 
-      // Wait for transaction receipt to parse the FileAdded event
-      const receipt = await this.context.publicClient.waitForTransactionReceipt(
-        {
-          hash: txHash,
-          timeout: 30_000,
-        },
+      // Use TransactionHandle to wait for and parse events
+      const txHandle = new TransactionHandle<FileAddedResult>(
+        this.context,
+        txHash,
+        "addFileWithSchema",
       );
 
-      // Parse the FileAdded event to get the actual fileId
-      let fileId = 0;
-      for (const log of receipt.logs) {
-        try {
-          const decoded = decodeEventLog({
-            abi: dataRegistryAbi,
-            data: log.data,
-            topics: log.topics,
-          });
-
-          if (decoded.eventName === "FileAdded") {
-            fileId = Number(decoded.args.fileId);
-            break;
-          }
-        } catch {
-          continue;
-        }
-      }
+      const result = await txHandle.waitForEvents();
 
       return {
-        fileId,
+        fileId: Number(result.fileId),
         transactionHash: txHash,
       };
     } catch (error) {
@@ -1574,36 +1560,17 @@ export class DataController {
         chain: this.context.walletClient.chain || null,
       });
 
-      // Wait for transaction receipt to parse the FileAdded event
-      const receipt = await this.context.publicClient.waitForTransactionReceipt(
-        {
-          hash: txHash,
-          timeout: 30_000, // 30 seconds timeout
-        },
+      // Use TransactionHandle to wait for and parse events
+      const txHandle = new TransactionHandle<FileAddedResult>(
+        this.context,
+        txHash,
+        "addFileWithPermissions",
       );
 
-      // Parse the FileAdded event to get the actual fileId
-      let fileId = 0;
-      for (const log of receipt.logs) {
-        try {
-          const decoded = decodeEventLog({
-            abi: dataRegistryAbi,
-            data: log.data,
-            topics: log.topics,
-          });
-
-          if (decoded.eventName === "FileAdded") {
-            fileId = Number(decoded.args.fileId);
-            break;
-          }
-        } catch {
-          // Ignore logs that don't match our ABI
-          continue;
-        }
-      }
+      const result = await txHandle.waitForEvents();
 
       return {
-        fileId: fileId,
+        fileId: Number(result.fileId),
         transactionHash: txHash,
       };
     } catch (error) {
@@ -1656,36 +1623,17 @@ export class DataController {
         chain: this.context.walletClient.chain || null,
       });
 
-      // Wait for transaction receipt to parse the FileAdded event
-      const receipt = await this.context.publicClient.waitForTransactionReceipt(
-        {
-          hash: txHash,
-          timeout: 30_000, // 30 seconds timeout
-        },
+      // Use TransactionHandle to wait for and parse events
+      const txHandle = new TransactionHandle<FileAddedResult>(
+        this.context,
+        txHash,
+        "addFileWithPermissionsAndSchema",
       );
 
-      // Parse the FileAdded event to get the actual fileId
-      let fileId = 0;
-      for (const log of receipt.logs) {
-        try {
-          const decoded = decodeEventLog({
-            abi: dataRegistryAbi,
-            data: log.data,
-            topics: log.topics,
-          });
-
-          if (decoded.eventName === "FileAdded") {
-            fileId = Number(decoded.args.fileId);
-            break;
-          }
-        } catch {
-          // Ignore logs that don't match our ABI
-          continue;
-        }
-      }
+      const result = await txHandle.waitForEvents();
 
       return {
-        fileId: fileId,
+        fileId: Number(result.fileId),
         transactionHash: txHash,
       };
     } catch (error) {
@@ -1730,33 +1678,17 @@ export class DataController {
         chain: this.context.walletClient.chain || null,
       });
 
-      const receipt = await this.context.publicClient.waitForTransactionReceipt(
-        {
-          hash: txHash,
-          timeout: 30_000,
-        },
+      // Use TransactionHandle to wait for and parse events
+      const txHandle = new TransactionHandle<RefinerAddedResult>(
+        this.context,
+        txHash,
+        "addRefiner",
       );
 
-      let refinerId = 0;
-      for (const log of receipt.logs) {
-        try {
-          const decoded = decodeEventLog({
-            abi: dataRefinerRegistryAbi,
-            data: log.data,
-            topics: log.topics,
-          });
-
-          if (decoded.eventName === "RefinerAdded") {
-            refinerId = Number(decoded.args.refinerId);
-            break;
-          }
-        } catch {
-          continue;
-        }
-      }
+      const result = await txHandle.waitForEvents();
 
       return {
-        refinerId,
+        refinerId: Number(result.refinerId),
         transactionHash: txHash,
       };
     } catch (error) {
@@ -2135,9 +2067,8 @@ export class DataController {
     fileId: number,
     account: Address,
     publicKey: string,
-  ): Promise<FilePermissionResult> {
-    const txHash = await this.submitFilePermission(fileId, account, publicKey);
-    return parseTransactionResult(this.context, txHash, "addFilePermission");
+  ): Promise<TransactionHandle<FilePermissionResult>> {
+    return await this.submitFilePermission(fileId, account, publicKey);
   }
 
   /**
@@ -2160,7 +2091,7 @@ export class DataController {
     fileId: number,
     account: Address,
     publicKey: string,
-  ): Promise<Hash> {
+  ): Promise<TransactionHandle<FilePermissionResult>> {
     try {
       // 1. Generate user's encryption key
       const userEncryptionKey = await generateEncryptionKey(
@@ -2195,7 +2126,11 @@ export class DataController {
         chain: this.context.walletClient.chain || null,
       });
 
-      return txHash;
+      return new TransactionHandle<FilePermissionResult>(
+        this.context,
+        txHash,
+        "addFilePermission",
+      );
     } catch (error) {
       console.error("Failed to add permission to file:", error);
       throw new Error(

@@ -1429,7 +1429,7 @@ describe("PermissionsController", () => {
 
       const result = await controller.submitRevokeWithSignature(params);
 
-      expect(result).toBe("0xtxhash");
+      expect(result.hash).toBe("0xtxhash");
     });
 
     it("should successfully revoke permission with signature via direct transaction", async () => {
@@ -1460,7 +1460,7 @@ describe("PermissionsController", () => {
 
       const result = await controller.submitRevokeWithSignature(params);
 
-      expect(result).toBe(
+      expect(result.hash).toBe(
         "0xhash123456789012345678901234567890123456789012345678901234567890",
       );
     });

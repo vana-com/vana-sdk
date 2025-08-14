@@ -32,6 +32,17 @@ vi.mock("../utils/schemaValidation", () => ({
 
 vi.mock("viem", () => ({
   decodeEventLog: vi.fn(),
+  parseEventLogs: vi.fn().mockReturnValue([
+    {
+      eventName: "SchemaAdded",
+      args: {
+        schemaId: 1n,
+        name: "Test Schema",
+        dialect: "jsonschema",
+        definitionUrl: "https://gateway.pinata.cloud/ipfs/QmTestHash",
+      },
+    },
+  ]),
 }));
 
 vi.mock("../config/addresses", () => ({
@@ -298,12 +309,19 @@ describe("SchemaController", () => {
   describe("create()", () => {
     it("should validate and upload schema to IPFS", async () => {
       const { validateDataSchema } = await import("../utils/schemaValidation");
-      const { decodeEventLog } = await import("viem");
+      const { parseEventLogs } = await import("viem");
 
-      vi.mocked(decodeEventLog).mockReturnValue({
-        eventName: "SchemaAdded",
-        args: { schemaId: BigInt(123) },
-      } as any);
+      vi.mocked(parseEventLogs).mockReturnValueOnce([
+        {
+          eventName: "SchemaAdded",
+          args: {
+            schemaId: BigInt(123),
+            name: "Test Schema",
+            dialect: "jsonschema",
+            definitionUrl: "https://ipfs.io/ipfs/QmTestHash",
+          },
+        },
+      ] as any);
 
       const schemaDefinition = {
         type: "object",
@@ -349,12 +367,19 @@ describe("SchemaController", () => {
 
     it("should handle JSON string definition", async () => {
       const { validateDataSchema } = await import("../utils/schemaValidation");
-      const { decodeEventLog } = await import("viem");
+      const { parseEventLogs } = await import("viem");
 
-      vi.mocked(decodeEventLog).mockReturnValue({
-        eventName: "SchemaAdded",
-        args: { schemaId: BigInt(123) },
-      } as any);
+      vi.mocked(parseEventLogs).mockReturnValueOnce([
+        {
+          eventName: "SchemaAdded",
+          args: {
+            schemaId: BigInt(123),
+            name: "Test Schema",
+            dialect: "jsonschema",
+            definitionUrl: "https://ipfs.io/ipfs/QmTestHash",
+          },
+        },
+      ] as any);
 
       const schemaDefinition = JSON.stringify({
         type: "object",
@@ -450,28 +475,20 @@ describe("SchemaController", () => {
     });
 
     it("should parse SchemaAdded event correctly", async () => {
-      const { decodeEventLog } = await import("viem");
+      const { parseEventLogs } = await import("viem");
 
-      // First call throws (simulating non-matching event)
-      // Second call returns SchemaAdded event
-      vi.mocked(decodeEventLog)
-        .mockImplementationOnce(() => {
-          throw new Error("Not a SchemaAdded event");
-        })
-        .mockReturnValueOnce({
+      // Mock parseEventLogs to return SchemaAdded event
+      vi.mocked(parseEventLogs).mockReturnValueOnce([
+        {
           eventName: "SchemaAdded",
-          args: { schemaId: BigInt(456) },
-        } as any);
-
-      // Mock receipt with multiple logs
-      vi.mocked(
-        mockContext.publicClient.waitForTransactionReceipt,
-      ).mockResolvedValue({
-        logs: [
-          { data: "0x1", topics: ["0xOtherEvent"] },
-          { data: "0x2", topics: ["0xSchemaAdded"] },
-        ],
-      } as any);
+          args: {
+            schemaId: BigInt(456),
+            name: "Test Schema",
+            dialect: "jsonschema",
+            definitionUrl: "https://ipfs.io/ipfs/QmTestHash",
+          },
+        },
+      ] as any);
 
       const result = await controller.create({
         name: "Test Schema",
@@ -480,38 +497,33 @@ describe("SchemaController", () => {
       });
 
       expect(result.schemaId).toBe(456);
-      expect(decodeEventLog).toHaveBeenCalledTimes(2);
+      expect(parseEventLogs).toHaveBeenCalled();
     });
 
     it("should handle missing SchemaAdded event", async () => {
-      const { decodeEventLog } = await import("viem");
-      vi.mocked(decodeEventLog).mockImplementation(() => {
-        throw new Error("No matching event");
-      });
+      const { parseEventLogs } = await import("viem");
+      vi.mocked(parseEventLogs).mockReturnValueOnce([]);
 
-      const result = await controller.create({
-        name: "Test Schema",
-        type: "personal",
-        definition: { type: "object" },
-      });
-
-      expect(result.schemaId).toBe(0); // Default when no event found
+      await expect(
+        controller.create({
+          name: "Test Schema",
+          type: "personal",
+          definition: { type: "object" },
+        }),
+      ).rejects.toThrow("No SchemaAdded event found");
     });
 
     it("should handle empty logs in receipt", async () => {
-      vi.mocked(
-        mockContext.publicClient.waitForTransactionReceipt,
-      ).mockResolvedValue({
-        logs: [],
-      } as any);
+      const { parseEventLogs } = await import("viem");
+      vi.mocked(parseEventLogs).mockReturnValueOnce([]);
 
-      const result = await controller.create({
-        name: "Test Schema",
-        type: "personal",
-        definition: { type: "object" },
-      });
-
-      expect(result.schemaId).toBe(0);
+      await expect(
+        controller.create({
+          name: "Test Schema",
+          type: "personal",
+          definition: { type: "object" },
+        }),
+      ).rejects.toThrow("No SchemaAdded event found");
     });
 
     it("should handle transaction timeout", async () => {
@@ -525,15 +537,24 @@ describe("SchemaController", () => {
           type: "personal",
           definition: { type: "object" },
         }),
-      ).rejects.toThrow("Schema creation failed: Transaction timeout");
+      ).rejects.toThrow(
+        "Schema creation failed: Transaction 0xTransactionHash confirmation timeout after 30 seconds. The transaction may still be pending.",
+      );
     });
 
     it("should sanitize schema name for filename", async () => {
-      const { decodeEventLog } = await import("viem");
-      vi.mocked(decodeEventLog).mockReturnValue({
-        eventName: "SchemaAdded",
-        args: { schemaId: BigInt(123) },
-      } as any);
+      const { parseEventLogs } = await import("viem");
+      vi.mocked(parseEventLogs).mockReturnValueOnce([
+        {
+          eventName: "SchemaAdded",
+          args: {
+            schemaId: BigInt(123),
+            name: "Test/Schema:With<>Special|Characters",
+            dialect: "jsonschema",
+            definitionUrl: "https://ipfs.io/ipfs/QmTestHash",
+          },
+        },
+      ] as any);
 
       await controller.create({
         name: "Test/Schema*With<>Special|Chars",

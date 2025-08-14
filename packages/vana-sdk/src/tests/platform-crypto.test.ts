@@ -199,7 +199,7 @@ describe("Platform Crypto Integration Tests", () => {
   });
 
   describe("Cross-Platform Compatibility", () => {
-    it("should decrypt browser-encrypted data in Node.js with same key", async () => {
+    it("[THIS TEST FAILS ~5% OF THE TIME] should decrypt browser-encrypted data in Node.js with same key", async () => {
       // Both platforms now use secp256k1, enabling cross-platform compatibility
       const data = "cross-platform test data";
 

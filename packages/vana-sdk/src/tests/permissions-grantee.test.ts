@@ -193,7 +193,7 @@ describe("PermissionsController - Grantee Methods", () => {
 
       const result = await controller.submitRegisterGrantee(params);
 
-      expect(result).toBe(expectedTxHash);
+      expect(result.hash).toBe(expectedTxHash);
       expect(mockWalletClient.getChainId).toHaveBeenCalled();
       expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -231,7 +231,7 @@ describe("PermissionsController - Grantee Methods", () => {
 
       const result = await controller.submitRegisterGrantee(params);
 
-      expect(result).toBe(expectedTxHash);
+      expect(result.hash).toBe(expectedTxHash);
       expect(getUserAddressSpy).toHaveBeenCalled();
       expect(walletClientWithoutAccount.writeContract).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -768,7 +768,7 @@ describe("PermissionsController - Grantee Methods", () => {
 
       const result = await controller.submitUpdateServer(serverId, newUrl);
 
-      expect(result).toBe(expectedTxHash);
+      expect(result.hash).toBe(expectedTxHash);
       expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
         expect.objectContaining({
           functionName: "updateServer",
@@ -823,7 +823,7 @@ describe("PermissionsController - Grantee Methods", () => {
 
       const result = await controller.submitUpdateServer(serverId, newUrl);
 
-      expect(result).toBe(expectedTxHash);
+      expect(result.hash).toBe(expectedTxHash);
       expect(walletClientNoAccount.writeContract).toHaveBeenCalledWith(
         expect.objectContaining({
           functionName: "updateServer",
@@ -844,7 +844,7 @@ describe("PermissionsController - Grantee Methods", () => {
 
       const result = await controller.submitTrustServer(params);
 
-      expect(result).toBe(expectedTxHash);
+      expect(result.hash).toBe(expectedTxHash);
       expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
         expect.objectContaining({
           functionName: "trustServer",
@@ -877,7 +877,7 @@ describe("PermissionsController - Grantee Methods", () => {
 
       const result = await controller.submitTrustServer(params);
 
-      expect(result).toBe(expectedTxHash);
+      expect(result.hash).toBe(expectedTxHash);
       expect(getUserAddressSpy).toHaveBeenCalled();
       expect(walletClientWithoutAccount.writeContract).toHaveBeenCalledWith(
         expect.objectContaining({

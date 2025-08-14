@@ -370,7 +370,11 @@ describe("usePermissions", () => {
         typedData: mockTypedData,
         signature: "0xsignature",
       });
-      mockVana.permissions.submitSignedGrant.mockResolvedValue("0xtxhash");
+      mockVana.permissions.submitSignedGrant.mockResolvedValue({
+        hash: "0xtxhash",
+        waitForEvents: vi.fn(),
+        waitForReceipt: vi.fn(),
+      });
 
       // Mock retrieveGrantFile
       retrieveGrantFileMock.mockResolvedValue({
@@ -447,7 +451,11 @@ describe("usePermissions", () => {
         typedData: mockTypedData,
         signature: "0xsignature",
       });
-      mockVana.permissions.submitSignedGrant.mockResolvedValue("0xtxhash");
+      mockVana.permissions.submitSignedGrant.mockResolvedValue({
+        hash: "0xtxhash",
+        waitForEvents: vi.fn(),
+        waitForReceipt: vi.fn(),
+      });
 
       // Mock retrieveGrantFile failure
       retrieveGrantFileMock.mockRejectedValue(new Error("CORS error"));

@@ -401,7 +401,7 @@ describe("Correct Vana Encryption Implementation", () => {
         validatorPublicKey,
       );
 
-      expect(result.transactionHash).toBe("0xtxhash");
+      expect(result.hash).toBe("0xtxhash");
       expect(mockWalletClient.signMessage).toHaveBeenCalledWith({
         account: mockWalletClient.account,
         message: "Please sign to retrieve your encryption key",
@@ -592,7 +592,7 @@ describe("Correct Vana Encryption Implementation", () => {
           validatorPublicKey,
         );
 
-        expect(result.transactionHash).toBe("0xtxhash");
+        expect(result.hash).toBe("0xtxhash");
         expect(mockWalletClient.signMessage).toHaveBeenCalledWith({
           account: mockWalletClient.account,
           message: "Please sign to retrieve your encryption key",

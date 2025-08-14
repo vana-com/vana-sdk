@@ -225,7 +225,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
 
       const result = await controller.submitTrustServer(params);
 
-      expect(result).toBe("0xtxhash");
+      expect(result.hash).toBe("0xtxhash");
       expect(mockWalletClient.writeContract).toHaveBeenCalledWith({
         address: "0x1234567890123456789012345678901234567890",
         abi: expect.any(Array),
@@ -265,7 +265,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
 
       const result = await controller.submitTrustServerWithSignature(params);
 
-      expect(result).toBe("0xrelayerhash");
+      expect(result.hash).toBe("0xrelayerhash");
       expect(mockContext.relayerCallbacks.submitTrustServer).toHaveBeenCalled();
     });
 
@@ -278,7 +278,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
 
       const result = await controller.submitTrustServerWithSignature(params);
 
-      expect(result).toBe("0xtxhash");
+      expect(result.hash).toBe("0xtxhash");
       expect(mockWalletClient.writeContract).toHaveBeenCalledWith({
         address: "0x1234567890123456789012345678901234567890",
         abi: expect.any(Array),
@@ -358,7 +358,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
 
       const result = await controller.submitUntrustServer(params);
 
-      expect(result).toBe("0xtxhash");
+      expect(result.hash).toBe("0xtxhash");
       expect(mockWalletClient.writeContract).toHaveBeenCalledWith({
         address: "0x1234567890123456789012345678901234567890",
         abi: expect.any(Array),
@@ -396,7 +396,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
 
       const result = await controller.submitUntrustServerWithSignature(params);
 
-      expect(result).toBe("0xrelayerhash");
+      expect(result.hash).toBe("0xrelayerhash");
       expect(
         mockContext.relayerCallbacks.submitUntrustServer,
       ).toHaveBeenCalled();
@@ -410,7 +410,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
 
       const result = await controller.submitUntrustServerWithSignature(params);
 
-      expect(result).toBe("0xtxhash");
+      expect(result.hash).toBe("0xtxhash");
       expect(mockWalletClient.writeContract).toHaveBeenCalledWith({
         address: "0x1234567890123456789012345678901234567890",
         abi: expect.any(Array),
@@ -702,7 +702,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         "0xsignature" as Hash,
       );
 
-      expect(result).toBe("0xtxhash");
+      expect(result.hash).toBe("0xtxhash");
     });
 
     it("should successfully submit signed trust server via direct transaction", async () => {
@@ -728,7 +728,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         "0xsignature" as Hash,
       );
 
-      expect(result).toBe("0xtxhash");
+      expect(result.hash).toBe("0xtxhash");
     });
 
     it("should handle submission errors in submitSignedTrustServer", async () => {
@@ -786,7 +786,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         "0xsignature" as Hash,
       );
 
-      expect(result).toBe("0xrelayerhash");
+      expect(result.hash).toBe("0xrelayerhash");
     });
 
     it("should successfully submit signed untrust server via direct transaction", async () => {
@@ -811,7 +811,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         "0xsignature" as Hash,
       );
 
-      expect(result).toBe("0xtxhash");
+      expect(result.hash).toBe("0xtxhash");
     });
 
     it("should handle submission errors in submitSignedUntrustServer", async () => {

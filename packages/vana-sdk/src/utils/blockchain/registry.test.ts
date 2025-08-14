@@ -54,7 +54,7 @@ describe("Blockchain Registry Utilities", () => {
       expect(result).toEqual({
         id: 1,
         name: "Test Schema",
-        type: "json",
+        dialect: "json",
         definitionUrl: "https://example.com/schema.json",
       });
 

@@ -2,7 +2,7 @@ import { Address, decodeEventLog } from "viem";
 import { Schema, AddSchemaParams, AddSchemaResult } from "../types/index";
 import { ControllerContext } from "./permissions";
 import { getContractAddress } from "../config/addresses";
-import { getAbi } from "../abi";
+import { getAbi } from "../generated/abi";
 import { gasAwareMulticall } from "../utils/multicall";
 import {
   validateDataSchema,

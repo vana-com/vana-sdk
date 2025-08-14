@@ -60,7 +60,7 @@ vi.mock("../config/addresses", () => ({
     .mockReturnValue("0x8C8788f98385F6ba1adD4234e551ABba0f82Cb7C"),
 }));
 
-vi.mock("../abi", () => ({
+vi.mock("../../generated/abi", () => ({
   getAbi: vi.fn().mockReturnValue([
     {
       name: "totalSchemas",

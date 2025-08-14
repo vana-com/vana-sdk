@@ -4,7 +4,7 @@ import {
   EVENT_MAPPINGS,
   type TransactionOperation,
 } from "../config/eventMappings";
-import { getAbi } from "../abi/index";
+import { getAbi } from "../generated/abi";
 import type { ControllerContext } from "../controllers/permissions";
 import { BlockchainError, NetworkError } from "../errors";
 import type { TransactionResultMap } from "../types/transactionResults";

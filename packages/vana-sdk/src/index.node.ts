@@ -175,7 +175,7 @@ export {
 } from "./types/external-apis";
 
 // VanaContract is exported from abi to avoid circular dependencies
-export type { VanaContract } from "./abi";
+export type { VanaContract } from "./generated/abi";
 
 // Error classes
 export * from "./errors";
@@ -219,8 +219,8 @@ export {
 export * from "./chains";
 
 // ABIs
-export { getAbi } from "./abi";
-export type { VanaContract as VanaContractAbi } from "./abi";
+export { getAbi } from "./generated/abi";
+export type { VanaContract as VanaContractAbi } from "./generated/abi";
 
 // Generic utilities for extensibility
 export {

@@ -21,7 +21,7 @@ import { FilePermissionResult } from "../types/transactionResults";
 import { parseTransactionResult } from "../utils/transactionParsing";
 import { ControllerContext } from "./permissions";
 import { getContractAddress } from "../config/addresses";
-import { getAbi } from "../abi";
+import { getAbi } from "../generated/abi";
 import {
   generateEncryptionKey,
   decryptBlobWithSignedKey,

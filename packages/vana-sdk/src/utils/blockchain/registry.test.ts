@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fetchSchemaFromChain, fetchSchemaCountFromChain } from "./registry";
 import { getContract } from "viem";
 import { getContractAddress } from "../../config/addresses";
-import { getAbi } from "../../abi";
+import { getAbi } from "../../generated/abi";
 
 // Mock external dependencies
 vi.mock("viem", () => ({
@@ -13,7 +13,7 @@ vi.mock("../../config/addresses", () => ({
   getContractAddress: vi.fn(),
 }));
 
-vi.mock("../../abi", () => ({
+vi.mock("../../generated/abi", () => ({
   getAbi: vi.fn(),
 }));
 

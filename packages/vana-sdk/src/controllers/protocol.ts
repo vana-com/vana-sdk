@@ -1,12 +1,12 @@
 import type { ContractInfo, VanaChainId } from "../types/index";
-import type { VanaContract } from "../abi";
+import type { VanaContract } from "../generated/abi";
 import { ContractNotFoundError } from "../errors";
 import {
   getContractController,
   getContractInfo,
   ContractFactory,
 } from "../contracts/contractController";
-import { ContractAbis } from "../abi";
+import { ContractAbis } from "../generated/abi";
 import { ControllerContext } from "./permissions";
 import type { GetContractReturnType } from "viem";
 

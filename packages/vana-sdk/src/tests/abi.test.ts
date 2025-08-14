@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getAbi } from "../index";
+import { getAbi } from "../generated/abi";
 
 describe("ABI utilities", () => {
   describe("getAbi", () => {

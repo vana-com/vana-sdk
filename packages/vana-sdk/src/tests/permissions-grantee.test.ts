@@ -12,7 +12,7 @@ vi.mock("../config/addresses", () => ({
   getContractAddress: vi.fn(),
 }));
 
-vi.mock("../abi", () => ({
+vi.mock("../generated/abi", () => ({
   getAbi: vi.fn().mockReturnValue([
     {
       inputs: [],

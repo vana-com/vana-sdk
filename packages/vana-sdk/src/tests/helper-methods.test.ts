@@ -30,7 +30,7 @@ vi.mock("../config/addresses", () => ({
     .mockReturnValue("0x1234567890123456789012345678901234567890"),
 }));
 
-vi.mock("../abi", () => ({
+vi.mock("../generated/abi", () => ({
   getAbi: vi.fn().mockReturnValue([]),
 }));
 

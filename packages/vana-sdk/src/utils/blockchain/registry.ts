@@ -1,7 +1,7 @@
 import { getContract } from "viem";
 import { PublicClient, WalletClient } from "viem";
 import { getContractAddress } from "../../config/addresses";
-import { getAbi } from "../../abi";
+import { getAbi } from "../../generated/abi";
 import { Schema } from "../../types/index";
 
 /**

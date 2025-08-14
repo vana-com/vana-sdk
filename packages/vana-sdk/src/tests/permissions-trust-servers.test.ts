@@ -31,12 +31,51 @@ vi.mock("viem", () => ({
   keccak256: vi.fn(),
   toHex: vi.fn(),
   encodePacked: vi.fn(),
+  encodeFunctionData: vi.fn(() => "0x"),
+  size: vi.fn(() => 100),
 }));
 
 vi.mock("../config/addresses", () => ({
   getContractAddress: vi
     .fn()
     .mockReturnValue("0x1234567890123456789012345678901234567890"),
+  getUtilityAddress: vi
+    .fn()
+    .mockReturnValue("0xcA11bde05977b3631167028862bE2a173976CA11"),
+}));
+
+// Track gasAwareMulticall calls to return appropriate data
+let mockServerInfoFailure = false;
+
+vi.mock("../utils/multicall", () => ({
+  gasAwareMulticall: vi.fn().mockImplementation(async (_client, params) => {
+    // Check if allowFailure is true (for server info calls)
+    if (params.allowFailure) {
+      // This is a getServerInfoBatch call - return server info with status wrapper
+      if (mockServerInfoFailure) {
+        // Return failure status for server info
+        return params.contracts.map((_: any) => ({
+          status: "failure",
+          error: new Error("Server info failed"),
+        }));
+      }
+
+      return params.contracts.map((_contract: any, i: number) => ({
+        status: "success",
+        result: {
+          id: BigInt(i + 1),
+          owner: "0x1234567890123456789012345678901234567890",
+          serverAddress: "0xabcdef1234567890123456789012345678901234",
+          publicKey: "0xpublickey",
+          url: "https://server1.com",
+        },
+      }));
+    }
+
+    // For getTrustedServersPaginated, it calls gasAwareMulticall to get server IDs
+    // Return array of results based on the contracts passed
+    return params.contracts.map((_: any, i: number) => BigInt(i + 1));
+  }),
 }));
 
 vi.mock("../abi", () => ({
@@ -104,6 +143,7 @@ interface MockPublicClient {
   readContract: ReturnType<typeof vi.fn>;
   waitForTransactionReceipt: ReturnType<typeof vi.fn>;
   getChainId: ReturnType<typeof vi.fn>;
+  multicall: ReturnType<typeof vi.fn>;
 }
 
 describe("PermissionsController - Trust/Untrust Server Methods", () => {
@@ -114,6 +154,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockServerInfoFailure = false; // Reset server info failure flag
 
     // Reset fetch mock to a working state
     const mockFetch = fetch as Mock;
@@ -161,6 +202,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       }),
       waitForTransactionReceipt: vi.fn().mockResolvedValue({ logs: [] }),
       getChainId: vi.fn().mockResolvedValue(14800),
+      multicall: vi.fn().mockResolvedValue([]),
     };
 
     // Set up the context with all required mocks
@@ -583,6 +625,9 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
     });
 
     it("should handle fetch errors when getting server info", async () => {
+      // Set up to simulate server info failure
+      mockServerInfoFailure = true;
+
       // Mock with server info failure
       mockPublicClient.readContract.mockImplementation((args) => {
         // Mock the users function from DataPortabilityServers contract

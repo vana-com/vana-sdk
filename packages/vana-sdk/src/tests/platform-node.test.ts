@@ -27,7 +27,7 @@ describe("NodePlatformAdapter", () => {
 
         // Test should fail initially - this tests the error handling branch
         await expect(adapter.crypto.generateKeyPair()).rejects.toThrow(
-          "Failed to load eccrypto library",
+          "key generation failed: Failed to load module",
         );
       });
     });

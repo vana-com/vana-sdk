@@ -80,10 +80,8 @@ export type {
   AddRefinerResult,
   UpdateSchemaIdParams,
   UpdateSchemaIdResult,
-  TrustedServerQueryMode,
   TrustedServer,
   GetUserTrustedServersParams,
-  GetUserTrustedServersResult,
 } from "./data";
 
 // Schema types

@@ -17,13 +17,56 @@ vi.mock("../abi", () => ({
   getAbi: vi.fn().mockReturnValue([]),
 }));
 
+// Track gasAwareMulticall calls to return appropriate data
+let gasAwareMulticallCallCount = 0;
+let mockServerInfoFailureIndex: number | null = null;
+
+vi.mock("../utils/multicall", () => ({
+  gasAwareMulticall: vi.fn().mockImplementation(async (client, params) => {
+    const callIndex = gasAwareMulticallCallCount++;
+
+    // First call: server IDs (allowFailure: false, returns bigints directly)
+    if (callIndex % 2 === 0) {
+      return params.contracts.map((_: any, i: number) => BigInt(i + 1));
+    }
+
+    // Second call: server info (allowFailure: true, returns status/result objects)
+    return params.contracts.map((_contract: any, i: number) => {
+      // Check if we should simulate a failure for this index
+      if (mockServerInfoFailureIndex === i) {
+        return {
+          status: "failure",
+          error: new Error("Server not found"),
+        };
+      }
+
+      return {
+        status: "success",
+        result: {
+          id: BigInt(i + 1),
+          owner: "0x1234567890123456789012345678901234567890",
+          serverAddress:
+            [
+              "0x1111111111111111111111111111111111111111",
+              "0x2222222222222222222222222222222222222222",
+              "0x3333333333333333333333333333333333333333",
+            ][i] || "0x0000000000000000000000000000000000000000",
+          publicKey: "0x" + "0".repeat(64),
+          url: `https://server${i + 1}.example.com`,
+        },
+      };
+    });
+  }),
+}));
+
 // Mock fetch for subgraph tests
 global.fetch = vi.fn();
 
-describe("Dual-Mode Trusted Server Queries", () => {
+describe("Trusted Server Queries with Automatic Fallback", () => {
   let dataController: DataController;
   let mockPublicClient: {
     readContract: ReturnType<typeof vi.fn>;
+    getChainId: ReturnType<typeof vi.fn>;
   };
   let mockWalletClient: {
     getAddresses: ReturnType<typeof vi.fn>;
@@ -65,10 +108,13 @@ describe("Dual-Mode Trusted Server Queries", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    gasAwareMulticallCallCount = 0; // Reset the counter
+    mockServerInfoFailureIndex = null; // Reset the failure index
 
     // Create mock clients
     mockPublicClient = {
       readContract: vi.fn(),
+      getChainId: vi.fn().mockResolvedValue(vanaMainnet.id),
     };
 
     mockWalletClient = {
@@ -90,32 +136,23 @@ describe("Dual-Mode Trusted Server Queries", () => {
     (global.fetch as any).mockReset();
   });
 
-  describe("Mode: subgraph", () => {
-    it("should fallback to RPC when subgraph mode is requested", async () => {
+  describe("Subgraph fallback behavior", () => {
+    it("should fallback to RPC when subgraph fails", async () => {
       // Mock fetch to fail so subgraph mode falls back to RPC
       (global.fetch as any).mockRejectedValueOnce(
         new Error("Subgraph not available"),
       );
 
       // Mock RPC calls since subgraph mode now always falls back to RPC
-      mockPublicClient.readContract
-        .mockResolvedValueOnce(2n) // userServerIdsLength
-        .mockResolvedValueOnce(serverAddresses[0]) // userServerIdsAt
-        .mockResolvedValueOnce(serverAddresses[1]) // userServerIdsAt
-        .mockResolvedValueOnce({ url: "https://server1.example.com" }) // servers
-        .mockResolvedValueOnce({ url: "https://server2.example.com" }); // servers
+      mockPublicClient.readContract.mockResolvedValueOnce(2n); // userServerIdsLength
 
       const result = await dataController.getUserTrustedServers({
         user: userAddress,
-        mode: "auto",
         subgraphUrl: "https://subgraph.example.com",
       });
 
-      expect(result.usedMode).toBe("rpc"); // Changed from "subgraph" to "rpc"
-      expect(result.servers).toHaveLength(2);
-      expect(result.warnings).toContain(
-        "Subgraph query failed: Subgraph not available",
-      );
+      expect(result).toHaveLength(2);
+      expect(mockPublicClient.readContract).toHaveBeenCalled();
     });
 
     it("should fallback to RPC even without subgraphUrl", async () => {
@@ -133,15 +170,11 @@ describe("Dual-Mode Trusted Server Queries", () => {
 
       const result = await dataControllerNoSubgraph.getUserTrustedServers({
         user: userAddress,
-        mode: "auto",
         // subgraphUrl not provided
       });
 
-      expect(result.usedMode).toBe("rpc");
-      expect(result.servers).toHaveLength(0);
-      expect(result.warnings).toContain(
-        "Subgraph mode not available for trusted servers - using direct contract calls",
-      );
+      expect(result).toHaveLength(0);
+      expect(mockPublicClient.readContract).toHaveBeenCalled();
     });
 
     it("should fallback to RPC instead of throwing subgraph errors", async () => {
@@ -153,15 +186,11 @@ describe("Dual-Mode Trusted Server Queries", () => {
 
       const result = await dataController.getUserTrustedServers({
         user: userAddress,
-        mode: "auto",
         subgraphUrl: "https://subgraph.example.com",
       });
 
-      expect(result.usedMode).toBe("rpc");
-      expect(result.servers).toHaveLength(0);
-      expect(result.warnings).toContain(
-        "Subgraph query failed: Subgraph error",
-      );
+      expect(result).toHaveLength(0);
+      expect(mockPublicClient.readContract).toHaveBeenCalled();
     });
 
     it("should handle empty RPC results in fallback mode", async () => {
@@ -173,19 +202,15 @@ describe("Dual-Mode Trusted Server Queries", () => {
 
       const result = await dataController.getUserTrustedServers({
         user: userAddress,
-        mode: "auto",
         subgraphUrl: "https://subgraph.example.com",
       });
 
-      expect(result.servers).toHaveLength(0);
-      expect(result.usedMode).toBe("rpc");
-      expect(result.warnings).toContain(
-        "Subgraph query failed: Subgraph failed",
-      );
+      expect(result).toHaveLength(0);
+      expect(mockPublicClient.readContract).toHaveBeenCalled();
     });
   });
 
-  describe("Mode: rpc", () => {
+  describe("Direct RPC queries", () => {
     it("should successfully query trusted servers via RPC", async () => {
       // Mock contract calls for RPC mode
       const serverIds = [1n, 2n, 3n]; // Numeric server IDs
@@ -216,17 +241,17 @@ describe("Dual-Mode Trusted Server Queries", () => {
           url: "https://server3.example.com",
         }); // servers(serverIds[2])
 
-      const result = await dataController.getUserTrustedServers({
+      // Without subgraph configured, should use RPC directly
+      const contextNoSubgraph = { ...context, subgraphUrl: undefined };
+      const dataControllerRpc = new DataController(contextNoSubgraph);
+
+      const result = await dataControllerRpc.getUserTrustedServers({
         user: userAddress,
-        mode: "rpc",
         limit: 10,
       });
 
-      expect(result.usedMode).toBe("rpc");
-      expect(result.servers).toHaveLength(3);
-      expect(result.total).toBe(3);
-      expect(result.hasMore).toBe(false);
-      expect(result.servers[0]).toEqual({
+      expect(result).toHaveLength(3);
+      expect(result[0]).toEqual({
         id: `${userAddress.toLowerCase()}-1`,
         serverAddress: serverAddresses[0],
         serverUrl: "https://server1.example.com",
@@ -256,54 +281,56 @@ describe("Dual-Mode Trusted Server Queries", () => {
           url: "https://server1.example.com",
         });
 
-      const result = await dataController.getUserTrustedServers({
+      // Without subgraph configured, should use RPC directly
+      const contextNoSubgraph = { ...context, subgraphUrl: undefined };
+      const dataControllerRpc = new DataController(contextNoSubgraph);
+
+      const result = await dataControllerRpc.getUserTrustedServers({
         user: userAddress,
-        mode: "rpc",
         offset: 2,
         limit: 2,
       });
 
-      expect(result.total).toBe(10);
-      expect(result.hasMore).toBe(true); // 2 + 2 < 10
-      expect(result.servers).toHaveLength(2);
-      expect(result.servers[0].trustIndex).toBe(2);
-      expect(result.servers[1].trustIndex).toBe(3);
+      expect(result).toHaveLength(2);
+      expect(result[0].trustIndex).toBe(2);
+      expect(result[1].trustIndex).toBe(3);
     });
 
     it("should handle empty RPC results", async () => {
       mockPublicClient.readContract.mockResolvedValueOnce(0n); // userServerIdsLength returns 0
 
-      const result = await dataController.getUserTrustedServers({
+      // Without subgraph configured, should use RPC directly
+      const contextNoSubgraph = { ...context, subgraphUrl: undefined };
+      const dataControllerRpc = new DataController(contextNoSubgraph);
+
+      const result = await dataControllerRpc.getUserTrustedServers({
         user: userAddress,
-        mode: "rpc",
       });
 
-      expect(result.servers).toHaveLength(0);
-      expect(result.total).toBe(0);
-      expect(result.hasMore).toBe(false);
-      expect(result.usedMode).toBe("rpc");
+      expect(result).toHaveLength(0);
     });
 
     it("should handle server info failures gracefully", async () => {
-      mockPublicClient.readContract
-        .mockResolvedValueOnce(2n) // userServerIdsLength
-        .mockResolvedValueOnce(serverAddresses[0]) // userServerIdsAt(0)
-        .mockResolvedValueOnce(serverAddresses[1]) // userServerIdsAt(1)
-        .mockResolvedValueOnce({ url: "https://server1.example.com" }) // servers(serverAddresses[0])
-        .mockRejectedValueOnce(new Error("Server not found")); // servers(serverAddresses[1]) fails
+      // Set up to simulate failure for the second server info
+      mockServerInfoFailureIndex = 1; // Fail the second server info call
 
-      const result = await dataController.getUserTrustedServers({
+      mockPublicClient.readContract.mockResolvedValueOnce(2n); // userServerIdsLength
+
+      // Without subgraph configured, should use RPC directly
+      const contextNoSubgraph = { ...context, subgraphUrl: undefined };
+      const dataControllerRpc = new DataController(contextNoSubgraph);
+
+      const result = await dataControllerRpc.getUserTrustedServers({
         user: userAddress,
-        mode: "rpc",
       });
 
-      expect(result.servers).toHaveLength(2);
-      expect(result.servers[0].serverUrl).toBe("https://server1.example.com");
-      expect(result.servers[1].serverUrl).toBe(""); // Failed server info returns empty URL
+      expect(result).toHaveLength(2);
+      expect(result[0].serverUrl).toBe("https://server1.example.com");
+      expect(result[1].serverUrl).toBe(""); // Failed server info returns empty URL
     });
   });
 
-  describe("Mode: auto (fallback)", () => {
+  describe("Automatic fallback behavior", () => {
     it("should fallback to RPC in auto mode", async () => {
       // Mock fetch to fail so subgraph mode falls back to RPC
       (global.fetch as any).mockRejectedValueOnce(
@@ -320,15 +347,11 @@ describe("Dual-Mode Trusted Server Queries", () => {
 
       const result = await dataController.getUserTrustedServers({
         user: userAddress,
-        mode: "auto",
         subgraphUrl: "https://subgraph.example.com",
       });
 
-      expect(result.usedMode).toBe("rpc");
-      expect(result.servers).toHaveLength(2);
-      expect(result.warnings).toContain(
-        "Subgraph query failed: Subgraph failure",
-      );
+      expect(result).toHaveLength(2);
+      expect(mockPublicClient.readContract).toHaveBeenCalled();
     });
 
     it("should fallback to RPC when subgraph fails", async () => {
@@ -345,14 +368,11 @@ describe("Dual-Mode Trusted Server Queries", () => {
 
       const result = await dataController.getUserTrustedServers({
         user: userAddress,
-        mode: "auto",
         subgraphUrl: "https://subgraph.example.com",
       });
 
-      expect(result.usedMode).toBe("rpc");
-      expect(result.servers).toHaveLength(2);
-      expect(result.warnings).toContain("Subgraph query failed: Network error");
-      expect(result.total).toBe(2);
+      expect(result).toHaveLength(2);
+      expect(mockPublicClient.readContract).toHaveBeenCalled();
     });
 
     it("should fallback to RPC when no subgraphUrl is provided", async () => {
@@ -373,17 +393,13 @@ describe("Dual-Mode Trusted Server Queries", () => {
 
       const result = await dataControllerNoSubgraph.getUserTrustedServers({
         user: userAddress,
-        mode: "auto",
       });
 
-      expect(result.usedMode).toBe("rpc");
-      expect(result.servers).toHaveLength(1);
-      expect(result.warnings).toContain(
-        "Subgraph mode not available for trusted servers - using direct contract calls",
-      );
+      expect(result).toHaveLength(1);
+      expect(mockPublicClient.readContract).toHaveBeenCalled();
     });
 
-    it("should throw error when both modes fail", async () => {
+    it("should throw error when RPC fails after subgraph fallback", async () => {
       // Subgraph fails
       (global.fetch as any).mockRejectedValueOnce(new Error("Subgraph down"));
 
@@ -395,17 +411,14 @@ describe("Dual-Mode Trusted Server Queries", () => {
       await expect(
         dataController.getUserTrustedServers({
           user: userAddress,
-          mode: "auto",
           subgraphUrl: "https://subgraph.example.com",
         }),
-      ).rejects.toThrow(
-        "Both query methods failed. Subgraph: Subgraph query failed: Subgraph down. RPC: RPC query failed: RPC error",
-      );
+      ).rejects.toThrow("RPC query failed: RPC error");
     });
   });
 
-  describe("Backward compatibility", () => {
-    it("should handle old API calls without mode parameter", async () => {
+  describe("Default behavior", () => {
+    it("should automatically choose best method", async () => {
       // Should default to 'auto' mode, but will now fall back to RPC
       mockPublicClient.readContract
         .mockResolvedValueOnce(2n) // userServerIdsLength
@@ -428,14 +441,12 @@ describe("Dual-Mode Trusted Server Queries", () => {
 
       const result = await dataController.getUserTrustedServers({
         user: userAddress,
-        // No mode specified - should default to 'auto'
       });
 
-      expect(result.usedMode).toBe("rpc"); // Changed from "subgraph" to "rpc"
-      expect(result.servers).toHaveLength(2);
+      expect(result).toHaveLength(2);
     });
 
-    it("should maintain result structure compatibility", async () => {
+    it("should return simple array structure", async () => {
       // Mock fetch to fail so subgraph mode falls back to RPC
       (global.fetch as any).mockRejectedValueOnce(
         new Error("Subgraph unavailable"),
@@ -455,26 +466,20 @@ describe("Dual-Mode Trusted Server Queries", () => {
 
       const result = await dataController.getUserTrustedServers({
         user: userAddress,
-        mode: "auto",
       });
 
-      // Since subgraph mode now falls back to RPC, expect RPC structure
-      expect(result).toEqual({
-        servers: expect.any(Array),
-        usedMode: "rpc", // Changed from "subgraph" to "rpc"
-        total: expect.any(Number),
-        hasMore: expect.any(Boolean),
-        warnings: expect.any(Array), // Will contain subgraph fallback warning
-      });
+      // Now returns simple array
+      expect(Array.isArray(result)).toBe(true);
+      expect(result).toHaveLength(1);
 
-      // Verify server structure matches RPC format
-      expect(result.servers[0]).toEqual({
+      // Verify server structure
+      expect(result[0]).toEqual({
         id: expect.any(String),
         serverAddress: expect.any(String),
         serverUrl: expect.any(String),
         trustedAt: expect.any(BigInt),
         user: expect.any(String),
-        trustIndex: expect.any(Number), // Added missing trustIndex field
+        trustIndex: expect.any(Number),
       });
     });
   });
@@ -500,15 +505,16 @@ describe("Dual-Mode Trusted Server Queries", () => {
         });
       }
 
-      const result = await dataController.getUserTrustedServers({
+      // Without subgraph configured, should use RPC directly
+      const contextNoSubgraph = { ...context, subgraphUrl: undefined };
+      const dataControllerRpc = new DataController(contextNoSubgraph);
+
+      const result = await dataControllerRpc.getUserTrustedServers({
         user: userAddress,
-        mode: "rpc",
         limit: requestedLimit,
       });
 
-      expect(result.total).toBe(largeCount);
-      expect(result.servers).toHaveLength(requestedLimit);
-      expect(result.hasMore).toBe(true);
+      expect(result).toHaveLength(requestedLimit);
     });
 
     it("should handle network timeouts gracefully", async () => {
@@ -528,87 +534,48 @@ describe("Dual-Mode Trusted Server Queries", () => {
 
       const result = await dataController.getUserTrustedServers({
         user: userAddress,
-        mode: "auto",
         subgraphUrl: "https://slow-subgraph.example.com",
       });
 
-      expect(result.usedMode).toBe("rpc");
-      expect(result.warnings).toContain("Subgraph query failed: Timeout");
+      expect(result).toHaveLength(1);
+      expect(mockPublicClient.readContract).toHaveBeenCalled();
     });
   });
 
   describe("Edge cases and error handling", () => {
-    it("should throw error for invalid query mode", async () => {
-      await expect(
-        dataController.getUserTrustedServers({
-          user: userAddress,
-          mode: "invalid" as any,
-        }),
-      ).rejects.toThrow("Invalid query mode specified");
-    });
+    it("should throw error when RPC fails and no subgraph available", async () => {
+      // Without subgraph configured, should use RPC directly
+      const contextNoSubgraph = { ...context, subgraphUrl: undefined };
+      const dataControllerRpc = new DataController(contextNoSubgraph);
 
-    it("should throw error in RPC-only mode when RPC fails", async () => {
       // RPC fails
       mockPublicClient.readContract.mockRejectedValueOnce(
         new Error("RPC connection failed"),
       );
 
       await expect(
-        dataController.getUserTrustedServers({
+        dataControllerRpc.getUserTrustedServers({
           user: userAddress,
-          mode: "rpc",
         }),
-      ).rejects.toThrow("RPC connection failed");
+      ).rejects.toThrow("RPC query failed: RPC connection failed");
     });
 
-    it("should throw error in subgraph-only mode when subgraph URL is missing", async () => {
-      // Create a context without subgraphUrl
-      const contextWithoutSubgraph = {
-        ...context,
-        subgraphUrl: undefined,
-      };
-      const dataControllerNoSubgraph = new DataController(
-        contextWithoutSubgraph,
-      );
+    it("should handle successful RPC query", async () => {
+      // Without subgraph configured, should use RPC directly
+      const contextNoSubgraph = { ...context, subgraphUrl: undefined };
+      const dataControllerRpc = new DataController(contextNoSubgraph);
 
-      await expect(
-        dataControllerNoSubgraph.getUserTrustedServers({
-          user: userAddress,
-          mode: "subgraph",
-        }),
-      ).rejects.toThrow(
-        "subgraphUrl is required for subgraph mode. Please provide a valid subgraph endpoint or configure it in Vana constructor.",
-      );
-    });
-
-    it("should throw error in subgraph-only mode when fetch fails", async () => {
-      // Mock fetch to fail
-      (global.fetch as any).mockRejectedValueOnce(new Error("Network failure"));
-
-      await expect(
-        dataController.getUserTrustedServers({
-          user: userAddress,
-          mode: "subgraph",
-          subgraphUrl: "https://subgraph.example.com",
-        }),
-      ).rejects.toThrow("Network failure");
-    });
-
-    it("should handle successful RPC query without warnings", async () => {
       // Mock RPC calls with successful response
       mockPublicClient.readContract
         .mockResolvedValueOnce(1n) // userServerIdsLength
         .mockResolvedValueOnce(serverAddresses[0]) // userServerIdsAt
         .mockResolvedValueOnce({ url: "https://server1.example.com" }); // servers
 
-      const result = await dataController.getUserTrustedServers({
+      const result = await dataControllerRpc.getUserTrustedServers({
         user: userAddress,
-        mode: "rpc",
       });
 
-      expect(result.usedMode).toBe("rpc");
-      expect(result.servers).toHaveLength(1);
-      expect(result.warnings).toBeUndefined();
+      expect(result).toHaveLength(1);
     });
 
     it("should handle successful subgraph query", async () => {
@@ -642,13 +609,10 @@ describe("Dual-Mode Trusted Server Queries", () => {
 
       const result = await dataController.getUserTrustedServers({
         user: userAddress,
-        mode: "subgraph",
         subgraphUrl: "https://subgraph.example.com",
       });
 
-      expect(result.usedMode).toBe("subgraph");
-      expect(result.servers).toHaveLength(1);
-      expect(result.warnings).toBeUndefined();
+      expect(result).toHaveLength(1);
     });
 
     it("should handle subgraph query with pagination", async () => {
@@ -708,17 +672,12 @@ describe("Dual-Mode Trusted Server Queries", () => {
 
       const result = await dataController.getUserTrustedServers({
         user: userAddress,
-        mode: "subgraph",
         subgraphUrl: "https://subgraph.example.com",
         limit: 2,
         offset: 1,
       });
 
-      expect(result.usedMode).toBe("subgraph");
-      expect(result.servers).toHaveLength(2); // limit applied
-      expect(result.total).toBe(3);
-      expect(result.hasMore).toBe(false); // offset 1 + limit 2 = 3, no more
-      expect(result.warnings).toBeUndefined();
+      expect(result).toHaveLength(2); // limit applied
     });
   });
 });

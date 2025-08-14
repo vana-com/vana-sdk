@@ -91,12 +91,7 @@ describe("useTrustedServers", () => {
       applicationAddress: "0xapp123",
     });
 
-    mockVana.data.getUserTrustedServers.mockResolvedValue({
-      servers: mockTrustedServers,
-      total: 2,
-      usedMode: "subgraph",
-      warnings: [],
-    });
+    mockVana.data.getUserTrustedServers.mockResolvedValue(mockTrustedServers);
   });
 
   afterEach(() => {
@@ -114,7 +109,6 @@ describe("useTrustedServers", () => {
       expect(result.current.isUntrusting).toBe(false);
       expect(result.current.isDiscoveringServer).toBe(false);
       expect(result.current.trustServerError).toBe("");
-      expect(result.current.trustedServerQueryMode).toBe("auto");
       expect(result.current.serverAddress).toBe("");
       expect(result.current.serverUrl).toBe("");
 
@@ -135,15 +129,14 @@ describe("useTrustedServers", () => {
 
       expect(mockVana.data.getUserTrustedServers).toHaveBeenCalledWith({
         user: "0x123",
-        mode: "auto",
         subgraphUrl: "http://localhost:8000/subgraphs/name/vana",
         limit: 10,
       });
       expect(result.current.trustedServers).toEqual(mockTrustedServers);
       expect(addToastMock).toHaveBeenCalledWith({
         color: "success",
-        title: "Trusted servers loaded via SUBGRAPH",
-        description: "Found 2 trusted servers (2 total). Warnings: ",
+        title: "Trusted servers loaded",
+        description: "Found 2 trusted servers",
       });
     });
 
@@ -181,7 +174,6 @@ describe("useTrustedServers", () => {
 
       expect(mockVana.data.getUserTrustedServers).toHaveBeenCalledWith({
         user: "0x123",
-        mode: "auto",
         subgraphUrl: "http://localhost:8000/subgraphs/name/vana",
         limit: 10,
       });
@@ -189,28 +181,22 @@ describe("useTrustedServers", () => {
       expect(result.current.isLoadingTrustedServers).toBe(false);
     });
 
-    it("successfully loads trusted servers with specified mode", async () => {
+    it("successfully loads trusted servers", async () => {
       const { result } = renderHook(() => useTrustedServers());
 
       await act(async () => {
-        await result.current.loadUserTrustedServers("rpc");
+        await result.current.loadUserTrustedServers();
       });
 
       expect(mockVana.data.getUserTrustedServers).toHaveBeenCalledWith({
         user: "0x123",
-        mode: "rpc",
         subgraphUrl: "http://localhost:8000/subgraphs/name/vana",
         limit: 10,
       });
     });
 
-    it("handles warnings in response", async () => {
-      mockVana.data.getUserTrustedServers.mockResolvedValue({
-        servers: mockTrustedServers,
-        total: 2,
-        usedMode: "rpc",
-        warnings: ["Subgraph unavailable", "Fallback to RPC"],
-      });
+    it("handles array response", async () => {
+      mockVana.data.getUserTrustedServers.mockResolvedValue(mockTrustedServers);
 
       const { result } = renderHook(() => useTrustedServers());
 
@@ -220,9 +206,8 @@ describe("useTrustedServers", () => {
 
       expect(addToastMock).toHaveBeenCalledWith({
         color: "success",
-        title: "Trusted servers loaded via RPC",
-        description:
-          "Found 2 trusted servers (2 total). Warnings: Subgraph unavailable, Fallback to RPC",
+        title: "Trusted servers loaded",
+        description: "Found 2 trusted servers",
       });
     });
 
@@ -761,16 +746,6 @@ describe("useTrustedServers", () => {
       });
 
       expect(result.current.serverUrl).toBe("https://newserver.com");
-    });
-
-    it("setTrustedServerQueryMode updates query mode correctly", () => {
-      const { result } = renderHook(() => useTrustedServers());
-
-      act(() => {
-        result.current.setTrustedServerQueryMode("rpc");
-      });
-
-      expect(result.current.trustedServerQueryMode).toBe("rpc");
     });
 
     it("setTrustServerError updates error correctly", () => {

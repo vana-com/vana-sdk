@@ -22,7 +22,6 @@ export interface UseTrustedServersReturn {
   isUntrusting: boolean;
   isDiscoveringServer: boolean;
   trustServerError: string;
-  trustedServerQueryMode: "subgraph" | "rpc" | "auto";
 
   // Form state
   serverId: string;
@@ -32,7 +31,7 @@ export interface UseTrustedServersReturn {
   publicKey: string;
 
   // Actions
-  loadUserTrustedServers: (mode?: "subgraph" | "rpc" | "auto") => Promise<void>;
+  loadUserTrustedServers: () => Promise<void>;
   handleTrustServer: () => Promise<void>;
   handleTrustServerGasless: (
     clearFieldsOnSuccess?: boolean,
@@ -53,7 +52,6 @@ export interface UseTrustedServersReturn {
   setServerUrl: (url: string) => void;
   setServerOwner: (owner: string) => void;
   setPublicKey: (publicKey: string) => void;
-  setTrustedServerQueryMode: (mode: "subgraph" | "rpc" | "auto") => void;
   setTrustServerError: (error: string) => void;
 }
 
@@ -68,9 +66,7 @@ export function useTrustedServers(): UseTrustedServersReturn {
   const [isUntrusting, setIsUntrusting] = useState(false);
   const [isDiscoveringServer, setIsDiscoveringServer] = useState(false);
   const [trustServerError, setTrustServerError] = useState<string>("");
-  const [trustedServerQueryMode, setTrustedServerQueryMode] = useState<
-    "subgraph" | "rpc" | "auto"
-  >("auto");
+  // Query mode is now automatic - SDK handles fallback internally
 
   // Form state
   const [serverId, setServerId] = useState<string>("");
@@ -79,46 +75,42 @@ export function useTrustedServers(): UseTrustedServersReturn {
   const [serverOwner, setServerOwner] = useState<string>("");
   const [publicKey, setPublicKey] = useState<string>("");
 
-  const loadUserTrustedServers = useCallback(
-    async (mode: "subgraph" | "rpc" | "auto" = "auto") => {
-      if (!vana || !address) return;
+  const loadUserTrustedServers = useCallback(async () => {
+    if (!vana || !address) return;
 
-      setIsLoadingTrustedServers(true);
-      try {
-        const result = await vana.data.getUserTrustedServers({
-          user: address,
-          mode,
-          subgraphUrl: process.env.NEXT_PUBLIC_SUBGRAPH_URL,
-          limit: 10, // For demo purposes, limit to 10 servers
-        });
+    setIsLoadingTrustedServers(true);
+    try {
+      const servers = await vana.data.getUserTrustedServers({
+        user: address,
+        subgraphUrl: process.env.NEXT_PUBLIC_SUBGRAPH_URL,
+        limit: 10, // For demo purposes, limit to 10 servers
+      });
 
-        console.info("Loaded trusted servers:", result);
+      console.info("Loaded trusted servers:", servers);
 
-        // Show which mode was actually used
-        addToast({
-          color: "success",
-          title: `Trusted servers loaded via ${result.usedMode.toUpperCase()}`,
-          description: `Found ${result.servers.length} trusted servers${result.total ? ` (${result.total} total)` : ""}${result.warnings ? `. Warnings: ${result.warnings.join(", ")}` : ""}`,
-        });
+      // Show success message
+      addToast({
+        color: "success",
+        title: `Trusted servers loaded`,
+        description: `Found ${servers.length} trusted servers`,
+      });
 
-        // For backward compatibility, extract just the servers array
-        // Note: Public keys will be fetched on-demand when needed for uploads
-        // until the contract upgrade that stores them onchain is deployed
-        setTrustedServers(result.servers);
-      } catch (error) {
-        console.error("Failed to load trusted servers:", error);
-        addToast({
-          title: "Error loading trusted servers",
-          description: error instanceof Error ? error.message : "Unknown error",
-          variant: "solid",
-          color: "danger",
-        });
-      } finally {
-        setIsLoadingTrustedServers(false);
-      }
-    },
-    [vana, address],
-  );
+      // Set the servers array
+      // Note: Public keys will be fetched on-demand when needed for uploads
+      // until the contract upgrade that stores them onchain is deployed
+      setTrustedServers(servers);
+    } catch (error) {
+      console.error("Failed to load trusted servers:", error);
+      addToast({
+        title: "Error loading trusted servers",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "solid",
+        color: "danger",
+      });
+    } finally {
+      setIsLoadingTrustedServers(false);
+    }
+  }, [vana, address]);
 
   const handleTrustServer = useCallback(async () => {
     if (!vana || !address) return;
@@ -370,7 +362,6 @@ export function useTrustedServers(): UseTrustedServersReturn {
     isUntrusting,
     isDiscoveringServer,
     trustServerError,
-    trustedServerQueryMode,
 
     // Form state
     serverId,
@@ -390,7 +381,6 @@ export function useTrustedServers(): UseTrustedServersReturn {
     setServerUrl,
     setServerOwner,
     setPublicKey,
-    setTrustedServerQueryMode,
     setTrustServerError,
   };
 }

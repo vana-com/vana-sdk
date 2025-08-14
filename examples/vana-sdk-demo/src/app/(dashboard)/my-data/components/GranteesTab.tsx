@@ -13,8 +13,6 @@ import {
   TableBody,
   TableRow,
   TableCell,
-  Select,
-  SelectItem,
   Alert,
 } from "@heroui/react";
 import { RefreshCw, Users, Trash2, Plus } from "lucide-react";
@@ -33,7 +31,6 @@ interface GranteesTabProps {
   addGranteeError: string;
 
   // Input state
-  queryMode: "subgraph" | "rpc" | "auto";
   ownerAddress: string;
   granteeAddress: string;
   granteePublicKey: string;
@@ -42,7 +39,6 @@ interface GranteesTabProps {
   onOwnerAddressChange: (address: string) => void;
   onGranteeAddressChange: (address: string) => void;
   onGranteePublicKeyChange: (publicKey: string) => void;
-  onQueryModeChange: (mode: "subgraph" | "rpc" | "auto") => void;
   onAddGrantee: () => void;
   onRefreshGrantees: () => void;
   onRemoveGrantee: (granteeId: number) => void;
@@ -54,14 +50,12 @@ export function GranteesTab({
   isAddingGrantee,
   isRemoving,
   addGranteeError,
-  queryMode,
   ownerAddress,
   granteeAddress,
   granteePublicKey,
   onOwnerAddressChange,
   onGranteeAddressChange,
   onGranteePublicKeyChange,
-  onQueryModeChange,
   onAddGrantee,
   onRefreshGrantees,
   onRemoveGrantee,
@@ -145,30 +139,6 @@ export function GranteesTab({
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Select
-                size="sm"
-                label="Query Mode"
-                placeholder="Select query mode"
-                selectedKeys={[queryMode]}
-                onSelectionChange={(keys) => {
-                  const mode = Array.from(keys)[0] as
-                    | "subgraph"
-                    | "rpc"
-                    | "auto";
-                  onQueryModeChange(mode);
-                }}
-                className="w-40"
-              >
-                <SelectItem key="auto" textValue="Auto (Smart Fallback)">
-                  Auto (Smart Fallback)
-                </SelectItem>
-                <SelectItem key="subgraph" textValue="Subgraph (Fast)">
-                  Subgraph (Fast)
-                </SelectItem>
-                <SelectItem key="rpc" textValue="RPC (Direct)">
-                  RPC (Direct)
-                </SelectItem>
-              </Select>
               <Button
                 onPress={onRefreshGrantees}
                 variant="bordered"

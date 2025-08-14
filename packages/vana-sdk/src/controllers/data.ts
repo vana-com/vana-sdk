@@ -14,7 +14,6 @@ import {
   UpdateSchemaIdResult,
   TrustedServer,
   GetUserTrustedServersParams,
-  GetUserTrustedServersResult,
   EncryptedUploadParams,
   UnencryptedUploadParams,
 } from "../types/index";
@@ -38,6 +37,7 @@ import {
   SchemaValidationError,
   type DataSchema,
 } from "../utils/schemaValidation";
+import { gasAwareMulticall } from "../utils/multicall";
 
 /**
  * GraphQL query response types for the new subgraph entities
@@ -612,9 +612,9 @@ export class DataController {
     const { owner, subgraphUrl } = params;
 
     // Use provided subgraph URL or default from context
-    const graphqlEndpoint = subgraphUrl || this.context.subgraphUrl;
+    const endpoint = subgraphUrl || this.context.subgraphUrl;
 
-    if (!graphqlEndpoint) {
+    if (!endpoint) {
       throw new Error(
         "subgraphUrl is required. Please provide a valid subgraph endpoint or configure it in Vana constructor.",
       );
@@ -641,7 +641,7 @@ export class DataController {
         }
       `;
 
-      const response = await fetch(graphqlEndpoint, {
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -719,19 +719,18 @@ export class DataController {
   }
 
   /**
-   * Retrieves a list of permissions granted by a user using the new subgraph entities.
+   * Retrieves a list of permissions granted by a user.
    *
-   * This method queries the Vana subgraph to find permissions directly granted by the user
-   * using the new Permission entity. It efficiently handles millions of permissions by:
-   * 1. Querying the subgraph for user's directly granted permissions
-   * 2. Returning complete permission information from subgraph
-   * 3. No need for additional contract calls as all data comes from subgraph
+   * This method supports automatic fallback between subgraph and RPC modes:
+   * - If subgraph URL is available, tries subgraph query first
+   * - Falls back to direct contract queries via RPC if subgraph fails
+   * - RPC mode uses gasAwareMulticall for efficient batch queries
    *
    * @param params - Object containing the user address and optional subgraph URL
    * @param params.user - The wallet address of the user to query permissions for
    * @param params.subgraphUrl - Optional subgraph URL to override the default
    * @returns Promise resolving to an array of permission objects
-   * @throws Error if subgraph is unavailable or returns invalid data
+   * @throws Error if both subgraph and RPC queries fail
    */
   async getUserPermissions(params: {
     user: Address;
@@ -749,15 +748,51 @@ export class DataController {
     }>
   > {
     const { user, subgraphUrl } = params;
+    const endpoint = subgraphUrl || this.context.subgraphUrl;
 
-    // Use provided subgraph URL or default from context
-    const graphqlEndpoint = subgraphUrl || this.context.subgraphUrl;
+    // Try subgraph first if available
+    if (endpoint) {
+      try {
+        const permissions = await this._getUserPermissionsViaSubgraph({
+          user,
+          subgraphUrl: endpoint,
+        });
 
-    if (!graphqlEndpoint) {
-      throw new Error(
-        "subgraphUrl is required. Please provide a valid subgraph endpoint or configure it in Vana constructor.",
-      );
+        return permissions;
+      } catch (error) {
+        console.warn("Subgraph query failed, falling back to RPC:", error);
+        // Fall through to RPC
+      }
     }
+
+    // Use RPC (as fallback or primary method)
+    return await this._getUserPermissionsViaRpc({ user });
+  }
+
+  /**
+   * Internal method: Query user permissions via subgraph
+   *
+   * @param params - Query parameters object
+   * @param params.user - The user address to query permissions for
+   * @param params.subgraphUrl - The subgraph URL endpoint to query
+   * @returns Promise resolving to an array of permission objects
+   */
+  private async _getUserPermissionsViaSubgraph(params: {
+    user: Address;
+    subgraphUrl: string;
+  }): Promise<
+    Array<{
+      id: string;
+      grant: string;
+      nonce: bigint;
+      signature: string;
+      addedAtBlock: bigint;
+      addedAtTimestamp: bigint;
+      transactionHash: Address;
+      user: Address;
+    }>
+  > {
+    const { user, subgraphUrl } = params;
 
     try {
       // Query the subgraph for user's permissions using the new Permission entity
@@ -781,7 +816,7 @@ export class DataController {
         }
       `;
 
-      const response = await fetch(graphqlEndpoint, {
+      const response = await fetch(subgraphUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -804,18 +839,17 @@ export class DataController {
 
       if (result.errors) {
         throw new Error(
-          `Subgraph errors: ${result.errors.map((e) => e.message).join(", ")}`,
+          `Subgraph query errors: ${result.errors.map((e) => e.message).join(", ")}`,
         );
       }
 
       const userData = result.data?.user;
       if (!userData || !userData.permissions?.length) {
-        console.warn("No permissions found for user:", user);
         return [];
       }
 
       // Convert subgraph data directly to permission format
-      const permissions = userData.permissions
+      return userData.permissions
         .map((permission) => ({
           id: permission.id,
           grant: permission.grant,
@@ -827,162 +861,221 @@ export class DataController {
           user: permission.user.id as Address,
         }))
         .sort((a, b) => Number(b.addedAtTimestamp - a.addedAtTimestamp)); // Latest first
+    } catch (error) {
+      console.error("Failed to query user permissions from subgraph:", error);
+      throw error;
+    }
+  }
 
-      // Successfully retrieved user permissions
+  /**
+   * Internal method: Query user permissions via direct RPC
+   *
+   * @param params - Query parameters object
+   * @param params.user - The user address to query permissions for
+   * @returns Promise resolving to an array of permission objects
+   */
+  private async _getUserPermissionsViaRpc(params: { user: Address }): Promise<
+    Array<{
+      id: string;
+      grant: string;
+      nonce: bigint;
+      signature: string;
+      addedAtBlock: bigint;
+      addedAtTimestamp: bigint;
+      transactionHash: Address;
+      user: Address;
+    }>
+  > {
+    const { user } = params;
+
+    try {
+      const chainId = this.context.walletClient.chain?.id;
+      if (!chainId) {
+        throw new Error("Chain ID not available");
+      }
+
+      const permissionsAddress = getContractAddress(
+        chainId,
+        "DataPortabilityPermissions",
+      );
+      const permissionsAbi = getAbi("DataPortabilityPermissions");
+
+      // Get total count of user permission IDs
+      const totalCount = (await this.context.publicClient.readContract({
+        address: permissionsAddress,
+        abi: permissionsAbi,
+        functionName: "userPermissionIdsLength",
+        args: [user],
+      })) as bigint;
+
+      const total = Number(totalCount);
+
+      if (total === 0) {
+        return [];
+      }
+
+      // Fetch permission IDs using gasAwareMulticall
+      const permissionIdCalls = [];
+      for (let i = 0; i < total; i++) {
+        permissionIdCalls.push({
+          address: permissionsAddress,
+          abi: permissionsAbi,
+          functionName: "userPermissionIdsAt",
+          args: [user, BigInt(i)],
+        });
+      }
+
+      const permissionIdResults = await gasAwareMulticall<
+        typeof permissionIdCalls,
+        false
+      >(this.context.publicClient, {
+        contracts: permissionIdCalls,
+      });
+
+      // Extract permission IDs from results
+      const permissionIds = permissionIdResults
+        .map((result) => result as bigint)
+        .filter((id) => id && id > 0n);
+
+      // Build permission info calls for multicall
+      const permissionInfoCalls = permissionIds.map(
+        (permissionId) =>
+          ({
+            address: permissionsAddress,
+            abi: permissionsAbi,
+            functionName: "permissions",
+            args: [permissionId],
+          }) as const,
+      );
+
+      // Fetch all permission info in a single multicall
+      const permissionInfoResults = await gasAwareMulticall<
+        typeof permissionInfoCalls,
+        true // Allow failures for individual permission lookups
+      >(this.context.publicClient, {
+        contracts: permissionInfoCalls,
+        allowFailure: true,
+      });
+
+      // Process results
+      const permissions = permissionInfoResults
+        .map((result, index) => {
+          const permissionId = permissionIds[index];
+
+          if (result.status === "success" && result.result) {
+            const permissionInfo = result.result as {
+              id: bigint;
+              grantor: Address;
+              nonce: bigint;
+              granteeId: bigint;
+              grant: string;
+              startBlock: bigint;
+              endBlock: bigint;
+              fileIds: bigint[];
+            };
+
+            return {
+              id: permissionId.toString(),
+              grant: permissionInfo.grant,
+              nonce: permissionInfo.nonce,
+              signature: "", // Not available from RPC, will be empty
+              addedAtBlock: permissionInfo.startBlock,
+              addedAtTimestamp: BigInt(0), // Not available from RPC
+              transactionHash:
+                "0x0000000000000000000000000000000000000000" as Address, // Not available from RPC
+              user,
+            };
+          } else {
+            // If permission info fails, return basic info
+            return {
+              id: permissionId.toString(),
+              grant: "",
+              nonce: BigInt(0),
+              signature: "",
+              addedAtBlock: BigInt(0),
+              addedAtTimestamp: BigInt(0),
+              transactionHash:
+                "0x0000000000000000000000000000000000000000" as Address,
+              user,
+            };
+          }
+        })
+        .filter((permission) => permission.grant !== ""); // Remove failed lookups
+
       return permissions;
     } catch (error) {
-      console.error("Failed to fetch user permissions from subgraph:", error);
       throw new Error(
-        `Failed to fetch user permissions from subgraph: ${error instanceof Error ? error.message : "Unknown error"}`,
+        `RPC query failed: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }
 
   /**
-   * Retrieves a list of trusted servers for a user using the new subgraph entities.
+   * Retrieves a list of trusted servers for a user.
    *
-   * This method queries the Vana subgraph to find trusted servers directly associated with the user
-   * with support for both subgraph and direct RPC queries.
+   * This method supports automatic fallback between subgraph and RPC modes:
+   * - If subgraph URL is available, tries subgraph query first for fast results
+   * - Falls back to direct contract queries via RPC if subgraph fails
+   * - RPC mode uses gasAwareMulticall for efficient batch queries
    *
-   * This method supports multiple query modes:
-   * - 'subgraph': Fast query via subgraph (requires subgraphUrl)
-   * - 'rpc': Direct contract queries (slower but no external dependencies)
-   * - 'auto': Try subgraph first, fallback to RPC if unavailable
-   *
-   * @param params - Query parameters including user address and mode selection
-   * @returns Promise resolving to trusted servers with metadata about the query
-   * @throws Error if query fails in both modes (when using 'auto')
+   * @param params - Query parameters including user address and optional pagination
+   * @param params.user - The wallet address of the user to query trusted servers for
+   * @param params.subgraphUrl - Optional subgraph URL to override the default
+   * @param params.limit - Maximum number of results to return (default: 50)
+   * @param params.offset - Number of results to skip for pagination (default: 0)
+   * @returns Promise resolving to an array of trusted server objects
+   * @throws Error if both subgraph and RPC queries fail
    * @example
    * ```typescript
-   * // Use subgraph for fast queries
-   * const result = await vana.data.getUserTrustedServers({
-   *   user: '0x...',
-   *   mode: 'subgraph',
-   *   subgraphUrl: 'https://...'
+   * // Basic usage with automatic fallback
+   * const servers = await vana.data.getUserTrustedServers({
+   *   user: '0x...'
    * });
    *
-   * // Use direct RPC (no external dependencies)
-   * const result = await vana.data.getUserTrustedServers({
+   * // With pagination
+   * const servers = await vana.data.getUserTrustedServers({
    *   user: '0x...',
-   *   mode: 'rpc',
-   *   limit: 10
+   *   limit: 10,
+   *   offset: 20
    * });
    *
-   * // Auto-fallback mode
-   * const result = await vana.data.getUserTrustedServers({
+   * // With custom subgraph URL
+   * const servers = await vana.data.getUserTrustedServers({
    *   user: '0x...',
-   *   mode: 'auto' // tries subgraph first, falls back to RPC
+   *   subgraphUrl: 'https://custom-subgraph.com/graphql'
    * });
    * ```
    */
   async getUserTrustedServers(
     params: GetUserTrustedServersParams,
-  ): Promise<GetUserTrustedServersResult> {
-    const { user, mode = "auto", limit = 50, offset = 0 } = params;
-    const warnings: string[] = [];
+  ): Promise<TrustedServer[]> {
+    const { user, limit = 50, offset = 0 } = params;
+    const subgraphUrl = params.subgraphUrl || this.context.subgraphUrl;
 
-    // Determine which query method to try first
-    let trySubgraph = false;
-    let tryRpc = false;
-
-    switch (mode) {
-      case "subgraph":
-        trySubgraph = true;
-        break;
-      case "rpc":
-        tryRpc = true;
-        break;
-      case "auto":
-        trySubgraph = true;
-        tryRpc = true; // fallback
-        break;
-    }
-
-    // Try subgraph query first (if enabled)
-    if (trySubgraph) {
-      const subgraphUrl = params.subgraphUrl || this.context.subgraphUrl;
-
-      // Check if subgraph URL is available
-      if (!subgraphUrl) {
-        if (mode === "subgraph") {
-          // If specifically requested subgraph mode, throw error
-          throw new Error(
-            "subgraphUrl is required for subgraph mode. Please provide a valid subgraph endpoint or configure it in Vana constructor.",
-          );
-        }
-
-        // In auto mode, add warning and skip to RPC
-        warnings.push(
-          "Subgraph mode not available for trusted servers - using direct contract calls",
-        );
-      } else {
-        try {
-          // Query trusted servers via subgraph
-          const servers = await this._getUserTrustedServersViaSubgraph({
-            user,
-            subgraphUrl,
-          });
-
-          // Apply pagination if provided
-          const paginatedServers = limit
-            ? servers.slice(offset, offset + limit)
-            : servers;
-
-          return {
-            servers: paginatedServers,
-            usedMode: "subgraph",
-            total: servers.length,
-            hasMore: limit ? offset + limit < servers.length : false,
-            warnings: warnings.length > 0 ? warnings : undefined,
-          };
-        } catch (error) {
-          if (mode === "subgraph") {
-            // If specifically requested subgraph mode, throw the error
-            throw error;
-          }
-
-          // In auto mode, log the warning and try RPC fallback
-          warnings.push(
-            `Subgraph query failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-          );
-          console.warn(
-            "Subgraph query failed, falling back to RPC mode:",
-            error,
-          );
-        }
-      }
-    }
-
-    // Try RPC query (if enabled or as fallback)
-    if (tryRpc) {
+    // Try subgraph first if available
+    if (subgraphUrl) {
       try {
-        const rpcResult = await this._getUserTrustedServersViaRpc({
+        const servers = await this._getUserTrustedServersViaSubgraph({
           user,
-          limit,
-          offset,
+          subgraphUrl,
         });
 
-        return {
-          servers: rpcResult.servers,
-          usedMode: "rpc",
-          total: rpcResult.total,
-          hasMore: rpcResult.hasMore,
-          warnings: warnings.length > 0 ? warnings : undefined,
-        };
+        // Apply pagination if provided
+        return limit ? servers.slice(offset, offset + limit) : servers;
       } catch (error) {
-        if (mode === "rpc") {
-          // If specifically requested RPC mode, throw the error
-          throw error;
-        }
-
-        // In auto mode with subgraph already failed, throw combined error
-        throw new Error(
-          `Both query methods failed. Subgraph: ${warnings[0] || "Unknown error"}. RPC: ${error instanceof Error ? error.message : "Unknown error"}`,
-        );
+        console.warn("Subgraph query failed, falling back to RPC:", error);
+        // Fall through to RPC
       }
     }
 
-    throw new Error("Invalid query mode specified");
+    // Use RPC (as fallback or primary method)
+    const rpcResult = await this._getUserTrustedServersViaRpc({
+      user,
+      limit,
+      offset,
+    });
+
+    return rpcResult.servers;
   }
 
   /**
@@ -1131,33 +1224,59 @@ export class DataController {
       // Calculate pagination
       const endIndex = Math.min(offset + limit, total);
 
-      // Fetch server IDs using pagination
-      const serverIdPromises: Promise<bigint>[] = [];
+      // Fetch server IDs using gasAwareMulticall
+      const serverIdCalls = [];
       for (let i = offset; i < endIndex; i++) {
-        const promise = this.context.publicClient.readContract({
+        serverIdCalls.push({
           address: DataPortabilityServersAddress,
           abi: DataPortabilityServersAbi,
           functionName: "userServerIdsAt",
           args: [user, BigInt(i)],
-        }) as Promise<bigint>;
-        serverIdPromises.push(promise);
+        });
       }
 
-      const serverIds = await Promise.all(serverIdPromises);
+      const serverIdResults = await gasAwareMulticall<
+        typeof serverIdCalls,
+        false
+      >(this.context.publicClient, {
+        contracts: serverIdCalls,
+      });
 
-      // Fetch server info for each ID
-      const serverInfoPromises = serverIds.map(async (serverId, index) => {
-        try {
-          const serverInfo = (await this.context.publicClient.readContract({
+      // Extract server IDs from results
+      const serverIds = serverIdResults
+        .map((result) => result as bigint)
+        .filter((id) => id && id > 0n);
+
+      // Build server info calls for multicall
+      const serverInfoCalls = serverIds.map(
+        (serverId) =>
+          ({
             address: DataPortabilityServersAddress,
             abi: DataPortabilityServersAbi,
             functionName: "servers",
             args: [serverId],
-          })) as {
+          }) as const,
+      );
+
+      // Fetch all server info in a single multicall
+      const serverInfoResults = await gasAwareMulticall<
+        typeof serverInfoCalls,
+        true // Allow failures for individual server lookups
+      >(this.context.publicClient, {
+        contracts: serverInfoCalls,
+        allowFailure: true,
+      });
+
+      // Process results
+      const servers = serverInfoResults.map((result, index) => {
+        const serverId = serverIds[index];
+
+        if (result.status === "success" && result.result) {
+          const serverInfo = result.result as {
             id: bigint;
             owner: Address;
             serverAddress: Address;
-            publicKey: `0x${string}`;
+            publicKey: string;
             url: string;
           };
 
@@ -1165,11 +1284,11 @@ export class DataController {
             id: `${user.toLowerCase()}-${serverId.toString()}`,
             serverAddress: serverInfo.serverAddress,
             serverUrl: serverInfo.url,
-            trustedAt: BigInt(Date.now()), // RPC mode doesn't have timestamp, use current time
+            trustedAt: BigInt(Date.now()),
             user,
             trustIndex: offset + index,
           };
-        } catch {
+        } else {
           // If server info fails, return basic info
           return {
             id: `${user.toLowerCase()}-${serverId.toString()}`,
@@ -1182,8 +1301,6 @@ export class DataController {
           };
         }
       });
-
-      const servers = await Promise.all(serverInfoPromises);
 
       return {
         servers,

@@ -3,10 +3,13 @@
  *
  * This implementation uses browser-compatible libraries and configurations
  * to provide crypto, PGP, and HTTP functionality without Node.js dependencies.
+ *
+ * WARNING: Dependencies that access globals during init
+ * MUST be dynamically imported to support Turbopack.
+ * See: https://github.com/vercel/next.js/issues/82632
  */
 
-import * as openpgp from "openpgp";
-import {
+import type {
   VanaPlatformAdapter,
   VanaCryptoAdapter,
   VanaPGPAdapter,
@@ -20,6 +23,10 @@ import {
 } from "./shared/crypto-utils";
 import { getPGPKeyGenParams } from "./shared/pgp-utils";
 import { wrapCryptoError } from "./shared/error-utils";
+import { lazyImport } from "../utils/lazy-import";
+
+// Lazy-loaded dependencies to avoid Turbopack TDZ issues
+const getOpenPGP = lazyImport(() => import("openpgp"));
 
 /**
  * Browser implementation of crypto operations using eccrypto-js
@@ -173,7 +180,7 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
   ): Promise<Uint8Array> {
     try {
       // Import openpgp for password-based encryption
-      const openpgp = await import("openpgp");
+      const openpgp = await getOpenPGP();
 
       const message = await openpgp.createMessage({
         binary: data,
@@ -203,7 +210,7 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
   ): Promise<Uint8Array> {
     try {
       // Import openpgp for password-based decryption
-      const openpgp = await import("openpgp");
+      const openpgp = await getOpenPGP();
 
       const message = await openpgp.readMessage({
         binaryMessage: encryptedData,
@@ -230,6 +237,7 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
 class BrowserPGPAdapter implements VanaPGPAdapter {
   async encrypt(data: string, publicKeyArmored: string): Promise<string> {
     try {
+      const openpgp = await getOpenPGP();
       const publicKey = await openpgp.readKey({ armoredKey: publicKeyArmored });
 
       const encrypted = await openpgp.encrypt({
@@ -251,6 +259,7 @@ class BrowserPGPAdapter implements VanaPGPAdapter {
     privateKeyArmored: string,
   ): Promise<string> {
     try {
+      const openpgp = await getOpenPGP();
       const privateKey = await openpgp.readPrivateKey({
         armoredKey: privateKeyArmored,
       });
@@ -275,6 +284,7 @@ class BrowserPGPAdapter implements VanaPGPAdapter {
     passphrase?: string;
   }): Promise<{ publicKey: string; privateKey: string }> {
     try {
+      const openpgp = await getOpenPGP();
       // Use shared utility to get standardized parameters
       const keyGenParams = getPGPKeyGenParams(options);
 

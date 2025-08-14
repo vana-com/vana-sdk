@@ -450,13 +450,13 @@ describe("Data Types", () => {
       const schema: Schema = {
         id: 42,
         name: "Social Media Profile",
-        type: "JSON",
+        dialect: "JSON",
         definitionUrl: "ipfs://QmSchemaDefinition",
       };
 
       expect(schema.id).toBe(42);
       expect(schema.name).toBe("Social Media Profile");
-      expect(schema.type).toBe("JSON");
+      expect(schema.dialect).toBe("JSON");
       expect(schema.definitionUrl).toBe("ipfs://QmSchemaDefinition");
     });
   });
@@ -487,12 +487,12 @@ describe("Data Types", () => {
     it("should structure add schema parameters correctly", () => {
       const params: AddSchemaParams = {
         name: "E-commerce Data",
-        type: "JSON Schema",
+        dialect: "JSON Schema",
         definitionUrl: "ipfs://QmEcommerceSchema",
       };
 
       expect(params.name).toBe("E-commerce Data");
-      expect(params.type).toBe("JSON Schema");
+      expect(params.dialect).toBe("JSON Schema");
       expect(params.definitionUrl).toBe("ipfs://QmEcommerceSchema");
     });
 

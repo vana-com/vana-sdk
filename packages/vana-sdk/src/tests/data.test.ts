@@ -23,7 +23,7 @@ vi.mock("../storage", () => ({
     upload: vi.fn().mockResolvedValue({
       url: "https://ipfs.io/ipfs/QmTestHash",
       size: 1024,
-      contentType: "application/octet-stream",
+      contenttype: "application/octet-stream",
     }),
   })),
 }));
@@ -46,7 +46,7 @@ vi.mock("viem", () => ({
         ]),
       schemas: vi.fn().mockResolvedValue({
         name: "Test Schema",
-        typ: "json",
+        dialect: "json",
         definitionUrl: "https://example.com/schema.json",
       }),
       schemasCount: vi.fn().mockResolvedValue(BigInt(5)),
@@ -316,7 +316,7 @@ describe("DataController", () => {
       mockStorageManager.upload.mockResolvedValue({
         url: expectedUrl,
         size: testBlob.size,
-        contentType: "text/plain",
+        contenttype: "text/plain",
       });
 
       // Create context with storage manager
@@ -339,7 +339,7 @@ describe("DataController", () => {
       expect(result).toEqual({
         url: expectedUrl,
         size: testBlob.size,
-        contentType: "text/plain",
+        contenttype: "text/plain",
       });
 
       // Verify storage manager was called correctly
@@ -359,7 +359,7 @@ describe("DataController", () => {
       mockStorageManager.upload.mockResolvedValue({
         url: expectedUrl,
         size: 9,
-        contentType: "text/plain",
+        contenttype: "text/plain",
       });
 
       const contextWithStorage = {
@@ -377,7 +377,7 @@ describe("DataController", () => {
       expect(result).toEqual({
         url: expectedUrl,
         size: 9,
-        contentType: "text/plain",
+        contenttype: "text/plain",
       });
       // Verify it was converted to a Blob with text/plain type
       expect(mockStorageManager.upload).toHaveBeenCalledWith(
@@ -398,7 +398,7 @@ describe("DataController", () => {
       mockStorageManager.upload.mockResolvedValue({
         url: expectedUrl,
         size: testBuffer.length,
-        contentType: "application/octet-stream",
+        contenttype: "application/octet-stream",
       });
 
       const contextWithStorage = {
@@ -416,7 +416,7 @@ describe("DataController", () => {
       expect(result).toEqual({
         url: expectedUrl,
         size: testBuffer.length,
-        contentType: "application/octet-stream",
+        contenttype: "application/octet-stream",
       });
       // Verify it was converted to a Blob with application/octet-stream type
       expect(mockStorageManager.upload).toHaveBeenCalledWith(
@@ -473,26 +473,26 @@ describe("DataController", () => {
     });
 
     it("should handle different content types", async () => {
-      const contentTypes = [
+      const contenttypes = [
         {
           content: "text content",
           name: "text.txt",
-          expectedType: "text/plain",
+          expectedtype: "text/plain",
         },
         {
           content: Buffer.from("buffer data"),
           name: "buffer.bin",
-          expectedType: "application/octet-stream",
+          expectedtype: "application/octet-stream",
         },
         {
           content: new Blob(["blob data"], { type: "image/png" }),
           name: "image.png",
-          expectedType: "image/png",
+          expectedtype: "image/png",
         },
         {
           content: { key: "value" },
           name: "data.json",
-          expectedType: "application/json",
+          expectedtype: "application/json",
         },
       ];
 
@@ -505,13 +505,13 @@ describe("DataController", () => {
 
       const controllerWithStorage = new DataController(contextWithStorage);
 
-      for (const item of contentTypes) {
+      for (const item of contenttypes) {
         const expectedUrl = `https://storage.example.com/${item.name}`;
 
         mockStorageManager.upload.mockResolvedValue({
           url: expectedUrl,
           size: 100,
-          contentType: item.expectedType,
+          contenttype: item.expectedtype,
         });
 
         const result = await controllerWithStorage.uploadToStorage(
@@ -522,7 +522,7 @@ describe("DataController", () => {
         expect(result).toEqual({
           url: expectedUrl,
           size: 100,
-          contentType: item.expectedType,
+          contenttype: item.expectedtype,
         });
         expect(mockStorageManager.upload).toHaveBeenCalledWith(
           expect.any(Blob),
@@ -534,7 +534,7 @@ describe("DataController", () => {
           mockStorageManager.upload.mock.calls[
             mockStorageManager.upload.mock.calls.length - 1
           ][0];
-        expect(uploadedBlob.type).toBe(item.expectedType);
+        expect(uploadedBlob.type).toBe(item.expectedtype);
       }
     });
 
@@ -557,7 +557,7 @@ describe("DataController", () => {
         mockStorageManager.upload.mockResolvedValue({
           url: expectedUrl,
           size: 9,
-          contentType: "text/plain",
+          contenttype: "text/plain",
         });
 
         const result = await controllerWithStorage.uploadToStorage(
@@ -570,7 +570,7 @@ describe("DataController", () => {
         expect(result).toEqual({
           url: expectedUrl,
           size: 9,
-          contentType: "text/plain",
+          contenttype: "text/plain",
         });
         expect(mockStorageManager.upload).toHaveBeenCalledWith(
           expect.any(Blob),
@@ -606,7 +606,7 @@ describe("DataController", () => {
       mockStorageManager.upload.mockResolvedValue({
         url: expectedUrl,
         size: JSON.stringify(testObject).length,
-        contentType: "application/json",
+        contenttype: "application/json",
       });
 
       const contextWithStorage = {
@@ -625,7 +625,7 @@ describe("DataController", () => {
       expect(result).toEqual({
         url: expectedUrl,
         size: 37, // Size of JSON.stringify({ data: "test", count: 42 })
-        contentType: "application/json",
+        contenttype: "application/json",
       });
       // Verify it was converted to a Blob with application/json type
       expect(mockStorageManager.upload).toHaveBeenCalledWith(
@@ -662,7 +662,7 @@ describe("DataController", () => {
       mockStorageManager.upload.mockResolvedValue({
         url: expectedUrl,
         size: 9,
-        contentType: "application/octet-stream",
+        contenttype: "application/octet-stream",
       });
 
       const contextWithStorage = {
@@ -682,7 +682,7 @@ describe("DataController", () => {
       expect(result).toEqual({
         url: expectedUrl,
         size: 9,
-        contentType: "application/octet-stream",
+        contenttype: "application/octet-stream",
       });
 
       // Verify encryption functions were called
@@ -705,7 +705,7 @@ describe("DataController", () => {
       mockStorageManager.upload.mockResolvedValue({
         url: expectedUrl,
         size: 10,
-        contentType: "text/plain",
+        contenttype: "text/plain",
       });
 
       const contextWithStorage = {
@@ -724,7 +724,7 @@ describe("DataController", () => {
       expect(result).toEqual({
         url: expectedUrl,
         size: 10,
-        contentType: "text/plain",
+        contenttype: "text/plain",
       });
 
       // Verify the plain text blob was uploaded

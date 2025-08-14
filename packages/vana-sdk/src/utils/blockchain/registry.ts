@@ -20,7 +20,7 @@ interface BlockchainContext {
  */
 interface SchemaContractData {
   name: string;
-  typ: string;
+  dialect: string;
   definitionUrl: string;
 }
 
@@ -63,14 +63,14 @@ export async function fetchSchemaFromChain(
 
   const schemaObj = schemaData as unknown as SchemaContractData;
 
-  if (!schemaObj.name || !schemaObj.typ || !schemaObj.definitionUrl) {
+  if (!schemaObj.name || !schemaObj.dialect || !schemaObj.definitionUrl) {
     throw new Error("Incomplete schema data");
   }
 
   return {
     id: schemaId,
     name: schemaObj.name,
-    type: schemaObj.typ,
+    dialect: schemaObj.dialect,
     definitionUrl: schemaObj.definitionUrl,
   };
 }

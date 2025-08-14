@@ -7,7 +7,7 @@ import {
   CreateOperationResponse,
   GetOperationResponse,
   IdentityResponseModel,
-} from "../types/server-exports";
+} from "../generated/server/server-exports";
 import {
   NetworkError,
   SerializationError,

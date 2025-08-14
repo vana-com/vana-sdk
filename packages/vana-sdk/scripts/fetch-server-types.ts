@@ -12,8 +12,8 @@ const access = promisify(fs.access);
 // Configuration for the personal server OpenAPI spec
 const OPENAPI_CONFIG = {
   url: "https://raw.githubusercontent.com/vana-com/vana-personal-server/main/openapi.yaml",
-  outputPath: "src/types/server.ts",
-  exportsPath: "src/types/server-exports.ts",
+  outputPath: "src/generated/server/server.ts",
+  exportsPath: "src/generated/server/server-exports.ts",
 } as const;
 
 /**
@@ -167,11 +167,11 @@ async function generateServerExportsFile(): Promise<void> {
  */
 async function fetchAndGenerateServerTypes(): Promise<void> {
   try {
-    const typesDir = path.join(process.cwd(), "src", "types");
+    const serverDir = path.join(process.cwd(), "src", "generated", "server");
     const outputPath = path.join(process.cwd(), OPENAPI_CONFIG.outputPath);
 
     // Ensure output directory exists
-    await ensureDirectoryExists(typesDir);
+    await ensureDirectoryExists(serverDir);
 
     // Generate TypeScript types directly from URL
     const types = await generateTypes();

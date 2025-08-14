@@ -23,7 +23,7 @@ export default [
       "**/.eslintignore",
       "**/docs/**",
       "**/vitest.config.ts",
-      "**/server.d.ts", // Generated types - do not lint
+      "**/src/generated/**", // Generated code - do not lint
     ],
   },
 

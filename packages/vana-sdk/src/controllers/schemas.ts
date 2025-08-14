@@ -13,6 +13,15 @@ import {
   fetchSchemaFromChain,
   fetchSchemaCountFromChain,
 } from "../utils/blockchain/registry";
+import {
+  GetSchemaDocument,
+  ListSchemasDocument,
+  CountSchemasDocument,
+  type GetSchemaQuery,
+  type ListSchemasQuery,
+  type CountSchemasQuery,
+} from "../generated/subgraph";
+import { print } from "graphql";
 
 /**
  * Parameters for creating a new schema with automatic IPFS upload.
@@ -257,15 +266,38 @@ export class SchemaController {
    * Retrieves a schema by its ID.
    *
    * @param schemaId - The ID of the schema to retrieve
+   * @param options - Optional parameters
+   * @param options.subgraphUrl - Custom subgraph URL to use instead of default
    * @returns Promise resolving to the schema object
    * @throws {Error} When the schema is not found or chain is unavailable
    * @example
    * ```typescript
    * const schema = await vana.schemas.get(1);
    * console.log(`Schema: ${schema.name} (${schema.type})`);
+   *
+   * // With custom subgraph
+   * const schema = await vana.schemas.get(1, {
+   *   subgraphUrl: 'https://custom-subgraph.com/graphql'
+   * });
    * ```
    */
-  async get(schemaId: number): Promise<Schema> {
+  async get(
+    schemaId: number,
+    options: { subgraphUrl?: string } = {},
+  ): Promise<Schema> {
+    const subgraphUrl = options.subgraphUrl || this.context.subgraphUrl;
+
+    // Try subgraph first if available
+    if (subgraphUrl) {
+      try {
+        return await this._getSchemaViaSubgraph({ schemaId, subgraphUrl });
+      } catch (error) {
+        console.debug("Subgraph query failed, falling back to RPC:", error);
+        // Fall through to RPC
+      }
+    }
+
+    // Use RPC (as fallback or primary method)
     try {
       return await fetchSchemaFromChain(this.context, schemaId);
     } catch (error) {
@@ -278,15 +310,35 @@ export class SchemaController {
   /**
    * Gets the total number of schemas registered on the network.
    *
+   * @param options - Optional parameters
+   * @param options.subgraphUrl - Custom subgraph URL to use instead of default
    * @returns Promise resolving to the total schema count
    * @throws {Error} When the count cannot be retrieved
    * @example
    * ```typescript
    * const count = await vana.schemas.count();
    * console.log(`Total schemas: ${count}`);
+   *
+   * // With custom subgraph
+   * const count = await vana.schemas.count({
+   *   subgraphUrl: 'https://custom-subgraph.com/graphql'
+   * });
    * ```
    */
-  async count(): Promise<number> {
+  async count(options: { subgraphUrl?: string } = {}): Promise<number> {
+    const subgraphUrl = options.subgraphUrl || this.context.subgraphUrl;
+
+    // Try subgraph first if available
+    if (subgraphUrl) {
+      try {
+        return await this._countSchemasViaSubgraph({ subgraphUrl });
+      } catch (error) {
+        console.debug("Subgraph query failed, falling back to RPC:", error);
+        // Fall through to RPC
+      }
+    }
+
+    // Use RPC (as fallback or primary method)
     try {
       return await fetchSchemaCountFromChain(this.context);
     } catch (error) {
@@ -302,6 +354,7 @@ export class SchemaController {
    * @param options - Optional parameters for listing schemas
    * @param options.limit - Maximum number of schemas to return
    * @param options.offset - Number of schemas to skip
+   * @param options.subgraphUrl - Custom subgraph URL to use instead of default
    * @returns Promise resolving to an array of schemas
    * @example
    * ```typescript
@@ -310,12 +363,34 @@ export class SchemaController {
    *
    * // Get schemas with pagination
    * const schemas = await vana.schemas.list({ limit: 10, offset: 0 });
+   *
+   * // With custom subgraph
+   * const schemas = await vana.schemas.list({
+   *   limit: 10,
+   *   offset: 0,
+   *   subgraphUrl: 'https://custom-subgraph.com/graphql'
+   * });
    * ```
    */
   async list(
-    options: { limit?: number; offset?: number } = {},
+    options: { limit?: number; offset?: number; subgraphUrl?: string } = {},
   ): Promise<Schema[]> {
     const { limit = 100, offset = 0 } = options;
+    const subgraphUrl = options.subgraphUrl || this.context.subgraphUrl;
+
+    // Try subgraph first if available
+    if (subgraphUrl) {
+      try {
+        return await this._listSchemasViaSubgraph({
+          limit,
+          offset,
+          subgraphUrl,
+        });
+      } catch (error) {
+        console.debug("Subgraph query failed, falling back to RPC:", error);
+        // Fall through to RPC
+      }
+    }
 
     try {
       const totalCount = await this.count();
@@ -376,7 +451,7 @@ export class SchemaController {
             schemas.push({
               id: schemaId,
               name: schemaData.name,
-              type: schemaData.dialect,
+              dialect: schemaData.dialect,
               definitionUrl: schemaData.definitionUrl,
             });
           } else {
@@ -422,7 +497,7 @@ export class SchemaController {
         address: dataRefinerRegistryAddress,
         abi: dataRefinerRegistryAbi,
         functionName: "addSchema",
-        args: [params.name, params.type, params.definitionUrl],
+        args: [params.name, params.dialect, params.definitionUrl],
         account: this.context.walletClient.account || userAddress,
         chain: this.context.walletClient.chain || null,
       });
@@ -436,6 +511,159 @@ export class SchemaController {
         `Failed to add schema: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
+  }
+
+  /**
+   * Internal method: Query schema via subgraph
+   *
+   * @param params - Query parameters
+   * @param params.schemaId - The ID of the schema to retrieve
+   * @param params.subgraphUrl - The subgraph URL to query
+   * @returns Promise resolving to the schema object
+   * @private
+   */
+  private async _getSchemaViaSubgraph(params: {
+    schemaId: number;
+    subgraphUrl: string;
+  }): Promise<Schema> {
+    const { schemaId, subgraphUrl } = params;
+
+    const response = await fetch(subgraphUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: print(GetSchemaDocument),
+        variables: { id: schemaId.toString() },
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Subgraph request failed: ${response.status} ${response.statusText}`,
+      );
+    }
+
+    const result = (await response.json()) as {
+      data?: GetSchemaQuery;
+      errors?: { message: string }[];
+    };
+
+    if (result.errors) {
+      throw new Error(
+        `Subgraph query errors: ${result.errors.map((e) => e.message).join(", ")}`,
+      );
+    }
+
+    if (!result.data?.schema) {
+      throw new Error(`Schema ${schemaId} not found in subgraph`);
+    }
+
+    // Map subgraph schema to SDK schema type
+    const subgraphSchema = result.data.schema;
+    return {
+      id: parseInt(subgraphSchema.id),
+      name: subgraphSchema.name,
+      dialect: subgraphSchema.dialect,
+      definitionUrl: subgraphSchema.definitionUrl,
+    };
+  }
+
+  /**
+   * Internal method: List schemas via subgraph
+   *
+   * @param params - Query parameters
+   * @param params.limit - Maximum number of schemas to return
+   * @param params.offset - Number of schemas to skip
+   * @param params.subgraphUrl - The subgraph URL to query
+   * @returns Promise resolving to an array of schemas
+   * @private
+   */
+  private async _listSchemasViaSubgraph(params: {
+    limit: number;
+    offset: number;
+    subgraphUrl: string;
+  }): Promise<Schema[]> {
+    const { limit, offset, subgraphUrl } = params;
+
+    const response = await fetch(subgraphUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: print(ListSchemasDocument),
+        variables: { first: limit, skip: offset },
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Subgraph request failed: ${response.status} ${response.statusText}`,
+      );
+    }
+
+    const result = (await response.json()) as {
+      data?: ListSchemasQuery;
+      errors?: { message: string }[];
+    };
+
+    if (result.errors) {
+      throw new Error(
+        `Subgraph query errors: ${result.errors.map((e) => e.message).join(", ")}`,
+      );
+    }
+
+    if (!result.data?.schemas) {
+      return [];
+    }
+
+    // Map subgraph schemas to SDK schema type
+    return result.data.schemas.map((schema) => ({
+      id: parseInt(schema.id),
+      name: schema.name,
+      dialect: schema.dialect,
+      definitionUrl: schema.definitionUrl,
+    }));
+  }
+
+  /**
+   * Internal method: Count schemas via subgraph
+   *
+   * @param params - Query parameters
+   * @param params.subgraphUrl - The subgraph URL to query
+   * @returns Promise resolving to the total schema count
+   * @private
+   */
+  private async _countSchemasViaSubgraph(params: {
+    subgraphUrl: string;
+  }): Promise<number> {
+    const { subgraphUrl } = params;
+
+    const response = await fetch(subgraphUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: print(CountSchemasDocument),
+        variables: {},
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Subgraph request failed: ${response.status} ${response.statusText}`,
+      );
+    }
+
+    const result = (await response.json()) as {
+      data?: CountSchemasQuery;
+      errors?: { message: string }[];
+    };
+
+    if (result.errors) {
+      throw new Error(
+        `Subgraph query errors: ${result.errors.map((e) => e.message).join(", ")}`,
+      );
+    }
+
+    return result.data?.schemas?.length || 0;
   }
 
   /**

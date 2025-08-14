@@ -445,7 +445,7 @@ export function VanaProvider({
         const vanaInstance = Vana({
           walletClient: walletClient as WalletClient & { chain: VanaChain },
           relayerCallbacks,
-          subgraphUrl: config.subgraphUrl || undefined,
+          ...(config.subgraphUrl && { subgraphUrl: config.subgraphUrl }),
           defaultPersonalServerUrl: config.defaultPersonalServerUrl,
           storage: {
             providers: storageProviders,
@@ -477,6 +477,7 @@ export function VanaProvider({
     walletClient,
     address,
     config.relayerUrl,
+    config.subgraphUrl,
     config.defaultStorageProvider,
     useGaslessTransactions,
     // Note: Other config changes (Pinata, Google Drive) don't require full re-init

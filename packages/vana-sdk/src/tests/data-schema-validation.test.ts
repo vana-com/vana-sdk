@@ -28,7 +28,7 @@ vi.mock("../storage", () => ({
     upload: vi.fn().mockResolvedValue({
       url: "https://ipfs.io/ipfs/QmTestHash",
       size: 1024,
-      contentType: "application/octet-stream",
+      contentdialecte: "application/octet-stream",
     }),
   })),
 }));
@@ -74,7 +74,7 @@ vi.mock("../abi", () => ({
       inputs: [{ name: "id", type: "uint256" }],
       outputs: [
         { name: "name", type: "string" },
-        { name: "typ", type: "string" },
+        { name: "dialect", type: "string" },
         { name: "definitionUrl", type: "string" },
       ],
     },
@@ -151,7 +151,7 @@ describe("DataController - Schema Validation Methods", () => {
       upload: vi.fn().mockResolvedValue({
         url: "https://ipfs.io/ipfs/QmTestHash",
         size: 1024,
-        contentType: "application/octet-stream",
+        contentdialecte: "application/octet-stream",
       }),
     } as unknown as StorageManager;
 
@@ -234,7 +234,7 @@ describe("DataController - Schema Validation Methods", () => {
         read: {
           schemas: vi.fn().mockResolvedValue({
             name: "TestSchema",
-            typ: "json",
+            dialect: "json",
             definitionUrl: "https://example.com/schema.json",
           }),
         },
@@ -273,7 +273,7 @@ describe("DataController - Schema Validation Methods", () => {
         read: {
           schemas: vi.fn().mockResolvedValue({
             name: "OnChainSchema",
-            typ: "json",
+            dialect: "json",
             definitionUrl: "https://example.com/schema.json",
           }),
         },
@@ -328,7 +328,7 @@ describe("DataController - Schema Validation Methods", () => {
         read: {
           schemas: vi.fn().mockResolvedValue({
             name: "TestSchema",
-            typ: "json",
+            dialect: "json",
             definitionUrl: "https://example.com/schema.json",
           }),
         },
@@ -353,7 +353,7 @@ describe("DataController - Schema Validation Methods", () => {
         read: {
           schemas: vi.fn().mockResolvedValue({
             name: "TestSchema",
-            typ: "json",
+            dialect: "json",
             definitionUrl: "https://example.com/schema.json",
           }),
         },
@@ -410,7 +410,7 @@ describe("DataController - Schema Validation Methods", () => {
         read: {
           schemas: vi.fn().mockResolvedValue({
             name: "ExactMatch",
-            typ: "json",
+            dialect: "json",
             definitionUrl: "https://example.com/schema.json",
           }),
         },
@@ -468,7 +468,7 @@ describe("DataController - Schema Validation Methods", () => {
         read: {
           schemas: vi.fn().mockResolvedValue({
             name: undefined,
-            typ: "json",
+            dialect: "json",
             definitionUrl: "https://example.com/schema.json",
           }),
         },
@@ -502,7 +502,7 @@ describe("DataController - Schema Validation Methods", () => {
         read: {
           schemas: vi.fn().mockResolvedValue({
             name: "TestSchema",
-            typ: "json",
+            dialect: "json",
             definitionUrl: null,
           }),
         },

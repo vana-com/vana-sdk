@@ -1,47 +1,48 @@
-import { ComputeEngineABI } from "./ComputeEngineImplementation";
-import { DataRegistryABI } from "./DataRegistryImplementation";
-import { TeePoolABI } from "./TeePoolImplementation";
-import { TeePoolPhalaABI } from "./TeePoolPhalaImplementation";
+// Re-export from generated location
+import { ComputeEngineABI } from "../generated/abi/ComputeEngineImplementation";
+import { DataRegistryABI } from "../generated/abi/DataRegistryImplementation";
+import { TeePoolABI } from "../generated/abi/TeePoolImplementation";
+import { TeePoolPhalaABI } from "../generated/abi/TeePoolPhalaImplementation";
 // Data Portability Contracts
-import { DataPortabilityPermissionsABI } from "./DataPortabilityPermissionsImplementation";
-import { DataPortabilityServersABI } from "./DataPortabilityServersImplementation";
-import { DataPortabilityGranteesABI } from "./DataPortabilityGranteesImplementation";
+import { DataPortabilityPermissionsABI } from "../generated/abi/DataPortabilityPermissionsImplementation";
+import { DataPortabilityServersABI } from "../generated/abi/DataPortabilityServersImplementation";
+import { DataPortabilityGranteesABI } from "../generated/abi/DataPortabilityGranteesImplementation";
 
 // Data Access Infrastructure
-import { DataRefinerRegistryABI } from "./DataRefinerRegistryImplementation";
-import { QueryEngineABI } from "./QueryEngineImplementation";
-import { ComputeInstructionRegistryABI } from "./ComputeInstructionRegistryImplementation";
+import { DataRefinerRegistryABI } from "../generated/abi/DataRefinerRegistryImplementation";
+import { QueryEngineABI } from "../generated/abi/QueryEngineImplementation";
+import { ComputeInstructionRegistryABI } from "../generated/abi/ComputeInstructionRegistryImplementation";
 
 // TEE Pool Variants
-import { TeePoolEphemeralStandardABI } from "./TeePoolEphemeralStandardImplementation";
-import { TeePoolPersistentStandardABI } from "./TeePoolPersistentStandardImplementation";
-import { TeePoolPersistentGpuABI } from "./TeePoolPersistentGpuImplementation";
-import { TeePoolDedicatedStandardABI } from "./TeePoolDedicatedStandardImplementation";
-import { TeePoolDedicatedGpuABI } from "./TeePoolDedicatedGpuImplementation";
+import { TeePoolEphemeralStandardABI } from "../generated/abi/TeePoolEphemeralStandardImplementation";
+import { TeePoolPersistentStandardABI } from "../generated/abi/TeePoolPersistentStandardImplementation";
+import { TeePoolPersistentGpuABI } from "../generated/abi/TeePoolPersistentGpuImplementation";
+import { TeePoolDedicatedStandardABI } from "../generated/abi/TeePoolDedicatedStandardImplementation";
+import { TeePoolDedicatedGpuABI } from "../generated/abi/TeePoolDedicatedGpuImplementation";
 
 // DLP Reward Contracts
-import { VanaEpochABI } from "./VanaEpochImplementation";
-import { DLPRegistryABI } from "./DLPRegistryImplementation";
-import { DLPRegistryTreasuryABI } from "./DLPTreasuryImplementation";
-import { DLPRewardDeployerTreasuryABI } from "./DLPRewardDeployerTreasuryImplementation";
-import { DLPPerformanceABI } from "./DLPPerformanceImplementation";
-import { DLPRewardDeployerABI } from "./DLPRewardDeployerImplementation";
-import { DLPRewardSwapABI } from "./DLPRewardSwapImplementation";
-import { SwapHelperABI } from "./SwapHelperImplementation";
-import { DLPRootImplementation2Abi } from "./DLPRootImplementation";
-import { DataLiquidityPoolImplementationAbi } from "./DataLiquidityPoolImplementation";
-import { DLPRegistryTreasuryABI as DLPRegistryTreasuryImplementationABI } from "./DLPRegistryTreasuryImplementation";
+import { VanaEpochABI } from "../generated/abi/VanaEpochImplementation";
+import { DLPRegistryABI } from "../generated/abi/DLPRegistryImplementation";
+import { DLPRegistryTreasuryABI } from "../generated/abi/DLPTreasuryImplementation";
+import { DLPRewardDeployerTreasuryABI } from "../generated/abi/DLPRewardDeployerTreasuryImplementation";
+import { DLPPerformanceABI } from "../generated/abi/DLPPerformanceImplementation";
+import { DLPRewardDeployerABI } from "../generated/abi/DLPRewardDeployerImplementation";
+import { DLPRewardSwapABI } from "../generated/abi/DLPRewardSwapImplementation";
+import { SwapHelperABI } from "../generated/abi/SwapHelperImplementation";
+import { DLPRootImplementation2Abi } from "../generated/abi/DLPRootImplementation";
+import { DataLiquidityPoolImplementationAbi } from "../generated/abi/DataLiquidityPoolImplementation";
+import { DLPRegistryTreasuryABI as DLPRegistryTreasuryImplementationABI } from "../generated/abi/DLPRegistryTreasuryImplementation";
 
 // VanaPool (Staking)
-import { VanaPoolStakingABI } from "./VanaPoolStakingImplementation";
-import { VanaPoolEntityABI } from "./VanaPoolEntityImplementation";
-import { VanaPoolTreasuryABI } from "./VanaPoolTreasuryImplementation";
+import { VanaPoolStakingABI } from "../generated/abi/VanaPoolStakingImplementation";
+import { VanaPoolEntityABI } from "../generated/abi/VanaPoolEntityImplementation";
+import { VanaPoolTreasuryABI } from "../generated/abi/VanaPoolTreasuryImplementation";
 
 // DLP Deployment Contracts
-import { DATABI } from "./DATImplementation";
-import { DATFactoryABI } from "./DATFactoryImplementation";
-import { DATPausableABI } from "./DATPausableImplementation";
-import { DATVotesABI } from "./DATVotesImplementation";
+import { DATABI } from "../generated/abi/DATImplementation";
+import { DATFactoryABI } from "../generated/abi/DATFactoryImplementation";
+import { DATPausableABI } from "../generated/abi/DATPausableImplementation";
+import { DATVotesABI } from "../generated/abi/DATVotesImplementation";
 
 const contractAbis = {
   DataPortabilityPermissions: DataPortabilityPermissionsABI,

@@ -74,7 +74,10 @@
     "test:coverage": "vitest run --coverage",
     "test:coverage:verbose": "vitest run --coverage --reporter=verbose --coverage.reporter=text",
     "fetch-abis": "tsx scripts/fetch-abis.ts",
-    "fetch-server-types": "tsx scripts/fetch-server-types.ts"
+    "fetch-server-types": "tsx scripts/fetch-server-types.ts",
+    "codegen:subgraph": "graphql-codegen --config codegen.ts",
+    "codegen:subgraph:moksha": "VANA_CODEGEN_NETWORK=moksha graphql-codegen --config codegen.ts",
+    "codegen:subgraph:mainnet": "VANA_CODEGEN_NETWORK=mainnet graphql-codegen --config codegen.ts"
   },
   "keywords": [
     "vana",
@@ -89,6 +92,7 @@
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
     "eccrypto-js": "^5.4.0",
+    "graphql": "^16.11.0",
     "openpgp": "^6.1.1",
     "viem": "^2.31.7"
   },
@@ -101,6 +105,10 @@
     }
   },
   "devDependencies": {
+    "@graphql-codegen/cli": "^5.0.7",
+    "@graphql-codegen/typed-document-node": "^5.1.2",
+    "@graphql-codegen/typescript": "^4.1.6",
+    "@graphql-codegen/typescript-operations": "^4.6.1",
     "@types/eccrypto": "^1.1.6",
     "@types/node": "^24.0.10",
     "@typescript-eslint/eslint-plugin": "^8.32.1",

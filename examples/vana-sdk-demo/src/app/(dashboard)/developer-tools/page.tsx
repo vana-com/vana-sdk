@@ -227,7 +227,7 @@ export default function DeveloperToolsPage() {
                         />
                       </TableCell>
                       <TableCell>{schema.name}</TableCell>
-                      <TableCell>{schema.type}</TableCell>
+                      <TableCell>{schema.dialect}</TableCell>
                       <TableCell>
                         {schema.source && (
                           <Chip

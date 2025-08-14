@@ -43,7 +43,7 @@ describe("Blockchain Registry Utilities", () => {
     it("should fetch schema successfully", async () => {
       const mockSchemaData = {
         name: "Test Schema",
-        typ: "json",
+        dialect: "json",
         definitionUrl: "https://example.com/schema.json",
       };
 
@@ -88,7 +88,7 @@ describe("Blockchain Registry Utilities", () => {
     it("should throw error when schema data is incomplete", async () => {
       const incompleteSchemaData = {
         name: "Test Schema",
-        typ: "json",
+        dialect: "json",
         // Missing definitionUrl
       };
 
@@ -110,7 +110,7 @@ describe("Blockchain Registry Utilities", () => {
     it("should handle missing schema name", async () => {
       const schemaWithoutName = {
         name: "",
-        typ: "json",
+        dialect: "json",
         definitionUrl: "https://example.com/schema.json",
       };
 
@@ -122,13 +122,13 @@ describe("Blockchain Registry Utilities", () => {
     });
 
     it("should handle missing schema type", async () => {
-      const schemaWithoutType = {
+      const schemaWithoutdialecte = {
         name: "Test Schema",
-        typ: "",
+        dialect: "",
         definitionUrl: "https://example.com/schema.json",
       };
 
-      mockContract.read.schemas.mockResolvedValue(schemaWithoutType);
+      mockContract.read.schemas.mockResolvedValue(schemaWithoutdialecte);
 
       await expect(fetchSchemaFromChain(mockContext as any, 1)).rejects.toThrow(
         "Incomplete schema data",
@@ -138,7 +138,7 @@ describe("Blockchain Registry Utilities", () => {
     it("should handle missing schema definition URL", async () => {
       const schemaWithoutUrl = {
         name: "Test Schema",
-        typ: "json",
+        dialect: "json",
         definitionUrl: "",
       };
 

@@ -91,18 +91,11 @@
     "abitype": "^1.0.8",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
+    "eccrypto": "^1.1.6",
     "eccrypto-js": "^5.4.0",
     "graphql": "^16.11.0",
     "openpgp": "^6.1.1",
     "viem": "^2.31.7"
-  },
-  "peerDependencies": {
-    "eccrypto": "^1.1.6"
-  },
-  "peerDependenciesMeta": {
-    "eccrypto": {
-      "optional": true
-    }
   },
   "devDependencies": {
     "@graphql-codegen/cli": "^5.0.7",

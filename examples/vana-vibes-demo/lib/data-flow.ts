@@ -172,13 +172,13 @@ export class DataPortabilityFlow {
     try {
       // Use the data controller upload method
       const fileName = `vana_demo_${Date.now()}.json`;
-      const fileUrl = await this.vana.data.uploadToStorage(
+      const uploadResult = await this.vana.data.uploadToStorage(
         encryptedData,
         fileName,
       );
 
       this.callbacks.onStatusUpdate("File uploaded to storage successfully");
-      return fileUrl;
+      return uploadResult.url;
     } catch (error) {
       throw new Error(
         `Storage upload failed: ${
@@ -210,10 +210,11 @@ export class DataPortabilityFlow {
 
       // Upload grant file to storage using the same provider
       const grantFileName = `grant_${Date.now()}.json`;
-      const fileUrl = await this.vana.data.uploadToStorage(
+      const uploadResult = await this.vana.data.uploadToStorage(
         grantBlob,
         grantFileName,
       );
+      const fileUrl = uploadResult.url;
 
       this.callbacks.onStatusUpdate("Grant file uploaded successfully");
       return fileUrl;

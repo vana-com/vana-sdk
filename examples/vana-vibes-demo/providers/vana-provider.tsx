@@ -27,6 +27,21 @@ export interface VanaContextValue {
   walletClient: WalletClient | null;
 }
 
+// Type guard to check if context is initialized
+export function isVanaInitialized(
+  context: VanaContextValue,
+): context is VanaContextValue & {
+  vana: VanaInstance;
+  walletClient: WalletClient;
+  isInitialized: true;
+} {
+  return (
+    context.isInitialized &&
+    context.vana !== null &&
+    context.walletClient !== null
+  );
+}
+
 const VanaContext = createContext<VanaContextValue | undefined>(undefined);
 
 interface VanaProviderProps {

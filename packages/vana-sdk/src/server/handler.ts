@@ -16,7 +16,7 @@ import type {
   ServerTrustResult,
   ServerUntrustResult,
   GranteeRegisterResult,
-  FileUploadResult,
+  FileAddedResult,
 } from "../types/transactionResults";
 
 /** Union type of all possible transaction results from relayer operations */
@@ -26,7 +26,7 @@ type RelayerTransactionResult =
   | ServerTrustResult
   | ServerUntrustResult
   | GranteeRegisterResult
-  | FileUploadResult;
+  | FileAddedResult;
 
 /**
  * Payload structure for relayer requests.

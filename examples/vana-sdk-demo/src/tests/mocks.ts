@@ -120,7 +120,6 @@ export function createMockUseTrustedServers(
     isUntrusting: false,
     isDiscoveringServer: false,
     trustServerError: "",
-    trustedServerQueryMode: "auto" as const,
     serverId: "",
     serverAddress: "",
     serverUrl: "",
@@ -136,7 +135,6 @@ export function createMockUseTrustedServers(
     setServerUrl: vi.fn(),
     setServerOwner: vi.fn(),
     setPublicKey: vi.fn(),
-    setTrustedServerQueryMode: vi.fn(),
     setTrustServerError: vi.fn(),
 
     // Apply overrides

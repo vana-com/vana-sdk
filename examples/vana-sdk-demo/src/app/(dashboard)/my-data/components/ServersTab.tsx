@@ -13,8 +13,6 @@ import {
   TableBody,
   TableRow,
   TableCell,
-  Select,
-  SelectItem,
 } from "@heroui/react";
 import {
   ExternalLink,
@@ -50,7 +48,6 @@ interface ServersTabProps {
   trustServerError: string;
 
   // Input state
-  queryMode: "subgraph" | "rpc" | "auto";
   serverAddress: string;
   serverUrl: string;
   publicKey: string;
@@ -59,7 +56,6 @@ interface ServersTabProps {
   onServerAddressChange: (address: string) => void;
   onServerUrlChange: (url: string) => void;
   onPublicKeyChange: (key: string) => void;
-  onQueryModeChange: (mode: "subgraph" | "rpc" | "auto") => void;
   onTrustServer: () => void;
   onRefreshServers: () => void;
   onUntrustServer: (serverId: number) => void;
@@ -73,14 +69,12 @@ export function ServersTab({
   isUntrusting,
   isDiscoveringServer,
   trustServerError,
-  queryMode,
   serverAddress,
   serverUrl,
   publicKey,
   onServerAddressChange,
   onServerUrlChange,
   onPublicKeyChange,
-  onQueryModeChange,
   onTrustServer,
   onRefreshServers,
   onUntrustServer,
@@ -166,30 +160,6 @@ export function ServersTab({
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Select
-                size="sm"
-                label="Query Mode"
-                placeholder="Select query mode"
-                selectedKeys={[queryMode]}
-                onSelectionChange={(keys) => {
-                  const mode = Array.from(keys)[0] as
-                    | "subgraph"
-                    | "rpc"
-                    | "auto";
-                  onQueryModeChange(mode);
-                }}
-                className="w-40"
-              >
-                <SelectItem key="auto" textValue="Auto (Smart Fallback)">
-                  Auto (Smart Fallback)
-                </SelectItem>
-                <SelectItem key="subgraph" textValue="Subgraph (Fast)">
-                  Subgraph (Fast)
-                </SelectItem>
-                <SelectItem key="rpc" textValue="RPC (Direct)">
-                  RPC (Direct)
-                </SelectItem>
-              </Select>
               <Button
                 onPress={onRefreshServers}
                 variant="bordered"

@@ -632,14 +632,7 @@ export interface UpdateSchemaIdResult {
 }
 
 /**
- * Query mode for trusted server retrieval
- *
- * @category Data Management
- */
-export type TrustedServerQueryMode = "subgraph" | "rpc" | "auto";
-
-/**
- * Trusted server data structure (unified format for both subgraph and RPC modes)
+ * Trusted server data structure
  *
  * @category Data Management
  */
@@ -659,37 +652,17 @@ export interface TrustedServer {
 }
 
 /**
- * Parameters for getUserTrustedServers with dual-mode support
+ * Parameters for getUserTrustedServers method
  *
  * @category Data Management
  */
 export interface GetUserTrustedServersParams {
-  /** User address to query */
+  /** User address to query trusted servers for */
   user: Address;
-  /** Query mode: 'subgraph' (fast, requires subgraph), 'rpc' (direct contract), or 'auto' (tries subgraph first) */
-  mode?: TrustedServerQueryMode;
-  /** Subgraph URL (required for subgraph mode) */
+  /** Optional subgraph URL to override default */
   subgraphUrl?: string;
-  /** Pagination limit (applies to RPC mode) */
+  /** Maximum number of results */
   limit?: number;
-  /** Pagination offset (applies to RPC mode) */
+  /** Number of results to skip */
   offset?: number;
-}
-
-/**
- * Result of getUserTrustedServers query
- *
- * @category Data Management
- */
-export interface GetUserTrustedServersResult {
-  /** Array of trusted servers */
-  servers: TrustedServer[];
-  /** Query mode that was actually used */
-  usedMode: TrustedServerQueryMode;
-  /** Total count (only available in RPC mode) */
-  total?: number;
-  /** Whether there are more servers (pagination info for RPC mode) */
-  hasMore?: boolean;
-  /** Any warnings or fallback information */
-  warnings?: string[];
 }

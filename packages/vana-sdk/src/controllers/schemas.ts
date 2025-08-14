@@ -3,6 +3,7 @@ import { Schema, AddSchemaParams, AddSchemaResult } from "../types/index";
 import { ControllerContext } from "./permissions";
 import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../abi";
+import { gasAwareMulticall } from "../utils/multicall";
 import {
   validateDataSchema,
   SchemaValidationError,
@@ -318,20 +319,74 @@ export class SchemaController {
 
     try {
       const totalCount = await this.count();
-      const schemas: Schema[] = [];
-
       const start = offset;
       const end = Math.min(start + limit, totalCount);
 
-      for (let i = start; i < end; i++) {
-        try {
-          const schema = await this.get(i + 1); // Schema IDs are 1-based
-          schemas.push(schema);
-        } catch (error) {
-          // Skip schemas that can't be retrieved
-          console.warn(`Failed to retrieve schema ${i + 1}:`, error);
-        }
+      if (end <= start) {
+        return [];
       }
+
+      // Get contract address and ABI
+      const chainId = this.context.walletClient.chain?.id;
+      if (!chainId) {
+        throw new Error("Chain ID not available");
+      }
+      const dataRefinerRegistryAddress = getContractAddress(
+        chainId,
+        "DataRefinerRegistry",
+      );
+      const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
+
+      // Build multicall batch for fetching schemas
+      const schemaCalls = [];
+      for (let i = start; i < end; i++) {
+        schemaCalls.push({
+          address: dataRefinerRegistryAddress,
+          abi: dataRefinerRegistryAbi,
+          functionName: "schemas",
+          args: [BigInt(i + 1)], // Schema IDs are 1-based
+        } as const);
+      }
+
+      // Fetch all schemas in batches using gasAwareMulticall
+      const schemaResults = await gasAwareMulticall<
+        typeof schemaCalls,
+        true // Allow failures for individual schema lookups
+      >(this.context.publicClient, {
+        contracts: schemaCalls,
+        allowFailure: true,
+      });
+
+      // Process results
+      const schemas: Schema[] = [];
+      schemaResults.forEach((result, index) => {
+        if (result.status === "success" && result.result) {
+          const schemaId = start + index + 1; // Schema IDs are 1-based
+          const schemaData = result.result as {
+            name: string;
+            dialect: string;
+            definitionUrl: string;
+          };
+
+          if (
+            schemaData.name &&
+            schemaData.dialect &&
+            schemaData.definitionUrl
+          ) {
+            schemas.push({
+              id: schemaId,
+              name: schemaData.name,
+              type: schemaData.dialect,
+              definitionUrl: schemaData.definitionUrl,
+            });
+          } else {
+            console.warn(`Incomplete schema data for ID ${schemaId}`);
+          }
+        } else {
+          // Skip schemas that can't be retrieved
+          console.warn(`Failed to retrieve schema ${start + index + 1}`);
+        }
+      });
 
       return schemas;
     } catch (error) {

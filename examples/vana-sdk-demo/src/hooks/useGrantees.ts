@@ -16,7 +16,6 @@ export interface UseGranteesReturn {
   isAddingGrantee: boolean;
   isRemoving: boolean;
   addGranteeError: string;
-  granteeQueryMode: "subgraph" | "rpc" | "auto";
 
   // Form state
   ownerAddress: string;
@@ -34,7 +33,6 @@ export interface UseGranteesReturn {
   setOwnerAddress: (address: string) => void;
   setGranteeAddress: (address: string) => void;
   setGranteePublicKey: (publicKey: string) => void;
-  setGranteeQueryMode: (mode: "subgraph" | "rpc" | "auto") => void;
   setAddGranteeError: (error: string) => void;
 }
 
@@ -48,9 +46,6 @@ export function useGrantees(): UseGranteesReturn {
   const [isAddingGrantee, setIsAddingGrantee] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
   const [addGranteeError, setAddGranteeError] = useState<string>("");
-  const [granteeQueryMode, setGranteeQueryMode] = useState<
-    "subgraph" | "rpc" | "auto"
-  >("auto");
 
   // Form state
   const [ownerAddress, setOwnerAddress] = useState<string>("");
@@ -245,7 +240,6 @@ export function useGrantees(): UseGranteesReturn {
     isAddingGrantee,
     isRemoving,
     addGranteeError,
-    granteeQueryMode,
 
     // Form state
     ownerAddress,
@@ -260,7 +254,6 @@ export function useGrantees(): UseGranteesReturn {
     setOwnerAddress,
     setGranteeAddress,
     setGranteePublicKey,
-    setGranteeQueryMode,
     setAddGranteeError,
   };
 }

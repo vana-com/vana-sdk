@@ -36,6 +36,16 @@ vi.mock("viem", () => ({
 
 vi.mock("../config/addresses", () => ({
   getContractAddress: vi.fn().mockReturnValue("0xRegistryAddress"),
+  getUtilityAddress: vi
+    .fn()
+    .mockReturnValue("0xcA11bde05977b3631167028862bE2a173976CA11"),
+}));
+
+vi.mock("../utils/multicall", () => ({
+  gasAwareMulticall: vi.fn().mockImplementation(async (client, params) => {
+    // Return array of results based on the contracts passed
+    return params.contracts.map((_: any, i: number) => BigInt(i + 1));
+  }),
 }));
 
 vi.mock("../abi", () => ({
@@ -83,6 +93,8 @@ describe("SchemaController", () => {
         waitForTransactionReceipt: vi.fn().mockResolvedValue({
           logs: [{ data: "0x", topics: ["0xSchemaAdded"] }],
         }),
+        getChainId: vi.fn().mockResolvedValue(14800),
+        multicall: vi.fn().mockResolvedValue([]),
       } as any,
       platform: mockPlatformAdapter,
       storageManager: mockStorageManager as StorageManager,
@@ -168,17 +180,31 @@ describe("SchemaController", () => {
       // Mock count to return 2
       vi.spyOn(controller, "count").mockResolvedValue(2);
 
-      // Mock get to return schemas
-      vi.spyOn(controller, "get")
-        .mockResolvedValueOnce(mockSchemas[0])
-        .mockResolvedValueOnce(mockSchemas[1]);
+      // Mock gasAwareMulticall to return schema data
+      const { gasAwareMulticall } = await import("../utils/multicall");
+      vi.mocked(gasAwareMulticall).mockResolvedValueOnce([
+        {
+          status: "success",
+          result: {
+            name: "Schema 1",
+            dialect: "json",
+            definitionUrl: "https://example.com/1.json",
+          },
+        },
+        {
+          status: "success",
+          result: {
+            name: "Schema 2",
+            dialect: "json",
+            definitionUrl: "https://example.com/2.json",
+          },
+        },
+      ]);
 
       const result = await controller.list({ limit: 10, offset: 0 });
 
       expect(result).toEqual(mockSchemas);
       expect(controller.count).toHaveBeenCalled();
-      expect(controller.get).toHaveBeenCalledWith(1);
-      expect(controller.get).toHaveBeenCalledWith(2);
     });
 
     it("should skip schemas that fail to retrieve", async () => {
@@ -190,32 +216,63 @@ describe("SchemaController", () => {
       };
 
       vi.spyOn(controller, "count").mockResolvedValue(3);
-      vi.spyOn(controller, "get")
-        .mockRejectedValueOnce(new Error("Schema 1 not found"))
-        .mockResolvedValueOnce(mockSchema)
-        .mockRejectedValueOnce(new Error("Schema 3 not found"));
+
+      // Mock gasAwareMulticall to return mixed success/failure results
+      const { gasAwareMulticall } = await import("../utils/multicall");
+      vi.mocked(gasAwareMulticall).mockResolvedValueOnce([
+        {
+          status: "failure",
+          error: new Error("Schema 1 not found"),
+        },
+        {
+          status: "success",
+          result: {
+            name: "Schema 2",
+            dialect: "json",
+            definitionUrl: "https://example.com/2.json",
+          },
+        },
+        {
+          status: "failure",
+          error: new Error("Schema 3 not found"),
+        },
+      ]);
 
       const result = await controller.list({ limit: 10, offset: 0 });
 
       expect(result).toEqual([mockSchema]);
-      expect(controller.get).toHaveBeenCalledTimes(3);
     });
 
     it("should handle pagination correctly", async () => {
       vi.spyOn(controller, "count").mockResolvedValue(10);
-      const mockGet = vi.spyOn(controller, "get").mockResolvedValue({
-        id: 5,
-        name: "Schema 5",
-        type: "json",
-        definitionUrl: "https://example.com/5.json",
-      });
 
-      await controller.list({ limit: 2, offset: 4 });
+      // Mock gasAwareMulticall to return paginated results
+      const { gasAwareMulticall } = await import("../utils/multicall");
+      vi.mocked(gasAwareMulticall).mockResolvedValueOnce([
+        {
+          status: "success",
+          result: {
+            name: "Schema 5",
+            dialect: "json",
+            definitionUrl: "https://example.com/5.json",
+          },
+        },
+        {
+          status: "success",
+          result: {
+            name: "Schema 6",
+            dialect: "json",
+            definitionUrl: "https://example.com/6.json",
+          },
+        },
+      ]);
 
-      // Should request schemas 5 and 6 (offset 4, limit 2)
-      expect(mockGet).toHaveBeenCalledWith(5);
-      expect(mockGet).toHaveBeenCalledWith(6);
-      expect(mockGet).toHaveBeenCalledTimes(2);
+      const result = await controller.list({ limit: 2, offset: 4 });
+
+      // Should return schemas 5 and 6 (offset 4, limit 2)
+      expect(result).toHaveLength(2);
+      expect(result[0].id).toBe(5);
+      expect(result[1].id).toBe(6);
     });
 
     it("should handle count errors", async () => {

@@ -1,5 +1,6 @@
 import { Address, Hash } from "viem";
 import type { WalletClient, PublicClient } from "viem";
+import { gasAwareMulticall } from "../utils/multicall";
 import {
   GrantPermissionParams,
   RevokePermissionParams,
@@ -2039,20 +2040,29 @@ export class PermissionsController {
       // Calculate how many servers to fetch
       const endIndex = Math.min(offset + limit, total);
 
-      // Fetch servers using userServerIdsAt for each index
-      const serverPromises: Promise<bigint>[] = [];
+      // Build multicall batch for fetching server IDs
+      const serverIdCalls = [];
       for (let i = offset; i < endIndex; i++) {
-        const promise = this.context.publicClient.readContract({
+        serverIdCalls.push({
           address: DataPortabilityServersAddress,
           abi: DataPortabilityServersAbi,
           functionName: "userServerIdsAt",
           args: [user, BigInt(i)],
-        }) as Promise<bigint>;
-        serverPromises.push(promise);
+        } as const);
       }
 
-      const serverIds = await Promise.all(serverPromises);
-      const servers = serverIds.map((id) => Number(id));
+      // Fetch all server IDs in batches using gasAwareMulticall
+      const serverIdResults = await gasAwareMulticall<
+        typeof serverIdCalls,
+        false
+      >(this.context.publicClient, {
+        contracts: serverIdCalls,
+      });
+
+      // Extract server IDs from results
+      const servers = serverIdResults
+        .map((result) => Number(result as bigint))
+        .filter((id) => id > 0);
 
       return {
         servers,
@@ -2083,37 +2093,70 @@ export class PermissionsController {
       // Get paginated server IDs
       const paginatedResult = await this.getTrustedServersPaginated(options);
 
-      // Fetch server info for each server ID
-      const serverInfoPromises = paginatedResult.servers.map(
-        async (serverId, _index) => {
-          try {
-            const serverInfo = await this.getServerInfo(BigInt(serverId));
-            return {
-              id: BigInt(serverId),
-              owner: serverInfo.owner,
-              serverAddress: serverInfo.serverAddress,
-              publicKey: serverInfo.publicKey,
-              url: serverInfo.url,
-              startBlock: 0n, // We don't have this info from the old method structure
-              endBlock: 0n, // 0 means still active
-            };
-          } catch {
-            // If we can't get server info, return basic info
-            return {
-              id: BigInt(serverId),
-              owner: "0x0000000000000000000000000000000000000000" as Address,
-              serverAddress:
-                "0x0000000000000000000000000000000000000000" as Address,
-              publicKey: "",
-              url: "",
-              startBlock: 0n,
-              endBlock: 0n,
-            };
-          }
-        },
+      // Get contract addresses and ABIs
+      const chainId = await this.context.publicClient.getChainId();
+      const DataPortabilityServersAddress = getContractAddress(
+        chainId,
+        "DataPortabilityServers",
+      );
+      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
+
+      // Build multicall batch for fetching server info
+      const serverInfoCalls = paginatedResult.servers.map(
+        (serverId) =>
+          ({
+            address: DataPortabilityServersAddress,
+            abi: DataPortabilityServersAbi,
+            functionName: "servers",
+            args: [BigInt(serverId)],
+          }) as const,
       );
 
-      return await Promise.all(serverInfoPromises);
+      // Fetch all server info in batches using gasAwareMulticall
+      const serverInfoResults = await gasAwareMulticall<
+        typeof serverInfoCalls,
+        true // Allow failures for individual server lookups
+      >(this.context.publicClient, {
+        contracts: serverInfoCalls,
+        allowFailure: true,
+      });
+
+      // Process results
+      return serverInfoResults.map((result, index) => {
+        const serverId = paginatedResult.servers[index];
+
+        if (result.status === "success" && result.result) {
+          const serverInfo = result.result as {
+            id: bigint;
+            owner: Address;
+            serverAddress: Address;
+            publicKey: string;
+            url: string;
+          };
+
+          return {
+            id: BigInt(serverId),
+            owner: serverInfo.owner,
+            serverAddress: serverInfo.serverAddress,
+            publicKey: serverInfo.publicKey,
+            url: serverInfo.url,
+            startBlock: 0n, // We don't have this info from the old method structure
+            endBlock: 0n, // 0 means still active
+          };
+        } else {
+          // If server info fails, return basic info
+          return {
+            id: BigInt(serverId),
+            owner: "0x0000000000000000000000000000000000000000" as Address,
+            serverAddress:
+              "0x0000000000000000000000000000000000000000" as Address,
+            publicKey: "",
+            url: "",
+            startBlock: 0n,
+            endBlock: 0n,
+          };
+        }
+      });
     } catch (error) {
       throw new BlockchainError(
         `Failed to get trusted servers with info: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -2147,15 +2190,32 @@ export class PermissionsController {
       );
       const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
 
-      // Create promises for all server info requests
-      const serverInfoPromises = serverIds.map(async (serverId) => {
-        try {
-          const serverInfo = (await this.context.publicClient.readContract({
+      // Build multicall batch for fetching server info
+      const serverInfoCalls = serverIds.map(
+        (serverId) =>
+          ({
             address: DataPortabilityServersAddress,
             abi: DataPortabilityServersAbi,
             functionName: "servers",
             args: [BigInt(serverId)],
-          })) as {
+          }) as const,
+      );
+
+      // Fetch all server info in batches using gasAwareMulticall
+      const serverInfoResults = await gasAwareMulticall<
+        typeof serverInfoCalls,
+        true // Allow failures for individual server lookups
+      >(this.context.publicClient, {
+        contracts: serverInfoCalls,
+        allowFailure: true,
+      });
+
+      // Process results
+      const results = serverInfoResults.map((result, index) => {
+        const serverId = serverIds[index];
+
+        if (result.status === "success" && result.result) {
+          const serverInfo = result.result as {
             id: bigint;
             owner: Address;
             url: string;
@@ -2172,12 +2232,10 @@ export class PermissionsController {
           };
 
           return { serverId, server, success: true };
-        } catch {
+        } else {
           return { serverId, server: null, success: false };
         }
       });
-
-      const results = await Promise.all(serverInfoPromises);
 
       // Separate successful and failed requests
       const servers = new Map<number, Server>();

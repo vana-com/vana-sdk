@@ -110,7 +110,6 @@ export default function MyDataPage() {
     isUntrusting,
     isDiscoveringServer,
     trustServerError,
-    trustedServerQueryMode: queryMode,
     serverAddress,
     serverUrl,
     loadUserTrustedServers,
@@ -121,7 +120,6 @@ export default function MyDataPage() {
     setServerUrl: onServerUrlChange,
     publicKey,
     setPublicKey: onPublicKeyChange,
-    setTrustedServerQueryMode: onQueryModeChange,
   } = useTrustedServers();
 
   const {
@@ -130,7 +128,6 @@ export default function MyDataPage() {
     isAddingGrantee,
     isRemoving,
     addGranteeError,
-    granteeQueryMode,
     ownerAddress,
     granteeAddress,
     loadGrantees,
@@ -140,7 +137,6 @@ export default function MyDataPage() {
     setGranteeAddress,
     granteePublicKey,
     setGranteePublicKey,
-    setGranteeQueryMode: onGranteeQueryModeChange,
   } = useGrantees();
 
   // Map trusted servers to the expected interface format
@@ -242,8 +238,8 @@ export default function MyDataPage() {
   }, [handleTrustServerGasless, serverAddress, serverUrl, publicKey]);
 
   const onRefreshServers = useCallback(() => {
-    loadUserTrustedServers(queryMode);
-  }, [loadUserTrustedServers, queryMode]);
+    loadUserTrustedServers();
+  }, [loadUserTrustedServers]);
 
   // Files table state
   const [filesCurrentPage, setFilesCurrentPage] = useState(1);
@@ -488,14 +484,12 @@ export default function MyDataPage() {
             isUntrusting={isUntrusting}
             isDiscoveringServer={isDiscoveringServer}
             trustServerError={trustServerError}
-            queryMode={queryMode}
             serverAddress={serverAddress}
             serverUrl={serverUrl}
             publicKey={publicKey}
             onServerAddressChange={onServerAddressChange}
             onServerUrlChange={onServerUrlChange}
             onPublicKeyChange={onPublicKeyChange}
-            onQueryModeChange={onQueryModeChange}
             onTrustServer={onTrustServer}
             onRefreshServers={onRefreshServers}
             onUntrustServer={onUntrustServer}
@@ -509,14 +503,12 @@ export default function MyDataPage() {
             isAddingGrantee={isAddingGrantee}
             isRemoving={isRemoving}
             addGranteeError={addGranteeError}
-            queryMode={granteeQueryMode}
             ownerAddress={ownerAddress}
             granteeAddress={granteeAddress}
             granteePublicKey={granteePublicKey}
             onOwnerAddressChange={setOwnerAddress}
             onGranteeAddressChange={setGranteeAddress}
             onGranteePublicKeyChange={setGranteePublicKey}
-            onQueryModeChange={onGranteeQueryModeChange}
             onAddGrantee={handleAddGranteeGasless}
             onRefreshGrantees={loadGrantees}
             onRemoveGrantee={handleRemoveGrantee}

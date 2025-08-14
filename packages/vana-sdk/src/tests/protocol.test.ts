@@ -38,13 +38,13 @@ vi.mock("../config/addresses", () => ({
   },
 }));
 
-vi.mock("../abi", () => ({
+vi.mock("../generated/abi", () => ({
   getAbi: vi.fn().mockReturnValue([]),
 }));
 
 // Import the mocked functions
 import { getContractAddress } from "../config/addresses";
-import { getAbi } from "../abi";
+import { getAbi } from "../generated/abi";
 
 // Type the mocked functions
 const mockGetContractAddress = getContractAddress as ReturnType<typeof vi.fn>;

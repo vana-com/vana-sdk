@@ -46,13 +46,13 @@ describe("useSchemasAndRefiners", () => {
     {
       id: 1,
       name: "Schema 1",
-      type: "json",
+      dialect: "json",
       definitionUrl: "https://schema1.com",
     },
     {
       id: 2,
       name: "Schema 2",
-      type: "csv",
+      dialect: "csv",
       definitionUrl: "https://schema2.com",
     },
   ];

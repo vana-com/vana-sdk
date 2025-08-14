@@ -93,7 +93,7 @@ vi.mock("../utils/multicall", () => ({
   }),
 }));
 
-vi.mock("../abi", () => ({
+vi.mock("../generated/abi", () => ({
   getAbi: vi.fn().mockReturnValue([]),
 }));
 

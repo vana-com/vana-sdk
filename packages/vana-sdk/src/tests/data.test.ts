@@ -46,7 +46,7 @@ vi.mock("viem", () => ({
         ]),
       schemas: vi.fn().mockResolvedValue({
         name: "Test Schema",
-        typ: "json",
+        dialect: "json",
         definitionUrl: "https://example.com/schema.json",
       }),
       schemasCount: vi.fn().mockResolvedValue(BigInt(5)),
@@ -85,7 +85,7 @@ vi.mock("../config/addresses", () => ({
     .mockReturnValue("0x1234567890123456789012345678901234567890"),
 }));
 
-vi.mock("../abi", () => ({
+vi.mock("../generated/abi", () => ({
   getAbi: vi.fn().mockReturnValue([
     {
       name: "fileCount",
@@ -477,22 +477,22 @@ describe("DataController", () => {
         {
           content: "text content",
           name: "text.txt",
-          expectedType: "text/plain",
+          expectedtype: "text/plain",
         },
         {
           content: Buffer.from("buffer data"),
           name: "buffer.bin",
-          expectedType: "application/octet-stream",
+          expectedtype: "application/octet-stream",
         },
         {
           content: new Blob(["blob data"], { type: "image/png" }),
           name: "image.png",
-          expectedType: "image/png",
+          expectedtype: "image/png",
         },
         {
           content: { key: "value" },
           name: "data.json",
-          expectedType: "application/json",
+          expectedtype: "application/json",
         },
       ];
 
@@ -511,7 +511,7 @@ describe("DataController", () => {
         mockStorageManager.upload.mockResolvedValue({
           url: expectedUrl,
           size: 100,
-          contentType: item.expectedType,
+          contentType: item.expectedtype,
         });
 
         const result = await controllerWithStorage.uploadToStorage(
@@ -522,7 +522,7 @@ describe("DataController", () => {
         expect(result).toEqual({
           url: expectedUrl,
           size: 100,
-          contentType: item.expectedType,
+          contentType: item.expectedtype,
         });
         expect(mockStorageManager.upload).toHaveBeenCalledWith(
           expect.any(Blob),
@@ -534,7 +534,7 @@ describe("DataController", () => {
           mockStorageManager.upload.mock.calls[
             mockStorageManager.upload.mock.calls.length - 1
           ][0];
-        expect(uploadedBlob.type).toBe(item.expectedType);
+        expect(uploadedBlob.type).toBe(item.expectedtype);
       }
     });
 

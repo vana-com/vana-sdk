@@ -55,7 +55,7 @@ import {
   PermissionError,
 } from "../errors";
 import { getContractAddress } from "../config/addresses";
-import { getAbi } from "../abi";
+import { getAbi } from "../generated/abi";
 import { createGrantFile, getGrantFileHash } from "../utils/grantFiles";
 import { validateGrant } from "../utils/grantValidation";
 import { withSignatureCache } from "../utils/signatureCache";

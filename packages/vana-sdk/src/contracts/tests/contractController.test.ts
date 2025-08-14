@@ -4,7 +4,7 @@ import {
   clearContractCache,
   __contractCache,
 } from "../contractController";
-import { VanaContract } from "../../abi";
+import { VanaContract } from "../../generated/abi";
 import { createClient } from "../../core/client";
 import { vanaMainnet, mokshaTestnet } from "../../config/chains";
 import type { PublicClient, WalletClient as _WalletClient } from "viem";
@@ -28,7 +28,7 @@ vi.mock("../../config/addresses", () => ({
     .mockReturnValue("0x1234567890123456789012345678901234567890"),
 }));
 
-vi.mock("../../abi", () => ({
+vi.mock("../../generated/abi", () => ({
   getAbi: vi.fn().mockReturnValue([
     {
       inputs: [],
@@ -88,7 +88,7 @@ describe("contractController", () => {
     it("should create a new controller when not cached", async () => {
       const { getContract } = await import("viem");
       const { getContractAddress } = await import("../../config/addresses");
-      const { getAbi } = await import("../../abi");
+      const { getAbi } = await import("../../generated/abi");
 
       const controller = getContractController("DataRegistry");
 

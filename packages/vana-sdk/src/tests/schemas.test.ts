@@ -48,7 +48,7 @@ vi.mock("../utils/multicall", () => ({
   }),
 }));
 
-vi.mock("../abi", () => ({
+vi.mock("../generated/abi", () => ({
   getAbi: vi.fn().mockReturnValue([]),
 }));
 
@@ -108,7 +108,7 @@ describe("SchemaController", () => {
       const mockSchema = {
         id: 1,
         name: "Test Schema",
-        type: "json",
+        dialect: "json",
         definitionUrl: "https://example.com/schema.json",
       };
 
@@ -166,13 +166,13 @@ describe("SchemaController", () => {
         {
           id: 1,
           name: "Schema 1",
-          type: "json",
+          dialect: "json",
           definitionUrl: "https://example.com/1.json",
         },
         {
           id: 2,
           name: "Schema 2",
-          type: "json",
+          dialect: "json",
           definitionUrl: "https://example.com/2.json",
         },
       ];
@@ -211,7 +211,7 @@ describe("SchemaController", () => {
       const mockSchema = {
         id: 2,
         name: "Schema 2",
-        type: "json",
+        dialect: "json",
         definitionUrl: "https://example.com/2.json",
       };
 
@@ -553,7 +553,7 @@ describe("SchemaController", () => {
     it("should add schema with pre-uploaded URL", async () => {
       const result = await controller.addSchema({
         name: "Test Schema",
-        type: "json",
+        dialect: "json",
         definitionUrl: "https://example.com/schema.json",
       });
 
@@ -585,7 +585,7 @@ describe("SchemaController", () => {
       await expect(
         controllerWithoutChain.addSchema({
           name: "Test Schema",
-          type: "json",
+          dialect: "json",
           definitionUrl: "https://example.com/schema.json",
         }),
       ).rejects.toThrow("Chain ID not available");
@@ -599,7 +599,7 @@ describe("SchemaController", () => {
       await expect(
         controller.addSchema({
           name: "Test Schema",
-          type: "json",
+          dialect: "json",
           definitionUrl: "https://example.com/schema.json",
         }),
       ).rejects.toThrow("Failed to add schema: Transaction failed");
@@ -622,7 +622,7 @@ describe("SchemaController", () => {
       await expect(
         controllerWithoutAccount.addSchema({
           name: "Test",
-          type: "json",
+          dialect: "json",
           definitionUrl: "https://example.com",
         }),
       ).rejects.toThrow("No wallet account connected");
@@ -642,7 +642,7 @@ describe("SchemaController", () => {
 
       await controllerWithStringAccount.addSchema({
         name: "Test",
-        type: "json",
+        dialect: "json",
         definitionUrl: "https://example.com",
       });
 

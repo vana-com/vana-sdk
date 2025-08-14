@@ -1,7 +1,7 @@
 // Event mapping configuration for transaction result parsing
 // Maps SDK operation names to their corresponding contract events
 
-import type { VanaContract } from "../abi/index";
+import type { VanaContract } from "../generated/abi";
 
 export interface EventMapping {
   contract: VanaContract;

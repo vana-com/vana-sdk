@@ -297,7 +297,7 @@ export const LEGACY_ADDRESSES = {
   ),
 } as const;
 
-import type { VanaContract } from "../abi";
+import type { VanaContract } from "../generated/abi";
 
 /**
  * Retrieves the deployed contract address for a specific contract on a given chain.

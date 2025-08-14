@@ -1,0 +1,5 @@
+# Generated code should not be included in language statistics
+src/generated/** linguist-generated=true
+
+# Generated files should use consistent line endings
+src/generated/** text eol=lf

@@ -9,7 +9,7 @@ vi.mock("../config/addresses", () => ({
   getContractAddress: vi.fn().mockReturnValue("0xPermissionsAddress"),
 }));
 
-vi.mock("../abi", () => ({
+vi.mock("../generated/abi", () => ({
   getAbi: vi.fn().mockReturnValue([]),
 }));
 

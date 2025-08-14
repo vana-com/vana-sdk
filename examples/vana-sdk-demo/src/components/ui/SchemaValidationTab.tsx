@@ -62,7 +62,7 @@ export const SchemaValidationTab: React.FC<SchemaValidationTabProps> = ({
 
     // Try to generate meaningful example based on schema name/type
     const schemaName = selectedSchema.name.toLowerCase();
-    const _schemaType = selectedSchema.type.toLowerCase();
+    const _schemaDialect = selectedSchema.dialect.toLowerCase();
 
     if (schemaName.includes("user") || schemaName.includes("profile")) {
       return JSON.stringify(

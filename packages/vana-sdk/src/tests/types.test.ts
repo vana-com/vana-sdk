@@ -30,7 +30,7 @@ import type {
   Brand,
   Nominal,
 } from "../types/generics";
-import type { VanaContract } from "../abi";
+import type { VanaContract } from "../generated/abi";
 import {
   getContractInfo,
   ContractFactory,

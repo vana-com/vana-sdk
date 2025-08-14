@@ -31,7 +31,7 @@ vi.mock("../config/addresses", () => ({
   },
 }));
 
-vi.mock("../abi", () => ({
+vi.mock("../generated/abi", () => ({
   getAbi: vi.fn().mockReturnValue([]),
   ContractAbis: {
     DataRegistry: [],

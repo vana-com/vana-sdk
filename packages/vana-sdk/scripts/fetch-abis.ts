@@ -136,8 +136,9 @@ function generateABIFile(contractName: string, abi: unknown[]): string {
 
   const formattedABI = formatValue(abi);
 
-  return `// ${contractName} Implementation Contract
-// Generated automatically - do not edit manually
+  return `// THIS FILE IS GENERATED, DO NOT EDIT MANUALLY
+// Run \`npm run fetch-abis\` to regenerate
+// ${contractName} Implementation Contract
 
 export const ${contractName}ABI = ${formattedABI} as const;
 
@@ -166,7 +167,7 @@ async function ensureDirectoryExists(dirPath: string): Promise<void> {
  * @returns Promise that resolves when index file is updated
  */
 async function updateIndexFile(contractNames: string[]): Promise<void> {
-  const abiDir = path.join(process.cwd(), "src", "abi");
+  const abiDir = path.join(process.cwd(), "src", "generated", "abi");
   const indexPath = path.join(abiDir, "index.ts");
 
   // Read existing index file to preserve other exports
@@ -210,7 +211,7 @@ async function fetchAndSaveABIs(
   network: "moksha" | "mainnet" = "moksha",
 ): Promise<void> {
   const networkConfig = NETWORK_CONFIG[network];
-  const abiDir = path.join(process.cwd(), "src", "abi");
+  const abiDir = path.join(process.cwd(), "src", "generated", "abi");
 
   await ensureDirectoryExists(abiDir);
 

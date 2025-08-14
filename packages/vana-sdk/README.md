@@ -360,6 +360,48 @@ vana.data.validateDataAgainstSchema(data: unknown, schema: DataSchema): void
 - **Issues**: [GitHub Issues](https://github.com/vana-com/vana-sdk/issues)
 - **Discord**: [Join our community](https://discord.gg/vanabuilders)
 
+## Generated Code
+
+The SDK includes automatically generated code from various sources to provide type-safe interfaces. All generated files are located in `src/generated/` and should **never be edited manually**.
+
+### Code Generation Scripts
+
+| Script                       | Purpose                                | Generated Files             |
+| ---------------------------- | -------------------------------------- | --------------------------- |
+| `npm run fetch-abis`         | Smart contract ABIs from blockchain    | `src/generated/abi/*.ts`    |
+| `npm run fetch-server-types` | Personal server API types from OpenAPI | `src/generated/server/*.ts` |
+| `npm run codegen:subgraph`   | GraphQL types from subgraph schema     | `src/generated/subgraph.ts` |
+
+### Network-Specific Generation
+
+Some generation scripts support different networks:
+
+```bash
+# Generate subgraph types for different networks
+npm run codegen:subgraph:moksha   # Moksha testnet (default)
+npm run codegen:subgraph:mainnet  # Vana mainnet
+
+# Generate ABIs for different networks
+npm run fetch-abis moksha         # Moksha testnet (default)
+npm run fetch-abis mainnet        # Vana mainnet
+```
+
+### Development Workflow
+
+When working with the SDK:
+
+1. **Never edit generated files** - They are overwritten on regeneration
+2. **Regenerate after schema changes** - Run generation scripts when external schemas change
+3. **Generated files are committed** - They're included in version control for consistency
+4. **ESLint ignores generated code** - Style rules don't apply to generated files
+
+```bash
+# Regenerate all code after schema updates
+npm run fetch-abis
+npm run fetch-server-types
+npm run codegen:subgraph
+```
+
 ## Development
 
 ```bash

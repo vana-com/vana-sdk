@@ -164,13 +164,13 @@ export const SchemaSelector: React.FC<SchemaSelectorProps> = ({
             {schemas.map((schema) => (
               <SelectItem
                 key={schema.id.toString()}
-                textValue={`${schema.name} - ${schema.type}`}
+                textValue={`${schema.name} - ${schema.dialect}`}
               >
                 <div className="flex items-center justify-between w-full">
                   <div>
                     <div className="font-medium">{schema.name}</div>
                     <div className="text-xs text-default-500">
-                      {schema.type}
+                      {schema.dialect}
                     </div>
                   </div>
                   <Chip size="sm" variant="flat" color="secondary">
@@ -195,8 +195,8 @@ export const SchemaSelector: React.FC<SchemaSelectorProps> = ({
                 </h4>
                 <div className="space-y-1 text-sm">
                   <div>
-                    <span className="font-medium">Type:</span>{" "}
-                    {selectedSchema.type}
+                    <span className="font-medium">Dialect:</span>{" "}
+                    {selectedSchema.dialect}
                   </div>
                   <div>
                     <span className="font-medium">Schema ID:</span>{" "}

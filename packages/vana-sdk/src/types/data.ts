@@ -516,8 +516,8 @@ export interface Schema {
   id: number;
   /** Schema name */
   name: string;
-  /** Schema type */
-  type: string;
+  /** Schema dialect */
+  dialect: string;
   /** URL containing the schema definition */
   definitionUrl: string;
 }
@@ -550,8 +550,8 @@ export interface Refiner {
 export interface AddSchemaParams {
   /** Schema name */
   name: string;
-  /** Schema type */
-  type: string;
+  /** Schema dialect */
+  dialect: string;
   /** URL containing the schema definition */
   definitionUrl: string;
 }

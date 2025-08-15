@@ -32,9 +32,13 @@ export async function POST(request: NextRequest) {
       expectedUserAddress: expectedUserAddress as `0x${string}` | undefined,
     });
 
+    // TransactionHandle provides both immediate hash access and event data
+    // The .hash property gives us the transaction hash directly
+    const transactionHash = txHandle.hash;
+
     return NextResponse.json({
       success: true,
-      transactionHash: txHandle.hash,
+      transactionHash,
     });
   } catch (error) {
     console.error("Error relaying transaction:", error);

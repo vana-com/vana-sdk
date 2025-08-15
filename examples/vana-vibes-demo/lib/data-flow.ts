@@ -8,89 +8,6 @@ import {
 } from "@opendatalabs/vana-sdk/browser";
 import type { WalletClient } from "viem";
 
-/**
- * Get network configuration for blockchain explorer URLs
- * Browser-compatible version of the network config
- */
-function getNetworkConfig() {
-  const isTestnet = !!process.env.NEXT_PUBLIC_MOKSHA;
-  return {
-    networkName: isTestnet ? "moksha" : "mainnet",
-    explorerUrl: isTestnet
-      ? "https://moksha.vanascan.io"
-      : "https://vanascan.io",
-    chainId: isTestnet ? 14800 : 1480,
-  };
-}
-
-/**
- * Extract permissionId from transaction logs using Blockscout API with retries
- *
- * This function handles the delay between transaction relay and blockchain indexing
- * by implementing exponential backoff retry logic.
- *
- * @param txHash - The transaction hash to fetch logs for
- * @returns Promise<string | undefined> - The extracted permissionId or undefined if not found
- */
-async function getPermissionIdFromTransactionLogs(
-  txHash: string,
-): Promise<string | undefined> {
-  const { explorerUrl } = getNetworkConfig();
-
-  const maxRetries = 10;
-  const baseDelay = 1000; // 1 second
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const response = await fetch(
-        `${explorerUrl}/api/v2/transactions/${txHash}/logs`,
-        {
-          headers: { accept: "application/json" },
-        },
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-
-        // Check if transaction is indexed and has logs
-        if (data.items && data.items.length > 0) {
-          // Find the PermissionAdded event in the logs
-          const permissionAddedLog = data.items.find(
-            (log: { decoded?: { method_call?: string } }) =>
-              log.decoded?.method_call?.includes("PermissionAdded"),
-          );
-
-          if (permissionAddedLog?.decoded?.parameters) {
-            const permissionIdParam = (
-              permissionAddedLog.decoded.parameters as {
-                name: string;
-                value: string;
-              }[]
-            ).find((param) => param.name === "permissionId");
-
-            if (permissionIdParam?.value) {
-              return permissionIdParam.value;
-            }
-          }
-        }
-      }
-
-      if (attempt < maxRetries) {
-        const delay = baseDelay * Math.pow(2, attempt - 1);
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      }
-    } catch {
-      if (attempt < maxRetries) {
-        const delay = baseDelay * Math.pow(2, attempt - 1);
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      }
-    }
-  }
-
-  console.warn("Could not extract permissionId after all retries");
-  return undefined;
-}
-
 interface FlowStepCallbacks {
   onStatusUpdate: (status: string) => void;
   onResultUpdate: (result: string) => void;
@@ -277,7 +194,7 @@ export class DataPortabilityFlow {
         );
       }
 
-      const transactionHash =
+      const txHandle =
         await this.vana.permissions.submitAddServerFilesAndPermissions({
           granteeId: BigInt(granteeId),
           grant: grantUrl,
@@ -295,26 +212,29 @@ export class DataPortabilityFlow {
           ],
         });
 
+      this.callbacks.onStatusUpdate(`Transaction submitted: ${txHandle.hash}`);
+
+      // Wait for transaction confirmation and extract permission ID from events
       this.callbacks.onStatusUpdate(
-        `Batch transaction completed: ${transactionHash}`,
+        "Waiting for transaction confirmation and permission ID...",
       );
 
-      // Extract permission ID from transaction logs using blockchain polling
-      this.callbacks.onStatusUpdate(
-        "Extracting permission ID from transaction logs...",
-      );
-
-      const permissionId =
-        await getPermissionIdFromTransactionLogs(transactionHash);
+      const events = await txHandle.waitForEvents();
+      const permissionId = events.permissionId;
 
       if (!permissionId) {
         throw new Error(
-          "Permission ID not found in transaction logs. Cannot proceed with inference request.",
+          "Permission ID not found in transaction events. Cannot proceed with inference request.",
         );
       }
 
-      this.callbacks.onStatusUpdate(`Permission ID extracted: ${permissionId}`);
-      return permissionId;
+      // Convert bigint to string for API compatibility
+      const permissionIdStr = permissionId.toString();
+
+      this.callbacks.onStatusUpdate(
+        `Permission ID received: ${permissionIdStr}`,
+      );
+      return permissionIdStr;
     } catch (error) {
       throw new Error(
         `Transaction failed: ${

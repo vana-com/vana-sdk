@@ -194,12 +194,17 @@ export class DataPortabilityFlow {
         );
       }
 
+      // Use LinkedIn schema ID from environment or default to 0 (no schema validation)
+      const schemaId = process.env.NEXT_PUBLIC_LINKEDIN_SCHEMA_ID
+        ? parseInt(process.env.NEXT_PUBLIC_LINKEDIN_SCHEMA_ID, 10)
+        : 0;
+
       const txHandle =
         await this.vana.permissions.submitAddServerFilesAndPermissions({
           granteeId: BigInt(granteeId),
           grant: grantUrl,
           fileUrls: [fileUrl],
-          schemaIds: [0], // TODO: Add LinkedIn schema ID from environment variable
+          schemaIds: [schemaId],
           serverAddress: serverInfo.address as `0x${string}`,
           serverUrl: serverInfo.base_url,
           serverPublicKey: serverInfo.public_key,

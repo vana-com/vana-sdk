@@ -4692,7 +4692,7 @@ export class PermissionsController {
       address: DataPortabilityPermissionsAddress,
       abi: DataPortabilityPermissionsAbi,
       functionName: "addServerFilesAndPermissions",
-      // @ts-expect-error - Complex nested array types cause compatibility issues with viem's generated types
+      // @ts-expect-error - Viem's type inference for nested Permission[][] arrays is incompatible with our Permission type
       args: [serverFilesAndPermissionInput, formattedSignature],
       account:
         this.context.walletClient.account || (await this.getUserAddress()),

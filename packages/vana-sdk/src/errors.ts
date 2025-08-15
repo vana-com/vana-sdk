@@ -199,12 +199,31 @@ export class SerializationError extends VanaError {
 }
 
 /**
- * Error thrown when a signature operation fails.
+ * Thrown when a signature operation fails or cannot be completed.
  *
  * @remarks
- * Recovery strategies: Check wallet connection and account unlock status,
- * retry operation with explicit user interaction, or for gasless operations
- * consider switching to direct transactions.
+ * This error occurs when wallet signature operations fail due to disconnection,
+ * locked accounts, or other wallet-related issues. It preserves the original
+ * error for debugging while providing consistent error handling across the SDK.
+ *
+ * Recovery strategies:
+ * - Check wallet connection and account unlock status
+ * - Retry operation with explicit user interaction
+ * - For gasless operations, consider switching to direct transactions
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   await vana.permissions.grant({ grantee: '0x...' });
+ * } catch (error) {
+ *   if (error instanceof SignatureError) {
+ *     // Prompt user to unlock wallet
+ *     await promptWalletUnlock();
+ *     // Retry operation
+ *   }
+ * }
+ * ```
+ * @category Error Handling
  */
 export class SignatureError extends VanaError {
   constructor(
@@ -216,11 +235,31 @@ export class SignatureError extends VanaError {
 }
 
 /**
- * Error thrown when a network operation fails.
+ * Thrown when network communication fails during API calls or blockchain interactions.
  *
  * @remarks
- * Recovery strategies: Check network connectivity, retry with exponential backoff,
- * verify API endpoints are accessible, or switch to alternative network providers.
+ * This error encompasses network connectivity issues, API unavailability,
+ * timeout errors, and CORS restrictions. It's commonly encountered during
+ * IPFS operations, subgraph queries, or RPC calls.
+ *
+ * Recovery strategies:
+ * - Check network connectivity
+ * - Retry with exponential backoff
+ * - Verify API endpoints are accessible
+ * - Switch to alternative network providers or gateways
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   const files = await vana.data.getUserFiles({ owner: '0x...' });
+ * } catch (error) {
+ *   if (error instanceof NetworkError) {
+ *     // Implement retry with exponential backoff
+ *     await retryWithBackoff(() => vana.data.getUserFiles({ owner: '0x...' }));
+ *   }
+ * }
+ * ```
+ * @category Error Handling
  */
 export class NetworkError extends VanaError {
   constructor(
@@ -232,11 +271,32 @@ export class NetworkError extends VanaError {
 }
 
 /**
- * Error thrown when the nonce retrieval fails.
+ * Thrown when transaction nonce retrieval fails during gasless operations.
  *
  * @remarks
- * Recovery strategies: Retry nonce retrieval after brief delay, check wallet connection
- * and account status, or use manual nonce specification if supported by the operation.
+ * This error occurs when the SDK cannot retrieve the user's current nonce from
+ * smart contracts, preventing gasless transaction submission. Nonces are critical
+ * for preventing replay attacks in signed transactions.
+ *
+ * Recovery strategies:
+ * - Retry nonce retrieval after brief delay
+ * - Check wallet connection and account status
+ * - Use manual nonce specification if supported by the operation
+ * - Switch to direct transactions as fallback
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   await vana.permissions.grant({ grantee: '0x...' });
+ * } catch (error) {
+ *   if (error instanceof NonceError) {
+ *     // Wait and retry
+ *     await delay(1000);
+ *     await vana.permissions.grant({ grantee: '0x...' });
+ *   }
+ * }
+ * ```
+ * @category Error Handling
  */
 export class NonceError extends VanaError {
   constructor(message: string) {
@@ -245,11 +305,34 @@ export class NonceError extends VanaError {
 }
 
 /**
- * Error thrown when a personal server operation fails.
+ * Thrown when personal server operations fail or cannot be completed.
  *
  * @remarks
- * Recovery strategies: Verify server URL accessibility, check server trust status via
- * `vana.permissions.getUserTrustedServers()`, or retry after server becomes available.
+ * This error occurs during interactions with personal servers for computation
+ * requests, identity retrieval, or operation status checks. Common causes include
+ * server unavailability, untrusted server status, or invalid permission grants.
+ *
+ * Recovery strategies:
+ * - Verify server URL accessibility
+ * - Check server trust status via `vana.permissions.getTrustedServers()`
+ * - Ensure valid permissions exist for the operation
+ * - Retry after server becomes available
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   const result = await vana.server.createOperation({ permissionId: 123 });
+ * } catch (error) {
+ *   if (error instanceof PersonalServerError) {
+ *     // Check if server is trusted
+ *     const trustedServers = await vana.permissions.getTrustedServers();
+ *     if (!trustedServers.includes(serverId)) {
+ *       await vana.permissions.trustServer({ serverId });
+ *     }
+ *   }
+ * }
+ * ```
+ * @category Error Handling
  */
 export class PersonalServerError extends VanaError {
   constructor(
@@ -261,7 +344,30 @@ export class PersonalServerError extends VanaError {
 }
 
 /**
- * Error thrown when trying to register a server with a URL that doesn't match the existing registration.
+ * Thrown when attempting to register a server with a URL different from its existing registration.
+ *
+ * @remarks
+ * This error occurs when trying to add or trust a server that's already registered
+ * on-chain with a different URL. Server URLs are immutable once registered to
+ * maintain consistency and security. Applications should use the existing URL
+ * or register a new server with a different ID.
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   await vana.permissions.addAndTrustServer({
+ *     serverId: 1,
+ *     serverUrl: 'https://new-url.com',
+ *     publicKey: '0x...'
+ *   });
+ * } catch (error) {
+ *   if (error instanceof ServerUrlMismatchError) {
+ *     console.log(`Server already registered with: ${error.existingUrl}`);
+ *     // Use existing URL or register new server
+ *   }
+ * }
+ * ```
+ * @category Error Handling
  */
 export class ServerUrlMismatchError extends VanaError {
   constructor(existingUrl: string, providedUrl: string, serverId: string) {
@@ -280,7 +386,25 @@ export class ServerUrlMismatchError extends VanaError {
 }
 
 /**
- * Error thrown when a permission operation fails.
+ * Thrown when permission grant, revoke, or validation operations fail.
+ *
+ * @remarks
+ * This error occurs during permission management operations including grants,
+ * revocations, and permission validation checks. Common causes include invalid
+ * grantee addresses, expired permissions, or insufficient privileges.
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   await vana.permissions.revoke({ permissionId: 999999 });
+ * } catch (error) {
+ *   if (error instanceof PermissionError) {
+ *     console.error('Permission operation failed:', error.message);
+ *     // Permission may not exist or user may not be owner
+ *   }
+ * }
+ * ```
+ * @category Error Handling
  */
 export class PermissionError extends VanaError {
   constructor(

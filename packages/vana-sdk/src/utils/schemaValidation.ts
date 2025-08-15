@@ -1,6 +1,7 @@
 import Ajv, { type ValidateFunction } from "ajv";
 import addFormats from "ajv-formats";
 import dataSchemaSchema from "../schemas/dataSchema.schema.json";
+import type { Schema } from "../types/data";
 
 /**
  * Data schema interface following the Vana schema specification
@@ -119,36 +120,36 @@ export class SchemaValidator {
   }
 
   /**
-   * Validates data against a JSON Schema from a data schema
+   * Validates data against a JSON Schema from a schema
    *
    * @param data - The data to validate
-   * @param schema - The data schema containing the schema
+   * @param schema - The schema containing the validation rules (DataSchema or Schema)
    * @throws SchemaValidationError if invalid
    * @example
    * ```typescript
    * const validator = new SchemaValidator();
    *
-   * const schema = {
+   * // Works with Schema from schemas.get()
+   * const schema = await vana.schemas.get(1);
+   * validator.validateDataAgainstSchema(userData, schema);
+   *
+   * // Also works with DataSchema object
+   * const dataSchema: DataSchema = {
    *   name: "User Profile",
    *   version: "1.0.0",
    *   dialect: "json",
-   *   schema: {
-   *     type: "object",
-   *     properties: {
-   *       name: { type: "string" },
-   *       age: { type: "number" }
-   *     },
-   *     required: ["name"]
-   *   }
+   *   schema: { type: "object", properties: { name: { type: "string" } } }
    * };
-   *
-   * const userData = { name: "Alice", age: 30 };
-   * validator.validateDataAgainstSchema(userData, schema);
+   * validator.validateDataAgainstSchema(userData, dataSchema);
    * ```
    */
-  validateDataAgainstSchema(data: unknown, schema: DataSchema): void {
-    // First validate the schema itself
-    this.validateDataSchema(schema);
+  validateDataAgainstSchema(data: unknown, schema: DataSchema | Schema): void {
+    // Skip structural validation for Schema objects (they come pre-validated from schemas.get())
+    // Only validate DataSchema objects that are passed directly
+    if (!("id" in schema)) {
+      // This is a DataSchema, validate its structure
+      this.validateDataSchema(schema);
+    }
 
     if (schema.dialect !== "json") {
       throw new SchemaValidationError(
@@ -301,7 +302,7 @@ export function validateDataSchema(
  */
 export function validateDataAgainstSchema(
   data: unknown,
-  schema: DataSchema,
+  schema: DataSchema | Schema,
 ): void {
   return schemaValidator.validateDataAgainstSchema(data, schema);
 }

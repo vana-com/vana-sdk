@@ -197,8 +197,8 @@ export function useSchemasAndRefiners(): UseSchemasAndRefinersReturn {
 
         const params: CreateSchemaParams = {
           name: schemaName,
-          type: schemaType,
-          definition: definitionObject,
+          dialect: schemaType as "json" | "sqlite",
+          schema: definitionObject,
         };
 
         return await vana.schemas.create(params);

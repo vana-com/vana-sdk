@@ -493,33 +493,86 @@ export interface BatchUploadResult {
 }
 
 /**
- * Represents a data schema in the refiner registry.
+ * Schema metadata from the blockchain (without fetched definition).
+ *
+ * This represents the on-chain schema registration data before the
+ * definition has been fetched from the storage URL.
+ *
+ * @category Data Management
+ */
+export interface SchemaMetadata {
+  /** Schema ID */
+  id: number;
+  /** Schema name */
+  name: string;
+  /** Schema dialect ('json' or 'sqlite') */
+  dialect: "json" | "sqlite";
+  /** URL containing the schema definition */
+  definitionUrl: string;
+}
+
+/**
+ * Complete schema with all definition fields populated.
+ * This is what schemas.get() returns - a schema with the definition fetched.
+ */
+export interface CompleteSchema extends SchemaMetadata {
+  /** Version of the schema */
+  version: string;
+  /** Optional description of the schema */
+  description?: string;
+  /** Optional version of the dialect */
+  dialectVersion?: string;
+  /** The actual schema - JSON Schema object for 'json' dialect, DDL string for 'sqlite' */
+  schema: object | string;
+}
+
+/**
+ * Schema with optional definition fields.
  *
  * Schemas define the structure and validation rules for user data processed by refiners.
  * They ensure data quality and consistency across the Vana network by specifying how
  * raw user data should be formatted, validated, and processed.
  *
+ * When the definition has been fetched (via schemas.get() or schemas.list() with includeDefinitions),
+ * the version and schema fields will be populated. Otherwise, only the metadata fields are present.
+ *
  * @category Data Management
  * @example
  * ```typescript
- * const socialMediaSchema: Schema = {
+ * // Complete schema from schemas.get()
+ * const completeSchema: Schema = {
  *   id: 5,
  *   name: 'Social Media Profile',
- *   type: 'JSON',
- *   url: 'ipfs://QmSchema...', // Schema definition file
- *   description: 'Schema for validating social media profile data'
+ *   dialect: 'json',
+ *   definitionUrl: 'ipfs://QmSchema...',
+ *   version: '1.0.0',
+ *   description: 'Schema for validating social media profile data',
+ *   schema: { // JSON Schema object
+ *     type: 'object',
+ *     properties: {
+ *       username: { type: 'string' }
+ *     }
+ *   }
+ * };
+ *
+ * // Metadata-only schema from schemas.list() without includeDefinitions
+ * const metadataSchema: Schema = {
+ *   id: 5,
+ *   name: 'Social Media Profile',
+ *   dialect: 'json',
+ *   definitionUrl: 'ipfs://QmSchema...'
  * };
  * ```
  */
-export interface Schema {
-  /** Schema ID */
-  id: number;
-  /** Schema name */
-  name: string;
-  /** Schema dialect */
-  dialect: string;
-  /** URL containing the schema definition */
-  definitionUrl: string;
+export interface Schema extends SchemaMetadata {
+  /** Version of the schema (present when definition is fetched) */
+  version?: string;
+  /** Optional description of the schema */
+  description?: string;
+  /** Optional version of the dialect */
+  dialectVersion?: string;
+  /** The actual schema - JSON Schema object for 'json' dialect, DDL string for 'sqlite' (present when definition is fetched) */
+  schema?: object | string;
 }
 
 /**

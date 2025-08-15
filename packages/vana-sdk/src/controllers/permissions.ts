@@ -4389,51 +4389,9 @@ export class PermissionsController {
         );
       }
 
-      // Validate data against schemas if schemas are provided
-      for (let i = 0; i < params.schemaIds.length; i++) {
-        const schemaId = params.schemaIds[i];
-        if (schemaId > 0) {
-          // Fetch and validate against the schema
-          const fileUrl = params.fileUrls[i];
-          try {
-            // Import validation utilities
-            const { fetchSchemaFromChain } = await import(
-              "../utils/blockchain/registry"
-            );
-            const { validateDataAgainstSchema } = await import(
-              "../utils/schemaValidation"
-            );
-
-            // Fetch schema from chain
-            const schema = await fetchSchemaFromChain(this.context, schemaId);
-            const schemaResponse = await fetch(schema.definitionUrl);
-            if (!schemaResponse.ok) {
-              throw new Error(
-                `Failed to fetch schema definition for schema ${schemaId}: ${schemaResponse.status}`,
-              );
-            }
-            const schemaDefinition = await schemaResponse.json();
-
-            // Fetch file data from URL
-            const fileResponse = await fetch(fileUrl);
-            if (!fileResponse.ok) {
-              throw new Error(
-                `Failed to fetch file data from ${fileUrl}: ${fileResponse.status}`,
-              );
-            }
-            const fileData = await fileResponse.json();
-
-            // Validate data against schema
-            validateDataAgainstSchema(fileData, schemaDefinition);
-          } catch (error) {
-            throw new Error(
-              `Schema validation failed for file ${i} (${fileUrl}) against schema ${schemaId}: ${
-                error instanceof Error ? error.message : "Unknown error"
-              }`,
-            );
-          }
-        }
-      }
+      // Schema validation should happen at upload time, not permission time
+      // The SDK's data.upload() validates before uploading
+      // External uploaders are responsible for their own validation
 
       const nonce = await this.getPermissionsUserNonce();
 

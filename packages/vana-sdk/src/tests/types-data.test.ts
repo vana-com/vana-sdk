@@ -450,13 +450,13 @@ describe("Data Types", () => {
       const schema: Schema = {
         id: 42,
         name: "Social Media Profile",
-        dialect: "JSON",
+        dialect: "json",
         definitionUrl: "ipfs://QmSchemaDefinition",
       };
 
       expect(schema.id).toBe(42);
       expect(schema.name).toBe("Social Media Profile");
-      expect(schema.dialect).toBe("JSON");
+      expect(schema.dialect).toBe("json");
       expect(schema.definitionUrl).toBe("ipfs://QmSchemaDefinition");
     });
   });

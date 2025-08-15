@@ -5,6 +5,7 @@ import {
   encryptWithWalletPublicKey,
   BrowserPlatformAdapter,
   DEFAULT_ENCRYPTION_SEED,
+  validateDataAgainstSchema,
 } from "@opendatalabs/vana-sdk/browser";
 import type { WalletClient } from "viem";
 
@@ -148,6 +149,7 @@ export class DataPortabilityFlow {
     fileUrl: string,
     userAddress: string,
     customPrompt: string,
+    schemaId?: number | null,
   ): Promise<string> {
     this.callbacks.onStatusUpdate("Preparing data portability transaction...");
 
@@ -194,17 +196,19 @@ export class DataPortabilityFlow {
         );
       }
 
-      // Use LinkedIn schema ID from environment or default to 0 (no schema validation)
-      const schemaId = process.env.NEXT_PUBLIC_LINKEDIN_SCHEMA_ID
-        ? parseInt(process.env.NEXT_PUBLIC_LINKEDIN_SCHEMA_ID, 10)
-        : 0;
+      // Use provided schema ID or fall back to environment variable or 0
+      const finalSchemaId =
+        schemaId ??
+        (process.env.NEXT_PUBLIC_VIBES_SCHEMA_ID
+          ? parseInt(process.env.NEXT_PUBLIC_VIBES_SCHEMA_ID, 10)
+          : 0);
 
       const txHandle =
         await this.vana.permissions.submitAddServerFilesAndPermissions({
           granteeId: BigInt(granteeId),
           grant: grantUrl,
           fileUrls: [fileUrl],
-          schemaIds: [schemaId],
+          schemaIds: [finalSchemaId],
           serverAddress: serverInfo.address as `0x${string}`,
           serverUrl: serverInfo.base_url,
           serverPublicKey: serverInfo.public_key,
@@ -360,8 +364,17 @@ export class DataPortabilityFlow {
     userAddress: string,
     userData: string,
     prompt: string,
+    schemaId?: number | null,
   ): Promise<void> {
     try {
+      // Step 0: Validate data against schema if provided
+      if (schemaId && schemaId > 0) {
+        this.callbacks.onStatusUpdate("Validating data against schema...");
+        const schema = await this.vana.schemas.get(schemaId);
+        validateDataAgainstSchema(JSON.parse(userData), schema);
+        this.callbacks.onStatusUpdate("Data validation successful");
+      }
+
       // Step 1: Encrypt file with wallet signature
       const { encryptedBlob, encryptionKey } = await this.encryptFile(userData);
       this.encryptionKey = encryptionKey;
@@ -374,6 +387,7 @@ export class DataPortabilityFlow {
         fileUrl,
         userAddress,
         prompt,
+        schemaId,
       );
 
       // Step 4: Submit AI inference request

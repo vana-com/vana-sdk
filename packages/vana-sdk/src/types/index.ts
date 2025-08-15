@@ -72,6 +72,8 @@ export type {
   FileSharingConfig,
   BatchUploadParams,
   BatchUploadResult,
+  SchemaMetadata,
+  CompleteSchema,
   Schema,
   Refiner,
   AddSchemaParams,

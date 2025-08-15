@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useVana, isVanaInitialized } from "../providers/vana-provider";
+import type { DataSchema } from "@opendatalabs/vana-sdk/browser";
+import { SchemaValidator } from "@opendatalabs/vana-sdk/browser";
 
 function HomeContent() {
   const { openModal } = useModal();
@@ -28,11 +30,19 @@ function HomeContent() {
   const [result, setResult] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [userData, setUserData] = useState<string>(
-    "Vana is a layer 1 blockchain for user-owned data",
+    JSON.stringify(
+      { message: "Vana is a layer 1 blockchain for user-owned data" },
+      null,
+      2,
+    ),
   );
   const [aiPrompt, setAiPrompt] = useState<string>(
     "Based on this: {{data}}, what is Vana?",
   );
+  const [schema, setSchema] = useState<DataSchema | null>(null);
+  const [schemaId, setSchemaId] = useState<number | null>(null);
+  const [validationError, setValidationError] = useState<string>("");
+  const [validator] = useState(() => new SchemaValidator());
 
   useEffect(() => {
     if (isProcessing) {
@@ -47,6 +57,35 @@ function HomeContent() {
       setStatus("Ready to start data portability flow");
     }
   }, [walletConnected, wallet?.address, googleDriveConnected, isProcessing]);
+
+  // Fetch schema
+  useEffect(() => {
+    if (!isVanaInitialized(vanaContext)) return;
+    const chainId = vanaContext.walletClient.chain?.id;
+    const SCHEMA_IDS: Record<number, number> = { 14800: 19, 1480: 1 };
+    const id = chainId ? SCHEMA_IDS[chainId] : null;
+    if (id) {
+      vanaContext.vana.schemas
+        .get(id)
+        .then((schema) => {
+          setSchema(schema);
+          setSchemaId(id);
+        })
+        .catch(() => {});
+    }
+  }, [vanaContext, vanaContext.walletClient?.chain?.id]);
+
+  // Validate
+  useEffect(() => {
+    if (!schema || !userData) return setValidationError("");
+    try {
+      const parsed = JSON.parse(userData);
+      validator.validateDataAgainstSchema(parsed, schema);
+      setValidationError("");
+    } catch (e) {
+      setValidationError(e instanceof Error ? e.message : "Invalid");
+    }
+  }, [userData, schema, validator]);
 
   const handleWalletModal = () => {
     openModal();
@@ -75,7 +114,12 @@ function HomeContent() {
         },
       );
 
-      await flow.executeCompleteFlow(wallet.address, userData, aiPrompt);
+      await flow.executeCompleteFlow(
+        wallet.address,
+        userData,
+        aiPrompt,
+        schemaId,
+      );
     } catch (error) {
       setStatus(
         `Flow failed: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -141,16 +185,41 @@ function HomeContent() {
           </div>
         )}
 
+        {/* Schema */}
+        {walletConnected &&
+          wallet?.address &&
+          googleDriveConnected &&
+          schema && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <Label className="text-sm font-medium text-blue-900 mb-2 block">
+                Schema (ID: {schemaId})
+              </Label>
+              <pre className="text-xs bg-white p-3 rounded border border-blue-100 overflow-x-auto">
+                {JSON.stringify(schema.schema, null, 2)}
+              </pre>
+            </div>
+          )}
+
         {/* User Data Input */}
         {walletConnected && wallet?.address && googleDriveConnected && (
           <div className="space-y-4">
             <div>
-              <Label
-                htmlFor="userData"
-                className="text-sm font-medium text-gray-700 mb-2 block"
-              >
-                Your Data
-              </Label>
+              <div className="flex items-center justify-between mb-2">
+                <Label
+                  htmlFor="userData"
+                  className="text-sm font-medium text-gray-700"
+                >
+                  Your Data
+                </Label>
+                {schema && validationError && (
+                  <span className="text-xs text-red-600">
+                    ❌ {validationError}
+                  </span>
+                )}
+                {schema && !validationError && userData && (
+                  <span className="text-xs text-green-600">✓ Valid</span>
+                )}
+              </div>
               <Textarea
                 id="userData"
                 value={userData}

@@ -1,5 +1,6 @@
+// THIS FILE IS GENERATED, DO NOT EDIT MANUALLY
+// Run `npm run fetch-abis` to regenerate
 // DataPortabilityPermissions Implementation Contract
-// Generated automatically - do not edit manually
 
 export const DataPortabilityPermissionsABI = [
   {
@@ -153,6 +154,22 @@ export const DataPortabilityPermissionsABI = [
       },
     ],
     name: "InvalidPermissionsLength",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "filesLength",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "schemaIdsLength",
+        type: "uint256",
+      },
+    ],
+    name: "InvalidSchemaIdsLength",
     type: "error",
   },
   {

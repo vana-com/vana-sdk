@@ -1,5 +1,6 @@
+// THIS FILE IS GENERATED, DO NOT EDIT MANUALLY
+// Run `npm run fetch-abis` to regenerate
 // VanaEpoch Implementation Contract
-// Generated automatically - do not edit manually
 
 export const VanaEpochABI = [
   {

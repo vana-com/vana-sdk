@@ -1,5 +1,6 @@
+// THIS FILE IS GENERATED, DO NOT EDIT MANUALLY
+// Run `npm run fetch-abis` to regenerate
 // DataPortabilityServers Implementation Contract
-// Generated automatically - do not edit manually
 
 export const DataPortabilityServersABI = [
   {
@@ -520,7 +521,7 @@ export const DataPortabilityServersABI = [
         type: "tuple",
       },
     ],
-    name: "addAndTrustServerOnBehalf",
+    name: "addAndTrustServerByManager",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -1024,6 +1025,24 @@ export const DataPortabilityServersABI = [
       },
     ],
     name: "trustServer",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "userAddress",
+        type: "address",
+      },
+      {
+        internalType: "uint256",
+        name: "serverId",
+        type: "uint256",
+      },
+    ],
+    name: "trustServerByManager",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",

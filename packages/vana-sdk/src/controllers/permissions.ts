@@ -1732,7 +1732,7 @@ export class PermissionsController {
       const txHash = await this.context.walletClient.writeContract({
         address: DataPortabilityServersAddress,
         abi: DataPortabilityServersAbi,
-        functionName: "addAndTrustServerOnBehalf",
+        functionName: "addAndTrustServerByManager",
         args: [
           userAddress,
           {

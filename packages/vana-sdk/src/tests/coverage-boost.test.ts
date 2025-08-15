@@ -14,7 +14,7 @@ describe("Coverage Boost Tests", () => {
           if (attempts < 2) throw new Error("Temporary failure");
           return "success";
         },
-        { maxAttempts: 3, delayMs: 10 },
+        { maxAttempts: 3, baseDelay: 10 },
       );
 
       expect(result).toBe("success");
@@ -27,7 +27,7 @@ describe("Coverage Boost Tests", () => {
           async () => {
             throw new Error("Permanent failure");
           },
-          { maxAttempts: 2, delayMs: 1 },
+          { maxAttempts: 2, baseDelay: 1 },
         ),
       ).rejects.toThrow("Permanent failure");
     });
@@ -43,7 +43,7 @@ describe("Coverage Boost Tests", () => {
           },
           {
             maxAttempts: 3,
-            delayMs: 1,
+            baseDelay: 1,
             shouldRetry: (error) => !error.message.includes("Non-retryable"),
           },
         ),

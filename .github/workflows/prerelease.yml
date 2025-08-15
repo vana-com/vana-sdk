@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - feature/data-portability-sdk-v1
-      - feature/abi-update-analysis-no-changes-needed
+      - feat/validation
 
 jobs:
   publish-prerelease:

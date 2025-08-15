@@ -171,6 +171,7 @@ export * from "./utils/grants";
 export * from "./utils/ipfs";
 export * from "./utils/schemaValidation";
 export * from "./utils/signatureCache";
+export { TransactionHandle } from "./utils/transactionHandle";
 
 // Storage API
 export * from "./storage";

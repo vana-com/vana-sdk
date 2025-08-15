@@ -1698,11 +1698,11 @@ export class PermissionsController {
    * Adds and trusts a server using a signature (gasless transaction).
    *
    * @param params - Parameters for adding and trusting the server
-   * @returns Promise resolving to transaction hash
+   * @returns Promise resolving to TransactionHandle with ServerTrustResult event data
    */
   async submitAddAndTrustServerWithSignature(
     params: AddAndTrustServerParams,
-  ): Promise<Hash> {
+  ): Promise<TransactionHandle<ServerTrustResult>> {
     try {
       const nonce = await this.getServersUserNonce();
 
@@ -1734,17 +1734,24 @@ export class PermissionsController {
       console.debug("🔍 Generated signature:", signature);
 
       // Submit via relayer callbacks or direct transaction
+      let hash: Hash;
       if (this.context.relayerCallbacks?.submitAddAndTrustServer) {
-        return await this.context.relayerCallbacks.submitAddAndTrustServer(
+        hash = await this.context.relayerCallbacks.submitAddAndTrustServer(
           typedData,
           signature,
         );
       } else {
-        return await this.submitAddAndTrustServerTransaction(
+        hash = await this.submitAddAndTrustServerTransaction(
           addAndTrustServerInput,
           signature,
         );
       }
+
+      return new TransactionHandle<ServerTrustResult>(
+        this.context,
+        hash,
+        "addAndTrustServer",
+      );
     } catch (error) {
       if (error instanceof Error) {
         // Re-throw known Vana errors directly
@@ -2706,7 +2713,7 @@ export class PermissionsController {
    */
   async submitRegisterGranteeWithSignature(
     params: RegisterGranteeParams,
-  ): Promise<Hash> {
+  ): Promise<TransactionHandle<GranteeRegisterResult>> {
     const nonce = await this.getServersUserNonce();
 
     const registerGranteeInput: RegisterGranteeInput = {
@@ -2722,7 +2729,15 @@ export class PermissionsController {
 
     // TODO: Add submitRegisterGrantee to RelayerCallbacks interface
     // For now, always use direct transaction
-    return this.submitSignedRegisterGranteeTransaction(typedData, signature);
+    const hash = await this.submitSignedRegisterGranteeTransaction(
+      typedData,
+      signature,
+    );
+    return new TransactionHandle<GranteeRegisterResult>(
+      this.context,
+      hash,
+      "registerGrantee",
+    );
   }
 
   /**
@@ -4055,7 +4070,7 @@ export class PermissionsController {
    */
   async submitAddPermission(
     params: ServerFilesAndPermissionParams,
-  ): Promise<Hash> {
+  ): Promise<TransactionHandle<PermissionGrantResult>> {
     try {
       const nonce = await this.getPermissionsUserNonce();
 
@@ -4103,7 +4118,7 @@ export class PermissionsController {
    *
    * @param typedData - The EIP-712 typed data for AddPermission
    * @param signature - The user's signature
-   * @returns Promise resolving to the transaction hash
+   * @returns Promise resolving to TransactionHandle with PermissionGrantResult event data
    * @throws {RelayerError} When gasless transaction submission fails
    * @throws {BlockchainError} When permission addition fails
    * @throws {NetworkError} When network communication fails
@@ -4111,20 +4126,27 @@ export class PermissionsController {
   async submitSignedAddPermission(
     typedData: GenericTypedData,
     signature: Hash,
-  ): Promise<Hash> {
+  ): Promise<TransactionHandle<PermissionGrantResult>> {
     try {
       // Use relayer callbacks or direct transaction
+      let hash: Hash;
       if (this.context.relayerCallbacks?.submitAddPermission) {
-        return await this.context.relayerCallbacks.submitAddPermission(
+        hash = await this.context.relayerCallbacks.submitAddPermission(
           typedData,
           signature,
         );
       } else {
-        return await this.submitDirectAddPermissionTransaction(
+        hash = await this.submitDirectAddPermissionTransaction(
           typedData,
           signature,
         );
       }
+
+      return new TransactionHandle<PermissionGrantResult>(
+        this.context,
+        hash,
+        "addServerFilesAndPermissions",
+      );
     } catch (error) {
       // Re-throw known Vana errors directly to preserve error types
       if (

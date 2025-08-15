@@ -4678,6 +4678,7 @@ export class PermissionsController {
       granteeId: typedData.message.granteeId,
       grant: typedData.message.grant,
       fileUrls: typedData.message.fileUrls,
+      schemaIds: typedData.message.schemaIds,
       serverAddress: typedData.message.serverAddress,
       serverUrl: typedData.message.serverUrl,
       serverPublicKey: typedData.message.serverPublicKey,

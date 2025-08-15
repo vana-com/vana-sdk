@@ -1364,6 +1364,7 @@ export class PermissionsController {
    * @param params.granteeId - Grantee ID
    * @param params.grant - Grant URL or grant data
    * @param params.fileUrls - Array of file URLs
+   * @param params.schemaIds - Schema IDs for each file
    * @param params.serverAddress - Server address
    * @param params.serverUrl - Server URL
    * @param params.serverPublicKey - Server public key
@@ -1375,6 +1376,7 @@ export class PermissionsController {
     granteeId: bigint;
     grant: string;
     fileUrls: string[];
+    schemaIds: number[];
     serverAddress: Address;
     serverUrl: string;
     serverPublicKey: string;
@@ -1416,6 +1418,7 @@ export class PermissionsController {
           { name: "granteeId", type: "uint256" },
           { name: "grant", type: "string" },
           { name: "fileUrls", type: "string[]" },
+          { name: "schemaIds", type: "uint256[]" },
           { name: "serverAddress", type: "address" },
           { name: "serverUrl", type: "string" },
           { name: "serverPublicKey", type: "string" },
@@ -1428,6 +1431,7 @@ export class PermissionsController {
         granteeId: params.granteeId,
         grant: params.grant,
         fileUrls: params.fileUrls,
+        schemaIds: params.schemaIds.map((id) => BigInt(id)),
         serverAddress: params.serverAddress,
         serverUrl: params.serverUrl,
         serverPublicKey: params.serverPublicKey,
@@ -4238,6 +4242,7 @@ export class PermissionsController {
         granteeId: params.granteeId,
         grant: params.grant,
         fileUrls: params.fileUrls,
+        schemaIds: params.schemaIds,
         serverAddress: params.serverAddress,
         serverUrl: params.serverUrl,
         serverPublicKey: params.serverPublicKey,
@@ -4324,19 +4329,112 @@ export class PermissionsController {
   }
 
   /**
-   * Submit server files and permissions with signature to the blockchain (supports gasless transactions)
+   * Submits server files and permissions with signature to the blockchain, supporting schema validation and gasless transactions.
+   *
+   * @remarks
+   * This method validates files against their specified schemas before submission.
+   * Schema validation ensures data conforms to expected formats before on-chain registration.
+   * Files with schemaId = 0 bypass validation. The method supports atomic batch operations
+   * where all files and permissions are registered in a single transaction.
    *
    * @param params - Parameters for adding server files and permissions
-   * @returns Promise resolving to transaction hash
-   * @throws {RelayerError} When gasless transaction submission fails
+   * @param params.granteeId - The ID of the permission grantee
+   * @param params.grant - Grant URL containing permission parameters (typically IPFS)
+   * @param params.fileUrls - Array of file URLs to register
+   * @param params.schemaIds - Schema IDs for each file. Use 0 for files without schema validation.
+   *   Array length must match fileUrls length.
+   * @param params.serverAddress - Server wallet address for decryption permissions
+   * @param params.serverUrl - Server endpoint URL
+   * @param params.serverPublicKey - Server's public key for encryption.
+   *   Obtain via `vana.server.getIdentity(userAddress).public_key`.
+   * @param params.filePermissions - Nested array of permissions for each file
+   * @returns TransactionHandle with immediate hash access and event parsing capability
+   * @throws {Error} When schemaIds array length doesn't match fileUrls array length
+   * @throws {SchemaValidationError} When file data doesn't match the specified schema.
+   *   Verify data structure matches schema definition from `vana.schemas.get(schemaId)`.
+   * @throws {RelayerError} When gasless transaction submission fails.
+   *   Retry without relayer configuration to submit direct transaction.
    * @throws {SignatureError} When user rejects the signature request
    * @throws {BlockchainError} When server files and permissions addition fails
-   * @throws {NetworkError} When network communication fails
+   * @throws {NetworkError} When network communication fails.
+   *   Check network connection or configure alternative gateways.
+   *
+   * @example
+   * ```typescript
+   * const result = await vana.permissions.submitAddServerFilesAndPermissions({
+   *   granteeId: BigInt(1),
+   *   grant: "ipfs://QmXxx...",
+   *   fileUrls: ["https://storage.example.com/data.json"],
+   *   schemaIds: [123], // LinkedIn profile schema ID
+   *   serverAddress: "0x742d35Cc6634C0532925a3b844Bc9e7595f0b0Bb",
+   *   serverUrl: "https://server.example.com",
+   *   serverPublicKey: serverInfo.public_key,
+   *   filePermissions: [[{
+   *     account: "0x742d35Cc6634C0532925a3b844Bc9e7595f0b0Bb",
+   *     key: encryptedKey
+   *   }]]
+   * });
+   * const events = await result.waitForEvents();
+   * console.log(`Permission ID: ${events.permissionId}`);
+   * ```
    */
   async submitAddServerFilesAndPermissions(
     params: ServerFilesAndPermissionParams,
   ): Promise<TransactionHandle<PermissionGrantResult>> {
     try {
+      // Validate that schemaIds array has same length as fileUrls
+      if (params.schemaIds.length !== params.fileUrls.length) {
+        throw new Error(
+          `schemaIds array length (${params.schemaIds.length}) must match fileUrls array length (${params.fileUrls.length})`,
+        );
+      }
+
+      // Validate data against schemas if schemas are provided
+      for (let i = 0; i < params.schemaIds.length; i++) {
+        const schemaId = params.schemaIds[i];
+        if (schemaId > 0) {
+          // Fetch and validate against the schema
+          const fileUrl = params.fileUrls[i];
+          try {
+            // Import validation utilities
+            const { fetchSchemaFromChain } = await import(
+              "../utils/blockchain/registry"
+            );
+            const { validateDataAgainstSchema } = await import(
+              "../utils/schemaValidation"
+            );
+
+            // Fetch schema from chain
+            const schema = await fetchSchemaFromChain(this.context, schemaId);
+            const schemaResponse = await fetch(schema.definitionUrl);
+            if (!schemaResponse.ok) {
+              throw new Error(
+                `Failed to fetch schema definition for schema ${schemaId}: ${schemaResponse.status}`,
+              );
+            }
+            const schemaDefinition = await schemaResponse.json();
+
+            // Fetch file data from URL
+            const fileResponse = await fetch(fileUrl);
+            if (!fileResponse.ok) {
+              throw new Error(
+                `Failed to fetch file data from ${fileUrl}: ${fileResponse.status}`,
+              );
+            }
+            const fileData = await fileResponse.json();
+
+            // Validate data against schema
+            validateDataAgainstSchema(fileData, schemaDefinition);
+          } catch (error) {
+            throw new Error(
+              `Schema validation failed for file ${i} (${fileUrl}) against schema ${schemaId}: ${
+                error instanceof Error ? error.message : "Unknown error"
+              }`,
+            );
+          }
+        }
+      }
+
       const nonce = await this.getPermissionsUserNonce();
 
       // Create server files and permission input
@@ -4345,6 +4443,7 @@ export class PermissionsController {
         granteeId: params.granteeId,
         grant: params.grant,
         fileUrls: params.fileUrls,
+        schemaIds: params.schemaIds,
         serverAddress: params.serverAddress,
         serverUrl: params.serverUrl,
         serverPublicKey: params.serverPublicKey,

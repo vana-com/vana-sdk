@@ -917,6 +917,8 @@ export interface ServerFilesAndPermissionParams {
   grant: string;
   /** File URLs */
   fileUrls: string[];
+  /** Schema IDs for each file - use 0 for files without schema validation */
+  schemaIds: number[];
   /** Server address */
   serverAddress: Address;
   /** Server URL */
@@ -943,6 +945,8 @@ export interface ServerFilesAndPermissionTypedData extends GenericTypedData {
     grant: string;
     /** File URLs */
     fileUrls: string[];
+    /** Schema IDs for each file - use 0 for files without schema validation */
+    schemaIds: bigint[];
     /** Server address */
     serverAddress: Address;
     /** Server URL */

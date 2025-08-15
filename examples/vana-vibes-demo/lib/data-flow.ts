@@ -199,6 +199,7 @@ export class DataPortabilityFlow {
           granteeId: BigInt(granteeId),
           grant: grantUrl,
           fileUrls: [fileUrl],
+          schemaIds: [0], // TODO: Add LinkedIn schema ID from environment variable
           serverAddress: serverInfo.address as `0x${string}`,
           serverUrl: serverInfo.base_url,
           serverPublicKey: serverInfo.public_key,

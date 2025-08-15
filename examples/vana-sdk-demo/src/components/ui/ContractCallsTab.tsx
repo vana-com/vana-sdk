@@ -195,6 +195,7 @@ export const ContractCallsTab: React.FC<ContractCallsTabProps> = ({
         granteeId: BigInt(serverGranteeId),
         grant: serverGrant,
         fileUrls: validUrls,
+        schemaIds: validUrls.map(() => 0), // No schema validation for demo
         serverAddress: serverAddress as Address,
         serverUrl: serverUrl,
         serverPublicKey: serverPublicKey,

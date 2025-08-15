@@ -511,6 +511,11 @@ export const DataPortabilityPermissionsABI = [
             type: "string[]",
           },
           {
+            internalType: "uint256[]",
+            name: "schemaIds",
+            type: "uint256[]",
+          },
+          {
             internalType: "address",
             name: "serverAddress",
             type: "address",

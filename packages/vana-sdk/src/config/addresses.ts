@@ -1,6 +1,37 @@
 // Single source of truth for all contract addresses
 // Contract-centric structure: contracts contain chain addresses
 
+/**
+ * Registry of all Vana protocol smart contract addresses organized by contract name and chain ID.
+ *
+ * @remarks
+ * This registry provides the canonical mapping of contract names to their deployed addresses
+ * across all supported Vana networks. Each contract entry contains an `addresses` object
+ * with chain ID keys mapped to the deployed contract address on that network.
+ *
+ * **Structure:**
+ * - Contract names are the top-level keys (e.g., "DataRegistry", "DataPortabilityPermissions")
+ * - Each contract contains an `addresses` object with chain ID → address mappings
+ * - Chain IDs: 14800 (Vana Mainnet), 1480 (Moksha Testnet)
+ *
+ * **Usage:**
+ * Access contract addresses via `getContractAddress(chainId, contractName)` rather than
+ * directly accessing this object to ensure proper error handling and validation.
+ *
+ * @example
+ * ```typescript
+ * // Get DataRegistry address for mainnet
+ * const address = getContractAddress(14800, "DataRegistry");
+ *
+ * // Available contracts include:
+ * // - DataRegistry: User file registration and metadata
+ * // - DataPortabilityPermissions: Gasless permission grants
+ * // - DataPortabilityServers: Trusted server registry
+ * // - DataPortabilityGrantees: Application registry
+ * // Plus many more protocol contracts
+ * ```
+ * @category Configuration
+ */
 export const CONTRACTS = {
   // Data Portability Contracts (New Architecture)
   DataPortabilityPermissions: {
@@ -210,6 +241,34 @@ export const CONTRACTS = {
 } as const;
 
 // Legacy/Deprecated Contracts (backwards compatibility)
+/**
+ * Registry of deprecated Vana protocol contracts maintained for backwards compatibility.
+ *
+ * @remarks
+ * This registry contains contract addresses for older versions of the Vana protocol
+ * that have been superseded by newer implementations. These contracts are maintained
+ * for backwards compatibility with existing applications but should not be used in
+ * new development.
+ *
+ * **Migration Path:**
+ * - `TeePool` → Use specific pool types (TeePoolPhala, TeePoolDedicatedGpu, etc.)
+ * - Other deprecated contracts → Check the main CONTRACTS registry for current versions
+ *
+ * **Usage:**
+ * Access legacy contract addresses via `getContractAddress(chainId, contractName)` which
+ * checks both current and legacy registries automatically.
+ *
+ * @deprecated Use the main CONTRACTS registry for new development
+ * @example
+ * ```typescript
+ * // Legacy usage (still supported for backwards compatibility)
+ * const oldPoolAddress = getContractAddress(14800, "TeePool");
+ *
+ * // Recommended for new development
+ * const newPoolAddress = getContractAddress(14800, "TeePoolPhala");
+ * ```
+ * @category Configuration
+ */
 export const LEGACY_CONTRACTS = {
   // DEPRECATED: Original Intel SGX TeePool (PRO-347)
   TeePool: {
@@ -300,21 +359,53 @@ export const LEGACY_ADDRESSES = {
 import type { VanaContract } from "../generated/abi";
 
 /**
- * Retrieves the deployed contract address for a specific contract on a given chain.
+ * Retrieves the deployed contract address for a specific Vana protocol contract on a given chain.
  *
- * @param chainId - The chain ID to look up the contract on
- * @param contract - The contract name to get the address for
- * @returns The contract address as a hex string
- * @throws {Error} When contract address not found for the specified contract and chain
+ * @remarks
+ * This function provides type-safe access to contract addresses across all supported Vana networks.
+ * It automatically searches both current and legacy contract registries to ensure backwards
+ * compatibility while providing clear error messages for unsupported combinations.
+ *
+ * The function validates that both the chain ID and contract name are supported before
+ * attempting address lookup, helping developers identify deployment or configuration issues
+ * early in the development process.
+ *
+ * **Supported Chains:**
+ * - 14800: Vana Mainnet
+ * - 1480: Moksha Testnet
+ *
+ * **Contract Categories:**
+ * - Data Management: DataRegistry, DataRefinerRegistry
+ * - Permissions: DataPortabilityPermissions, DataPortabilityServers, DataPortabilityGrantees
+ * - Computing: TeePoolPhala, TeePoolDedicatedGpu, etc.
+ * - Token & Governance: DATImplementation, VanaPoolStaking, etc.
+ *
+ * @param chainId - The chain ID to look up the contract on (14800 for mainnet, 1480 for testnet)
+ * @param contract - The contract name to get the address for (use TypeScript autocomplete for available options)
+ * @returns The contract address as a checksummed hex string (0x...)
+ * @throws {Error} When contract address not found for the specified contract and chain combination.
+ *   This typically indicates the contract is not deployed on the requested network.
  * @example
  * ```typescript
+ * // Get core protocol contract addresses
+ * const dataRegistry = getContractAddress(14800, 'DataRegistry');
+ * const permissions = getContractAddress(14800, 'DataPortabilityPermissions');
+ * const trustedServers = getContractAddress(14800, 'DataPortabilityServers');
+ *
+ * // Handle unsupported combinations gracefully
  * try {
- *   const dataRegistryAddress = getContractAddress(1480, 'DataRegistry');
- *   console.log('DataRegistry address:', dataRegistryAddress);
+ *   const address = getContractAddress(1480, 'DataRegistry');
+ *   console.log('DataRegistry testnet address:', address);
  * } catch (error) {
- *   console.error('Contract not deployed on this chain:', error.message);
+ *   console.error('Contract not available on testnet:', error.message);
+ *   // Fallback to mainnet or show user-friendly error
  * }
+ *
+ * // TypeScript provides autocomplete for contract names
+ * const poolAddress = getContractAddress(14800, 'TeePoolPhala'); // ✅ Valid
+ * // const invalid = getContractAddress(14800, 'InvalidContract'); // ❌ TypeScript error
  * ```
+ * @category Configuration
  */
 export const getContractAddress = (
   chainId: keyof typeof CONTRACT_ADDRESSES,

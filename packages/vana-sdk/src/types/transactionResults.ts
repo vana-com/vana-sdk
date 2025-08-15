@@ -59,6 +59,43 @@ export interface ServerUntrustResult extends BaseTransactionResult {
   serverId: Address;
 }
 
+/**
+ * Result of a successful server registration operation.
+ * Contains data from the ServerRegistered blockchain event.
+ */
+export interface ServerRegisterResult extends BaseTransactionResult {
+  /** Unique server ID assigned by the registry */
+  serverId: bigint;
+  /** URL of the registered server */
+  url: string;
+  /** Owner address of the server */
+  owner: Address;
+}
+
+/**
+ * Result of a successful server update operation.
+ * Contains data from the ServerUpdated blockchain event.
+ */
+export interface ServerUpdateResult extends BaseTransactionResult {
+  /** ID of the server that was updated */
+  serverId: bigint;
+  /** New URL of the server */
+  url: string;
+}
+
+/**
+ * Result of a successful grantee registration operation.
+ * Contains data from the GranteeRegistered blockchain event.
+ */
+export interface GranteeRegisterResult extends BaseTransactionResult {
+  /** Unique grantee ID assigned by the registry */
+  granteeId: bigint;
+  /** Address of the registered grantee */
+  granteeAddress: Address;
+  /** Display name of the grantee */
+  name: string;
+}
+
 // =============================================================================
 // DATA REGISTRY OPERATIONS
 // =============================================================================
@@ -149,6 +186,9 @@ export type AnyTransactionResult =
   | PermissionRevokeResult
   | ServerTrustResult
   | ServerUntrustResult
+  | ServerRegisterResult
+  | ServerUpdateResult
+  | GranteeRegisterResult
   | FileAddedResult
   | SchemaAddedResult
   | RefinerAddedResult
@@ -166,10 +206,22 @@ export type AnyTransactionResult =
 export interface TransactionResultMap {
   grant: PermissionGrantResult;
   revoke: PermissionRevokeResult;
+  revokePermission: PermissionRevokeResult;
+  addServerFilesAndPermissions: PermissionGrantResult;
   trustServer: ServerTrustResult;
   untrustServer: ServerUntrustResult;
+  registerServer: ServerRegisterResult;
+  updateServer: ServerUpdateResult;
+  addAndTrustServer: ServerTrustResult;
+  registerGrantee: GranteeRegisterResult;
   addFile: FileAddedResult;
+  addFileWithPermissionsAndSchema: FileAddedResult;
+  addFileWithSchema: FileAddedResult;
+  addFileWithPermissions: FileAddedResult;
   addRefinement: RefinerAddedResult;
+  addRefiner: RefinerAddedResult;
+  updateSchemaId: SchemaUpdateResult;
+  addSchema: SchemaAddedResult;
   updateRefinement: SchemaUpdateResult;
   addFilePermission: FilePermissionResult;
 }

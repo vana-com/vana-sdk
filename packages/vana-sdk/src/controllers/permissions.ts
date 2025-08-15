@@ -39,8 +39,12 @@ import {
 import {
   PermissionGrantResult,
   PermissionRevokeResult,
+  ServerTrustResult,
+  ServerUntrustResult,
+  ServerUpdateResult,
+  GranteeRegisterResult,
 } from "../types/transactionResults";
-import { parseTransactionResult } from "../utils/transactionParsing";
+import { TransactionHandle } from "../utils/transactionHandle";
 import { PermissionInfo } from "../types/permissions";
 import type { RelayerCallbacks } from "../types/config";
 import {
@@ -207,35 +211,38 @@ export class PermissionsController {
    * ```
    */
   async grant(params: GrantPermissionParams): Promise<PermissionGrantResult> {
-    const txHash = await this.submitPermissionGrant(params);
-    return parseTransactionResult(this.context, txHash, "grant");
+    const txHandle = await this.submitPermissionGrant(params);
+    return await txHandle.waitForEvents();
   }
 
   /**
-   * Submits a permission grant transaction and returns the transaction hash immediately.
+   * Submits a permission grant transaction and returns a handle for flexible result access.
    *
-   * This is the lower-level method that provides maximum control over transaction timing.
-   * Use this when you want to handle transaction confirmation and event parsing separately,
-   * or when submitting multiple transactions in batch.
+   * @remarks
+   * This lower-level method provides maximum control over transaction timing.
+   * Returns a TransactionHandle that allows immediate hash access or optional event parsing.
+   * Use this when handling multiple transactions or when you need granular control.
    *
    * @param params - The permission grant configuration object
-   * @returns Promise that resolves to the transaction hash when successfully submitted
+   * @returns Promise resolving to TransactionHandle with hash and event parsing capabilities
    * @throws {RelayerError} When gasless transaction submission fails
    * @throws {SignatureError} When user rejects the signature request
    * @throws {SerializationError} When grant data cannot be serialized
    * @throws {BlockchainError} When permission grant preparation fails
    * @example
    * ```typescript
-   * // Submit transaction and handle confirmation later
-   * const txHash = await vana.permissions.submitPermissionGrant(params);
-   * console.log(`Transaction submitted: ${txHash}`);
+   * // Submit transaction and get immediate hash access
+   * const tx = await vana.permissions.submitPermissionGrant(params);
+   * console.log(`Transaction submitted: ${tx.hash}`);
    *
-   * // Later, when you need the permission data:
-   * const result = await parseTransactionResult(context, txHash, 'grant');
-   * console.log(`Permission ID: ${result.permissionId}`);
+   * // Optionally wait for and parse events
+   * const eventData = await tx.waitForEvents();
+   * console.log(`Permission ID: ${eventData.permissionId}`);
    * ```
    */
-  async submitPermissionGrant(params: GrantPermissionParams): Promise<Hash> {
+  async submitPermissionGrant(
+    params: GrantPermissionParams,
+  ): Promise<TransactionHandle<PermissionGrantResult>> {
     const { typedData, signature } = await this.createAndSign(params);
     return await this.submitSignedGrant(typedData, signature);
   }
@@ -267,7 +274,7 @@ export class PermissionsController {
    */
   async prepareGrant(params: GrantPermissionParams): Promise<{
     preview: GrantFile;
-    confirm: () => Promise<Hash>;
+    confirm: () => Promise<TransactionHandle<PermissionGrantResult>>;
   }> {
     try {
       // Step 1: Create grant file in memory (no IPFS upload yet)
@@ -279,7 +286,9 @@ export class PermissionsController {
       // Step 3: Return preview and confirm function
       return {
         preview: grantFile,
-        confirm: async (): Promise<Hash> => {
+        confirm: async (): Promise<
+          TransactionHandle<PermissionGrantResult>
+        > => {
           // Phase 2: Now we upload, sign, and submit
           return await this.confirmGrantInternal(params, grantFile);
         },
@@ -310,17 +319,23 @@ export class PermissionsController {
   }
 
   /**
-   * Internal method to complete the grant process after user confirmation.
-   * This is called by the confirm() function returned from prepareGrant().
+   * Completes the grant process after user confirmation.
+   *
+   * @remarks
+   * This internal method is called by the confirm() function returned from prepareGrant().
+   * It handles IPFS upload, signature creation, and transaction submission.
    *
    * @param params - The permission grant parameters containing user and operation details
    * @param grantFile - The prepared grant file with permissions and metadata
-   * @returns Promise resolving to the transaction hash
+   * @returns Promise resolving to TransactionHandle for flexible result access
+   * @throws {BlockchainError} When permission grant confirmation fails
+   * @throws {NetworkError} When IPFS upload fails
+   * @throws {SignatureError} When user rejects the signature
    */
   private async confirmGrantInternal(
     params: GrantPermissionParams,
     grantFile: GrantFile,
-  ): Promise<Hash> {
+  ): Promise<TransactionHandle<PermissionGrantResult>> {
     try {
       // Step 1: Use provided grantUrl or store grant file in IPFS
       let grantUrl = params.grantUrl;
@@ -554,7 +569,7 @@ export class PermissionsController {
   async submitSignedGrant(
     typedData: PermissionGrantTypedData,
     signature: Hash,
-  ): Promise<Hash> {
+  ): Promise<TransactionHandle<PermissionGrantResult>> {
     try {
       console.debug(
         "🔍 Debug - submitSignedGrant called with typed data:",
@@ -567,14 +582,20 @@ export class PermissionsController {
       );
 
       // Use relayer callbacks or direct transaction
+      let hash: Hash;
       if (this.context.relayerCallbacks?.submitPermissionGrant) {
-        return await this.context.relayerCallbacks.submitPermissionGrant(
+        hash = await this.context.relayerCallbacks.submitPermissionGrant(
           typedData,
           signature,
         );
       } else {
-        return await this.submitDirectTransaction(typedData, signature);
+        hash = await this.submitDirectTransaction(typedData, signature);
       }
+      return new TransactionHandle<PermissionGrantResult>(
+        this.context,
+        hash,
+        "grant",
+      );
     } catch (error) {
       // Re-throw known Vana errors directly to preserve error types
       if (
@@ -595,25 +616,43 @@ export class PermissionsController {
 
   /**
    * Submits an already-signed trust server transaction to the blockchain.
+   *
+   * @remarks
    * This method extracts the trust server input from typed data and submits it directly.
+   * Used internally by trust server methods after signature collection.
    *
    * @param typedData - The EIP-712 typed data for TrustServer
-   * @param signature - The user's signature
-   * @returns Promise resolving to the transaction hash
+   * @param signature - The user's signature obtained via `signTypedData()`
+   * @returns Promise resolving to TransactionHandle for transaction tracking
+   * @throws {BlockchainError} When contract submission fails
+   * @throws {NetworkError} When blockchain communication fails
+   * @example
+   * ```typescript
+   * const txHandle = await vana.permissions.submitSignedTrustServer(
+   *   typedData,
+   *   "0x1234..."
+   * );
+   * const result = await txHandle.waitForEvents();
+   * ```
    */
   async submitSignedTrustServer(
     typedData: TrustServerTypedData,
     signature: Hash,
-  ): Promise<Hash> {
+  ): Promise<TransactionHandle<ServerTrustResult>> {
     try {
       const trustServerInput: TrustServerInput = {
         nonce: BigInt(typedData.message.nonce),
         serverId: typedData.message.serverId,
       };
 
-      return await this.submitTrustServerTransaction(
+      const hash = await this.submitTrustServerTransaction(
         trustServerInput,
         signature,
+      );
+      return new TransactionHandle<ServerTrustResult>(
+        this.context,
+        hash,
+        "trustServer",
       );
     } catch (error) {
       // Re-throw known Vana errors directly to preserve error types
@@ -655,16 +694,29 @@ export class PermissionsController {
 
   /**
    * Submits an already-signed add and trust server transaction to the blockchain.
+   *
+   * @remarks
    * This method extracts the add and trust server input from typed data and submits it directly.
+   * Combines server registration and trust operations in a single transaction.
    *
    * @param typedData - The EIP-712 typed data for AddAndTrustServer
-   * @param signature - The user's signature
-   * @returns Promise resolving to the transaction hash
+   * @param signature - The user's signature obtained via `signTypedData()`
+   * @returns Promise resolving to TransactionHandle for transaction tracking
+   * @throws {BlockchainError} When contract submission fails
+   * @throws {NetworkError} When blockchain communication fails
+   * @example
+   * ```typescript
+   * const txHandle = await vana.permissions.submitSignedAddAndTrustServer(
+   *   typedData,
+   *   "0x1234..."
+   * );
+   * const result = await txHandle.waitForEvents();
+   * ```
    */
   async submitSignedAddAndTrustServer(
     typedData: AddAndTrustServerTypedData,
     signature: Hash,
-  ): Promise<Hash> {
+  ): Promise<TransactionHandle<ServerTrustResult>> {
     try {
       const addAndTrustServerInput: AddAndTrustServerInput = {
         nonce: BigInt(typedData.message.nonce),
@@ -673,9 +725,14 @@ export class PermissionsController {
         publicKey: typedData.message.publicKey,
       };
 
-      return await this.submitAddAndTrustServerTransaction(
+      const hash = await this.submitAddAndTrustServerTransaction(
         addAndTrustServerInput,
         signature,
+      );
+      return new TransactionHandle<ServerTrustResult>(
+        this.context,
+        hash,
+        "addAndTrustServer",
       );
     } catch (error) {
       // Re-throw known Vana errors directly to preserve error types
@@ -698,26 +755,45 @@ export class PermissionsController {
 
   /**
    * Submits an already-signed permission revoke transaction to the blockchain.
+   *
+   * @remarks
    * This method handles the revocation of previously granted permissions.
+   * Used internally by revocation methods after signature collection.
    *
    * @param typedData - The EIP-712 typed data for PermissionRevoke
-   * @param signature - The user's signature
-   * @returns Promise resolving to the transaction hash
+   * @param signature - The user's signature obtained via `signTypedData()`
+   * @returns Promise resolving to TransactionHandle for transaction tracking
+   * @throws {BlockchainError} When contract submission fails
+   * @throws {NetworkError} When blockchain communication fails
+   * @example
+   * ```typescript
+   * const txHandle = await vana.permissions.submitSignedRevoke(
+   *   typedData,
+   *   "0x1234..."
+   * );
+   * const result = await txHandle.waitForEvents();
+   * ```
    */
   async submitSignedRevoke(
     typedData: GenericTypedData,
     signature: Hash,
-  ): Promise<Hash> {
+  ): Promise<TransactionHandle<PermissionRevokeResult>> {
     try {
       // Use relayer callbacks or direct transaction
+      let hash: Hash;
       if (this.context.relayerCallbacks?.submitPermissionRevoke) {
-        return await this.context.relayerCallbacks.submitPermissionRevoke(
+        hash = await this.context.relayerCallbacks.submitPermissionRevoke(
           typedData,
           signature,
         );
       } else {
-        return await this.submitDirectRevokeTransaction(typedData, signature);
+        hash = await this.submitDirectRevokeTransaction(typedData, signature);
       }
+      return new TransactionHandle<PermissionRevokeResult>(
+        this.context,
+        hash,
+        "revoke",
+      );
     } catch (error) {
       if (
         error instanceof RelayerError ||
@@ -737,26 +813,45 @@ export class PermissionsController {
 
   /**
    * Submits an already-signed untrust server transaction to the blockchain.
+   *
+   * @remarks
    * This method handles the removal of trusted servers.
+   * Used internally by untrust server methods after signature collection.
    *
    * @param typedData - The EIP-712 typed data for UntrustServer
-   * @param signature - The user's signature
-   * @returns Promise resolving to the transaction hash
+   * @param signature - The user's signature obtained via `signTypedData()`
+   * @returns Promise resolving to TransactionHandle for transaction tracking
+   * @throws {BlockchainError} When contract submission fails
+   * @throws {NetworkError} When blockchain communication fails
+   * @example
+   * ```typescript
+   * const txHandle = await vana.permissions.submitSignedUntrustServer(
+   *   typedData,
+   *   "0x1234..."
+   * );
+   * const result = await txHandle.waitForEvents();
+   * ```
    */
   async submitSignedUntrustServer(
     typedData: GenericTypedData,
     signature: Hash,
-  ): Promise<Hash> {
+  ): Promise<TransactionHandle<ServerUntrustResult>> {
     try {
       // Use relayer callbacks or direct transaction
+      let hash: Hash;
       if (this.context.relayerCallbacks?.submitUntrustServer) {
-        return await this.context.relayerCallbacks.submitUntrustServer(
+        hash = await this.context.relayerCallbacks.submitUntrustServer(
           typedData as UntrustServerTypedData,
           signature,
         );
       } else {
-        return await this.submitSignedUntrustTransaction(typedData, signature);
+        hash = await this.submitSignedUntrustTransaction(typedData, signature);
       }
+      return new TransactionHandle<ServerUntrustResult>(
+        this.context,
+        hash,
+        "untrustServer",
+      );
     } catch (error) {
       if (
         error instanceof RelayerError ||
@@ -777,9 +872,14 @@ export class PermissionsController {
   /**
    * Submits a signed transaction directly to the blockchain.
    *
+   * @remarks
+   * Internal method used when relayer callbacks are not available. Formats the signature
+   * and submits the permission grant directly to the smart contract.
+   *
    * @param typedData - The typed data structure for the permission grant
    * @param signature - The cryptographic signature authorizing the transaction
    * @returns Promise resolving to the transaction hash
+   * @throws {BlockchainError} When contract submission fails
    */
   private async submitDirectTransaction(
     typedData: PermissionGrantTypedData,
@@ -855,8 +955,8 @@ export class PermissionsController {
   async revoke(
     params: RevokePermissionParams,
   ): Promise<PermissionRevokeResult> {
-    const txHash = await this.submitPermissionRevoke(params);
-    return parseTransactionResult(this.context, txHash, "revoke");
+    const txHandle = await this.submitPermissionRevoke(params);
+    return await txHandle.waitForEvents();
   }
 
   /**
@@ -878,7 +978,9 @@ export class PermissionsController {
    * console.log(`Revocation submitted: ${txHash}`);
    * ```
    */
-  async submitPermissionRevoke(params: RevokePermissionParams): Promise<Hash> {
+  async submitPermissionRevoke(
+    params: RevokePermissionParams,
+  ): Promise<TransactionHandle<PermissionRevokeResult>> {
     try {
       // Check chain ID availability early
       if (!this.context.walletClient.chain?.id) {
@@ -905,7 +1007,11 @@ export class PermissionsController {
         chain: this.context.walletClient.chain || null,
       });
 
-      return txHash;
+      return new TransactionHandle<PermissionRevokeResult>(
+        this.context,
+        txHash,
+        "revoke",
+      );
     } catch (error) {
       if (error instanceof Error) {
         // Re-throw known Vana errors directly
@@ -929,19 +1035,33 @@ export class PermissionsController {
   }
 
   /**
-   * Revokes a permission with a signature (gasless transaction).
+   * Revokes a permission with a signature for gasless transactions.
+   *
+   * @remarks
+   * This method creates an EIP-712 signature for permission revocation and submits
+   * it either through relayer callbacks or directly to the blockchain. Provides
+   * gasless revocation when relayer is configured.
    *
    * @param params - Parameters for revoking the permission
-   * @returns Promise resolving to transaction hash
+   * @param params.permissionId - Permission identifier to revoke (accepts bigint, number, or string)
+   * @returns Promise resolving to TransactionHandle for transaction tracking
    * @throws {BlockchainError} When chain ID is not available
    * @throws {NonceError} When retrieving user nonce fails
    * @throws {SignatureError} When user rejects the signature request
    * @throws {RelayerError} When gasless submission fails
    * @throws {PermissionError} When revocation fails for any other reason
+   * @example
+   * ```typescript
+   * const txHandle = await vana.permissions.submitRevokeWithSignature({
+   *   permissionId: 123n
+   * });
+   * const result = await txHandle.waitForEvents();
+   * console.log(`Permission ${result.permissionId} revoked`);
+   * ```
    */
   async submitRevokeWithSignature(
     params: RevokePermissionParams,
-  ): Promise<Hash> {
+  ): Promise<TransactionHandle<PermissionRevokeResult>> {
     try {
       // Check chain ID availability early
       if (!this.context.walletClient.chain?.id) {
@@ -972,14 +1092,21 @@ export class PermissionsController {
       const signature = await this.signTypedData(typedData);
 
       // Submit via relayer callbacks or directly
+      let hash: Hash;
       if (this.context.relayerCallbacks?.submitPermissionRevoke) {
-        return await this.context.relayerCallbacks.submitPermissionRevoke(
+        hash = await this.context.relayerCallbacks.submitPermissionRevoke(
           typedData,
           signature,
         );
       } else {
-        return await this.submitDirectRevokeTransaction(typedData, signature);
+        hash = await this.submitDirectRevokeTransaction(typedData, signature);
       }
+
+      return new TransactionHandle<PermissionRevokeResult>(
+        this.context,
+        hash,
+        "revoke",
+      );
     } catch (error) {
       throw new PermissionError(
         `Failed to revoke permission with signature: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -1011,6 +1138,18 @@ export class PermissionsController {
    * const permissionsNonce = await this.getPermissionsUserNonce();
    * const serversNonce = await this.getServersUserNonce();
    * ```
+   */
+  /**
+   * @deprecated Use getPermissionsUserNonce() for permission operations or getServersUserNonce() for server operations
+   *
+   * Retrieves the user's current nonce from the DataPortabilityServers contract.
+   *
+   * @remarks
+   * This method is deprecated in favor of more specific nonce methods that target
+   * the appropriate contract for the operation being performed.
+   *
+   * @returns Promise resolving to the user's current nonce as a bigint
+   * @throws {NonceError} When retrieving the nonce fails
    */
   private async getUserNonce(): Promise<bigint> {
     try {
@@ -1052,6 +1191,16 @@ export class PermissionsController {
    * console.log(`Current servers nonce: ${nonce}`);
    * ```
    */
+  /**
+   * Retrieves the user's current nonce from the DataPortabilityServers contract.
+   *
+   * @remarks
+   * Used for server-related operations (trust/untrust) to prevent replay attacks.
+   * The nonce must be incremented with each server operation.
+   *
+   * @returns Promise resolving to the user's current nonce as a bigint
+   * @throws {NonceError} When retrieving the nonce fails
+   */
   private async getServersUserNonce(): Promise<bigint> {
     try {
       const userAddress = await this.getUserAddress();
@@ -1091,6 +1240,16 @@ export class PermissionsController {
    * const nonce = await this.getPermissionsUserNonce();
    * console.log(`Current permissions nonce: ${nonce}`);
    * ```
+   */
+  /**
+   * Retrieves the user's current nonce from the DataPortabilityPermissions contract.
+   *
+   * @remarks
+   * Used for permission-related operations (grant/revoke) to prevent replay attacks.
+   * The nonce must be incremented with each permission operation.
+   *
+   * @returns Promise resolving to the user's current nonce as a bigint
+   * @throws {NonceError} When retrieving the nonce fails
    */
   private async getPermissionsUserNonce(): Promise<bigint> {
     try {
@@ -1551,7 +1710,9 @@ export class PermissionsController {
    * console.log('Now trusting servers:', trustedServers);
    * ```
    */
-  async addAndTrustServer(params: AddAndTrustServerParams): Promise<Hash> {
+  async addAndTrustServer(
+    params: AddAndTrustServerParams,
+  ): Promise<TransactionHandle<ServerTrustResult>> {
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
@@ -1581,7 +1742,11 @@ export class PermissionsController {
         chain: this.context.walletClient.chain || null,
       });
 
-      return txHash;
+      return new TransactionHandle<ServerTrustResult>(
+        this.context,
+        txHash,
+        "addAndTrustServer",
+      );
     } catch (error) {
       if (error instanceof Error && error.message.includes("rejected")) {
         throw new UserRejectedRequestError();
@@ -1600,7 +1765,9 @@ export class PermissionsController {
    * @returns Promise resolving to transaction hash
    * @deprecated Use addAndTrustServer instead
    */
-  async submitTrustServer(params: TrustServerParams): Promise<Hash> {
+  async submitTrustServer(
+    params: TrustServerParams,
+  ): Promise<TransactionHandle<ServerTrustResult>> {
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
@@ -1620,7 +1787,11 @@ export class PermissionsController {
         chain: this.context.walletClient.chain || null,
       });
 
-      return txHash;
+      return new TransactionHandle<ServerTrustResult>(
+        this.context,
+        txHash,
+        "trustServer",
+      );
     } catch (error) {
       if (error instanceof Error && error.message.includes("rejected")) {
         throw new UserRejectedRequestError();
@@ -1636,11 +1807,11 @@ export class PermissionsController {
    * Adds and trusts a server using a signature (gasless transaction).
    *
    * @param params - Parameters for adding and trusting the server
-   * @returns Promise resolving to transaction hash
+   * @returns Promise resolving to TransactionHandle with ServerTrustResult event data
    */
   async submitAddAndTrustServerWithSignature(
     params: AddAndTrustServerParams,
-  ): Promise<Hash> {
+  ): Promise<TransactionHandle<ServerTrustResult>> {
     try {
       const nonce = await this.getServersUserNonce();
 
@@ -1672,17 +1843,24 @@ export class PermissionsController {
       console.debug("🔍 Generated signature:", signature);
 
       // Submit via relayer callbacks or direct transaction
+      let hash: Hash;
       if (this.context.relayerCallbacks?.submitAddAndTrustServer) {
-        return await this.context.relayerCallbacks.submitAddAndTrustServer(
+        hash = await this.context.relayerCallbacks.submitAddAndTrustServer(
           typedData,
           signature,
         );
       } else {
-        return await this.submitAddAndTrustServerTransaction(
+        hash = await this.submitAddAndTrustServerTransaction(
           addAndTrustServerInput,
           signature,
         );
       }
+
+      return new TransactionHandle<ServerTrustResult>(
+        this.context,
+        hash,
+        "addAndTrustServer",
+      );
     } catch (error) {
       if (error instanceof Error) {
         // Re-throw known Vana errors directly
@@ -1722,7 +1900,7 @@ export class PermissionsController {
    */
   async submitTrustServerWithSignature(
     params: TrustServerParams,
-  ): Promise<Hash> {
+  ): Promise<TransactionHandle<ServerTrustResult>> {
     try {
       const nonce = await this.getServersUserNonce();
 
@@ -1739,17 +1917,24 @@ export class PermissionsController {
       const signature = await this.signTypedData(typedData);
 
       // Submit via relayer callbacks or direct transaction
+      let hash: Hash;
       if (this.context.relayerCallbacks?.submitTrustServer) {
-        return await this.context.relayerCallbacks.submitTrustServer(
+        hash = await this.context.relayerCallbacks.submitTrustServer(
           typedData,
           signature,
         );
       } else {
-        return await this.submitTrustServerTransaction(
+        hash = await this.submitTrustServerTransaction(
           trustServerInput,
           signature,
         );
       }
+
+      return new TransactionHandle<ServerTrustResult>(
+        this.context,
+        hash,
+        "trustServer",
+      );
     } catch (error) {
       if (error instanceof Error) {
         // Re-throw known Vana errors directly
@@ -1778,9 +1963,20 @@ export class PermissionsController {
    * @param params - The untrust server parameters containing server details
    * @returns Promise resolving to the transaction hash
    */
+  /**
+   * Submits an untrust server transaction directly to the blockchain.
+   *
+   * @remarks
+   * Internal method used for direct blockchain submission of untrust server operations
+   * when relayer callbacks are not available.
+   *
+   * @param params - The untrust server parameters
+   * @returns Promise resolving to TransactionHandle for transaction tracking
+   * @throws {BlockchainError} When contract submission fails
+   */
   private async submitDirectUntrustTransaction(
     params: UntrustServerInput,
-  ): Promise<Hash> {
+  ): Promise<TransactionHandle<ServerUntrustResult>> {
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
@@ -1800,7 +1996,11 @@ export class PermissionsController {
         chain: this.context.walletClient.chain || null,
       });
 
-      return txHash;
+      return new TransactionHandle<ServerUntrustResult>(
+        this.context,
+        txHash,
+        "untrustServer",
+      );
     } catch (error) {
       if (error instanceof Error && error.message.includes("rejected")) {
         throw new UserRejectedRequestError();
@@ -1840,7 +2040,9 @@ export class PermissionsController {
    * console.log('Still trusting servers:', trustedServers);
    * ```
    */
-  async submitUntrustServer(params: UntrustServerParams): Promise<Hash> {
+  async submitUntrustServer(
+    params: UntrustServerParams,
+  ): Promise<TransactionHandle<ServerUntrustResult>> {
     // Convert UntrustServerParams to UntrustServerInput by adding nonce
     const nonce = await this.getServersUserNonce();
     const untrustServerInput: UntrustServerInput = {
@@ -1865,7 +2067,7 @@ export class PermissionsController {
    */
   async submitUntrustServerWithSignature(
     params: UntrustServerParams,
-  ): Promise<Hash> {
+  ): Promise<TransactionHandle<ServerUntrustResult>> {
     try {
       const nonce = await this.getServersUserNonce();
 
@@ -1883,14 +2085,21 @@ export class PermissionsController {
       const signature = await this.signTypedData(typedData);
 
       // Submit via relayer callbacks or direct transaction
+      let hash: Hash;
       if (this.context.relayerCallbacks?.submitUntrustServer) {
-        return await this.context.relayerCallbacks.submitUntrustServer(
+        hash = await this.context.relayerCallbacks.submitUntrustServer(
           typedData,
           signature,
         );
       } else {
-        return await this.submitSignedUntrustTransaction(typedData, signature);
+        hash = await this.submitSignedUntrustTransaction(typedData, signature);
       }
+
+      return new TransactionHandle<ServerUntrustResult>(
+        this.context,
+        hash,
+        "untrustServer",
+      );
     } catch (error) {
       if (error instanceof Error) {
         // Re-throw known Vana errors directly
@@ -2168,9 +2377,28 @@ export class PermissionsController {
   /**
    * Gets server information for multiple servers efficiently.
    *
-   * @param serverIds - Array of server IDs to query
-   * @returns Promise resolving to batch result with successes and failures
+   * @remarks
+   * This method uses multicall to fetch information for multiple servers in a single
+   * blockchain call, improving performance when querying many servers. Failed lookups
+   * are returned separately for error handling.
+   *
+   * @param serverIds - Array of numeric server IDs to query
+   * @returns Promise resolving to batch result containing successful lookups and failed IDs
    * @throws {BlockchainError} When reading from contract fails or chain is unavailable
+   * @example
+   * ```typescript
+   * const result = await vana.permissions.getServerInfoBatch([1, 2, 3, 999]);
+   *
+   * // Process successful lookups
+   * result.servers.forEach((server, id) => {
+   *   console.log(`Server ${id}: ${server.url}`);
+   * });
+   *
+   * // Handle failed lookups
+   * if (result.failed.length > 0) {
+   *   console.log(`Failed to fetch: ${result.failed.join(', ')}`);
+   * }
+   * ```
    */
   async getServerInfoBatch(
     serverIds: number[],
@@ -2261,9 +2489,24 @@ export class PermissionsController {
   /**
    * Checks whether a specific server is trusted by a user.
    *
-   * @param serverId - Server ID to check (numeric)
+   * @remarks
+   * This method queries the user's trusted server list and checks if the specified
+   * server is present. Returns both the trust status and the index in the trust list
+   * if trusted.
+   *
+   * @param serverId - Numeric server ID to check
    * @param userAddress - Optional user address (defaults to current user)
-   * @returns Promise resolving to server trust status
+   * @returns Promise resolving to server trust status with trust index if applicable
+   * @throws {BlockchainError} When reading from contract fails
+   * @example
+   * ```typescript
+   * const status = await vana.permissions.checkServerTrustStatus(1);
+   * if (status.isTrusted) {
+   *   console.log(`Server is trusted at index ${status.trustIndex}`);
+   * } else {
+   *   console.log('Server is not trusted');
+   * }
+   * ```
    */
   async checkServerTrustStatus(
     serverId: number,
@@ -2292,6 +2535,10 @@ export class PermissionsController {
 
   /**
    * Composes EIP-712 typed data for AddAndTrustServer.
+   *
+   * @remarks
+   * Creates the complete typed data structure required for EIP-712 signature generation
+   * when adding and trusting a new server in a single transaction.
    *
    * @param input - The add and trust server input data containing server details
    * @returns Promise resolving to the typed data structure for server add and trust
@@ -2580,7 +2827,9 @@ export class PermissionsController {
    * console.log(`Grantee registered in transaction: ${txHash}`);
    * ```
    */
-  async submitRegisterGrantee(params: RegisterGranteeParams): Promise<Hash> {
+  async submitRegisterGrantee(
+    params: RegisterGranteeParams,
+  ): Promise<TransactionHandle<GranteeRegisterResult>> {
     const chainId = await this.context.walletClient.getChainId();
     const DataPortabilityGranteesAddress = getContractAddress(
       chainId,
@@ -2598,7 +2847,11 @@ export class PermissionsController {
       chain: this.context.walletClient.chain || null,
     });
 
-    return txHash;
+    return new TransactionHandle<GranteeRegisterResult>(
+      this.context,
+      txHash,
+      "registerGrantee",
+    );
   }
 
   /**
@@ -2618,7 +2871,7 @@ export class PermissionsController {
    */
   async submitRegisterGranteeWithSignature(
     params: RegisterGranteeParams,
-  ): Promise<Hash> {
+  ): Promise<TransactionHandle<GranteeRegisterResult>> {
     const nonce = await this.getServersUserNonce();
 
     const registerGranteeInput: RegisterGranteeInput = {
@@ -2634,7 +2887,15 @@ export class PermissionsController {
 
     // TODO: Add submitRegisterGrantee to RelayerCallbacks interface
     // For now, always use direct transaction
-    return this.submitSignedRegisterGranteeTransaction(typedData, signature);
+    const hash = await this.submitSignedRegisterGranteeTransaction(
+      typedData,
+      signature,
+    );
+    return new TransactionHandle<GranteeRegisterResult>(
+      this.context,
+      hash,
+      "registerGrantee",
+    );
   }
 
   /**
@@ -2652,8 +2913,16 @@ export class PermissionsController {
   async submitSignedRegisterGrantee(
     typedData: RegisterGranteeTypedData,
     signature: Hash,
-  ): Promise<Hash> {
-    return this.submitSignedRegisterGranteeTransaction(typedData, signature);
+  ): Promise<TransactionHandle<GranteeRegisterResult>> {
+    const hash = await this.submitSignedRegisterGranteeTransaction(
+      typedData,
+      signature,
+    );
+    return new TransactionHandle<GranteeRegisterResult>(
+      this.context,
+      hash,
+      "registerGrantee",
+    );
   }
 
   /**
@@ -3766,7 +4035,10 @@ export class PermissionsController {
    * @param url - New URL for the server
    * @returns Promise resolving to transaction hash
    */
-  async submitUpdateServer(serverId: bigint, url: string): Promise<Hash> {
+  async submitUpdateServer(
+    serverId: bigint,
+    url: string,
+  ): Promise<TransactionHandle<ServerUpdateResult>> {
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
@@ -3784,7 +4056,11 @@ export class PermissionsController {
         account: this.context.walletClient.account || null,
       });
 
-      return hash;
+      return new TransactionHandle<ServerUpdateResult>(
+        this.context,
+        hash,
+        "updateServer",
+      );
     } catch (error) {
       throw new BlockchainError(
         `Failed to update server: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -3952,7 +4228,7 @@ export class PermissionsController {
    */
   async submitAddPermission(
     params: ServerFilesAndPermissionParams,
-  ): Promise<Hash> {
+  ): Promise<TransactionHandle<PermissionGrantResult>> {
     try {
       const nonce = await this.getPermissionsUserNonce();
 
@@ -4000,7 +4276,7 @@ export class PermissionsController {
    *
    * @param typedData - The EIP-712 typed data for AddPermission
    * @param signature - The user's signature
-   * @returns Promise resolving to the transaction hash
+   * @returns Promise resolving to TransactionHandle with PermissionGrantResult event data
    * @throws {RelayerError} When gasless transaction submission fails
    * @throws {BlockchainError} When permission addition fails
    * @throws {NetworkError} When network communication fails
@@ -4008,20 +4284,27 @@ export class PermissionsController {
   async submitSignedAddPermission(
     typedData: GenericTypedData,
     signature: Hash,
-  ): Promise<Hash> {
+  ): Promise<TransactionHandle<PermissionGrantResult>> {
     try {
       // Use relayer callbacks or direct transaction
+      let hash: Hash;
       if (this.context.relayerCallbacks?.submitAddPermission) {
-        return await this.context.relayerCallbacks.submitAddPermission(
+        hash = await this.context.relayerCallbacks.submitAddPermission(
           typedData,
           signature,
         );
       } else {
-        return await this.submitDirectAddPermissionTransaction(
+        hash = await this.submitDirectAddPermissionTransaction(
           typedData,
           signature,
         );
       }
+
+      return new TransactionHandle<PermissionGrantResult>(
+        this.context,
+        hash,
+        "addServerFilesAndPermissions",
+      );
     } catch (error) {
       // Re-throw known Vana errors directly to preserve error types
       if (
@@ -4052,7 +4335,7 @@ export class PermissionsController {
    */
   async submitAddServerFilesAndPermissions(
     params: ServerFilesAndPermissionParams,
-  ): Promise<Hash> {
+  ): Promise<TransactionHandle<PermissionGrantResult>> {
     try {
       const nonce = await this.getPermissionsUserNonce();
 
@@ -4100,19 +4383,36 @@ export class PermissionsController {
 
   /**
    * Submits an already-signed add server files and permissions transaction to the blockchain.
-   * This method supports both relayer-based gasless transactions and direct transactions.
+   *
+   * @remarks
+   * This method returns a TransactionHandle that provides immediate access to the transaction hash
+   * while allowing lazy-loaded access to parsed event data. Use `waitForEvents()` to retrieve
+   * the permission ID and other event details after transaction confirmation.
    *
    * @param typedData - The EIP-712 typed data for AddServerFilesAndPermissions
    * @param signature - The user's signature
-   * @returns Promise resolving to the transaction hash
+   * @returns TransactionHandle with immediate hash access and optional event parsing
    * @throws {RelayerError} When gasless transaction submission fails
    * @throws {BlockchainError} When server files and permissions addition fails
    * @throws {NetworkError} When network communication fails
+   *
+   * @example
+   * ```typescript
+   * const tx = await vana.permissions.submitSignedAddServerFilesAndPermissions(
+   *   typedData,
+   *   signature
+   * );
+   * console.log(`Transaction submitted: ${tx.hash}`);
+   *
+   * // Wait for confirmation and get the permission ID
+   * const { permissionId } = await tx.waitForEvents();
+   * console.log(`Permission created with ID: ${permissionId}`);
+   * ```
    */
   async submitSignedAddServerFilesAndPermissions(
     typedData: ServerFilesAndPermissionTypedData,
     signature: Hash,
-  ): Promise<Hash> {
+  ): Promise<TransactionHandle<PermissionGrantResult>> {
     try {
       // Debug logging to understand relayer callback availability
       console.debug("🔍 submitSignedAddServerFilesAndPermissions Debug Info:", {
@@ -4129,17 +4429,29 @@ export class PermissionsController {
         console.debug(
           "🚀 Using relayer for submitAddServerFilesAndPermissions",
         );
-        return await this.context.relayerCallbacks.submitAddServerFilesAndPermissions(
-          typedData,
-          signature,
+        const hash =
+          await this.context.relayerCallbacks.submitAddServerFilesAndPermissions(
+            typedData,
+            signature,
+          );
+        return new TransactionHandle<PermissionGrantResult>(
+          this.context,
+          hash,
+          "addServerFilesAndPermissions",
         );
       } else {
         console.debug(
           "📝 Using direct transaction for submitAddServerFilesAndPermissions",
         );
-        return await this.submitDirectAddServerFilesAndPermissionsTransaction(
-          typedData,
-          signature,
+        const hash =
+          await this.submitDirectAddServerFilesAndPermissionsTransaction(
+            typedData,
+            signature,
+          );
+        return new TransactionHandle<PermissionGrantResult>(
+          this.context,
+          hash,
+          "addServerFilesAndPermissions",
         );
       }
     } catch (error) {
@@ -4166,7 +4478,9 @@ export class PermissionsController {
    * @param permissionId - Permission ID to revoke
    * @returns Promise resolving to transaction hash
    */
-  async submitRevokePermission(permissionId: bigint): Promise<Hash> {
+  async submitRevokePermission(
+    permissionId: bigint,
+  ): Promise<TransactionHandle<PermissionRevokeResult>> {
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityPermissionsAddress = getContractAddress(
@@ -4186,7 +4500,11 @@ export class PermissionsController {
         account: this.context.walletClient.account || null,
       });
 
-      return hash;
+      return new TransactionHandle<PermissionRevokeResult>(
+        this.context,
+        hash,
+        "revokePermission",
+      );
     } catch (error) {
       throw new BlockchainError(
         `Failed to revoke permission: ${error instanceof Error ? error.message : "Unknown error"}`,

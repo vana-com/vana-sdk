@@ -237,6 +237,7 @@ export {
 // Server-side utilities
 export { handleRelayerRequest } from "./server/handler";
 export type { RelayerRequestPayload } from "./server/handler";
+export { TransactionHandle } from "./utils/transactionHandle";
 
 // Platform adapters
 export { NodePlatformAdapter } from "./platform/node";

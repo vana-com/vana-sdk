@@ -36,17 +36,17 @@ export async function POST(request: NextRequest) {
 
     // Use the new unified relayer handler
     const vana = await createRelayerVana();
-    const txHash = await handleRelayerRequest(vana, {
+    const txHandle = await handleRelayerRequest(vana, {
       typedData,
       signature,
       expectedUserAddress: expectedUserAddress as `0x${string}` | undefined,
     });
 
-    console.info("✅ Transaction relayed successfully:", txHash);
+    console.info("✅ Transaction relayed successfully:", txHandle.hash);
 
     return NextResponse.json({
       success: true,
-      transactionHash: txHash,
+      transactionHash: txHandle.hash,
     });
   } catch (error) {
     console.error("❌ Error relaying transaction:", error);

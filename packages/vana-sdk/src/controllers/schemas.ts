@@ -1,4 +1,6 @@
-import { Address, decodeEventLog } from "viem";
+import { Address } from "viem";
+import { TransactionHandle } from "../utils/transactionHandle";
+import { SchemaAddedResult } from "../types/transactionResults";
 import { Schema, AddSchemaParams, AddSchemaResult } from "../types/index";
 import { ControllerContext } from "./permissions";
 import { getContractAddress } from "../config/addresses";
@@ -220,35 +222,17 @@ export class SchemaController {
         chain: this.context.walletClient.chain || null,
       });
 
-      // Wait for transaction receipt to parse the SchemaAdded event
-      const receipt = await this.context.publicClient.waitForTransactionReceipt(
-        {
-          hash: txHash,
-          timeout: 30_000, // 30 seconds timeout
-        },
+      // Use TransactionHandle to wait for and parse events
+      const txHandle = new TransactionHandle<SchemaAddedResult>(
+        this.context,
+        txHash,
+        "addSchema",
       );
 
-      // Parse the SchemaAdded event to get the actual schemaId
-      let schemaId = 0;
-      for (const log of receipt.logs) {
-        try {
-          const decoded = decodeEventLog({
-            abi: dataRefinerRegistryAbi,
-            data: log.data,
-            topics: log.topics,
-          });
-
-          if (decoded.eventName === "SchemaAdded") {
-            schemaId = Number(decoded.args.schemaId);
-            break;
-          }
-        } catch {
-          // Skip logs that can't be decoded
-        }
-      }
+      const result = await txHandle.waitForEvents();
 
       return {
-        schemaId,
+        schemaId: Number(result.schemaId),
         definitionUrl: uploadResult.url,
         transactionHash: txHash,
       };

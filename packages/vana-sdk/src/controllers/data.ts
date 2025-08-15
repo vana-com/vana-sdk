@@ -1,4 +1,4 @@
-import { Address, getContract, decodeEventLog, Hash } from "viem";
+import { Address, getContract, Hash } from "viem";
 import { fetchSchemaFromChain } from "../utils/blockchain/registry";
 import { StorageUploadResult } from "../types/storage";
 
@@ -17,8 +17,12 @@ import {
   EncryptedUploadParams,
   UnencryptedUploadParams,
 } from "../types/index";
-import { FilePermissionResult } from "../types/transactionResults";
-import { parseTransactionResult } from "../utils/transactionParsing";
+import {
+  FilePermissionResult,
+  FileAddedResult,
+  RefinerAddedResult,
+} from "../types/transactionResults";
+import { TransactionHandle } from "../utils/transactionHandle";
 import { ControllerContext } from "./permissions";
 import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../generated/abi";
@@ -1448,12 +1452,25 @@ export class DataController {
   /**
    * Registers a file URL directly on the blockchain with a schema ID.
    *
-   * @param url - The URL of the file to register
+   * @remarks
+   * This method registers an existing file URL on the DataRegistry contract
+   * with a schema ID, without uploading any data. Useful when you have already
+   * uploaded content to storage and just need to register it on-chain.
+   *
+   * @param url - The URL of the file to register (IPFS or HTTP/HTTPS)
    * @param schemaId - The schema ID to associate with the file
    * @returns Promise resolving to the file ID and transaction hash
-   *
-   * This method registers an existing file URL on the DataRegistry
-   * contract with a schema ID, without uploading any data.
+   * @throws {Error} When chain ID is not available - "Chain ID not available"
+   * @throws {Error} When wallet address is unavailable - "No addresses available"
+   * @throws {Error} When transaction fails - "Failed to register file with schema"
+   * @example
+   * ```typescript
+   * const { fileId, transactionHash } = await vana.data.registerFileWithSchema(
+   *   "ipfs://QmXxx...",
+   *   1
+   * );
+   * console.log(`File ${fileId} registered with schema in tx ${transactionHash}`);
+   * ```
    */
   async registerFileWithSchema(
     url: string,
@@ -1478,35 +1495,17 @@ export class DataController {
         chain: this.context.walletClient.chain || null,
       });
 
-      // Wait for transaction receipt to parse the FileAdded event
-      const receipt = await this.context.publicClient.waitForTransactionReceipt(
-        {
-          hash: txHash,
-          timeout: 30_000,
-        },
+      // Use TransactionHandle to wait for and parse events
+      const txHandle = new TransactionHandle<FileAddedResult>(
+        this.context,
+        txHash,
+        "addFileWithSchema",
       );
 
-      // Parse the FileAdded event to get the actual fileId
-      let fileId = 0;
-      for (const log of receipt.logs) {
-        try {
-          const decoded = decodeEventLog({
-            abi: dataRegistryAbi,
-            data: log.data,
-            topics: log.topics,
-          });
-
-          if (decoded.eventName === "FileAdded") {
-            fileId = Number(decoded.args.fileId);
-            break;
-          }
-        } catch {
-          continue;
-        }
-      }
+      const result = await txHandle.waitForEvents();
 
       return {
-        fileId,
+        fileId: Number(result.fileId),
         transactionHash: txHash,
       };
     } catch (error) {
@@ -1574,36 +1573,17 @@ export class DataController {
         chain: this.context.walletClient.chain || null,
       });
 
-      // Wait for transaction receipt to parse the FileAdded event
-      const receipt = await this.context.publicClient.waitForTransactionReceipt(
-        {
-          hash: txHash,
-          timeout: 30_000, // 30 seconds timeout
-        },
+      // Use TransactionHandle to wait for and parse events
+      const txHandle = new TransactionHandle<FileAddedResult>(
+        this.context,
+        txHash,
+        "addFileWithPermissions",
       );
 
-      // Parse the FileAdded event to get the actual fileId
-      let fileId = 0;
-      for (const log of receipt.logs) {
-        try {
-          const decoded = decodeEventLog({
-            abi: dataRegistryAbi,
-            data: log.data,
-            topics: log.topics,
-          });
-
-          if (decoded.eventName === "FileAdded") {
-            fileId = Number(decoded.args.fileId);
-            break;
-          }
-        } catch {
-          // Ignore logs that don't match our ABI
-          continue;
-        }
-      }
+      const result = await txHandle.waitForEvents();
 
       return {
-        fileId: fileId,
+        fileId: Number(result.fileId),
         transactionHash: txHash,
       };
     } catch (error) {
@@ -1656,36 +1636,17 @@ export class DataController {
         chain: this.context.walletClient.chain || null,
       });
 
-      // Wait for transaction receipt to parse the FileAdded event
-      const receipt = await this.context.publicClient.waitForTransactionReceipt(
-        {
-          hash: txHash,
-          timeout: 30_000, // 30 seconds timeout
-        },
+      // Use TransactionHandle to wait for and parse events
+      const txHandle = new TransactionHandle<FileAddedResult>(
+        this.context,
+        txHash,
+        "addFileWithPermissionsAndSchema",
       );
 
-      // Parse the FileAdded event to get the actual fileId
-      let fileId = 0;
-      for (const log of receipt.logs) {
-        try {
-          const decoded = decodeEventLog({
-            abi: dataRegistryAbi,
-            data: log.data,
-            topics: log.topics,
-          });
-
-          if (decoded.eventName === "FileAdded") {
-            fileId = Number(decoded.args.fileId);
-            break;
-          }
-        } catch {
-          // Ignore logs that don't match our ABI
-          continue;
-        }
-      }
+      const result = await txHandle.waitForEvents();
 
       return {
-        fileId: fileId,
+        fileId: Number(result.fileId),
         transactionHash: txHash,
       };
     } catch (error) {
@@ -1699,8 +1660,30 @@ export class DataController {
   /**
    * Adds a new refiner to the DataRefinerRegistry.
    *
-   * @param params - Refiner parameters including DLP ID, name, schema ID, and instruction URL
+   * @remarks
+   * Refiners are data processing templates that define how raw data should be
+   * transformed into structured formats. Each refiner is associated with a DLP
+   * (Data Liquidity Pool), has a specific schema for output, and includes
+   * instructions for the refinement process.
+   *
+   * @param params - Refiner configuration parameters
+   * @param params.dlpId - The Data Liquidity Pool ID this refiner belongs to
+   * @param params.name - Human-readable name for the refiner
+   * @param params.schemaId - Schema ID that defines the output format
+   * @param params.refinementInstructionUrl - URL containing processing instructions
    * @returns Promise resolving to the new refiner ID and transaction hash
+   * @throws {Error} When chain ID is not available - "Chain ID not available"
+   * @throws {Error} When transaction fails - "Failed to add refiner: {error}"
+   * @example
+   * ```typescript
+   * const result = await vana.data.addRefiner({
+   *   dlpId: 1,
+   *   name: "Social Media Sentiment Analyzer",
+   *   schemaId: 42,
+   *   refinementInstructionUrl: "ipfs://QmXxx..."
+   * });
+   * console.log(`Created refiner ${result.refinerId} in tx ${result.transactionHash}`);
+   * ```
    */
   async addRefiner(params: AddRefinerParams): Promise<AddRefinerResult> {
     try {
@@ -1730,33 +1713,17 @@ export class DataController {
         chain: this.context.walletClient.chain || null,
       });
 
-      const receipt = await this.context.publicClient.waitForTransactionReceipt(
-        {
-          hash: txHash,
-          timeout: 30_000,
-        },
+      // Use TransactionHandle to wait for and parse events
+      const txHandle = new TransactionHandle<RefinerAddedResult>(
+        this.context,
+        txHash,
+        "addRefiner",
       );
 
-      let refinerId = 0;
-      for (const log of receipt.logs) {
-        try {
-          const decoded = decodeEventLog({
-            abi: dataRefinerRegistryAbi,
-            data: log.data,
-            topics: log.topics,
-          });
-
-          if (decoded.eventName === "RefinerAdded") {
-            refinerId = Number(decoded.args.refinerId);
-            break;
-          }
-        } catch {
-          continue;
-        }
-      }
+      const result = await txHandle.waitForEvents();
 
       return {
-        refinerId,
+        refinerId: Number(result.refinerId),
         transactionHash: txHash,
       };
     } catch (error) {
@@ -1770,8 +1737,25 @@ export class DataController {
   /**
    * Retrieves a refiner by its ID.
    *
-   * @param refinerId - The refiner ID to retrieve
-   * @returns Promise resolving to the refiner information
+   * @remarks
+   * Queries the DataRefinerRegistry contract to get complete information about
+   * a specific refiner including its DLP association, schema, and instructions.
+   *
+   * @param refinerId - The numeric refiner ID to retrieve
+   * @returns Promise resolving to the refiner information object
+   * @throws {Error} When chain ID is not available - "Chain ID not available"
+   * @throws {Error} When refiner doesn't exist - "Refiner with ID {refinerId} does not exist"
+   * @throws {Error} When contract read fails - "Failed to fetch refiner: {error}"
+   * @example
+   * ```typescript
+   * const refiner = await vana.data.getRefiner(1);
+   * console.log({
+   *   name: refiner.name,
+   *   dlp: refiner.dlpId,
+   *   schema: refiner.schemaId,
+   *   instructions: refiner.refinementInstructionUrl
+   * });
+   * ```
    */
   async getRefiner(refinerId: number): Promise<Refiner> {
     try {
@@ -1819,8 +1803,21 @@ export class DataController {
   /**
    * Validates if a schema ID exists in the registry.
    *
-   * @param schemaId - The schema ID to validate
-   * @returns Promise resolving to boolean indicating if the schema ID is valid
+   * @remarks
+   * Checks the DataRefinerRegistry contract to determine if a given schema ID
+   * has been registered and is available for use.
+   *
+   * @param schemaId - The numeric schema ID to validate
+   * @returns Promise resolving to true if schema exists, false otherwise
+   * @example
+   * ```typescript
+   * const isValid = await vana.data.isValidSchemaId(42);
+   * if (isValid) {
+   *   console.log('Schema 42 is available for use');
+   * } else {
+   *   console.log('Schema 42 does not exist');
+   * }
+   * ```
    */
   async isValidSchemaId(schemaId: number): Promise<boolean> {
     try {
@@ -1854,7 +1851,16 @@ export class DataController {
   /**
    * Gets the total number of refiners in the registry.
    *
+   * @remarks
+   * Queries the DataRefinerRegistry contract to get the total count of all
+   * registered refiners across all DLPs.
+   *
    * @returns Promise resolving to the total refiner count
+   * @example
+   * ```typescript
+   * const count = await vana.data.getRefinersCount();
+   * console.log(`Total refiners registered: ${count}`);
+   * ```
    */
   async getRefinersCount(): Promise<number> {
     try {
@@ -1886,8 +1892,24 @@ export class DataController {
   /**
    * Updates the schema ID for an existing refiner.
    *
-   * @param params - Parameters including refiner ID and new schema ID
+   * @remarks
+   * Allows the owner of a refiner to update its associated schema ID.
+   * This is useful when refiner output format needs to change.
+   *
+   * @param params - Update parameters
+   * @param params.refinerId - The refiner ID to update
+   * @param params.newSchemaId - The new schema ID to set
    * @returns Promise resolving to the transaction hash
+   * @throws {Error} When chain ID is not available - "Chain ID not available"
+   * @throws {Error} When transaction fails - "Failed to update schema ID: {error}"
+   * @example
+   * ```typescript
+   * const result = await vana.data.updateSchemaId({
+   *   refinerId: 1,
+   *   newSchemaId: 55
+   * });
+   * console.log(`Schema updated in tx ${result.transactionHash}`);
+   * ```
    */
   async updateSchemaId(
     params: UpdateSchemaIdParams,
@@ -2135,9 +2157,8 @@ export class DataController {
     fileId: number,
     account: Address,
     publicKey: string,
-  ): Promise<FilePermissionResult> {
-    const txHash = await this.submitFilePermission(fileId, account, publicKey);
-    return parseTransactionResult(this.context, txHash, "addFilePermission");
+  ): Promise<TransactionHandle<FilePermissionResult>> {
+    return await this.submitFilePermission(fileId, account, publicKey);
   }
 
   /**
@@ -2160,7 +2181,7 @@ export class DataController {
     fileId: number,
     account: Address,
     publicKey: string,
-  ): Promise<Hash> {
+  ): Promise<TransactionHandle<FilePermissionResult>> {
     try {
       // 1. Generate user's encryption key
       const userEncryptionKey = await generateEncryptionKey(
@@ -2195,7 +2216,11 @@ export class DataController {
         chain: this.context.walletClient.chain || null,
       });
 
-      return txHash;
+      return new TransactionHandle<FilePermissionResult>(
+        this.context,
+        txHash,
+        "addFilePermission",
+      );
     } catch (error) {
       console.error("Failed to add permission to file:", error);
       throw new Error(

@@ -156,7 +156,7 @@ describe("New PermissionsController Methods", () => {
       const result =
         await controllerWithRelayer.submitRevokeWithSignature(params);
 
-      expect(result).toBe(
+      expect(result.hash).toBe(
         "0xhash123456789012345678901234567890123456789012345678901234567890",
       );
 
@@ -228,7 +228,7 @@ describe("New PermissionsController Methods", () => {
 
       const result = await directController.submitRevokeWithSignature(params);
 
-      expect(result).toBe(
+      expect(result.hash).toBe(
         "0xhash123456789012345678901234567890123456789012345678901234567890",
       );
     });

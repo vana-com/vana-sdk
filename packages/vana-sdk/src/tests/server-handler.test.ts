@@ -23,12 +23,24 @@ describe("handleRelayerRequest", () => {
 
   beforeEach(() => {
     // Mock Vana SDK instance
+    const mockTxHandle = {
+      hash: mockTxHash,
+      waitForEvents: vi.fn(),
+      waitForReceipt: vi.fn(),
+      toString: () => mockTxHash,
+    };
+
     mockVana = {
       permissions: {
-        submitSignedGrant: vi.fn().mockResolvedValue(mockTxHash),
-        submitSignedRevoke: vi.fn().mockResolvedValue(mockTxHash),
-        submitSignedTrustServer: vi.fn().mockResolvedValue(mockTxHash),
-        submitSignedUntrustServer: vi.fn().mockResolvedValue(mockTxHash),
+        submitSignedGrant: vi.fn().mockResolvedValue(mockTxHandle),
+        submitSignedRevoke: vi.fn().mockResolvedValue(mockTxHandle),
+        submitSignedTrustServer: vi.fn().mockResolvedValue(mockTxHandle),
+        submitSignedUntrustServer: vi.fn().mockResolvedValue(mockTxHandle),
+        submitSignedAddAndTrustServer: vi.fn().mockResolvedValue(mockTxHandle),
+        submitSignedRegisterGrantee: vi.fn().mockResolvedValue(mockTxHandle),
+        submitSignedAddServerFilesAndPermissions: vi
+          .fn()
+          .mockResolvedValue(mockTxHandle),
       },
     } as unknown as VanaInstance;
 
@@ -61,7 +73,7 @@ describe("handleRelayerRequest", () => {
         expectedUserAddress: mockUserAddress,
       });
 
-      expect(result).toBe(mockTxHash);
+      expect(result.hash).toBe(mockTxHash);
       expect(recoverTypedDataAddress).toHaveBeenCalledWith({
         domain: mockTypedData.domain,
         types: mockTypedData.types,
@@ -109,7 +121,7 @@ describe("handleRelayerRequest", () => {
         // No expectedUserAddress provided
       });
 
-      expect(result).toBe(mockTxHash);
+      expect(result.hash).toBe(mockTxHash);
     });
   });
 

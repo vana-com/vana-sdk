@@ -9,6 +9,24 @@ import type {
   ServerFilesAndPermissionTypedData,
 } from "../types";
 import { SignatureError } from "../errors";
+import { TransactionHandle } from "../utils/transactionHandle";
+import type {
+  PermissionGrantResult,
+  PermissionRevokeResult,
+  ServerTrustResult,
+  ServerUntrustResult,
+  GranteeRegisterResult,
+  FileAddedResult,
+} from "../types/transactionResults";
+
+/** Union type of all possible transaction results from relayer operations */
+type RelayerTransactionResult =
+  | PermissionGrantResult
+  | PermissionRevokeResult
+  | ServerTrustResult
+  | ServerUntrustResult
+  | GranteeRegisterResult
+  | FileAddedResult;
 
 /**
  * Payload structure for relayer requests.
@@ -32,7 +50,7 @@ export interface RelayerRequestPayload {
  * 1. Verifies the signature against the typed data
  * 2. Optionally checks the signer matches the expected user address
  * 3. Routes to the appropriate SDK method based on primaryType
- * 4. Returns the resulting transaction hash
+ * 4. Returns the transaction handle with hash and event parsing capability
  *
  * Supported transaction types:
  * - Permission: Permission grants
@@ -45,7 +63,7 @@ export interface RelayerRequestPayload {
  *
  * @param sdk - Initialized Vana SDK instance
  * @param payload - Request payload containing typed data, signature, and optional security check
- * @returns Promise resolving to the transaction hash
+ * @returns Promise resolving to TransactionHandle with hash and event parsing capability
  * @throws {SignatureError} When signature verification fails or signer mismatch occurs
  * @throws {Error} When primaryType is unsupported or SDK operations fail
  * @category Server
@@ -59,15 +77,24 @@ export interface RelayerRequestPayload {
  *     const body = await request.json();
  *     const vana = await createRelayerVana();
  *
- *     const txHash = await handleRelayerRequest(vana, {
+ *     const tx = await handleRelayerRequest(vana, {
  *       typedData: body.typedData,
  *       signature: body.signature,
  *       expectedUserAddress: body.expectedUserAddress
  *     });
  *
+ *     // Option 1: Return just the hash immediately
  *     return NextResponse.json({
  *       success: true,
- *       transactionHash: txHash
+ *       transactionHash: tx.hash
+ *     });
+ *
+ *     // Option 2: Wait for transaction confirmation and return event data
+ *     const eventData = await tx.waitForEvents();
+ *     return NextResponse.json({
+ *       success: true,
+ *       transactionHash: tx.hash,
+ *       ...eventData // Include parsed event data like permissionId, fileId, etc.
  *     });
  *   } catch (error) {
  *     return NextResponse.json({
@@ -81,7 +108,7 @@ export interface RelayerRequestPayload {
 export async function handleRelayerRequest(
   sdk: VanaInstance,
   payload: RelayerRequestPayload,
-): Promise<Hash> {
+): Promise<TransactionHandle<RelayerTransactionResult>> {
   const { typedData, signature, expectedUserAddress } = payload;
 
   console.debug({
@@ -120,45 +147,46 @@ export async function handleRelayerRequest(
   }
 
   // Step 3: Route to appropriate SDK method based on primaryType
+  // Route to appropriate SDK method and return TransactionHandle directly
   switch (typedData.primaryType) {
     case "Permission":
-      return await sdk.permissions.submitSignedGrant(
+      return sdk.permissions.submitSignedGrant(
         typedData as unknown as PermissionGrantTypedData,
         signature,
       );
 
     case "PermissionRevoke":
-      return await sdk.permissions.submitSignedRevoke(
+      return sdk.permissions.submitSignedRevoke(
         typedData as unknown as GenericTypedData,
         signature,
       );
 
     case "TrustServer":
-      return await sdk.permissions.submitSignedTrustServer(
+      return sdk.permissions.submitSignedTrustServer(
         typedData as unknown as TrustServerTypedData,
         signature,
       );
 
     case "AddServer":
-      return await sdk.permissions.submitSignedAddAndTrustServer(
+      return sdk.permissions.submitSignedAddAndTrustServer(
         typedData as unknown as AddAndTrustServerTypedData,
         signature,
       );
 
     case "UntrustServer":
-      return await sdk.permissions.submitSignedUntrustServer(
+      return sdk.permissions.submitSignedUntrustServer(
         typedData as unknown as GenericTypedData,
         signature,
       );
 
     case "RegisterGrantee":
-      return await sdk.permissions.submitSignedRegisterGrantee(
+      return sdk.permissions.submitSignedRegisterGrantee(
         typedData as unknown as RegisterGranteeTypedData,
         signature,
       );
 
     case "ServerFilesAndPermission":
-      return await sdk.permissions.submitSignedAddServerFilesAndPermissions(
+      return sdk.permissions.submitSignedAddServerFilesAndPermissions(
         typedData as unknown as ServerFilesAndPermissionTypedData,
         signature,
       );

@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { createClient, createWalletClient, defaultFromBlock } from "../client";
+import {
+  createClient,
+  createWalletClient,
+  defaultFromBlocks,
+  getDefaultFromBlock,
+} from "../client";
 import { chains, mokshaTestnet } from "../../config/chains";
 import { privateKeyToAccount } from "viem/accounts";
 
@@ -10,9 +15,16 @@ describe("client", () => {
     (clientModule as unknown as { _client?: unknown })._client = undefined;
   });
 
-  describe("defaultFromBlock", () => {
-    it("should export the correct default block number", () => {
-      expect(defaultFromBlock).toBe(BigInt(292220));
+  describe("defaultFromBlocks", () => {
+    it("should export the correct default block numbers per chain", () => {
+      expect(defaultFromBlocks[14800]).toBe(BigInt(732312)); // Moksha
+      expect(defaultFromBlocks[1480]).toBe(BigInt(758584)); // Mainnet
+    });
+
+    it("should get correct default from block for each chain", () => {
+      expect(getDefaultFromBlock(14800)).toBe(BigInt(732312)); // Moksha
+      expect(getDefaultFromBlock(1480)).toBe(BigInt(758584)); // Mainnet
+      expect(getDefaultFromBlock(999999)).toBe(BigInt(0)); // Unknown chain
     });
   });
 

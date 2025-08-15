@@ -26,11 +26,15 @@ export async function POST(request: NextRequest) {
 
     const vana = getApiVanaInstance();
 
-    const transactionHash = await handleRelayerRequest(vana, {
+    const txHandle = await handleRelayerRequest(vana, {
       typedData,
       signature,
       expectedUserAddress: expectedUserAddress as `0x${string}` | undefined,
     });
+
+    // TransactionHandle provides both immediate hash access and event data
+    // The .hash property gives us the transaction hash directly
+    const transactionHash = txHandle.hash;
 
     return NextResponse.json({
       success: true,

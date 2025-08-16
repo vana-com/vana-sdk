@@ -30,9 +30,9 @@ async function aes256CbcEncrypt(
   );
   
   const encrypted = await crypto.subtle.encrypt(
-    { name: "AES-CBC", iv },
+    { name: "AES-CBC", iv: iv as ArrayBuffer | ArrayBufferView },
     cryptoKey,
-    data
+    data as ArrayBuffer | ArrayBufferView
   );
   
   return new Uint8Array(encrypted);
@@ -58,9 +58,9 @@ async function aes256CbcDecrypt(
   );
   
   const decrypted = await crypto.subtle.decrypt(
-    { name: "AES-CBC", iv },
+    { name: "AES-CBC", iv: iv as ArrayBuffer | ArrayBufferView },
     cryptoKey,
-    data
+    data as ArrayBuffer | ArrayBufferView
   );
   
   return new Uint8Array(decrypted);

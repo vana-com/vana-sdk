@@ -15,6 +15,7 @@ import {
   PersonalServerError,
 } from "../errors";
 import { ControllerContext } from "./permissions";
+import { OperationHandle, type PollingOptions } from "../utils/operationHandle";
 
 // Server types are now auto-imported from the generated exports
 
@@ -152,9 +153,13 @@ export class ServerController {
   /**
    * Creates an operation via the personal server API.
    *
+   * @deprecated Use `createOperationAndWait()` for automatic polling or
+   *   `createOperationHandle()` for more control. This method will be removed in v2.0.0.
    * @remarks
    * This method submits a computation request to the personal server API.
-   * The response includes the operation ID.
+   * The response includes the operation ID which must be manually polled using
+   * `getOperation()`. For a better developer experience, use the new Promise-based
+   * methods that handle polling automatically.
    * @param params - The request parameters object
    * @param params.permissionId - The permission ID authorizing this operation.
    *   Obtain from granted permissions via `vana.permissions.getUserPermissionGrantsOnChain()`.
@@ -165,11 +170,16 @@ export class ServerController {
    *   Check server URL configuration and network connectivity.
    * @example
    * ```typescript
+   * // Deprecated usage (requires manual polling)
    * const response = await vana.server.createOperation({
    *   permissionId: 123,
    * });
-   *
    * console.log(`Operation created: ${response.id}`);
+   *
+   * // Recommended: Use createOperationAndWait() instead
+   * const result = await vana.server.createOperationAndWait({
+   *   permissionId: 123
+   * });
    * ```
    */
   async createOperation(
@@ -220,11 +230,14 @@ export class ServerController {
   /**
    * Polls the status of a computation request for updates and results.
    *
+   * @deprecated Use `waitForOperation()` for automatic polling or access via
+   *   `OperationHandle`. Manual polling will be discouraged in v2.0.0.
    * @remarks
    * This method checks the current status of a computation request by querying
    * the personal server API using the provided operation ID. It returns the current
-   * status, any available output, and error information. The method can be
-   * called periodically until the operation completes or fails.
+   * status, any available output, and error information. The method requires manual
+   * polling loops which are error-prone. Use the new Promise-based methods for
+   * automatic polling with proper timeout and error handling.
    *
    * Common status values include: `starting`, `processing`, `succeeded`, `failed`, `canceled`.
    * @param operationId - The operation ID returned from the initial request submission
@@ -232,17 +245,16 @@ export class ServerController {
    * @throws {NetworkError} When the polling request fails or returns invalid data
    * @example
    * ```typescript
-   * // Poll until completion
+   * // Deprecated: Manual polling
    * let result = await vana.server.getOperation(response.id);
-   *
    * while (result.status === "processing") {
    *   await new Promise(resolve => setTimeout(resolve, 1000));
    *   result = await vana.server.getOperation(response.id);
    * }
    *
-   * if (result.status === "succeeded") {
-   *   console.log("Computation completed:", result.output);
-   * }
+   * // Recommended: Use waitForOperation() instead
+   * const result = await vana.server.waitForOperation(response.id);
+   * console.log("Computation completed:", result);
    * ```
    */
   async getOperation(operationId: string): Promise<GetOperationResponse> {
@@ -451,5 +463,135 @@ export class ServerController {
         `Failed to create signature: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
+  }
+
+  // ============================================================================
+  // New Promise-based Methods for Improved Developer Experience
+  // ============================================================================
+
+  /**
+   * Creates an operation and automatically waits for completion.
+   *
+   * @remarks
+   * This method combines `createOperation()` and `getOperation()` into a single
+   * Promise-based call that automatically polls for results. It simplifies the
+   * common pattern of creating an operation and waiting for its completion,
+   * eliminating the need for manual polling loops.
+   *
+   * The method will poll the operation status at regular intervals until it
+   * succeeds, fails, or times out. You can customize the polling behavior
+   * through the options parameter.
+   *
+   * @param params - The operation parameters
+   * @param params.permissionId - The permission ID authorizing this operation
+   * @param options - Optional polling configuration
+   * @param options.pollingInterval - How often to check status in ms (default: 1000)
+   * @param options.timeout - Maximum time to wait in ms (default: 30000)
+   * @returns Promise resolving to the operation result
+   * @throws {PersonalServerError} If the operation fails or times out
+   * @example
+   * ```typescript
+   * // Simple usage with automatic polling
+   * const result = await vana.server.createOperationAndWait({
+   *   permissionId: 123
+   * });
+   * console.log("Operation completed:", result);
+   *
+   * // Custom polling configuration
+   * const result = await vana.server.createOperationAndWait(
+   *   { permissionId: 123 },
+   *   {
+   *     pollingInterval: 2000,  // Check every 2 seconds
+   *     timeout: 60000          // Wait up to 1 minute
+   *   }
+   * );
+   * ```
+   */
+  async createOperationAndWait<T = unknown>(
+    params: CreateOperationParams,
+    options?: PollingOptions,
+  ): Promise<T> {
+    const operation = await this.createOperation(params);
+    return this.waitForOperation<T>(operation.id, options);
+  }
+
+  /**
+   * Creates an operation and returns a handle for flexible control.
+   *
+   * @remarks
+   * This method creates an operation and returns an `OperationHandle` that
+   * provides methods for checking status, waiting for results, or canceling
+   * the operation. This pattern matches the `TransactionHandle` used for
+   * blockchain operations, providing consistency across the SDK.
+   *
+   * Use this method when you need more control over the operation lifecycle,
+   * such as checking status before waiting or canceling long-running operations.
+   *
+   * @param params - The operation parameters
+   * @param params.permissionId - The permission ID authorizing this operation
+   * @returns An OperationHandle for controlling the operation
+   * @example
+   * ```typescript
+   * // Create operation and get handle
+   * const handle = await vana.server.createOperationHandle({
+   *   permissionId: 123
+   * });
+   *
+   * // Check status
+   * const status = await handle.getStatus();
+   * if (status === 'processing') {
+   *   console.log("Operation is running...");
+   * }
+   *
+   * // Wait for result
+   * const result = await handle.waitForResult();
+   *
+   * // Or cancel if needed
+   * await handle.cancel();
+   * ```
+   */
+  async createOperationHandle<T = unknown>(
+    params: CreateOperationParams,
+  ): Promise<OperationHandle<T>> {
+    const operation = await this.createOperation(params);
+    return new OperationHandle<T>(this, operation.id);
+  }
+
+  /**
+   * Waits for an existing operation to complete.
+   *
+   * @remarks
+   * This method polls an existing operation until it completes, fails, or
+   * times out. It's useful when you have an operation ID from a previous
+   * session or from another source and want to wait for its completion
+   * with automatic polling.
+   *
+   * The polling behavior can be customized through the options parameter.
+   * The method will throw an error if the operation fails or times out.
+   *
+   * @param operationId - The ID of the operation to wait for
+   * @param options - Optional polling configuration
+   * @param options.pollingInterval - How often to check status in ms (default: 1000)
+   * @param options.timeout - Maximum time to wait in ms (default: 30000)
+   * @returns Promise resolving to the operation result
+   * @throws {PersonalServerError} If the operation fails or times out
+   * @example
+   * ```typescript
+   * // Wait for an existing operation
+   * const result = await vana.server.waitForOperation(operationId);
+   *
+   * // With custom timeout
+   * const result = await vana.server.waitForOperation(
+   *   operationId,
+   *   { timeout: 120000 }  // Wait up to 2 minutes
+   * );
+   * ```
+   */
+  async waitForOperation<T = unknown>(
+    operationId: string,
+    options?: PollingOptions,
+  ): Promise<T> {
+    const handle = new OperationHandle<T>(this, operationId);
+    return handle.waitForResult(options);
   }
 }

@@ -21,7 +21,11 @@ describe("ServerController Async Operations", () => {
     mockContext = {
       defaultPersonalServerUrl: "https://test-server.vana.org",
       walletClient: {
-        account: { address: "0xtest" },
+        account: {
+          address: "0xtest",
+          type: "local",
+          signMessage: vi.fn().mockResolvedValue("0xsignature"),
+        },
         signMessage: vi.fn().mockResolvedValue("0xsignature"),
       },
     } as unknown as ControllerContext;

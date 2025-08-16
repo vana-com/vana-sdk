@@ -10,7 +10,6 @@ export default defineConfig((options) => ({
   external: [
     // Only mark Node-specific deps as external for Node builds
     ...(options.platform === "node" ? ["eccrypto"] : []),
-    // Only mark browser-specific deps as external for browser builds
-    ...(options.platform === "browser" ? ["eccrypto-js"] : []),
+    // Browser builds should bundle eccrypto-js, not externalize it
   ],
 }));

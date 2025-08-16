@@ -24,12 +24,13 @@ import {
 import { getPGPKeyGenParams } from "./shared/pgp-utils";
 import { wrapCryptoError } from "./shared/error-utils";
 import { lazyImport } from "../utils/lazy-import";
+import * as browserCrypto from "./browser-crypto";
 
 // Lazy-loaded dependencies to avoid Turbopack TDZ issues
 const getOpenPGP = lazyImport(() => import("openpgp"));
 
 /**
- * Browser implementation of crypto operations using eccrypto-js
+ * Browser implementation of crypto operations using @noble/secp256k1
  */
 class BrowserCryptoAdapter implements VanaCryptoAdapter {
   async encryptWithPublicKey(
@@ -37,14 +38,11 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
     publicKeyHex: string,
   ): Promise<string> {
     try {
-      // Import eccrypto-js for secp256k1 encryption
-      const eccrypto = await import("eccrypto-js");
-
       // Convert hex public key to Buffer
       const publicKeyBuffer = Buffer.from(publicKeyHex, "hex");
 
       // Encrypt data using secp256k1 ECDH
-      const encrypted = await eccrypto.encrypt(
+      const encrypted = await browserCrypto.encrypt(
         publicKeyBuffer,
         Buffer.from(data, "utf8"),
       );
@@ -68,20 +66,17 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
     privateKeyHex: string,
   ): Promise<string> {
     try {
-      // Import eccrypto-js for secp256k1 decryption
-      const eccrypto = await import("eccrypto-js");
-
       // Use shared utilities to process keys and parse data
       const privateKeyBuffer = processWalletPrivateKey(privateKeyHex);
       const encryptedBuffer = Buffer.from(encryptedData, "hex");
       const { iv, ephemPublicKey, ciphertext, mac } =
         parseEncryptedDataBuffer(encryptedBuffer);
 
-      // Reconstruct the encrypted data structure for eccrypto
+      // Reconstruct the encrypted data structure
       const encryptedObj = { iv, ephemPublicKey, ciphertext, mac };
 
       // Decrypt using secp256k1 ECDH
-      const decryptedBuffer = await eccrypto.decrypt(
+      const decryptedBuffer = await browserCrypto.decrypt(
         privateKeyBuffer,
         encryptedObj,
       );
@@ -94,16 +89,13 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
 
   async generateKeyPair(): Promise<{ publicKey: string; privateKey: string }> {
     try {
-      // Import eccrypto-js for secp256k1 key generation (browser-compatible)
-      const eccrypto = await import("eccrypto-js");
-
       // Generate a random 32-byte private key for secp256k1
       const privateKeyBytes = new Uint8Array(32);
       crypto.getRandomValues(privateKeyBytes);
       const privateKey = Buffer.from(privateKeyBytes);
 
       // Generate the corresponding compressed public key
-      const publicKey = eccrypto.getPublicCompressed(privateKey);
+      const publicKey = browserCrypto.getPublicCompressed(privateKey);
 
       return {
         privateKey: privateKey.toString("hex"),
@@ -119,14 +111,11 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
     publicKey: string,
   ): Promise<string> {
     try {
-      // Import eccrypto for ECDH encryption
-      const eccrypto = await import("eccrypto-js");
-
       // Use shared utility to process public key
       const uncompressedKey = processWalletPublicKey(publicKey);
 
       // Encrypt using ECDH with randomly generated parameters
-      const encryptedBuffer = await eccrypto.encrypt(
+      const encryptedBuffer = await browserCrypto.encrypt(
         uncompressedKey,
         Buffer.from(data),
       );
@@ -150,20 +139,17 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
     privateKey: string,
   ): Promise<string> {
     try {
-      // Import eccrypto for ECDH decryption
-      const eccrypto = await import("eccrypto-js");
-
       // Use shared utilities to process keys and parse data
       const privateKeyBuffer = processWalletPrivateKey(privateKey);
       const encryptedBuffer = Buffer.from(encryptedData, "hex");
       const { iv, ephemPublicKey, ciphertext, mac } =
         parseEncryptedDataBuffer(encryptedBuffer);
 
-      // Reconstruct the encrypted data structure for eccrypto
+      // Reconstruct the encrypted data structure
       const encryptedObj = { iv, ephemPublicKey, ciphertext, mac };
 
       // Decrypt using ECDH
-      const decryptedBuffer = await eccrypto.decrypt(
+      const decryptedBuffer = await browserCrypto.decrypt(
         privateKeyBuffer,
         encryptedObj,
       );

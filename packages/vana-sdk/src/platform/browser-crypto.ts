@@ -7,7 +7,6 @@ import * as secp from "@noble/secp256k1";
 import { sha256 } from "@noble/hashes/sha256";
 import { sha512 } from "@noble/hashes/sha512";
 import { hmac } from "@noble/hashes/hmac";
-import { randomBytes } from "@noble/hashes/utils";
 
 // AES-256-CBC implementation for browser
 /**
@@ -23,16 +22,16 @@ async function aes256CbcEncrypt(
 ): Promise<Uint8Array> {
   const cryptoKey = await crypto.subtle.importKey(
     "raw",
-    key,
+    key.buffer.slice(key.byteOffset, key.byteOffset + key.byteLength) as ArrayBuffer,
     { name: "AES-CBC" },
     false,
     ["encrypt"]
   );
   
   const encrypted = await crypto.subtle.encrypt(
-    { name: "AES-CBC", iv: iv as ArrayBuffer | ArrayBufferView },
+    { name: "AES-CBC", iv: iv.buffer.slice(iv.byteOffset, iv.byteOffset + iv.byteLength) as ArrayBuffer },
     cryptoKey,
-    data as ArrayBuffer | ArrayBufferView
+    data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer
   );
   
   return new Uint8Array(encrypted);
@@ -51,16 +50,16 @@ async function aes256CbcDecrypt(
 ): Promise<Uint8Array> {
   const cryptoKey = await crypto.subtle.importKey(
     "raw",
-    key,
+    key.buffer.slice(key.byteOffset, key.byteOffset + key.byteLength) as ArrayBuffer,
     { name: "AES-CBC" },
     false,
     ["decrypt"]
   );
   
   const decrypted = await crypto.subtle.decrypt(
-    { name: "AES-CBC", iv: iv as ArrayBuffer | ArrayBufferView },
+    { name: "AES-CBC", iv: iv.buffer.slice(iv.byteOffset, iv.byteOffset + iv.byteLength) as ArrayBuffer },
     cryptoKey,
-    data as ArrayBuffer | ArrayBufferView
+    data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer
   );
   
   return new Uint8Array(decrypted);
@@ -100,7 +99,8 @@ export async function encrypt(
   const macKey = hash.slice(32);
   
   // Generate random IV
-  const iv = randomBytes(16);
+  const iv = new Uint8Array(16);
+  crypto.getRandomValues(iv);
   
   // Encrypt the message
   const ciphertext = await aes256CbcEncrypt(encryptionKey, iv, msg);

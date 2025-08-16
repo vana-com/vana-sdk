@@ -247,7 +247,7 @@ export class ServerController {
    * ```typescript
    * // Deprecated: Manual polling
    * let result = await vana.server.getOperation(response.id);
-   * while (result.status === "processing") {
+   * while (result.status === "running") {
    *   await new Promise(resolve => setTimeout(resolve, 1000));
    *   result = await vana.server.getOperation(response.id);
    * }
@@ -539,7 +539,7 @@ export class ServerController {
    *
    * // Check status
    * const status = await handle.getStatus();
-   * if (status === 'processing') {
+   * if (status === 'running') {
    *   console.log("Operation is running...");
    * }
    *

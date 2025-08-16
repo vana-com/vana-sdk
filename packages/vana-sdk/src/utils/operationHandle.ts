@@ -41,7 +41,7 @@ export interface PollingOptions {
  * console.log(`Result: ${result}`);
  *
  * // Cancel if needed
- * if (status === 'processing') {
+ * if (status === 'running') {
  *   await handle.cancel();
  * }
  * ```
@@ -64,8 +64,8 @@ export class OperationHandle<T = unknown> {
    * @throws {PersonalServerError} If the operation fails or times out
    */
   async waitForResult(options?: PollingOptions): Promise<T> {
-    if (this._result?.status === "succeeded") {
-      return this._result.output as T;
+    if (this._result?.status === "succeeded" && this._result.result) {
+      return JSON.parse(this._result.result) as T;
     }
 
     if (!this._resultPromise) {
@@ -116,17 +116,19 @@ export class OperationHandle<T = unknown> {
       this._result = result;
 
       if (result.status === "succeeded") {
-        return result.output as T;
+        return result.result
+          ? (JSON.parse(result.result) as T)
+          : (undefined as T);
       }
 
       if (result.status === "failed") {
         throw new PersonalServerError(
-          `Operation failed: ${result.error || "Unknown error"}`,
+          `Operation failed: ${result.result || "Unknown error"}`,
         );
       }
 
-      if (result.status === "canceled") {
-        throw new PersonalServerError("Operation was canceled");
+      if (result.status === "cancelled") {
+        throw new PersonalServerError("Operation was cancelled");
       }
 
       if (Date.now() - startTime > timeout) {

@@ -36,19 +36,22 @@ describe("ServerController Async Operations", () => {
   describe("createOperationAndWait", () => {
     it("should create operation and wait for successful completion", async () => {
       const mockCreateResponse: CreateOperationResponse = {
+        kind: "OperationCreated",
         id: "operation-123",
-        status: "starting",
+        created_at: new Date().toISOString(),
       };
 
       const mockPendingResponse: GetOperationResponse = {
+        kind: "OperationStatus",
         id: "operation-123",
-        status: "processing",
+        status: "running",
       };
 
       const mockSuccessResponse: GetOperationResponse = {
+        kind: "OperationStatus",
         id: "operation-123",
         status: "succeeded",
-        output: { result: "test-result" },
+        result: JSON.stringify({ result: "test-result" }),
       };
 
       // Mock fetch calls
@@ -77,20 +80,22 @@ describe("ServerController Async Operations", () => {
         { pollingInterval: 10, timeout: 1000 },
       );
 
-      expect(result).toEqual({ result: "test-result" });
+      expect(result).toEqual(JSON.parse(mockSuccessResponse.result!));
       expect(fetchMock).toHaveBeenCalledTimes(3);
     });
 
     it("should throw error when operation fails", async () => {
       const mockCreateResponse: CreateOperationResponse = {
+        kind: "OperationCreated",
         id: "operation-123",
-        status: "starting",
+        created_at: new Date().toISOString(),
       };
 
       const mockFailedResponse: GetOperationResponse = {
+        kind: "OperationStatus",
         id: "operation-123",
         status: "failed",
-        error: "Operation failed due to invalid input",
+        result: "Operation failed due to invalid input",
       };
 
       const fetchMock = vi.mocked(global.fetch);
@@ -115,13 +120,15 @@ describe("ServerController Async Operations", () => {
 
     it("should throw error on timeout", async () => {
       const mockCreateResponse: CreateOperationResponse = {
+        kind: "OperationCreated",
         id: "operation-123",
-        status: "starting",
+        created_at: new Date().toISOString(),
       };
 
       const mockPendingResponse: GetOperationResponse = {
+        kind: "OperationStatus",
         id: "operation-123",
-        status: "processing",
+        status: "running",
       };
 
       const fetchMock = vi.mocked(global.fetch);
@@ -149,8 +156,9 @@ describe("ServerController Async Operations", () => {
   describe("createOperationHandle", () => {
     it("should return an OperationHandle", async () => {
       const mockCreateResponse: CreateOperationResponse = {
+        kind: "OperationCreated",
         id: "operation-123",
-        status: "starting",
+        created_at: new Date().toISOString(),
       };
 
       const fetchMock = vi.mocked(global.fetch);
@@ -171,13 +179,15 @@ describe("ServerController Async Operations", () => {
 
     it("should allow checking status via handle", async () => {
       const mockCreateResponse: CreateOperationResponse = {
+        kind: "OperationCreated",
         id: "operation-123",
-        status: "starting",
+        created_at: new Date().toISOString(),
       };
 
       const mockStatusResponse: GetOperationResponse = {
+        kind: "OperationStatus",
         id: "operation-123",
-        status: "processing",
+        status: "running",
       };
 
       const fetchMock = vi.mocked(global.fetch);
@@ -197,13 +207,14 @@ describe("ServerController Async Operations", () => {
       });
 
       const status = await handle.getStatus();
-      expect(status).toBe("processing");
+      expect(status).toBe("running");
     });
 
     it("should allow canceling via handle", async () => {
       const mockCreateResponse: CreateOperationResponse = {
+        kind: "OperationCreated",
         id: "operation-123",
-        status: "starting",
+        created_at: new Date().toISOString(),
       };
 
       const fetchMock = vi.mocked(global.fetch);
@@ -234,9 +245,10 @@ describe("ServerController Async Operations", () => {
   describe("waitForOperation", () => {
     it("should wait for an existing operation to complete", async () => {
       const mockSuccessResponse: GetOperationResponse = {
+        kind: "OperationStatus",
         id: "existing-operation",
         status: "succeeded",
-        output: { data: "result-data" },
+        result: JSON.stringify({ data: "result-data" }),
       };
 
       const fetchMock = vi.mocked(global.fetch);
@@ -248,19 +260,21 @@ describe("ServerController Async Operations", () => {
       const result =
         await serverController.waitForOperation("existing-operation");
 
-      expect(result).toEqual({ data: "result-data" });
+      expect(result).toEqual(JSON.parse(mockSuccessResponse.result!));
     });
 
     it("should poll until operation completes", async () => {
       const mockPendingResponse: GetOperationResponse = {
+        kind: "OperationStatus",
         id: "existing-operation",
-        status: "processing",
+        status: "running",
       };
 
       const mockSuccessResponse: GetOperationResponse = {
+        kind: "OperationStatus",
         id: "existing-operation",
         status: "succeeded",
-        output: { data: "final-result" },
+        result: JSON.stringify({ data: "final-result" }),
       };
 
       const fetchMock = vi.mocked(global.fetch);
@@ -282,7 +296,7 @@ describe("ServerController Async Operations", () => {
         { pollingInterval: 10 },
       );
 
-      expect(result).toEqual({ data: "final-result" });
+      expect(result).toEqual(JSON.parse(mockSuccessResponse.result!));
       expect(fetchMock).toHaveBeenCalledTimes(2);
     });
   });
@@ -290,8 +304,9 @@ describe("ServerController Async Operations", () => {
   describe("Backward compatibility", () => {
     it("should still support old createOperation method", async () => {
       const mockCreateResponse: CreateOperationResponse = {
+        kind: "OperationCreated",
         id: "operation-123",
-        status: "starting",
+        created_at: new Date().toISOString(),
       };
 
       const fetchMock = vi.mocked(global.fetch);
@@ -305,13 +320,15 @@ describe("ServerController Async Operations", () => {
       });
 
       expect(response.id).toBe("operation-123");
-      expect(response.status).toBe("starting");
+      // CreateOperationResponse doesn't have status, only GetOperationResponse does
+      expect(response.id).toBe("operation-123");
     });
 
     it("should still support old getOperation method", async () => {
       const mockResponse: GetOperationResponse = {
+        kind: "OperationStatus",
         id: "operation-123",
-        status: "processing",
+        status: "running",
       };
 
       const fetchMock = vi.mocked(global.fetch);
@@ -323,7 +340,7 @@ describe("ServerController Async Operations", () => {
       const response = await serverController.getOperation("operation-123");
 
       expect(response.id).toBe("operation-123");
-      expect(response.status).toBe("processing");
+      expect(response.status).toBe("running");
     });
   });
 });

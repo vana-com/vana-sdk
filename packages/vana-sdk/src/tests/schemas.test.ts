@@ -17,6 +17,19 @@ vi.mock("../utils/blockchain/registry", () => ({
   fetchSchemaCountFromChain: vi.fn(),
 }));
 
+vi.mock("../utils/urlResolver", () => ({
+  fetchFromUrl: vi.fn(),
+  UrlResolutionError: class UrlResolutionError extends Error {
+    constructor(
+      message: string,
+      public url: string,
+    ) {
+      super(message);
+      this.name = "UrlResolutionError";
+    }
+  },
+}));
+
 vi.mock("../utils/schemaValidation", () => ({
   validateDataSchema: vi.fn(),
   SchemaValidationError: class SchemaValidationError extends Error {
@@ -119,15 +132,29 @@ describe("SchemaController", () => {
       const mockSchema = {
         id: 1,
         name: "Test Schema",
-        dialect: "json",
+        dialect: "json" as const,
         definitionUrl: "https://example.com/schema.json",
+      };
+
+      const mockDataSchema = {
+        name: "Test Schema",
+        version: "1.0.0",
+        dialect: "json" as const,
+        schema: { type: "object" },
       };
 
       vi.mocked(fetchSchemaFromChain).mockResolvedValue(mockSchema);
 
+      const { fetchFromUrl } = await import("../utils/urlResolver");
+      vi.mocked(fetchFromUrl).mockResolvedValue(mockDataSchema);
+
       const result = await controller.get(1);
 
-      expect(result).toEqual(mockSchema);
+      expect(result.id).toEqual(mockSchema.id);
+      expect(result.name).toEqual(mockSchema.name);
+      expect(result.dialect).toEqual(mockSchema.dialect);
+      expect(result.definitionUrl).toEqual(mockSchema.definitionUrl);
+      expect(result.schema).toEqual(mockDataSchema.schema);
       expect(fetchSchemaFromChain).toHaveBeenCalledWith(mockContext, 1);
     });
 
@@ -332,8 +359,8 @@ describe("SchemaController", () => {
 
       const result = await controller.create({
         name: "Test Schema",
-        type: "personal",
-        definition: schemaDefinition,
+        dialect: "json",
+        schema: schemaDefinition,
       });
 
       expect(result).toEqual({
@@ -359,7 +386,7 @@ describe("SchemaController", () => {
         address: "0xRegistryAddress",
         abi: [],
         functionName: "addSchema",
-        args: ["Test Schema", "personal", "https://ipfs.io/ipfs/QmTestHash"],
+        args: ["Test Schema", "json", "https://ipfs.io/ipfs/QmTestHash"],
         account: expect.any(Object),
         chain: expect.any(Object),
       });
@@ -388,8 +415,8 @@ describe("SchemaController", () => {
 
       const result = await controller.create({
         name: "Test Schema",
-        type: "personal",
-        definition: schemaDefinition,
+        dialect: "json",
+        schema: schemaDefinition,
       });
 
       expect(result.schemaId).toBe(123);
@@ -400,8 +427,8 @@ describe("SchemaController", () => {
       await expect(
         controller.create({
           name: "Test Schema",
-          type: "personal",
-          definition: "{ invalid json",
+          dialect: "json",
+          schema: "{ invalid json",
         }),
       ).rejects.toThrow(SchemaValidationError);
     });
@@ -415,8 +442,8 @@ describe("SchemaController", () => {
       await expect(
         controller.create({
           name: "Test Schema",
-          type: "personal",
-          definition: {},
+          dialect: "json",
+          schema: {},
         }),
       ).rejects.toThrow(SchemaValidationError);
     });
@@ -429,8 +456,8 @@ describe("SchemaController", () => {
       await expect(
         controller.create({
           name: "Test Schema",
-          type: "personal",
-          definition: { type: "object" },
+          dialect: "json",
+          schema: { type: "object" },
         }),
       ).rejects.toThrow("Schema creation failed: Upload failed");
     });
@@ -447,8 +474,8 @@ describe("SchemaController", () => {
       await expect(
         controllerWithoutStorage.create({
           name: "Test Schema",
-          type: "personal",
-          definition: { type: "object" },
+          dialect: "json",
+          schema: { type: "object" },
         }),
       ).rejects.toThrow(
         "Storage manager not configured. Please provide storage providers in VanaConfig.",
@@ -468,8 +495,8 @@ describe("SchemaController", () => {
       await expect(
         controllerWithoutChain.create({
           name: "Test Schema",
-          type: "personal",
-          definition: { type: "object" },
+          dialect: "json",
+          schema: { type: "object" },
         }),
       ).rejects.toThrow("Chain ID not available");
     });
@@ -492,8 +519,8 @@ describe("SchemaController", () => {
 
       const result = await controller.create({
         name: "Test Schema",
-        type: "personal",
-        definition: { type: "object" },
+        dialect: "json",
+        schema: { type: "object" },
       });
 
       expect(result.schemaId).toBe(456);
@@ -507,8 +534,8 @@ describe("SchemaController", () => {
       await expect(
         controller.create({
           name: "Test Schema",
-          type: "personal",
-          definition: { type: "object" },
+          dialect: "json",
+          schema: { type: "object" },
         }),
       ).rejects.toThrow("No SchemaAdded event found");
     });
@@ -520,8 +547,8 @@ describe("SchemaController", () => {
       await expect(
         controller.create({
           name: "Test Schema",
-          type: "personal",
-          definition: { type: "object" },
+          dialect: "json",
+          schema: { type: "object" },
         }),
       ).rejects.toThrow("No SchemaAdded event found");
     });
@@ -534,8 +561,8 @@ describe("SchemaController", () => {
       await expect(
         controller.create({
           name: "Test Schema",
-          type: "personal",
-          definition: { type: "object" },
+          dialect: "json",
+          schema: { type: "object" },
         }),
       ).rejects.toThrow(
         "Schema creation failed: Transaction 0xTransactionHash confirmation timeout after 30 seconds. The transaction may still be pending.",
@@ -558,8 +585,8 @@ describe("SchemaController", () => {
 
       await controller.create({
         name: "Test/Schema*With<>Special|Chars",
-        type: "personal",
-        definition: { type: "object" },
+        dialect: "json",
+        schema: { type: "object" },
       });
 
       expect(mockStorageManager.upload).toHaveBeenCalledWith(

@@ -1,184 +1,162 @@
-import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import type { Mock } from "vitest";
 import { DataController } from "../controllers/data";
-import { ControllerContext } from "../controllers/permissions";
-import type { StorageManager } from "../storage/manager";
-import { SchemaValidationError } from "../utils/schemaValidation";
-import { mockPlatformAdapter } from "./mocks/platformAdapter";
+import {
+  fetchAndValidateSchema,
+  SchemaValidationError,
+  validateDataAgainstSchema,
+} from "../utils/schemaValidation";
+import type { WalletClient, PublicClient } from "viem";
 import type { VanaChain } from "../types";
+import { mockPlatformAdapter } from "./mocks/platformAdapter";
+import { moksha } from "../chains";
 
-// Mock viem getContract to return a mocked contract object
-vi.mock("viem", () => ({
-  getContract: vi.fn(() => ({
-    read: {
-      schemas: vi.fn(),
-    },
-  })),
-}));
-
-// Mock ALL external dependencies for pure unit tests
-vi.mock("../utils/encryption", () => ({
-  generateEncryptionKey: vi.fn(),
-  decryptBlobWithSignedKey: vi.fn(),
-  encryptBlobWithSignedKey: vi.fn(),
-  DEFAULT_ENCRYPTION_SEED: "Please sign to retrieve your encryption key",
-}));
-
-vi.mock("../storage", () => ({
-  StorageManager: vi.fn().mockImplementation(() => ({
-    upload: vi.fn().mockResolvedValue({
-      url: "https://ipfs.io/ipfs/QmTestHash",
-      size: 1024,
-      contentdialecte: "application/octet-stream",
-    }),
-  })),
-}));
-
+// Mock dependencies
 vi.mock("../utils/schemaValidation", () => ({
-  validateDataSchema: vi.fn(),
-  validateDataAgainstSchema: vi.fn(),
   fetchAndValidateSchema: vi.fn(),
-  SchemaValidationError: class SchemaValidationError extends Error {
+  SchemaValidationError: class extends Error {
     constructor(
       message: string,
-      public errors: Array<{
-        instancePath: string;
-        schemaPath: string;
-        keyword: string;
-        params: Record<string, unknown>;
-        message?: string;
-      }>,
+      public errors?: unknown[],
     ) {
       super(message);
       this.name = "SchemaValidationError";
     }
   },
+  validateDataAgainstSchema: vi.fn(),
+  validateDataSchema: vi.fn(),
 }));
+
+vi.mock("viem", async () => {
+  const actual = await vi.importActual<typeof import("viem")>("viem");
+  return {
+    ...actual,
+    getContract: vi.fn(),
+  };
+});
 
 vi.mock("../config/addresses", () => ({
-  getContractAddress: vi
-    .fn()
-    .mockReturnValue("0x8C8788f98385F6ba1adD4234e551ABba0f82Cb7C"),
+  getContractAddress: vi.fn().mockReturnValue("0x123"),
 }));
 
-vi.mock("../../generated/abi", () => ({
-  getAbi: vi.fn().mockReturnValue([
-    {
-      name: "totalSchemas",
-      type: "function",
-      inputs: [],
-      outputs: [{ name: "", type: "uint256" }],
-    },
-    {
-      name: "schemas",
-      type: "function",
-      inputs: [{ name: "id", type: "uint256" }],
-      outputs: [
-        { name: "name", type: "string" },
-        { name: "dialect", type: "string" },
-        { name: "definitionUrl", type: "string" },
-      ],
-    },
-  ]),
+vi.mock("../generated/abi", () => ({
+  getAbi: vi.fn().mockReturnValue([]),
 }));
 
-// Mock fetch globally - no real network calls
-global.fetch = vi.fn();
-
-// Import the mocked functions for configuration
-import { fetchAndValidateSchema } from "../utils/schemaValidation";
-import { getContract } from "viem";
-
-interface MockWalletClient {
-  account: {
-    address: string;
-  };
-  chain: {
-    id: number;
-    name: string;
-  };
-  getChainId: ReturnType<typeof vi.fn>;
-  getAddresses: ReturnType<typeof vi.fn>;
-  writeContract: ReturnType<typeof vi.fn>;
-}
-
-interface MockPublicClient {
-  readContract: ReturnType<typeof vi.fn>;
-  waitForTransactionReceipt: ReturnType<typeof vi.fn>;
-}
-
-describe("DataController - Schema Validation Methods", () => {
+describe("DataController Schema Validation", () => {
   let controller: DataController;
-  let mockContext: ControllerContext;
-  let mockWalletClient: MockWalletClient;
-  let mockPublicClient: MockPublicClient;
-  let mockStorageManager: StorageManager;
+  let mockWalletClient: WalletClient;
+  let mockPublicClient: PublicClient;
 
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Reset fetch mock to a working state
-    const mockFetch = fetch as Mock;
-    mockFetch.mockReset();
-
-    // Set up default mock for fetchAndValidateSchema
-    const mockFetchAndValidateSchema = fetchAndValidateSchema as Mock;
-    mockFetchAndValidateSchema.mockReset();
-
-    // Create a fully mocked wallet client
+    // Create mock wallet client
     mockWalletClient = {
-      account: {
-        address: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-      },
-      chain: {
-        id: 14800,
-        name: "Moksha Testnet",
-      },
-      getChainId: vi.fn().mockResolvedValue(14800),
-      getAddresses: vi
-        .fn()
-        .mockResolvedValue(["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"]),
-      writeContract: vi.fn().mockResolvedValue("0xtxhash"),
-    };
+      chain: moksha as VanaChain,
+      account: "0xuser",
+      writeContract: vi.fn(),
+      getAddresses: vi.fn().mockResolvedValue(["0xuser"]),
+    } as unknown as WalletClient;
 
-    // Create a mock publicClient
+    // Create mock public client
     mockPublicClient = {
       readContract: vi.fn(),
-      waitForTransactionReceipt: vi.fn().mockResolvedValue({ logs: [] }),
+      waitForTransactionReceipt: vi.fn(),
+      getTransactionReceipt: vi.fn(),
+    } as unknown as PublicClient;
+
+    // Create mock context
+    const mockContext = {
+      walletClient: mockWalletClient,
+      publicClient: mockPublicClient,
+      storageManager: undefined,
+      subgraphUrl: undefined,
+      platform: mockPlatformAdapter,
     };
 
-    // Create a mock storage manager
-    mockStorageManager = {
-      upload: vi.fn().mockResolvedValue({
-        url: "https://ipfs.io/ipfs/QmTestHash",
-        size: 1024,
-        contentdialecte: "application/octet-stream",
-      }),
-    } as unknown as StorageManager;
-
-    // Set up the context with all required mocks
-    mockContext = {
-      walletClient:
-        mockWalletClient as unknown as ControllerContext["walletClient"],
-      publicClient:
-        mockPublicClient as unknown as ControllerContext["publicClient"],
-      storageManager: mockStorageManager,
-      platform: mockPlatformAdapter,
-    } as ControllerContext;
-
+    // Create controller instance
     controller = new DataController(mockContext);
   });
 
-  describe("fetchAndValidateSchema", () => {
-    it("should successfully fetch and validate schema", async () => {
+  describe("validateDataAgainstSchema", () => {
+    it("should successfully validate data against schema", () => {
+      const mockData = {
+        name: "John Doe",
+        age: 30,
+      };
+
       const mockSchema = {
-        name: "TestSchema",
+        name: "UserProfile",
         version: "1.0.0",
-        dialect: "json",
-        definition: {
+        dialect: "json" as const,
+        schema: {
           type: "object",
           properties: {
             name: { type: "string" },
             age: { type: "number" },
+          },
+          required: ["name"],
+        },
+      };
+
+      const mockValidate = validateDataAgainstSchema as Mock;
+      mockValidate.mockReturnValue(undefined); // No errors
+
+      controller.validateDataAgainstSchema(mockData, mockSchema);
+
+      expect(mockValidate).toHaveBeenCalledWith(mockData, mockSchema);
+    });
+
+    it("should throw SchemaValidationError when validation fails", () => {
+      const mockData = {
+        name: "John Doe",
+        // Missing required age
+      };
+
+      const mockSchema = {
+        name: "UserProfile",
+        version: "1.0.0",
+        dialect: "json" as const,
+        schema: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            age: { type: "number" },
+          },
+          required: ["name", "age"],
+        },
+      };
+
+      const mockValidate = validateDataAgainstSchema as Mock;
+      mockValidate.mockImplementation(() => {
+        throw new SchemaValidationError("Validation failed", [
+          {
+            instancePath: "/",
+            schemaPath: "#/required",
+            keyword: "required",
+            params: { missingProperty: "age" },
+            message: "Missing required property: age",
+          },
+        ]);
+      });
+
+      expect(() =>
+        controller.validateDataAgainstSchema(mockData, mockSchema),
+      ).toThrow(SchemaValidationError);
+    });
+  });
+
+  describe("fetchAndValidateSchema", () => {
+    it("should successfully fetch and validate schema from URL", async () => {
+      const mockSchema = {
+        name: "TestSchema",
+        version: "1.0.0",
+        dialect: "json" as const,
+        schema: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
           },
         },
       };
@@ -196,24 +174,14 @@ describe("DataController - Schema Validation Methods", () => {
       );
     });
 
-    it("should handle schema validation errors", async () => {
+    it("should handle invalid schema URL", async () => {
       const mockFetchAndValidateSchema = fetchAndValidateSchema as Mock;
       mockFetchAndValidateSchema.mockRejectedValue(
-        new SchemaValidationError("Invalid schema", [
-          {
-            instancePath: "/",
-            schemaPath: "#/required",
-            keyword: "required",
-            params: { missingProperty: "required_field" },
-            message: "Missing required field",
-          },
-        ]),
+        new SchemaValidationError("Invalid schema format", []),
       );
 
       await expect(
-        controller.fetchAndValidateSchema(
-          "https://example.com/invalid-schema.json",
-        ),
+        controller.fetchAndValidateSchema("https://invalid.com/schema.json"),
       ).rejects.toThrow(SchemaValidationError);
     });
 
@@ -227,220 +195,6 @@ describe("DataController - Schema Validation Methods", () => {
     });
   });
 
-  describe("getValidatedSchema", () => {
-    it("should successfully get and validate schema", async () => {
-      // Mock the contract read method
-      const mockContract = {
-        read: {
-          schemas: vi.fn().mockResolvedValue({
-            name: "TestSchema",
-            dialect: "json",
-            definitionUrl: "https://example.com/schema.json",
-          }),
-        },
-      };
-      (getContract as Mock).mockReturnValue(mockContract);
-
-      // Mock fetchAndValidateSchema to return validated schema
-      const mockValidatedSchema = {
-        name: "TestSchema",
-        version: "1.0.0",
-        dialect: "json",
-        schema: {
-          type: "object",
-          properties: {
-            name: { type: "string" },
-            age: { type: "number" },
-          },
-        },
-      };
-
-      const mockFetchAndValidateSchema = fetchAndValidateSchema as Mock;
-      mockFetchAndValidateSchema.mockResolvedValue(mockValidatedSchema);
-
-      const result = await controller.getValidatedSchema(123);
-
-      expect(result).toEqual(mockValidatedSchema);
-      expect(mockContract.read.schemas).toHaveBeenCalledWith([BigInt(123)]);
-      expect(mockFetchAndValidateSchema).toHaveBeenCalledWith(
-        "https://example.com/schema.json",
-      );
-    });
-
-    it("should handle schema name mismatch", async () => {
-      // Mock the contract read method
-      const mockContract = {
-        read: {
-          schemas: vi.fn().mockResolvedValue({
-            name: "OnChainSchema",
-            dialect: "json",
-            definitionUrl: "https://example.com/schema.json",
-          }),
-        },
-      };
-      (getContract as Mock).mockReturnValue(mockContract);
-
-      // Mock fetchAndValidateSchema to return schema with different name
-      const mockValidatedSchema = {
-        name: "FetchedSchema", // Different name
-        version: "1.0.0",
-        dialect: "json",
-        schema: {
-          type: "object",
-          properties: {
-            name: { type: "string" },
-            age: { type: "number" },
-          },
-        },
-      };
-
-      const mockFetchAndValidateSchema = fetchAndValidateSchema as Mock;
-      mockFetchAndValidateSchema.mockResolvedValue(mockValidatedSchema);
-
-      await expect(controller.getValidatedSchema(123)).rejects.toThrow(
-        SchemaValidationError,
-      );
-      await expect(controller.getValidatedSchema(123)).rejects.toThrow(
-        'Schema name mismatch: on-chain name "OnChainSchema" does not match schema name "FetchedSchema"',
-      );
-    });
-
-    it("should handle getSchema errors", async () => {
-      // Mock the contract read method to throw
-      const mockContract = {
-        read: {
-          schemas: vi.fn().mockRejectedValue(new Error("Contract read failed")),
-        },
-      };
-      (getContract as Mock).mockReturnValue(mockContract);
-
-      await expect(controller.getValidatedSchema(123)).rejects.toThrow(
-        SchemaValidationError,
-      );
-      await expect(controller.getValidatedSchema(123)).rejects.toThrow(
-        "Failed to get validated schema 123:",
-      );
-    });
-
-    it("should handle fetchAndValidateSchema errors", async () => {
-      // Mock the contract read method
-      const mockContract = {
-        read: {
-          schemas: vi.fn().mockResolvedValue({
-            name: "TestSchema",
-            dialect: "json",
-            definitionUrl: "https://example.com/schema.json",
-          }),
-        },
-      };
-      (getContract as Mock).mockReturnValue(mockContract);
-
-      // Mock fetchAndValidateSchema to throw an error
-      const mockFetchAndValidateSchema = fetchAndValidateSchema as Mock;
-      mockFetchAndValidateSchema.mockRejectedValue(new Error("Fetch failed"));
-
-      await expect(controller.getValidatedSchema(123)).rejects.toThrow(
-        SchemaValidationError,
-      );
-      await expect(controller.getValidatedSchema(123)).rejects.toThrow(
-        "Failed to get validated schema 123:",
-      );
-    });
-
-    it("should preserve SchemaValidationError from fetchAndValidateSchema", async () => {
-      // Mock the contract read method
-      const mockContract = {
-        read: {
-          schemas: vi.fn().mockResolvedValue({
-            name: "TestSchema",
-            dialect: "json",
-            definitionUrl: "https://example.com/schema.json",
-          }),
-        },
-      };
-      (getContract as Mock).mockReturnValue(mockContract);
-
-      // Mock fetchAndValidateSchema to throw SchemaValidationError
-      const mockFetchAndValidateSchema = fetchAndValidateSchema as Mock;
-      const originalError = new SchemaValidationError("Invalid schema", [
-        {
-          instancePath: "/",
-          schemaPath: "#/required",
-          keyword: "required",
-          params: { missingProperty: "required_field" },
-          message: "Missing required field",
-        },
-      ]);
-      mockFetchAndValidateSchema.mockRejectedValue(originalError);
-
-      await expect(controller.getValidatedSchema(123)).rejects.toThrow(
-        originalError,
-      );
-    });
-
-    it("should handle non-Error exceptions in getValidatedSchema", async () => {
-      // Mock the contract read method to throw a non-Error
-      const mockContract = {
-        read: {
-          schemas: vi.fn().mockRejectedValue("String error"),
-        },
-      };
-      (getContract as Mock).mockReturnValue(mockContract);
-
-      await expect(controller.getValidatedSchema(123)).rejects.toThrow(
-        SchemaValidationError,
-      );
-      await expect(controller.getValidatedSchema(123)).rejects.toThrow(
-        "Failed to get validated schema 123: Unknown error",
-      );
-    });
-
-    it("should handle missing chainId in getValidatedSchema", async () => {
-      // Mock missing chain
-      mockWalletClient.chain = undefined as unknown as VanaChain;
-
-      await expect(controller.getValidatedSchema(123)).rejects.toThrow(
-        SchemaValidationError,
-      );
-    });
-
-    it("should successfully validate schema with exact name match", async () => {
-      // Mock the contract read method
-      const mockContract = {
-        read: {
-          schemas: vi.fn().mockResolvedValue({
-            name: "ExactMatch",
-            dialect: "json",
-            definitionUrl: "https://example.com/schema.json",
-          }),
-        },
-      };
-      (getContract as Mock).mockReturnValue(mockContract);
-
-      // Mock fetchAndValidateSchema to return schema with exact matching name
-      const mockValidatedSchema = {
-        name: "ExactMatch", // Exact match
-        version: "1.0.0",
-        dialect: "json",
-        schema: {
-          type: "object",
-          properties: {
-            name: { type: "string" },
-            age: { type: "number" },
-          },
-        },
-      };
-
-      const mockFetchAndValidateSchema = fetchAndValidateSchema as Mock;
-      mockFetchAndValidateSchema.mockResolvedValue(mockValidatedSchema);
-
-      const result = await controller.getValidatedSchema(456);
-
-      expect(result).toEqual(mockValidatedSchema);
-      expect(result.name).toBe("ExactMatch");
-    });
-  });
-
   describe("Edge cases and error handling", () => {
     it("should handle empty schema URL", async () => {
       const mockFetchAndValidateSchema = fetchAndValidateSchema as Mock;
@@ -449,69 +203,35 @@ describe("DataController - Schema Validation Methods", () => {
       await expect(controller.fetchAndValidateSchema("")).rejects.toThrow();
     });
 
-    it("should handle invalid schema ID", async () => {
-      const mockContract = {
-        read: {
-          schemas: vi.fn().mockRejectedValue(new Error("Invalid schema ID")),
-        },
-      };
-      (getContract as Mock).mockReturnValue(mockContract);
+    it("should handle malformed JSON in schema", async () => {
+      const mockFetchAndValidateSchema = fetchAndValidateSchema as Mock;
+      mockFetchAndValidateSchema.mockRejectedValue(new Error("Invalid JSON"));
 
-      await expect(controller.getValidatedSchema(-1)).rejects.toThrow(
-        SchemaValidationError,
-      );
+      await expect(
+        controller.fetchAndValidateSchema("https://example.com/bad.json"),
+      ).rejects.toThrow();
     });
 
-    it("should handle schema with undefined name", async () => {
-      // Mock the contract read method with undefined name
-      const mockContract = {
-        read: {
-          schemas: vi.fn().mockResolvedValue({
-            name: undefined,
-            dialect: "json",
-            definitionUrl: "https://example.com/schema.json",
-          }),
-        },
-      };
-      (getContract as Mock).mockReturnValue(mockContract);
-
-      // Mock fetchAndValidateSchema to return schema with proper name
-      const mockValidatedSchema = {
-        name: "ValidName",
+    it("should handle schemas with circular references", async () => {
+      const circularSchema = {
+        name: "CircularSchema",
         version: "1.0.0",
-        dialect: "json",
+        dialect: "json" as const,
         schema: {
           type: "object",
           properties: {
-            name: { type: "string" },
+            self: { $ref: "#" },
           },
         },
       };
 
       const mockFetchAndValidateSchema = fetchAndValidateSchema as Mock;
-      mockFetchAndValidateSchema.mockResolvedValue(mockValidatedSchema);
+      mockFetchAndValidateSchema.mockResolvedValue(circularSchema);
 
-      await expect(controller.getValidatedSchema(123)).rejects.toThrow(
-        SchemaValidationError,
+      const result = await controller.fetchAndValidateSchema(
+        "https://example.com/circular.json",
       );
-    });
-
-    it("should handle schema with null definition URL", async () => {
-      // Mock the contract read method with null definitionUrl
-      const mockContract = {
-        read: {
-          schemas: vi.fn().mockResolvedValue({
-            name: "TestSchema",
-            dialect: "json",
-            definitionUrl: null,
-          }),
-        },
-      };
-      (getContract as Mock).mockReturnValue(mockContract);
-
-      await expect(controller.getValidatedSchema(123)).rejects.toThrow(
-        SchemaValidationError,
-      );
+      expect(result).toEqual(circularSchema);
     });
   });
 });

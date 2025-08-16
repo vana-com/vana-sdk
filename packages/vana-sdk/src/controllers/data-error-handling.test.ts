@@ -3,7 +3,6 @@ import { DataController } from "./data";
 import { ControllerContext } from "./permissions";
 import { mokshaTestnet } from "../config/chains";
 import { mockPlatformAdapter } from "../tests/mocks/platformAdapter";
-import { SchemaValidationError } from "../utils/schemaValidation";
 
 // Mock external dependencies
 vi.mock("../utils/encryption", () => ({
@@ -233,19 +232,6 @@ describe("DataController Error Handling", () => {
         await dataController.fetchAndValidateSchema("test-schema-id");
       expect(result).toEqual(mockSchema);
       expect(fetchAndValidateSchema).toHaveBeenCalledWith("test-schema-id");
-    });
-
-    it("should handle getValidatedSchema error wrapping", async () => {
-      const { fetchAndValidateSchema } = await import(
-        "../utils/schemaValidation"
-      );
-      vi.mocked(fetchAndValidateSchema).mockRejectedValue(
-        new Error("Network error"),
-      );
-
-      await expect(dataController.getValidatedSchema(123)).rejects.toThrow(
-        SchemaValidationError,
-      );
     });
   });
 });

@@ -2,7 +2,7 @@ import { getContract } from "viem";
 import { PublicClient, WalletClient } from "viem";
 import { getContractAddress } from "../../config/addresses";
 import { getAbi } from "../../generated/abi";
-import { Schema } from "../../types/index";
+import { SchemaMetadata } from "../../types/index";
 
 /**
  * Shared context for blockchain operations.
@@ -25,11 +25,11 @@ interface SchemaContractData {
 }
 
 /**
- * Fetches a schema from the blockchain by its ID.
+ * Fetches schema metadata from the blockchain by its ID.
  *
  * @param context - The blockchain context containing wallet and public clients
  * @param schemaId - The ID of the schema to fetch
- * @returns The schema object with id, name, type, and definitionUrl
+ * @returns The schema metadata with id, name, dialect, and definitionUrl
  * @throws Error if chain ID is not available, schema not found, or data is incomplete
  *
  * @internal
@@ -37,7 +37,7 @@ interface SchemaContractData {
 export async function fetchSchemaFromChain(
   context: BlockchainContext,
   schemaId: number,
-): Promise<Schema> {
+): Promise<SchemaMetadata> {
   const chainId = context.walletClient.chain?.id;
   if (!chainId) {
     throw new Error("Chain ID not available");
@@ -70,7 +70,7 @@ export async function fetchSchemaFromChain(
   return {
     id: schemaId,
     name: schemaObj.name,
-    dialect: schemaObj.dialect,
+    dialect: schemaObj.dialect as "json" | "sqlite",
     definitionUrl: schemaObj.definitionUrl,
   };
 }

@@ -52,7 +52,7 @@ describe("useSchemasAndRefiners", () => {
     {
       id: 2,
       name: "Schema 2",
-      dialect: "csv",
+      dialect: "sqlite",
       definitionUrl: "https://schema2.com",
     },
   ];
@@ -387,8 +387,8 @@ describe("useSchemasAndRefiners", () => {
 
       const expectedParams: CreateSchemaParams = {
         name: "New Schema",
-        type: "json",
-        definition: { type: "object", properties: {} },
+        dialect: "json",
+        schema: { type: "object", properties: {} },
       };
 
       expect(mockVana.schemas.create).toHaveBeenCalledWith(expectedParams);

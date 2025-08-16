@@ -1,7 +1,13 @@
 import { Address } from "viem";
 import { TransactionHandle } from "../utils/transactionHandle";
 import { SchemaAddedResult } from "../types/transactionResults";
-import { Schema, AddSchemaParams, AddSchemaResult } from "../types/index";
+import {
+  Schema,
+  SchemaMetadata,
+  CompleteSchema,
+  AddSchemaParams,
+  AddSchemaResult,
+} from "../types/index";
 import { ControllerContext } from "./permissions";
 import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../generated/abi";
@@ -24,6 +30,7 @@ import {
   type CountSchemasQuery,
 } from "../generated/subgraph";
 import { print } from "graphql";
+import { fetchFromUrl, UrlResolutionError } from "../utils/urlResolver";
 
 /**
  * Parameters for creating a new schema with automatic IPFS upload.
@@ -36,10 +43,10 @@ import { print } from "graphql";
 export interface CreateSchemaParams {
   /** The name of the schema */
   name: string;
-  /** The type/category of the schema */
-  type: string;
+  /** The dialect of the schema (e.g., 'json' or 'sqlite') */
+  dialect: "json" | "sqlite";
   /** The schema definition object or JSON string */
-  definition: object | string;
+  schema: object | string;
 }
 
 /**
@@ -86,8 +93,8 @@ export interface CreateSchemaResult {
  * // Create a new schema with automatic IPFS upload
  * const result = await vana.schemas.create({
  *   name: "User Profile",
- *   type: "personal",
- *   definition: {
+ *   dialect: "json",
+ *   schema: {
  *     type: "object",
  *     properties: {
  *       name: { type: "string" },
@@ -122,7 +129,7 @@ export class SchemaController {
    * - Uploads the definition to IPFS to generate a permanent URL
    * - Registers the schema on the blockchain with the generated URL
    *
-   * @param params - Schema creation parameters including name, type, and definition
+   * @param params - Schema creation parameters including name, dialect, and definition
    * @returns Promise resolving to creation results with schema ID and transaction hash
    * @throws {SchemaValidationError} When the schema definition is invalid
    * @throws {Error} When IPFS upload or blockchain registration fails
@@ -131,8 +138,8 @@ export class SchemaController {
    * // Create a JSON schema for user profiles
    * const result = await vana.schemas.create({
    *   name: "User Profile",
-   *   type: "personal",
-   *   definition: {
+   *   dialect: "json",
+   *   schema: {
    *     type: "object",
    *     properties: {
    *       name: { type: "string" },
@@ -146,14 +153,14 @@ export class SchemaController {
    * ```
    */
   async create(params: CreateSchemaParams): Promise<CreateSchemaResult> {
-    const { name, type, definition } = params;
+    const { name, dialect, schema } = params;
 
     try {
       // Step 1: Normalize and validate the schema definition
       let schemaDefinition: object;
-      if (typeof definition === "string") {
+      if (typeof schema === "string") {
         try {
-          schemaDefinition = JSON.parse(definition);
+          schemaDefinition = JSON.parse(schema);
         } catch {
           throw new SchemaValidationError(
             "Invalid JSON in schema definition",
@@ -161,14 +168,14 @@ export class SchemaController {
           );
         }
       } else {
-        schemaDefinition = definition;
+        schemaDefinition = schema;
       }
 
       // Step 2: Validate against metaschema
       const dataSchema: DataSchema = {
         name,
         version: "1.0.0",
-        dialect: "json",
+        dialect,
         schema: schemaDefinition,
       };
 
@@ -189,7 +196,7 @@ export class SchemaController {
         }
       }
 
-      const schemaBlob = new Blob([JSON.stringify(schemaDefinition)], {
+      const schemaBlob = new Blob([JSON.stringify(dataSchema)], {
         type: "application/json",
       });
 
@@ -217,7 +224,7 @@ export class SchemaController {
         address: dataRefinerRegistryAddress,
         abi: dataRefinerRegistryAbi,
         functionName: "addSchema",
-        args: [name, type, uploadResult.url],
+        args: [name, dialect, uploadResult.url],
         account: this.context.walletClient.account || userAddress,
         chain: this.context.walletClient.chain || null,
       });
@@ -247,48 +254,91 @@ export class SchemaController {
   }
 
   /**
-   * Retrieves a schema by its ID.
+   * Retrieves a complete schema by its ID with definition fetched and flattened.
    *
    * @param schemaId - The ID of the schema to retrieve
    * @param options - Optional parameters
    * @param options.subgraphUrl - Custom subgraph URL to use instead of default
-   * @returns Promise resolving to the schema object
-   * @throws {Error} When the schema is not found or chain is unavailable
+   * @returns Promise resolving to the complete schema object with all fields populated
+   * @throws {Error} When the schema is not found, definition cannot be fetched, or chain is unavailable
    * @example
    * ```typescript
    * const schema = await vana.schemas.get(1);
-   * console.log(`Schema: ${schema.name} (${schema.type})`);
+   * console.log(`Schema: ${schema.name} (${schema.dialect})`);
+   * console.log(`Version: ${schema.version}`);
+   * console.log(`Description: ${schema.description}`);
+   * console.log('Schema:', schema.schema);
    *
-   * // With custom subgraph
-   * const schema = await vana.schemas.get(1, {
-   *   subgraphUrl: 'https://custom-subgraph.com/graphql'
-   * });
+   * // Use directly with validator (schema has all required fields)
+   * validator.validateDataAgainstSchema(data, schema);
    * ```
    */
   async get(
     schemaId: number,
     options: { subgraphUrl?: string } = {},
-  ): Promise<Schema> {
+  ): Promise<CompleteSchema> {
     const subgraphUrl = options.subgraphUrl || this.context.subgraphUrl;
+
+    let metadata: SchemaMetadata;
 
     // Try subgraph first if available
     if (subgraphUrl) {
       try {
-        return await this._getSchemaViaSubgraph({ schemaId, subgraphUrl });
+        metadata = await this._getSchemaViaSubgraph({ schemaId, subgraphUrl });
       } catch (error) {
         console.debug("Subgraph query failed, falling back to RPC:", error);
         // Fall through to RPC
+        try {
+          metadata = await fetchSchemaFromChain(this.context, schemaId);
+        } catch (rpcError) {
+          throw new Error(
+            `Failed to get schema: ${rpcError instanceof Error ? rpcError.message : "Unknown error"}`,
+          );
+        }
+      }
+    } else {
+      // Use RPC directly
+      try {
+        metadata = await fetchSchemaFromChain(this.context, schemaId);
+      } catch (error) {
+        throw new Error(
+          `Failed to get schema: ${error instanceof Error ? error.message : "Unknown error"}`,
+        );
       }
     }
 
-    // Use RPC (as fallback or primary method)
-    try {
-      return await fetchSchemaFromChain(this.context, schemaId);
-    } catch (error) {
+    // Fetch the definition (should be a complete DataSchema)
+    const definition = await fetchFromUrl(metadata.definitionUrl);
+
+    if (!definition || typeof definition !== "object") {
       throw new Error(
-        `Failed to get schema: ${error instanceof Error ? error.message : "Unknown error"}`,
+        `Invalid schema definition format for schema ${schemaId}`,
       );
     }
+
+    // Validate the fetched DataSchema
+    validateDataSchema(definition);
+    const dataSchema = definition as DataSchema;
+
+    // Verify on-chain and off-chain data match
+    if (dataSchema.name !== metadata.name) {
+      throw new Error(
+        `Schema name mismatch: on-chain="${metadata.name}" off-chain="${dataSchema.name}"`,
+      );
+    }
+    if (dataSchema.dialect !== metadata.dialect) {
+      throw new Error(
+        `Schema dialect mismatch: on-chain="${metadata.dialect}" off-chain="${dataSchema.dialect}"`,
+      );
+    }
+
+    // Return using on-chain values as authoritative source
+    return {
+      ...metadata,
+      version: dataSchema.version,
+      description: dataSchema.description,
+      schema: dataSchema.schema,
+    };
   }
 
   /**
@@ -339,27 +389,29 @@ export class SchemaController {
    * @param options.limit - Maximum number of schemas to return
    * @param options.offset - Number of schemas to skip
    * @param options.subgraphUrl - Custom subgraph URL to use instead of default
+   * @param options.includeDefinitions - Whether to fetch and include schema definitions (default: false for performance)
    * @returns Promise resolving to an array of schemas
    * @example
    * ```typescript
-   * // Get all schemas
+   * // Get all schemas (without definitions for performance)
    * const schemas = await vana.schemas.list();
+   *
+   * // Get schemas with definitions
+   * const schemas = await vana.schemas.list({ includeDefinitions: true });
    *
    * // Get schemas with pagination
    * const schemas = await vana.schemas.list({ limit: 10, offset: 0 });
-   *
-   * // With custom subgraph
-   * const schemas = await vana.schemas.list({
-   *   limit: 10,
-   *   offset: 0,
-   *   subgraphUrl: 'https://custom-subgraph.com/graphql'
-   * });
    * ```
    */
   async list(
-    options: { limit?: number; offset?: number; subgraphUrl?: string } = {},
+    options: {
+      limit?: number;
+      offset?: number;
+      subgraphUrl?: string;
+      includeDefinitions?: boolean;
+    } = {},
   ): Promise<Schema[]> {
-    const { limit = 100, offset = 0 } = options;
+    const { limit = 100, offset = 0, includeDefinitions = false } = options;
     const subgraphUrl = options.subgraphUrl || this.context.subgraphUrl;
 
     // Try subgraph first if available
@@ -435,7 +487,7 @@ export class SchemaController {
             schemas.push({
               id: schemaId,
               name: schemaData.name,
-              dialect: schemaData.dialect,
+              dialect: schemaData.dialect as "json" | "sqlite",
               definitionUrl: schemaData.definitionUrl,
             });
           } else {
@@ -446,6 +498,11 @@ export class SchemaController {
           console.warn(`Failed to retrieve schema ${start + index + 1}`);
         }
       });
+
+      // Optionally fetch definitions for all schemas
+      if (includeDefinitions) {
+        await this._fetchDefinitionsForSchemas(schemas);
+      }
 
       return schemas;
     } catch (error) {
@@ -509,7 +566,7 @@ export class SchemaController {
   private async _getSchemaViaSubgraph(params: {
     schemaId: number;
     subgraphUrl: string;
-  }): Promise<Schema> {
+  }): Promise<SchemaMetadata> {
     const { schemaId, subgraphUrl } = params;
 
     const response = await fetch(subgraphUrl, {
@@ -547,7 +604,7 @@ export class SchemaController {
     return {
       id: parseInt(subgraphSchema.id),
       name: subgraphSchema.name,
-      dialect: subgraphSchema.dialect,
+      dialect: subgraphSchema.dialect as "json" | "sqlite",
       definitionUrl: subgraphSchema.definitionUrl,
     };
   }
@@ -600,12 +657,21 @@ export class SchemaController {
     }
 
     // Map subgraph schemas to SDK schema type
-    return result.data.schemas.map((schema) => ({
+    const schemas = result.data.schemas.map((schema) => ({
       id: parseInt(schema.id),
       name: schema.name,
-      dialect: schema.dialect,
+      dialect: schema.dialect as "json" | "sqlite",
       definitionUrl: schema.definitionUrl,
     }));
+
+    // Optionally fetch definitions if requested
+    const includeDefinitions = (params as { includeDefinitions?: boolean })
+      .includeDefinitions;
+    if (includeDefinitions) {
+      await this._fetchDefinitionsForSchemas(schemas);
+    }
+
+    return schemas;
   }
 
   /**
@@ -675,5 +741,44 @@ export class SchemaController {
     }
 
     throw new Error("Unable to determine wallet address");
+  }
+
+  /**
+   * Fetches and attaches definitions to an array of schemas.
+   *
+   * @param schemas - Array of schemas to fetch definitions for
+   * @private
+   */
+  private async _fetchDefinitionsForSchemas(schemas: Schema[]): Promise<void> {
+    // Fetch definitions concurrently for performance
+    await Promise.all(
+      schemas.map(async (schema) => {
+        if (!schema.definitionUrl) return;
+
+        try {
+          const definition = await fetchFromUrl(schema.definitionUrl);
+
+          if (definition && typeof definition === "object") {
+            // Validate the fetched DataSchema
+            validateDataSchema(definition);
+            const dataSchema = definition as DataSchema;
+
+            // Populate flat fields
+            schema.version = dataSchema.version;
+            schema.description = dataSchema.description;
+            schema.schema = dataSchema.schema;
+          }
+        } catch (error) {
+          // Don't fail the entire list operation if one definition fails
+          console.error(
+            `Failed to fetch/validate definition for schema ${schema.id}:`,
+            error instanceof UrlResolutionError ||
+              error instanceof SchemaValidationError
+              ? error.message
+              : error,
+          );
+        }
+      }),
+    );
   }
 }

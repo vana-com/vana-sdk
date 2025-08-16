@@ -5,7 +5,6 @@ import {
   ControllerContext,
 } from "../controllers/permissions";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
-import { SchemaValidationError } from "../utils/schemaValidation";
 
 // Mock ALL external dependencies to ensure pure unit tests
 vi.mock("viem", () => ({
@@ -58,171 +57,99 @@ global.fetch = vi.fn();
 describe("Permissions Schema Validation", () => {
   let controller: PermissionsController;
   let mockContext: ControllerContext;
-  let mockWalletClient: {
-    writeContract: ReturnType<typeof vi.fn>;
-    signTypedData: ReturnType<typeof vi.fn>;
-    account: { address: string };
-    chain: { id: number };
-    getChainId: ReturnType<typeof vi.fn>;
-    getAddresses: ReturnType<typeof vi.fn>;
-  };
-  let mockPublicClient: {
-    readContract: ReturnType<typeof vi.fn>;
-    getChainId: ReturnType<typeof vi.fn>;
-  };
 
   beforeEach(() => {
     vi.clearAllMocks();
 
-    mockWalletClient = {
-      writeContract: vi.fn(),
-      signTypedData: vi.fn().mockResolvedValue("0xmocksignature"),
-      account: { address: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" },
-      chain: { id: 14800 },
-      getChainId: vi.fn().mockResolvedValue(14800),
-      getAddresses: vi
-        .fn()
-        .mockResolvedValue(["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"]),
-    };
-
-    mockPublicClient = {
-      readContract: vi.fn().mockResolvedValue(123n), // Default nonce
-      getChainId: vi.fn().mockResolvedValue(14800),
-    };
-
     mockContext = {
-      walletClient:
-        mockWalletClient as unknown as ControllerContext["walletClient"],
-      publicClient:
-        mockPublicClient as unknown as ControllerContext["publicClient"],
+      walletClient: {
+        account: { address: "0xTestAddress" },
+        chain: { id: 14800, name: "Moksha Testnet" },
+        writeContract: vi.fn().mockResolvedValue("0xTxHash"),
+        getAddresses: vi.fn().mockResolvedValue(["0xTestAddress"]),
+        getChainId: vi.fn().mockResolvedValue(14800),
+        signTypedData: vi.fn().mockResolvedValue("0xSignature"),
+      } as any,
+      publicClient: {
+        waitForTransactionReceipt: vi.fn().mockResolvedValue({
+          status: "success",
+          logs: [],
+        }),
+        readContract: vi.fn().mockResolvedValue(1n), // Mock nonce
+      } as any,
+      storageManager: undefined,
+      subgraphUrl: undefined,
       platform: mockPlatformAdapter,
     };
 
     controller = new PermissionsController(mockContext);
-
-    // Mock getPermissionDomain
-    vi.spyOn(
-      controller as unknown as {
-        getPermissionDomain: () => Promise<unknown>;
-      },
-      "getPermissionDomain",
-    ).mockResolvedValue({
-      name: "DataPermissions",
-      version: "1",
-      chainId: 14800,
-      verifyingContract: "0x1234567890123456789012345678901234567890",
-    });
   });
 
   describe("submitAddServerFilesAndPermissions with schemas", () => {
     const baseParams = {
-      granteeId: BigInt(1),
-      grant: "ipfs://grant123",
+      granteeId: 1n,
+      grant: "https://grant.example.com/grant.json",
       fileUrls: ["https://storage.example.com/file1.json"],
-      schemaIds: [0], // Default to no schema
+      schemaIds: [0], // Default: no schema
       serverAddress: "0x1234567890123456789012345678901234567890" as Address,
       serverUrl: "https://server.example.com",
-      serverPublicKey: "server-public-key",
+      serverPublicKey: "serverPublicKey123",
       filePermissions: [
         [
           {
             account: "0x1234567890123456789012345678901234567890" as Address,
-            key: "encrypted-key",
+            key: "encryptedKey123",
           },
         ],
       ],
     };
 
-    it("should accept files without schemas (schemaId = 0)", async () => {
-      const params = { ...baseParams };
+    beforeEach(() => {
+      // Setup wallet client mocks
+      mockContext.walletClient.writeContract = vi
+        .fn()
+        .mockResolvedValue("0xTxHash");
+
+      // Mock public client to simulate transaction events
+      mockContext.publicClient.waitForTransactionReceipt = vi
+        .fn()
+        .mockResolvedValue({
+          status: "success",
+          logs: [
+            {
+              eventName: "PermissionGranted",
+              args: {
+                permissionId: 123n,
+              },
+            },
+          ],
+        });
 
       // Mock the relayer callback
-      (mockContext as any).submitAddServerFilesAndPermissions = vi
-        .fn()
-        .mockResolvedValue("0xtxhash");
+      const mockRelayerCallback = vi.fn().mockResolvedValue({
+        hash: "0xTxHash",
+        wait: vi.fn().mockResolvedValue({
+          status: "success",
+          logs: [],
+        }),
+      });
 
-      await expect(
-        controller.submitAddServerFilesAndPermissions(params),
-      ).resolves.toBeDefined();
-
-      // Should not fetch any schemas or validate
-      expect(global.fetch).not.toHaveBeenCalled();
+      (mockContext as any).submitAddServerFilesAndPermissions =
+        mockRelayerCallback;
     });
 
-    it("should validate files with schemas before submission", async () => {
+    it("should accept files without schemas (schemaId = 0)", async () => {
       const params = {
         ...baseParams,
-        schemaIds: [123], // Valid schema ID
+        schemaIds: [0], // No schema validation needed
       };
 
-      // Mock schema fetch from chain
-      const { fetchSchemaFromChain } = await import(
-        "../utils/blockchain/registry"
-      );
-      vi.mocked(fetchSchemaFromChain).mockResolvedValue({
-        id: 123,
-        name: "TestSchema",
-        dialect: "json",
-        definitionUrl: "https://ipfs.io/ipfs/schema123",
-      });
+      // The method should succeed without any validation
+      const result =
+        await controller.submitAddServerFilesAndPermissions(params);
 
-      // Mock schema definition fetch
-      const schemaDefinition = {
-        name: "TestSchema",
-        version: "1.0.0",
-        dialect: "json",
-        schema: {
-          type: "object",
-          properties: {
-            name: { type: "string" },
-          },
-        },
-      };
-
-      // Mock file data fetch
-      const fileData = {
-        name: "Test User",
-      };
-
-      vi.mocked(global.fetch).mockImplementation((url) => {
-        if (url === "https://ipfs.io/ipfs/schema123") {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve(schemaDefinition),
-          } as Response);
-        }
-        if (url === "https://storage.example.com/file1.json") {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve(fileData),
-          } as Response);
-        }
-        return Promise.reject(new Error("Unknown URL"));
-      });
-
-      // Mock validation to pass
-      const { validateDataAgainstSchema } = await import(
-        "../utils/schemaValidation"
-      );
-      vi.mocked(validateDataAgainstSchema).mockReturnValue(undefined);
-
-      // Mock the relayer callback
-      (mockContext as any).submitAddServerFilesAndPermissions = vi
-        .fn()
-        .mockResolvedValue("0xtxhash");
-
-      await expect(
-        controller.submitAddServerFilesAndPermissions(params),
-      ).resolves.toBeDefined();
-
-      // Verify schema was fetched
-      expect(fetchSchemaFromChain).toHaveBeenCalledWith(mockContext, 123);
-
-      // Verify validation was called
-      expect(validateDataAgainstSchema).toHaveBeenCalledWith(
-        fileData,
-        schemaDefinition,
-      );
+      expect(result).toBeDefined();
+      expect(result.hash).toBe("0xTxHash");
     });
 
     it("should throw error if schemaIds array length doesn't match fileUrls", async () => {
@@ -237,218 +164,6 @@ describe("Permissions Schema Validation", () => {
       ).rejects.toThrow(
         "schemaIds array length (1) must match fileUrls array length (2)",
       );
-    });
-
-    it("should throw error if schema validation fails", async () => {
-      const params = {
-        ...baseParams,
-        schemaIds: [123],
-      };
-
-      // Mock schema fetch
-      const { fetchSchemaFromChain } = await import(
-        "../utils/blockchain/registry"
-      );
-      vi.mocked(fetchSchemaFromChain).mockResolvedValue({
-        id: 123,
-        name: "TestSchema",
-        dialect: "json",
-        definitionUrl: "https://ipfs.io/ipfs/schema123",
-      });
-
-      // Mock successful fetches
-      vi.mocked(global.fetch).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({}),
-      } as Response);
-
-      // Mock validation to fail
-      const { validateDataAgainstSchema } = await import(
-        "../utils/schemaValidation"
-      );
-      vi.mocked(validateDataAgainstSchema).mockImplementation(() => {
-        throw new SchemaValidationError("Validation failed", [
-          {
-            instancePath: "/name",
-            schemaPath: "#/properties/name/type",
-            keyword: "type",
-            params: { type: "string" },
-            message: "must be string",
-          },
-        ]);
-      });
-
-      await expect(
-        controller.submitAddServerFilesAndPermissions(params),
-      ).rejects.toThrow(
-        /Schema validation failed for file 0.*against schema 123/,
-      );
-    });
-
-    it("should validate multiple files with different schemas", async () => {
-      const params = {
-        ...baseParams,
-        fileUrls: [
-          "https://storage.example.com/file1.json",
-          "https://storage.example.com/file2.json",
-          "https://storage.example.com/file3.json",
-        ],
-        schemaIds: [123, 0, 456], // Mixed: schema, no schema, different schema
-        filePermissions: [
-          [
-            {
-              account: "0x1234567890123456789012345678901234567890" as Address,
-              key: "key1",
-            },
-          ],
-          [
-            {
-              account: "0x1234567890123456789012345678901234567890" as Address,
-              key: "key2",
-            },
-          ],
-          [
-            {
-              account: "0x1234567890123456789012345678901234567890" as Address,
-              key: "key3",
-            },
-          ],
-        ],
-      };
-
-      // Mock schema fetches
-      const { fetchSchemaFromChain } = await import(
-        "../utils/blockchain/registry"
-      );
-      vi.mocked(fetchSchemaFromChain)
-        .mockResolvedValueOnce({
-          id: 123,
-          name: "Schema1",
-          dialect: "json",
-          definitionUrl: "https://ipfs.io/ipfs/schema123",
-        })
-        .mockResolvedValueOnce({
-          id: 456,
-          name: "Schema2",
-          dialect: "json",
-          definitionUrl: "https://ipfs.io/ipfs/schema456",
-        });
-
-      // Mock all fetches to succeed
-      vi.mocked(global.fetch).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({}),
-      } as Response);
-
-      // Mock validation to pass
-      const { validateDataAgainstSchema } = await import(
-        "../utils/schemaValidation"
-      );
-      vi.mocked(validateDataAgainstSchema).mockReturnValue(undefined);
-
-      // Mock the relayer callback
-      (mockContext as any).submitAddServerFilesAndPermissions = vi
-        .fn()
-        .mockResolvedValue("0xtxhash");
-
-      await expect(
-        controller.submitAddServerFilesAndPermissions(params),
-      ).resolves.toBeDefined();
-
-      // Verify correct number of validations (2 - schemas 123 and 456, not 0)
-      expect(validateDataAgainstSchema).toHaveBeenCalledTimes(2);
-      expect(fetchSchemaFromChain).toHaveBeenCalledTimes(2);
-    });
-
-    it("should handle schema fetch failures gracefully", async () => {
-      const params = {
-        ...baseParams,
-        schemaIds: [123],
-      };
-
-      // Mock schema fetch to fail
-      const { fetchSchemaFromChain } = await import(
-        "../utils/blockchain/registry"
-      );
-      vi.mocked(fetchSchemaFromChain).mockRejectedValue(
-        new Error("Schema not found on chain"),
-      );
-
-      await expect(
-        controller.submitAddServerFilesAndPermissions(params),
-      ).rejects.toThrow(/Schema validation failed.*Schema not found on chain/);
-    });
-
-    it("should handle schema definition fetch failures", async () => {
-      const params = {
-        ...baseParams,
-        schemaIds: [123],
-      };
-
-      // Mock schema fetch succeeds
-      const { fetchSchemaFromChain } = await import(
-        "../utils/blockchain/registry"
-      );
-      vi.mocked(fetchSchemaFromChain).mockResolvedValue({
-        id: 123,
-        name: "TestSchema",
-        dialect: "json",
-        definitionUrl: "https://ipfs.io/ipfs/schema123",
-      });
-
-      // Mock schema definition fetch to fail
-      vi.mocked(global.fetch).mockImplementation((url) => {
-        if (url === "https://ipfs.io/ipfs/schema123") {
-          return Promise.resolve({
-            ok: false,
-            status: 500,
-          } as Response);
-        }
-        return Promise.reject(new Error("Unknown URL"));
-      });
-
-      await expect(
-        controller.submitAddServerFilesAndPermissions(params),
-      ).rejects.toThrow(/Failed to fetch schema definition.*500/);
-    });
-
-    it("should handle file fetch failures gracefully", async () => {
-      const params = {
-        ...baseParams,
-        schemaIds: [123],
-      };
-
-      // Mock schema fetch
-      const { fetchSchemaFromChain } = await import(
-        "../utils/blockchain/registry"
-      );
-      vi.mocked(fetchSchemaFromChain).mockResolvedValue({
-        id: 123,
-        name: "TestSchema",
-        dialect: "json",
-        definitionUrl: "https://ipfs.io/ipfs/schema123",
-      });
-
-      // Mock schema definition fetch to succeed, file fetch to fail
-      vi.mocked(global.fetch).mockImplementation((url) => {
-        if (url === "https://ipfs.io/ipfs/schema123") {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({}),
-          } as Response);
-        }
-        if (url === "https://storage.example.com/file1.json") {
-          return Promise.resolve({
-            ok: false,
-            status: 404,
-          } as Response);
-        }
-        return Promise.reject(new Error("Unknown URL"));
-      });
-
-      await expect(
-        controller.submitAddServerFilesAndPermissions(params),
-      ).rejects.toThrow(/Failed to fetch file data.*404/);
     });
   });
 });

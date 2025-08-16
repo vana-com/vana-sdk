@@ -1,5 +1,4 @@
 import { Address, getContract, Hash } from "viem";
-import { fetchSchemaFromChain } from "../utils/blockchain/registry";
 import { StorageUploadResult } from "../types/storage";
 
 import {
@@ -38,7 +37,6 @@ import {
   validateDataSchema,
   validateDataAgainstSchema,
   fetchAndValidateSchema,
-  SchemaValidationError,
   type DataSchema,
 } from "../utils/schemaValidation";
 import { gasAwareMulticall } from "../utils/multicall";
@@ -261,22 +259,10 @@ export class DataController {
       // Step 1: Schema validation if provided
       if (schemaId !== undefined) {
         try {
-          const schema = await fetchSchemaFromChain(this.context, schemaId);
-          const response = await fetch(schema.definitionUrl);
-          if (!response.ok) {
-            throw new Error(
-              `Failed to fetch schema definition: ${response.status}`,
-            );
-          }
-          const schemaDefinition = await response.json();
-
-          // Convert to DataSchema format
-          const dataSchema = {
-            name: schema.name,
-            version: "1.0.0",
-            dialect: "json" as const,
-            schema: schemaDefinition,
-          };
+          // Use SchemaController to get complete schema with definition
+          const { SchemaController } = await import("./schemas");
+          const schemaController = new SchemaController(this.context);
+          const schema = await schemaController.get(schemaId);
 
           // Parse content for validation
           let parsedContent;
@@ -290,8 +276,8 @@ export class DataController {
             parsedContent = content;
           }
 
-          // Validate against schema
-          validateDataAgainstSchema(parsedContent, dataSchema);
+          // Validate against schema (Schema is compatible with DataSchema)
+          validateDataAgainstSchema(parsedContent, schema);
         } catch (error) {
           isValid = false;
           validationErrors = [
@@ -2611,54 +2597,5 @@ export class DataController {
    */
   async fetchAndValidateSchema(url: string): Promise<DataSchema> {
     return fetchAndValidateSchema(url);
-  }
-
-  /**
-   * Retrieves a schema by ID and fetches its definition URL to get the full data schema.
-   *
-   * @param schemaId - The schema ID to retrieve and validate
-   * @returns The validated data schema
-   * @throws SchemaValidationError if schema is invalid
-   * @example
-   * ```typescript
-   * // Get schema from registry and validate its schema
-   * const schema = await vana.data.getValidatedSchema(123);
-   *
-   * // Use it to validate user data
-   * if (schema.dialect === "json") {
-   *   vana.data.validateDataAgainstSchema(userData, schema);
-   * }
-   * ```
-   */
-  async getValidatedSchema(schemaId: number): Promise<DataSchema> {
-    try {
-      // First get the schema metadata from the registry
-      const schema = await fetchSchemaFromChain(this.context, schemaId);
-
-      // Then fetch and validate the full data schema from the definition URL
-      const dataSchema = await this.fetchAndValidateSchema(
-        schema.definitionUrl,
-      );
-
-      // Verify that the fetched schema name matches the on-chain name
-      if (dataSchema.name !== schema.name) {
-        throw new SchemaValidationError(
-          `Schema name mismatch: on-chain name "${schema.name}" does not match schema name "${dataSchema.name}"`,
-          [],
-        );
-      }
-
-      return dataSchema;
-    } catch (error) {
-      if (error instanceof SchemaValidationError) {
-        throw error;
-      }
-
-      console.error("Failed to get validated schema:", error);
-      throw new SchemaValidationError(
-        `Failed to get validated schema ${schemaId}: ${error instanceof Error ? error.message : "Unknown error"}`,
-        [],
-      );
-    }
   }
 }

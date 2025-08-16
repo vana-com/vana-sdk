@@ -237,6 +237,34 @@ describe("SchemaValidator", () => {
       ).toThrow(SchemaValidationError);
     });
 
+    it("should validate data against CompleteSchema from schemas.get()", () => {
+      // This mimics what schemas.get() returns - a CompleteSchema with extra fields
+      const completeSchema = {
+        id: 19,
+        name: "User Profile",
+        dialect: "json" as const,
+        definitionUrl: "ipfs://example",
+        version: "1.0.0",
+        schema: {
+          type: "object",
+          properties: {
+            message: { type: "string", minLength: 20, maxLength: 100 },
+          },
+          required: ["message"],
+          additionalProperties: false,
+        },
+      };
+
+      const validData = {
+        message: "This is a valid message that is long enough",
+      };
+
+      // This should NOT throw even though CompleteSchema has extra fields
+      expect(() =>
+        validator.validateDataAgainstSchema(validData, completeSchema),
+      ).not.toThrow();
+    });
+
     it("should throw error for non-json dialect", () => {
       const sqliteSchema: DataSchema = {
         name: "SQLite Schema",

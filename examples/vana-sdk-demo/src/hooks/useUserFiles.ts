@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { UserFile } from "@opendatalabs/vana-sdk/browser";
+import { UserFile } from "@opendatalabs/vana-sdk/browser-wasm";
 import { useVana } from "@/providers/VanaProvider";
 import { useAccount } from "wagmi";
 import { createApiHandler } from "./utils";

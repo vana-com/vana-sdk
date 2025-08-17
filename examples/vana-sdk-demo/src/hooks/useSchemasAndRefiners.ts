@@ -8,7 +8,7 @@ import {
   CreateSchemaResult,
   AddRefinerParams,
   UpdateSchemaIdParams,
-} from "@opendatalabs/vana-sdk/browser";
+} from "@opendatalabs/vana-sdk/browser-wasm";
 import { useVana } from "@/providers/VanaProvider";
 import { useAccount } from "wagmi";
 import { createApiHandler } from "./utils";

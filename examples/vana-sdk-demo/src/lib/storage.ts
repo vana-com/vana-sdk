@@ -7,7 +7,7 @@ import {
   CallbackStorage,
   StorageCallbacks,
   GoogleDriveStorage,
-} from "@opendatalabs/vana-sdk/browser";
+} from "@opendatalabs/vana-sdk/browser-wasm";
 
 /**
  * Get the Pinata gateway URL with fallback

@@ -28,7 +28,7 @@ import {
   Key,
   Users,
 } from "lucide-react";
-import type { Schema } from "@opendatalabs/vana-sdk/browser";
+import type { Schema } from "@opendatalabs/vana-sdk/browser-wasm";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusDisplay } from "@/components/ui/StatusDisplay";

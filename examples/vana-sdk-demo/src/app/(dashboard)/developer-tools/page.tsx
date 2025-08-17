@@ -28,7 +28,7 @@ import {
   Copy,
 } from "lucide-react";
 import { FormBuilder } from "@/components/ui/FormBuilder";
-import type { VanaContractName } from "@opendatalabs/vana-sdk/browser";
+import type { VanaContractName } from "@opendatalabs/vana-sdk/browser-wasm";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SchemaIdDisplay } from "@/components/ui/SchemaIdDisplay";
 import { RefinerIdDisplay } from "@/components/ui/RefinerIdDisplay";

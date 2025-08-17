@@ -16,12 +16,12 @@ import {
   CardBody,
 } from "@heroui/react";
 import { Eye, Shield, AlertCircle, Cloud, Database } from "lucide-react";
-import { validateGrant } from "@opendatalabs/vana-sdk/browser";
+import { validateGrant } from "@opendatalabs/vana-sdk/browser-wasm";
 import type {
   GrantPermissionParams,
   GrantedPermission,
   Grantee,
-} from "@opendatalabs/vana-sdk/browser";
+} from "@opendatalabs/vana-sdk/browser-wasm";
 
 export interface GrantPermissionModalProps {
   isOpen: boolean;

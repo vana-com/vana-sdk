@@ -1,7 +1,7 @@
 import { Button } from "@heroui/react";
 import { ExternalLink } from "lucide-react";
 import { CopyButton } from "./CopyButton";
-import { getContractAddress } from "@opendatalabs/vana-sdk/browser";
+import { getContractAddress } from "@opendatalabs/vana-sdk/browser-wasm";
 import { keccak256, toBytes } from "viem";
 import { getContractUrl } from "@/lib/explorer";
 

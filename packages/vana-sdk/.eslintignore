@@ -1,5 +1,0 @@
-dist/
-node_modules/
-test-builds/
-*.config.ts
-*.config.js

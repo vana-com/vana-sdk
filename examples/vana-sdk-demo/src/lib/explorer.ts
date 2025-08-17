@@ -1,5 +1,8 @@
 import { type Chain } from "viem";
-import { mokshaTestnet, vanaMainnet } from "@opendatalabs/vana-sdk/browser";
+import {
+  mokshaTestnet,
+  vanaMainnet,
+} from "@opendatalabs/vana-sdk/browser-wasm";
 
 /**
  * Get the chain configuration for a given chain ID

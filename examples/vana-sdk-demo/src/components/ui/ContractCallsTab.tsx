@@ -20,7 +20,7 @@ import {
   UserPlus,
   AlertCircle,
 } from "lucide-react";
-import type { VanaInstance } from "@opendatalabs/vana-sdk/browser";
+import type { VanaInstance } from "@opendatalabs/vana-sdk/browser-wasm";
 import type { Address } from "viem";
 import { CodeDisplay } from "./CodeDisplay";
 import { StatusMessage } from "./StatusMessage";

@@ -24,6 +24,9 @@ export default [
       "**/docs/**",
       "**/vitest.config.ts",
       "**/src/generated/**", // Generated code - do not lint
+      "**/test-builds/**", // Test build files - browser specific
+      "**/benchmark-ecies.cjs", // Benchmark script
+      "**/tsup*.config.ts", // Build config files
     ],
   },
 

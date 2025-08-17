@@ -59,6 +59,10 @@
         "import": "./dist/platform.node.js",
         "require": "./dist/platform.node.cjs"
       }
+    },
+    "./browser-wasm": {
+      "types": "./dist/index.browser-wasm.d.ts",
+      "import": "./dist/index.browser-wasm.js"
     }
   },
   "files": [
@@ -71,9 +75,10 @@
     "build:types": "tsup src/index.ts --dts-only --out-dir dist --no-clean",
     "build:node": "tsup src/index.node.ts --platform node --format esm,cjs --target node18 --out-dir dist --no-clean",
     "build:browser": "tsup --config tsup-browser.config.ts",
+    "build:browser-wasm": "tsup --config tsup-browser-wasm.config.ts",
     "build:chains": "tsup src/chains.ts src/chains.node.ts src/chains.browser.ts --platform node --format esm,cjs --target node18 --out-dir dist --dts --no-clean",
     "build:platform": "tsup src/platform.ts src/platform.node.ts src/node.ts --platform node --format esm,cjs --target node18 --out-dir dist --dts --no-clean && tsup src/platform.browser.ts src/browser.ts --platform browser --format esm --target es2020 --out-dir dist --dts --no-clean",
-    "build": "npm run clean && npm run build:types && npm run build:node && npm run build:browser && npm run build:chains && npm run build:platform",
+    "build": "npm run clean && npm run build:types && npm run build:node && npm run build:browser && npm run build:browser-wasm && npm run build:chains && npm run build:platform",
     "prepare": "npm run build",
     "dev": "npm run build -- --watch",
     "lint": "eslint .",
@@ -99,12 +104,12 @@
   "license": "ISC",
   "dependencies": {
     "@noble/hashes": "^1.8.0",
+    "@noble/secp256k1": "^2.3.0",
     "abitype": "^1.0.8",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
     "graphql": "^16.11.0",
     "openpgp": "^6.1.1",
-    "tiny-secp256k1": "^2.2.3",
     "viem": "^2.31.7"
   },
   "devDependencies": {
@@ -112,6 +117,7 @@
     "@graphql-codegen/typed-document-node": "^5.1.2",
     "@graphql-codegen/typescript": "^4.1.6",
     "@graphql-codegen/typescript-operations": "^4.6.1",
+    "@types/eccrypto": "^1.1.6",
     "@types/node": "^24.0.10",
     "@types/secp256k1": "^4.0.6",
     "@typescript-eslint/eslint-plugin": "^8.32.1",
@@ -135,7 +141,8 @@
     "vitest": "^3.2.4"
   },
   "optionalDependencies": {
-    "secp256k1": "^5.0.0"
+    "secp256k1": "^5.0.0",
+    "tiny-secp256k1": "^2.2.3"
   },
   "engines": {
     "node": ">=20.0.0"

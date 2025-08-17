@@ -29,7 +29,14 @@
     "incremental": true,
     "tsBuildInfoFile": ".tsbuildinfo"
   },
-  "include": ["src/**/*.ts", "src/**/*.json", "tsup.config.ts", "codegen.ts"],
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.json",
+    "tsup.config.ts",
+    "tsup-browser.config.ts",
+    "tsup-browser-wasm.config.ts",
+    "codegen.ts"
+  ],
   "exclude": [
     "node_modules",
     "dist",

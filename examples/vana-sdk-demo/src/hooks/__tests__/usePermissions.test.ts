@@ -15,7 +15,7 @@ import {
   GrantedPermission,
   PermissionGrantTypedData,
   retrieveGrantFile,
-} from "@opendatalabs/vana-sdk/browser";
+} from "@opendatalabs/vana-sdk/browser-wasm";
 import { addToast } from "@heroui/react";
 import {
   createMockUseAccount,
@@ -26,8 +26,8 @@ import {
 // Mock dependencies
 vi.mock("wagmi");
 vi.mock("@/providers/VanaProvider");
-vi.mock("@opendatalabs/vana-sdk/browser", async () => {
-  const actual = await vi.importActual("@opendatalabs/vana-sdk/browser");
+vi.mock("@opendatalabs/vana-sdk/browser-wasm", async () => {
+  const actual = await vi.importActual("@opendatalabs/vana-sdk/browser-wasm");
   return {
     ...actual,
     retrieveGrantFile: vi.fn(),

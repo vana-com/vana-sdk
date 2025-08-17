@@ -1,8 +1,8 @@
 /**
- * Browser implementation of the Vana Platform Adapter
+ * Browser WASM implementation of the Vana Platform Adapter
  *
- * This implementation uses browser-compatible libraries and configurations
- * to provide crypto, PGP, and HTTP functionality without Node.js dependencies.
+ * This implementation uses WebAssembly-optimized libraries for higher performance.
+ * Requires WebAssembly configuration in your bundler.
  *
  * WARNING: Dependencies that access globals during init
  * MUST be dynamically imported to support Turbopack.
@@ -25,18 +25,18 @@ import { getPGPKeyGenParams } from "./shared/pgp-utils";
 import { wrapCryptoError } from "./shared/error-utils";
 import { lazyImport } from "../utils/lazy-import";
 
-// Import browser ECIES provider
-import { BrowserECIESProvider } from "../crypto/ecies/browser";
+// Import browser WASM ECIES provider
+import { BrowserWASMECIESProvider } from "../crypto/ecies/browser-wasm";
 import type { ECIESEncrypted } from "../crypto/ecies";
 
 // Lazy-loaded dependencies to avoid Turbopack TDZ issues
 const getOpenPGP = lazyImport(() => import("openpgp"));
 
 /**
- * Browser implementation of crypto operations using tiny-secp256k1
+ * Browser WASM implementation of crypto operations using tiny-secp256k1
  */
-class BrowserCryptoAdapter implements VanaCryptoAdapter {
-  private eciesProvider = new BrowserECIESProvider();
+class BrowserWASMCryptoAdapter implements VanaCryptoAdapter {
+  private eciesProvider = new BrowserWASMECIESProvider();
 
   async encryptWithPublicKey(
     data: string,
@@ -99,21 +99,25 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
 
   async generateKeyPair(): Promise<{ publicKey: string; privateKey: string }> {
     try {
+      const secp256k1 = await import("tiny-secp256k1");
+
       // Generate a random 32-byte private key for secp256k1
-      let privateKey: Uint8Array;
+      let privateKey: Buffer;
       do {
-        privateKey = this.eciesProvider["generateRandomBytes"](32);
-      } while (!this.eciesProvider["verifyPrivateKey"](privateKey));
+        const privateKeyBytes = new Uint8Array(32);
+        crypto.getRandomValues(privateKeyBytes);
+        privateKey = Buffer.from(privateKeyBytes);
+      } while (!secp256k1.isPrivate(privateKey));
 
       // Generate the corresponding compressed public key
-      const publicKey = this.eciesProvider["createPublicKey"](privateKey, true);
+      const publicKey = secp256k1.pointFromScalar(privateKey, true);
 
       if (!publicKey) {
         throw new Error("Failed to generate public key");
       }
 
       return {
-        privateKey: Buffer.from(privateKey).toString("hex"),
+        privateKey: privateKey.toString("hex"),
         publicKey: Buffer.from(publicKey).toString("hex"),
       };
     } catch (error) {
@@ -238,9 +242,9 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
 }
 
 /**
- * Browser implementation of PGP operations using openpgp with browser-specific configuration
+ * Browser WASM implementation of PGP operations using openpgp with browser-specific configuration
  */
-class BrowserPGPAdapter implements VanaPGPAdapter {
+class BrowserWASMPGPAdapter implements VanaPGPAdapter {
   async encrypt(data: string, publicKeyArmored: string): Promise<string> {
     try {
       const openpgp = await getOpenPGP();
@@ -304,9 +308,9 @@ class BrowserPGPAdapter implements VanaPGPAdapter {
 }
 
 /**
- * Browser implementation of HTTP operations using fetch API
+ * Browser WASM implementation of HTTP operations using fetch API
  */
-class BrowserHttpAdapter implements VanaHttpAdapter {
+class BrowserWASMHttpAdapter implements VanaHttpAdapter {
   async fetch(url: string, options?: RequestInit): Promise<Response> {
     if (typeof fetch === "undefined") {
       throw new Error("Fetch API not available in this browser environment");
@@ -317,9 +321,9 @@ class BrowserHttpAdapter implements VanaHttpAdapter {
 }
 
 /**
- * Browser implementation of cache operations using sessionStorage
+ * Browser WASM implementation of cache operations using sessionStorage
  */
-class BrowserCacheAdapter implements VanaCacheAdapter {
+class BrowserWASMCacheAdapter implements VanaCacheAdapter {
   private readonly prefix = "vana_cache_";
 
   get(key: string): string | null {
@@ -372,9 +376,9 @@ class BrowserCacheAdapter implements VanaCacheAdapter {
 }
 
 /**
- * Complete browser platform adapter implementation
+ * Complete browser WASM platform adapter implementation
  */
-export class BrowserPlatformAdapter implements VanaPlatformAdapter {
+export class BrowserWASMPlatformAdapter implements VanaPlatformAdapter {
   crypto: VanaCryptoAdapter;
   pgp: VanaPGPAdapter;
   http: VanaHttpAdapter;
@@ -382,15 +386,15 @@ export class BrowserPlatformAdapter implements VanaPlatformAdapter {
   platform: "browser" = "browser" as const;
 
   constructor() {
-    this.crypto = new BrowserCryptoAdapter();
-    this.pgp = new BrowserPGPAdapter();
-    this.http = new BrowserHttpAdapter();
-    this.cache = new BrowserCacheAdapter();
+    this.crypto = new BrowserWASMCryptoAdapter();
+    this.pgp = new BrowserWASMPGPAdapter();
+    this.http = new BrowserWASMHttpAdapter();
+    this.cache = new BrowserWASMCacheAdapter();
   }
 }
 
 /**
  * Default instance export for backwards compatibility
  */
-export const browserPlatformAdapter: VanaPlatformAdapter =
-  new BrowserPlatformAdapter();
+export const browserWASMPlatformAdapter: VanaPlatformAdapter =
+  new BrowserWASMPlatformAdapter();

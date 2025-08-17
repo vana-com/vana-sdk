@@ -20,7 +20,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { AddressDisplay } from "@/components/ui/AddressDisplay";
 import { CopyButton } from "@/components/ui/CopyButton";
 import { FormBuilder } from "@/components/ui/FormBuilder";
-import { Grantee } from "@opendatalabs/vana-sdk/browser";
+import { Grantee } from "@opendatalabs/vana-sdk/browser-wasm";
 
 interface GranteesTabProps {
   // Grantee data

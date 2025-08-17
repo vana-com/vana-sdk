@@ -2,7 +2,7 @@ import {
   validateDataAgainstSchema as sdkValidateDataAgainstSchema,
   type DataSchema,
   type Schema,
-} from "@opendatalabs/vana-sdk/browser";
+} from "@opendatalabs/vana-sdk/browser-wasm";
 
 /**
  * Validation result interface

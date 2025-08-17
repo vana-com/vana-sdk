@@ -30,8 +30,8 @@ import {
 import type {
   OnChainPermissionGrant,
   GrantedPermission,
-} from "@opendatalabs/vana-sdk/browser";
-import { convertIpfsUrl } from "@opendatalabs/vana-sdk/browser";
+} from "@opendatalabs/vana-sdk/browser-wasm";
+import { convertIpfsUrl } from "@opendatalabs/vana-sdk/browser-wasm";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusDisplay } from "@/components/ui/StatusDisplay";

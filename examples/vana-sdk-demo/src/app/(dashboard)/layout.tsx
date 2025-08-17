@@ -25,7 +25,7 @@ import {
 import { SidebarNavigation } from "@/components/SidebarNavigation";
 import { VanaProvider } from "@/providers/VanaProvider";
 import { GrantPreviewModalContent } from "@/components/GrantPreviewModalContent";
-import type { GrantPermissionParams } from "@opendatalabs/vana-sdk/browser";
+import type { GrantPermissionParams } from "@opendatalabs/vana-sdk/browser-wasm";
 
 // Types for grant preview modal
 interface GrantPreview {
@@ -67,9 +67,13 @@ export default function DashboardLayout({
     googleDriveAccessToken: "",
     googleDriveRefreshToken: "",
     googleDriveExpiresAt: null as number | null,
-    defaultPersonalServerUrl: process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL || (() => {
-      throw new Error("NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL environment variable is required");
-    })(),
+    defaultPersonalServerUrl:
+      process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL ||
+      (() => {
+        throw new Error(
+          "NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL environment variable is required",
+        );
+      })(),
   }));
 
   // App Configuration state

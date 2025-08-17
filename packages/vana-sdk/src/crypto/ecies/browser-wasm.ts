@@ -1,15 +1,15 @@
 /**
- * Browser ECIES Implementation (Zero Config)
+ * Browser ECIES Implementation with WASM
  *
- * Pure JavaScript implementation using @noble/secp256k1 and Web Crypto API.
- * No WebAssembly configuration required - works out of the box.
+ * High-performance implementation using tiny-secp256k1 (WASM) and Web Crypto API.
+ * This version requires WebAssembly support in the bundler configuration.
  *
- * For higher performance with WASM, use BrowserWASMECIESProvider instead.
+ * For zero-config usage, use the default browser build instead.
  *
- * Performance: Good performance with zero configuration requirements
+ * Performance: 2-4x faster than pure JavaScript implementations
  */
 
-import * as secp from "@noble/secp256k1";
+import * as secp256k1 from "tiny-secp256k1";
 import { sha256, sha512 } from "@noble/hashes/sha2";
 import { hmac } from "@noble/hashes/hmac";
 import { BaseECIES } from "./base";
@@ -17,8 +17,12 @@ import { ECIESError } from "./interface";
 
 /**
  * Browser ECIES provider using tiny-secp256k1 (WASM) and Web Crypto API
+ *
+ * ⚠️ Requires WebAssembly configuration in your bundler:
+ * - Next.js: experiments.asyncWebAssembly = true
+ * - Webpack 5: experiments.asyncWebAssembly = true
  */
-export class BrowserECIESProvider extends BaseECIES {
+export class BrowserWASMECIESProvider extends BaseECIES {
   /**
    * Helper to convert Uint8Array to ArrayBuffer
    *
@@ -49,11 +53,7 @@ export class BrowserECIESProvider extends BaseECIES {
    * @returns true if valid
    */
   protected verifyPrivateKey(privateKey: Uint8Array): boolean {
-    try {
-      return secp.utils.isValidPrivateKey(privateKey);
-    } catch {
-      return false;
-    }
+    return secp256k1.isPrivate(Buffer.from(privateKey));
   }
 
   /**
@@ -67,12 +67,11 @@ export class BrowserECIESProvider extends BaseECIES {
     privateKey: Uint8Array,
     compressed: boolean,
   ): Uint8Array | null {
-    try {
-      const pubKey = secp.getPublicKey(privateKey, compressed);
-      return new Uint8Array(pubKey);
-    } catch {
-      return null;
-    }
+    const pubKey = secp256k1.pointFromScalar(
+      Buffer.from(privateKey),
+      compressed,
+    );
+    return pubKey ? new Uint8Array(pubKey) : null;
   }
 
   /**
@@ -82,12 +81,7 @@ export class BrowserECIESProvider extends BaseECIES {
    * @returns true if valid
    */
   protected validatePublicKey(publicKey: Uint8Array): boolean {
-    try {
-      secp.Point.fromHex(publicKey);
-      return true;
-    } catch {
-      return false;
-    }
+    return secp256k1.isPoint(Buffer.from(publicKey));
   }
 
   /**
@@ -97,12 +91,9 @@ export class BrowserECIESProvider extends BaseECIES {
    * @returns Uncompressed public key (65 bytes) or null
    */
   protected decompressPublicKey(publicKey: Uint8Array): Uint8Array | null {
-    try {
-      const point = secp.Point.fromHex(publicKey);
-      return point.toRawBytes(false); // false = uncompressed
-    } catch {
-      return null;
-    }
+    // pointCompress with false decompresses the key
+    const uncompressed = secp256k1.pointCompress(Buffer.from(publicKey), false);
+    return uncompressed ? new Uint8Array(uncompressed) : null;
   }
 
   /**
@@ -116,23 +107,18 @@ export class BrowserECIESProvider extends BaseECIES {
     publicKey: Uint8Array,
     privateKey: Uint8Array,
   ): Uint8Array {
-    try {
-      // Get shared point by multiplying public key with private key
-      const pubPoint = secp.Point.fromHex(publicKey);
-      const sharedPoint = pubPoint.multiply(
-        BigInt("0x" + Buffer.from(privateKey).toString("hex")),
-      );
+    // pointMultiply returns full point (65 bytes starting with 0x04)
+    const sharedPoint = secp256k1.pointMultiply(
+      Buffer.from(publicKey),
+      Buffer.from(privateKey),
+    );
 
-      // Get raw X coordinate (eccrypto-compatible)
-      const rawBytes = sharedPoint.toRawBytes(false); // uncompressed format
-      // Extract X coordinate (skip 0x04 prefix, take first 32 bytes)
-      return new Uint8Array(rawBytes.slice(1, 33));
-    } catch (error) {
-      throw new ECIESError(
-        `ECDH computation failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-        "ECDH_FAILED",
-      );
+    if (!sharedPoint) {
+      throw new ECIESError("ECDH computation failed", "ECDH_FAILED");
     }
+
+    // Extract X coordinate (skip 0x04 prefix, take first 32 bytes)
+    return new Uint8Array(sharedPoint.slice(1, 33));
   }
 
   /**
@@ -218,10 +204,10 @@ export class BrowserECIESProvider extends BaseECIES {
 }
 
 /**
- * Factory function for creating browser ECIES provider
+ * Factory function for creating browser WASM ECIES provider
  *
- * @returns Browser ECIES provider instance
+ * @returns Browser WASM ECIES provider instance
  */
-export function createBrowserECIESProvider(): BrowserECIESProvider {
-  return new BrowserECIESProvider();
+export function createBrowserWASMECIESProvider(): BrowserWASMECIESProvider {
+  return new BrowserWASMECIESProvider();
 }

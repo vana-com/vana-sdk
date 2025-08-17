@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { relayerConfig } from "@/lib/relayer";
-import { createPinataProvider } from "@/lib/storage";
+import { createPinataProvider } from "@/lib/storage-server";
 
 export async function GET() {
   // Test Pinata connection using SDK

@@ -13,6 +13,18 @@ const nextConfig = {
   },
 
   webpack: (config) => {
+    // Enable WebAssembly support for high-performance ECIES
+    config.experiments = {
+      ...config.experiments,
+      asyncWebAssembly: true,
+    };
+
+    // Add rule for WebAssembly modules
+    config.module.rules.push({
+      test: /\.wasm$/,
+      type: "webassembly/async",
+    });
+
     // Add resolve aliases to match tsconfig.json paths
     config.resolve.alias = {
       ...config.resolve.alias,

@@ -26,8 +26,8 @@ import {
   UntrustServerTypedData,
   AddAndTrustServerTypedData,
   ServerFilesAndPermissionTypedData,
-} from "@opendatalabs/vana-sdk/browser";
-import type { VanaChain } from "@opendatalabs/vana-sdk/browser";
+} from "@opendatalabs/vana-sdk/browser-wasm";
+import type { VanaChain } from "@opendatalabs/vana-sdk/browser-wasm";
 
 interface VanaConfig {
   relayerUrl?: string;

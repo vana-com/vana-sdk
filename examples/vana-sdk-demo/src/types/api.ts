@@ -7,7 +7,7 @@ import type {
   APIResponse,
   ReplicateAPIResponse,
   PersonalServerModel,
-} from "@opendatalabs/vana-sdk/browser";
+} from "@opendatalabs/vana-sdk/browser-wasm";
 
 /**
  * Internal API Endpoints Response Types

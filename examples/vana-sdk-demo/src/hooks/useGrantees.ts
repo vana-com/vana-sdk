@@ -7,7 +7,7 @@ import { addToast } from "@heroui/react";
 import type {
   Grantee,
   RegisterGranteeParams,
-} from "@opendatalabs/vana-sdk/browser";
+} from "@opendatalabs/vana-sdk/browser-wasm";
 
 export interface UseGranteesReturn {
   // State

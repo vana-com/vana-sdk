@@ -59,7 +59,6 @@
     "url": "https://github.com/vana-com/vana-sdk.git"
   },
   "dependencies": {
-    "eccrypto-js": "^5.4.0",
     "next-themes": "^0.4.6"
   }
 }

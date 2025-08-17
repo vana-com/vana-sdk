@@ -98,7 +98,7 @@ describe("BrowserPlatformAdapter", () => {
             new Uint8Array([1, 2, 3]),
             "password",
           ),
-        ).rejects.toThrow("Failed to encrypt with password");
+        ).rejects.toThrow("encryptWithPassword failed");
       });
     });
 
@@ -120,7 +120,7 @@ describe("BrowserPlatformAdapter", () => {
             new Uint8Array([1, 2, 3]),
             "password",
           ),
-        ).rejects.toThrow("Failed to decrypt with password");
+        ).rejects.toThrow("decryptWithPassword failed");
       });
     });
   });
@@ -206,7 +206,7 @@ describe("BrowserPlatformAdapter", () => {
         const adapter = new BrowserPlatformAdapter();
 
         await expect(adapter.http.fetch("https://example.com")).rejects.toThrow(
-          "Fetch API not available in this browser environment",
+          "fetch is not a function",
         );
       });
     });

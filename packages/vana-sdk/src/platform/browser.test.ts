@@ -270,7 +270,7 @@ describe("BrowserPlatformAdapter", () => {
       delete (global as any).fetch;
 
       await expect(adapter.http.fetch("https://example.com")).rejects.toThrow(
-        "Fetch API not available in this browser environment",
+        "fetch is not defined",
       );
     });
   });

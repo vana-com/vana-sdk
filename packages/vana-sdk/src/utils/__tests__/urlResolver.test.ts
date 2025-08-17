@@ -145,7 +145,9 @@ describe("urlResolver", () => {
           expect.fail("Should have thrown");
         } catch (error) {
           expect(error).toBeInstanceOf(UrlResolutionError);
-          expect(error.message).toContain("HTTP 404: Not Found");
+          expect((error as UrlResolutionError).message).toContain(
+            "HTTP 404: Not Found",
+          );
         }
       });
 
@@ -160,7 +162,9 @@ describe("urlResolver", () => {
           expect.fail("Should have thrown");
         } catch (error) {
           expect(error).toBeInstanceOf(UrlResolutionError);
-          expect(error.message).toContain("Invalid JSON");
+          expect((error as UrlResolutionError).message).toContain(
+            "Invalid JSON",
+          );
         }
       });
 
@@ -175,7 +179,9 @@ describe("urlResolver", () => {
           expect.fail("Should have thrown");
         } catch (error) {
           expect(error).toBeInstanceOf(UrlResolutionError);
-          expect(error.message).toContain("Network error");
+          expect((error as UrlResolutionError).message).toContain(
+            "Network error",
+          );
         }
       });
     });

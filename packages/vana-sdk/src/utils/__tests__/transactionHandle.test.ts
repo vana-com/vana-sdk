@@ -29,7 +29,7 @@ describe("TransactionHandle", () => {
     mockContext = {
       publicClient: mockPublicClient,
       walletClient: {} as any,
-      relayerUrl: "https://test-relayer.com",
+      platform: {} as any,
       relayerCallbacks: undefined,
     };
   });
@@ -42,7 +42,7 @@ describe("TransactionHandle", () => {
     });
 
     it("should create handle with operation", () => {
-      const operation: TransactionOperation = "submitPermissionGrant";
+      const operation: TransactionOperation = "grant";
       const handle = new TransactionHandle(mockContext, testHash, operation);
 
       expect(handle.hash).toBe(testHash);
@@ -139,10 +139,15 @@ describe("TransactionHandle", () => {
 
   describe("waitForEvents", () => {
     it("should parse transaction events with operation", async () => {
-      const mockEventData = { permissionId: BigInt(123) };
+      const mockEventData = {
+        permissionId: BigInt(123),
+        transactionHash: testHash,
+        blockNumber: BigInt(100),
+        gasUsed: BigInt(21000),
+      };
       vi.mocked(parseTransactionResult).mockResolvedValueOnce(mockEventData);
 
-      const operation: TransactionOperation = "submitPermissionGrant";
+      const operation: TransactionOperation = "grant";
       const handle = new TransactionHandle(mockContext, testHash, operation);
 
       const events = await handle.waitForEvents();
@@ -165,10 +170,15 @@ describe("TransactionHandle", () => {
     });
 
     it("should memoize event data", async () => {
-      const mockEventData = { permissionId: BigInt(123) };
+      const mockEventData = {
+        permissionId: BigInt(123),
+        transactionHash: testHash,
+        blockNumber: BigInt(100),
+        gasUsed: BigInt(21000),
+      };
       vi.mocked(parseTransactionResult).mockResolvedValueOnce(mockEventData);
 
-      const operation: TransactionOperation = "submitPermissionGrant";
+      const operation: TransactionOperation = "grant";
       const handle = new TransactionHandle(mockContext, testHash, operation);
 
       // Call twice
@@ -180,10 +190,15 @@ describe("TransactionHandle", () => {
     });
 
     it("should memoize promise to prevent duplicate parsing", async () => {
-      const mockEventData = { permissionId: BigInt(123) };
+      const mockEventData = {
+        permissionId: BigInt(123),
+        transactionHash: testHash,
+        blockNumber: BigInt(100),
+        gasUsed: BigInt(21000),
+      };
       vi.mocked(parseTransactionResult).mockResolvedValueOnce(mockEventData);
 
-      const operation: TransactionOperation = "submitPermissionGrant";
+      const operation: TransactionOperation = "grant";
       const handle = new TransactionHandle(mockContext, testHash, operation);
 
       // Call simultaneously before first resolves
@@ -200,7 +215,7 @@ describe("TransactionHandle", () => {
       const error = new Error("Parse failed");
       vi.mocked(parseTransactionResult).mockRejectedValueOnce(error);
 
-      const operation: TransactionOperation = "submitPermissionGrant";
+      const operation: TransactionOperation = "grant";
       const handle = new TransactionHandle(mockContext, testHash, operation);
 
       await expect(handle.waitForEvents()).rejects.toThrow("Parse failed");
@@ -230,7 +245,7 @@ describe("TransactionHandle", () => {
       const handle = new TransactionHandle(mockContext, testHash);
 
       const inspectSymbol = Symbol.for("nodejs.util.inspect.custom");
-      const result = handle[inspectSymbol]();
+      const result = (handle as any)[inspectSymbol]();
 
       expect(result).toBe(
         `TransactionHandle { hash: '${testHash}', operation: 'none' }`,
@@ -238,11 +253,11 @@ describe("TransactionHandle", () => {
     });
 
     it("should return formatted string for debugging with operation", () => {
-      const operation: TransactionOperation = "submitPermissionGrant";
+      const operation: TransactionOperation = "grant";
       const handle = new TransactionHandle(mockContext, testHash, operation);
 
       const inspectSymbol = Symbol.for("nodejs.util.inspect.custom");
-      const result = handle[inspectSymbol]();
+      const result = (handle as any)[inspectSymbol]();
 
       expect(result).toBe(
         `TransactionHandle { hash: '${testHash}', operation: '${operation}' }`,

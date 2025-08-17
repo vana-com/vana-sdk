@@ -1,24 +1,23 @@
 import { defineConfig } from "tsup";
 import type { Plugin } from "esbuild";
 
-// Custom plugin to redirect eccrypto-js imports to browser-compatible versions
-const eccryptoBrowserPlugin: Plugin = {
-  name: "eccrypto-browser",
+// Plugin to handle platform-specific modules for browser builds
+const browserOptimizationPlugin: Plugin = {
+  name: "browser-optimization",
   setup(build) {
-    // Redirect Node.js specific modules to browser versions
-    build.onResolve({ filter: /eccrypto-js\/dist\/cjs\/lib\/node/ }, () => {
-      return { path: require.resolve("eccrypto-js/dist/cjs/lib/browser") };
+    // Exclude Node.js native secp256k1 from browser builds
+    build.onResolve({ filter: /^secp256k1$/ }, () => {
+      return { path: "secp256k1", external: true };
     });
     
-    build.onResolve({ filter: /eccrypto-js\/dist\/cjs\/lib\/secp256k1/ }, () => {
-      return { path: require.resolve("eccrypto-js/dist/cjs/lib/elliptic") };
+    // Ensure tiny-secp256k1 is bundled for browser
+    build.onResolve({ filter: /^tiny-secp256k1$/ }, () => {
+      return { path: require.resolve("tiny-secp256k1") };
     });
     
     // Prevent Node.js crypto from being imported
-    build.onResolve({ filter: /^crypto$/ }, (args) => {
-      if (args.importer.includes("eccrypto-js")) {
-        return { path: "crypto", external: true };
-      }
+    build.onResolve({ filter: /^crypto$/ }, () => {
+      return { path: "crypto", external: true };
     });
   },
 };
@@ -33,9 +32,9 @@ export default defineConfig({
   clean: false,
   dts: true,
   outDir: "dist",
-  esbuildPlugins: [eccryptoBrowserPlugin],
-  // Don't externalize eccrypto-js for browser builds
-  external: [],
+  esbuildPlugins: [browserOptimizationPlugin],
+  // External modules that shouldn't be bundled for browsers
+  external: ["secp256k1", "crypto"],
   // Define process.browser to help with environment detection
   define: {
     "process.browser": "true",

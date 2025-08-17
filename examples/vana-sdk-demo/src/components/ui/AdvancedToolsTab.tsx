@@ -16,16 +16,16 @@ import {
   Radio,
 } from "@heroui/react";
 import { Lock, Key, Database, TestTube, Wrench } from "lucide-react";
-import type { VanaInstance, Schema } from "@opendatalabs/vana-sdk/browser-wasm";
+import type { VanaInstance, Schema } from "@opendatalabs/vana-sdk/browser";
 import type { WalletClient } from "viem";
 import {
   generateEncryptionKey as sdkGenerateEncryptionKey,
   encryptBlobWithSignedKey as sdkEncryptUserData,
   decryptBlobWithSignedKey as sdkDecryptUserData,
   DEFAULT_ENCRYPTION_SEED,
-  BrowserWASMPlatformAdapter as BrowserPlatformAdapter,
+  BrowserPlatformAdapter,
   convertIpfsUrl,
-} from "@opendatalabs/vana-sdk/browser-wasm";
+} from "@opendatalabs/vana-sdk/browser";
 import { InputModeToggle } from "./InputModeToggle";
 import { CodeDisplay } from "./CodeDisplay";
 

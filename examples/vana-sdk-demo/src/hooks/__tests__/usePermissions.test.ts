@@ -15,7 +15,7 @@ import {
   GrantedPermission,
   PermissionGrantTypedData,
   retrieveGrantFile,
-} from "@opendatalabs/vana-sdk/browser-wasm";
+} from "@opendatalabs/vana-sdk/browser";
 import { addToast } from "@heroui/react";
 import {
   createMockUseAccount,
@@ -26,13 +26,7 @@ import {
 // Mock dependencies
 vi.mock("wagmi");
 vi.mock("@/providers/VanaProvider");
-vi.mock("@opendatalabs/vana-sdk/browser-wasm", async () => {
-  const actual = await vi.importActual("@opendatalabs/vana-sdk/browser-wasm");
-  return {
-    ...actual,
-    retrieveGrantFile: vi.fn(),
-  };
-});
+// SDK is already mocked globally in setup.ts
 vi.mock("@heroui/react", () => ({
   addToast: vi.fn(),
 }));

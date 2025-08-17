@@ -7,7 +7,7 @@ import {
   GrantPermissionParams,
   retrieveGrantFile,
   PermissionGrantTypedData,
-} from "@opendatalabs/vana-sdk/browser-wasm";
+} from "@opendatalabs/vana-sdk/browser";
 import { useVana } from "@/providers/VanaProvider";
 import { useAccount } from "wagmi";
 import { addToast } from "@heroui/react";

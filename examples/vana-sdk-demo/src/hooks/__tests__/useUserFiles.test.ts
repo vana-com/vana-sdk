@@ -11,7 +11,7 @@ import { renderHook, act, waitFor } from "@testing-library/react";
 import { useAccount } from "wagmi";
 import { useVana } from "@/providers/VanaProvider";
 import { useUserFiles, ExtendedUserFile } from "../useUserFiles";
-import { UserFile } from "@opendatalabs/vana-sdk/browser-wasm";
+import { UserFile } from "@opendatalabs/vana-sdk/browser";
 import {
   createMockUseAccount,
   createMockUseVana,

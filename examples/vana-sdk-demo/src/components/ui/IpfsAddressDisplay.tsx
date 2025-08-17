@@ -1,5 +1,5 @@
 import { AddressDisplay } from "./AddressDisplay";
-import { convertIpfsUrl } from "@opendatalabs/vana-sdk/browser-wasm";
+import { convertIpfsUrl } from "@opendatalabs/vana-sdk/browser";
 
 interface IpfsAddressDisplayProps {
   ipfsUrl: string;

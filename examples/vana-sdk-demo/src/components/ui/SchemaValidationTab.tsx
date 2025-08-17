@@ -15,7 +15,7 @@ import {
   Database,
   Code,
 } from "lucide-react";
-import type { VanaInstance, Schema } from "@opendatalabs/vana-sdk/browser-wasm";
+import type { VanaInstance, Schema } from "@opendatalabs/vana-sdk/browser";
 import { SchemaSelector } from "./SchemaSelector";
 import { validateDataAgainstSchema } from "../../utils/schemaValidation";
 

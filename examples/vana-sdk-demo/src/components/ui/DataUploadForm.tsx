@@ -19,7 +19,7 @@ import {
   Shield,
   Database,
 } from "lucide-react";
-import type { VanaInstance, Schema } from "@opendatalabs/vana-sdk/browser-wasm";
+import type { VanaInstance, Schema } from "@opendatalabs/vana-sdk/browser";
 import { SchemaSelector } from "./SchemaSelector";
 import { InputModeToggle } from "./InputModeToggle";
 import { ExplorerLink } from "./ExplorerLink";

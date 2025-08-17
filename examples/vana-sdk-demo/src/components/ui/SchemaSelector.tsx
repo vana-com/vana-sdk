@@ -9,7 +9,7 @@ import {
   Button,
 } from "@heroui/react";
 import { Database, ExternalLink, Info } from "lucide-react";
-import type { Schema, VanaInstance } from "@opendatalabs/vana-sdk/browser-wasm";
+import type { Schema, VanaInstance } from "@opendatalabs/vana-sdk/browser";
 
 interface SchemaSelectorProps {
   /** Vana SDK instance for loading schemas */

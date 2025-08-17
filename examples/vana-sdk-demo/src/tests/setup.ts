@@ -1,5 +1,52 @@
 import "@testing-library/jest-dom";
 import { vi, beforeEach, afterEach } from "vitest";
+import { Buffer } from "buffer";
+
+// Polyfill Buffer for browser tests
+globalThis.Buffer = Buffer;
+
+// Mock the vana-sdk for testing
+vi.mock("@opendatalabs/vana-sdk/browser", () => ({
+  Vana: vi.fn(() => ({
+    permissions: {
+      grant: vi.fn(),
+      revoke: vi.fn(),
+      getUserPermissions: vi.fn(),
+    },
+    data: {
+      getUserFiles: vi.fn(),
+      upload: vi.fn(),
+      decryptFile: vi.fn(),
+    },
+    server: {
+      trustServer: vi.fn(),
+      getIdentity: vi.fn(),
+    },
+  })),
+  mokshaTestnet: {
+    id: 14800,
+    name: "Moksha Testnet",
+    nativeCurrency: { name: "VANA", symbol: "VANA", decimals: 18 },
+    rpcUrls: {
+      default: { http: ["https://rpc.moksha.vana.org"] },
+    },
+  },
+  vanaSaturnTestnet: {
+    id: 16900,
+    name: "Vana Saturn Testnet",
+    nativeCurrency: { name: "VANA", symbol: "VANA", decimals: 18 },
+    rpcUrls: {
+      default: { http: ["https://rpc.saturn.vana.org"] },
+    },
+  },
+  SchemaValidator: vi.fn(),
+  StorageManager: vi.fn(),
+  PinataStorage: vi.fn(),
+  convertIpfsUrl: vi.fn((url) =>
+    url?.replace("ipfs://", "https://gateway.pinata.cloud/ipfs/"),
+  ),
+  retrieveGrantFile: vi.fn(),
+}));
 
 // Global test setup to silence console output during tests
 // This keeps test output clean while preserving debugging capabilities

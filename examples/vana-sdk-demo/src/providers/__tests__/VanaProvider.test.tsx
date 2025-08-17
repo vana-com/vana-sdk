@@ -16,7 +16,7 @@ import {
   type UseWalletClientReturnType,
 } from "wagmi";
 import { VanaProvider, useVana } from "../VanaProvider";
-import { Vana } from "@opendatalabs/vana-sdk/browser-wasm";
+import { Vana } from "@opendatalabs/vana-sdk/browser";
 
 // Mock wagmi hooks
 vi.mock("wagmi", () => ({
@@ -25,7 +25,7 @@ vi.mock("wagmi", () => ({
 }));
 
 // Mock Vana SDK
-vi.mock("@opendatalabs/vana-sdk/browser-wasm", () => ({
+vi.mock("@opendatalabs/vana-sdk/browser", () => ({
   Vana: vi.fn(),
   CallbackStorage: vi.fn().mockImplementation(() => ({})),
   PinataStorage: vi.fn().mockImplementation(() => ({})),
@@ -663,7 +663,7 @@ describe("VanaProvider", () => {
 
     // Mock Google Drive folder creation failure
     const { GoogleDriveStorage } = await import(
-      "@opendatalabs/vana-sdk/browser-wasm"
+      "@opendatalabs/vana-sdk/browser"
     );
     const mockGoogleDriveInstance = {
       findOrCreateFolder: vi

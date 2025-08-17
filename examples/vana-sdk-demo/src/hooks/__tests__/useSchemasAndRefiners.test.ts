@@ -17,7 +17,7 @@ import {
   CreateSchemaParams,
   AddRefinerParams,
   UpdateSchemaIdParams,
-} from "@opendatalabs/vana-sdk/browser-wasm";
+} from "@opendatalabs/vana-sdk/browser";
 
 // Mock dependencies
 vi.mock("wagmi");

@@ -25,7 +25,7 @@ import {
 import { SidebarNavigation } from "@/components/SidebarNavigation";
 import { VanaProvider } from "@/providers/VanaProvider";
 import { GrantPreviewModalContent } from "@/components/GrantPreviewModalContent";
-import type { GrantPermissionParams } from "@opendatalabs/vana-sdk/browser-wasm";
+import type { GrantPermissionParams } from "@opendatalabs/vana-sdk/browser";
 
 // Types for grant preview modal
 interface GrantPreview {

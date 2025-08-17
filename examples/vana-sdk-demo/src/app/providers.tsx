@@ -8,10 +8,7 @@ import {
   getDefaultConfig,
   darkTheme,
 } from "@rainbow-me/rainbowkit";
-import {
-  mokshaTestnet,
-  vanaMainnet,
-} from "@opendatalabs/vana-sdk/browser-wasm";
+import { mokshaTestnet, vanaMainnet } from "@opendatalabs/vana-sdk/browser";
 import "@rainbow-me/rainbowkit/styles.css";
 import { HeroUIProvider, ToastProvider } from "@heroui/react";
 import { ThemeProvider as NextThemesProvider } from "next-themes";

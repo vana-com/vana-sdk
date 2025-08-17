@@ -15,13 +15,40 @@ import {
   createHash,
   createHmac,
   timingSafeEqual,
+  getCiphers,
 } from "crypto";
 import { BaseECIES } from "./base";
+import { warnOnce } from "../../diagnostics";
+import { CIPHER, KDF, MAC, CURVE } from "./constants";
 
 /**
  * Node.js ECIES provider using native secp256k1 bindings
  */
 export class NodeECIESProvider extends BaseECIES {
+  constructor() {
+    super();
+
+    // Check AES-256-CBC availability (OpenSSL/FIPS builds may remove it)
+    const hasAesCbc = getCiphers().includes(CIPHER.algorithm);
+    if (!hasAesCbc) {
+      warnOnce(
+        `${CIPHER.algorithm.toUpperCase()} not available in this Node build.`,
+        `ECIES will fail unless your OpenSSL config enables ${CIPHER.algorithm}.`,
+      );
+    }
+
+    // Check native secp256k1 availability
+    const secp = secp256k1 as { ecdh?: unknown; publicKeyCreate?: unknown };
+    const looksNative =
+      typeof secp.ecdh === "function" &&
+      typeof secp.publicKeyCreate === "function";
+    if (!looksNative) {
+      warnOnce(
+        "Native secp256k1 backend not detected.",
+        "Install optional dependency `secp256k1` and ensure native build succeeds for best performance.",
+      );
+    }
+  }
   /**
    * Generates cryptographically secure random bytes
    *
@@ -95,8 +122,8 @@ export class NodeECIESProvider extends BaseECIES {
     publicKey: Uint8Array,
     privateKey: Uint8Array,
   ): Uint8Array {
-    const sharedSecret = Buffer.alloc(32);
-    const outputBuffer = new Uint8Array(32);
+    const sharedSecret = Buffer.alloc(CURVE.SHARED_SECRET_LENGTH);
+    const outputBuffer = new Uint8Array(CURVE.SHARED_SECRET_LENGTH);
 
     // Use identity hash function to get raw X coordinate
     secp256k1.ecdh(
@@ -122,7 +149,7 @@ export class NodeECIESProvider extends BaseECIES {
    * @returns SHA-512 hash (64 bytes)
    */
   protected sha512(data: Uint8Array): Uint8Array {
-    return createHash("sha512").update(data).digest();
+    return createHash(KDF.algorithm).update(data).digest();
   }
 
   /**
@@ -133,7 +160,7 @@ export class NodeECIESProvider extends BaseECIES {
    * @returns HMAC-SHA256 (32 bytes)
    */
   protected hmacSha256(key: Uint8Array, data: Uint8Array): Uint8Array {
-    return createHmac("sha256", key).update(data).digest();
+    return createHmac(MAC.algorithm, key).update(data).digest();
   }
 
   /**
@@ -149,7 +176,7 @@ export class NodeECIESProvider extends BaseECIES {
     iv: Uint8Array,
     data: Uint8Array,
   ): Promise<Uint8Array> {
-    const cipher = createCipheriv("aes-256-cbc", key, iv);
+    const cipher = createCipheriv(CIPHER.algorithm, key, iv);
     return Buffer.concat([cipher.update(data), cipher.final()]);
   }
 
@@ -166,7 +193,7 @@ export class NodeECIESProvider extends BaseECIES {
     iv: Uint8Array,
     data: Uint8Array,
   ): Promise<Uint8Array> {
-    const decipher = createDecipheriv("aes-256-cbc", key, iv);
+    const decipher = createDecipheriv(CIPHER.algorithm, key, iv);
     return Buffer.concat([decipher.update(data), decipher.final()]);
   }
 

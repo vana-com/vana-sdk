@@ -6,7 +6,7 @@ import type {
 } from "@/hooks/useUserFiles";
 import type { UsePermissionsReturn } from "@/hooks/usePermissions";
 import type { UseTrustedServersReturn } from "@/hooks/useTrustedServers";
-import type { GrantedPermission } from "@opendatalabs/vana-sdk/browser-wasm";
+import type { GrantedPermission } from "@opendatalabs/vana-sdk/browser";
 import type { VanaContextValue } from "@/providers/VanaProvider";
 
 /**

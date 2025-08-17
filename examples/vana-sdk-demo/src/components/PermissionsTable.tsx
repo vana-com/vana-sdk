@@ -16,7 +16,7 @@ import {
 import {
   GrantedPermission,
   convertIpfsUrl,
-} from "@opendatalabs/vana-sdk/browser-wasm";
+} from "@opendatalabs/vana-sdk/browser";
 import { Shield, ExternalLink, Eye, RefreshCw } from "lucide-react";
 import { PermissionDisplay } from "./ui/PermissionDisplay";
 import { CopyButton } from "./ui/CopyButton";

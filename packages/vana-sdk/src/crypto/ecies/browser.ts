@@ -4,8 +4,6 @@
  * Pure JavaScript implementation using @noble/secp256k1 and Web Crypto API.
  * No WebAssembly configuration required - works out of the box.
  *
- * For higher performance with WASM, use BrowserWASMECIESProvider instead.
- *
  * Performance: Good performance with zero configuration requirements
  */
 
@@ -14,11 +12,62 @@ import { sha256, sha512 } from "@noble/hashes/sha2";
 import { hmac } from "@noble/hashes/hmac";
 import { BaseECIES } from "./base";
 import { ECIESError } from "./interface";
+import { warnOnce } from "../../diagnostics";
+import { CURVE, CIPHER } from "./constants";
 
 /**
- * Browser ECIES provider using tiny-secp256k1 (WASM) and Web Crypto API
+ * Browser ECIES provider using @noble/secp256k1 (pure JS) and Web Crypto API
  */
 export class BrowserECIESProvider extends BaseECIES {
+  constructor() {
+    super();
+
+    // Check secure context (non-HTTPS can disable WebCrypto or weaken RNG)
+    if (
+      typeof window !== "undefined" &&
+      "isSecureContext" in window &&
+      window.isSecureContext === false
+    ) {
+      warnOnce(
+        "Browser running in a non-secure context.",
+        "WebCrypto may be unavailable or degraded. Use HTTPS for reliable crypto.",
+      );
+    }
+
+    // Check WebCrypto API availability
+    const subtle = globalThis.crypto?.subtle;
+    if (!subtle) {
+      warnOnce(
+        "WebCrypto API not detected.",
+        "Falling back is not supported. Ensure a modern browser or polyfill environment.",
+      );
+    } else {
+      // Lazy probe AES-CBC support (best-effort, non-throwing)
+      (async () => {
+        try {
+          const keyRaw = new Uint8Array(CIPHER.KEY_LENGTH);
+          const iv = new Uint8Array(CIPHER.IV_LENGTH);
+          const k = await subtle.importKey(
+            "raw",
+            keyRaw,
+            { name: "AES-CBC" },
+            false,
+            ["encrypt"],
+          );
+          await subtle.encrypt(
+            { name: "AES-CBC", iv },
+            k,
+            new Uint8Array(CIPHER.BLOCK_SIZE),
+          );
+        } catch {
+          warnOnce(
+            "WebCrypto AES-CBC not available.",
+            `ECIES requires ${CIPHER.algorithm.toUpperCase()}; ensure browser supports it.`,
+          );
+        }
+      })();
+    }
+  }
   /**
    * Helper to convert Uint8Array to ArrayBuffer
    *
@@ -125,8 +174,10 @@ export class BrowserECIESProvider extends BaseECIES {
 
       // Get raw X coordinate (eccrypto-compatible)
       const rawBytes = sharedPoint.toRawBytes(false); // uncompressed format
-      // Extract X coordinate (skip 0x04 prefix, take first 32 bytes)
-      return new Uint8Array(rawBytes.slice(1, 33));
+      // Extract X coordinate (skip prefix byte, take 32-byte X coordinate)
+      return new Uint8Array(
+        rawBytes.slice(CURVE.X_COORDINATE_OFFSET, CURVE.X_COORDINATE_END),
+      );
     } catch (error) {
       throw new ECIESError(
         `ECDH computation failed: ${error instanceof Error ? error.message : "Unknown error"}`,

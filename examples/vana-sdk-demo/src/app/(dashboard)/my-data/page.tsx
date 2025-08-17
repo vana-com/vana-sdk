@@ -7,7 +7,7 @@ import { Shield, Users, FileText, Key } from "lucide-react";
 import type {
   Schema,
   GrantPermissionParams,
-} from "@opendatalabs/vana-sdk/browser-wasm";
+} from "@opendatalabs/vana-sdk/browser";
 import { DataUploadForm } from "@/components/ui/DataUploadForm";
 import { GrantPermissionModal } from "@/components/ui/GrantPermissionModal";
 import { useUserFiles } from "@/hooks/useUserFiles";

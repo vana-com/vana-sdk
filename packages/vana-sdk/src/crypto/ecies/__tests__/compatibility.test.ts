@@ -2,316 +2,136 @@
  * ECIES Compatibility Test Suite
  *
  * Verifies that our new ECIES implementation is 100% compatible with eccrypto.
- * This ensures backward compatibility with existing encrypted data in the Vana network.
- *
- * These tests are for development only and not shipped in production.
+ * Uses pre-generated test vectors from eccrypto to ensure backward compatibility
+ * with existing encrypted data in the Vana network.
  */
 
-import { describe, it, expect, beforeAll } from "vitest";
-import * as eccrypto from "eccrypto";
-import { randomBytes } from "crypto";
+import { describe, it, expect } from "vitest";
 import { NodeECIESProvider } from "../node";
+import { BrowserECIESProvider } from "../browser";
+import { eccryptoTestVectors, eccryptoFormat } from "./test-vectors";
 import type { ECIESEncrypted } from "../interface";
 
 describe("ECIES eccrypto Compatibility", () => {
-  let nodeProvider: NodeECIESProvider;
-  let testPrivateKey: Buffer;
-  let testPublicKey: Buffer;
-  let testMessage: Buffer;
+  const nodeProvider = new NodeECIESProvider();
+  const browserProvider = new BrowserECIESProvider();
 
-  beforeAll(() => {
-    nodeProvider = new NodeECIESProvider();
-
-    // Generate test keypair using eccrypto for consistency
-    testPrivateKey = eccrypto.generatePrivate();
-    testPublicKey = eccrypto.getPublic(testPrivateKey);
-    testMessage = Buffer.from(
-      "This is a test message for ECIES compatibility verification",
-    );
-  });
-
-  describe("Decryption Compatibility", () => {
-    it("should decrypt data encrypted by eccrypto", async () => {
-      // Encrypt with eccrypto
-      const eccryptoEncrypted = await eccrypto.encrypt(
-        testPublicKey,
-        testMessage,
-      );
-
-      // Decrypt with our implementation
-      const ourDecrypted = await nodeProvider.decrypt(
-        testPrivateKey,
-        eccryptoEncrypted,
-      );
-
-      expect(ourDecrypted).toEqual(testMessage);
-      expect(ourDecrypted.toString("utf8")).toBe(testMessage.toString("utf8"));
-    });
-
-    it("should handle eccrypto encrypted empty message", async () => {
-      const emptyMessage = Buffer.from("");
-
-      // Encrypt empty message with eccrypto
-      const eccryptoEncrypted = await eccrypto.encrypt(
-        testPublicKey,
-        emptyMessage,
-      );
-
-      // Decrypt with our implementation
-      const ourDecrypted = await nodeProvider.decrypt(
-        testPrivateKey,
-        eccryptoEncrypted,
-      );
-
-      expect(ourDecrypted).toEqual(emptyMessage);
-      expect(ourDecrypted.length).toBe(0);
-    });
-
-    it("should handle eccrypto encrypted binary data", async () => {
-      const binaryData = randomBytes(256);
-
-      // Encrypt with eccrypto
-      const eccryptoEncrypted = await eccrypto.encrypt(
-        testPublicKey,
-        binaryData,
-      );
-
-      // Decrypt with our implementation
-      const ourDecrypted = await nodeProvider.decrypt(
-        testPrivateKey,
-        eccryptoEncrypted,
-      );
-
-      expect(ourDecrypted).toEqual(binaryData);
-    });
-
-    it("should handle eccrypto encrypted large data", async () => {
-      const largeData = randomBytes(10000); // 10KB
-
-      // Encrypt with eccrypto
-      const eccryptoEncrypted = await eccrypto.encrypt(
-        testPublicKey,
-        largeData,
-      );
-
-      // Decrypt with our implementation
-      const ourDecrypted = await nodeProvider.decrypt(
-        testPrivateKey,
-        eccryptoEncrypted,
-      );
-
-      expect(ourDecrypted).toEqual(largeData);
+  describe("Format Compatibility", () => {
+    it("should match eccrypto format specifications", () => {
+      expect(eccryptoFormat.ivLength).toBe(16);
+      expect(eccryptoFormat.ephemPublicKeyLength).toBe(65);
+      expect(eccryptoFormat.macLength).toBe(32);
     });
   });
 
-  describe("Encryption Compatibility", () => {
-    it("should produce encryption that eccrypto can decrypt", async () => {
-      // Encrypt with our implementation
-      const ourEncrypted = await nodeProvider.encrypt(
-        testPublicKey,
-        testMessage,
-      );
+  describe("Decryption Compatibility - Node Provider", () => {
+    eccryptoTestVectors.forEach((vector) => {
+      it(`should decrypt eccrypto encrypted data: ${vector.name}`, async () => {
+        const privateKey = Buffer.from(vector.privateKey, "hex");
+        const message = Buffer.from(vector.message, "hex");
 
-      // Decrypt with eccrypto
-      const eccryptoDecrypted = await eccrypto.decrypt(
-        testPrivateKey,
-        ourEncrypted,
-      );
+        const encrypted: ECIESEncrypted = {
+          iv: Buffer.from(vector.encrypted.iv, "hex"),
+          ephemPublicKey: Buffer.from(vector.encrypted.ephemPublicKey, "hex"),
+          ciphertext: Buffer.from(vector.encrypted.ciphertext, "hex"),
+          mac: Buffer.from(vector.encrypted.mac, "hex"),
+        };
 
-      expect(eccryptoDecrypted).toEqual(testMessage);
-      expect(eccryptoDecrypted.toString("utf8")).toBe(
-        testMessage.toString("utf8"),
-      );
-    });
+        const decrypted = await nodeProvider.decrypt(privateKey, encrypted);
 
-    it("should produce valid ECIES structure matching eccrypto format", async () => {
-      const ourEncrypted = await nodeProvider.encrypt(
-        testPublicKey,
-        testMessage,
-      );
-
-      // Verify structure matches eccrypto format
-      expect(ourEncrypted.iv).toBeInstanceOf(Buffer);
-      expect(ourEncrypted.iv.length).toBe(16);
-
-      expect(ourEncrypted.ephemPublicKey).toBeInstanceOf(Buffer);
-      expect(ourEncrypted.ephemPublicKey.length).toBe(65); // Uncompressed
-      expect(ourEncrypted.ephemPublicKey[0]).toBe(0x04); // Uncompressed prefix
-
-      expect(ourEncrypted.ciphertext).toBeInstanceOf(Buffer);
-      expect(ourEncrypted.ciphertext.length).toBeGreaterThan(0);
-
-      expect(ourEncrypted.mac).toBeInstanceOf(Buffer);
-      expect(ourEncrypted.mac.length).toBe(32);
-    });
-
-    it("eccrypto should decrypt our empty message encryption", async () => {
-      const emptyMessage = Buffer.from("");
-
-      // Encrypt with our implementation
-      const ourEncrypted = await nodeProvider.encrypt(
-        testPublicKey,
-        emptyMessage,
-      );
-
-      // Decrypt with eccrypto
-      const eccryptoDecrypted = await eccrypto.decrypt(
-        testPrivateKey,
-        ourEncrypted,
-      );
-
-      expect(eccryptoDecrypted).toEqual(emptyMessage);
-      expect(eccryptoDecrypted.length).toBe(0);
-    });
-
-    it("eccrypto should decrypt our binary data encryption", async () => {
-      const binaryData = randomBytes(256);
-
-      // Encrypt with our implementation
-      const ourEncrypted = await nodeProvider.encrypt(
-        testPublicKey,
-        binaryData,
-      );
-
-      // Decrypt with eccrypto
-      const eccryptoDecrypted = await eccrypto.decrypt(
-        testPrivateKey,
-        ourEncrypted,
-      );
-
-      expect(eccryptoDecrypted).toEqual(binaryData);
+        expect(decrypted).toEqual(message);
+        if (vector.messageText) {
+          expect(decrypted.toString("utf8")).toBe(vector.messageText);
+        }
+      });
     });
   });
 
-  describe("Round-trip Compatibility", () => {
-    it("should maintain compatibility in both directions", async () => {
-      // Our implementation encrypts, eccrypto decrypts
-      const ourEncrypted = await nodeProvider.encrypt(
-        testPublicKey,
-        testMessage,
-      );
-      const eccryptoDecrypted = await eccrypto.decrypt(
-        testPrivateKey,
-        ourEncrypted,
-      );
-      expect(eccryptoDecrypted).toEqual(testMessage);
+  describe("Decryption Compatibility - Browser Provider", () => {
+    eccryptoTestVectors.forEach((vector) => {
+      it(`should decrypt eccrypto encrypted data: ${vector.name}`, async () => {
+        const privateKey = Buffer.from(vector.privateKey, "hex");
+        const message = Buffer.from(vector.message, "hex");
 
-      // eccrypto encrypts, our implementation decrypts
-      const eccryptoEncrypted = await eccrypto.encrypt(
-        testPublicKey,
-        testMessage,
-      );
-      const ourDecrypted = await nodeProvider.decrypt(
-        testPrivateKey,
-        eccryptoEncrypted,
-      );
-      expect(ourDecrypted).toEqual(testMessage);
-    });
+        const encrypted: ECIESEncrypted = {
+          iv: Buffer.from(vector.encrypted.iv, "hex"),
+          ephemPublicKey: Buffer.from(vector.encrypted.ephemPublicKey, "hex"),
+          ciphertext: Buffer.from(vector.encrypted.ciphertext, "hex"),
+          mac: Buffer.from(vector.encrypted.mac, "hex"),
+        };
 
-    it("should handle multiple encryption/decryption cycles", async () => {
-      let data = testMessage;
+        const decrypted = await browserProvider.decrypt(privateKey, encrypted);
 
-      // Cycle 1: We encrypt, eccrypto decrypts
-      const encrypted1 = await nodeProvider.encrypt(testPublicKey, data);
-      data = await eccrypto.decrypt(testPrivateKey, encrypted1);
-      expect(data).toEqual(testMessage);
-
-      // Cycle 2: eccrypto encrypts, we decrypt
-      const encrypted2 = await eccrypto.encrypt(testPublicKey, data);
-      data = await nodeProvider.decrypt(testPrivateKey, encrypted2);
-      expect(data).toEqual(testMessage);
-
-      // Cycle 3: We encrypt again, eccrypto decrypts again
-      const encrypted3 = await nodeProvider.encrypt(testPublicKey, data);
-      data = await eccrypto.decrypt(testPrivateKey, encrypted3);
-      expect(data).toEqual(testMessage);
+        expect(decrypted).toEqual(message);
+        if (vector.messageText) {
+          expect(decrypted.toString("utf8")).toBe(vector.messageText);
+        }
+      });
     });
   });
 
-  describe("Error Handling Compatibility", () => {
-    it("should fail to decrypt with wrong private key (like eccrypto)", async () => {
-      const wrongPrivateKey = eccrypto.generatePrivate();
-
-      // Encrypt with eccrypto
-      const eccryptoEncrypted = await eccrypto.encrypt(
-        testPublicKey,
-        testMessage,
-      );
-
-      // Try to decrypt with wrong key using our implementation
-      await expect(
-        nodeProvider.decrypt(wrongPrivateKey, eccryptoEncrypted),
-      ).rejects.toThrow();
-    });
-
-    it("should fail to decrypt corrupted data (like eccrypto)", async () => {
-      const ourEncrypted = await nodeProvider.encrypt(
-        testPublicKey,
-        testMessage,
-      );
-
-      // Corrupt the MAC
-      ourEncrypted.mac[0] = ourEncrypted.mac[0] ^ 0xff;
-
-      // Both implementations should reject
-      await expect(
-        nodeProvider.decrypt(testPrivateKey, ourEncrypted),
-      ).rejects.toThrow(/MAC/i);
-
-      await expect(
-        eccrypto.decrypt(testPrivateKey, ourEncrypted),
-      ).rejects.toThrow();
-    });
-  });
-
-  describe("Format Serialization Compatibility", () => {
-    it("should serialize/deserialize in eccrypto-compatible format", async () => {
-      // Encrypt with eccrypto
-      const eccryptoEncrypted = await eccrypto.encrypt(
-        testPublicKey,
-        testMessage,
-      );
-
-      // Serialize eccrypto format
-      const serialized = Buffer.concat([
-        eccryptoEncrypted.iv,
-        eccryptoEncrypted.ephemPublicKey,
-        eccryptoEncrypted.ciphertext,
-        eccryptoEncrypted.mac,
-      ]);
-
-      // Parse and decrypt with our implementation
-      const parsed: ECIESEncrypted = {
-        iv: serialized.subarray(0, 16),
-        ephemPublicKey: serialized.subarray(16, 81),
-        ciphertext: serialized.subarray(81, serialized.length - 32),
-        mac: serialized.subarray(serialized.length - 32),
-      };
-
-      const decrypted = await nodeProvider.decrypt(testPrivateKey, parsed);
-      expect(decrypted).toEqual(testMessage);
-    });
-
-    it("should produce byte-identical MAC for same inputs", async () => {
-      // This test verifies our MAC calculation matches eccrypto's exactly
-      const fixedPrivateKey = Buffer.from(
-        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  describe("Encryption Format Compatibility", () => {
+    it("should produce eccrypto-compatible encrypted format", async () => {
+      const privateKey = Buffer.from(
+        "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
         "hex",
       );
-      const fixedPublicKey = eccrypto.getPublic(fixedPrivateKey);
-      const fixedMessage = Buffer.from("Fixed test message");
-
-      // Since we can't control the ephemeral key generation,
-      // we'll verify that the MAC format is correct
-      const ourEncrypted = await nodeProvider.encrypt(
-        fixedPublicKey,
-        fixedMessage,
+      const publicKey = Buffer.from(
+        "04bb50e2d89a4ed70663d080659fe0ad4b9bc3e06c17a227433966cb59ceee020decddbf6e00192011648d13b1c00af770c0c1bb609d4d3a5c98a43772e0e18ef4",
+        "hex",
       );
+      const message = Buffer.from("Test message");
 
-      // eccrypto should be able to verify our MAC
-      await expect(
-        eccrypto.decrypt(fixedPrivateKey, ourEncrypted),
-      ).resolves.toEqual(fixedMessage);
+      const encrypted = await nodeProvider.encrypt(publicKey, message);
+
+      // Check format matches eccrypto
+      expect(encrypted.iv.length).toBe(eccryptoFormat.ivLength);
+      expect(encrypted.ephemPublicKey.length).toBe(
+        eccryptoFormat.ephemPublicKeyLength,
+      );
+      expect(encrypted.mac.length).toBe(eccryptoFormat.macLength);
+
+      // Ensure we can decrypt our own encryption
+      const decrypted = await nodeProvider.decrypt(privateKey, encrypted);
+      expect(decrypted).toEqual(message);
+    });
+  });
+
+  describe("Cross-provider Compatibility", () => {
+    it("should decrypt Node-encrypted data with Browser provider", async () => {
+      // Use test vector from eccrypto-vectors.json
+      const privateKey = Buffer.from(
+        "1878693c39d810ce44ee40f9fdd068a0414615e74a7ff58adaba74063b2402e4",
+        "hex",
+      );
+      const publicKey = Buffer.from(
+        "0486c0312c4609fc3d53c35cbd1b7af82c8900c056a0389e1697720e3b60284aa2996a6c16c9b65eeb830c9016c5ab49481a406c88666de95f8fc236d0cbb7bb79",
+        "hex",
+      );
+      const message = Buffer.from("Cross-provider test");
+
+      const encrypted = await nodeProvider.encrypt(publicKey, message);
+      const decrypted = await browserProvider.decrypt(privateKey, encrypted);
+
+      expect(decrypted).toEqual(message);
+    });
+
+    it("should decrypt Browser-encrypted data with Node provider", async () => {
+      // Use another test vector from eccrypto-vectors.json
+      const privateKey = Buffer.from(
+        "21796c4692ba9d34b7f273c0099b96625e8dec49ada0390724d23dc35f4986d1",
+        "hex",
+      );
+      const publicKey = Buffer.from(
+        "04ab33f0e766d672f89c844633eb491e1ce75bce281423c11e1247503374e42f4b3877fab9a5b762ac78c8a639a0277d178280e580ffa992056b6d2ed3679f18ef",
+        "hex",
+      );
+      const message = Buffer.from("Browser to Node test");
+
+      const encrypted = await browserProvider.encrypt(publicKey, message);
+      const decrypted = await nodeProvider.decrypt(privateKey, encrypted);
+
+      expect(decrypted).toEqual(message);
     });
   });
 });

@@ -1,48 +1,47 @@
+import type { ECIESProvider, ECIESEncrypted } from "./interface";
+import { ECIESError, isECIESEncrypted } from "./interface";
+import { CURVE, CIPHER, KDF, SECURITY } from "./constants";
+
 /**
- * Base ECIES Implementation
+ * Provides shared ECIES encryption logic across platforms.
  *
- * Abstract base class containing shared ECIES logic.
- * Platform-specific implementations only need to provide crypto primitives.
+ * @remarks
+ * Platform implementations extend this class and provide crypto primitives.
+ * The base class handles the ECIES protocol flow while maintaining
+ * compatibility with the eccrypto data format.
  *
- * Follows eccrypto format for backward compatibility:
+ * **Implementation details:**
  * - KDF: SHA-512(shared_secret) → encKey (32B) || macKey (32B)
  * - Cipher: AES-256-CBC with random 16-byte IV
  * - MAC: HMAC-SHA256(macKey, iv || ephemPublicKey || ciphertext)
- * - Format: iv || ephemPublicKey || ciphertext || mac
- */
-
-import type { ECIESProvider, ECIESEncrypted } from "./interface";
-import { ECIESError, isECIESEncrypted } from "./interface";
-
-/**
- * Abstract base class for ECIES implementations
- * Provides the complete ECIES algorithm with platform-specific crypto primitives
+ *
+ * @category Cryptography
  */
 export abstract class BaseECIES implements ECIESProvider {
   // Cache for validated public keys to avoid repeated validation
   private static readonly validatedKeys = new WeakMap<Buffer, boolean>();
   /**
-   * Platform-specific random bytes generation
+   * Generates cryptographically secure random bytes.
    *
-   * @param length Number of random bytes to generate
-   * @returns Random bytes
+   * @param length - Number of random bytes to generate.
+   * @returns Random bytes array.
    */
   protected abstract generateRandomBytes(length: number): Uint8Array;
 
   /**
-   * Platform-specific private key verification
+   * Verifies a private key is valid for secp256k1.
    *
-   * @param privateKey Private key to verify
-   * @returns true if valid private key
+   * @param privateKey - Private key to verify (32 bytes).
+   * @returns `true` if valid private key.
    */
   protected abstract verifyPrivateKey(privateKey: Uint8Array): boolean;
 
   /**
-   * Platform-specific public key creation from private key
+   * Creates a public key from a private key.
    *
-   * @param privateKey Private key
-   * @param compressed Whether to create compressed (33B) or uncompressed (65B) public key
-   * @returns Public key or null if creation failed
+   * @param privateKey - Source private key (32 bytes).
+   * @param compressed - Generate compressed (33B) or uncompressed (65B) format.
+   * @returns Public key or `null` if creation failed.
    */
   protected abstract createPublicKey(
     privateKey: Uint8Array,
@@ -50,29 +49,29 @@ export abstract class BaseECIES implements ECIESProvider {
   ): Uint8Array | null;
 
   /**
-   * Platform-specific public key validation
+   * Validates a public key on the secp256k1 curve.
    *
-   * @param publicKey Public key to validate
-   * @returns true if valid public key
+   * @param publicKey - Public key to validate.
+   * @returns `true` if valid public key.
    */
   protected abstract validatePublicKey(publicKey: Uint8Array): boolean;
 
   /**
-   * Platform-specific public key decompression
+   * Decompresses a compressed public key.
    *
-   * @param publicKey Compressed public key (33 bytes)
-   * @returns Uncompressed public key (65 bytes) or null if decompression failed
+   * @param publicKey - Compressed public key (33 bytes).
+   * @returns Uncompressed public key (65 bytes) or `null` if decompression failed.
    */
   protected abstract decompressPublicKey(
     publicKey: Uint8Array,
   ): Uint8Array | null;
 
   /**
-   * Platform-specific ECDH computation
+   * Performs ECDH key agreement.
    *
-   * @param publicKey Public key
-   * @param privateKey Private key
-   * @returns Raw X coordinate of ECDH result (32 bytes)
+   * @param publicKey - Other party's public key.
+   * @param privateKey - Your private key.
+   * @returns Raw X coordinate of shared point (32 bytes).
    */
   protected abstract performECDH(
     publicKey: Uint8Array,
@@ -80,29 +79,29 @@ export abstract class BaseECIES implements ECIESProvider {
   ): Uint8Array;
 
   /**
-   * Platform-specific SHA-512 hash
+   * Computes SHA-512 hash.
    *
-   * @param data Data to hash
-   * @returns SHA-512 hash (64 bytes)
+   * @param data - Data to hash.
+   * @returns SHA-512 hash (64 bytes).
    */
   protected abstract sha512(data: Uint8Array): Uint8Array;
 
   /**
-   * Platform-specific HMAC-SHA256
+   * Computes HMAC-SHA256 authentication tag.
    *
-   * @param key HMAC key
-   * @param data Data to authenticate
-   * @returns HMAC-SHA256 (32 bytes)
+   * @param key - HMAC key.
+   * @param data - Data to authenticate.
+   * @returns HMAC-SHA256 (32 bytes).
    */
   protected abstract hmacSha256(key: Uint8Array, data: Uint8Array): Uint8Array;
 
   /**
-   * Platform-specific AES-256-CBC encryption
+   * Encrypts data using AES-256-CBC.
    *
-   * @param key Encryption key (32 bytes)
-   * @param iv Initialization vector (16 bytes)
-   * @param data Data to encrypt
-   * @returns Encrypted data with PKCS7 padding
+   * @param key - Encryption key (32 bytes).
+   * @param iv - Initialization vector (16 bytes).
+   * @param data - Data to encrypt.
+   * @returns Encrypted data with PKCS7 padding.
    */
   protected abstract aesEncrypt(
     key: Uint8Array,
@@ -111,12 +110,12 @@ export abstract class BaseECIES implements ECIESProvider {
   ): Promise<Uint8Array>;
 
   /**
-   * Platform-specific AES-256-CBC decryption
+   * Decrypts AES-256-CBC encrypted data.
    *
-   * @param key Encryption key (32 bytes)
-   * @param iv Initialization vector (16 bytes)
-   * @param data Encrypted data with PKCS7 padding
-   * @returns Decrypted data
+   * @param key - Encryption key (32 bytes).
+   * @param iv - Initialization vector (16 bytes).
+   * @param data - Encrypted data with PKCS7 padding.
+   * @returns Decrypted data.
    */
   protected abstract aesDecrypt(
     key: Uint8Array,
@@ -125,22 +124,25 @@ export abstract class BaseECIES implements ECIESProvider {
   ): Promise<Uint8Array>;
 
   /**
-   * Encrypts data using ECIES (Elliptic Curve Integrated Encryption Scheme)
+   * Encrypts data using ECIES with secp256k1.
    *
-   * This method implements the ECIES encryption scheme using secp256k1 elliptic curve.
-   * It maintains backward compatibility with the eccrypto library format.
+   * @remarks
+   * Generates an ephemeral key pair, performs ECDH key agreement,
+   * and encrypts data using AES-256-CBC with HMAC-SHA256 authentication.
    *
-   * @param publicKey - Recipient's public key (33 bytes compressed or 65 bytes uncompressed)
-   * @param message - Message to encrypt (any length)
-   * @returns Promise resolving to encrypted data in eccrypto format
-   *
-   * @throws {ECIESError} With code 'INVALID_KEY' if public key is invalid
-   * @throws {ECIESError} With code 'ENCRYPTION_FAILED' if encryption fails
+   * @param publicKey - Recipient's public key (33 bytes compressed or 65 bytes uncompressed).
+   *   Obtain via `vana.server.getIdentity(userAddress).public_key`.
+   * @param message - Data to encrypt.
+   * @returns Encrypted data structure compatible with eccrypto format.
+   * @throws {ECIESError} When public key is invalid.
+   *   Verify key format matches secp256k1 requirements.
    *
    * @example
    * ```typescript
-   * const encrypted = await ecies.encrypt(publicKey, Buffer.from('Hello'));
-   * // Returns: { iv, ephemPublicKey, ciphertext, mac }
+   * const encrypted = await provider.encrypt(
+   *   Buffer.from(publicKey, 'hex'),
+   *   Buffer.from('sensitive data')
+   * );
    * ```
    */
   async encrypt(publicKey: Buffer, message: Buffer): Promise<ECIESEncrypted> {
@@ -162,7 +164,9 @@ export abstract class BaseECIES implements ECIESProvider {
       // Generate ephemeral key pair
       let ephemeralPrivateKey: Uint8Array;
       do {
-        ephemeralPrivateKey = this.generateRandomBytes(32);
+        ephemeralPrivateKey = this.generateRandomBytes(
+          CURVE.PRIVATE_KEY_LENGTH,
+        );
       } while (!this.verifyPrivateKey(ephemeralPrivateKey));
 
       const ephemeralPublicKey = this.createPublicKey(
@@ -181,11 +185,17 @@ export abstract class BaseECIES implements ECIESProvider {
 
       // Derive keys using SHA-512 (eccrypto-compatible KDF)
       const kdf = this.sha512(sharedSecret);
-      const encryptionKey = kdf.slice(0, 32);
-      const macKey = kdf.slice(32, 64);
+      const encryptionKey = kdf.slice(
+        KDF.ENCRYPTION_KEY_OFFSET,
+        KDF.ENCRYPTION_KEY_OFFSET + KDF.ENCRYPTION_KEY_LENGTH,
+      );
+      const macKey = kdf.slice(
+        KDF.MAC_KEY_OFFSET,
+        KDF.MAC_KEY_OFFSET + KDF.MAC_KEY_LENGTH,
+      );
 
       // Generate random IV and encrypt
-      const iv = this.generateRandomBytes(16);
+      const iv = this.generateRandomBytes(CIPHER.IV_LENGTH);
       const ciphertext = await this.aesEncrypt(encryptionKey, iv, message);
 
       // Calculate MAC (Encrypt-then-MAC)
@@ -214,17 +224,18 @@ export abstract class BaseECIES implements ECIESProvider {
   }
 
   /**
-   * Encrypts a UTF-8 string using ECIES
+   * Encrypts a UTF-8 string using ECIES.
    *
-   * Convenience method for encrypting string data.
-   *
-   * @param publicKey - Recipient's public key (33 bytes compressed or 65 bytes uncompressed)
-   * @param message - String message to encrypt
-   * @returns Promise resolving to encrypted data in eccrypto format
+   * @param publicKey - Recipient's public key.
+   * @param message - String to encrypt.
+   * @returns Encrypted data structure.
    *
    * @example
    * ```typescript
-   * const encrypted = await ecies.encryptString(publicKey, 'Hello World');
+   * const encrypted = await provider.encryptString(
+   *   publicKey,
+   *   'Hello World'
+   * );
    * ```
    */
   async encryptString(
@@ -235,23 +246,25 @@ export abstract class BaseECIES implements ECIESProvider {
   }
 
   /**
-   * Decrypts ECIES encrypted data
+   * Decrypts ECIES encrypted data.
    *
-   * This method decrypts data that was encrypted using the ECIES scheme.
-   * It verifies the MAC before decryption to ensure data integrity.
+   * @remarks
+   * Verifies MAC before decryption to ensure data integrity.
+   * Compatible with data encrypted by eccrypto or this SDK.
    *
-   * @param privateKey - Private key for decryption (must be exactly 32 bytes)
-   * @param encrypted - Encrypted data structure in eccrypto format
-   * @returns Promise resolving to the decrypted message
-   *
-   * @throws {ECIESError} With code 'INVALID_KEY' if private key is invalid or wrong length
-   * @throws {ECIESError} With code 'DECRYPTION_FAILED' if encrypted data is malformed
-   * @throws {ECIESError} With code 'MAC_MISMATCH' if MAC verification fails (data tampering)
+   * @param privateKey - Recipient's private key (32 bytes).
+   * @param encrypted - Encrypted data structure from `encrypt()` or legacy eccrypto.
+   * @returns Decrypted message as Buffer.
+   * @throws {ECIESError} When MAC verification fails.
+   *   Ensure the private key matches the public key used for encryption.
    *
    * @example
    * ```typescript
-   * const decrypted = await ecies.decrypt(privateKey, encrypted);
-   * console.log(decrypted.toString()); // Original message
+   * const decrypted = await provider.decrypt(
+   *   Buffer.from(privateKey, 'hex'),
+   *   encrypted
+   * );
+   * const message = decrypted.toString('utf8');
    * ```
    */
   async decrypt(
@@ -263,9 +276,9 @@ export abstract class BaseECIES implements ECIESProvider {
       if (!Buffer.isBuffer(privateKey)) {
         throw new ECIESError("Private key must be a Buffer", "INVALID_KEY");
       }
-      if (privateKey.length !== 32) {
+      if (privateKey.length !== CURVE.PRIVATE_KEY_LENGTH) {
         throw new ECIESError(
-          `Invalid private key length: expected 32 bytes, got ${privateKey.length}`,
+          `Invalid private key length: expected ${CURVE.PRIVATE_KEY_LENGTH} bytes, got ${privateKey.length}`,
           "INVALID_KEY",
         );
       }
@@ -295,8 +308,14 @@ export abstract class BaseECIES implements ECIESProvider {
 
       // Derive keys (same as encryption)
       const kdf = this.sha512(sharedSecret);
-      const encryptionKey = kdf.slice(0, 32);
-      const macKey = kdf.slice(32, 64);
+      const encryptionKey = kdf.slice(
+        KDF.ENCRYPTION_KEY_OFFSET,
+        KDF.ENCRYPTION_KEY_OFFSET + KDF.ENCRYPTION_KEY_LENGTH,
+      );
+      const macKey = kdf.slice(
+        KDF.MAC_KEY_OFFSET,
+        KDF.MAC_KEY_OFFSET + KDF.MAC_KEY_LENGTH,
+      );
 
       // Verify MAC before decryption (Encrypt-then-MAC)
       const macData = this.concatBuffers(
@@ -333,18 +352,18 @@ export abstract class BaseECIES implements ECIESProvider {
   }
 
   /**
-   * Decrypts ECIES encrypted data to a UTF-8 string
+   * Decrypts ECIES encrypted data to a UTF-8 string.
    *
-   * Convenience method for decrypting string data.
-   *
-   * @param privateKey - Private key for decryption (must be exactly 32 bytes)
-   * @param encrypted - Encrypted data structure in eccrypto format
-   * @returns Promise resolving to the decrypted string
+   * @param privateKey - Recipient's private key (32 bytes).
+   * @param encrypted - Encrypted data structure.
+   * @returns Decrypted string.
    *
    * @example
    * ```typescript
-   * const message = await ecies.decryptString(privateKey, encrypted);
-   * console.log(message); // 'Hello World'
+   * const message = await provider.decryptString(
+   *   privateKey,
+   *   encrypted
+   * );
    * ```
    */
   async decryptString(
@@ -356,22 +375,22 @@ export abstract class BaseECIES implements ECIESProvider {
   }
 
   /**
-   * Normalizes public key to uncompressed format (65 bytes)
+   * Normalizes public key to uncompressed format.
    *
-   * @param publicKey Public key (33 or 65 bytes)
-   * @returns Uncompressed public key (65 bytes)
+   * @param publicKey - Public key (33 or 65 bytes).
+   * @returns Uncompressed public key (65 bytes).
    */
   protected normalizePublicKey(publicKey: Buffer): Uint8Array {
     // Check validation cache first for performance
     const cached = BaseECIES.validatedKeys.get(publicKey);
 
-    if (publicKey.length === 33) {
+    if (publicKey.length === CURVE.COMPRESSED_PUBLIC_KEY_LENGTH) {
       // Compressed key - decompress it
       const isValid =
         cached !== undefined ? cached : this.validatePublicKey(publicKey);
       if (!isValid) {
         throw new ECIESError(
-          `Invalid compressed public key: expected 33 bytes, got ${publicKey.length}`,
+          `Invalid compressed public key: expected ${CURVE.COMPRESSED_PUBLIC_KEY_LENGTH} bytes, got ${publicKey.length}`,
           "INVALID_KEY",
         );
       }
@@ -384,13 +403,13 @@ export abstract class BaseECIES implements ECIESProvider {
         throw new ECIESError("Failed to decompress public key", "INVALID_KEY");
       }
       return uncompressed;
-    } else if (publicKey.length === 65) {
+    } else if (publicKey.length === CURVE.UNCOMPRESSED_PUBLIC_KEY_LENGTH) {
       // Already uncompressed - validate it
       const isValid =
         cached !== undefined ? cached : this.validatePublicKey(publicKey);
       if (!isValid) {
         throw new ECIESError(
-          `Invalid uncompressed public key: expected 65 bytes, got ${publicKey.length}`,
+          `Invalid uncompressed public key: expected ${CURVE.UNCOMPRESSED_PUBLIC_KEY_LENGTH} bytes, got ${publicKey.length}`,
           "INVALID_KEY",
         );
       }
@@ -401,17 +420,17 @@ export abstract class BaseECIES implements ECIESProvider {
       return new Uint8Array(publicKey);
     } else {
       throw new ECIESError(
-        `Invalid public key format: expected 33 (compressed) or 65 (uncompressed) bytes, got ${publicKey.length}`,
+        `Invalid public key format: expected ${CURVE.COMPRESSED_PUBLIC_KEY_LENGTH} (compressed) or ${CURVE.UNCOMPRESSED_PUBLIC_KEY_LENGTH} (uncompressed) bytes, got ${publicKey.length}`,
         "INVALID_KEY",
       );
     }
   }
 
   /**
-   * Concatenates multiple buffers
+   * Concatenates multiple buffers efficiently.
    *
-   * @param buffers Buffers to concatenate
-   * @returns Concatenated buffer
+   * @param buffers - Buffers to concatenate.
+   * @returns Single concatenated buffer.
    */
   protected concatBuffers(...buffers: ArrayBufferView[]): Uint8Array {
     const totalLength = buffers.reduce((sum, buf) => sum + buf.byteLength, 0);
@@ -428,11 +447,15 @@ export abstract class BaseECIES implements ECIESProvider {
   }
 
   /**
-   * Constant-time buffer comparison to prevent timing attacks
+   * Performs constant-time buffer comparison.
    *
-   * @param a First buffer
-   * @param b Second buffer
-   * @returns true if buffers are equal
+   * @remarks
+   * Prevents timing attacks by ensuring comparison time
+   * doesn't depend on buffer contents.
+   *
+   * @param a - First buffer.
+   * @param b - Second buffer.
+   * @returns `true` if buffers are equal.
    */
   protected constantTimeEqual(a: ArrayBufferView, b: ArrayBufferView): boolean {
     if (a.byteLength !== b.byteLength) return false;
@@ -448,22 +471,28 @@ export abstract class BaseECIES implements ECIESProvider {
   }
 
   /**
-   * Clears sensitive data from buffer using multiple overwrite passes
+   * Securely clears sensitive data from memory.
    *
-   * @param buffer Buffer to clear
+   * @remarks
+   * Uses multiple overwrite passes to prevent data recovery.
+   *
+   * @param buffer - Buffer containing sensitive data.
    */
   protected clearBuffer(buffer: Uint8Array): void {
     // Multiple overwrite passes to prevent compiler optimization
     const len = buffer.length;
+    const { ZEROS, ONES, PATTERN_MULTIPLIER, PATTERN_OFFSET } =
+      SECURITY.CLEAR_PATTERNS;
+
     // Pass 1: zeros
-    buffer.fill(0);
+    buffer.fill(ZEROS);
     // Pass 2: ones
-    buffer.fill(0xff);
+    buffer.fill(ONES);
     // Pass 3: pattern
     for (let i = 0; i < len; i++) {
-      buffer[i] = (i * 7 + 13) & 0xff;
+      buffer[i] = (i * PATTERN_MULTIPLIER + PATTERN_OFFSET) & 0xff;
     }
     // Final pass: zeros
-    buffer.fill(0);
+    buffer.fill(ZEROS);
   }
 }

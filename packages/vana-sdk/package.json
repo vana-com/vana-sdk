@@ -15,9 +15,9 @@
         "types": "./dist/index.browser.d.ts",
         "import": "./dist/index.browser.js"
       },
+      "types": "./dist/index.node.d.ts",
       "import": "./dist/index.node.js",
-      "require": "./dist/index.node.cjs",
-      "types": "./dist/index.node.d.ts"
+      "require": "./dist/index.node.cjs"
     },
     "./browser": {
       "types": "./dist/index.browser.d.ts",
@@ -29,14 +29,14 @@
       "require": "./dist/index.node.cjs"
     },
     "./chains": {
+      "browser": {
+        "types": "./dist/chains.browser.d.ts",
+        "import": "./dist/chains.browser.js"
+      },
       "node": {
         "types": "./dist/chains.node.d.ts",
         "import": "./dist/chains.node.js",
         "require": "./dist/chains.node.cjs"
-      },
-      "browser": {
-        "import": "./dist/chains.browser.js",
-        "types": "./dist/chains.browser.d.ts"
       },
       "default": {
         "types": "./dist/chains.node.d.ts",
@@ -45,14 +45,14 @@
       }
     },
     "./platform": {
+      "browser": {
+        "types": "./dist/platform.browser.d.ts",
+        "import": "./dist/platform.browser.js"
+      },
       "node": {
         "types": "./dist/platform.node.d.ts",
         "import": "./dist/platform.node.js",
         "require": "./dist/platform.node.cjs"
-      },
-      "browser": {
-        "import": "./dist/platform.browser.js",
-        "types": "./dist/platform.browser.d.ts"
       },
       "default": {
         "types": "./dist/platform.node.d.ts",

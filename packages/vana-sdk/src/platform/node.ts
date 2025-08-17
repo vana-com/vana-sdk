@@ -27,14 +27,14 @@ import { lazyImport } from "../utils/lazy-import";
 const getOpenPGP = lazyImport(() => import("openpgp"));
 
 // Import native ECIES provider
-import { NodeECIESProvider } from "../crypto/ecies/node";
+import { NodeECIESUint8Provider } from "../crypto/ecies/node";
 import type { ECIESEncrypted } from "../crypto/ecies";
 
 /**
  * Node.js implementation of crypto operations using native secp256k1
  */
 class NodeCryptoAdapter implements VanaCryptoAdapter {
-  private eciesProvider = new NodeECIESProvider();
+  private eciesProvider = new NodeECIESUint8Provider();
 
   async encryptWithPublicKey(
     data: string,
@@ -83,7 +83,7 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
         privateKeyBuffer,
         encryptedObj,
       );
-      return decrypted.toString("utf8");
+      return new TextDecoder().decode(decrypted);
     } catch (error) {
       throw new Error(`Decryption failed: ${error}`);
     }
@@ -166,7 +166,7 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
         encryptedObj,
       );
 
-      return decryptedBuffer.toString("utf8");
+      return new TextDecoder().decode(decryptedBuffer);
     } catch (error) {
       throw wrapCryptoError("decrypt with wallet private key", error);
     }

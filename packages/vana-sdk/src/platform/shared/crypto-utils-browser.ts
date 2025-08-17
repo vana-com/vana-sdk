@@ -1,8 +1,8 @@
 /**
- * Shared crypto utilities using Uint8Array
+ * Browser-specific crypto utilities using Uint8Array
  *
- * Platform-agnostic utility functions that work in both Node.js and browsers
- * without requiring Buffer or other Node.js-specific APIs.
+ * Platform-specific utility functions for browser environments
+ * without any Buffer or Node.js dependencies.
  */
 
 import { hexToBytes, bytesToHex, concatBytes } from "../../crypto/ecies/utils";
@@ -73,43 +73,31 @@ export function parseEncryptedDataBuffer(encryptedBuffer: Uint8Array): {
 }
 
 /**
- * Environment-agnostic base64 encoding
+ * Browser-specific base64 encoding
  *
  * @param data - Uint8Array to encode
  * @returns Base64 encoded string
  */
 export function toBase64(data: Uint8Array): string {
-  // Always use browser-compatible method for consistency
-  // This works in Node.js too (btoa is available in Node 16+)
-  if (typeof btoa !== "undefined") {
-    const binary = Array.from(data)
-      .map((byte) => String.fromCharCode(byte))
-      .join("");
-    return btoa(binary);
-  } else {
-    throw new Error("No base64 encoding method available");
-  }
+  const binary = Array.from(data)
+    .map((byte) => String.fromCharCode(byte))
+    .join("");
+  return btoa(binary);
 }
 
 /**
- * Environment-agnostic base64 decoding
+ * Browser-specific base64 decoding
  *
  * @param str - Base64 string to decode
  * @returns Decoded Uint8Array
  */
 export function fromBase64(str: string): Uint8Array {
-  // Always use browser-compatible method for consistency
-  // This works in Node.js too (atob is available in Node 16+)
-  if (typeof atob !== "undefined") {
-    const binary = atob(str);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    return bytes;
-  } else {
-    throw new Error("No base64 decoding method available");
+  const binary = atob(str);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
   }
+  return bytes;
 }
 
 /**

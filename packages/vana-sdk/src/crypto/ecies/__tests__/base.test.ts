@@ -3,11 +3,12 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { BaseECIES } from "../base";
+import { BaseECIESUint8 } from "../base";
 import { SECURITY } from "../constants";
+import { constantTimeEqual, concatBytes } from "../utils";
 
 // Create a concrete test class to access protected methods
-class TestECIES extends BaseECIES {
+class TestECIES extends BaseECIESUint8 {
   // Implement abstract methods with minimal functionality for testing
   protected generateRandomBytes(length: number): Uint8Array {
     return new Uint8Array(length);
@@ -66,19 +67,21 @@ class TestECIES extends BaseECIES {
   }
 
   public testConstantTimeEqual(a: Uint8Array, b: Uint8Array): boolean {
-    return this.constantTimeEqual(a, b);
+    // Use the imported utility function
+    return constantTimeEqual(a, b);
   }
 
-  public testConcatBuffers(...buffers: ArrayBufferView[]): Uint8Array {
-    return this.concatBuffers(...buffers);
+  public testConcatBuffers(...buffers: Uint8Array[]): Uint8Array {
+    // Use the imported utility function
+    return concatBytes(...buffers);
   }
 
-  public testNormalizePublicKey(publicKey: Buffer): Uint8Array {
+  public testNormalizePublicKey(publicKey: Uint8Array): Uint8Array {
     return this.normalizePublicKey(publicKey);
   }
 }
 
-describe("BaseECIES", () => {
+describe("BaseECIESUint8", () => {
   let testProvider: TestECIES;
 
   beforeEach(() => {
@@ -189,8 +192,9 @@ describe("BaseECIES", () => {
   });
 
   describe("normalizePublicKey", () => {
-    it("should convert compressed public key Buffer to Uint8Array", () => {
-      const buffer = Buffer.alloc(33, 0x02); // Compressed public key
+    it("should convert compressed public key to normalized format", () => {
+      const buffer = new Uint8Array(33).fill(0x02); // Compressed public key
+      buffer[0] = 0x02; // Compressed prefix
       const result = testProvider.testNormalizePublicKey(buffer);
 
       expect(result).toBeInstanceOf(Uint8Array);
@@ -198,8 +202,8 @@ describe("BaseECIES", () => {
       expect(result[0]).toBe(0x02);
     });
 
-    it("should convert uncompressed public key Buffer to Uint8Array", () => {
-      const buffer = Buffer.alloc(65, 0x04); // Uncompressed public key
+    it("should handle uncompressed public key", () => {
+      const buffer = new Uint8Array(65).fill(0x04); // Uncompressed public key
       buffer[0] = 0x04; // Uncompressed prefix
       const result = testProvider.testNormalizePublicKey(buffer);
 
@@ -209,10 +213,10 @@ describe("BaseECIES", () => {
     });
 
     it("should throw error for invalid public key size", () => {
-      const buffer = Buffer.from([1, 2, 3, 4, 5]); // Invalid size
+      const buffer = new Uint8Array([1, 2, 3, 4, 5]); // Invalid size
 
       expect(() => testProvider.testNormalizePublicKey(buffer)).toThrow(
-        "Invalid public key format",
+        "Invalid public key",
       );
     });
   });

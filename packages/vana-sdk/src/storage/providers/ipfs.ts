@@ -93,8 +93,9 @@ export class IpfsStorage implements StorageProvider {
     projectId: string;
     projectSecret: string;
   }): IpfsStorage {
+    const encoder = new TextEncoder();
     const auth = toBase64(
-      `${credentials.projectId}:${credentials.projectSecret}`,
+      encoder.encode(`${credentials.projectId}:${credentials.projectSecret}`),
     );
     return new IpfsStorage({
       apiEndpoint: "https://ipfs.infura.io:5001/api/v0/add",

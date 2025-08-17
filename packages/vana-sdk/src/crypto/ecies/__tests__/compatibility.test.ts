@@ -7,14 +7,14 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { NodeECIESProvider } from "../node";
-import { BrowserECIESProvider } from "../browser";
+import { NodeECIESUint8Provider } from "../node";
+import { BrowserECIESUint8Provider } from "../browser";
 import { eccryptoTestVectors, eccryptoFormat } from "./test-vectors";
 import type { ECIESEncrypted } from "../interface";
 
 describe("ECIES eccrypto Compatibility", () => {
-  const nodeProvider = new NodeECIESProvider();
-  const browserProvider = new BrowserECIESProvider();
+  const nodeProvider = new NodeECIESUint8Provider();
+  const browserProvider = new BrowserECIESUint8Provider();
 
   describe("Format Compatibility", () => {
     it("should match eccrypto format specifications", () => {
@@ -37,11 +37,14 @@ describe("ECIES eccrypto Compatibility", () => {
           mac: Buffer.from(vector.encrypted.mac, "hex"),
         };
 
-        const decrypted = await nodeProvider.decrypt(privateKey, encrypted);
+        const decrypted = await nodeProvider.decryptWithBuffer(
+          privateKey,
+          encrypted,
+        );
 
         expect(decrypted).toEqual(message);
         if (vector.messageText) {
-          expect(decrypted.toString("utf8")).toBe(vector.messageText);
+          expect(new TextDecoder().decode(decrypted)).toBe(vector.messageText);
         }
       });
     });
@@ -62,9 +65,9 @@ describe("ECIES eccrypto Compatibility", () => {
 
         const decrypted = await browserProvider.decrypt(privateKey, encrypted);
 
-        expect(decrypted).toEqual(message);
+        expect(Buffer.from(decrypted)).toEqual(message);
         if (vector.messageText) {
-          expect(decrypted.toString("utf8")).toBe(vector.messageText);
+          expect(new TextDecoder().decode(decrypted)).toBe(vector.messageText);
         }
       });
     });
@@ -93,7 +96,7 @@ describe("ECIES eccrypto Compatibility", () => {
 
       // Ensure we can decrypt our own encryption
       const decrypted = await nodeProvider.decrypt(privateKey, encrypted);
-      expect(decrypted).toEqual(message);
+      expect(Buffer.from(decrypted)).toEqual(message);
     });
   });
 
@@ -113,7 +116,7 @@ describe("ECIES eccrypto Compatibility", () => {
       const encrypted = await nodeProvider.encrypt(publicKey, message);
       const decrypted = await browserProvider.decrypt(privateKey, encrypted);
 
-      expect(decrypted).toEqual(message);
+      expect(Buffer.from(decrypted)).toEqual(message);
     });
 
     it("should decrypt Browser-encrypted data with Node provider", async () => {
@@ -131,7 +134,7 @@ describe("ECIES eccrypto Compatibility", () => {
       const encrypted = await browserProvider.encrypt(publicKey, message);
       const decrypted = await nodeProvider.decrypt(privateKey, encrypted);
 
-      expect(decrypted).toEqual(message);
+      expect(Buffer.from(decrypted)).toEqual(message);
     });
   });
 });

@@ -23,13 +23,13 @@ import { CIPHER, CURVE, MAC, FORMAT } from "./constants";
  */
 export interface ECIESEncrypted {
   /** Initialization vector (16 bytes) */
-  iv: Buffer;
+  iv: Uint8Array;
   /** Ephemeral public key (65 bytes uncompressed) */
-  ephemPublicKey: Buffer;
+  ephemPublicKey: Uint8Array;
   /** Encrypted data */
-  ciphertext: Buffer;
+  ciphertext: Uint8Array;
   /** Message authentication code (32 bytes) */
-  mac: Buffer;
+  mac: Uint8Array;
 }
 
 /**
@@ -55,32 +55,35 @@ export interface ECIESProvider {
    * @example
    * ```typescript
    * const encrypted = await provider.encrypt(
-   *   Buffer.from(publicKey, 'hex'),
-   *   Buffer.from('sensitive data')
+   *   hexToBytes(publicKey),
+   *   new TextEncoder().encode('sensitive data')
    * );
    * ```
    */
-  encrypt(publicKey: Buffer, message: Buffer): Promise<ECIESEncrypted>;
+  encrypt(publicKey: Uint8Array, message: Uint8Array): Promise<ECIESEncrypted>;
 
   /**
    * Decrypts ECIES encrypted data.
    *
    * @param privateKey - Recipient's private key (32 bytes).
    * @param encrypted - Encrypted data structure from `encrypt()` or legacy eccrypto.
-   * @returns Decrypted message as Buffer.
+   * @returns Decrypted message as Uint8Array.
    * @throws {ECIESError} When MAC verification fails.
    *   Ensure the private key matches the public key used for encryption.
    *
    * @example
    * ```typescript
    * const decrypted = await provider.decrypt(
-   *   Buffer.from(privateKey, 'hex'),
+   *   hexToBytes(privateKey),
    *   encrypted
    * );
-   * const message = decrypted.toString('utf8');
+   * const message = new TextDecoder().decode(decrypted);
    * ```
    */
-  decrypt(privateKey: Buffer, encrypted: ECIESEncrypted): Promise<Buffer>;
+  decrypt(
+    privateKey: Uint8Array,
+    encrypted: ECIESEncrypted,
+  ): Promise<Uint8Array>;
 }
 
 /**
@@ -133,15 +136,22 @@ export function isECIESEncrypted(obj: unknown): obj is ECIESEncrypted {
   if (!obj || typeof obj !== "object") return false;
   const enc = obj as Record<string, unknown>;
 
+  const isUint8Array = (value: unknown): value is Uint8Array => {
+    return (
+      value instanceof Uint8Array ||
+      (typeof Buffer !== "undefined" && Buffer.isBuffer(value))
+    );
+  };
+
   return (
-    Buffer.isBuffer(enc.iv) &&
+    isUint8Array(enc.iv) &&
     enc.iv.length === CIPHER.IV_LENGTH &&
-    Buffer.isBuffer(enc.ephemPublicKey) &&
+    isUint8Array(enc.ephemPublicKey) &&
     (enc.ephemPublicKey.length === CURVE.UNCOMPRESSED_PUBLIC_KEY_LENGTH ||
       enc.ephemPublicKey.length === CURVE.COMPRESSED_PUBLIC_KEY_LENGTH) &&
-    Buffer.isBuffer(enc.ciphertext) &&
+    isUint8Array(enc.ciphertext) &&
     enc.ciphertext.length > 0 &&
-    Buffer.isBuffer(enc.mac) &&
+    isUint8Array(enc.mac) &&
     enc.mac.length === MAC.LENGTH
   );
 }
@@ -159,12 +169,25 @@ export function isECIESEncrypted(obj: unknown): obj is ECIESEncrypted {
  * ```
  */
 export function serializeECIES(encrypted: ECIESEncrypted): string {
-  return Buffer.concat([
-    encrypted.iv,
-    encrypted.ephemPublicKey,
-    encrypted.ciphertext,
-    encrypted.mac,
-  ]).toString("hex");
+  const combined = new Uint8Array(
+    encrypted.iv.length +
+      encrypted.ephemPublicKey.length +
+      encrypted.ciphertext.length +
+      encrypted.mac.length,
+  );
+
+  let offset = 0;
+  combined.set(encrypted.iv, offset);
+  offset += encrypted.iv.length;
+  combined.set(encrypted.ephemPublicKey, offset);
+  offset += encrypted.ephemPublicKey.length;
+  combined.set(encrypted.ciphertext, offset);
+  offset += encrypted.ciphertext.length;
+  combined.set(encrypted.mac, offset);
+
+  return Array.from(combined)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 /**
@@ -182,29 +205,32 @@ export function serializeECIES(encrypted: ECIESEncrypted): string {
  * ```
  */
 export function deserializeECIES(hex: string): ECIESEncrypted {
-  const buffer = Buffer.from(hex, "hex");
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
+  }
 
   // Determine ephemPublicKey size based on prefix
   const ephemKeySize =
-    buffer[FORMAT.EPHEMERAL_KEY_OFFSET] === CURVE.PREFIX.UNCOMPRESSED
+    bytes[FORMAT.EPHEMERAL_KEY_OFFSET] === CURVE.PREFIX.UNCOMPRESSED
       ? CURVE.UNCOMPRESSED_PUBLIC_KEY_LENGTH
       : CURVE.COMPRESSED_PUBLIC_KEY_LENGTH;
 
   const minLength = FORMAT.IV_LENGTH + ephemKeySize + MAC.LENGTH + 1; // +1 for at least 1 byte of ciphertext
-  if (buffer.length < minLength) {
+  if (bytes.length < minLength) {
     throw new ECIESError("Invalid ECIES data: too short", "DECRYPTION_FAILED");
   }
 
   return {
-    iv: buffer.subarray(FORMAT.IV_OFFSET, FORMAT.IV_OFFSET + FORMAT.IV_LENGTH),
-    ephemPublicKey: buffer.subarray(
+    iv: bytes.subarray(FORMAT.IV_OFFSET, FORMAT.IV_OFFSET + FORMAT.IV_LENGTH),
+    ephemPublicKey: bytes.subarray(
       FORMAT.EPHEMERAL_KEY_OFFSET,
       FORMAT.EPHEMERAL_KEY_OFFSET + ephemKeySize,
     ),
-    ciphertext: buffer.subarray(
+    ciphertext: bytes.subarray(
       FORMAT.EPHEMERAL_KEY_OFFSET + ephemKeySize,
-      buffer.length - MAC.LENGTH,
+      bytes.length - MAC.LENGTH,
     ),
-    mac: buffer.subarray(buffer.length - MAC.LENGTH),
+    mac: bytes.subarray(bytes.length - MAC.LENGTH),
   };
 }

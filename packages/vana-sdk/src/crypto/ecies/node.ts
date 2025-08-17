@@ -1,231 +1,180 @@
 /**
- * Node.js ECIES Implementation
+ * Node.js implementation of ECIES using native crypto with Uint8Array core
  *
- * High-performance implementation using native secp256k1 bindings.
- * Extends BaseECIES and provides only platform-specific crypto primitives.
- *
- * Performance: 3-10x faster than pure JavaScript implementations
+ * @remarks
+ * Uses Node.js crypto module for all operations.
+ * Converts Buffer to/from Uint8Array at the boundaries only.
  */
 
-import * as secp256k1 from "secp256k1";
 import {
-  createCipheriv,
-  createDecipheriv,
-  randomBytes,
   createHash,
   createHmac,
-  timingSafeEqual,
-  getCiphers,
+  randomBytes,
+  createCipheriv,
+  createDecipheriv,
 } from "crypto";
-import { BaseECIES } from "./base";
-import { warnOnce } from "../../diagnostics";
-import { CIPHER, KDF, MAC, CURVE } from "./constants";
+import * as secp256k1 from "secp256k1";
+import * as nobleSecp256k1 from "@noble/secp256k1";
+import { BaseECIESUint8 } from "./base";
+import type { ECIESEncrypted } from "./interface";
 
 /**
- * Node.js ECIES provider using native secp256k1 bindings
+ * Node.js-specific ECIES provider using native crypto
+ *
+ * @remarks
+ * This implementation:
+ * - Uses Node.js crypto module for performance
+ * - Internally works with Uint8Array
+ * - Only uses Buffer at the Node.js crypto API boundaries
  */
-export class NodeECIESProvider extends BaseECIES {
-  constructor() {
-    super();
-
-    // Check AES-256-CBC availability (OpenSSL/FIPS builds may remove it)
-    const hasAesCbc = getCiphers().includes(CIPHER.algorithm);
-    if (!hasAesCbc) {
-      warnOnce(
-        `${CIPHER.algorithm.toUpperCase()} not available in this Node build.`,
-        `ECIES will fail unless your OpenSSL config enables ${CIPHER.algorithm}.`,
-      );
-    }
-
-    // Check native secp256k1 availability
-    const secp = secp256k1 as { ecdh?: unknown; publicKeyCreate?: unknown };
-    const looksNative =
-      typeof secp.ecdh === "function" &&
-      typeof secp.publicKeyCreate === "function";
-    if (!looksNative) {
-      warnOnce(
-        "Native secp256k1 backend not detected.",
-        "Install optional dependency `secp256k1` and ensure native build succeeds for best performance.",
-      );
-    }
-  }
-  /**
-   * Generates cryptographically secure random bytes
-   *
-   * @param length Number of bytes to generate
-   * @returns Random bytes
-   */
+export class NodeECIESUint8Provider extends BaseECIESUint8 {
   protected generateRandomBytes(length: number): Uint8Array {
-    return randomBytes(length);
+    return new Uint8Array(randomBytes(length));
   }
 
-  /**
-   * Verifies if a buffer is a valid secp256k1 private key
-   *
-   * @param privateKey Private key to verify
-   * @returns true if valid
-   */
   protected verifyPrivateKey(privateKey: Uint8Array): boolean {
-    return secp256k1.privateKeyVerify(Buffer.from(privateKey));
+    return secp256k1.privateKeyVerify(privateKey);
   }
 
-  /**
-   * Creates a public key from a private key
-   *
-   * @param privateKey Private key
-   * @param compressed Whether to create compressed or uncompressed public key
-   * @returns Public key or null if creation failed
-   */
   protected createPublicKey(
     privateKey: Uint8Array,
     compressed: boolean,
   ): Uint8Array | null {
     try {
-      return secp256k1.publicKeyCreate(Buffer.from(privateKey), compressed);
+      return secp256k1.publicKeyCreate(privateKey, compressed);
     } catch {
       return null;
     }
   }
 
-  /**
-   * Validates a public key
-   *
-   * @param publicKey Public key to validate
-   * @returns true if valid
-   */
   protected validatePublicKey(publicKey: Uint8Array): boolean {
-    return secp256k1.publicKeyVerify(Buffer.from(publicKey));
+    return secp256k1.publicKeyVerify(publicKey);
   }
 
-  /**
-   * Decompresses a compressed public key
-   *
-   * @param publicKey Compressed public key (33 bytes)
-   * @returns Uncompressed public key (65 bytes) or null
-   */
   protected decompressPublicKey(publicKey: Uint8Array): Uint8Array | null {
     try {
-      return secp256k1.publicKeyConvert(Buffer.from(publicKey), false);
+      return secp256k1.publicKeyConvert(publicKey, false);
     } catch {
       return null;
     }
   }
 
-  /**
-   * Performs ECDH and returns raw X coordinate (eccrypto-compatible)
-   *
-   * @param publicKey Public key
-   * @param privateKey Private key
-   * @returns Raw X coordinate (32 bytes)
-   */
   protected performECDH(
     publicKey: Uint8Array,
     privateKey: Uint8Array,
   ): Uint8Array {
-    const sharedSecret = Buffer.alloc(CURVE.SHARED_SECRET_LENGTH);
-    const outputBuffer = new Uint8Array(CURVE.SHARED_SECRET_LENGTH);
-
-    // Use identity hash function to get raw X coordinate
-    secp256k1.ecdh(
-      Buffer.from(publicKey),
-      Buffer.from(privateKey),
-      {
-        hashfn: (x: Uint8Array) => {
-          // Copy raw X coordinate to our buffer
-          Buffer.from(x).copy(sharedSecret);
-          return x;
-        },
-      },
-      outputBuffer,
-    );
-
-    return sharedSecret;
+    try {
+      // Use @noble/secp256k1 for ECDH to ensure eccrypto compatibility
+      // The 'true' parameter returns compressed point (33 bytes)
+      // We need just the x-coordinate (32 bytes) so we slice off the prefix
+      const sharedPoint = nobleSecp256k1.getSharedSecret(
+        privateKey,
+        publicKey,
+        true,
+      );
+      return sharedPoint.slice(1); // Remove prefix byte to get x-coordinate
+    } catch (error) {
+      throw new Error(
+        `ECDH failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
   }
 
-  /**
-   * Computes SHA-512 hash
-   *
-   * @param data Data to hash
-   * @returns SHA-512 hash (64 bytes)
-   */
   protected sha512(data: Uint8Array): Uint8Array {
-    return createHash(KDF.algorithm).update(data).digest();
+    return new Uint8Array(
+      createHash("sha512").update(Buffer.from(data)).digest(),
+    );
   }
 
-  /**
-   * Computes HMAC-SHA256
-   *
-   * @param key HMAC key
-   * @param data Data to authenticate
-   * @returns HMAC-SHA256 (32 bytes)
-   */
   protected hmacSha256(key: Uint8Array, data: Uint8Array): Uint8Array {
-    return createHmac(MAC.algorithm, key).update(data).digest();
+    return new Uint8Array(
+      createHmac("sha256", Buffer.from(key)).update(Buffer.from(data)).digest(),
+    );
   }
 
-  /**
-   * Encrypts data using AES-256-CBC
-   *
-   * @param key Encryption key (32 bytes)
-   * @param iv Initialization vector (16 bytes)
-   * @param data Data to encrypt
-   * @returns Encrypted data with PKCS7 padding
-   */
   protected async aesEncrypt(
     key: Uint8Array,
     iv: Uint8Array,
-    data: Uint8Array,
+    plaintext: Uint8Array,
   ): Promise<Uint8Array> {
-    const cipher = createCipheriv(CIPHER.algorithm, key, iv);
-    return Buffer.concat([cipher.update(data), cipher.final()]);
+    const cipher = createCipheriv(
+      "aes-256-cbc",
+      Buffer.from(key),
+      Buffer.from(iv),
+    );
+    const encrypted = Buffer.concat([
+      cipher.update(Buffer.from(plaintext)),
+      cipher.final(),
+    ]);
+    return new Uint8Array(encrypted);
   }
 
-  /**
-   * Decrypts data using AES-256-CBC
-   *
-   * @param key Encryption key (32 bytes)
-   * @param iv Initialization vector (16 bytes)
-   * @param data Encrypted data with PKCS7 padding
-   * @returns Decrypted data
-   */
   protected async aesDecrypt(
     key: Uint8Array,
     iv: Uint8Array,
-    data: Uint8Array,
+    ciphertext: Uint8Array,
   ): Promise<Uint8Array> {
-    const decipher = createDecipheriv(CIPHER.algorithm, key, iv);
-    return Buffer.concat([decipher.update(data), decipher.final()]);
+    const decipher = createDecipheriv(
+      "aes-256-cbc",
+      Buffer.from(key),
+      Buffer.from(iv),
+    );
+    const decrypted = Buffer.concat([
+      decipher.update(Buffer.from(ciphertext)),
+      decipher.final(),
+    ]);
+    return new Uint8Array(decrypted);
   }
 
   /**
-   * Constant-time buffer comparison using Node.js native implementation
+   * Provides Buffer-compatible encrypt method for backward compatibility
    *
-   * @param a First buffer
-   * @param b Second buffer
-   * @returns true if buffers are equal
+   * @param publicKey - The recipient's public key as Buffer
+   * @param message - The data to encrypt as Buffer
+   * @returns Promise resolving to encrypted data structure with Buffer fields
    */
-  protected override constantTimeEqual(
-    a: ArrayBufferView,
-    b: ArrayBufferView,
-  ): boolean {
-    // Pad to same length to avoid timing leak on length check
-    const maxLen = Math.max(a.byteLength, b.byteLength);
-    const bufA = Buffer.alloc(maxLen);
-    const bufB = Buffer.alloc(maxLen);
+  async encryptWithBuffer(
+    publicKey: Buffer,
+    message: Buffer,
+  ): Promise<ECIESEncrypted> {
+    const result = await this.encrypt(
+      new Uint8Array(publicKey),
+      new Uint8Array(message),
+    );
 
-    Buffer.from(a.buffer, a.byteOffset, a.byteLength).copy(bufA);
-    Buffer.from(b.buffer, b.byteOffset, b.byteLength).copy(bufB);
-
-    // Use Node's timing-safe comparison
-    return a.byteLength === b.byteLength && timingSafeEqual(bufA, bufB);
+    // Convert Uint8Arrays back to Buffers for Node.js consumers that expect Buffer
+    return {
+      iv: Buffer.from(result.iv),
+      ephemPublicKey: Buffer.from(result.ephemPublicKey),
+      ciphertext: Buffer.from(result.ciphertext),
+      mac: Buffer.from(result.mac),
+    };
   }
-}
 
-/**
- * Factory function for creating Node.js ECIES provider
- *
- * @returns Node.js ECIES provider instance
- */
-export function createNodeECIESProvider(): NodeECIESProvider {
-  return new NodeECIESProvider();
+  /**
+   * Provides Buffer-compatible decrypt method for backward compatibility
+   *
+   * @param privateKey - The recipient's private key as Buffer
+   * @param encrypted - The encrypted data structure from encrypt()
+   * @returns Promise resolving to the original plaintext as Buffer
+   */
+  async decryptWithBuffer(
+    privateKey: Buffer,
+    encrypted: ECIESEncrypted,
+  ): Promise<Buffer> {
+    // Convert any Buffers in the encrypted object to Uint8Array
+    const normalizedEncrypted: ECIESEncrypted = {
+      iv: new Uint8Array(encrypted.iv),
+      ephemPublicKey: new Uint8Array(encrypted.ephemPublicKey),
+      ciphertext: new Uint8Array(encrypted.ciphertext),
+      mac: new Uint8Array(encrypted.mac),
+    };
+
+    const result = await this.decrypt(
+      new Uint8Array(privateKey),
+      normalizedEncrypted,
+    );
+
+    return Buffer.from(result);
+  }
 }

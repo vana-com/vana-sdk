@@ -144,8 +144,8 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
       // Generate random private key
       const privateKeyBytes = secp256k1.utils.randomPrivateKey();
 
-      // Generate public key (uncompressed for compatibility)
-      const publicKeyBytes = secp256k1.getPublicKey(privateKeyBytes, false);
+      // Generate public key (compressed for consistency with Node implementation)
+      const publicKeyBytes = secp256k1.getPublicKey(privateKeyBytes, true);
 
       return {
         privateKey: bytesToHex(privateKeyBytes),

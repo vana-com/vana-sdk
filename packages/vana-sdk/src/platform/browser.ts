@@ -281,12 +281,18 @@ class BrowserHttpAdapter implements VanaHttpAdapter {
 }
 
 /**
- * Browser implementation of caching using localStorage
+ * Browser implementation of caching using sessionStorage for security
+ * SessionStorage is cleared when the tab closes, making it more secure for signature caching
  */
 class BrowserCacheAdapter implements VanaCacheAdapter {
+  private readonly prefix = "vana_cache_";
+
   get(key: string): string | null {
     try {
-      return localStorage.getItem(key);
+      if (typeof sessionStorage === "undefined") {
+        return null;
+      }
+      return sessionStorage.getItem(this.prefix + key);
     } catch {
       return null;
     }
@@ -294,7 +300,10 @@ class BrowserCacheAdapter implements VanaCacheAdapter {
 
   set(key: string, value: string): void {
     try {
-      localStorage.setItem(key, value);
+      if (typeof sessionStorage === "undefined") {
+        return;
+      }
+      sessionStorage.setItem(this.prefix + key, value);
     } catch {
       // Ignore storage errors (quota exceeded, etc.)
     }
@@ -302,7 +311,10 @@ class BrowserCacheAdapter implements VanaCacheAdapter {
 
   delete(key: string): void {
     try {
-      localStorage.removeItem(key);
+      if (typeof sessionStorage === "undefined") {
+        return;
+      }
+      sessionStorage.removeItem(this.prefix + key);
     } catch {
       // Ignore storage errors
     }
@@ -310,7 +322,18 @@ class BrowserCacheAdapter implements VanaCacheAdapter {
 
   clear(): void {
     try {
-      localStorage.clear();
+      if (typeof sessionStorage === "undefined") {
+        return;
+      }
+      // Only clear our prefixed keys to avoid affecting other data
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key?.startsWith(this.prefix)) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((key) => sessionStorage.removeItem(key));
     } catch {
       // Ignore storage errors
     }

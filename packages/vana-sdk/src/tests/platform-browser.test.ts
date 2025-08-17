@@ -44,7 +44,7 @@ describe("BrowserPlatformAdapter", () => {
 
         await expect(
           adapter.crypto.decryptWithPrivateKey("invalid-hex", "privatekey"),
-        ).rejects.toThrow("Decryption failed:");
+        ).rejects.toThrow("decryptWithPrivateKey failed:");
       });
     });
 
@@ -60,7 +60,7 @@ describe("BrowserPlatformAdapter", () => {
 
         await expect(
           adapter.crypto.encryptWithWalletPublicKey("data", "publickey"),
-        ).rejects.toThrow("encrypt with wallet public key failed");
+        ).rejects.toThrow("encryptWithWalletPublicKey failed");
       });
     });
 
@@ -76,7 +76,7 @@ describe("BrowserPlatformAdapter", () => {
 
         await expect(
           adapter.crypto.decryptWithWalletPrivateKey("encrypted", "privatekey"),
-        ).rejects.toThrow("decrypt with wallet private key failed");
+        ).rejects.toThrow("decryptWithWalletPrivateKey failed");
       });
     });
 

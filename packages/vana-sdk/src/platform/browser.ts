@@ -24,15 +24,20 @@ import {
 import { getPGPKeyGenParams } from "./shared/pgp-utils";
 import { wrapCryptoError } from "./shared/error-utils";
 import { lazyImport } from "../utils/lazy-import";
-import * as browserCrypto from "./browser-crypto";
+
+// Import browser ECIES provider
+import { BrowserECIESProvider } from "../crypto/ecies/browser";
+import type { ECIESEncrypted } from "../crypto/ecies";
 
 // Lazy-loaded dependencies to avoid Turbopack TDZ issues
 const getOpenPGP = lazyImport(() => import("openpgp"));
 
 /**
- * Browser implementation of crypto operations using @noble/secp256k1
+ * Browser implementation of crypto operations using tiny-secp256k1
  */
 class BrowserCryptoAdapter implements VanaCryptoAdapter {
+  private eciesProvider = new BrowserECIESProvider();
+
   async encryptWithPublicKey(
     data: string,
     publicKeyHex: string,
@@ -42,7 +47,7 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
       const publicKeyBuffer = Buffer.from(publicKeyHex, "hex");
 
       // Encrypt data using secp256k1 ECDH
-      const encrypted = await browserCrypto.encrypt(
+      const encrypted = await this.eciesProvider.encrypt(
         publicKeyBuffer,
         Buffer.from(data, "utf8"),
       );
@@ -73,10 +78,15 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
         parseEncryptedDataBuffer(encryptedBuffer);
 
       // Reconstruct the encrypted data structure
-      const encryptedObj = { iv, ephemPublicKey, ciphertext, mac };
+      const encryptedObj: ECIESEncrypted = {
+        iv,
+        ephemPublicKey,
+        ciphertext,
+        mac,
+      };
 
       // Decrypt using secp256k1 ECDH
-      const decryptedBuffer = await browserCrypto.decrypt(
+      const decryptedBuffer = await this.eciesProvider.decrypt(
         privateKeyBuffer,
         encryptedObj,
       );
@@ -89,17 +99,26 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
 
   async generateKeyPair(): Promise<{ publicKey: string; privateKey: string }> {
     try {
+      const secp256k1 = await import("tiny-secp256k1");
+
       // Generate a random 32-byte private key for secp256k1
-      const privateKeyBytes = new Uint8Array(32);
-      crypto.getRandomValues(privateKeyBytes);
-      const privateKey = Buffer.from(privateKeyBytes);
+      let privateKey: Buffer;
+      do {
+        const privateKeyBytes = new Uint8Array(32);
+        crypto.getRandomValues(privateKeyBytes);
+        privateKey = Buffer.from(privateKeyBytes);
+      } while (!secp256k1.isPrivate(privateKey));
 
       // Generate the corresponding compressed public key
-      const publicKey = browserCrypto.getPublicCompressed(privateKey);
+      const publicKey = secp256k1.pointFromScalar(privateKey, true);
+
+      if (!publicKey) {
+        throw new Error("Failed to generate public key");
+      }
 
       return {
         privateKey: privateKey.toString("hex"),
-        publicKey: publicKey.toString("hex"),
+        publicKey: Buffer.from(publicKey).toString("hex"),
       };
     } catch (error) {
       throw wrapCryptoError("key generation", error);
@@ -115,7 +134,7 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
       const uncompressedKey = processWalletPublicKey(publicKey);
 
       // Encrypt using ECDH with randomly generated parameters
-      const encryptedBuffer = await browserCrypto.encrypt(
+      const encryptedBuffer = await this.eciesProvider.encrypt(
         uncompressedKey,
         Buffer.from(data),
       );
@@ -146,10 +165,15 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
         parseEncryptedDataBuffer(encryptedBuffer);
 
       // Reconstruct the encrypted data structure
-      const encryptedObj = { iv, ephemPublicKey, ciphertext, mac };
+      const encryptedObj: ECIESEncrypted = {
+        iv,
+        ephemPublicKey,
+        ciphertext,
+        mac,
+      };
 
       // Decrypt using ECDH
-      const decryptedBuffer = await browserCrypto.decrypt(
+      const decryptedBuffer = await this.eciesProvider.decrypt(
         privateKeyBuffer,
         encryptedObj,
       );

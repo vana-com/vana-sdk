@@ -25,22 +25,26 @@ import { lazyImport } from "../utils/lazy-import";
 
 // Lazy-loaded dependencies to avoid Turbopack TDZ issues
 const getOpenPGP = lazyImport(() => import("openpgp"));
-const getEccrypto = lazyImport(() => import("eccrypto"));
+
+// Import native ECIES provider
+import { NodeECIESProvider } from "../crypto/ecies/node";
+import type { ECIESEncrypted } from "../crypto/ecies";
 
 /**
- * Node.js implementation of crypto operations using secp256k1
+ * Node.js implementation of crypto operations using native secp256k1
  */
 class NodeCryptoAdapter implements VanaCryptoAdapter {
+  private eciesProvider = new NodeECIESProvider();
+
   async encryptWithPublicKey(
     data: string,
     publicKeyHex: string,
   ): Promise<string> {
     try {
-      const eccrypto = await getEccrypto();
       const publicKey = Buffer.from(publicKeyHex, "hex");
       const message = Buffer.from(data, "utf8");
 
-      const encrypted = await eccrypto.encrypt(publicKey, message);
+      const encrypted = await this.eciesProvider.encrypt(publicKey, message);
 
       // Concatenate all components and return as hex string for API consistency
       const result = Buffer.concat([
@@ -61,18 +65,24 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
     privateKeyHex: string,
   ): Promise<string> {
     try {
-      const eccrypto = await getEccrypto();
-
       // Use shared utilities to process keys and parse data
       const privateKeyBuffer = processWalletPrivateKey(privateKeyHex);
       const encryptedBuffer = Buffer.from(encryptedData, "hex");
       const { iv, ephemPublicKey, ciphertext, mac } =
         parseEncryptedDataBuffer(encryptedBuffer);
 
-      // Reconstruct the encrypted data structure for eccrypto
-      const encryptedObj = { iv, ephemPublicKey, ciphertext, mac };
+      // Reconstruct the encrypted data structure
+      const encryptedObj: ECIESEncrypted = {
+        iv,
+        ephemPublicKey,
+        ciphertext,
+        mac,
+      };
 
-      const decrypted = await eccrypto.decrypt(privateKeyBuffer, encryptedObj);
+      const decrypted = await this.eciesProvider.decrypt(
+        privateKeyBuffer,
+        encryptedObj,
+      );
       return decrypted.toString("utf8");
     } catch (error) {
       throw new Error(`Decryption failed: ${error}`);
@@ -81,9 +91,19 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
 
   async generateKeyPair(): Promise<{ publicKey: string; privateKey: string }> {
     try {
-      const eccrypto = await getEccrypto();
-      const privateKey = eccrypto.generatePrivate();
-      const publicKey = eccrypto.getPublicCompressed(privateKey);
+      const { randomBytes } = await import("crypto");
+      const secp256k1 = await import("secp256k1");
+
+      // Generate private key
+      let privateKey: Buffer;
+      do {
+        privateKey = randomBytes(32);
+      } while (!secp256k1.privateKeyVerify(privateKey));
+
+      // Get compressed public key
+      const publicKey = Buffer.from(
+        secp256k1.publicKeyCreate(privateKey, true),
+      );
 
       return {
         privateKey: privateKey.toString("hex"),
@@ -99,12 +119,10 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
     publicKey: string,
   ): Promise<string> {
     try {
-      const eccrypto = await getEccrypto();
-
       // Use shared utility to process public key
       const uncompressedKey = processWalletPublicKey(publicKey);
 
-      const encrypted = await eccrypto.encrypt(
+      const encrypted = await this.eciesProvider.encrypt(
         uncompressedKey,
         Buffer.from(data),
       );
@@ -128,19 +146,22 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
     privateKey: string,
   ): Promise<string> {
     try {
-      const eccrypto = await getEccrypto();
-
       // Use shared utilities to process keys and parse data
       const privateKeyBuffer = processWalletPrivateKey(privateKey);
       const encryptedBuffer = Buffer.from(encryptedData, "hex");
       const { iv, ephemPublicKey, ciphertext, mac } =
         parseEncryptedDataBuffer(encryptedBuffer);
 
-      // Reconstruct the encrypted data structure for eccrypto
-      const encryptedObj = { iv, ephemPublicKey, ciphertext, mac };
+      // Reconstruct the encrypted data structure
+      const encryptedObj: ECIESEncrypted = {
+        iv,
+        ephemPublicKey,
+        ciphertext,
+        mac,
+      };
 
       // Decrypt using ECDH
-      const decryptedBuffer = await eccrypto.decrypt(
+      const decryptedBuffer = await this.eciesProvider.decrypt(
         privateKeyBuffer,
         encryptedObj,
       );

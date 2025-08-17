@@ -185,8 +185,7 @@ The SDK uses ECIES (Elliptic Curve Integrated Encryption Scheme) for secure data
 
 ### Implementation Details
 
-- **Browser (Pure JS)**: Uses `@noble/secp256k1` - cryptographically secure, zero dependencies
-- **Browser (WASM)**: Uses `tiny-secp256k1` - WebAssembly optimized, requires bundler config
+- **Browser**: Uses `@noble/secp256k1` - cryptographically secure, zero dependencies, zero configuration
 - **Node.js**: Uses native `secp256k1` bindings - maximum performance
 
 All implementations are fully compatible and produce identical results.

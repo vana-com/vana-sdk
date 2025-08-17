@@ -33,7 +33,7 @@ import type { ECIESEncrypted } from "../crypto/ecies";
 const getOpenPGP = lazyImport(() => import("openpgp"));
 
 /**
- * Browser implementation of crypto operations using tiny-secp256k1
+ * Browser implementation of crypto operations using @noble/secp256k1
  */
 class BrowserCryptoAdapter implements VanaCryptoAdapter {
   private eciesProvider = new BrowserECIESProvider();

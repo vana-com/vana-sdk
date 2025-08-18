@@ -135,6 +135,15 @@ function HomeContent() {
       <div className="max-w-md mx-auto space-y-6">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900">Vana Vibes Demo</h1>
+          <p className="mt-2 text-sm text-gray-600">
+            Manual data entry with schema validation
+          </p>
+          <a 
+            href="/schema-explorer" 
+            className="text-sm text-blue-600 hover:text-blue-700 mt-2 inline-block"
+          >
+            Use existing files with schemas →
+          </a>
         </div>
 
         {/* Wallet Connection */}

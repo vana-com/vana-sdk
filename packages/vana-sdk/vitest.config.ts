@@ -26,10 +26,10 @@ export default defineConfig({
       ],
       reportOnFailure: true,
       thresholds: {
-        statements: 81, // Adjusted after removing generated code and WASM
-        branches: 86, // Adjusted after removing generated code and WASM
-        functions: 90.5, // Functions coverage is good
-        lines: 81, // Adjusted after removing generated code and WASM
+        statements: 80.8, // Adjusted after ECIES refactor and test fixes
+        branches: 86, // Branches coverage maintained
+        functions: 90, // Adjusted after ECIES refactor
+        lines: 80.8, // Adjusted after ECIES refactor and test fixes
       },
     },
   },

@@ -5,10 +5,12 @@ import {
   extractIpfsHash,
   getGatewayUrls,
   convertIpfsUrlWithFallbacks,
-  fetchWithFallbacks,
   DEFAULT_IPFS_GATEWAY,
   IPFS_GATEWAYS,
 } from "../utils/ipfs";
+
+// Import for testing, but we'll mock it for problematic tests
+import { fetchWithFallbacks } from "../utils/ipfs";
 
 // Mock global fetch
 const originalFetch = globalThis.fetch;
@@ -295,20 +297,51 @@ describe("Additional IPFS Utils", () => {
     });
 
     it("should throw error when all gateways fail", async () => {
+      // Use fake timers to control the delays
+      vi.useFakeTimers();
+
+      // Store original AbortSignal.timeout
+      const originalTimeout = AbortSignal.timeout;
+
+      // Mock AbortSignal.timeout to return a non-aborting signal
+      // This prevents the timeout from interfering with our test
+      AbortSignal.timeout = vi.fn(() => {
+        const controller = new AbortController();
+        return controller.signal;
+      });
+
       const url = "ipfs://QmAllFailHash";
       const errorResponse = new Response("Server error", { status: 500 });
 
-      // Mock fetch to fail immediately without delays
       globalThis.fetch = vi
         .fn()
         .mockImplementation(() => Promise.resolve(errorResponse));
 
-      await expect(fetchWithFallbacks(url)).rejects.toThrow(
+      let errorMessage: string | null = null;
+
+      // Start the fetch operation with proper error handling
+      const fetchPromise = fetchWithFallbacks(url).catch((e: Error) => {
+        errorMessage = e.message;
+      });
+
+      // Advance all timers to handle the setTimeout delays
+      await vi.runAllTimersAsync();
+
+      // Wait for the promise to settle
+      await fetchPromise;
+
+      // Assert the error was thrown
+      expect(errorMessage).toBeTruthy();
+      expect(errorMessage).toContain(
         "All IPFS gateways failed for hash QmAllFailHash",
       );
 
       expect(globalThis.fetch).toHaveBeenCalledTimes(IPFS_GATEWAYS.length);
-    }); // Removed long timeout - not needed with proper mocking
+
+      // Restore original implementations
+      AbortSignal.timeout = originalTimeout;
+      vi.useRealTimers();
+    });
 
     it("should pass through fetch options", async () => {
       const url = "https://example.com/api";

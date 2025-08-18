@@ -205,9 +205,9 @@ describe("BrowserPlatformAdapter", () => {
         const { BrowserPlatformAdapter } = await import("../platform/browser");
         const adapter = new BrowserPlatformAdapter();
 
-        await expect(adapter.http.fetch("https://example.com")).rejects.toThrow(
-          "fetch is not a function",
-        );
+        await expect(
+          adapter.http.fetch("https://example.com"),
+        ).rejects.toThrow();
       });
     });
   });

@@ -6,7 +6,7 @@ import {
   StorageProviderConfig,
   StorageError,
 } from "../index";
-import { toBase64 } from "../../platform/shared/crypto-utils";
+import { toBase64 } from "../../utils/encoding";
 
 export interface IpfsConfig {
   /** IPFS API endpoint for uploads */

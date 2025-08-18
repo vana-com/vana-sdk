@@ -8,9 +8,7 @@ import { describe, it, expect } from "vitest";
 describe("Shared Platform Utilities", () => {
   describe("Crypto Utilities", () => {
     it("should process wallet public key with 0x prefix", async () => {
-      const { processWalletPublicKey } = await import(
-        "../platform/shared/crypto-utils"
-      );
+      const { processWalletPublicKey } = await import("../utils/crypto-utils");
 
       const publicKey =
         "0xc68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";
@@ -22,9 +20,7 @@ describe("Shared Platform Utilities", () => {
     });
 
     it("should process wallet public key without 0x prefix", async () => {
-      const { processWalletPublicKey } = await import(
-        "../platform/shared/crypto-utils"
-      );
+      const { processWalletPublicKey } = await import("../utils/crypto-utils");
 
       const publicKey =
         "c68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";
@@ -36,9 +32,7 @@ describe("Shared Platform Utilities", () => {
     });
 
     it("should handle already uncompressed public key", async () => {
-      const { processWalletPublicKey } = await import(
-        "../platform/shared/crypto-utils"
-      );
+      const { processWalletPublicKey } = await import("../utils/crypto-utils");
 
       const publicKey =
         "04c68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";
@@ -50,9 +44,7 @@ describe("Shared Platform Utilities", () => {
     });
 
     it("should process wallet private key with 0x prefix", async () => {
-      const { processWalletPrivateKey } = await import(
-        "../platform/shared/crypto-utils"
-      );
+      const { processWalletPrivateKey } = await import("../utils/crypto-utils");
 
       const privateKey =
         "0x85271071a553feafb93839045545c233d0518e0b0fc583f88038f8b0e32e9f18";
@@ -67,9 +59,7 @@ describe("Shared Platform Utilities", () => {
     });
 
     it("should process wallet private key without 0x prefix", async () => {
-      const { processWalletPrivateKey } = await import(
-        "../platform/shared/crypto-utils"
-      );
+      const { processWalletPrivateKey } = await import("../utils/crypto-utils");
 
       const privateKey =
         "85271071a553feafb93839045545c233d0518e0b0fc583f88038f8b0e32e9f18";
@@ -85,7 +75,7 @@ describe("Shared Platform Utilities", () => {
 
     it("should parse encrypted data buffer correctly", async () => {
       const { parseEncryptedDataBuffer } = await import(
-        "../platform/shared/crypto-utils"
+        "../utils/crypto-utils"
       );
 
       // Create a test buffer with known structure

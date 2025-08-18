@@ -1,6 +1,6 @@
 import { Hash } from "viem";
 import type { VanaCacheAdapter } from "../platform/interface";
-import { toBase64 } from "../platform/shared/crypto-utils";
+import { toBase64, stringToBytes } from "./encoding";
 
 interface CachedSignature {
   signature: Hash;
@@ -182,8 +182,8 @@ export class SignatureCache {
     // Simple hash of the message for cache key
     // Using custom JSON.stringify with BigInt serializer to handle EIP-712 typed data
     const jsonString = JSON.stringify(message, this.bigIntReplacer);
-    const encoder = new TextEncoder();
-    const base64Hash = toBase64(encoder.encode(jsonString));
+    const bytes = stringToBytes(jsonString);
+    const base64Hash = toBase64(bytes);
     // Use a longer substring and include some characters from the end to avoid collisions
     const cleaned = base64Hash.replace(/[^a-zA-Z0-9]/g, "");
     // Take first 16 characters + last 16 characters to create a 32-char hash that's more unique

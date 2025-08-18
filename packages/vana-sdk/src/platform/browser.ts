@@ -12,14 +12,11 @@ import type {
   VanaHttpAdapter,
   VanaCacheAdapter,
 } from "./interface";
-import {
-  processWalletPublicKey,
-  processWalletPrivateKey,
-  parseEncryptedDataBuffer,
-} from "./shared/crypto-utils-browser";
 import { getPGPKeyGenParams } from "./shared/pgp-utils";
 import { wrapCryptoError } from "./shared/error-utils";
 import { lazyImport } from "../utils/lazy-import";
+import { WalletKeyProcessor } from "../controllers/WalletKeyProcessor";
+import { parseEncryptedDataBuffer } from "../utils/crypto-utils";
 import {
   hexToBytes,
   bytesToHex,
@@ -40,6 +37,9 @@ const getOpenPGP = lazyImport(() => import("openpgp"));
  */
 class BrowserCryptoAdapter implements VanaCryptoAdapter {
   private eciesProvider = new BrowserECIESUint8Provider();
+  private walletKeyProcessor = new WalletKeyProcessor({
+    eciesProvider: this.eciesProvider,
+  });
 
   async encryptWithPublicKey(
     data: string,
@@ -98,21 +98,10 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
     publicKey: string,
   ): Promise<string> {
     try {
-      const publicKeyBytes = processWalletPublicKey(publicKey);
-      const dataBytes = stringToBytes(data);
-      const encrypted = await this.eciesProvider.encrypt(
-        publicKeyBytes,
-        dataBytes,
+      return await this.walletKeyProcessor.encryptWithWalletPublicKey(
+        data,
+        publicKey,
       );
-
-      // Convert to hex string for interface compatibility
-      const result = concatBytes(
-        encrypted.iv,
-        encrypted.ephemPublicKey,
-        encrypted.ciphertext,
-        encrypted.mac,
-      );
-      return bytesToHex(result);
     } catch (error) {
       throw wrapCryptoError("encryptWithWalletPublicKey", error);
     }
@@ -123,14 +112,10 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
     privateKey: string,
   ): Promise<string> {
     try {
-      const privateKeyBytes = processWalletPrivateKey(privateKey);
-      const encryptedBytes = hexToBytes(encryptedData);
-      const encrypted = parseEncryptedDataBuffer(encryptedBytes);
-      const decrypted = await this.eciesProvider.decrypt(
-        privateKeyBytes,
-        encrypted,
+      return await this.walletKeyProcessor.decryptWithWalletPrivateKey(
+        encryptedData,
+        privateKey,
       );
-      return bytesToString(decrypted);
     } catch (error) {
       throw wrapCryptoError("decryptWithWalletPrivateKey", error);
     }

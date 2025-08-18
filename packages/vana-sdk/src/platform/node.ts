@@ -13,15 +13,15 @@ import type {
   VanaHttpAdapter,
   VanaCacheAdapter,
 } from "./interface";
-import {
-  processWalletPublicKey,
-  processWalletPrivateKey,
-  parseEncryptedDataBuffer,
-} from "./shared/crypto-utils";
 import { getPGPKeyGenParams } from "./shared/pgp-utils";
 import { wrapCryptoError } from "./shared/error-utils";
 import { streamToUint8Array } from "./shared/stream-utils";
 import { lazyImport } from "../utils/lazy-import";
+import { WalletKeyProcessor } from "../controllers/WalletKeyProcessor";
+import {
+  processWalletPrivateKey,
+  parseEncryptedDataBuffer,
+} from "../utils/crypto-utils";
 
 // Lazy-loaded dependencies to avoid Turbopack TDZ issues
 const getOpenPGP = lazyImport(() => import("openpgp"));
@@ -35,6 +35,9 @@ import type { ECIESEncrypted } from "../crypto/ecies";
  */
 class NodeCryptoAdapter implements VanaCryptoAdapter {
   private eciesProvider = new NodeECIESUint8Provider();
+  private walletKeyProcessor = new WalletKeyProcessor({
+    eciesProvider: this.eciesProvider,
+  });
 
   async encryptWithPublicKey(
     data: string,
@@ -119,23 +122,10 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
     publicKey: string,
   ): Promise<string> {
     try {
-      // Use shared utility to process public key
-      const uncompressedKey = processWalletPublicKey(publicKey);
-
-      const encrypted = await this.eciesProvider.encrypt(
-        uncompressedKey,
-        Buffer.from(data),
+      return await this.walletKeyProcessor.encryptWithWalletPublicKey(
+        data,
+        publicKey,
       );
-
-      // Concatenate all components and return as hex (same format as browser)
-      const result = Buffer.concat([
-        encrypted.iv,
-        encrypted.ephemPublicKey,
-        encrypted.ciphertext,
-        encrypted.mac,
-      ]);
-
-      return result.toString("hex");
     } catch (error) {
       throw wrapCryptoError("encrypt with wallet public key", error);
     }
@@ -146,27 +136,10 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
     privateKey: string,
   ): Promise<string> {
     try {
-      // Use shared utilities to process keys and parse data
-      const privateKeyBuffer = processWalletPrivateKey(privateKey);
-      const encryptedBuffer = Buffer.from(encryptedData, "hex");
-      const { iv, ephemPublicKey, ciphertext, mac } =
-        parseEncryptedDataBuffer(encryptedBuffer);
-
-      // Reconstruct the encrypted data structure
-      const encryptedObj: ECIESEncrypted = {
-        iv,
-        ephemPublicKey,
-        ciphertext,
-        mac,
-      };
-
-      // Decrypt using ECDH
-      const decryptedBuffer = await this.eciesProvider.decrypt(
-        privateKeyBuffer,
-        encryptedObj,
+      return await this.walletKeyProcessor.decryptWithWalletPrivateKey(
+        encryptedData,
+        privateKey,
       );
-
-      return new TextDecoder().decode(decryptedBuffer);
     } catch (error) {
       throw wrapCryptoError("decrypt with wallet private key", error);
     }

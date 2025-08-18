@@ -1,0 +1,145 @@
+import { describe, it, expect, vi } from "vitest";
+import { WalletKeyProcessor } from "./WalletKeyProcessor";
+import type { ECIESProvider, ECIESEncrypted } from "../crypto/ecies/interface";
+
+describe("WalletKeyProcessor", () => {
+  const mockECIESProvider: ECIESProvider = {
+    encrypt: vi.fn(),
+    decrypt: vi.fn(),
+  };
+
+  const processor = new WalletKeyProcessor({
+    eciesProvider: mockECIESProvider,
+  });
+
+  describe("encryptWithWalletPublicKey", () => {
+    it("processes public key and encrypts data", async () => {
+      const mockEncrypted: ECIESEncrypted = {
+        iv: new Uint8Array(16),
+        ephemPublicKey: new Uint8Array(65),
+        ciphertext: new Uint8Array(32),
+        mac: new Uint8Array(32),
+      };
+
+      vi.mocked(mockECIESProvider.encrypt).mockResolvedValue(mockEncrypted);
+
+      const result = await processor.encryptWithWalletPublicKey(
+        "test data",
+        "0x1234567890abcdef",
+      );
+
+      expect(mockECIESProvider.encrypt).toHaveBeenCalled();
+      expect(typeof result).toBe("string");
+      expect(result.length).toBeGreaterThan(0);
+    });
+
+    it("handles Uint8Array public key", async () => {
+      const mockEncrypted: ECIESEncrypted = {
+        iv: new Uint8Array(16).fill(1),
+        ephemPublicKey: new Uint8Array(65).fill(2),
+        ciphertext: new Uint8Array(10).fill(3),
+        mac: new Uint8Array(32).fill(4),
+      };
+
+      vi.mocked(mockECIESProvider.encrypt).mockResolvedValue(mockEncrypted);
+
+      const publicKey = new Uint8Array(64).fill(42); // Raw coordinates
+      const result = await processor.encryptWithWalletPublicKey(
+        "test",
+        publicKey,
+      );
+
+      expect(result).toBeTruthy();
+      expect(mockECIESProvider.encrypt).toHaveBeenCalledWith(
+        expect.any(Uint8Array),
+        expect.any(Uint8Array),
+      );
+    });
+  });
+
+  describe("decryptWithWalletPrivateKey", () => {
+    it("processes encrypted data and decrypts", async () => {
+      const decryptedBytes = new Uint8Array([72, 101, 108, 108, 111]); // "Hello"
+      vi.mocked(mockECIESProvider.decrypt).mockResolvedValue(decryptedBytes);
+
+      // Create a valid encrypted data hex string (113 bytes minimum)
+      const encryptedHex = "00".repeat(113);
+      const result = await processor.decryptWithWalletPrivateKey(
+        encryptedHex,
+        "0xabcdef1234567890",
+      );
+
+      expect(mockECIESProvider.decrypt).toHaveBeenCalled();
+      expect(result).toBe("Hello");
+    });
+
+    it("handles Uint8Array private key", async () => {
+      const decryptedBytes = new Uint8Array([84, 101, 115, 116]); // "Test"
+      vi.mocked(mockECIESProvider.decrypt).mockResolvedValue(decryptedBytes);
+
+      const privateKey = new Uint8Array(32).fill(7);
+      const encryptedHex = "ff".repeat(150);
+
+      const result = await processor.decryptWithWalletPrivateKey(
+        encryptedHex,
+        privateKey,
+      );
+
+      expect(result).toBe("Test");
+    });
+  });
+
+  describe("encryptBinary", () => {
+    it("encrypts binary data", async () => {
+      const mockEncrypted: ECIESEncrypted = {
+        iv: new Uint8Array(16),
+        ephemPublicKey: new Uint8Array(65),
+        ciphertext: new Uint8Array(20),
+        mac: new Uint8Array(32),
+      };
+
+      vi.mocked(mockECIESProvider.encrypt).mockResolvedValue(mockEncrypted);
+
+      const binaryData = new Uint8Array([1, 2, 3, 4, 5]);
+      const publicKey = "0x" + "42".repeat(32);
+
+      const result = await processor.encryptBinary(binaryData, publicKey);
+
+      expect(result).toBe(mockEncrypted);
+      expect(mockECIESProvider.encrypt).toHaveBeenCalledWith(
+        expect.any(Uint8Array),
+        binaryData,
+      );
+    });
+  });
+
+  describe("decryptBinary", () => {
+    it("decrypts to binary data", async () => {
+      const decryptedBytes = new Uint8Array([10, 20, 30]);
+      vi.mocked(mockECIESProvider.decrypt).mockResolvedValue(decryptedBytes);
+
+      const encrypted: ECIESEncrypted = {
+        iv: new Uint8Array(16),
+        ephemPublicKey: new Uint8Array(65),
+        ciphertext: new Uint8Array(20),
+        mac: new Uint8Array(32),
+      };
+      const privateKey = new Uint8Array(32).fill(99);
+
+      const result = await processor.decryptBinary(encrypted, privateKey);
+
+      expect(result).toBe(decryptedBytes);
+      expect(mockECIESProvider.decrypt).toHaveBeenCalledWith(
+        privateKey,
+        encrypted,
+      );
+    });
+  });
+
+  describe("getECIESProvider", () => {
+    it("returns the ECIES provider", () => {
+      const provider = processor.getECIESProvider();
+      expect(provider).toBe(mockECIESProvider);
+    });
+  });
+});

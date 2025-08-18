@@ -1,45 +1,83 @@
 /**
- * Node.js implementation of ECIES using @noble/secp256k1 for consistency
+ * Node.js implementation of ECIES using native secp256k1 for performance
  *
  * @remarks
- * Uses @noble/secp256k1 and @noble/hashes for all elliptic curve and hash operations
- * to ensure perfect parity with the browser implementation.
- * Uses Node.js crypto module only for AES operations.
- * Converts Buffer to/from Uint8Array at the boundaries only.
+ * Uses native secp256k1 bindings for all elliptic curve operations.
+ * Uses Node.js crypto module for hashing and AES operations.
+ * Provides Uint8Array-only interface with no Buffer exposure.
  */
 
-import { randomBytes, createCipheriv, createDecipheriv } from "crypto";
-import * as secp256k1 from "@noble/secp256k1";
-import { sha512 as nobleSha512 } from "@noble/hashes/sha512";
-import { sha256 as nobleSha256 } from "@noble/hashes/sha256";
-import { hmac } from "@noble/hashes/hmac";
+import {
+  randomBytes,
+  createHash,
+  createHmac,
+  createCipheriv,
+  createDecipheriv,
+} from "crypto";
 import { BaseECIESUint8 } from "./base";
-import type { ECIESEncrypted } from "./interface";
+
+// Type definition for secp256k1 module
+interface Secp256k1Module {
+  privateKeyVerify(privateKey: Buffer): boolean;
+  publicKeyCreate(privateKey: Buffer, compressed: boolean): Buffer;
+  publicKeyVerify(publicKey: Buffer): boolean;
+  publicKeyConvert(publicKey: Buffer, compressed: boolean): Buffer;
+  ecdh(
+    publicKey: Buffer,
+    privateKey: Buffer,
+    options: {
+      hashfn: (x: Uint8Array, y: Uint8Array, output?: Uint8Array) => Uint8Array;
+    },
+    output: Buffer,
+  ): Buffer;
+}
+
+// Load native secp256k1 as optional dependency
+/* global require */
+
+let secp256k1: Secp256k1Module;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  secp256k1 = require("secp256k1");
+} catch {
+  throw new Error(
+    "Native secp256k1 module not found. Please install with: npm install secp256k1\n" +
+      "This is required for optimal performance in Node.js environments.",
+  );
+}
 
 /**
- * Node.js-specific ECIES provider using @noble libraries
+ * Node.js-specific ECIES provider using native secp256k1
  *
  * @remarks
  * This implementation:
- * - Uses @noble/secp256k1 for all EC operations (consistent with browser)
- * - Uses @noble/hashes for SHA-512 and HMAC (consistent with browser)
- * - Uses Node.js crypto module only for AES-CBC operations
+ * - Uses native secp256k1 for all EC operations (optimal performance)
+ * - Uses Node.js crypto for SHA-512, HMAC, and AES operations
  * - Internally works with Uint8Array
- * - Only uses Buffer at the Node.js crypto API boundaries
+ * - Only uses Buffer at crypto API boundaries
  */
 export class NodeECIESUint8Provider extends BaseECIESUint8 {
+  // Identity hash function for ECDH - returns raw X coordinate
+  // CRITICAL: Must handle (x, y, output) signature correctly
+  private readonly identityHashFn = (
+    x: Uint8Array,
+    y: Uint8Array,
+    output?: Uint8Array,
+  ): Uint8Array => {
+    // Copy x into output buffer if provided (prevents allocations)
+    if (output && output.length >= 32) {
+      output.set(x);
+      return output;
+    }
+    return x;
+  };
   protected generateRandomBytes(length: number): Uint8Array {
     return new Uint8Array(randomBytes(length));
   }
 
   protected verifyPrivateKey(privateKey: Uint8Array): boolean {
-    try {
-      // @noble/secp256k1 validates during point multiplication
-      secp256k1.getPublicKey(privateKey);
-      return true;
-    } catch {
-      return false;
-    }
+    // Native secp256k1 returns true for valid, false for invalid
+    return secp256k1.privateKeyVerify(Buffer.from(privateKey)) === true;
   }
 
   protected createPublicKey(
@@ -47,27 +85,25 @@ export class NodeECIESUint8Provider extends BaseECIESUint8 {
     compressed: boolean,
   ): Uint8Array | null {
     try {
-      return secp256k1.getPublicKey(privateKey, compressed);
+      return new Uint8Array(
+        secp256k1.publicKeyCreate(Buffer.from(privateKey), compressed),
+      );
     } catch {
       return null;
     }
   }
 
   protected validatePublicKey(publicKey: Uint8Array): boolean {
-    try {
-      // Try to parse the point - will throw if invalid
-      secp256k1.Point.fromHex(publicKey);
-      return true;
-    } catch {
-      return false;
-    }
+    // Native secp256k1 returns true for valid, false for invalid
+    return secp256k1.publicKeyVerify(Buffer.from(publicKey)) === true;
   }
 
   protected decompressPublicKey(publicKey: Uint8Array): Uint8Array | null {
     try {
-      // Parse the point and convert to uncompressed format
-      const point = secp256k1.Point.fromHex(publicKey);
-      return point.toRawBytes(false); // false = uncompressed
+      // Convert to uncompressed format (65 bytes)
+      return new Uint8Array(
+        secp256k1.publicKeyConvert(Buffer.from(publicKey), false),
+      );
     } catch {
       return null;
     }
@@ -78,15 +114,19 @@ export class NodeECIESUint8Provider extends BaseECIESUint8 {
     privateKey: Uint8Array,
   ): Uint8Array {
     try {
-      // Using @noble/secp256k1 consistently for all operations
-      // The 'true' parameter returns compressed point (33 bytes)
-      // We need just the x-coordinate (32 bytes) so we slice off the prefix
-      const sharedPoint = secp256k1.getSharedSecret(
-        privateKey,
-        publicKey,
-        true,
+      // Use pre-allocated buffer for output (32 bytes)
+      const output = Buffer.alloc(32);
+
+      // CRITICAL: Use identity hash to get raw X coordinate
+      // Default would apply SHA256 and break compatibility
+      secp256k1.ecdh(
+        Buffer.from(publicKey),
+        Buffer.from(privateKey),
+        { hashfn: this.identityHashFn },
+        output,
       );
-      return sharedPoint.slice(1); // Remove prefix byte to get x-coordinate
+
+      return new Uint8Array(output);
     } catch (error) {
       throw new Error(
         `ECDH failed: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -95,13 +135,17 @@ export class NodeECIESUint8Provider extends BaseECIESUint8 {
   }
 
   protected sha512(data: Uint8Array): Uint8Array {
-    // Use @noble/hashes for consistency with browser implementation
-    return nobleSha512(data);
+    // Use Node.js crypto for native performance
+    return new Uint8Array(
+      createHash("sha512").update(Buffer.from(data)).digest(),
+    );
   }
 
   protected hmacSha256(key: Uint8Array, data: Uint8Array): Uint8Array {
-    // Use @noble/hashes for consistency with browser implementation
-    return hmac(nobleSha256, key, data);
+    // Use Node.js crypto for native performance
+    return new Uint8Array(
+      createHmac("sha256", Buffer.from(key)).update(Buffer.from(data)).digest(),
+    );
   }
 
   protected async aesEncrypt(
@@ -138,55 +182,5 @@ export class NodeECIESUint8Provider extends BaseECIESUint8 {
     return new Uint8Array(decrypted);
   }
 
-  /**
-   * Provides Buffer-compatible encrypt method for backward compatibility
-   *
-   * @param publicKey - The recipient's public key as Buffer
-   * @param message - The data to encrypt as Buffer
-   * @returns Promise resolving to encrypted data structure with Buffer fields
-   */
-  async encryptWithBuffer(
-    publicKey: Buffer,
-    message: Buffer,
-  ): Promise<ECIESEncrypted> {
-    const result = await this.encrypt(
-      new Uint8Array(publicKey),
-      new Uint8Array(message),
-    );
-
-    // Convert Uint8Arrays back to Buffers for Node.js consumers that expect Buffer
-    return {
-      iv: Buffer.from(result.iv),
-      ephemPublicKey: Buffer.from(result.ephemPublicKey),
-      ciphertext: Buffer.from(result.ciphertext),
-      mac: Buffer.from(result.mac),
-    };
-  }
-
-  /**
-   * Provides Buffer-compatible decrypt method for backward compatibility
-   *
-   * @param privateKey - The recipient's private key as Buffer
-   * @param encrypted - The encrypted data structure from encrypt()
-   * @returns Promise resolving to the original plaintext as Buffer
-   */
-  async decryptWithBuffer(
-    privateKey: Buffer,
-    encrypted: ECIESEncrypted,
-  ): Promise<Buffer> {
-    // Convert any Buffers in the encrypted object to Uint8Array
-    const normalizedEncrypted: ECIESEncrypted = {
-      iv: new Uint8Array(encrypted.iv),
-      ephemPublicKey: new Uint8Array(encrypted.ephemPublicKey),
-      ciphertext: new Uint8Array(encrypted.ciphertext),
-      mac: new Uint8Array(encrypted.mac),
-    };
-
-    const result = await this.decrypt(
-      new Uint8Array(privateKey),
-      normalizedEncrypted,
-    );
-
-    return Buffer.from(result);
-  }
+  // No Buffer compatibility methods - Uint8Array only public API
 }

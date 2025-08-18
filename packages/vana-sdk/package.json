@@ -61,6 +61,10 @@
       }
     }
   },
+  "browser": {
+    "secp256k1": false,
+    "crypto": false
+  },
   "files": [
     "dist",
     "README.md",

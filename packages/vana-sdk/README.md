@@ -159,35 +159,6 @@ storageManager.register(
 );
 ```
 
-## Migration Guide
-
-### Migrating from Previous SDK Versions
-
-If you're upgrading from an older version that used `eccrypto`:
-
-1. **Update imports** - Change from default export to specific build:
-
-   ```typescript
-   // Old
-   import { Vana } from "@opendatalabs/vana-sdk";
-
-   // New - choose based on environment
-   import { Vana } from "@opendatalabs/vana-sdk/browser"; // Browser
-   import { Vana } from "@opendatalabs/vana-sdk/node"; // Node.js
-   ```
-
-2. **No API changes** - The SDK API remains unchanged, only the import path differs
-
-3. **Bundle size improvements** - The new browser build is ~40% smaller than the previous version
-
-### Troubleshooting
-
-If you encounter Buffer-related errors in browser environments:
-
-1. **Missing polyfill**: Add Buffer polyfill to your bundler configuration (see examples above)
-2. **Content Security Policy**: Ensure your CSP is configured correctly for crypto operations
-3. **Next.js SSR**: The SDK handles SSR automatically with proper exports
-
 ## Architecture
 
 The SDK provides four main controllers:

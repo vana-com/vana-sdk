@@ -1,0 +1,130 @@
+{
+  "name": "Unwrapped Spotify Contribution Proof",
+  "version": "1.0.0",
+  "description": "Schema for Unwrapped Spotify listening data contribution proofs, containing user stats, played tracks, and top artists derived from Spotify data exports",
+  "dialect": "json",
+  "schema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "required": ["user", "stats"],
+    "properties": {
+      "user": {
+        "type": "object",
+        "description": "User identification and account information",
+        "required": ["id_hash"],
+        "properties": {
+          "id_hash": {
+            "type": "string",
+            "description": "Hashed user identifier for privacy"
+          },
+          "country": {
+            "type": ["string", "null"],
+            "description": "User's country code"
+          },
+          "product": {
+            "type": ["string", "null"],
+            "description": "Spotify subscription type (e.g., 'free', 'premium')"
+          }
+        }
+      },
+      "stats": {
+        "type": "object",
+        "description": "Aggregated listening statistics",
+        "required": ["total_minutes", "track_count", "unique_artists_count", "activity_period_days"],
+        "properties": {
+          "total_minutes": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total minutes listened"
+          },
+          "track_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total number of tracks played"
+          },
+          "unique_artists_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of unique artists listened to"
+          },
+          "activity_period_days": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of days with listening activity"
+          },
+          "first_listen": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "ISO datetime of first track played"
+          },
+          "last_listen": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "ISO datetime of last track played"
+          }
+        }
+      },
+      "tracks": {
+        "type": "array",
+        "description": "Individual played track records",
+        "items": {
+          "type": "object",
+          "required": ["track_id", "artist_id", "duration_ms", "listened_at"],
+          "properties": {
+            "track_id": {
+              "type": "string",
+              "description": "Spotify track identifier"
+            },
+            "artist_id": {
+              "type": "string",
+              "description": "Primary artist's Spotify identifier"
+            },
+            "duration_ms": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Track duration in milliseconds"
+            },
+            "listened_at": {
+              "type": "string",
+              "format": "date-time",
+              "description": "ISO datetime when track was played"
+            }
+          }
+        }
+      },
+      "top_artists_medium_term": {
+        "type": "array",
+        "description": "Top artists based on medium-term listening history",
+        "items": {
+          "type": "object",
+          "required": ["id", "name"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Artist's Spotify identifier"
+            },
+            "name": {
+              "type": "string",
+              "description": "Artist's display name"
+            },
+            "popularity": {
+              "type": ["integer", "null"],
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Artist popularity score (0-100)"
+            },
+            "play_count": {
+              "type": ["string", "null"],
+              "description": "Number of times artist was played"
+            },
+            "last_played": {
+              "type": ["string", "null"],
+              "format": "date-time",
+              "description": "ISO datetime of last play"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,18 +1,19 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useModal, useAccount, useWallet } from "@getpara/react-sdk";
+import { useAccount } from "wagmi";
+import { useWallet } from "@getpara/react-sdk";
 import { useGoogleDriveOAuth } from "../../providers/google-drive-oauth";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import { WalletConnectButton } from "@/components/wallet-connect-button";
 import { useVana, isVanaInitialized } from "../../providers/vana-provider";
 import type {
   CompleteSchema,
   VanaInstance,
 } from "@opendatalabs/vana-sdk/browser";
-import { SchemaValidator } from "@opendatalabs/vana-sdk/browser";
 import Link from "next/link";
 import type { Address } from "viem";
 
@@ -25,9 +26,22 @@ interface UserFile {
   schemaId?: number;
   addedAtTimestamp?: bigint;
   transactionHash?: Address;
+  dlpIds?: number[];
 }
 interface SchemaWithCount {
   schema: CompleteSchema;
+  fileCount: number;
+}
+
+interface DLP {
+  id: number;
+  name: string;
+  metadata?: string;
+  status?: number;
+}
+
+interface DLPWithCount {
+  dlp: DLP;
   fileCount: number;
 }
 
@@ -35,6 +49,9 @@ interface SchemaExplorerState {
   schemas: SchemaWithCount[];
   userFiles: UserFile[];
   selectedSchemaId: number | null;
+  selectedDlpId: number | null;
+  dlpsWithCounts: DLPWithCount[];
+  isLoadingDlps: boolean;
   selectedFileId: number | null;
   decryptedData: string;
   isLoadingSchemas: boolean;
@@ -42,13 +59,14 @@ interface SchemaExplorerState {
   schemaError: string | null;
   decryptionError: string | null;
   validationError: string | null;
+  dlpError: string | null;
 }
 
 function SchemaExplorerContent() {
-  const { openModal } = useModal();
-  const { isConnected: walletConnected, isLoading: walletLoading } =
+  const { isConnected: walletConnected, address } =
     useAccount();
-  const { data: wallet } = useWallet();
+  const walletLoading = false; // wagmi doesn't have isLoading
+  const { data: wallet } = useWallet?.() || {};
   const vanaContext = useVana();
   const {
     isConnected: googleDriveConnected,
@@ -63,6 +81,9 @@ function SchemaExplorerContent() {
     schemas: [],
     userFiles: [],
     selectedSchemaId: null,
+    selectedDlpId: null,
+    dlpsWithCounts: [],
+    isLoadingDlps: false,
     selectedFileId: null,
     decryptedData: "",
     isLoadingSchemas: false,
@@ -70,6 +91,7 @@ function SchemaExplorerContent() {
     schemaError: null,
     decryptionError: null,
     validationError: null,
+    dlpError: null,
   });
 
   // Flow state (from original page)
@@ -81,15 +103,85 @@ function SchemaExplorerContent() {
   const [aiPrompt, setAiPrompt] = useState<string>(
     "Based on this data: {{data}}, provide insights",
   );
-  const [validator] = useState(() => new SchemaValidator());
 
-  // Filtered files based on selected schema
-  const filteredFiles = state.selectedSchemaId
-    ? state.userFiles.filter((f) => f.schemaId === state.selectedSchemaId)
-    : [];
+  // Filtered files based on selected schema and/or DLP
+  const filteredFiles = state.userFiles.filter((f: UserFile) => {
+    const matchesSchema = !state.selectedSchemaId || f.schemaId === state.selectedSchemaId;
+    const matchesDlp = !state.selectedDlpId || (f.dlpIds && f.dlpIds.includes(state.selectedDlpId));
+    return matchesSchema && matchesDlp;
+  });
 
   const selectedSchema = state.schemas.find(
     (s) => s.schema.id === state.selectedSchemaId,
+  );
+  
+  const selectedDlp = state.dlpsWithCounts.find(
+    (d) => d.dlp.id === state.selectedDlpId,
+  );
+
+  // Load DLPs for user's files
+  const loadUserDLPs = useCallback(
+    async (vana: VanaInstance, files: UserFile[]) => {
+      setState((prev) => ({
+        ...prev,
+        isLoadingDlps: true,
+        dlpError: null,
+      }));
+
+      try {
+        // Extract unique DLP IDs from user's files
+        const dlpIds = [
+          ...new Set(
+            files
+              .flatMap((f: UserFile) => f.dlpIds || [])
+              .filter((id) => id > 0)
+          ),
+        ];
+
+        if (dlpIds.length === 0) {
+          setState((prev) => ({
+            ...prev,
+            isLoadingDlps: false,
+            dlpsWithCounts: [],
+          }));
+          return;
+        }
+
+        // Fetch DLP details for each unique ID
+        const dlpPromises = dlpIds.map(async (id) => {
+          try {
+            const dlp = await vana.data.getDLP(id);
+            const fileCount = files.filter(
+              (f) => f.dlpIds && f.dlpIds.includes(id)
+            ).length;
+            return { dlp, fileCount };
+          } catch (error) {
+            console.error(`Failed to fetch DLP ${id}:`, error);
+            return null;
+          }
+        });
+
+        const dlpResults = await Promise.all(dlpPromises);
+        const validDlps = dlpResults.filter(
+          (result): result is DLPWithCount => result !== null
+        );
+
+        setState((prev) => ({
+          ...prev,
+          isLoadingDlps: false,
+          dlpsWithCounts: validDlps,
+        }));
+      } catch (error) {
+        console.error("Failed to load DLPs:", error);
+        setState((prev) => ({
+          ...prev,
+          isLoadingDlps: false,
+          dlpError:
+            error instanceof Error ? error.message : "Failed to load DLPs",
+        }));
+      }
+    },
+    [],
   );
 
   // Load user files and schemas
@@ -115,10 +207,11 @@ function SchemaExplorerContent() {
         //   schemaId: file.schemaId === 0 ? 19 : file.schemaId,
         // }));
 
-        console.log(
-          "Patched files:",
-          files.map((f) => ({ id: f.id, schemaId: f.schemaId })),
-        );
+        // Log patched files for debugging
+        // console.log(
+        //   "Patched files:",
+        //   files.map((f: UserFile) => ({ id: f.id, schemaId: f.schemaId })),
+        // );
 
         if (!files || files.length === 0) {
           setState((prev) => ({
@@ -135,7 +228,7 @@ function SchemaExplorerContent() {
         const schemaIds = [
           ...new Set(
             files
-              .map((f) => f.schemaId)
+              .map((f: UserFile) => f.schemaId)
               .filter(
                 (id): id is number => id !== undefined && id !== null && id > 0,
               ),
@@ -157,7 +250,7 @@ function SchemaExplorerContent() {
         const schemaPromises = schemaIds.map(async (id) => {
           try {
             const schema = await vana.schemas.get(id);
-            const fileCount = files.filter((f) => f.schemaId === id).length;
+            const fileCount = files.filter((f: UserFile) => f.schemaId === id).length;
             return { schema, fileCount };
           } catch (error) {
             console.error(`Failed to fetch schema ${id}:`, error);
@@ -206,20 +299,30 @@ function SchemaExplorerContent() {
 
   // Load data when wallet is connected
   useEffect(() => {
-    if (isVanaInitialized(vanaContext) && wallet?.address && walletConnected) {
-      loadUserDataAndSchemas(vanaContext.vana, wallet.address);
+    const walletAddress = wallet?.address || address;
+    if (isVanaInitialized(vanaContext) && walletAddress && walletConnected) {
+      loadUserDataAndSchemas(vanaContext.vana, walletAddress);
     }
-  }, [vanaContext, wallet?.address, walletConnected, loadUserDataAndSchemas]);
+  }, [vanaContext, wallet?.address, address, walletConnected, loadUserDataAndSchemas]);
+
+  // Load DLPs after files are loaded
+  useEffect(() => {
+    if (isVanaInitialized(vanaContext) && state.userFiles.length > 0) {
+      loadUserDLPs(vanaContext.vana, state.userFiles);
+    }
+  }, [vanaContext, state.userFiles, loadUserDLPs]);
 
   // Update status message
   useEffect(() => {
     if (isProcessing) return;
 
+    const walletAddress = wallet?.address || address;
+    
     if (!walletConnected) {
       setStatus("Please connect your wallet first");
-    } else if (!googleDriveConnected && wallet?.address) {
+    } else if (!googleDriveConnected && walletAddress) {
       setStatus("Wallet connected. Please connect Google Drive to continue.");
-    } else if (walletConnected && googleDriveConnected && wallet?.address) {
+    } else if (walletConnected && googleDriveConnected && walletAddress) {
       if (state.isLoadingSchemas) {
         setStatus("Loading your schemas and files...");
       } else if (state.schemaError) {
@@ -231,6 +334,7 @@ function SchemaExplorerContent() {
   }, [
     walletConnected,
     wallet?.address,
+    address,
     googleDriveConnected,
     isProcessing,
     state.isLoadingSchemas,
@@ -240,7 +344,7 @@ function SchemaExplorerContent() {
 
   // Handle schema selection
   const handleSchemaSelect = (schemaId: string) => {
-    const id = parseInt(schemaId);
+    const id = schemaId ? parseInt(schemaId) : null;
     setState((prev) => ({
       ...prev,
       selectedSchemaId: id,
@@ -251,11 +355,25 @@ function SchemaExplorerContent() {
     }));
   };
 
+  // Handle DLP selection
+  const handleDlpSelect = (dlpId: string) => {
+    const id = dlpId ? parseInt(dlpId) : null;
+    setState((prev) => ({
+      ...prev,
+      selectedDlpId: id,
+      selectedFileId: null,
+      decryptedData: "",
+      validationError: null,
+      decryptionError: null,
+    }));
+  };
+
   // Handle processing with existing file reference
   const handleStartFlow = async () => {
+    const walletAddress = wallet?.address || address;
     if (
       !isVanaInitialized(vanaContext) ||
-      !wallet?.address ||
+      !walletAddress ||
       !state.selectedFileId
     ) {
       setStatus("Missing required data");
@@ -283,99 +401,62 @@ function SchemaExplorerContent() {
         );
       }
 
-      setStatus("Creating permission grant for existing file...");
+      setStatus("Getting server information...");
+      
+      // Get server info to get its public key
+      const serverInfo = await vanaContext.vana.server.getIdentity({
+        userAddress: walletAddress as `0x${string}`,
+      });
 
-      // Use the permissions.grant method to grant access to the existing file
+      setStatus("Adding server permission to existing file...");
+      
+      // Use SDK's data controller to add file permission for the server
+      const permissionTx = await vanaContext.vana.data.submitFilePermission(
+        state.selectedFileId,
+        serverInfo.address as `0x${string}`,
+        serverInfo.public_key,
+      );
+      
+      // Wait for transaction confirmation (TransactionHandle has waitForReceipt)
+      await permissionTx.waitForReceipt();
+
+      setStatus("Creating grant for AI operation...");
+
+      // Now create the grant using permissions.grant (simpler method)
       const grantResult = await vanaContext.vana.permissions.grant({
         grantee: appAddress as `0x${string}`,
         operation: "llm_inference",
-        files: [state.selectedFileId], // The existing file ID
+        files: [Number(state.selectedFileId)],  // Ensure it's a number
         parameters: {
           prompt: aiPrompt,
         },
       });
 
       const permissionId = grantResult.permissionId;
-
+      
       if (!permissionId) {
-        throw new Error("Permission ID not found in transaction events");
+        throw new Error("Permission ID not found");
       }
 
-      const permissionIdStr = permissionId.toString();
-      setStatus(`Permission ID received: ${permissionIdStr}`);
+      setStatus(`Permission granted: ${permissionId}`);
 
-      // Submit inference request
-      setStatus("Submitting AI inference request...");
-      const response = await fetch("/api/trusted-server", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          permissionId: Number(permissionId),
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(
-          `API request failed: ${response.status} - ${errorText}`,
-        );
-      }
-
-      const result = await response.json();
-      if (!result.success) {
-        throw new Error(result.error || "API request failed");
-      }
-
-      const operationId = result.data?.id;
-      if (!operationId) {
-        throw new Error("Operation ID not found");
-      }
-
-      setStatus(`Inference request submitted. Operation ID: ${operationId}`);
-
-      // Poll for results
-      setStatus("Waiting for AI inference results...");
-      const maxAttempts = 30;
-      const pollInterval = 5000;
-
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        const pollResponse = await fetch("/api/trusted-server/poll", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
+      // Import DataPortabilityFlow for inference
+      const { DataPortabilityFlow } = await import("../../lib/data-flow");
+      const flow = new DataPortabilityFlow(
+        vanaContext.vana,
+        vanaContext.walletClient,
+        {
+          onStatusUpdate: setStatus,
+          onResultUpdate: setResult,
+          onError: (error: string) => {
+            console.error("Flow error:", error);
           },
-          body: JSON.stringify({
-            operationId,
-            chainId: 14800,
-          }),
-        });
+        },
+      );
 
-        if (!pollResponse.ok) {
-          throw new Error("Polling request failed");
-        }
-
-        const pollResult = await pollResponse.json();
-        if (!pollResult.success) {
-          throw new Error(pollResult.error || "Polling request failed");
-        }
-
-        if (pollResult.data?.status !== "processing") {
-          setStatus("AI inference completed!");
-          setResult(
-            JSON.stringify(pollResult.data?.result || pollResult.data, null, 2),
-          );
-          break;
-        }
-
-        setStatus(
-          `Polling attempt ${attempt}/${maxAttempts}: Still processing...`,
-        );
-        if (attempt < maxAttempts) {
-          await new Promise((resolve) => setTimeout(resolve, pollInterval));
-        }
-      }
+      // Submit inference request and poll for results
+      const operationId = await flow.submitInferenceRequest(permissionId.toString());
+      await flow.pollForResults(operationId);
     } catch (error) {
       setStatus(
         `Flow failed: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -405,21 +486,13 @@ function SchemaExplorerContent() {
 
         {/* Wallet Connection */}
         <div>
-          <Button
-            onClick={() => openModal()}
+          <WalletConnectButton 
             disabled={walletLoading || isProcessing}
-            className="w-full"
-          >
-            {walletLoading
-              ? "Loading..."
-              : walletConnected && wallet?.address
-                ? wallet.address
-                : "Connect Para Wallet"}
-          </Button>
+          />
         </div>
 
         {/* Google Drive Connection */}
-        {walletConnected && wallet?.address && (
+        {walletConnected && (wallet?.address || address) && (
           <div>
             {!googleDriveConnected ? (
               <div className="space-y-4">
@@ -451,10 +524,9 @@ function SchemaExplorerContent() {
           </div>
         )}
 
-        {/* All Files View */}
-        {false &&
-          walletConnected &&
-          wallet?.address &&
+        {/* All Files View - Hidden for now
+        {walletConnected &&
+          (wallet?.address || address) &&
           googleDriveConnected &&
           !state.isLoadingSchemas && (
             <Card className="p-4">
@@ -535,22 +607,22 @@ function SchemaExplorerContent() {
                 <p className="text-xs text-gray-500 mt-2">
                   Files with schemas:{" "}
                   {
-                    state.userFiles.filter((f) => f.schemaId && f.schemaId > 0)
+                    state.userFiles.filter((f: UserFile) => f.schemaId && f.schemaId > 0)
                       .length
                   }{" "}
                   | Without schemas:{" "}
                   {
                     state.userFiles.filter(
-                      (f) => !f.schemaId || f.schemaId === 0,
+                      (f: UserFile) => !f.schemaId || f.schemaId === 0,
                     ).length
                   }
                 </p>
               )}
             </Card>
-          )}
+          )} */}
 
         {/* Schema Selection */}
-        {walletConnected && wallet?.address && googleDriveConnected && (
+        {walletConnected && (wallet?.address || address) && googleDriveConnected && (
           <Card className="p-4">
             <Label
               htmlFor="schema-select"
@@ -579,6 +651,41 @@ function SchemaExplorerContent() {
             ) : (
               <div className="text-sm text-gray-500">
                 {state.schemaError || "No schemas found"}
+              </div>
+            )}
+          </Card>
+        )}
+
+        {/* DLP Selection */}
+        {walletConnected && (wallet?.address || address) && googleDriveConnected && (
+          <Card className="p-4">
+            <Label
+              htmlFor="dlp-select"
+              className="text-sm font-medium text-gray-700 mb-2 block"
+            >
+              Select DLP (Optional)
+            </Label>
+            {state.isLoadingDlps ? (
+              <div className="text-sm text-gray-500">Loading DLPs...</div>
+            ) : state.dlpsWithCounts.length > 0 ? (
+              <select
+                id="dlp-select"
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                onChange={(e) => handleDlpSelect(e.target.value)}
+                value={state.selectedDlpId || ""}
+                disabled={isProcessing}
+              >
+                <option value="">Choose a DLP...</option>
+                {state.dlpsWithCounts.map((item) => (
+                  <option key={item.dlp.id} value={item.dlp.id}>
+                    {item.dlp.name} (ID: {item.dlp.id}) - {item.fileCount}{" "}
+                    file{item.fileCount !== 1 ? "s" : ""}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="text-sm text-gray-500">
+                {state.dlpError || "No DLPs found for your files"}
               </div>
             )}
           </Card>
@@ -615,10 +722,35 @@ function SchemaExplorerContent() {
           </Card>
         )}
 
-        {/* File Selection (only show if user selected a schema from dropdown) */}
-        {state.selectedSchemaId &&
-          state.selectedSchemaId > 0 &&
-          filteredFiles.length > 0 && (
+        {/* DLP Description */}
+        {selectedDlp && (
+          <Card className="p-4 bg-purple-50">
+            <Label className="text-sm font-medium text-purple-900 mb-2 block">
+              DLP Details
+            </Label>
+            <div className="text-sm text-gray-700">
+              <p>
+                <strong>Name:</strong> {selectedDlp.dlp.name}
+              </p>
+              <p>
+                <strong>ID:</strong> {selectedDlp.dlp.id}
+              </p>
+              {selectedDlp.dlp.metadata && (
+                <p>
+                  <strong>Metadata:</strong> {selectedDlp.dlp.metadata}
+                </p>
+              )}
+              <p>
+                <strong>Files processed by this DLP:</strong>{" "}
+                {selectedDlp.fileCount}
+              </p>
+            </div>
+          </Card>
+        )}
+
+        {/* File Selection (show if user selected a schema or DLP) */}
+        {(state.selectedSchemaId || state.selectedDlpId) && (
+          filteredFiles.length > 0 ? (
             <Card className="p-4">
               <Label
                 htmlFor="file-select"
@@ -648,6 +780,9 @@ function SchemaExplorerContent() {
                           Number(file.addedAtTimestamp) * 1000,
                         ).toLocaleDateString()
                       : "Unknown date"}
+                    {file.dlpIds && file.dlpIds.length > 0 && 
+                      ` (${file.dlpIds.length} DLP${file.dlpIds.length > 1 ? 's' : ''})`
+                    }
                   </option>
                 ))}
               </select>
@@ -660,7 +795,14 @@ function SchemaExplorerContent() {
                 </p>
               )}
             </Card>
-          )}
+          ) : (
+            <Card className="p-4">
+              <p className="text-sm text-gray-500">
+                No files found matching the selected {state.selectedSchemaId && state.selectedDlpId ? "schema and DLP" : state.selectedSchemaId ? "schema" : "DLP"}.
+              </p>
+            </Card>
+          )
+        )}
 
         {/* AI Prompt */}
         {state.selectedFileId && (
@@ -690,7 +832,7 @@ function SchemaExplorerContent() {
             disabled={
               isProcessing ||
               !walletConnected ||
-              !wallet?.address ||
+              !(wallet?.address || address) ||
               !googleDriveConnected ||
               !state.selectedFileId ||
               !vanaContext.isInitialized

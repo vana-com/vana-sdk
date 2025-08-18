@@ -203,6 +203,25 @@ export class DataPortabilityFlow {
           ? parseInt(process.env.NEXT_PUBLIC_VIBES_SCHEMA_ID, 10)
           : 0);
 
+      // Debug log for transaction parameters
+      // console.log({
+      //   granteeId: BigInt(granteeId),
+      //   grant: grantUrl,
+      //   fileUrls: [fileUrl],
+      //   schemaIds: [finalSchemaId],
+      //   serverAddress: serverInfo.address as `0x${string}`,
+      //   serverUrl: serverInfo.base_url,
+      //   serverPublicKey: serverInfo.public_key,
+      //   filePermissions: [
+      //     [
+      //       {
+      //         account: serverInfo.address as `0x${string}`,
+      //         key: encryptedKey, // Encryption key encrypted with server's public key
+      //       },
+      //     ],
+      //   ],
+      // });
+
       const txHandle =
         await this.vana.permissions.submitAddServerFilesAndPermissions({
           granteeId: BigInt(granteeId),

@@ -68,9 +68,7 @@ describe.skip("Browser Bundle - No Buffer Dependency", () => {
     // Verify Buffer is not available
     expect(typeof Buffer).toBe("undefined");
 
-    const { toBase64, fromBase64 } = await import(
-      "../platform/shared/crypto-utils"
-    );
+    const { toBase64, fromBase64 } = await import("../utils/encoding");
 
     const testData = new TextEncoder().encode("Test Data");
     const encoded = toBase64(testData);

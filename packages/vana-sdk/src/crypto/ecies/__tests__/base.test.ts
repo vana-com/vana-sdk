@@ -62,14 +62,39 @@ class TestECIES extends BaseECIESUint8 {
   }
 
   public normalizeToUncompressed(publicKey: Uint8Array): Uint8Array {
-    // Simple test implementation - just return the key if it's already 65 bytes
-    if (publicKey.length === 65 && publicKey[0] === 0x04) {
+    const len = publicKey.length;
+
+    // Already uncompressed - return as-is
+    if (len === 65 && publicKey[0] === 0x04) {
       return publicKey;
     }
-    // For test purposes, just create a dummy uncompressed key
-    const result = new Uint8Array(65);
-    result[0] = 0x04;
-    return result;
+
+    // Reject raw coordinates (64 bytes) - strict policy
+    if (len === 64) {
+      throw new Error(
+        "Raw public key coordinates (64 bytes) are not accepted. " +
+          "Please provide a properly formatted compressed (33 bytes) or uncompressed (65 bytes) public key.",
+      );
+    }
+
+    // For compressed keys, this test implementation can't actually decompress
+    // but we simulate the validation
+    if (len === 33) {
+      if (publicKey[0] !== 0x02 && publicKey[0] !== 0x03) {
+        throw new Error(
+          `Invalid public key format: expected compressed (33 bytes) or uncompressed (65 bytes), got ${len} bytes`,
+        );
+      }
+      // Test implementation can't actually decompress, so throw
+      throw new Error(
+        "Test implementation cannot decompress keys - use real provider for this functionality",
+      );
+    }
+
+    // Invalid length
+    throw new Error(
+      `Invalid public key format: expected compressed (33 bytes) or uncompressed (65 bytes), got ${len} bytes`,
+    );
   }
 
   // Expose protected methods for testing

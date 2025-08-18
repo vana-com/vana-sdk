@@ -1,15 +1,16 @@
 /**
- * Processes wallet keys for encryption and decryption operations.
+ * Service for wallet key encryption and decryption operations.
  *
  * @remarks
- * This controller separates business logic (wallet key processing) from crypto primitives
+ * This service separates business logic (wallet key processing) from crypto primitives
  * (ECIES operations). It handles key normalization, data conversion, and format transformation
  * while delegating actual cryptographic operations to the provided ECIES provider.
  *
  * @category Cryptography
+ * @internal
  */
 
-import type { ECIESProvider, ECIESEncrypted } from "../crypto/ecies/interface";
+import type { ECIESProvider, ECIESEncrypted } from "../ecies/interface";
 import {
   processWalletPublicKey,
   processWalletPrivateKey,
@@ -17,26 +18,28 @@ import {
   concatBytes,
   hexToBytes,
   bytesToHex,
-} from "../utils/crypto-utils";
-import { stringToBytes, bytesToString } from "../utils/encoding";
+} from "../../utils/crypto-utils";
+import { stringToBytes, bytesToString } from "../../utils/encoding";
 
-export interface WalletKeyProcessorConfig {
+export interface WalletKeyEncryptionServiceConfig {
   /** ECIES provider for encryption/decryption */
   eciesProvider: ECIESProvider;
 }
 
 /**
- * Processes wallet keys for encryption and decryption operations
+ * Service for wallet key encryption and decryption operations
  *
  * @remarks
- * This class encapsulates the business logic for wallet key operations,
+ * This service encapsulates the business logic for wallet key operations,
  * delegating actual cryptographic operations to the provided ECIES provider.
  * It handles key normalization, data conversion, and format transformation.
+ *
+ * @internal
  */
-export class WalletKeyProcessor {
+export class WalletKeyEncryptionService {
   private readonly eciesProvider: ECIESProvider;
 
-  constructor(config: WalletKeyProcessorConfig) {
+  constructor(config: WalletKeyEncryptionServiceConfig) {
     this.eciesProvider = config.eciesProvider;
   }
 

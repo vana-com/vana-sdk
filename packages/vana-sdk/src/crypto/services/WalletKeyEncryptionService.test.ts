@@ -1,14 +1,14 @@
 import { describe, it, expect, vi } from "vitest";
-import { WalletKeyProcessor } from "./WalletKeyProcessor";
-import type { ECIESProvider, ECIESEncrypted } from "../crypto/ecies/interface";
+import { WalletKeyEncryptionService } from "./WalletKeyEncryptionService";
+import type { ECIESProvider, ECIESEncrypted } from "../ecies/interface";
 
-describe("WalletKeyProcessor", () => {
+describe("WalletKeyEncryptionService", () => {
   const mockECIESProvider: ECIESProvider = {
     encrypt: vi.fn(),
     decrypt: vi.fn(),
   };
 
-  const processor = new WalletKeyProcessor({
+  const service = new WalletKeyEncryptionService({
     eciesProvider: mockECIESProvider,
   });
 
@@ -23,7 +23,7 @@ describe("WalletKeyProcessor", () => {
 
       vi.mocked(mockECIESProvider.encrypt).mockResolvedValue(mockEncrypted);
 
-      const result = await processor.encryptWithWalletPublicKey(
+      const result = await service.encryptWithWalletPublicKey(
         "test data",
         "0x1234567890abcdef",
       );
@@ -44,7 +44,7 @@ describe("WalletKeyProcessor", () => {
       vi.mocked(mockECIESProvider.encrypt).mockResolvedValue(mockEncrypted);
 
       const publicKey = new Uint8Array(64).fill(42); // Raw coordinates
-      const result = await processor.encryptWithWalletPublicKey(
+      const result = await service.encryptWithWalletPublicKey(
         "test",
         publicKey,
       );
@@ -64,7 +64,7 @@ describe("WalletKeyProcessor", () => {
 
       // Create a valid encrypted data hex string (113 bytes minimum)
       const encryptedHex = "00".repeat(113);
-      const result = await processor.decryptWithWalletPrivateKey(
+      const result = await service.decryptWithWalletPrivateKey(
         encryptedHex,
         "0xabcdef1234567890",
       );
@@ -80,7 +80,7 @@ describe("WalletKeyProcessor", () => {
       const privateKey = new Uint8Array(32).fill(7);
       const encryptedHex = "ff".repeat(150);
 
-      const result = await processor.decryptWithWalletPrivateKey(
+      const result = await service.decryptWithWalletPrivateKey(
         encryptedHex,
         privateKey,
       );
@@ -103,7 +103,7 @@ describe("WalletKeyProcessor", () => {
       const binaryData = new Uint8Array([1, 2, 3, 4, 5]);
       const publicKey = "0x" + "42".repeat(32);
 
-      const result = await processor.encryptBinary(binaryData, publicKey);
+      const result = await service.encryptBinary(binaryData, publicKey);
 
       expect(result).toBe(mockEncrypted);
       expect(mockECIESProvider.encrypt).toHaveBeenCalledWith(
@@ -126,7 +126,7 @@ describe("WalletKeyProcessor", () => {
       };
       const privateKey = new Uint8Array(32).fill(99);
 
-      const result = await processor.decryptBinary(encrypted, privateKey);
+      const result = await service.decryptBinary(encrypted, privateKey);
 
       expect(result).toBe(decryptedBytes);
       expect(mockECIESProvider.decrypt).toHaveBeenCalledWith(
@@ -138,7 +138,7 @@ describe("WalletKeyProcessor", () => {
 
   describe("getECIESProvider", () => {
     it("returns the ECIES provider", () => {
-      const provider = processor.getECIESProvider();
+      const provider = service.getECIESProvider();
       expect(provider).toBe(mockECIESProvider);
     });
   });

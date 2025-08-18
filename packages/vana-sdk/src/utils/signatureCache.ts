@@ -1,6 +1,7 @@
 import { Hash } from "viem";
 import type { VanaCacheAdapter } from "../platform/interface";
-import { toBase64, stringToBytes } from "./encoding";
+import { sha256 } from "@noble/hashes/sha256";
+import { bytesToHex } from "@noble/hashes/utils";
 
 interface CachedSignature {
   signature: Hash;
@@ -161,12 +162,12 @@ export class SignatureCache {
    * Generate a deterministic hash of a message object for cache key generation
    *
    * @remarks
-   * Creates a consistent hash from complex objects including EIP-712 typed data.
-   * Handles BigInt serialization and produces a 32-character hash that balances
-   * uniqueness with key length constraints.
+   * Creates a cryptographically secure hash from complex objects including EIP-712 typed data.
+   * Uses SHA-256 for collision resistance and deterministic key generation.
+   * Handles BigInt serialization and sorts object keys for consistency.
    *
    * @param message - The message object to hash (typically EIP-712 typed data)
-   * @returns A 32-character hash string suitable for cache keys
+   * @returns A hex string hash (SHA-256) suitable for cache keys
    * @example
    * ```typescript
    * const typedData = {
@@ -175,35 +176,41 @@ export class SignatureCache {
    * };
    *
    * const hash = SignatureCache.hashMessage(typedData);
-   * // Returns something like: "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6"
+   * // Returns SHA-256 hash like: "a1b2c3d4e5f6..."
    * ```
    */
   static hashMessage(message: object): string {
-    // Simple hash of the message for cache key
-    // Using custom JSON.stringify with BigInt serializer to handle EIP-712 typed data
-    const jsonString = JSON.stringify(message, this.bigIntReplacer);
-    const bytes = stringToBytes(jsonString);
-    const base64Hash = toBase64(bytes);
-    // Use a longer substring and include some characters from the end to avoid collisions
-    const cleaned = base64Hash.replace(/[^a-zA-Z0-9]/g, "");
-    // Take first 16 characters + last 16 characters to create a 32-char hash that's more unique
-    if (cleaned.length > 32) {
-      return cleaned.substring(0, 16) + cleaned.substring(cleaned.length - 16);
-    }
-    return cleaned.substring(0, 32);
+    // Deterministically stringify the object with sorted keys
+    const jsonString = JSON.stringify(message, this.deterministicReplacer);
+
+    // Use SHA-256 for cryptographic hashing
+    const hashBytes = sha256(new TextEncoder().encode(jsonString));
+    return bytesToHex(hashBytes);
   }
 
   /**
-   * Custom JSON replacer that converts BigInt values to strings for serialization
-   * This ensures deterministic cache key generation for EIP-712 typed data
+   * Deterministic JSON replacer that handles BigInt values and sorts object keys
+   * This ensures consistent cache key generation for EIP-712 typed data
    *
    * @param _key - The object key being serialized (unused)
    * @param value - The value to serialize
-   * @returns The serialized value
+   * @returns The serialized value with sorted keys for objects
    */
-  private static bigIntReplacer(_key: string, value: unknown): unknown {
+  private static deterministicReplacer(_key: string, value: unknown): unknown {
     if (typeof value === "bigint") {
       return `__BIGINT__${value.toString()}`;
+    }
+    // Sort object keys for deterministic serialization
+    if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+      return Object.keys(value as Record<string, unknown>)
+        .sort()
+        .reduce(
+          (sorted, key) => {
+            sorted[key] = (value as Record<string, unknown>)[key];
+            return sorted;
+          },
+          {} as Record<string, unknown>,
+        );
     }
     return value;
   }

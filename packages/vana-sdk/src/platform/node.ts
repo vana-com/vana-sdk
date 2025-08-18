@@ -17,7 +17,7 @@ import { getPGPKeyGenParams } from "./shared/pgp-utils";
 import { wrapCryptoError } from "./shared/error-utils";
 import { streamToUint8Array } from "./shared/stream-utils";
 import { lazyImport } from "../utils/lazy-import";
-import { WalletKeyProcessor } from "../controllers/WalletKeyProcessor";
+import { WalletKeyEncryptionService } from "../crypto/services/WalletKeyEncryptionService";
 import {
   processWalletPrivateKey,
   parseEncryptedDataBuffer,
@@ -26,8 +26,9 @@ import {
 // Lazy-loaded dependencies to avoid Turbopack TDZ issues
 const getOpenPGP = lazyImport(() => import("openpgp"));
 
-// Import native ECIES provider
+// Import native ECIES provider and error types
 import { NodeECIESUint8Provider } from "../crypto/ecies/node";
+import { ECIESError } from "../crypto/ecies/interface";
 import type { ECIESEncrypted } from "../crypto/ecies";
 
 /**
@@ -35,7 +36,7 @@ import type { ECIESEncrypted } from "../crypto/ecies";
  */
 class NodeCryptoAdapter implements VanaCryptoAdapter {
   private eciesProvider = new NodeECIESUint8Provider();
-  private walletKeyProcessor = new WalletKeyProcessor({
+  private walletKeyEncryptionService = new WalletKeyEncryptionService({
     eciesProvider: this.eciesProvider,
   });
 
@@ -59,7 +60,14 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
 
       return result.toString("hex");
     } catch (error) {
-      throw new Error(`Encryption failed: ${error}`);
+      if (error instanceof ECIESError) {
+        throw error;
+      }
+      throw new ECIESError(
+        `Encryption failed: ${error instanceof Error ? error.message : String(error)}`,
+        "ENCRYPTION_FAILED",
+        error instanceof Error ? error : undefined,
+      );
     }
   }
 
@@ -88,7 +96,14 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
       );
       return new TextDecoder().decode(decrypted);
     } catch (error) {
-      throw new Error(`Decryption failed: ${error}`);
+      if (error instanceof ECIESError) {
+        throw error;
+      }
+      throw new ECIESError(
+        `Decryption failed: ${error instanceof Error ? error.message : String(error)}`,
+        "DECRYPTION_FAILED",
+        error instanceof Error ? error : undefined,
+      );
     }
   }
 
@@ -122,7 +137,7 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
     publicKey: string,
   ): Promise<string> {
     try {
-      return await this.walletKeyProcessor.encryptWithWalletPublicKey(
+      return await this.walletKeyEncryptionService.encryptWithWalletPublicKey(
         data,
         publicKey,
       );
@@ -136,7 +151,7 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
     privateKey: string,
   ): Promise<string> {
     try {
-      return await this.walletKeyProcessor.decryptWithWalletPrivateKey(
+      return await this.walletKeyEncryptionService.decryptWithWalletPrivateKey(
         encryptedData,
         privateKey,
       );

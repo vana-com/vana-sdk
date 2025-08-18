@@ -15,7 +15,7 @@ import type {
 import { getPGPKeyGenParams } from "./shared/pgp-utils";
 import { wrapCryptoError } from "./shared/error-utils";
 import { lazyImport } from "../utils/lazy-import";
-import { WalletKeyProcessor } from "../controllers/WalletKeyProcessor";
+import { WalletKeyEncryptionService } from "../crypto/services/WalletKeyEncryptionService";
 import { parseEncryptedDataBuffer } from "../utils/crypto-utils";
 import {
   hexToBytes,
@@ -37,7 +37,7 @@ const getOpenPGP = lazyImport(() => import("openpgp"));
  */
 class BrowserCryptoAdapter implements VanaCryptoAdapter {
   private eciesProvider = new BrowserECIESUint8Provider();
-  private walletKeyProcessor = new WalletKeyProcessor({
+  private walletKeyEncryptionService = new WalletKeyEncryptionService({
     eciesProvider: this.eciesProvider,
   });
 
@@ -98,7 +98,7 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
     publicKey: string,
   ): Promise<string> {
     try {
-      return await this.walletKeyProcessor.encryptWithWalletPublicKey(
+      return await this.walletKeyEncryptionService.encryptWithWalletPublicKey(
         data,
         publicKey,
       );
@@ -112,7 +112,7 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
     privateKey: string,
   ): Promise<string> {
     try {
-      return await this.walletKeyProcessor.decryptWithWalletPrivateKey(
+      return await this.walletKeyEncryptionService.decryptWithWalletPrivateKey(
         encryptedData,
         privateKey,
       );

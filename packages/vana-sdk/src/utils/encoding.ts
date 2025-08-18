@@ -3,7 +3,7 @@
  *
  * @remarks
  * This module provides base64 encoding/decoding operations across Node.js and browser
- * environments. For hex and string conversions, use viem's utilities instead:
+ * environments. For hex and string conversions, use viem's utilities directly:
  * - `toHex` / `fromHex` from 'viem'
  * - `stringToBytes` / `bytesToString` from 'viem'
  *
@@ -98,69 +98,3 @@ export function isBrowserEnvironment(): boolean {
     typeof window !== "undefined" && typeof window.document !== "undefined"
   );
 }
-
-// Import viem utilities for wrapping
-import {
-  toHex as viemToHex,
-  fromHex as viemFromHex,
-  stringToBytes as viemStringToBytes,
-  bytesToString as viemBytesToString,
-} from "viem";
-
-/**
- * Converts bytes to hex string (without 0x prefix)
- *
- * @param bytes - The bytes to convert
- * @returns Hex string without 0x prefix
- */
-export function toHex(bytes: Uint8Array): string {
-  // Return without 0x prefix for backward compatibility
-  return viemToHex(bytes).slice(2);
-}
-
-/**
- * Converts hex string to bytes
- *
- * @param hex - The hex string (with or without 0x prefix)
- * @returns The decoded bytes
- */
-export function fromHex(hex: string): Uint8Array {
-  // Add 0x prefix if missing for viem
-  const prefixedHex = hex.startsWith("0x") ? hex : `0x${hex}`;
-
-  // Validate hex string
-  const cleanHex = prefixedHex.slice(2);
-  if (cleanHex.length % 2 !== 0) {
-    throw new Error("Invalid hex string: odd length");
-  }
-  if (!/^[0-9a-fA-F]*$/.test(cleanHex)) {
-    throw new Error("Invalid hex string: contains non-hex characters");
-  }
-
-  return viemFromHex(prefixedHex as `0x${string}`, "bytes");
-}
-
-export const stringToBytes = viemStringToBytes;
-export const bytesToString = viemBytesToString;
-
-/**
- * @deprecated Use `toHex` from 'viem' directly instead
- */
-export const toHexDeprecated = "(Deprecated: Use toHex from 'viem')";
-
-/**
- * @deprecated Use `fromHex` from 'viem' directly instead
- */
-export const fromHexDeprecated = "(Deprecated: Use fromHex from 'viem')";
-
-/**
- * @deprecated Use `stringToBytes` from 'viem' directly instead
- */
-export const stringToBytesDeprecated =
-  "(Deprecated: Use stringToBytes from 'viem')";
-
-/**
- * @deprecated Use `bytesToString` from 'viem' directly instead
- */
-export const bytesToStringDeprecated =
-  "(Deprecated: Use bytesToString from 'viem')";

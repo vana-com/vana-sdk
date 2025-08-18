@@ -1,8 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   concatBytes,
-  hexToBytes,
-  bytesToHex,
   processWalletPublicKey,
   processWalletPrivateKey,
   parseEncryptedDataBuffer,
@@ -35,30 +33,6 @@ describe("Crypto Utils", () => {
     it("returns empty array when no arguments", () => {
       const result = concatBytes();
       expect(result).toEqual(new Uint8Array([]));
-    });
-  });
-
-  describe("hexToBytes and bytesToHex", () => {
-    it("converts hex to bytes", () => {
-      expect(hexToBytes("48656c6c6f")).toEqual(
-        new Uint8Array([72, 101, 108, 108, 111]),
-      );
-      expect(hexToBytes("0x48656c6c6f")).toEqual(
-        new Uint8Array([72, 101, 108, 108, 111]),
-      );
-    });
-
-    it("converts bytes to hex", () => {
-      expect(bytesToHex(new Uint8Array([72, 101, 108, 108, 111]))).toBe(
-        "48656c6c6f",
-      );
-    });
-
-    it("handles round-trip conversion", () => {
-      const original = new Uint8Array([0, 1, 127, 128, 255]);
-      const hex = bytesToHex(original);
-      const converted = hexToBytes(hex);
-      expect(converted).toEqual(original);
     });
   });
 
@@ -95,7 +69,9 @@ describe("Crypto Utils", () => {
     it("processes hex string private key", () => {
       const hexKey = "0x1234567890abcdef";
       const result = processWalletPrivateKey(hexKey);
-      expect(result).toEqual(hexToBytes("1234567890abcdef"));
+      expect(result).toEqual(
+        new Uint8Array([0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef]),
+      );
     });
 
     it("processes Uint8Array private key", () => {
@@ -108,7 +84,7 @@ describe("Crypto Utils", () => {
     it("handles hex without 0x prefix", () => {
       const hexKey = "abcdef";
       const result = processWalletPrivateKey(hexKey);
-      expect(result).toEqual(hexToBytes("abcdef"));
+      expect(result).toEqual(new Uint8Array([0xab, 0xcd, 0xef]));
     });
   });
 

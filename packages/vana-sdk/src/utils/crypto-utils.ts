@@ -9,7 +9,7 @@
  * @category Cryptography
  */
 
-import { toHex, fromHex } from "viem";
+import { fromHex } from "viem";
 
 /**
  * Concatenates multiple Uint8Arrays into a single array.
@@ -38,41 +38,6 @@ export function concatBytes(...arrays: Uint8Array[]): Uint8Array {
 }
 
 /**
- * Converts a hexadecimal string to a Uint8Array.
- *
- * @param hex - The hex string to convert (with or without '0x' prefix).
- * @returns The decoded byte array.
- *
- * @example
- * ```typescript
- * const bytes = hexToBytes("0x48656c6c6f");
- * console.log(new TextDecoder().decode(bytes)); // "Hello"
- * ```
- */
-export function hexToBytes(hex: string): Uint8Array {
-  // Ensure hex has 0x prefix for viem
-  const prefixedHex = hex.startsWith("0x") ? hex : `0x${hex}`;
-  return fromHex(prefixedHex as `0x${string}`, "bytes");
-}
-
-/**
- * Converts a Uint8Array to a hexadecimal string.
- *
- * @param bytes - The byte array to convert to hex.
- * @returns The hex-encoded string (lowercase, without '0x' prefix).
- *
- * @example
- * ```typescript
- * const hex = bytesToHex(new Uint8Array([72, 101, 108, 108, 111]));
- * console.log(hex); // "48656c6c6f"
- * ```
- */
-export function bytesToHex(bytes: Uint8Array): string {
-  // viem's toHex returns with '0x' prefix, remove it for backward compatibility
-  return toHex(bytes).slice(2);
-}
-
-/**
  * Processes a wallet public key for cryptographic operations.
  *
  * @remarks
@@ -91,14 +56,16 @@ export function bytesToHex(bytes: Uint8Array): string {
 export function processWalletPublicKey(
   publicKey: string | Uint8Array,
 ): Uint8Array {
-  const publicKeyHex =
+  // Convert to bytes
+  const publicKeyBytes =
     typeof publicKey === "string"
-      ? publicKey.startsWith("0x")
-        ? publicKey.slice(2)
-        : publicKey
-      : bytesToHex(publicKey);
-
-  const publicKeyBytes = hexToBytes(publicKeyHex);
+      ? fromHex(
+          (publicKey.startsWith("0x")
+            ? publicKey
+            : `0x${publicKey}`) as `0x${string}`,
+          "bytes",
+        )
+      : publicKey;
 
   // If key is 64 bytes (raw coordinates), add uncompressed prefix
   return publicKeyBytes.length === 64
@@ -121,14 +88,15 @@ export function processWalletPublicKey(
 export function processWalletPrivateKey(
   privateKey: string | Uint8Array,
 ): Uint8Array {
-  const privateKeyHex =
-    typeof privateKey === "string"
-      ? privateKey.startsWith("0x")
-        ? privateKey.slice(2)
-        : privateKey
-      : bytesToHex(privateKey);
-
-  return hexToBytes(privateKeyHex);
+  // Convert to bytes
+  return typeof privateKey === "string"
+    ? fromHex(
+        (privateKey.startsWith("0x")
+          ? privateKey
+          : `0x${privateKey}`) as `0x${string}`,
+        "bytes",
+      )
+    : privateKey;
 }
 
 /**

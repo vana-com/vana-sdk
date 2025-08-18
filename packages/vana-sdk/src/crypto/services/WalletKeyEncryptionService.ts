@@ -16,10 +16,8 @@ import {
   processWalletPrivateKey,
   parseEncryptedDataBuffer,
   concatBytes,
-  hexToBytes,
-  bytesToHex,
 } from "../../utils/crypto-utils";
-import { stringToBytes, bytesToString } from "viem";
+import { stringToBytes, bytesToString, toHex, fromHex } from "viem";
 
 export interface WalletKeyEncryptionServiceConfig {
   /** ECIES provider for encryption/decryption */
@@ -84,8 +82,8 @@ export class WalletKeyEncryptionService {
       encrypted.mac,
     );
 
-    // Return as hex string for API compatibility
-    return bytesToHex(result);
+    // Return as hex string without 0x prefix for API compatibility
+    return toHex(result).slice(2);
   }
 
   /**
@@ -113,7 +111,10 @@ export class WalletKeyEncryptionService {
     const privateKeyBytes = processWalletPrivateKey(privateKey);
 
     // Convert hex string to bytes and parse encrypted components
-    const encryptedBytes = hexToBytes(encryptedData);
+    const prefixedHex = encryptedData.startsWith("0x")
+      ? encryptedData
+      : `0x${encryptedData}`;
+    const encryptedBytes = fromHex(prefixedHex as `0x${string}`, "bytes");
     const encrypted = parseEncryptedDataBuffer(encryptedBytes);
 
     // Perform ECIES decryption

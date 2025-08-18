@@ -170,6 +170,15 @@ export abstract class BaseECIESUint8 implements ECIESProvider {
   }
 
   /**
+   * Normalizes a public key to uncompressed format (65 bytes with 0x04 prefix).
+   * Must be implemented by derived classes to handle platform-specific operations.
+   *
+   * @param publicKey - The public key to normalize
+   * @returns The normalized uncompressed public key
+   */
+  public abstract normalizeToUncompressed(publicKey: Uint8Array): Uint8Array;
+
+  /**
    * Encrypts data using ECIES.
    *
    * @param publicKey - The recipient's public key (compressed or uncompressed)

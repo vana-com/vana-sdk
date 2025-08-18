@@ -183,4 +183,48 @@ export class NodeECIESUint8Provider extends BaseECIESUint8 {
   }
 
   // No Buffer compatibility methods - Uint8Array only public API
+
+  /**
+   * Normalizes a public key to uncompressed format (65 bytes with 0x04 prefix).
+   * Handles compressed (33 bytes) and uncompressed (65 bytes) formats only.
+   *
+   * @remarks
+   * Strict policy: Does not accept 64-byte raw coordinates to avoid masking
+   * malformed data. Callers must provide properly formatted keys.
+   *
+   * @param publicKey - The public key to normalize (33 or 65 bytes)
+   * @returns The normalized uncompressed public key (65 bytes)
+   * @throws {Error} When public key format is invalid or decompression fails
+   */
+  normalizeToUncompressed(publicKey: Uint8Array): Uint8Array {
+    const len = publicKey.length;
+
+    // Already uncompressed
+    if (len === 65 && publicKey[0] === 0x04) {
+      return publicKey;
+    }
+
+    // Compressed - decompress using secp256k1
+    if (len === 33 && (publicKey[0] === 0x02 || publicKey[0] === 0x03)) {
+      const decompressed = this.decompressPublicKey(publicKey);
+      if (!decompressed) {
+        throw new Error(
+          `Failed to decompress public key with prefix 0x${publicKey[0].toString(16).padStart(2, "0")}`,
+        );
+      }
+      return decompressed;
+    }
+
+    // Reject raw coordinates (64 bytes) - require proper formatting
+    if (len === 64) {
+      throw new Error(
+        "Raw public key coordinates (64 bytes) are not accepted. " +
+          "Please provide a properly formatted compressed (33 bytes) or uncompressed (65 bytes) public key.",
+      );
+    }
+
+    throw new Error(
+      `Invalid public key format: expected compressed (33 bytes) or uncompressed (65 bytes), got ${len} bytes`,
+    );
+  }
 }

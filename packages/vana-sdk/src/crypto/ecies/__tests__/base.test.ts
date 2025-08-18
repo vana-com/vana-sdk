@@ -61,6 +61,17 @@ class TestECIES extends BaseECIESUint8 {
     return new Uint8Array(0);
   }
 
+  public normalizeToUncompressed(publicKey: Uint8Array): Uint8Array {
+    // Simple test implementation - just return the key if it's already 65 bytes
+    if (publicKey.length === 65 && publicKey[0] === 0x04) {
+      return publicKey;
+    }
+    // For test purposes, just create a dummy uncompressed key
+    const result = new Uint8Array(65);
+    result[0] = 0x04;
+    return result;
+  }
+
   // Expose protected methods for testing
   public testClearBuffer(buffer: Uint8Array): void {
     this.clearBuffer(buffer);

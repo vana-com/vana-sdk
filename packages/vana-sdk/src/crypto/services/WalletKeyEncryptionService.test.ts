@@ -6,6 +6,22 @@ describe("WalletKeyEncryptionService", () => {
   const mockECIESProvider: ECIESProvider = {
     encrypt: vi.fn(),
     decrypt: vi.fn(),
+    normalizeToUncompressed: vi.fn((key) => {
+      // Mock implementation - just return uncompressed key or add prefix
+      if (key.length === 65 && key[0] === 0x04) {
+        return key;
+      }
+      if (key.length === 64) {
+        // Mock doesn't actually accept this per strict policy, but for test purposes
+        throw new Error(
+          "Raw public key coordinates (64 bytes) are not accepted",
+        );
+      }
+      // For test purposes, just return a dummy uncompressed key
+      const result = new Uint8Array(65);
+      result[0] = 0x04;
+      return result;
+    }),
   };
 
   const service = new WalletKeyEncryptionService({
@@ -43,7 +59,10 @@ describe("WalletKeyEncryptionService", () => {
 
       vi.mocked(mockECIESProvider.encrypt).mockResolvedValue(mockEncrypted);
 
-      const publicKey = new Uint8Array(64).fill(42); // Raw coordinates
+      // Use properly formatted uncompressed key (65 bytes with 0x04 prefix)
+      const publicKey = new Uint8Array(65);
+      publicKey[0] = 0x04;
+      publicKey.fill(42, 1);
       const result = await service.encryptWithWalletPublicKey(
         "test",
         publicKey,

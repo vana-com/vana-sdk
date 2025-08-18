@@ -41,36 +41,31 @@ export function concatBytes(...arrays: Uint8Array[]): Uint8Array {
  * Processes a wallet public key for cryptographic operations.
  *
  * @remarks
- * Normalizes public keys to uncompressed format (65 bytes with 0x04 prefix).
- * If a 64-byte raw coordinate pair is provided, the uncompressed prefix is added.
+ * Converts hex string public keys to Uint8Array format.
+ * For normalization to uncompressed format, use the crypto provider's
+ * normalizeToUncompressed method.
  *
  * @param publicKey - The wallet public key as hex string or byte array.
- * @returns The normalized public key as a Uint8Array.
+ * @returns The public key as a Uint8Array.
  *
  * @example
  * ```typescript
- * const normalized = processWalletPublicKey("0x04...");
- * console.log(normalized.length); // 65 (uncompressed format)
+ * const keyBytes = processWalletPublicKey("0x04...");
+ * const normalized = provider.normalizeToUncompressed(keyBytes);
  * ```
  */
 export function processWalletPublicKey(
   publicKey: string | Uint8Array,
 ): Uint8Array {
-  // Convert to bytes
-  const publicKeyBytes =
-    typeof publicKey === "string"
-      ? fromHex(
-          (publicKey.startsWith("0x")
-            ? publicKey
-            : `0x${publicKey}`) as `0x${string}`,
-          "bytes",
-        )
-      : publicKey;
-
-  // If key is 64 bytes (raw coordinates), add uncompressed prefix
-  return publicKeyBytes.length === 64
-    ? concatBytes(new Uint8Array([4]), publicKeyBytes)
-    : publicKeyBytes;
+  // Convert to bytes if hex string
+  return typeof publicKey === "string"
+    ? fromHex(
+        (publicKey.startsWith("0x")
+          ? publicKey
+          : `0x${publicKey}`) as `0x${string}`,
+        "bytes",
+      )
+    : publicKey;
 }
 
 /**
@@ -195,33 +190,25 @@ export function isValidPrivateKeyFormat(privateKey: Uint8Array): boolean {
 }
 
 /**
- * Normalizes a public key to uncompressed format (65 bytes with 0x04 prefix)
- * Note: This only handles format conversion for raw coordinates.
- * Compressed keys cannot be normalized without curve operations.
+ * Asserts that a public key is in uncompressed format (65 bytes with 0x04 prefix).
+ * This validation function only checks format, it does not transform keys.
+ * For key normalization (including decompression), use the crypto provider's
+ * normalizeToUncompressed method.
  *
- * @param publicKey - Public key in any format
- * @returns Normalized uncompressed key or null if cannot normalize
+ * @param publicKey - Public key to validate
+ * @throws {Error} When public key is not in uncompressed format
  */
-export function normalizePublicKey(publicKey: Uint8Array): Uint8Array | null {
-  if (!isValidPublicKeyFormat(publicKey)) {
-    return null;
+export function assertUncompressedPublicKey(publicKey: Uint8Array): void {
+  if (publicKey.length !== 65) {
+    throw new Error(
+      `Public key must be uncompressed (65 bytes), got ${publicKey.length} bytes. ` +
+        `Use provider.normalizeToUncompressed() to convert compressed keys.`,
+    );
   }
 
-  // Already uncompressed
-  if (publicKey.length === 65 && publicKey[0] === 0x04) {
-    return publicKey;
+  if (publicKey[0] !== 0x04) {
+    throw new Error(
+      `Uncompressed public key must start with 0x04 prefix, got 0x${publicKey[0].toString(16).padStart(2, "0")}`,
+    );
   }
-
-  // Raw coordinates - add prefix
-  if (publicKey.length === 64) {
-    return concatBytes(new Uint8Array([0x04]), publicKey);
-  }
-
-  // Compressed keys require elliptic curve operations to decompress
-  // This function cannot handle them without platform-specific crypto
-  if (publicKey.length === 33) {
-    return null;
-  }
-
-  return null;
 }

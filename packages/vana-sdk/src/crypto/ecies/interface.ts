@@ -84,6 +84,39 @@ export interface ECIESProvider {
     privateKey: Uint8Array,
     encrypted: ECIESEncrypted,
   ): Promise<Uint8Array>;
+
+  /**
+   * Normalizes a public key to uncompressed format (65 bytes with 0x04 prefix).
+   *
+   * @remarks
+   * Strict policy: Only accepts properly formatted compressed (33 bytes) or
+   * uncompressed (65 bytes) public keys. Does not accept 64-byte raw coordinates
+   * to ensure data integrity and prevent masking of malformed inputs.
+   *
+   * @param publicKey - Public key in compressed or uncompressed format
+   * @returns Normalized uncompressed public key (65 bytes with 0x04 prefix)
+   * @throws {Error} When public key format is invalid, including raw coordinates (64 bytes)
+   * @throws {Error} When decompression of compressed key fails
+   *
+   * @example
+   * ```typescript
+   * // Compressed key (33 bytes)
+   * const compressed = new Uint8Array(33);
+   * compressed[0] = 0x02;
+   * const uncompressed = provider.normalizeToUncompressed(compressed);
+   * console.log(uncompressed.length); // 65
+   * console.log(uncompressed[0]); // 0x04
+   *
+   * // Already uncompressed (65 bytes)
+   * const already = provider.normalizeToUncompressed(uncompressedKey);
+   * console.log(already === uncompressedKey); // true (returns same reference)
+   *
+   * // Raw coordinates rejected (64 bytes)
+   * const raw = new Uint8Array(64);
+   * provider.normalizeToUncompressed(raw); // Throws error
+   * ```
+   */
+  normalizeToUncompressed(publicKey: Uint8Array): Uint8Array;
 }
 
 /**

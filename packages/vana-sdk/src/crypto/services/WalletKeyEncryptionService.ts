@@ -65,12 +65,17 @@ export class WalletKeyEncryptionService {
     // Process the public key to ensure correct format
     const publicKeyBytes = processWalletPublicKey(publicKey);
 
+    // Normalize to uncompressed format using the provider
+    // This handles compressed keys, raw coordinates, and validates the format
+    const normalizedKey =
+      this.eciesProvider.normalizeToUncompressed(publicKeyBytes);
+
     // Convert string data to bytes
     const dataBytes = stringToBytes(data);
 
     // Perform ECIES encryption
     const encrypted = await this.eciesProvider.encrypt(
-      publicKeyBytes,
+      normalizedKey,
       dataBytes,
     );
 
@@ -139,7 +144,9 @@ export class WalletKeyEncryptionService {
     publicKey: string | Uint8Array,
   ): Promise<ECIESEncrypted> {
     const publicKeyBytes = processWalletPublicKey(publicKey);
-    return this.eciesProvider.encrypt(publicKeyBytes, data);
+    const normalizedKey =
+      this.eciesProvider.normalizeToUncompressed(publicKeyBytes);
+    return this.eciesProvider.encrypt(normalizedKey, data);
   }
 
   /**

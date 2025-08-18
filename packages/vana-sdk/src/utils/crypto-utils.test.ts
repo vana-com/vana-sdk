@@ -9,7 +9,7 @@ import {
   copyBytes,
   isValidPublicKeyFormat,
   isValidPrivateKeyFormat,
-  normalizePublicKey,
+  assertUncompressedPublicKey,
 } from "./crypto-utils";
 
 describe("Crypto Utils", () => {
@@ -42,13 +42,13 @@ describe("Crypto Utils", () => {
       expect(result).toEqual(new Uint8Array([4, 4]));
     });
 
-    it("adds uncompressed prefix to 64-byte key", () => {
+    it("returns 64-byte key as-is (no longer adds prefix)", () => {
       const rawCoords = new Uint8Array(64);
       rawCoords.fill(42);
       const result = processWalletPublicKey(rawCoords);
-      expect(result.length).toBe(65);
-      expect(result[0]).toBe(4); // Uncompressed prefix
-      expect(result.slice(1)).toEqual(rawCoords);
+      expect(result.length).toBe(64);
+      expect(result).toEqual(rawCoords);
+      // Note: Normalization to uncompressed format should be done by the crypto provider
     });
 
     it("processes hex string without 0x prefix", () => {
@@ -237,40 +237,43 @@ describe("Crypto Utils", () => {
     });
   });
 
-  describe("normalizePublicKey", () => {
-    it("returns uncompressed key as-is", () => {
+  describe("assertUncompressedPublicKey", () => {
+    it("accepts valid uncompressed key", () => {
       const uncompressed = new Uint8Array(65);
       uncompressed[0] = 0x04;
-      const result = normalizePublicKey(uncompressed);
-      expect(result).toBe(uncompressed);
+      expect(() => assertUncompressedPublicKey(uncompressed)).not.toThrow();
     });
 
-    it("adds prefix to raw coordinates", () => {
-      const raw = new Uint8Array(64);
-      raw.fill(42);
-      const result = normalizePublicKey(raw);
-      expect(result).not.toBeNull();
-      if (result) {
-        expect(result.length).toBe(65);
-        expect(result[0]).toBe(0x04);
-        expect(result.slice(1)).toEqual(raw);
-      }
-    });
-
-    it("returns null for compressed keys (cannot normalize without curve operations)", () => {
+    it("throws for compressed keys", () => {
       const compressed = new Uint8Array(33);
       compressed[0] = 0x02;
-      const result = normalizePublicKey(compressed);
-      expect(result).toBeNull();
+      expect(() => assertUncompressedPublicKey(compressed)).toThrow(
+        "Public key must be uncompressed (65 bytes), got 33 bytes",
+      );
     });
 
-    it("returns null for invalid format", () => {
-      expect(normalizePublicKey(new Uint8Array(32))).toBeNull();
-      expect(normalizePublicKey(new Uint8Array(100))).toBeNull();
+    it("throws for raw coordinates", () => {
+      const raw = new Uint8Array(64);
+      expect(() => assertUncompressedPublicKey(raw)).toThrow(
+        "Public key must be uncompressed (65 bytes), got 64 bytes",
+      );
+    });
 
-      const invalidCompressed = new Uint8Array(33);
-      invalidCompressed[0] = 0x05; // Invalid prefix
-      expect(normalizePublicKey(invalidCompressed)).toBeNull();
+    it("throws for invalid prefix", () => {
+      const invalidPrefix = new Uint8Array(65);
+      invalidPrefix[0] = 0x05;
+      expect(() => assertUncompressedPublicKey(invalidPrefix)).toThrow(
+        "Uncompressed public key must start with 0x04 prefix, got 0x05",
+      );
+    });
+
+    it("throws for invalid lengths", () => {
+      expect(() => assertUncompressedPublicKey(new Uint8Array(32))).toThrow(
+        "Public key must be uncompressed (65 bytes), got 32 bytes",
+      );
+      expect(() => assertUncompressedPublicKey(new Uint8Array(100))).toThrow(
+        "Public key must be uncompressed (65 bytes), got 100 bytes",
+      );
     });
   });
 });

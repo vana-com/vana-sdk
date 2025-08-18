@@ -10,8 +10,9 @@ describe("Shared Platform Utilities", () => {
     it("should process wallet public key with 0x prefix", async () => {
       const { processWalletPublicKey } = await import("../utils/crypto-utils");
 
+      // Use properly formatted uncompressed key (0x04 prefix + 64 bytes)
       const publicKey =
-        "0xc68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";
+        "0x04c68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";
       const result = processWalletPublicKey(publicKey);
 
       expect(result).toBeInstanceOf(Uint8Array);
@@ -22,8 +23,9 @@ describe("Shared Platform Utilities", () => {
     it("should process wallet public key without 0x prefix", async () => {
       const { processWalletPublicKey } = await import("../utils/crypto-utils");
 
+      // Use properly formatted uncompressed key (04 prefix + 64 bytes)
       const publicKey =
-        "c68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";
+        "04c68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";
       const result = processWalletPublicKey(publicKey);
 
       expect(result).toBeInstanceOf(Uint8Array);

@@ -9,7 +9,7 @@
  * @category Cryptography
  */
 
-import { toHex, fromHex } from "./encoding";
+import { toHex, fromHex } from "viem";
 
 /**
  * Concatenates multiple Uint8Arrays into a single array.
@@ -50,7 +50,9 @@ export function concatBytes(...arrays: Uint8Array[]): Uint8Array {
  * ```
  */
 export function hexToBytes(hex: string): Uint8Array {
-  return fromHex(hex);
+  // Ensure hex has 0x prefix for viem
+  const prefixedHex = hex.startsWith("0x") ? hex : `0x${hex}`;
+  return fromHex(prefixedHex as `0x${string}`, "bytes");
 }
 
 /**
@@ -66,7 +68,8 @@ export function hexToBytes(hex: string): Uint8Array {
  * ```
  */
 export function bytesToHex(bytes: Uint8Array): string {
-  return toHex(bytes);
+  // viem's toHex returns with '0x' prefix, remove it for backward compatibility
+  return toHex(bytes).slice(2);
 }
 
 /**

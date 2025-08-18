@@ -19,7 +19,7 @@ import {
   hexToBytes,
   bytesToHex,
 } from "../../utils/crypto-utils";
-import { stringToBytes, bytesToString } from "../../utils/encoding";
+import { stringToBytes, bytesToString } from "viem";
 
 export interface WalletKeyEncryptionServiceConfig {
   /** ECIES provider for encryption/decryption */

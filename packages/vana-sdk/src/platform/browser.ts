@@ -17,13 +17,8 @@ import { wrapCryptoError } from "./shared/error-utils";
 import { lazyImport } from "../utils/lazy-import";
 import { WalletKeyEncryptionService } from "../crypto/services/WalletKeyEncryptionService";
 import { parseEncryptedDataBuffer } from "../utils/crypto-utils";
-import {
-  hexToBytes,
-  bytesToHex,
-  stringToBytes,
-  bytesToString,
-  concatBytes,
-} from "../crypto/ecies/utils";
+import { toHex, fromHex, stringToBytes, bytesToString } from "viem";
+import { concatBytes } from "../crypto/ecies/utils";
 import * as secp256k1 from "@noble/secp256k1";
 
 // Import browser ECIES provider
@@ -47,7 +42,10 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
   ): Promise<string> {
     try {
       // Convert hex public key to Uint8Array
-      const publicKeyBytes = hexToBytes(publicKeyHex);
+      const prefixedHex = publicKeyHex.startsWith("0x")
+        ? publicKeyHex
+        : `0x${publicKeyHex}`;
+      const publicKeyBytes = fromHex(prefixedHex as `0x${string}`, "bytes");
 
       // Encrypt data using ECIES
       const encrypted = await this.eciesProvider.encrypt(
@@ -63,7 +61,7 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
         encrypted.mac,
       );
 
-      return bytesToHex(result);
+      return toHex(result).slice(2); // Remove '0x' prefix for backward compatibility
     } catch (error) {
       throw wrapCryptoError("encryptWithPublicKey", error);
     }
@@ -75,8 +73,14 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
   ): Promise<string> {
     try {
       // Convert hex strings to Uint8Array
-      const encryptedBytes = hexToBytes(encryptedData);
-      const privateKeyBytes = hexToBytes(privateKeyHex);
+      const encryptedHex = encryptedData.startsWith("0x")
+        ? encryptedData
+        : `0x${encryptedData}`;
+      const privateHex = privateKeyHex.startsWith("0x")
+        ? privateKeyHex
+        : `0x${privateKeyHex}`;
+      const encryptedBytes = fromHex(encryptedHex as `0x${string}`, "bytes");
+      const privateKeyBytes = fromHex(privateHex as `0x${string}`, "bytes");
 
       // Parse the encrypted data into components
       const encrypted = parseEncryptedDataBuffer(encryptedBytes);
@@ -133,8 +137,8 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
       const publicKeyBytes = secp256k1.getPublicKey(privateKeyBytes, true);
 
       return {
-        privateKey: bytesToHex(privateKeyBytes),
-        publicKey: bytesToHex(publicKeyBytes),
+        privateKey: toHex(privateKeyBytes).slice(2),
+        publicKey: toHex(publicKeyBytes).slice(2),
       };
     } catch (error) {
       throw wrapCryptoError("generateKeyPair", error);

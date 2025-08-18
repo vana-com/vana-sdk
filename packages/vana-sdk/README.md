@@ -96,17 +96,6 @@ const txHash = await vana.permissions.grant({
 });
 ```
 
-### Choosing the Right Build
-
-| Scenario                 | Recommended Build | Reason                               |
-| ------------------------ | ----------------- | ------------------------------------ |
-| React/Vue SPA            | `/browser`        | Zero configuration, works everywhere |
-| Next.js pages/components | `/browser`        | Browser environment                  |
-| Next.js API routes       | `/node`           | Server-side with native performance  |
-| Express/Fastify server   | `/node`           | Native Node.js bindings              |
-| Electron main process    | `/node`           | Node.js environment                  |
-| Electron renderer        | `/browser`        | Browser environment                  |
-
 ## Core Features
 
 ### Gasless Permissions
@@ -169,26 +158,6 @@ storageManager.register(
   }),
 );
 ```
-
-## Cryptographic Operations
-
-The SDK uses ECIES (Elliptic Curve Integrated Encryption Scheme) for secure data encryption. Different builds use optimized implementations:
-
-### Performance Comparison
-
-| Operation        | Browser (Pure JS) | Browser (WASM) | Node (Native) |
-| ---------------- | ----------------- | -------------- | ------------- |
-| Key Generation   | ~5ms              | ~2ms           | ~1ms          |
-| Encryption (1KB) | ~8ms              | ~3ms           | ~2ms          |
-| Decryption (1KB) | ~7ms              | ~3ms           | ~2ms          |
-| ECDH             | ~4ms              | ~1ms           | <1ms          |
-
-### Implementation Details
-
-- **Browser**: Uses `@noble/secp256k1` - cryptographically secure, zero dependencies, zero configuration
-- **Node.js**: Uses native `secp256k1` bindings - maximum performance
-
-All implementations are fully compatible and produce identical results.
 
 ## Migration Guide
 

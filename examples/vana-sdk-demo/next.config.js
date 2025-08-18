@@ -17,6 +17,11 @@ const nextConfig = {
     config.resolve.alias = {
       ...config.resolve.alias,
       "@": path.resolve(__dirname, "src"),
+      // Prevent bundling unsupported optional dependencies
+      "@farcaster/miniapp-sdk": false,
+      "@farcaster/miniapp-wagmi-connector": false,
+      "@farcaster/mini-app-solana": false,
+      "@getpara/cosmos-wallet-connectors": false,
     };
 
     // This is needed for certain dependencies that are not fully ESM-compatible.

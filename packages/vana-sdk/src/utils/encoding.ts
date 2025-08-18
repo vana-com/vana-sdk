@@ -1,20 +1,28 @@
 /**
- * Platform-aware encoding utilities
+ * Provides platform-aware encoding and decoding utilities.
  *
  * @remarks
- * Provides consistent encoding/decoding operations across Node.js and browser
- * environments. Automatically selects the most efficient implementation based
- * on the runtime environment.
+ * This module provides consistent encoding/decoding operations across Node.js and browser
+ * environments. It automatically selects the most efficient implementation based
+ * on the runtime environment, using native `Buffer` in Node.js and browser APIs like
+ * `btoa`/`atob` in browsers.
  *
- * Design principle: Single source of truth for all encoding operations.
- * Platform detection happens here, not scattered throughout the codebase.
+ * @category Utilities
  */
 
 /**
- * Converts a Uint8Array to a base64 string
+ * Converts a Uint8Array to a base64 string.
  *
- * @param data - The bytes to encode
- * @returns Base64 encoded string
+ * @param data - The byte array to encode into base64 format.
+ * @returns The base64-encoded string representation.
+ * @throws {Error} When no base64 encoding method is available in the environment.
+ *
+ * @example
+ * ```typescript
+ * const bytes = new Uint8Array([72, 101, 108, 108, 111]);
+ * const encoded = toBase64(bytes);
+ * console.log(encoded); // "SGVsbG8="
+ * ```
  */
 export function toBase64(data: Uint8Array): string {
   // Node.js path - most efficient
@@ -34,10 +42,17 @@ export function toBase64(data: Uint8Array): string {
 }
 
 /**
- * Converts a base64 string to a Uint8Array
+ * Converts a base64 string to a Uint8Array.
  *
- * @param str - The base64 string to decode
- * @returns Decoded bytes
+ * @param str - The base64-encoded string to decode.
+ * @returns The decoded byte array.
+ * @throws {Error} When no base64 decoding method is available in the environment.
+ *
+ * @example
+ * ```typescript
+ * const decoded = fromBase64("SGVsbG8=");
+ * console.log(new TextDecoder().decode(decoded)); // "Hello"
+ * ```
  */
 export function fromBase64(str: string): Uint8Array {
   // Node.js path - most efficient
@@ -59,10 +74,17 @@ export function fromBase64(str: string): Uint8Array {
 }
 
 /**
- * Converts a Uint8Array to a hex string
+ * Converts a Uint8Array to a hexadecimal string.
  *
- * @param data - The bytes to encode
- * @returns Hex encoded string (lowercase, no '0x' prefix)
+ * @param data - The byte array to encode as hexadecimal.
+ * @returns The hex-encoded string (lowercase, without '0x' prefix).
+ *
+ * @example
+ * ```typescript
+ * const bytes = new Uint8Array([255, 0, 128]);
+ * const hex = toHex(bytes);
+ * console.log(hex); // "ff0080"
+ * ```
  */
 export function toHex(data: Uint8Array): string {
   // Node.js path - most efficient
@@ -77,10 +99,17 @@ export function toHex(data: Uint8Array): string {
 }
 
 /**
- * Converts a hex string to a Uint8Array
+ * Converts a hexadecimal string to a Uint8Array.
  *
- * @param hex - The hex string to decode (with or without '0x' prefix)
- * @returns Decoded bytes
+ * @param hex - The hex string to decode (with or without '0x' prefix).
+ * @returns The decoded byte array.
+ * @throws {Error} When the hex string has odd length or contains non-hex characters.
+ *
+ * @example
+ * ```typescript
+ * const bytes = fromHex("0xff0080");
+ * console.log(bytes); // Uint8Array([255, 0, 128])
+ * ```
  */
 export function fromHex(hex: string): Uint8Array {
   // Remove 0x prefix if present

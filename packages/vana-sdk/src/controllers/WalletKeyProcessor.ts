@@ -1,12 +1,12 @@
 /**
- * Wallet Key Processor - Business Logic Layer
+ * Processes wallet keys for encryption and decryption operations.
  *
  * @remarks
- * Handles wallet-specific encryption/decryption operations using raw crypto primitives.
- * This separates business logic (how to process wallet keys) from crypto implementation
- * (the actual ECIES operations).
+ * This controller separates business logic (wallet key processing) from crypto primitives
+ * (ECIES operations). It handles key normalization, data conversion, and format transformation
+ * while delegating actual cryptographic operations to the provided ECIES provider.
  *
- * Design principle: Adapters provide crypto primitives, this class orchestrates them.
+ * @category Cryptography
  */
 
 import type { ECIESProvider, ECIESEncrypted } from "../crypto/ecies/interface";
@@ -41,11 +41,21 @@ export class WalletKeyProcessor {
   }
 
   /**
-   * Encrypts data with a wallet public key
+   * Encrypts data using a wallet's public key.
    *
-   * @param data - String data to encrypt
-   * @param publicKey - Public key as hex string or Uint8Array
-   * @returns Encrypted data as hex string
+   * @param data - The plaintext message to encrypt for the wallet owner.
+   * @param publicKey - The recipient wallet's public key for encryption.
+   * @returns A promise that resolves to the encrypted data as a hex string.
+   * @throws {Error} When encryption fails due to invalid key format.
+   *
+   * @example
+   * ```typescript
+   * const encrypted = await processor.encryptWithWalletPublicKey(
+   *   "Secret message",
+   *   "0x04..." // 65-byte uncompressed public key
+   * );
+   * console.log(`Encrypted: ${encrypted}`);
+   * ```
    */
   async encryptWithWalletPublicKey(
     data: string,
@@ -76,11 +86,21 @@ export class WalletKeyProcessor {
   }
 
   /**
-   * Decrypts data with a wallet private key
+   * Decrypts data using a wallet's private key.
    *
-   * @param encryptedData - Encrypted data as hex string
-   * @param privateKey - Private key as hex string or Uint8Array
-   * @returns Decrypted string data
+   * @param encryptedData - The hex-encoded encrypted data to decrypt.
+   * @param privateKey - The wallet's private key for decryption.
+   * @returns A promise that resolves to the decrypted plaintext message.
+   * @throws {Error} When decryption fails due to invalid data or key format.
+   *
+   * @example
+   * ```typescript
+   * const decrypted = await processor.decryptWithWalletPrivateKey(
+   *   encryptedHexString,
+   *   "0x..." // 32-byte private key
+   * );
+   * console.log(`Decrypted: ${decrypted}`);
+   * ```
    */
   async decryptWithWalletPrivateKey(
     encryptedData: string,

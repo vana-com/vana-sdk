@@ -1,21 +1,30 @@
 /**
- * Unified crypto utilities using Uint8Array
+ * Provides platform-agnostic cryptographic utility functions.
  *
  * @remarks
- * Platform-agnostic utility functions that work in both Node.js and browsers.
- * All functions use Uint8Array exclusively for consistency and simplicity.
+ * This module contains utility functions for cryptographic operations that work
+ * consistently across Node.js and browser environments. All functions use `Uint8Array`
+ * exclusively for binary data to ensure cross-platform compatibility.
  *
- * Design principle: Pure data transformations with no platform dependencies.
- * Encoding operations are delegated to the standalone encoding utils.
+ * @category Cryptography
  */
 
 import { toHex, fromHex } from "./encoding";
 
 /**
- * Concatenates multiple Uint8Arrays into a single array
+ * Concatenates multiple Uint8Arrays into a single array.
  *
- * @param arrays - Arrays to concatenate
- * @returns Combined array
+ * @param arrays - The byte arrays to concatenate in order.
+ * @returns A new Uint8Array containing all input arrays concatenated.
+ *
+ * @example
+ * ```typescript
+ * const combined = concatBytes(
+ *   new Uint8Array([1, 2]),
+ *   new Uint8Array([3, 4])
+ * );
+ * console.log(combined); // Uint8Array([1, 2, 3, 4])
+ * ```
  */
 export function concatBytes(...arrays: Uint8Array[]): Uint8Array {
   const totalLength = arrays.reduce((sum, arr) => sum + arr.length, 0);
@@ -29,33 +38,52 @@ export function concatBytes(...arrays: Uint8Array[]): Uint8Array {
 }
 
 /**
- * Converts hex string to Uint8Array
- * Delegates to encoding utils for consistency
+ * Converts a hexadecimal string to a Uint8Array.
  *
- * @param hex - Hex string (with or without 0x prefix)
- * @returns Bytes array
+ * @param hex - The hex string to convert (with or without '0x' prefix).
+ * @returns The decoded byte array.
+ *
+ * @example
+ * ```typescript
+ * const bytes = hexToBytes("0x48656c6c6f");
+ * console.log(new TextDecoder().decode(bytes)); // "Hello"
+ * ```
  */
 export function hexToBytes(hex: string): Uint8Array {
   return fromHex(hex);
 }
 
 /**
- * Converts Uint8Array to hex string
- * Delegates to encoding utils for consistency
+ * Converts a Uint8Array to a hexadecimal string.
  *
- * @param bytes - Bytes to convert
- * @returns Hex string (lowercase, no prefix)
+ * @param bytes - The byte array to convert to hex.
+ * @returns The hex-encoded string (lowercase, without '0x' prefix).
+ *
+ * @example
+ * ```typescript
+ * const hex = bytesToHex(new Uint8Array([72, 101, 108, 108, 111]));
+ * console.log(hex); // "48656c6c6f"
+ * ```
  */
 export function bytesToHex(bytes: Uint8Array): string {
   return toHex(bytes);
 }
 
 /**
- * Processes a wallet public key for use in crypto operations.
- * Handles both hex strings and raw bytes, normalizing to uncompressed format.
+ * Processes a wallet public key for cryptographic operations.
  *
- * @param publicKey - Public key as hex string or Uint8Array
- * @returns Normalized public key as Uint8Array
+ * @remarks
+ * Normalizes public keys to uncompressed format (65 bytes with 0x04 prefix).
+ * If a 64-byte raw coordinate pair is provided, the uncompressed prefix is added.
+ *
+ * @param publicKey - The wallet public key as hex string or byte array.
+ * @returns The normalized public key as a Uint8Array.
+ *
+ * @example
+ * ```typescript
+ * const normalized = processWalletPublicKey("0x04...");
+ * console.log(normalized.length); // 65 (uncompressed format)
+ * ```
  */
 export function processWalletPublicKey(
   publicKey: string | Uint8Array,
@@ -76,10 +104,16 @@ export function processWalletPublicKey(
 }
 
 /**
- * Processes a wallet private key for use in crypto operations.
+ * Processes a wallet private key for cryptographic operations.
  *
- * @param privateKey - Private key as hex string or Uint8Array
- * @returns Private key as Uint8Array
+ * @param privateKey - The wallet private key as hex string or byte array.
+ * @returns The private key as a Uint8Array.
+ *
+ * @example
+ * ```typescript
+ * const key = processWalletPrivateKey("0x...");
+ * console.log(key.length); // 32 (secp256k1 private key)
+ * ```
  */
 export function processWalletPrivateKey(
   privateKey: string | Uint8Array,

@@ -8,8 +8,8 @@ export default defineConfig((options) => ({
   clean: true,
   dts: true,
   external: [
-    // Only mark Node-specific deps as external for Node builds
-    ...(options.platform === "node" ? ["eccrypto"] : []),
-    // Browser builds should bundle eccrypto-js, not externalize it
+    // Node-specific dependencies that should not be bundled
+    // secp256k1 is a native module that should be externalized for Node builds
+    ...(options.platform === "node" ? ["secp256k1"] : []),
   ],
 }));

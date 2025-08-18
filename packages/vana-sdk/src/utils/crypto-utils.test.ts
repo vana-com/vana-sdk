@@ -257,11 +257,11 @@ describe("Crypto Utils", () => {
       }
     });
 
-    it("returns compressed key as-is for crypto layer to handle", () => {
+    it("returns null for compressed keys (cannot normalize without curve operations)", () => {
       const compressed = new Uint8Array(33);
       compressed[0] = 0x02;
       const result = normalizePublicKey(compressed);
-      expect(result).toEqual(compressed);
+      expect(result).toBeNull();
     });
 
     it("returns null for invalid format", () => {

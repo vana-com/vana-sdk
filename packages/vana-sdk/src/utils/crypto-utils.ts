@@ -196,10 +196,11 @@ export function isValidPrivateKeyFormat(privateKey: Uint8Array): boolean {
 
 /**
  * Normalizes a public key to uncompressed format (65 bytes with 0x04 prefix)
- * Note: This only checks format, not curve validity
+ * Note: This only handles format conversion for raw coordinates.
+ * Compressed keys cannot be normalized without curve operations.
  *
  * @param publicKey - Public key in any format
- * @returns Normalized key or null if invalid format
+ * @returns Normalized uncompressed key or null if cannot normalize
  */
 export function normalizePublicKey(publicKey: Uint8Array): Uint8Array | null {
   if (!isValidPublicKeyFormat(publicKey)) {
@@ -216,11 +217,10 @@ export function normalizePublicKey(publicKey: Uint8Array): Uint8Array | null {
     return concatBytes(new Uint8Array([0x04]), publicKey);
   }
 
-  // Compressed - would need curve operations to decompress
-  // This should be handled by platform-specific crypto
+  // Compressed keys require elliptic curve operations to decompress
+  // This function cannot handle them without platform-specific crypto
   if (publicKey.length === 33) {
-    // Return as-is, let crypto layer handle decompression
-    return publicKey;
+    return null;
   }
 
   return null;

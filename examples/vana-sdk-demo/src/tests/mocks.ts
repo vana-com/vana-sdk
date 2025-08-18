@@ -10,6 +10,73 @@ import type { GrantedPermission } from "@opendatalabs/vana-sdk/browser";
 import type { VanaContextValue } from "@/providers/VanaProvider";
 
 /**
+ * Create a mock Vana SDK instance
+ * Use this in test files' beforeEach blocks for explicit test setup
+ *
+ * @example
+ * beforeEach(() => {
+ *   const mockVana = createMockVanaSDK();
+ *   vi.mock("@opendatalabs/vana-sdk/browser", () => ({
+ *     Vana: vi.fn(() => mockVana)
+ *   }));
+ * });
+ */
+export function createMockVanaSDK() {
+  return {
+    permissions: {
+      grant: vi.fn(),
+      revoke: vi.fn(),
+      getUserPermissions: vi.fn(),
+    },
+    data: {
+      getUserFiles: vi.fn(),
+      upload: vi.fn(),
+      decryptFile: vi.fn(),
+    },
+    server: {
+      trustServer: vi.fn(),
+      getIdentity: vi.fn(),
+    },
+  };
+}
+
+/**
+ * Create mock SDK module exports for vitest module mocking
+ * Use this when mocking the entire @opendatalabs/vana-sdk/browser module
+ *
+ * @example
+ * vi.mock("@opendatalabs/vana-sdk/browser", () => createMockVanaSDKModule());
+ */
+export function createMockVanaSDKModule() {
+  return {
+    Vana: vi.fn(createMockVanaSDK),
+    mokshaTestnet: {
+      id: 14800,
+      name: "Moksha Testnet",
+      nativeCurrency: { name: "VANA", symbol: "VANA", decimals: 18 },
+      rpcUrls: {
+        default: { http: ["https://rpc.moksha.vana.org"] },
+      },
+    },
+    vanaSaturnTestnet: {
+      id: 16900,
+      name: "Vana Saturn Testnet",
+      nativeCurrency: { name: "VANA", symbol: "VANA", decimals: 18 },
+      rpcUrls: {
+        default: { http: ["https://rpc.saturn.vana.org"] },
+      },
+    },
+    SchemaValidator: vi.fn(),
+    StorageManager: vi.fn(),
+    PinataStorage: vi.fn(),
+    convertIpfsUrl: vi.fn((url: string) =>
+      url?.replace("ipfs://", "https://gateway.pinata.cloud/ipfs/"),
+    ),
+    retrieveGrantFile: vi.fn(),
+  };
+}
+
+/**
  * Factory function to create a mock useUserFiles hook return object
  * @param overrides - Partial object to override default mock values
  * @returns Complete mock useUserFiles return object

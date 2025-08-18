@@ -17,13 +17,6 @@ const nextConfig = {
     config.resolve.alias = {
       ...config.resolve.alias,
       "@": path.resolve(__dirname, "src"),
-      // Prevent bundling optional wallet connector dependencies from @getpara packages
-      // These are not used by the demo app but would be included if not explicitly excluded
-      // Setting to false tells webpack to skip these modules entirely
-      "@farcaster/miniapp-sdk": false,
-      "@farcaster/miniapp-wagmi-connector": false,
-      "@farcaster/mini-app-solana": false,
-      "@getpara/cosmos-wallet-connectors": false,
     };
 
     // This is needed for certain dependencies that are not fully ESM-compatible.

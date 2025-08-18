@@ -112,7 +112,7 @@ export class ECIESError extends Error {
       | "DECRYPTION_FAILED"
       | "MAC_MISMATCH"
       | "ECDH_FAILED",
-    public override readonly cause?: Error,
+    public readonly cause?: Error,
   ) {
     super(message);
     this.name = "ECIESError";

@@ -1,29 +1,29 @@
 /**
- * Node.js implementation of ECIES using native crypto with Uint8Array core
+ * Node.js implementation of ECIES using @noble/secp256k1 for consistency
  *
  * @remarks
- * Uses Node.js crypto module for all operations.
+ * Uses @noble/secp256k1 and @noble/hashes for all elliptic curve and hash operations
+ * to ensure perfect parity with the browser implementation.
+ * Uses Node.js crypto module only for AES operations.
  * Converts Buffer to/from Uint8Array at the boundaries only.
  */
 
-import {
-  createHash,
-  createHmac,
-  randomBytes,
-  createCipheriv,
-  createDecipheriv,
-} from "crypto";
-import * as secp256k1 from "secp256k1";
-import * as nobleSecp256k1 from "@noble/secp256k1";
+import { randomBytes, createCipheriv, createDecipheriv } from "crypto";
+import * as secp256k1 from "@noble/secp256k1";
+import { sha512 as nobleSha512 } from "@noble/hashes/sha512";
+import { sha256 as nobleSha256 } from "@noble/hashes/sha256";
+import { hmac } from "@noble/hashes/hmac";
 import { BaseECIESUint8 } from "./base";
 import type { ECIESEncrypted } from "./interface";
 
 /**
- * Node.js-specific ECIES provider using native crypto
+ * Node.js-specific ECIES provider using @noble libraries
  *
  * @remarks
  * This implementation:
- * - Uses Node.js crypto module for performance
+ * - Uses @noble/secp256k1 for all EC operations (consistent with browser)
+ * - Uses @noble/hashes for SHA-512 and HMAC (consistent with browser)
+ * - Uses Node.js crypto module only for AES-CBC operations
  * - Internally works with Uint8Array
  * - Only uses Buffer at the Node.js crypto API boundaries
  */
@@ -33,7 +33,13 @@ export class NodeECIESUint8Provider extends BaseECIESUint8 {
   }
 
   protected verifyPrivateKey(privateKey: Uint8Array): boolean {
-    return secp256k1.privateKeyVerify(privateKey);
+    try {
+      // @noble/secp256k1 validates during point multiplication
+      secp256k1.getPublicKey(privateKey);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   protected createPublicKey(
@@ -41,19 +47,27 @@ export class NodeECIESUint8Provider extends BaseECIESUint8 {
     compressed: boolean,
   ): Uint8Array | null {
     try {
-      return secp256k1.publicKeyCreate(privateKey, compressed);
+      return secp256k1.getPublicKey(privateKey, compressed);
     } catch {
       return null;
     }
   }
 
   protected validatePublicKey(publicKey: Uint8Array): boolean {
-    return secp256k1.publicKeyVerify(publicKey);
+    try {
+      // Try to parse the point - will throw if invalid
+      secp256k1.Point.fromHex(publicKey);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   protected decompressPublicKey(publicKey: Uint8Array): Uint8Array | null {
     try {
-      return secp256k1.publicKeyConvert(publicKey, false);
+      // Parse the point and convert to uncompressed format
+      const point = secp256k1.Point.fromHex(publicKey);
+      return point.toRawBytes(false); // false = uncompressed
     } catch {
       return null;
     }
@@ -64,10 +78,10 @@ export class NodeECIESUint8Provider extends BaseECIESUint8 {
     privateKey: Uint8Array,
   ): Uint8Array {
     try {
-      // Use @noble/secp256k1 for ECDH to ensure eccrypto compatibility
+      // Using @noble/secp256k1 consistently for all operations
       // The 'true' parameter returns compressed point (33 bytes)
       // We need just the x-coordinate (32 bytes) so we slice off the prefix
-      const sharedPoint = nobleSecp256k1.getSharedSecret(
+      const sharedPoint = secp256k1.getSharedSecret(
         privateKey,
         publicKey,
         true,
@@ -81,15 +95,13 @@ export class NodeECIESUint8Provider extends BaseECIESUint8 {
   }
 
   protected sha512(data: Uint8Array): Uint8Array {
-    return new Uint8Array(
-      createHash("sha512").update(Buffer.from(data)).digest(),
-    );
+    // Use @noble/hashes for consistency with browser implementation
+    return nobleSha512(data);
   }
 
   protected hmacSha256(key: Uint8Array, data: Uint8Array): Uint8Array {
-    return new Uint8Array(
-      createHmac("sha256", Buffer.from(key)).update(Buffer.from(data)).digest(),
-    );
+    // Use @noble/hashes for consistency with browser implementation
+    return hmac(nobleSha256, key, data);
   }
 
   protected async aesEncrypt(

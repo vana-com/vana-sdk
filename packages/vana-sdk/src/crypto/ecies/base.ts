@@ -346,13 +346,29 @@ export abstract class BaseECIESUint8 implements ECIESProvider {
   }
 
   /**
-   * Clears sensitive data from memory.
+   * Clears sensitive data from memory using multi-pass overwrite.
+   *
+   * @remarks
+   * Uses multiple passes with different patterns to make it harder
+   * for JIT compilers to optimize away the operation. While not
+   * guaranteed in JavaScript, this is a best-effort approach to
+   * clear sensitive data from memory.
    *
    * @param buffer - The buffer to clear
    */
   protected clearBuffer(buffer: Uint8Array): void {
     if (buffer && buffer.length > 0) {
-      buffer.fill(0);
+      // Multi-pass overwrite to resist compiler optimization
+      buffer.fill(0x00); // Fill with zeros
+      buffer.fill(0xff); // Fill with ones
+      buffer.fill(0xaa); // Fill with alternating pattern
+      buffer.fill(0x00); // Final zero fill
+
+      // Additional pattern write to further discourage optimization
+      for (let i = 0; i < buffer.length; i++) {
+        buffer[i] = (i & 0xff) ^ 0x5a; // XOR with pattern
+      }
+      buffer.fill(0x00); // Final clear
     }
   }
 }

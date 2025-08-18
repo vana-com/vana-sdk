@@ -162,6 +162,37 @@ export const DataRegistryABI = [
     anonymous: false,
     inputs: [
       {
+        indexed: true,
+        internalType: "uint256",
+        name: "fileId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "ownerAddress",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "string",
+        name: "url",
+        type: "string",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "schemaId",
+        type: "uint256",
+      },
+    ],
+    name: "FileAddedV2",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
         indexed: false,
         internalType: "uint64",
         name: "version",
@@ -706,6 +737,19 @@ export const DataRegistryABI = [
     type: "function",
   },
   {
+    inputs: [],
+    name: "emitLegacyEvents",
+    outputs: [
+      {
+        internalType: "bool",
+        name: "",
+        type: "bool",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     inputs: [
       {
         internalType: "string",
@@ -861,6 +905,11 @@ export const DataRegistryABI = [
             internalType: "string",
             name: "url",
             type: "string",
+          },
+          {
+            internalType: "uint256",
+            name: "schemaId",
+            type: "uint256",
           },
           {
             internalType: "uint256",
@@ -1141,6 +1190,19 @@ export const DataRegistryABI = [
       },
     ],
     name: "updateDataRefinerRegistry",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "bool",
+        name: "newEmitLegacyEvents",
+        type: "bool",
+      },
+    ],
+    name: "updateEmitLegacyEvents",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",

@@ -349,12 +349,19 @@ export class DataPortabilityFlow {
 
         const data = result.data;
 
-        // Check if inference is completed
-        if (data?.status !== "processing") {
-          this.callbacks.onStatusUpdate("AI inference completed!");
-          const result = JSON.stringify(data?.result || data, null, 2);
-          this.callbacks.onResultUpdate(result);
-          return result;
+        // Check if operation is complete
+        if (data?.status && data.status !== "processing") {
+          if (data.status === "succeeded") {
+            this.callbacks.onStatusUpdate("AI inference completed!");
+            const result = JSON.stringify(data?.result || data, null, 2);
+            this.callbacks.onResultUpdate(result);
+            return result;
+          }
+          if (data.status === "failed" || data.status === "canceled") {
+            throw new Error(
+              `Operation ${data.status}: ${data.result || "Unknown error"}`,
+            );
+          }
         } else {
           this.callbacks.onStatusUpdate(
             `Polling attempt ${attempt}/${maxAttempts}: Still processing...`,

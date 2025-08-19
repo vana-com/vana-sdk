@@ -401,7 +401,7 @@ function SchemaExplorerContent() {
     }));
   };
 
-  // Simple polling utility - will be replaced by operationHandle when available
+  // Polling utility for server operations via API route
   const pollForResults = async (operationId: string): Promise<unknown> => {
     const maxAttempts = 30;
     const interval = 5000;
@@ -414,7 +414,18 @@ function SchemaExplorerContent() {
       });
 
       const data = await res.json();
-      if (data.data?.status !== "processing") return data.data;
+
+      // Check if operation is complete (succeeded, failed, or canceled)
+      if (data.data?.status && data.data.status !== "processing") {
+        if (data.data.status === "succeeded") {
+          return data.data;
+        }
+        if (data.data.status === "failed" || data.data.status === "canceled") {
+          throw new Error(
+            `Operation ${data.data.status}: ${data.data.result || "Unknown error"}`,
+          );
+        }
+      }
 
       setStatus(`Processing... (${i}/${maxAttempts})`);
       if (i < maxAttempts) await new Promise((r) => setTimeout(r, interval));

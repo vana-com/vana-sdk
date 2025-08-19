@@ -97,7 +97,7 @@ export type { DataSchema } from "../utils/schemaValidation";
 export {
   SchemaValidationError,
   SchemaValidator,
-  validateDataSchema,
+  validateDataSchemaAgainstMetaSchema,
   validateDataAgainstSchema,
   fetchAndValidateSchema,
 } from "../utils/schemaValidation";

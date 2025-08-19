@@ -43,7 +43,7 @@ export class SchemaValidationError extends Error {
 }
 
 /**
- * Schema validation utility class
+ * Data schema validation utility class
  */
 export class SchemaValidator {
   private ajv: Ajv;
@@ -64,9 +64,9 @@ export class SchemaValidator {
   }
 
   /**
-   * Validates a data schema against the Vana meta-schema
+   * Validates a data schema definition against the Vana meta-schema
    *
-   * @param schema - The data schema to validate
+   * @param schema - The data schema definition to validate
    * @throws SchemaValidationError if invalid
    * @example
    * ```typescript
@@ -85,10 +85,12 @@ export class SchemaValidator {
    *   }
    * };
    *
-   * validator.validateDataSchema(schema); // throws if invalid
+   * validator.validateDataSchemaAgainstMetaSchema(schema); // throws if invalid
    * ```
    */
-  validateDataSchema(schema: unknown): asserts schema is DataSchema {
+  validateDataSchemaAgainstMetaSchema(
+    schema: unknown,
+  ): asserts schema is DataSchema {
     const isValid = this.dataSchemaValidator(schema);
 
     if (!isValid) {
@@ -120,10 +122,10 @@ export class SchemaValidator {
   }
 
   /**
-   * Validates data against a JSON Schema from a schema
+   * Validates data against a JSON Schema
    *
    * @param data - The data to validate
-   * @param schema - The schema containing the validation rules (DataSchema or Schema)
+   * @param schema - The schema containing the validation rules (must have been validated or fetched from chain)
    * @throws SchemaValidationError if invalid
    * @example
    * ```typescript
@@ -133,29 +135,23 @@ export class SchemaValidator {
    * const schema = await vana.schemas.get(1);
    * validator.validateDataAgainstSchema(userData, schema);
    *
-   * // Also works with DataSchema object
-   * const dataSchema: DataSchema = {
+   * // Also works with pre-validated DataSchema object
+   * const dataSchema = validator.validateDataSchemaAgainstMetaSchema({
    *   name: "User Profile",
    *   version: "1.0.0",
    *   dialect: "json",
    *   schema: { type: "object", properties: { name: { type: "string" } } }
-   * };
+   * });
    * validator.validateDataAgainstSchema(userData, dataSchema);
    * ```
    */
   validateDataAgainstSchema(data: unknown, schema: DataSchema | Schema): void {
-    // Skip structural validation for Schema objects (they come pre-validated from schemas.get())
-    // Only validate DataSchema objects that are passed directly
-    if (!("id" in schema)) {
-      // This is a DataSchema, validate its structure
-      this.validateDataSchema(schema);
-    }
-
     if (schema.dialect !== "json") {
-      throw new SchemaValidationError(
-        `Data validation only supported for JSON dialect, got: ${schema.dialect}`,
-        [],
+      console.warn(
+        `[SchemaValidator] Data validation skipped: dialect '${schema.dialect}' does not support data validation. ` +
+          `Only JSON schemas can validate data structure.`,
       );
+      return;
     }
 
     if (typeof schema.schema !== "object") {
@@ -234,9 +230,9 @@ export class SchemaValidator {
   }
 
   /**
-   * Fetches and validates a schema from a URL
+   * Fetches and validates a data schema from a URL
    *
-   * @param url - The URL to fetch the schema from
+   * @param url - The URL to fetch the data schema from
    * @returns The validated data schema
    * @throws SchemaValidationError if invalid or fetch fails
    * @example
@@ -253,7 +249,7 @@ export class SchemaValidator {
       }
 
       const schema = await response.json();
-      this.validateDataSchema(schema);
+      this.validateDataSchemaAgainstMetaSchema(schema);
 
       // Additional validation based on dialect
       if (schema.dialect === "sqlite" && typeof schema.schema === "string") {
@@ -280,16 +276,30 @@ export class SchemaValidator {
 export const schemaValidator = new SchemaValidator();
 
 /**
- * Convenience function to validate a data schema
+ * Convenience function to validate a data schema definition against the Vana meta-schema
  *
- * @param schema - The data schema to validate
- * @returns void - Assertion function that doesn't return a value
+ * @param schema - The data schema definition to validate
+ * @returns The validated DataSchema
  * @throws SchemaValidationError if invalid
+ * @example
+ * ```typescript
+ * const schemaDefinition = {
+ *   name: "User Profile",
+ *   version: "1.0.0",
+ *   dialect: "json",
+ *   schema: { type: "object", properties: { name: { type: "string" } } }
+ * };
+ *
+ * const validatedSchema = validateDataSchemaAgainstMetaSchema(schemaDefinition);
+ * ```
  */
-export function validateDataSchema(
+export function validateDataSchemaAgainstMetaSchema(
   schema: unknown,
-): asserts schema is DataSchema {
-  return schemaValidator.validateDataSchema(schema);
+): DataSchema {
+  const validator: SchemaValidator = schemaValidator;
+  validator.validateDataSchemaAgainstMetaSchema(schema);
+  // If we get here, schema is valid and typed as DataSchema
+  return schema as DataSchema;
 }
 
 /**
@@ -308,9 +318,9 @@ export function validateDataAgainstSchema(
 }
 
 /**
- * Convenience function to fetch and validate a schema from a URL
+ * Convenience function to fetch and validate a data schema from a URL
  *
- * @param url - The URL to fetch the schema from
+ * @param url - The URL to fetch the data schema from
  * @returns The validated data schema
  * @throws SchemaValidationError if invalid or fetch fails
  */

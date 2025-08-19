@@ -34,7 +34,7 @@ import {
   decryptWithWalletPrivateKey,
 } from "../utils/encryption";
 import {
-  validateDataSchema,
+  validateDataSchemaAgainstMetaSchema,
   validateDataAgainstSchema,
   fetchAndValidateSchema,
   type DataSchema,
@@ -701,14 +701,17 @@ export class DataController {
       // Fetch proofs for all files to get DLP associations
       if (userFiles.length > 0) {
         try {
-          const fileIds = userFiles.map(f => f.id);
+          const fileIds = userFiles.map((f) => f.id);
           let proofMap: Map<number, number[]>;
-          
+
           try {
             // Try subgraph first
             proofMap = await this._fetchProofsFromSubgraph(fileIds, endpoint);
           } catch (subgraphError) {
-            console.debug("Failed to fetch proofs from subgraph, trying chain:", subgraphError);
+            console.debug(
+              "Failed to fetch proofs from subgraph, trying chain:",
+              subgraphError,
+            );
             // Fall back to chain
             proofMap = await this._fetchProofsFromChain(fileIds);
           }
@@ -738,7 +741,7 @@ export class DataController {
 
   /**
    * Fetches proof data for multiple files from the subgraph.
-   * 
+   *
    * @private
    * @param fileIds - Array of file IDs to fetch proofs for
    * @param subgraphUrl - The subgraph endpoint URL
@@ -746,7 +749,7 @@ export class DataController {
    */
   private async _fetchProofsFromSubgraph(
     fileIds: number[],
-    subgraphUrl: string
+    subgraphUrl: string,
   ): Promise<Map<number, number[]>> {
     const query = `
       query GetFileProofs($fileIds: [BigInt!]!) {
@@ -767,7 +770,7 @@ export class DataController {
       body: JSON.stringify({
         query,
         variables: {
-          fileIds: fileIds.map(id => id.toString()),
+          fileIds: fileIds.map((id) => id.toString()),
         },
       }),
     });
@@ -796,17 +799,17 @@ export class DataController {
 
     // Build map of fileId -> dlpIds
     const proofMap = new Map<number, number[]>();
-    
+
     if (result.data?.dataRegistryProofs) {
       for (const proof of result.data.dataRegistryProofs) {
         if (proof.dlp?.id) {
           const fileId = parseInt(proof.fileId);
           const dlpId = parseInt(proof.dlp.id);
-          
+
           if (!proofMap.has(fileId)) {
             proofMap.set(fileId, []);
           }
-          
+
           const dlpIds = proofMap.get(fileId)!;
           if (!dlpIds.includes(dlpId)) {
             dlpIds.push(dlpId);
@@ -821,13 +824,13 @@ export class DataController {
   /**
    * Fetches proof data for multiple files from the blockchain.
    * Falls back to this when subgraph is unavailable.
-   * 
+   *
    * @private
    * @param fileIds - Array of file IDs to fetch proofs for
    * @returns Map of file IDs to their associated DLP IDs
    */
   private async _fetchProofsFromChain(
-    fileIds: number[]
+    fileIds: number[],
   ): Promise<Map<number, number[]>> {
     const chainId = this.context.walletClient.chain?.id;
     if (!chainId) {
@@ -836,7 +839,7 @@ export class DataController {
 
     const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
     const dataRegistryAbi = getAbi("DataRegistry");
-    
+
     const proofMap = new Map<number, number[]>();
 
     // For each file, fetch proofs by incrementing index until revert
@@ -847,12 +850,12 @@ export class DataController {
 
       while (hasMoreProofs) {
         try {
-          const proof = await this.context.publicClient.readContract({
+          const proof = (await this.context.publicClient.readContract({
             address: dataRegistryAddress,
             abi: dataRegistryAbi,
             functionName: "fileProofs",
             args: [BigInt(fileId), BigInt(proofIndex)],
-          }) as {
+          })) as {
             signature: `0x${string}`;
             data: {
               score: bigint;
@@ -869,7 +872,7 @@ export class DataController {
               dlpIds.push(dlpId);
             }
           }
-          
+
           proofIndex++;
         } catch {
           // No more proofs for this file
@@ -907,7 +910,7 @@ export class DataController {
    */
   async getDLP(
     dlpId: number,
-    options: { subgraphUrl?: string } = {}
+    options: { subgraphUrl?: string } = {},
   ): Promise<{
     id: number;
     name: string;
@@ -981,7 +984,9 @@ export class DataController {
           id: parseInt(result.data.dlp.id),
           name: result.data.dlp.name || "",
           metadata: result.data.dlp.metadata,
-          status: result.data.dlp.status ? parseInt(result.data.dlp.status) : undefined,
+          status: result.data.dlp.status
+            ? parseInt(result.data.dlp.status)
+            : undefined,
           address: result.data.dlp.address as Address | undefined,
           owner: result.data.dlp.owner as Address | undefined,
         };
@@ -1001,12 +1006,12 @@ export class DataController {
       const dlpRegistryAddress = getContractAddress(chainId, "DLPRegistry");
       const dlpRegistryAbi = getAbi("DLPRegistry");
 
-      const dlpData = await this.context.publicClient.readContract({
+      const dlpData = (await this.context.publicClient.readContract({
         address: dlpRegistryAddress,
         abi: dlpRegistryAbi,
         functionName: "dlps",
         args: [BigInt(dlpId)],
-      }) as {
+      })) as {
         id: bigint;
         dlpAddress: Address;
         ownerAddress: Address;
@@ -1060,7 +1065,7 @@ export class DataController {
    * // Get first 10 DLPs
    * const dlps = await vana.data.listDLPs({ limit: 10 });
    * dlps.forEach(dlp => console.log(`${dlp.id}: ${dlp.name}`));
-   * 
+   *
    * // Get next page
    * const nextPage = await vana.data.listDLPs({ limit: 10, offset: 10 });
    * ```
@@ -1070,15 +1075,17 @@ export class DataController {
       limit?: number;
       offset?: number;
       subgraphUrl?: string;
-    } = {}
-  ): Promise<Array<{
-    id: number;
-    name: string;
-    metadata?: string;
-    status?: number;
-    address?: Address;
-    owner?: Address;
-  }>> {
+    } = {},
+  ): Promise<
+    Array<{
+      id: number;
+      name: string;
+      metadata?: string;
+      status?: number;
+      address?: Address;
+      owner?: Address;
+    }>
+  > {
     const { limit = 100, offset = 0 } = options;
     const subgraphUrl = options.subgraphUrl || this.context.subgraphUrl;
 
@@ -1139,8 +1146,8 @@ export class DataController {
         }
 
         const dlps = result.data?.dlps || [];
-        
-        return dlps.map(dlp => ({
+
+        return dlps.map((dlp) => ({
           id: parseInt(dlp.id),
           name: dlp.name || "",
           metadata: dlp.metadata,
@@ -1165,12 +1172,12 @@ export class DataController {
       const dlpRegistryAbi = getAbi("DLPRegistry");
 
       // First get the total count
-      const dlpCount = await this.context.publicClient.readContract({
+      const dlpCount = (await this.context.publicClient.readContract({
         address: dlpRegistryAddress,
         abi: dlpRegistryAbi,
         functionName: "dlpsCount",
         args: [],
-      }) as bigint;
+      })) as bigint;
 
       const totalCount = Number(dlpCount);
       const start = offset;
@@ -1182,7 +1189,8 @@ export class DataController {
 
       // Build multicall for fetching DLP data
       const calls = [];
-      for (let i = start + 1; i <= end; i++) { // DLP IDs typically start at 1
+      for (let i = start + 1; i <= end; i++) {
+        // DLP IDs typically start at 1
         calls.push({
           address: dlpRegistryAddress,
           abi: dlpRegistryAbi,
@@ -1221,7 +1229,8 @@ export class DataController {
             verificationBlockNumber: bigint;
           };
 
-          if (dlpData.name) { // Only include valid DLPs
+          if (dlpData.name) {
+            // Only include valid DLPs
             dlps.push({
               id: start + i + 1,
               name: dlpData.name,
@@ -3053,10 +3062,10 @@ export class DataController {
   }
 
   /**
-   * Validates a data schema against the Vana meta-schema.
+   * Validates a data schema definition against the Vana meta-schema.
    *
-   * @param schema - The data schema to validate
-   * @returns Assertion that schema is valid (throws if invalid)
+   * @param schema - The data schema definition to validate
+   * @returns The validated DataSchema
    * @throws SchemaValidationError if invalid
    * @example
    * ```typescript
@@ -3073,11 +3082,11 @@ export class DataController {
    *   }
    * };
    *
-   * vana.data.validateDataSchema(schema);
+   * const validatedSchema = vana.data.validateDataSchemaAgainstMetaSchema(schema);
    * ```
    */
-  validateDataSchema(schema: unknown): asserts schema is DataSchema {
-    return validateDataSchema(schema);
+  validateDataSchemaAgainstMetaSchema(schema: unknown): DataSchema {
+    return validateDataSchemaAgainstMetaSchema(schema);
   }
 
   /**
@@ -3112,9 +3121,9 @@ export class DataController {
   }
 
   /**
-   * Fetches and validates a schema from a URL, then returns the parsed data schema.
+   * Fetches and validates a data schema from a URL, then returns the parsed data schema.
    *
-   * @param url - The URL to fetch the schema from
+   * @param url - The URL to fetch the data schema from
    * @returns The validated data schema
    * @throws SchemaValidationError if invalid or fetch fails
    * @example

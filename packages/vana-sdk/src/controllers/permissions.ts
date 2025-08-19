@@ -67,29 +67,13 @@ import { formatSignatureForContract } from "../utils/signatureFormatter";
 import { toViemTypedDataDefinition } from "../utils/typedDataConverter";
 import { StorageManager } from "../storage";
 import type { VanaPlatformAdapter } from "../platform/interface";
+import type { GetUserPermissionsQuery } from "../generated/subgraph";
 
-interface SubgraphPermissionsResponse {
-  data?: {
-    user?: {
-      permissions?: Array<{
-        id: string;
-        grant: string;
-        nonce: string;
-        signature: string;
-        startBlock: string;
-        endBlock?: string;
-        addedAtBlock: string;
-        addedAtTimestamp?: string;
-        transactionHash?: string;
-        grantee: {
-          id: string;
-          address: string;
-        };
-      }>;
-    };
-  };
+// Wrapper type for GraphQL responses with potential errors
+type SubgraphPermissionsResponse = {
+  data?: GetUserPermissionsQuery;
   errors?: Array<{ message: string }>;
-}
+};
 
 /**
  * Provides shared configuration and services for all SDK controllers.
@@ -1623,18 +1607,21 @@ export class PermissionsController {
       // Process permissions without expensive network calls - FAST PATH
       const onChainGrants: OnChainPermissionGrant[] = userData.permissions
         .slice(0, limit)
-        .map((permission) => ({
-          id: BigInt(permission.id),
-          grantUrl: permission.grant,
-          grantSignature: permission.signature,
-          grantHash: "", // Not available in new schema, compute if needed
-          nonce: BigInt(permission.nonce),
-          addedAtBlock: BigInt(permission.addedAtBlock),
-          addedAtTimestamp: BigInt(permission.addedAtTimestamp || "0"),
-          transactionHash: permission.transactionHash || "",
-          grantor: userAddress as Address,
-          active: !permission.endBlock || BigInt(permission.endBlock) === 0n, // Active if no end block or end block is 0
-        }));
+        .map(
+          (permission: NonNullable<typeof userData.permissions>[number]) => ({
+            id: BigInt(permission.id),
+            grantUrl: permission.grant,
+            grantSignature: permission.signature,
+            nonce: BigInt(permission.nonce),
+            startBlock: BigInt(permission.startBlock),
+            addedAtBlock: BigInt(permission.addedAtBlock),
+            addedAtTimestamp: BigInt(permission.addedAtTimestamp || "0"),
+            transactionHash: permission.transactionHash || "",
+            grantor: userAddress as Address,
+            grantee: permission.grantee,
+            active: !permission.endBlock || BigInt(permission.endBlock) === 0n, // Active if no end block or end block is 0
+          }),
+        );
 
       return onChainGrants.sort((a, b) => {
         // Sort by ID - most recent first

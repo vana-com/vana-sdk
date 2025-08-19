@@ -610,9 +610,14 @@ describe("PermissionsController", () => {
                     grant: "https://ipfs.io/ipfs/Qm1",
                     nonce: "1",
                     signature: "0xsig1",
+                    startBlock: "123450",
                     addedAtBlock: "123456",
                     addedAtTimestamp: "1640995200",
                     transactionHash: "0x123...",
+                    grantee: {
+                      id: "5",
+                      address: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+                    },
                     user: {
                       id: mockWalletClient.account.address.toLowerCase(),
                     },
@@ -622,9 +627,14 @@ describe("PermissionsController", () => {
                     grant: "https://ipfs.io/ipfs/Qm2",
                     nonce: "2",
                     signature: "0xsig2",
+                    startBlock: "123451",
                     addedAtBlock: "123457",
                     addedAtTimestamp: "1640995300",
                     transactionHash: "0x456...",
+                    grantee: {
+                      id: "6",
+                      address: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd37",
+                    },
                     user: {
                       id: mockWalletClient.account.address.toLowerCase(),
                     },
@@ -699,9 +709,14 @@ describe("PermissionsController", () => {
                     grant: "https://ipfs.io/ipfs/Qm1",
                     nonce: "1",
                     signature: "0xsig1",
+                    startBlock: "123450",
                     addedAtBlock: "123456",
                     addedAtTimestamp: "1640995200",
                     transactionHash: "0x123...",
+                    grantee: {
+                      id: "5",
+                      address: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+                    },
                     user: {
                       id: mockWalletClient.account.address.toLowerCase(),
                     },
@@ -711,9 +726,14 @@ describe("PermissionsController", () => {
                     grant: "https://ipfs.io/ipfs/Qm2",
                     nonce: "2",
                     signature: "0xsig2",
+                    startBlock: "123451",
                     addedAtBlock: "123457",
                     addedAtTimestamp: "1640995300",
                     transactionHash: "0x456...",
+                    grantee: {
+                      id: "6",
+                      address: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd37",
+                    },
                     user: {
                       id: mockWalletClient.account.address.toLowerCase(),
                     },
@@ -724,9 +744,14 @@ describe("PermissionsController", () => {
                     grant: "https://ipfs.io/ipfs/Qm3",
                     nonce: "3",
                     signature: "0xsig3",
+                    startBlock: "123452",
                     addedAtBlock: "123458",
                     addedAtTimestamp: "1640995400",
                     transactionHash: "0x789...",
+                    grantee: {
+                      id: "7",
+                      address: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd38",
+                    },
                     user: {
                       id: mockWalletClient.account.address.toLowerCase(),
                     },
@@ -804,9 +829,14 @@ describe("PermissionsController", () => {
                     grant: "https://ipfs.io/ipfs/QmInvalidGrant", // This will fail in retrieveGrantFile
                     nonce: "1",
                     signature: "0xsig1",
+                    startBlock: "123450",
                     addedAtBlock: "123456",
                     addedAtTimestamp: "1640995200",
                     transactionHash: "0x123...",
+                    grantee: {
+                      id: "5",
+                      address: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+                    },
                     user: {
                       id: mockWalletClient.account.address.toLowerCase(),
                     },

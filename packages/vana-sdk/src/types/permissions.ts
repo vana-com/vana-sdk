@@ -35,10 +35,10 @@ export interface OnChainPermissionGrant {
   grantUrl: string;
   /** Cryptographic signature that authorized this permission */
   grantSignature: string;
-  /** Hash of the grant file content for integrity verification */
-  grantHash: string;
   /** Nonce used when granting the permission */
   nonce: bigint;
+  /** Block number when permission started */
+  startBlock: bigint;
   /** Block number when permission was granted */
   addedAtBlock: bigint;
   /** Timestamp when permission was added */
@@ -47,6 +47,13 @@ export interface OnChainPermissionGrant {
   transactionHash: string;
   /** Address that granted the permission */
   grantor: Address;
+  /** Grantee information */
+  grantee: {
+    /** Grantee ID */
+    id: string;
+    /** Grantee address */
+    address: string;
+  };
   /** Whether the permission is still active (not revoked) */
   active: boolean;
 }

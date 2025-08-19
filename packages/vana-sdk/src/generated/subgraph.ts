@@ -7046,6 +7046,9 @@ export type GetUserPermissionsQuery = {
       startBlock: string;
       endBlock?: string | null;
       addedAtBlock: string;
+      addedAtTimestamp: string;
+      transactionHash: string;
+      grantee: { id: string; address: string };
       filePermissions: Array<{ file: { id: string; url: string } }>;
     }>;
   } | null;
@@ -7176,6 +7179,31 @@ export const GetUserPermissionsDocument = {
                       {
                         kind: "Field",
                         name: { kind: "Name", value: "addedAtBlock" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "addedAtTimestamp" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "transactionHash" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "grantee" },
+                        selectionSet: {
+                          kind: "SelectionSet",
+                          selections: [
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "id" },
+                            },
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "address" },
+                            },
+                          ],
+                        },
                       },
                       {
                         kind: "Field",

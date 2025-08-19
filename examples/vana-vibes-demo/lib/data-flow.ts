@@ -352,7 +352,9 @@ export class DataPortabilityFlow {
         // Check if inference is completed
         if (data?.status !== "processing") {
           this.callbacks.onStatusUpdate("AI inference completed!");
-          return JSON.stringify(data?.result || data, null, 2);
+          const result = JSON.stringify(data?.result || data, null, 2);
+          this.callbacks.onResultUpdate(result);
+          return result;
         } else {
           this.callbacks.onStatusUpdate(
             `Polling attempt ${attempt}/${maxAttempts}: Still processing...`,
@@ -413,9 +415,8 @@ export class DataPortabilityFlow {
       const operationId = await this.submitInferenceRequest(permissionId);
 
       // Step 5: Poll for AI inference results
-      const result = await this.pollForResults(operationId);
+      await this.pollForResults(operationId);
 
-      this.callbacks.onResultUpdate(result);
       this.callbacks.onStatusUpdate(
         "Data portability flow completed successfully!",
       );

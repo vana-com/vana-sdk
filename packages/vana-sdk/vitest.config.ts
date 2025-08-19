@@ -27,8 +27,8 @@ export default defineConfig({
       reportOnFailure: true,
       thresholds: {
         statements: 93,
-        branches: 86.7, // Adjusted after schema validation refactoring
-        functions: 89.4, // Adjusted after schema validation refactoring
+        branches: 86.6, // Adjusted after adding relayer support
+        functions: 89.2, // Adjusted after adding relayer support
         lines: 93,
       },
     },

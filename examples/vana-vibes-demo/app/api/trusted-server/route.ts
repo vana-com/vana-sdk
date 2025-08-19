@@ -21,8 +21,8 @@ export async function POST(request: NextRequest) {
 
     // Wait for the operation to complete using the built-in polling
     const result = await handle.waitForResult({
-      timeout: 60000, // 60 seconds timeout
-      pollingInterval: 1000, // Poll every second
+      timeout: 60000,
+      pollingInterval: 500,
     });
 
     return NextResponse.json({

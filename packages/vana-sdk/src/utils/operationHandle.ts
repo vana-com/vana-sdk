@@ -44,7 +44,7 @@ export class OperationHandle<T = unknown> {
    * ```typescript
    * const result = await handle.waitForResult({
    *   timeout: 60000,
-   *   pollingInterval: 1000
+   *   pollingInterval: 500
    * });
    * ```
    */

@@ -12,16 +12,16 @@ interface WalletConnectButtonProps {
   className?: string;
 }
 
-export function WalletConnectButton({ 
-  disabled, 
-  className = "w-full" 
+export function WalletConnectButton({
+  disabled,
+  className = "w-full",
 }: WalletConnectButtonProps) {
-  const useRainbow = process.env.NEXT_PUBLIC_WALLET_PROVIDER === 'rainbow';
-  
+  const useRainbow = process.env.NEXT_PUBLIC_WALLET_PROVIDER === "rainbow";
+
   // Para wallet hooks
   const { openModal } = useModal?.() || {};
   const paraAccount = useParaAccount?.();
-  
+
   // Wagmi hooks (work with both)
   const { address, isConnected } = useAccount();
   const { data: wallet } = useWallet?.() || {};
@@ -43,11 +43,11 @@ export function WalletConnectButton({
           return (
             <div
               {...(!ready && {
-                'aria-hidden': true,
-                'style': {
+                "aria-hidden": true,
+                style: {
                   opacity: 0,
-                  pointerEvents: 'none',
-                  userSelect: 'none',
+                  pointerEvents: "none",
+                  userSelect: "none",
                 },
               })}
             >
@@ -85,7 +85,7 @@ export function WalletConnectButton({
                     {account.displayName}
                     {account.displayBalance
                       ? ` (${account.displayBalance})`
-                      : ''}
+                      : ""}
                   </Button>
                 );
               })()}
@@ -97,8 +97,13 @@ export function WalletConnectButton({
   }
 
   // Para wallet button
-  const walletAddress = wallet?.address || address || paraAccount?.address;
-  const walletConnected = isConnected || paraAccount?.isConnected;
+  // Type assertion for Para SDK compatibility
+  const paraAccountWithAddress = paraAccount as
+    | { address?: string; isConnected?: boolean }
+    | undefined;
+  const walletAddress =
+    wallet?.address || address || paraAccountWithAddress?.address;
+  const walletConnected = isConnected || paraAccountWithAddress?.isConnected;
 
   return (
     <Button

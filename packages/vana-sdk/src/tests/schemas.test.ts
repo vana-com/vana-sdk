@@ -4,7 +4,7 @@ import { ControllerContext } from "../controllers/permissions";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 import type { StorageManager } from "../storage/manager";
 import { SchemaValidationError } from "../utils/schemaValidation";
-import { validateDataSchema } from "../utils/schemaValidation";
+import { validateDataSchemaAgainstMetaSchema } from "../utils/schemaValidation";
 import {
   fetchSchemaFromChain,
   fetchSchemaCountFromChain,
@@ -31,7 +31,7 @@ vi.mock("../utils/urlResolver", () => ({
 }));
 
 vi.mock("../utils/schemaValidation", () => ({
-  validateDataSchema: vi.fn(),
+  validateDataSchemaAgainstMetaSchema: vi.fn(),
   SchemaValidationError: class SchemaValidationError extends Error {
     constructor(
       message: string,
@@ -84,8 +84,10 @@ describe("SchemaController", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Reset validateDataSchema to not throw by default
-    vi.mocked(validateDataSchema).mockImplementation(() => {});
+    // Reset validateDataSchemaAgainstMetaSchema to not throw by default
+    vi.mocked(validateDataSchemaAgainstMetaSchema).mockImplementation(
+      (schema) => schema as any,
+    );
 
     // Create mock storage manager
     mockStorageManager = {
@@ -335,7 +337,9 @@ describe("SchemaController", () => {
 
   describe("create()", () => {
     it("should validate and upload schema to IPFS", async () => {
-      const { validateDataSchema } = await import("../utils/schemaValidation");
+      const { validateDataSchemaAgainstMetaSchema } = await import(
+        "../utils/schemaValidation"
+      );
       const { parseEventLogs } = await import("viem");
 
       vi.mocked(parseEventLogs).mockReturnValueOnce([
@@ -369,7 +373,7 @@ describe("SchemaController", () => {
         transactionHash: "0xTransactionHash",
       });
 
-      expect(validateDataSchema).toHaveBeenCalledWith({
+      expect(validateDataSchemaAgainstMetaSchema).toHaveBeenCalledWith({
         name: "Test Schema",
         version: "1.0.0",
         dialect: "json",
@@ -393,7 +397,9 @@ describe("SchemaController", () => {
     });
 
     it("should handle JSON string definition", async () => {
-      const { validateDataSchema } = await import("../utils/schemaValidation");
+      const { validateDataSchemaAgainstMetaSchema } = await import(
+        "../utils/schemaValidation"
+      );
       const { parseEventLogs } = await import("viem");
 
       vi.mocked(parseEventLogs).mockReturnValueOnce([
@@ -420,7 +426,7 @@ describe("SchemaController", () => {
       });
 
       expect(result.schemaId).toBe(123);
-      expect(validateDataSchema).toHaveBeenCalled();
+      expect(validateDataSchemaAgainstMetaSchema).toHaveBeenCalled();
     });
 
     it("should handle invalid JSON string", async () => {
@@ -434,10 +440,14 @@ describe("SchemaController", () => {
     });
 
     it("should handle validation errors", async () => {
-      const { validateDataSchema } = await import("../utils/schemaValidation");
-      vi.mocked(validateDataSchema).mockImplementationOnce(() => {
-        throw new SchemaValidationError("Invalid schema", []);
-      });
+      const { validateDataSchemaAgainstMetaSchema } = await import(
+        "../utils/schemaValidation"
+      );
+      vi.mocked(validateDataSchemaAgainstMetaSchema).mockImplementationOnce(
+        () => {
+          throw new SchemaValidationError("Invalid schema", []);
+        },
+      );
 
       await expect(
         controller.create({

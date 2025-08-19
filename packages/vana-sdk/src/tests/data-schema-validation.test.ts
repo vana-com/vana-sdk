@@ -24,7 +24,7 @@ vi.mock("../utils/schemaValidation", () => ({
     }
   },
   validateDataAgainstSchema: vi.fn(),
-  validateDataSchema: vi.fn(),
+  validateDataSchemaAgainstMetaSchema: vi.fn(),
 }));
 
 vi.mock("viem", async () => {

@@ -24,7 +24,7 @@ vi.mock("../storage", () => ({
 }));
 
 vi.mock("../utils/schemaValidation", () => ({
-  validateDataSchema: vi.fn(),
+  validateDataSchemaAgainstMetaSchema: vi.fn(),
   validateDataAgainstSchema: vi.fn(),
   fetchAndValidateSchema: vi.fn(),
   SchemaValidationError: Error,
@@ -62,7 +62,7 @@ describe("DataController Edge Cases Coverage", () => {
   };
 
   describe("Schema validation wrapper methods", () => {
-    it("should call validateDataSchema utility function (line 2044)", () => {
+    it("should call validateDataSchemaAgainstMetaSchema utility function (line 2044)", () => {
       const dataController = new DataController(context);
       const mockSchema = {
         name: "Test Schema",
@@ -77,8 +77,8 @@ describe("DataController Edge Cases Coverage", () => {
       };
 
       // This should call the utility function and not throw
-      const validateFunc: (schema: unknown) => asserts schema is DataSchema =
-        dataController.validateDataSchema.bind(dataController);
+      const validateFunc: (schema: unknown) => DataSchema =
+        dataController.validateDataSchemaAgainstMetaSchema.bind(dataController);
       expect(() => validateFunc(mockSchema)).not.toThrow();
     });
 
@@ -105,10 +105,10 @@ describe("DataController Edge Cases Coverage", () => {
       }).not.toThrow();
     });
 
-    it("should call validateDataSchema with proper arguments", async () => {
+    it("should call validateDataSchemaAgainstMetaSchema with proper arguments", async () => {
       const schemaValidationModule = await import("../utils/schemaValidation");
-      const validateDataSchemaMock = vi.mocked(
-        schemaValidationModule.validateDataSchema,
+      const validateDataSchemaAgainstMetaSchemaMock = vi.mocked(
+        schemaValidationModule.validateDataSchemaAgainstMetaSchema,
       );
 
       const dataController = new DataController(context);
@@ -119,11 +119,13 @@ describe("DataController Edge Cases Coverage", () => {
         schema: { type: "object" },
       };
 
-      const validateFunc: (schema: unknown) => asserts schema is DataSchema =
-        dataController.validateDataSchema.bind(dataController);
+      const validateFunc: (schema: unknown) => DataSchema =
+        dataController.validateDataSchemaAgainstMetaSchema.bind(dataController);
       validateFunc(mockSchema);
 
-      expect(validateDataSchemaMock).toHaveBeenCalledWith(mockSchema);
+      expect(validateDataSchemaAgainstMetaSchemaMock).toHaveBeenCalledWith(
+        mockSchema,
+      );
     });
 
     it("should call validateDataAgainstSchema with proper arguments", async () => {

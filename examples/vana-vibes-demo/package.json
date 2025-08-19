@@ -15,6 +15,7 @@
     "@getpara/wagmi-v2-integration": "2.0.0-alpha.38",
     "@opendatalabs/vana-sdk": "*",
     "@radix-ui/react-label": "^2.1.7",
+    "@rainbow-me/rainbowkit": "^2.1.0",
     "@radix-ui/react-slot": "^1.2.3",
     "@react-oauth/google": "^0.12.2",
     "@tanstack/react-query": "^5.83.0",

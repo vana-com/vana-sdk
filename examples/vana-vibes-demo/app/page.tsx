@@ -1,21 +1,22 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useModal, useAccount, useWallet } from "@getpara/react-sdk";
+import { useAccount } from "wagmi";
+import { useWallet } from "@getpara/react-sdk";
 import { useGoogleDriveOAuth } from "../providers/google-drive-oauth";
 import { DataPortabilityFlow } from "../lib/data-flow";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { WalletConnectButton } from "@/components/wallet-connect-button";
 import { useVana, isVanaInitialized } from "../providers/vana-provider";
 import type { DataSchema } from "@opendatalabs/vana-sdk/browser";
 import { SchemaValidator } from "@opendatalabs/vana-sdk/browser";
 
 function HomeContent() {
-  const { openModal } = useModal();
-  const { isConnected: walletConnected, isLoading: walletLoading } =
-    useAccount();
-  const { data: wallet } = useWallet();
+  const { isConnected: walletConnected, address } = useAccount();
+  const walletLoading = false; // wagmi doesn't have isLoading
+  const { data: wallet } = useWallet?.() || {};
   const vanaContext = useVana();
   const {
     isConnected: googleDriveConnected,
@@ -87,12 +88,10 @@ function HomeContent() {
     }
   }, [userData, schema, validator]);
 
-  const handleWalletModal = () => {
-    openModal();
-  };
 
   const handleStartFlow = async () => {
-    if (!isVanaInitialized(vanaContext) || !wallet?.address) {
+    const walletAddress = wallet?.address || address;
+    if (!isVanaInitialized(vanaContext) || !walletAddress) {
       setStatus("Vana not initialized. Please connect your wallet.");
       return;
     }
@@ -115,7 +114,7 @@ function HomeContent() {
       );
 
       await flow.executeCompleteFlow(
-        wallet.address,
+        walletAddress,
         userData,
         aiPrompt,
         schemaId,
@@ -135,25 +134,26 @@ function HomeContent() {
       <div className="max-w-md mx-auto space-y-6">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900">Vana Vibes Demo</h1>
+          <p className="mt-2 text-sm text-gray-600">
+            Manual data entry with schema validation
+          </p>
+          <a 
+            href="/schema-explorer" 
+            className="text-sm text-blue-600 hover:text-blue-700 mt-2 inline-block"
+          >
+            Use existing files with schemas →
+          </a>
         </div>
 
         {/* Wallet Connection */}
         <div>
-          <Button
-            onClick={handleWalletModal}
+          <WalletConnectButton 
             disabled={walletLoading || isProcessing}
-            className="w-full"
-          >
-            {walletLoading
-              ? "Loading..."
-              : walletConnected && wallet?.address
-                ? wallet.address
-                : "Connect Para Wallet"}
-          </Button>
+          />
         </div>
 
         {/* Google Drive Connection */}
-        {walletConnected && wallet?.address && (
+        {walletConnected && (wallet?.address || address) && (
           <div>
             {!googleDriveConnected ? (
               <div className="space-y-4">
@@ -256,7 +256,7 @@ function HomeContent() {
           disabled={
             isProcessing ||
             !walletConnected ||
-            !wallet?.address ||
+            !(wallet?.address || address) ||
             !googleDriveConnected ||
             !vanaContext.isInitialized
           }

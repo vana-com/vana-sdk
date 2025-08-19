@@ -15,6 +15,7 @@ import {
   WalletClient,
   Hash,
   ServerFilesAndPermissionTypedData,
+  PermissionGrantTypedData,
 } from "@opendatalabs/vana-sdk/browser";
 import type { VanaChain } from "@opendatalabs/vana-sdk/browser";
 import { useWalletClient, useAccount as useWagmiAccount } from "wagmi";
@@ -106,6 +107,32 @@ const createAddServerFilesAndPermissionsCallback =
     return result.transactionHash as `0x${string}`;
   };
 
+// Helper for permission grant callback
+const createPermissionGrantCallback =
+  (endpoint: string, address: string | undefined) =>
+  async (typedData: PermissionGrantTypedData, signature: Hash) => {
+    const baseUrl = window.location.origin;
+    const response = await fetch(`${baseUrl}${endpoint}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        typedData: serializeBigInt(typedData),
+        signature,
+        expectedUserAddress: address,
+      }),
+    });
+    const result = await response.json();
+    if (!result.success) {
+      throw new Error(result.error || "Failed to submit to relayer");
+    }
+
+    return result.transactionHash as `0x${string}`;
+  };
+
+// Note: File permission relaying is not yet implemented on the server side
+// The submitFilePermission method will handle signing and submission directly
+// through the SDK's built-in relayer support
+
 export function VanaProvider({
   children,
   useGaslessTransactions = true,
@@ -147,6 +174,13 @@ export function VanaProvider({
                   "/api/relay",
                   address,
                 ),
+              submitPermissionGrant: createPermissionGrantCallback(
+                "/api/relay",
+                address,
+              ),
+              // Note: submitFilePermission is not configured here as it requires
+              // client-side encryption key generation. The SDK will fall back to
+              // direct transaction submission for now.
             }
           : undefined;
 

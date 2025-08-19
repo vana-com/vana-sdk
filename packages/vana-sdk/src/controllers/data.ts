@@ -34,7 +34,7 @@ import {
   decryptWithWalletPrivateKey,
 } from "../utils/encryption";
 import {
-  validateDataSchema,
+  validateDataSchemaAgainstMetaSchema,
   validateDataAgainstSchema,
   fetchAndValidateSchema,
   type DataSchema,
@@ -698,12 +698,555 @@ export class DataController {
         Number((b.addedAtTimestamp || 0n) - (a.addedAtTimestamp || 0n)),
       );
 
+      // Fetch proofs for all files to get DLP associations
+      if (userFiles.length > 0) {
+        try {
+          const fileIds = userFiles.map((f) => f.id);
+          let proofMap: Map<number, number[]>;
+
+          try {
+            // Try subgraph first
+            proofMap = await this._fetchProofsFromSubgraph(fileIds, endpoint);
+          } catch (subgraphError) {
+            console.debug(
+              "Failed to fetch proofs from subgraph, trying chain:",
+              subgraphError,
+            );
+            // Fall back to chain
+            proofMap = await this._fetchProofsFromChain(fileIds);
+          }
+
+          // Add dlpIds to each file
+          for (const file of userFiles) {
+            const dlpIds = proofMap.get(file.id);
+            if (dlpIds && dlpIds.length > 0) {
+              file.dlpIds = dlpIds;
+            }
+          }
+        } catch (error) {
+          // Log but don't fail - files are still useful without proof data
+          console.warn("Failed to fetch proof data for files:", error);
+        }
+      }
+
       // Successfully retrieved user files
       return userFiles;
     } catch (error) {
       console.error("Failed to fetch user files from subgraph:", error);
       throw new Error(
         `Failed to fetch user files from subgraph: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Fetches proof data for multiple files from the subgraph.
+   *
+   * @private
+   * @param fileIds - Array of file IDs to fetch proofs for
+   * @param subgraphUrl - The subgraph endpoint URL
+   * @returns Map of file IDs to their associated DLP IDs
+   */
+  private async _fetchProofsFromSubgraph(
+    fileIds: number[],
+    subgraphUrl: string,
+  ): Promise<Map<number, number[]>> {
+    const query = `
+      query GetFileProofs($fileIds: [BigInt!]!) {
+        dataRegistryProofs(where: { fileId_in: $fileIds }) {
+          fileId
+          dlp {
+            id
+          }
+        }
+      }
+    `;
+
+    const response = await fetch(subgraphUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query,
+        variables: {
+          fileIds: fileIds.map((id) => id.toString()),
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Subgraph request failed: ${response.status} ${response.statusText}`,
+      );
+    }
+
+    const result = (await response.json()) as {
+      data?: {
+        dataRegistryProofs?: Array<{
+          fileId: string;
+          dlp?: { id: string };
+        }>;
+      };
+      errors?: Array<{ message: string }>;
+    };
+
+    if (result.errors) {
+      throw new Error(
+        `Subgraph errors: ${result.errors.map((e) => e.message).join(", ")}`,
+      );
+    }
+
+    // Build map of fileId -> dlpIds
+    const proofMap = new Map<number, number[]>();
+
+    if (result.data?.dataRegistryProofs) {
+      for (const proof of result.data.dataRegistryProofs) {
+        if (proof.dlp?.id) {
+          const fileId = parseInt(proof.fileId);
+          const dlpId = parseInt(proof.dlp.id);
+
+          if (!proofMap.has(fileId)) {
+            proofMap.set(fileId, []);
+          }
+
+          const dlpIds = proofMap.get(fileId)!;
+          if (!dlpIds.includes(dlpId)) {
+            dlpIds.push(dlpId);
+          }
+        }
+      }
+    }
+
+    return proofMap;
+  }
+
+  /**
+   * Fetches proof data for multiple files from the blockchain.
+   * Falls back to this when subgraph is unavailable.
+   *
+   * @private
+   * @param fileIds - Array of file IDs to fetch proofs for
+   * @returns Map of file IDs to their associated DLP IDs
+   */
+  private async _fetchProofsFromChain(
+    fileIds: number[],
+  ): Promise<Map<number, number[]>> {
+    const chainId = this.context.walletClient.chain?.id;
+    if (!chainId) {
+      throw new Error("Chain ID not available");
+    }
+
+    const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
+    const dataRegistryAbi = getAbi("DataRegistry");
+
+    const proofMap = new Map<number, number[]>();
+
+    // For each file, fetch proofs by incrementing index until revert
+    for (const fileId of fileIds) {
+      const dlpIds: number[] = [];
+      let proofIndex = 0;
+      let hasMoreProofs = true;
+
+      while (hasMoreProofs) {
+        try {
+          const proof = (await this.context.publicClient.readContract({
+            address: dataRegistryAddress,
+            abi: dataRegistryAbi,
+            functionName: "fileProofs",
+            args: [BigInt(fileId), BigInt(proofIndex)],
+          })) as {
+            signature: `0x${string}`;
+            data: {
+              score: bigint;
+              dlpId: bigint;
+              metadata: string;
+              proofUrl: string;
+              instruction: string;
+            };
+          };
+
+          if (proof?.data?.dlpId) {
+            const dlpId = Number(proof.data.dlpId);
+            if (!dlpIds.includes(dlpId)) {
+              dlpIds.push(dlpId);
+            }
+          }
+
+          proofIndex++;
+        } catch {
+          // No more proofs for this file
+          hasMoreProofs = false;
+        }
+      }
+
+      if (dlpIds.length > 0) {
+        proofMap.set(fileId, dlpIds);
+      }
+    }
+
+    return proofMap;
+  }
+
+  /**
+   * Retrieves information about a specific Data Liquidity Pool (DLP).
+   *
+   * @remarks
+   * DLPs are entities that process and verify data files in the Vana network.
+   * This method fetches DLP metadata including name, status, and performance rating.
+   * Uses subgraph first for efficiency, falls back to chain if unavailable.
+   *
+   * @param dlpId - The unique identifier of the DLP
+   * @param options - Optional parameters
+   * @param options.subgraphUrl - Custom subgraph URL to override default
+   * @returns Promise resolving to DLP information
+   * @throws {Error} When DLP cannot be found - "DLP not found: {dlpId}"
+   * @throws {Error} When query fails - "Failed to fetch DLP: {error}"
+   * @example
+   * ```typescript
+   * const dlp = await vana.data.getDLP(26);
+   * console.log(`DLP ${dlp.name}: ${dlp.status}`);
+   * ```
+   */
+  async getDLP(
+    dlpId: number,
+    options: { subgraphUrl?: string } = {},
+  ): Promise<{
+    id: number;
+    name: string;
+    metadata?: string;
+    status?: number;
+    address?: Address;
+    owner?: Address;
+  }> {
+    const subgraphUrl = options.subgraphUrl || this.context.subgraphUrl;
+
+    // Try subgraph first if available
+    if (subgraphUrl) {
+      try {
+        const query = `
+          query GetDLP($id: ID!) {
+            dlp(id: $id) {
+              id
+              name
+              metadata
+              status
+              address
+              owner
+            }
+          }
+        `;
+
+        const response = await fetch(subgraphUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            query,
+            variables: {
+              id: dlpId.toString(),
+            },
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(
+            `Subgraph request failed: ${response.status} ${response.statusText}`,
+          );
+        }
+
+        const result = (await response.json()) as {
+          data?: {
+            dlp?: {
+              id: string;
+              name?: string;
+              metadata?: string;
+              status?: string;
+              address?: string;
+              owner?: string;
+            };
+          };
+          errors?: Array<{ message: string }>;
+        };
+
+        if (result.errors) {
+          throw new Error(
+            `Subgraph errors: ${result.errors.map((e) => e.message).join(", ")}`,
+          );
+        }
+
+        if (!result.data?.dlp) {
+          throw new Error(`DLP not found: ${dlpId}`);
+        }
+
+        return {
+          id: parseInt(result.data.dlp.id),
+          name: result.data.dlp.name || "",
+          metadata: result.data.dlp.metadata,
+          status: result.data.dlp.status
+            ? parseInt(result.data.dlp.status)
+            : undefined,
+          address: result.data.dlp.address as Address | undefined,
+          owner: result.data.dlp.owner as Address | undefined,
+        };
+      } catch (error) {
+        console.debug("Subgraph query failed, falling back to chain:", error);
+        // Fall through to chain query
+      }
+    }
+
+    // Chain fallback - read from DLP Registry contract
+    try {
+      const chainId = this.context.walletClient.chain?.id;
+      if (!chainId) {
+        throw new Error("Chain ID not available");
+      }
+
+      const dlpRegistryAddress = getContractAddress(chainId, "DLPRegistry");
+      const dlpRegistryAbi = getAbi("DLPRegistry");
+
+      const dlpData = (await this.context.publicClient.readContract({
+        address: dlpRegistryAddress,
+        abi: dlpRegistryAbi,
+        functionName: "dlps",
+        args: [BigInt(dlpId)],
+      })) as {
+        id: bigint;
+        dlpAddress: Address;
+        ownerAddress: Address;
+        tokenAddress: Address;
+        treasuryAddress: Address;
+        name: string;
+        iconUrl: string;
+        website: string;
+        metadata: string;
+        registrationBlockNumber: bigint;
+        depositAmount: bigint;
+        status: number;
+        lpTokenId: bigint;
+        verificationBlockNumber: bigint;
+      };
+
+      if (!dlpData || !dlpData.name) {
+        throw new Error(`DLP not found: ${dlpId}`);
+      }
+
+      return {
+        id: dlpId,
+        name: dlpData.name,
+        metadata: dlpData.metadata,
+        status: dlpData.status,
+        address: dlpData.dlpAddress,
+        owner: dlpData.ownerAddress,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to fetch DLP: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Lists all Data Liquidity Pools (DLPs) with optional pagination.
+   *
+   * @remarks
+   * Fetches a paginated list of all DLPs registered in the network.
+   * Uses subgraph for efficient querying with fallback to chain multicall.
+   *
+   * @param options - Optional parameters for pagination and filtering
+   * @param options.limit - Maximum number of DLPs to return (default: 100)
+   * @param options.offset - Number of DLPs to skip (default: 0)
+   * @param options.subgraphUrl - Custom subgraph URL to override default
+   * @returns Promise resolving to array of DLP information
+   * @throws {Error} When query fails - "Failed to list DLPs: {error}"
+   * @example
+   * ```typescript
+   * // Get first 10 DLPs
+   * const dlps = await vana.data.listDLPs({ limit: 10 });
+   * dlps.forEach(dlp => console.log(`${dlp.id}: ${dlp.name}`));
+   *
+   * // Get next page
+   * const nextPage = await vana.data.listDLPs({ limit: 10, offset: 10 });
+   * ```
+   */
+  async listDLPs(
+    options: {
+      limit?: number;
+      offset?: number;
+      subgraphUrl?: string;
+    } = {},
+  ): Promise<
+    Array<{
+      id: number;
+      name: string;
+      metadata?: string;
+      status?: number;
+      address?: Address;
+      owner?: Address;
+    }>
+  > {
+    const { limit = 100, offset = 0 } = options;
+    const subgraphUrl = options.subgraphUrl || this.context.subgraphUrl;
+
+    // Try subgraph first if available
+    if (subgraphUrl) {
+      try {
+        const query = `
+          query ListDLPs($first: Int!, $skip: Int!) {
+            dlps(first: $first, skip: $skip, orderBy: id) {
+              id
+              name
+              metadata
+              status
+              address
+              owner
+            }
+          }
+        `;
+
+        const response = await fetch(subgraphUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            query,
+            variables: {
+              first: limit,
+              skip: offset,
+            },
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(
+            `Subgraph request failed: ${response.status} ${response.statusText}`,
+          );
+        }
+
+        const result = (await response.json()) as {
+          data?: {
+            dlps?: Array<{
+              id: string;
+              name?: string;
+              metadata?: string;
+              status?: string;
+              address?: string;
+              owner?: string;
+            }>;
+          };
+          errors?: Array<{ message: string }>;
+        };
+
+        if (result.errors) {
+          throw new Error(
+            `Subgraph errors: ${result.errors.map((e) => e.message).join(", ")}`,
+          );
+        }
+
+        const dlps = result.data?.dlps || [];
+
+        return dlps.map((dlp) => ({
+          id: parseInt(dlp.id),
+          name: dlp.name || "",
+          metadata: dlp.metadata,
+          status: dlp.status ? parseInt(dlp.status) : undefined,
+          address: dlp.address as Address | undefined,
+          owner: dlp.owner as Address | undefined,
+        }));
+      } catch (error) {
+        console.debug("Subgraph query failed, falling back to chain:", error);
+        // Fall through to chain query
+      }
+    }
+
+    // Chain fallback - use multicall to batch read DLPs
+    try {
+      const chainId = this.context.walletClient.chain?.id;
+      if (!chainId) {
+        throw new Error("Chain ID not available");
+      }
+
+      const dlpRegistryAddress = getContractAddress(chainId, "DLPRegistry");
+      const dlpRegistryAbi = getAbi("DLPRegistry");
+
+      // First get the total count
+      const dlpCount = (await this.context.publicClient.readContract({
+        address: dlpRegistryAddress,
+        abi: dlpRegistryAbi,
+        functionName: "dlpsCount",
+        args: [],
+      })) as bigint;
+
+      const totalCount = Number(dlpCount);
+      const start = offset;
+      const end = Math.min(start + limit, totalCount);
+
+      if (end <= start) {
+        return [];
+      }
+
+      // Build multicall for fetching DLP data
+      const calls = [];
+      for (let i = start + 1; i <= end; i++) {
+        // DLP IDs typically start at 1
+        calls.push({
+          address: dlpRegistryAddress,
+          abi: dlpRegistryAbi,
+          functionName: "dlps",
+          args: [BigInt(i)],
+        } as const);
+      }
+
+      const results = await gasAwareMulticall<
+        typeof calls,
+        true // Allow failures
+      >(this.context.publicClient, {
+        contracts: calls,
+        allowFailure: true,
+        batchSize: 50,
+      });
+
+      const dlps = [];
+      for (let i = 0; i < results.length; i++) {
+        const result = results[i];
+        if (result.status === "success" && result.result) {
+          const dlpData = result.result as {
+            id: bigint;
+            dlpAddress: Address;
+            ownerAddress: Address;
+            tokenAddress: Address;
+            treasuryAddress: Address;
+            name: string;
+            iconUrl: string;
+            website: string;
+            metadata: string;
+            registrationBlockNumber: bigint;
+            depositAmount: bigint;
+            status: number;
+            lpTokenId: bigint;
+            verificationBlockNumber: bigint;
+          };
+
+          if (dlpData.name) {
+            // Only include valid DLPs
+            dlps.push({
+              id: start + i + 1,
+              name: dlpData.name,
+              metadata: dlpData.metadata,
+              status: dlpData.status,
+              address: dlpData.dlpAddress,
+              owner: dlpData.ownerAddress,
+            });
+          }
+        }
+      }
+
+      return dlps;
+    } catch (error) {
+      throw new Error(
+        `Failed to list DLPs: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }
@@ -2148,19 +2691,31 @@ export class DataController {
   }
 
   /**
-   * Submits a file permission transaction and returns the transaction hash immediately.
+   * Submits a file permission transaction to the blockchain.
    *
-   * This is the lower-level method that provides maximum control over transaction timing.
+   * @remarks
+   * This method supports gasless transactions via relayer callbacks when configured.
+   * It encrypts the user's encryption key with the recipient's public key before submission.
    * Use this when you want to handle transaction confirmation and event parsing separately.
    *
-   * @param fileId - The ID of the file to add permissions for
-   * @param account - The address of the account to grant permission to
-   * @param publicKey - The public key to encrypt the user's encryption key with
-   * @returns Promise resolving to the transaction hash
+   * @param fileId - The ID of the file to grant permission for
+   * @param account - The recipient's wallet address that will access the file
+   * @param publicKey - The recipient's public key for encryption.
+   *   Obtain via `vana.server.getIdentity(account).public_key`
+   * @returns Promise resolving to TransactionHandle for tracking the transaction
+   * @throws {Error} When chain ID is not available
+   * @throws {Error} When encryption key generation fails
+   * @throws {Error} When public key encryption fails
+   *
    * @example
    * ```typescript
-   * const txHash = await vana.data.submitFilePermission(fileId, account, publicKey);
-   * console.log(`Transaction submitted: ${txHash}`);
+   * const tx = await vana.data.submitFilePermission(
+   *   fileId,
+   *   "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+   *   recipientPublicKey
+   * );
+   * const result = await tx.waitForEvents();
+   * console.log(`Permission granted with ID: ${result.permissionId}`);
    * ```
    */
   async submitFilePermission(
@@ -2183,7 +2738,7 @@ export class DataController {
         this.context.platform,
       );
 
-      // 3. Add permission to the file
+      // 3. Submit directly to the blockchain
       const chainId = this.context.walletClient.chain?.id;
       if (!chainId) {
         throw new Error("Chain ID not available");
@@ -2519,10 +3074,10 @@ export class DataController {
   }
 
   /**
-   * Validates a data schema against the Vana meta-schema.
+   * Validates a data schema definition against the Vana meta-schema.
    *
-   * @param schema - The data schema to validate
-   * @returns Assertion that schema is valid (throws if invalid)
+   * @param schema - The data schema definition to validate
+   * @returns The validated DataSchema
    * @throws SchemaValidationError if invalid
    * @example
    * ```typescript
@@ -2539,11 +3094,11 @@ export class DataController {
    *   }
    * };
    *
-   * vana.data.validateDataSchema(schema);
+   * const validatedSchema = vana.data.validateDataSchemaAgainstMetaSchema(schema);
    * ```
    */
-  validateDataSchema(schema: unknown): asserts schema is DataSchema {
-    return validateDataSchema(schema);
+  validateDataSchemaAgainstMetaSchema(schema: unknown): DataSchema {
+    return validateDataSchemaAgainstMetaSchema(schema);
   }
 
   /**
@@ -2578,9 +3133,9 @@ export class DataController {
   }
 
   /**
-   * Fetches and validates a schema from a URL, then returns the parsed data schema.
+   * Fetches and validates a data schema from a URL, then returns the parsed data schema.
    *
-   * @param url - The URL to fetch the schema from
+   * @param url - The URL to fetch the data schema from
    * @returns The validated data schema
    * @throws SchemaValidationError if invalid or fetch fails
    * @example

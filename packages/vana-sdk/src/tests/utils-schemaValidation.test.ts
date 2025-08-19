@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   SchemaValidator,
   SchemaValidationError,
-  validateDataSchema,
+  validateDataSchemaAgainstMetaSchema,
   validateDataAgainstSchema,
   fetchAndValidateSchema,
   schemaValidator,
@@ -53,11 +53,11 @@ describe("SchemaValidator", () => {
     it("should initialize with correct configuration", () => {
       expect(validator).toBeInstanceOf(SchemaValidator);
       // Test that the validator is properly initialized by using it
-      expect(() => validator.validateDataSchema({})).toThrow();
+      expect(() => validator.validateDataSchemaAgainstMetaSchema({})).toThrow();
     });
   });
 
-  describe("validateDataSchema", () => {
+  describe("validateDataSchemaAgainstMetaSchema", () => {
     it("should validate a correct JSON schema", () => {
       const validSchema = {
         name: "Test Schema",
@@ -72,7 +72,9 @@ describe("SchemaValidator", () => {
         },
       };
 
-      expect(() => validator.validateDataSchema(validSchema)).not.toThrow();
+      expect(() =>
+        validator.validateDataSchemaAgainstMetaSchema(validSchema),
+      ).not.toThrow();
     });
 
     it("should validate a correct SQLite schema", () => {
@@ -83,7 +85,9 @@ describe("SchemaValidator", () => {
         schema: "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);",
       };
 
-      expect(() => validator.validateDataSchema(validSchema)).not.toThrow();
+      expect(() =>
+        validator.validateDataSchemaAgainstMetaSchema(validSchema),
+      ).not.toThrow();
     });
 
     it("should validate a schema with description", () => {
@@ -95,7 +99,9 @@ describe("SchemaValidator", () => {
         schema: { type: "object" },
       };
 
-      expect(() => validator.validateDataSchema(validSchema)).not.toThrow();
+      expect(() =>
+        validator.validateDataSchemaAgainstMetaSchema(validSchema),
+      ).not.toThrow();
     });
 
     it("should validate a schema with dialectVersion", () => {
@@ -107,7 +113,9 @@ describe("SchemaValidator", () => {
         schema: "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);",
       };
 
-      expect(() => validator.validateDataSchema(validSchema)).not.toThrow();
+      expect(() =>
+        validator.validateDataSchemaAgainstMetaSchema(validSchema),
+      ).not.toThrow();
     });
 
     it("should throw error for missing required fields", () => {
@@ -116,9 +124,9 @@ describe("SchemaValidator", () => {
         // missing version, dialect, schema
       };
 
-      expect(() => validator.validateDataSchema(invalidSchema)).toThrow(
-        SchemaValidationError,
-      );
+      expect(() =>
+        validator.validateDataSchemaAgainstMetaSchema(invalidSchema),
+      ).toThrow(SchemaValidationError);
     });
 
     it("should throw error for invalid dialect", () => {
@@ -129,9 +137,9 @@ describe("SchemaValidator", () => {
         schema: "some schema",
       };
 
-      expect(() => validator.validateDataSchema(invalidSchema)).toThrow(
-        SchemaValidationError,
-      );
+      expect(() =>
+        validator.validateDataSchemaAgainstMetaSchema(invalidSchema),
+      ).toThrow(SchemaValidationError);
     });
 
     it("should throw error for wrong schema type with json dialect", () => {
@@ -142,9 +150,9 @@ describe("SchemaValidator", () => {
         schema: "should be object not string",
       };
 
-      expect(() => validator.validateDataSchema(invalidSchema)).toThrow(
-        SchemaValidationError,
-      );
+      expect(() =>
+        validator.validateDataSchemaAgainstMetaSchema(invalidSchema),
+      ).toThrow(SchemaValidationError);
     });
 
     it("should throw error for wrong schema type with sqlite dialect", () => {
@@ -155,9 +163,9 @@ describe("SchemaValidator", () => {
         schema: { type: "object" },
       };
 
-      expect(() => validator.validateDataSchema(invalidSchema)).toThrow(
-        SchemaValidationError,
-      );
+      expect(() =>
+        validator.validateDataSchemaAgainstMetaSchema(invalidSchema),
+      ).toThrow(SchemaValidationError);
     });
 
     it("should throw error for invalid JSON schema", () => {
@@ -170,9 +178,9 @@ describe("SchemaValidator", () => {
         },
       };
 
-      expect(() => validator.validateDataSchema(invalidSchema)).toThrow(
-        SchemaValidationError,
-      );
+      expect(() =>
+        validator.validateDataSchemaAgainstMetaSchema(invalidSchema),
+      ).toThrow(SchemaValidationError);
     });
 
     it("should throw error for additional properties", () => {
@@ -184,9 +192,9 @@ describe("SchemaValidator", () => {
         extraProperty: "not allowed",
       };
 
-      expect(() => validator.validateDataSchema(invalidSchema)).toThrow(
-        SchemaValidationError,
-      );
+      expect(() =>
+        validator.validateDataSchemaAgainstMetaSchema(invalidSchema),
+      ).toThrow(SchemaValidationError);
     });
   });
 
@@ -265,7 +273,7 @@ describe("SchemaValidator", () => {
       ).not.toThrow();
     });
 
-    it("should throw error for non-json dialect", () => {
+    it("should skip validation for non-json dialect with warning", () => {
       const sqliteSchema: DataSchema = {
         name: "SQLite Schema",
         version: "1.0.0",
@@ -275,9 +283,18 @@ describe("SchemaValidator", () => {
 
       const data = { name: "Alice" };
 
+      // Mock console.warn to verify it's called
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
       expect(() =>
         validator.validateDataAgainstSchema(data, sqliteSchema),
-      ).toThrow(SchemaValidationError);
+      ).not.toThrow();
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Data validation skipped: dialect 'sqlite'"),
+      );
+
+      warnSpy.mockRestore();
     });
 
     it("should throw error for non-object schema", () => {
@@ -295,7 +312,7 @@ describe("SchemaValidator", () => {
       ).toThrow(SchemaValidationError);
     });
 
-    it("should first validate the schema itself", () => {
+    it("should skip validation for unknown dialect with warning", () => {
       const invalidSchema = {
         name: "Invalid Schema",
         version: "1.0.0",
@@ -305,9 +322,18 @@ describe("SchemaValidator", () => {
 
       const data = { name: "Alice" };
 
+      // Mock console.warn to verify it's called
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
       expect(() =>
         validator.validateDataAgainstSchema(data, invalidSchema),
-      ).toThrow(SchemaValidationError);
+      ).not.toThrow();
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Data validation skipped: dialect 'invalid'"),
+      );
+
+      warnSpy.mockRestore();
     });
   });
 
@@ -564,7 +590,7 @@ describe("Convenience functions", () => {
     mockFetch.mockClear();
   });
 
-  describe("validateDataSchema", () => {
+  describe("validateDataSchemaAgainstMetaSchema", () => {
     it("should validate a correct schema", () => {
       const validSchema = {
         name: "User Schema",
@@ -579,7 +605,9 @@ describe("Convenience functions", () => {
         },
       };
 
-      expect(() => validateDataSchema(validSchema)).not.toThrow();
+      expect(() =>
+        validateDataSchemaAgainstMetaSchema(validSchema),
+      ).not.toThrow();
     });
 
     it("should throw error for invalid schema", () => {
@@ -588,7 +616,7 @@ describe("Convenience functions", () => {
         // missing required fields
       };
 
-      expect(() => validateDataSchema(invalidSchema)).toThrow(
+      expect(() => validateDataSchemaAgainstMetaSchema(invalidSchema)).toThrow(
         SchemaValidationError,
       );
     });

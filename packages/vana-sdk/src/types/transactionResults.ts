@@ -102,7 +102,7 @@ export interface GranteeRegisterResult extends BaseTransactionResult {
 
 /**
  * Result of a successful file addition operation.
- * Contains data from the FileAdded blockchain event.
+ * Contains data from the FileAddedV2 blockchain event.
  */
 export interface FileAddedResult extends BaseTransactionResult {
   /** Unique file ID assigned by the registry */
@@ -111,6 +111,8 @@ export interface FileAddedResult extends BaseTransactionResult {
   ownerAddress: Address;
   /** URL where the file is stored */
   url: string;
+  /** Schema ID associated with the file (0 for no schema) */
+  schemaId: bigint;
 }
 
 /**

@@ -25,7 +25,7 @@ export class OperationHandle<T = unknown> {
   private async pollForCompletion(options?: PollingOptions): Promise<T> {
     const startTime = Date.now();
     const timeout = options?.timeout ?? 30000;
-    const interval = options?.pollingInterval ?? 1000;
+    const interval = options?.pollingInterval ?? 500;
 
     while (true) {
       const result = await this.controller.getOperation(this.id);

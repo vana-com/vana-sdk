@@ -15,13 +15,13 @@ export async function POST(request: NextRequest) {
 
     const vana = getApiVanaInstance();
 
-    const response = await vana.server.createOperation({
+    const handle = await vana.server.createOperation({
       permissionId: +permissionId,
     });
 
     return NextResponse.json({
       success: true,
-      data: response,
+      data: { id: handle.id },
     });
   } catch (error) {
     console.error("Trusted server request failed:", error);

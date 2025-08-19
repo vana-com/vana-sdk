@@ -26,6 +26,19 @@ import { ControllerContext } from "./permissions";
 import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../generated/abi";
 import {
+  GetUserFilesQuery,
+  GetUserFilesDocument,
+  GetFileProofsQuery,
+  GetFileProofsDocument,
+  GetDlpQuery,
+  GetDlpDocument,
+  GetUserPermissionsQuery,
+  GetUserPermissionsDocument,
+  GetUserTrustedServersQuery,
+  GetUserTrustedServersDocument,
+} from "../generated/subgraph";
+import { print } from "graphql";
+import {
   generateEncryptionKey,
   decryptBlobWithSignedKey,
   DEFAULT_ENCRYPTION_SEED,
@@ -42,60 +55,12 @@ import {
 import { gasAwareMulticall } from "../utils/multicall";
 
 /**
- * GraphQL query response types for the new subgraph entities
+ * Subgraph response wrapper type for error handling
  */
-interface SubgraphFile {
-  id: string;
-  url: string;
-  schemaId: string;
-  addedAtBlock: string;
-  addedAtTimestamp: string;
-  transactionHash: string;
-  owner: {
-    id: string;
-  };
-}
-
-interface SubgraphPermission {
-  id: string;
-  grant: string;
-  nonce: string;
-  signature: string;
-  addedAtBlock: string;
-  addedAtTimestamp: string;
-  transactionHash: string;
-  user: {
-    id: string;
-  };
-}
-
-interface SubgraphUserServer {
-  id: string;
-  server: {
-    id: string;
-    serverAddress: string;
-    url: string;
-    publicKey: string;
-  };
-  trustedAt: string;
-  trustedAtBlock: string;
-  untrustedAtBlock?: string;
-  transactionHash: string;
-}
-
-interface SubgraphUser {
-  id: string;
-  files: SubgraphFile[];
-  permissions: SubgraphPermission[];
-  serverTrusts: SubgraphUserServer[];
-}
-
-interface SubgraphResponse {
-  data?: {
-    user?: SubgraphUser;
-  };
+type SubgraphResponse<T> = {
+  data?: T;
   errors?: Array<{ message: string }>;
-}
+};
 
 /**
  * Manages encrypted user data files and their blockchain registration on the Vana network.
@@ -611,25 +576,7 @@ export class DataController {
     }
 
     try {
-      // Query the subgraph for user's files using the new File entity
-      const query = `
-        query GetUserFiles($userId: ID!) {
-          user(id: $userId) {
-            id
-            files {
-              id
-              url
-              schemaId
-              addedAtBlock
-              addedAtTimestamp
-              transactionHash
-              owner {
-                id
-              }
-            }
-          }
-        }
-      `;
+      // Query the subgraph for user's files using the generated query
 
       const response = await fetch(endpoint, {
         method: "POST",
@@ -637,7 +584,7 @@ export class DataController {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          query,
+          query: print(GetUserFilesDocument),
           variables: {
             userId: owner.toLowerCase(), // Subgraph stores addresses in lowercase
           },
@@ -650,7 +597,8 @@ export class DataController {
         );
       }
 
-      const result = (await response.json()) as SubgraphResponse;
+      const result =
+        (await response.json()) as SubgraphResponse<GetUserFilesQuery>;
 
       if (result.errors) {
         throw new Error(
@@ -751,24 +699,13 @@ export class DataController {
     fileIds: number[],
     subgraphUrl: string,
   ): Promise<Map<number, number[]>> {
-    const query = `
-      query GetFileProofs($fileIds: [BigInt!]!) {
-        dataRegistryProofs(where: { fileId_in: $fileIds }) {
-          fileId
-          dlp {
-            id
-          }
-        }
-      }
-    `;
-
     const response = await fetch(subgraphUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        query,
+        query: print(GetFileProofsDocument),
         variables: {
           fileIds: fileIds.map((id) => id.toString()),
         },
@@ -781,15 +718,8 @@ export class DataController {
       );
     }
 
-    const result = (await response.json()) as {
-      data?: {
-        dataRegistryProofs?: Array<{
-          fileId: string;
-          dlp?: { id: string };
-        }>;
-      };
-      errors?: Array<{ message: string }>;
-    };
+    const result =
+      (await response.json()) as SubgraphResponse<GetFileProofsQuery>;
 
     if (result.errors) {
       throw new Error(
@@ -924,26 +854,13 @@ export class DataController {
     // Try subgraph first if available
     if (subgraphUrl) {
       try {
-        const query = `
-          query GetDLP($id: ID!) {
-            dlp(id: $id) {
-              id
-              name
-              metadata
-              status
-              address
-              owner
-            }
-          }
-        `;
-
         const response = await fetch(subgraphUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            query,
+            query: print(GetDlpDocument),
             variables: {
               id: dlpId.toString(),
             },
@@ -956,19 +873,7 @@ export class DataController {
           );
         }
 
-        const result = (await response.json()) as {
-          data?: {
-            dlp?: {
-              id: string;
-              name?: string;
-              metadata?: string;
-              status?: string;
-              address?: string;
-              owner?: string;
-            };
-          };
-          errors?: Array<{ message: string }>;
-        };
+        const result = (await response.json()) as SubgraphResponse<GetDlpQuery>;
 
         if (result.errors) {
           throw new Error(
@@ -983,7 +888,7 @@ export class DataController {
         return {
           id: parseInt(result.data.dlp.id),
           name: result.data.dlp.name || "",
-          metadata: result.data.dlp.metadata,
+          metadata: result.data.dlp.metadata || undefined,
           status: result.data.dlp.status
             ? parseInt(result.data.dlp.status)
             : undefined,
@@ -1328,26 +1233,7 @@ export class DataController {
     const { user, subgraphUrl } = params;
 
     try {
-      // Query the subgraph for user's permissions using the new Permission entity
-      const query = `
-        query GetUserPermissions($userId: ID!) {
-          user(id: $userId) {
-            id
-            permissions {
-              id
-              grant
-              nonce
-              signature
-              addedAtBlock
-              addedAtTimestamp
-              transactionHash
-              user {
-                id
-              }
-            }
-          }
-        }
-      `;
+      // Query the subgraph for user's permissions using the generated query
 
       const response = await fetch(subgraphUrl, {
         method: "POST",
@@ -1355,7 +1241,7 @@ export class DataController {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          query,
+          query: print(GetUserPermissionsDocument),
           variables: {
             userId: user.toLowerCase(),
           },
@@ -1368,7 +1254,8 @@ export class DataController {
         );
       }
 
-      const result = (await response.json()) as SubgraphResponse;
+      const result =
+        (await response.json()) as SubgraphResponse<GetUserPermissionsQuery>;
 
       if (result.errors) {
         throw new Error(
@@ -1391,7 +1278,7 @@ export class DataController {
           addedAtBlock: BigInt(permission.addedAtBlock),
           addedAtTimestamp: BigInt(permission.addedAtTimestamp),
           transactionHash: permission.transactionHash as Address,
-          user: permission.user.id as Address,
+          user: user as Address,
         }))
         .sort((a, b) => Number(b.addedAtTimestamp - a.addedAtTimestamp)); // Latest first
     } catch (error) {
@@ -1633,27 +1520,7 @@ export class DataController {
     }
 
     try {
-      // Query the subgraph for user's trusted servers
-      const query = `
-        query GetUserTrustedServers($userId: ID!) {
-          user(id: $userId) {
-            id
-            serverTrusts {
-              id
-              server {
-                id
-                serverAddress
-                url
-                publicKey
-              }
-              trustedAt
-              trustedAtBlock
-              untrustedAtBlock
-              transactionHash
-            }
-          }
-        }
-      `;
+      // Query the subgraph for user's trusted servers using the generated query
 
       const response = await fetch(graphqlEndpoint, {
         method: "POST",
@@ -1661,7 +1528,7 @@ export class DataController {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          query,
+          query: print(GetUserTrustedServersDocument),
           variables: {
             userId: user.toLowerCase(), // Subgraph stores addresses in lowercase
           },
@@ -1674,7 +1541,8 @@ export class DataController {
         );
       }
 
-      const result = (await response.json()) as SubgraphResponse;
+      const result =
+        (await response.json()) as SubgraphResponse<GetUserTrustedServersQuery>;
 
       if (result.errors) {
         throw new Error(

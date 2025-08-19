@@ -430,6 +430,19 @@ export const DataRegistryABI = [
   },
   {
     inputs: [],
+    name: "DATA_PORTABILITY_ROLE",
+    outputs: [
+      {
+        internalType: "bytes32",
+        name: "",
+        type: "bytes32",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
     name: "DEFAULT_ADMIN_ROLE",
     outputs: [
       {
@@ -518,6 +531,41 @@ export const DataRegistryABI = [
       },
     ],
     name: "addFilePermission",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "fileId",
+        type: "uint256",
+      },
+      {
+        components: [
+          {
+            internalType: "address",
+            name: "account",
+            type: "address",
+          },
+          {
+            internalType: "string",
+            name: "key",
+            type: "string",
+          },
+        ],
+        internalType: "struct IDataRegistry.Permission[]",
+        name: "permissions",
+        type: "tuple[]",
+      },
+      {
+        internalType: "uint256",
+        name: "schemaId",
+        type: "uint256",
+      },
+    ],
+    name: "addFilePermissionsAndSchema",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",

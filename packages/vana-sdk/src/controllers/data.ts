@@ -2738,29 +2738,7 @@ export class DataController {
         this.context.platform,
       );
 
-      // 3. Check for relayer callbacks first
-      if (this.context.relayerCallbacks?.submitFilePermission) {
-        console.debug(
-          "📝 Using relayer for submitFilePermission (gasless transaction)",
-        );
-        const userAddress = await this.getUserAddress();
-        const txHash = await this.context.relayerCallbacks.submitFilePermission(
-          {
-            fileId,
-            account,
-            encryptedKey,
-            userAddress,
-          },
-        );
-        return new TransactionHandle<FilePermissionResult>(
-          this.context,
-          txHash,
-          "addFilePermission",
-        );
-      }
-
-      // 4. If no relayer, submit directly to the blockchain
-      console.debug("📝 Using direct transaction for submitFilePermission");
+      // 3. Submit directly to the blockchain
       const chainId = this.context.walletClient.chain?.id;
       if (!chainId) {
         throw new Error("Chain ID not available");
@@ -2790,63 +2768,6 @@ export class DataController {
         `Failed to add permission to file: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
-  }
-
-  /**
-   * Composes the EIP-712 typed data for FilePermission.
-   *
-   * @param params - The parameters for composing the file permission message
-   * @param params.nonce - The user's nonce for preventing replay attacks
-   * @param params.fileId - The ID of the file to grant permission for
-   * @param params.account - The account address to grant permission to
-   * @param params.encryptedKey - The encrypted key for the permission
-   * @returns Promise resolving to the typed data structure
-   */
-  private async composeFilePermissionMessage(params: {
-    nonce: bigint;
-    fileId: number;
-    account: Address;
-    encryptedKey: string;
-  }): Promise<import("../types").FilePermissionTypedData> {
-    const chainId = this.context.walletClient.chain?.id;
-    if (!chainId) {
-      throw new Error("Chain ID not available");
-    }
-
-    const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
-
-    // Create EIP-712 domain
-    const domain = {
-      name: "VanaDataRegistry",
-      version: "1",
-      chainId,
-      verifyingContract: dataRegistryAddress,
-    };
-
-    // Define the FilePermission type structure
-    const types = {
-      FilePermission: [
-        { name: "nonce", type: "uint256" },
-        { name: "fileId", type: "uint256" },
-        { name: "account", type: "address" },
-        { name: "encryptedKey", type: "string" },
-      ],
-    };
-
-    // Create the message
-    const message: import("../types").FilePermissionInput = {
-      nonce: params.nonce,
-      fileId: params.fileId,
-      account: params.account,
-      encryptedKey: params.encryptedKey,
-    };
-
-    return {
-      domain,
-      types,
-      primaryType: "FilePermission" as const,
-      message,
-    };
   }
 
   /**

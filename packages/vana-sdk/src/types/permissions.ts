@@ -957,38 +957,3 @@ export interface ServerFilesAndPermissionTypedData extends GenericTypedData {
     filePermissions: Permission[][];
   };
 }
-
-/**
- * Input structure for FilePermission typed data
- *
- * @category Permissions
- */
-export interface FilePermissionInput extends RecordCompatible {
-  /** User nonce */
-  nonce: bigint;
-  /** File ID to grant permission for */
-  fileId: number;
-  /** Account address to grant permission to */
-  account: Address;
-  /** Encrypted key for the permission */
-  encryptedKey: string;
-}
-
-/**
- * EIP-712 typed data for FilePermission
- *
- * @category Permissions
- */
-export interface FilePermissionTypedData extends GenericTypedData {
-  /** EIP-712 types */
-  types: {
-    FilePermission: Array<{
-      name: string;
-      type: string;
-    }>;
-  };
-  /** Primary type */
-  primaryType: "FilePermission";
-  /** Message to sign */
-  message: FilePermissionInput;
-}

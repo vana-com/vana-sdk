@@ -138,8 +138,6 @@ export type {
   RevokePermissionInput,
   TrustedServerInfo,
   PaginatedTrustedServers,
-  FilePermissionInput,
-  FilePermissionTypedData,
   TrustedServerQueryOptions,
   BatchServerInfoResult,
   ServerTrustStatus,

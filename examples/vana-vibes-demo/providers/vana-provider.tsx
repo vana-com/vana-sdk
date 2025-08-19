@@ -129,6 +129,10 @@ const createPermissionGrantCallback =
     return result.transactionHash as `0x${string}`;
   };
 
+// Note: File permission relaying is not yet implemented on the server side
+// The submitFilePermission method will handle signing and submission directly
+// through the SDK's built-in relayer support
+
 export function VanaProvider({
   children,
   useGaslessTransactions = true,
@@ -174,6 +178,9 @@ export function VanaProvider({
                 "/api/relay",
                 address,
               ),
+              // Note: submitFilePermission is not configured here as it requires
+              // client-side encryption key generation. The SDK will fall back to
+              // direct transaction submission for now.
             }
           : undefined;
 

@@ -1,4 +1,5 @@
 import type { ServerController } from "../controllers/server";
+import type { GetOperationResponse } from "../generated/server/server-exports";
 import { PersonalServerError } from "../errors";
 
 /**
@@ -35,10 +36,11 @@ export class OperationHandle<T = unknown> {
    * @remarks
    * Results are memoized - multiple calls return the same promise.
    * The method polls the server at regular intervals until the operation
-   * succeeds, fails, or times out.
+   * succeeds, fails, or times out. Returns the raw string result from the
+   * server - callers are responsible for parsing if needed.
    *
    * @param options - Optional polling configuration
-   * @returns The operation result when completed
+   * @returns The operation result as a string when completed
    * @throws {PersonalServerError} When the operation fails or times out
    * @example
    * ```typescript
@@ -46,6 +48,8 @@ export class OperationHandle<T = unknown> {
    *   timeout: 60000,
    *   pollingInterval: 500
    * });
+   * // If expecting JSON, parse it:
+   * const data = JSON.parse(result);
    * ```
    */
   async waitForResult(options?: PollingOptions): Promise<T> {
@@ -61,11 +65,14 @@ export class OperationHandle<T = unknown> {
     const interval = options?.pollingInterval ?? 500;
 
     while (true) {
-      const result = await this.controller.getOperation(this.id);
+      const result: GetOperationResponse = await this.controller.getOperation(
+        this.id,
+      );
 
       if (result.status === "succeeded") {
         if (result.result) {
-          return JSON.parse(result.result) as T;
+          // Return the raw string result - let the caller handle parsing if needed
+          return result.result as T;
         }
         throw new PersonalServerError(
           "Operation succeeded but returned no result",

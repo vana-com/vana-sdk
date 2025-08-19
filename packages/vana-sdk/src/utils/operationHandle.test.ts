@@ -13,11 +13,11 @@ describe("OperationHandle", () => {
   });
 
   describe("waitForResult", () => {
-    it("should return result when operation succeeds", async () => {
-      const expectedResult = { data: "test" };
+    it("should return raw string result when operation succeeds", async () => {
+      const expectedResult = "test result";
       vi.mocked(mockController.getOperation).mockResolvedValue({
         status: "succeeded",
-        result: JSON.stringify(expectedResult),
+        result: expectedResult,
       } as any);
 
       const handle = new OperationHandle(mockController, "test-id");
@@ -25,6 +25,21 @@ describe("OperationHandle", () => {
 
       expect(result).toEqual(expectedResult);
       expect(mockController.getOperation).toHaveBeenCalledWith("test-id");
+    });
+
+    it("should return JSON string as-is (not parsed)", async () => {
+      const jsonString = '{"data": "test"}';
+      vi.mocked(mockController.getOperation).mockResolvedValue({
+        status: "succeeded",
+        result: jsonString,
+      } as any);
+
+      const handle = new OperationHandle(mockController, "test-id");
+      const result = await handle.waitForResult();
+
+      // Should return the raw string, not the parsed object
+      expect(result).toEqual(jsonString);
+      expect(typeof result).toBe("string");
     });
 
     it("should throw error when operation fails", async () => {
@@ -44,13 +59,13 @@ describe("OperationHandle", () => {
         .mockResolvedValueOnce({ status: "running" } as any)
         .mockResolvedValueOnce({
           status: "succeeded",
-          result: JSON.stringify({ data: "test" }),
+          result: "test result",
         } as any);
 
       const handle = new OperationHandle(mockController, "test-id");
       const result = await handle.waitForResult({ pollingInterval: 10 });
 
-      expect(result).toEqual({ data: "test" });
+      expect(result).toEqual("test result");
       expect(mockController.getOperation).toHaveBeenCalledTimes(3);
     });
 
@@ -67,10 +82,10 @@ describe("OperationHandle", () => {
     });
 
     it("should cache result on subsequent calls", async () => {
-      const expectedResult = { data: "test" };
+      const expectedResult = "test result";
       vi.mocked(mockController.getOperation).mockResolvedValue({
         status: "succeeded",
-        result: JSON.stringify(expectedResult),
+        result: expectedResult,
       } as any);
 
       const handle = new OperationHandle(mockController, "test-id");

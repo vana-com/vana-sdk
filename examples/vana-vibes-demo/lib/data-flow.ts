@@ -273,8 +273,8 @@ export class DataPortabilityFlow {
     }
   }
 
-  async submitInferenceRequest(permissionId: string): Promise<string> {
-    this.callbacks.onStatusUpdate("Submitting AI inference request...");
+  async submitInferenceRequest(permissionId: string): Promise<unknown> {
+    this.callbacks.onStatusUpdate("Processing AI inference request...");
 
     try {
       const response = await fetch("/api/trusted-server", {
@@ -300,14 +300,10 @@ export class DataPortabilityFlow {
         throw new Error(result.error || "API request failed");
       }
 
-      if (!result.data?.id) {
-        throw new Error("Operation ID not found in inference response");
-      }
-
-      this.callbacks.onStatusUpdate(
-        `Inference request submitted. Operation ID: ${result.data.id}`,
-      );
-      return result.data.id; // Return operationId for polling
+      this.callbacks.onStatusUpdate("AI inference completed!");
+      const inferenceResult = result.data?.result || result.data;
+      this.callbacks.onResultUpdate(JSON.stringify(inferenceResult, null, 2));
+      return inferenceResult;
     } catch (error) {
       console.error("Debug - Inference submission failed:", error);
       throw new Error(
@@ -316,76 +312,6 @@ export class DataPortabilityFlow {
         }`,
       );
     }
-  }
-
-  async pollForResults(operationId: string): Promise<string> {
-    this.callbacks.onStatusUpdate("Waiting for AI inference results...");
-
-    const maxAttempts = 30;
-    const pollInterval = 5000; // 5 seconds
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        const response = await fetch("/api/trusted-server/poll", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            operationId,
-            chainId: 14800, // Moksha testnet
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error("Polling request failed");
-        }
-
-        const result = await response.json();
-
-        if (!result.success) {
-          throw new Error(result.error || "Polling request failed");
-        }
-
-        const data = result.data;
-
-        // Check if operation is complete
-        if (data?.status && data.status !== "processing") {
-          if (data.status === "succeeded") {
-            this.callbacks.onStatusUpdate("AI inference completed!");
-            const result = JSON.stringify(data?.result || data, null, 2);
-            this.callbacks.onResultUpdate(result);
-            return result;
-          }
-          if (data.status === "failed" || data.status === "canceled") {
-            throw new Error(
-              `Operation ${data.status}: ${data.result || "Unknown error"}`,
-            );
-          }
-        } else {
-          this.callbacks.onStatusUpdate(
-            `Polling attempt ${attempt}/${maxAttempts}: Still processing...`,
-          );
-
-          if (attempt < maxAttempts) {
-            await new Promise((resolve) => setTimeout(resolve, pollInterval));
-          }
-        }
-      } catch {
-        if (attempt < maxAttempts) {
-          this.callbacks.onStatusUpdate(
-            `Polling attempt ${attempt} failed, retrying...`,
-          );
-          await new Promise((resolve) => setTimeout(resolve, pollInterval));
-        } else {
-          throw new Error(
-            "AI inference timed out after maximum polling attempts",
-          );
-        }
-      }
-    }
-
-    throw new Error("AI inference timed out after maximum polling attempts");
   }
 
   async executeCompleteFlow(
@@ -418,11 +344,8 @@ export class DataPortabilityFlow {
         schemaId,
       );
 
-      // Step 4: Submit AI inference request
-      const operationId = await this.submitInferenceRequest(permissionId);
-
-      // Step 5: Poll for AI inference results
-      await this.pollForResults(operationId);
+      // Step 4: Submit AI inference request and wait for result
+      await this.submitInferenceRequest(permissionId);
 
       this.callbacks.onStatusUpdate(
         "Data portability flow completed successfully!",

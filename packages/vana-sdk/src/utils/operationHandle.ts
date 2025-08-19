@@ -1,5 +1,4 @@
 import type { ServerController } from "../controllers/server";
-import type { GetOperationResponse } from "../generated/server/server-exports";
 import { PersonalServerError } from "../errors";
 
 /**
@@ -68,12 +67,14 @@ export class OperationHandle<T = unknown> {
         if (result.result) {
           return JSON.parse(result.result) as T;
         }
-        throw new PersonalServerError("Operation succeeded but returned no result");
+        throw new PersonalServerError(
+          "Operation succeeded but returned no result",
+        );
       }
 
-      if (result.status === "failed" || result.status === "canceled") {
+      if (result.status === "failed") {
         throw new PersonalServerError(
-          `Operation ${result.status}: ${result.result || "Unknown error"}`
+          `Operation ${result.status}: ${result.result || "Unknown error"}`,
         );
       }
 
@@ -81,7 +82,7 @@ export class OperationHandle<T = unknown> {
         throw new PersonalServerError(`Operation timed out after ${timeout}ms`);
       }
 
-      await new Promise(resolve => setTimeout(resolve, interval));
+      await new Promise((resolve) => setTimeout(resolve, interval));
     }
   }
 }

@@ -401,38 +401,6 @@ function SchemaExplorerContent() {
     }));
   };
 
-  // Polling utility for server operations via API route
-  const pollForResults = async (operationId: string): Promise<unknown> => {
-    const maxAttempts = 30;
-    const interval = 5000;
-
-    for (let i = 1; i <= maxAttempts; i++) {
-      const res = await fetch("/api/trusted-server/poll", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ operationId, chainId: 14800 }),
-      });
-
-      const data = await res.json();
-
-      // Check if operation is complete (succeeded, failed, or canceled)
-      if (data.data?.status && data.data.status !== "processing") {
-        if (data.data.status === "succeeded") {
-          return data.data;
-        }
-        if (data.data.status === "failed" || data.data.status === "canceled") {
-          throw new Error(
-            `Operation ${data.data.status}: ${data.data.result || "Unknown error"}`,
-          );
-        }
-      }
-
-      setStatus(`Processing... (${i}/${maxAttempts})`);
-      if (i < maxAttempts) await new Promise((r) => setTimeout(r, interval));
-    }
-    throw new Error("Operation timed out");
-  };
-
   // Handle processing with existing file - now uses fixed contract that supports existing files
   const handleStartFlow = async () => {
     const walletAddress = wallet?.address || address;
@@ -554,8 +522,8 @@ function SchemaExplorerContent() {
 
       setStatus(`Permission granted: ${permissionId}`);
 
-      // Submit AI inference request
-      setStatus("Submitting AI inference request...");
+      // Submit AI inference request and wait for result
+      setStatus("Processing AI inference request...");
 
       const inferenceResponse = await fetch("/api/trusted-server", {
         method: "POST",
@@ -580,18 +548,14 @@ function SchemaExplorerContent() {
         throw new Error(inferenceResult.error || "API request failed");
       }
 
-      if (!inferenceResult.data?.id) {
-        throw new Error("Operation ID not found in inference response");
-      }
-
-      const operationId = inferenceResult.data.id;
-      setStatus("Waiting for AI inference results...");
-
-      // Poll for results
-      const result = await pollForResults(operationId);
       setStatus("AI inference completed!");
-      const resultData = result as { result?: unknown } | null;
-      setResult(JSON.stringify(resultData?.result || resultData, null, 2));
+      setResult(
+        JSON.stringify(
+          inferenceResult.data?.result || inferenceResult.data,
+          null,
+          2,
+        ),
+      );
     } catch (error) {
       // Specific error handling based on operation phase
       const errorMessage =

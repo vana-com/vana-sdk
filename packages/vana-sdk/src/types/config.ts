@@ -263,6 +263,23 @@ export interface RelayerCallbacks {
    * @returns Promise resolving to the storage URL
    */
   storeGrantFile?: (grantData: GrantFile) => Promise<string>;
+
+  /**
+   * Submit a signed file permission transaction for relay
+   *
+   * @param params - Complete parameters for file permission
+   * @param params.fileId - The file ID to grant permission for
+   * @param params.account - The account address to grant permission to
+   * @param params.encryptedKey - The encrypted key for the permission
+   * @param params.userAddress - The user's address (owner of the file)
+   * @returns Promise resolving to the transaction hash
+   */
+  submitFilePermission?: (params: {
+    fileId: number;
+    account: Address;
+    encryptedKey: string;
+    userAddress: Address;
+  }) => Promise<Hash>;
 }
 
 /**

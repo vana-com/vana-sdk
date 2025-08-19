@@ -1,3 +1,21 @@
+/**
+ * Schema Explorer Demo
+ *
+ * This demo showcases allowing users to filter and use
+ * their encrypted files based on schemas OR Data Liquidity Pools (DLPs).
+ *
+ * Key concepts demonstrated:
+ * - Schema-based file filtering: Find files that conform to specific data structures
+ * - DLP-based file filtering: Find files processed by specific Data Liquidity Pools
+ * - Combined filtering: Filter by both schema AND DLP for precise data selection
+ * - Secure AI inference: Process filtered files with AI while maintaining encryption
+ *
+ * Flow:
+ * 1. Connect wallet and Google Drive
+ * 2. Select schema and/or DLP to filter user's files
+ * 3. Choose a specific file from filtered results
+ * 4. Process file with AI using secure server-side inference
+ */
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -52,20 +70,24 @@ interface DLPWithCount {
 }
 
 interface SchemaExplorerState {
+  // Data
   schemas: SchemaWithCount[];
   userFiles: UserFile[];
+  dlpsWithCounts: DLPWithCount[];
+  // Selection state
   selectedSchemaId: number | null;
   selectedDlpId: number | null;
-  dlpsWithCounts: DLPWithCount[];
-  isLoadingDlps: boolean;
   selectedFileId: number | null;
-  decryptedData: string;
-  isLoadingSchemas: boolean;
-  isDecrypting: boolean;
-  schemaError: string | null;
-  decryptionError: string | null;
-  validationError: string | null;
-  dlpError: string | null;
+  // Loading state (unified)
+  isLoading: {
+    schemas: boolean;
+    dlps: boolean;
+  };
+  // Error state (unified)
+  errors: {
+    schema: string | null;
+    dlp: string | null;
+  };
 }
 
 function SchemaExplorerContent() {
@@ -85,18 +107,18 @@ function SchemaExplorerContent() {
   const [state, setState] = useState<SchemaExplorerState>({
     schemas: [],
     userFiles: [],
+    dlpsWithCounts: [],
     selectedSchemaId: null,
     selectedDlpId: null,
-    dlpsWithCounts: [],
-    isLoadingDlps: false,
     selectedFileId: null,
-    decryptedData: "",
-    isLoadingSchemas: false,
-    isDecrypting: false,
-    schemaError: null,
-    decryptionError: null,
-    validationError: null,
-    dlpError: null,
+    isLoading: {
+      schemas: false,
+      dlps: false,
+    },
+    errors: {
+      schema: null,
+      dlp: null,
+    },
   });
 
   // Flow state (from original page)
@@ -109,13 +131,17 @@ function SchemaExplorerContent() {
     "Based on this data: {{data}}, provide insights",
   );
 
-  // Filtered files based on selected schema and/or DLP
+  // Core filtering logic: Files can be filtered by schema, DLP, or both
+  // This enables precise data selection for AI processing
   const filteredFiles = state.userFiles.filter((f: UserFile) => {
+    // Schema filter: Match files with specific data structure
     const matchesSchema =
       !state.selectedSchemaId || f.schemaId === state.selectedSchemaId;
+    // DLP filter: Match files processed by specific Data Liquidity Pool
     const matchesDlp =
       !state.selectedDlpId ||
       (f.dlpIds && f.dlpIds.includes(state.selectedDlpId));
+    // Return files matching both filters (AND logic)
     return matchesSchema && matchesDlp;
   });
 
@@ -132,8 +158,8 @@ function SchemaExplorerContent() {
     async (vana: VanaInstance, files: UserFile[]) => {
       setState((prev) => ({
         ...prev,
-        isLoadingDlps: true,
-        dlpError: null,
+        isLoading: { ...prev.isLoading, dlps: true },
+        errors: { ...prev.errors, dlp: null },
       }));
 
       try {
@@ -149,7 +175,7 @@ function SchemaExplorerContent() {
         if (dlpIds.length === 0) {
           setState((prev) => ({
             ...prev,
-            isLoadingDlps: false,
+            isLoading: { ...prev.isLoading, dlps: false },
             dlpsWithCounts: [],
           }));
           return;
@@ -176,16 +202,18 @@ function SchemaExplorerContent() {
 
         setState((prev) => ({
           ...prev,
-          isLoadingDlps: false,
+          isLoading: { ...prev.isLoading, dlps: false },
           dlpsWithCounts: validDlps,
         }));
       } catch (error) {
         console.error("Failed to load DLPs:", error);
         setState((prev) => ({
           ...prev,
-          isLoadingDlps: false,
-          dlpError:
-            error instanceof Error ? error.message : "Failed to load DLPs",
+          isLoading: { ...prev.isLoading, dlps: false },
+          errors: {
+            ...prev.errors,
+            dlp: error instanceof Error ? error.message : "Failed to load DLPs",
+          },
         }));
       }
     },
@@ -197,8 +225,8 @@ function SchemaExplorerContent() {
     async (vana: VanaInstance, userAddress: string) => {
       setState((prev) => ({
         ...prev,
-        isLoadingSchemas: true,
-        schemaError: null,
+        isLoading: { ...prev.isLoading, schemas: true },
+        errors: { ...prev.errors, schema: null },
       }));
 
       try {
@@ -207,25 +235,14 @@ function SchemaExplorerContent() {
           owner: userAddress as `0x${string}`,
         });
 
-        // TEMPORARY FIX: Patch schemaId until subgraph is fixed
-        // TODO: Remove this when subgraph properly indexes schemaId
-        // The subgraph is returning "0" for all schemaIds, but we know they should be 19
-        // files = files.map((file) => ({
-        //   ...file,
-        //   schemaId: file.schemaId === 0 ? 19 : file.schemaId,
-        // }));
-
-        // Log patched files for debugging
-        // console.debug(
-        //   "Patched files:",
-        //   files.map((f: UserFile) => ({ id: f.id, schemaId: f.schemaId })),
-        // );
-
         if (!files || files.length === 0) {
           setState((prev) => ({
             ...prev,
-            isLoadingSchemas: false,
-            schemaError: "No files found for your account",
+            isLoading: { ...prev.isLoading, schemas: false },
+            errors: {
+              ...prev.errors,
+              schema: "No files found for your account",
+            },
             userFiles: [],
             schemas: [],
           }));
@@ -246,8 +263,11 @@ function SchemaExplorerContent() {
         if (schemaIds.length === 0) {
           setState((prev) => ({
             ...prev,
-            isLoadingSchemas: false,
-            schemaError: `Found ${files.length} file(s) but none have schemas attached. Files without schemas cannot be validated.`,
+            isLoading: { ...prev.isLoading, schemas: false },
+            errors: {
+              ...prev.errors,
+              schema: `Found ${files.length} file(s) but none have schemas attached. Files without schemas cannot be validated.`,
+            },
             userFiles: files,
             schemas: [],
           }));
@@ -279,8 +299,8 @@ function SchemaExplorerContent() {
         if (jsonSchemas.length === 0) {
           setState((prev) => ({
             ...prev,
-            isLoadingSchemas: false,
-            schemaError: "No JSON schemas found",
+            isLoading: { ...prev.isLoading, schemas: false },
+            errors: { ...prev.errors, schema: "No JSON schemas found" },
             userFiles: files,
             schemas: [],
           }));
@@ -289,18 +309,21 @@ function SchemaExplorerContent() {
 
         setState((prev) => ({
           ...prev,
-          isLoadingSchemas: false,
+          isLoading: { ...prev.isLoading, schemas: false },
           schemas: jsonSchemas,
           userFiles: files,
-          schemaError: null,
+          errors: { ...prev.errors, schema: null },
         }));
       } catch (error) {
         console.error("Failed to load user data:", error);
         setState((prev) => ({
           ...prev,
-          isLoadingSchemas: false,
-          schemaError:
-            error instanceof Error ? error.message : "Failed to load schemas",
+          isLoading: { ...prev.isLoading, schemas: false },
+          errors: {
+            ...prev.errors,
+            schema:
+              error instanceof Error ? error.message : "Failed to load schemas",
+          },
         }));
       }
     },
@@ -339,10 +362,10 @@ function SchemaExplorerContent() {
     } else if (!googleDriveConnected && walletAddress) {
       setStatus("Wallet connected. Please connect Google Drive to continue.");
     } else if (walletConnected && googleDriveConnected && walletAddress) {
-      if (state.isLoadingSchemas) {
+      if (state.isLoading.schemas) {
         setStatus("Loading your schemas and files...");
-      } else if (state.schemaError) {
-        setStatus(state.schemaError);
+      } else if (state.errors.schema) {
+        setStatus(state.errors.schema);
       } else if (state.schemas.length > 0) {
         setStatus("Select a schema and file to begin");
       }
@@ -353,8 +376,8 @@ function SchemaExplorerContent() {
     address,
     googleDriveConnected,
     isProcessing,
-    state.isLoadingSchemas,
-    state.schemaError,
+    state.isLoading.schemas,
+    state.errors.schema,
     state.schemas.length,
   ]);
 
@@ -365,9 +388,6 @@ function SchemaExplorerContent() {
       ...prev,
       selectedSchemaId: id,
       selectedFileId: null,
-      decryptedData: "",
-      validationError: null,
-      decryptionError: null,
     }));
   };
 
@@ -378,22 +398,33 @@ function SchemaExplorerContent() {
       ...prev,
       selectedDlpId: id,
       selectedFileId: null,
-      decryptedData: "",
-      validationError: null,
-      decryptionError: null,
     }));
+  };
+
+  // Simple polling utility - will be replaced by operationHandle when available
+  const pollForResults = async (operationId: string): Promise<unknown> => {
+    const maxAttempts = 30;
+    const interval = 5000;
+
+    for (let i = 1; i <= maxAttempts; i++) {
+      const res = await fetch("/api/trusted-server/poll", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ operationId, chainId: 14800 }),
+      });
+
+      const data = await res.json();
+      if (data.data?.status !== "processing") return data.data;
+
+      setStatus(`Processing... (${i}/${maxAttempts})`);
+      if (i < maxAttempts) await new Promise((r) => setTimeout(r, interval));
+    }
+    throw new Error("Operation timed out");
   };
 
   // Handle processing with existing file - now uses fixed contract that supports existing files
   const handleStartFlow = async () => {
-    console.debug("========================================");
-    console.debug("🚀 STARTING SCHEMA EXPLORER FLOW");
-    console.debug("========================================");
-
     const walletAddress = wallet?.address || address;
-    console.debug("Wallet address:", walletAddress);
-    console.debug("Selected file ID:", state.selectedFileId);
-    console.debug("AI Prompt:", aiPrompt);
 
     if (
       !isVanaInitialized(vanaContext) ||
@@ -405,10 +436,10 @@ function SchemaExplorerContent() {
     }
 
     setIsProcessing(true);
-    setStatus("Preparing permission grant for existing file...");
     setResult("");
 
     try {
+      setStatus("Preparing permission grant for existing file...");
       // Get the selected file
       const selectedFile = state.userFiles.find(
         (f) => f.id === state.selectedFileId,
@@ -432,20 +463,12 @@ function SchemaExplorerContent() {
         );
       }
 
-      setStatus("Getting server information...");
-      console.debug(
-        "📍 Step 1: Getting server info for address:",
-        walletAddress,
-      );
+      setStatus("Preparing server permissions...");
 
       // Get server info to get its public key
       const serverInfo = await vanaContext.vana.server.getIdentity({
         userAddress: walletAddress as `0x${string}`,
       });
-      console.debug("✅ Server info retrieved:", serverInfo);
-
-      setStatus("Generating encryption key...");
-      console.debug("📍 Step 2: Generating encryption key");
 
       // Generate user's encryption key
       const platformAdapter = new BrowserPlatformAdapter();
@@ -454,19 +477,13 @@ function SchemaExplorerContent() {
         platformAdapter,
         DEFAULT_ENCRYPTION_SEED,
       );
-      console.debug("✅ Encryption key generated");
 
       // Encrypt the encryption key with the server's public key
-      console.debug("📍 Step 3: Encrypting key with server's public key");
       const encryptedKey = await encryptWithWalletPublicKey(
         userEncryptionKey,
         serverInfo.public_key,
         platformAdapter,
       );
-      console.debug("✅ Key encrypted for server");
-
-      setStatus("Creating grant file...");
-      console.debug("📍 Step 4: Creating grant file");
 
       // Create grant data for the AI operation
       const grantData = {
@@ -481,43 +498,17 @@ function SchemaExplorerContent() {
       const grantBlob = new Blob([JSON.stringify(grantData, null, 2)], {
         type: "application/json",
       });
-      console.debug("✅ Grant blob created:", grantData);
 
       // Upload grant file to storage (using uploadToStorage to avoid blockchain registration)
-      console.debug(
-        "📍 Step 5: Uploading grant file to storage (no blockchain)",
-      );
       const grantUploadResult = await vanaContext.vana.data.uploadToStorage(
         grantBlob,
         "grant.json",
         false, // Don't encrypt the grant file
       );
-      console.debug("✅ Grant file uploaded:", grantUploadResult.url);
 
-      setStatus("Submitting transaction for existing file...");
-      console.debug(
-        "📍 Step 6: Submitting addServerFilesAndPermissions transaction",
-      );
+      setStatus("Submitting transaction...");
 
       // Use submitAddServerFilesAndPermissions which now works for existing files
-      console.debug("📝 Transaction params:", {
-        granteeId: granteeId,
-        grant: grantUploadResult.url,
-        fileUrls: [selectedFile.url],
-        schemaIds: [selectedFile.schemaId || 0],
-        serverAddress: serverInfo.address,
-        serverUrl: serverInfo.base_url,
-        serverPublicKey: serverInfo.public_key,
-        filePermissions: [
-          [
-            {
-              account: serverInfo.address,
-              key: encryptedKey.substring(0, 20) + "...", // Log truncated for security
-            },
-          ],
-        ],
-      });
-
       const txHandle =
         await vanaContext.vana.permissions.submitAddServerFilesAndPermissions({
           granteeId: BigInt(granteeId),
@@ -537,16 +528,11 @@ function SchemaExplorerContent() {
           ],
         });
 
-      console.debug("✅ Transaction submitted:", txHandle.hash);
-
-      setStatus(`Transaction submitted: ${txHandle.hash}`);
+      console.debug("Transaction submitted:", txHandle.hash);
       setStatus("Waiting for transaction confirmation...");
-      console.debug("📍 Step 7: Waiting for transaction confirmation");
 
       // Wait for transaction confirmation and extract permission ID from events
       const events = await txHandle.waitForEvents();
-      console.debug("✅ Transaction confirmed, events:", events);
-
       const permissionId = events.permissionId;
 
       if (!permissionId) {
@@ -556,7 +542,6 @@ function SchemaExplorerContent() {
       }
 
       setStatus(`Permission granted: ${permissionId}`);
-      console.debug("✅ Permission granted with ID:", permissionId);
 
       // Submit AI inference request
       setStatus("Submitting AI inference request...");
@@ -589,74 +574,35 @@ function SchemaExplorerContent() {
       }
 
       const operationId = inferenceResult.data.id;
-      setStatus(`Inference request submitted. Operation ID: ${operationId}`);
-
-      // Poll for AI inference results
       setStatus("Waiting for AI inference results...");
 
-      const maxAttempts = 30;
-      const pollInterval = 5000; // 5 seconds
-
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        try {
-          const pollResponse = await fetch("/api/trusted-server/poll", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              operationId,
-              chainId: 14800, // Moksha testnet
-            }),
-          });
-
-          if (!pollResponse.ok) {
-            throw new Error("Polling request failed");
-          }
-
-          const pollResult = await pollResponse.json();
-
-          if (!pollResult.success) {
-            throw new Error(pollResult.error || "Polling request failed");
-          }
-
-          const data = pollResult.data;
-
-          // Check if inference is completed
-          if (data?.status !== "processing") {
-            setStatus("AI inference completed!");
-            const finalResult = JSON.stringify(data?.result || data, null, 2);
-            setResult(finalResult);
-            break;
-          } else {
-            setStatus(
-              `Polling attempt ${attempt}/${maxAttempts}: Still processing...`,
-            );
-
-            if (attempt < maxAttempts) {
-              await new Promise((resolve) => setTimeout(resolve, pollInterval));
-            } else {
-              throw new Error(
-                "AI inference timed out after maximum polling attempts",
-              );
-            }
-          }
-        } catch {
-          if (attempt < maxAttempts) {
-            setStatus(`Polling attempt ${attempt} failed, retrying...`);
-            await new Promise((resolve) => setTimeout(resolve, pollInterval));
-          } else {
-            throw new Error(
-              "AI inference timed out after maximum polling attempts",
-            );
-          }
-        }
-      }
+      // Poll for results
+      const result = await pollForResults(operationId);
+      setStatus("AI inference completed!");
+      const resultData = result as { result?: unknown } | null;
+      setResult(JSON.stringify(resultData?.result || resultData, null, 2));
     } catch (error) {
-      setStatus(
-        `Flow failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-      console.error("Complete flow error:", error);
+      // Specific error handling based on operation phase
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+
+      if (errorMessage.includes("Selected file not found")) {
+        setStatus("Error: File selection issue - please try selecting again");
+      } else if (errorMessage.includes("environment variable")) {
+        setStatus("Error: Configuration missing - check environment setup");
+      } else if (errorMessage.includes("transaction")) {
+        setStatus(`Transaction failed: ${errorMessage}`);
+      } else if (errorMessage.includes("Permission ID")) {
+        setStatus(
+          "Error: Permission grant failed - transaction may have reverted",
+        );
+      } else if (errorMessage.includes("API request failed")) {
+        setStatus(`Server error: ${errorMessage}`);
+      } else if (errorMessage.includes("timed out")) {
+        setStatus("Processing timed out - please try again");
+      } else {
+        setStatus(`Failed: ${errorMessage}`);
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -717,103 +663,6 @@ function SchemaExplorerContent() {
           </div>
         )}
 
-        {/* All Files View - Hidden for now
-        {walletConnected &&
-          (wallet?.address || address) &&
-          googleDriveConnected &&
-          !state.isLoadingSchemas && (
-            <Card className="p-4">
-              <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                All Your Files ({state.userFiles.length} total)
-              </Label>
-              {state.userFiles.length === 0 ? (
-                <div className="text-sm text-gray-500 p-4 bg-gray-50 rounded-md border border-gray-200">
-                  No files found for your wallet. Upload some files first using
-                  the main Vana Vibes flow.
-                </div>
-              ) : (
-                <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-md p-2 bg-gray-50">
-                  {state.userFiles.map((file) => {
-                    // Find the schema for this file
-                    const fileSchema = state.schemas.find(
-                      (s) => s.schema.id === file.schemaId,
-                    );
-
-                    return (
-                      <div
-                        key={file.id}
-                        className={`py-1 px-2 hover:bg-gray-100 rounded text-xs font-mono cursor-pointer flex items-center justify-between ${
-                          state.selectedFileId === file.id ? "bg-blue-100" : ""
-                        }`}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          // Just select the file for reference, no decryption needed
-                          setState((prev) => ({
-                            ...prev,
-                            selectedSchemaId: file.schemaId || null,
-                            selectedFileId: file.id,
-                            decryptedData: "", // Clear any previous data
-                            validationError: null,
-                            decryptionError: null,
-                          }));
-                        }}
-                      >
-                        <div>
-                          <span className="font-semibold">File #{file.id}</span>
-                          {fileSchema ? (
-                            <span
-                              className="ml-2 text-blue-600 cursor-help"
-                              title={
-                                fileSchema.schema.description ||
-                                `Schema: ${fileSchema.schema.name}`
-                              }
-                            >
-                              {fileSchema.schema.name}
-                            </span>
-                          ) : file.schemaId && file.schemaId > 0 ? (
-                            <span className="ml-2 text-orange-600">
-                              Schema #{file.schemaId} (loading...)
-                            </span>
-                          ) : (
-                            <span className="ml-2 text-gray-400">
-                              No schema
-                            </span>
-                          )}
-                          {file.addedAtTimestamp && (
-                            <span className="ml-2 text-gray-500">
-                              {new Date(
-                                Number(file.addedAtTimestamp) * 1000,
-                              ).toLocaleDateString()}
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-xs text-blue-500">
-                          Click to use
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              {state.userFiles.length > 0 && (
-                <p className="text-xs text-gray-500 mt-2">
-                  Files with schemas:{" "}
-                  {
-                    state.userFiles.filter((f: UserFile) => f.schemaId && f.schemaId > 0)
-                      .length
-                  }{" "}
-                  | Without schemas:{" "}
-                  {
-                    state.userFiles.filter(
-                      (f: UserFile) => !f.schemaId || f.schemaId === 0,
-                    ).length
-                  }
-                </p>
-              )}
-            </Card>
-          )} */}
-
         {/* Schema Selection */}
         {walletConnected &&
           (wallet?.address || address) &&
@@ -825,7 +674,7 @@ function SchemaExplorerContent() {
               >
                 Select Schema
               </Label>
-              {state.isLoadingSchemas ? (
+              {state.isLoading.schemas ? (
                 <div className="text-sm text-gray-500">Loading schemas...</div>
               ) : state.schemas.length > 0 ? (
                 <select
@@ -845,7 +694,7 @@ function SchemaExplorerContent() {
                 </select>
               ) : (
                 <div className="text-sm text-gray-500">
-                  {state.schemaError || "No schemas found"}
+                  {state.errors.schema || "No schemas found"}
                 </div>
               )}
             </Card>
@@ -862,7 +711,7 @@ function SchemaExplorerContent() {
               >
                 Select DLP (Optional)
               </Label>
-              {state.isLoadingDlps ? (
+              {state.isLoading.dlps ? (
                 <div className="text-sm text-gray-500">Loading DLPs...</div>
               ) : state.dlpsWithCounts.length > 0 ? (
                 <select
@@ -882,7 +731,7 @@ function SchemaExplorerContent() {
                 </select>
               ) : (
                 <div className="text-sm text-gray-500">
-                  {state.dlpError || "No DLPs found for your files"}
+                  {state.errors.dlp || "No DLPs found for your files"}
                 </div>
               )}
             </Card>
@@ -983,14 +832,6 @@ function SchemaExplorerContent() {
                   </option>
                 ))}
               </select>
-              {state.isDecrypting && (
-                <p className="text-sm text-gray-500 mt-2">Decrypting file...</p>
-              )}
-              {state.decryptionError && (
-                <p className="text-sm text-red-600 mt-2">
-                  {state.decryptionError}
-                </p>
-              )}
             </Card>
           ) : (
             <Card className="p-4">

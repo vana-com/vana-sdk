@@ -2691,19 +2691,31 @@ export class DataController {
   }
 
   /**
-   * Submits a file permission transaction and returns the transaction hash immediately.
+   * Submits a file permission transaction to the blockchain.
    *
-   * This is the lower-level method that provides maximum control over transaction timing.
+   * @remarks
+   * This method supports gasless transactions via relayer callbacks when configured.
+   * It encrypts the user's encryption key with the recipient's public key before submission.
    * Use this when you want to handle transaction confirmation and event parsing separately.
    *
-   * @param fileId - The ID of the file to add permissions for
-   * @param account - The address of the account to grant permission to
-   * @param publicKey - The public key to encrypt the user's encryption key with
-   * @returns Promise resolving to the transaction hash
+   * @param fileId - The ID of the file to grant permission for
+   * @param account - The recipient's wallet address that will access the file
+   * @param publicKey - The recipient's public key for encryption.
+   *   Obtain via `vana.server.getIdentity(account).public_key`
+   * @returns Promise resolving to TransactionHandle for tracking the transaction
+   * @throws {Error} When chain ID is not available
+   * @throws {Error} When encryption key generation fails
+   * @throws {Error} When public key encryption fails
+   *
    * @example
    * ```typescript
-   * const txHash = await vana.data.submitFilePermission(fileId, account, publicKey);
-   * console.log(`Transaction submitted: ${txHash}`);
+   * const tx = await vana.data.submitFilePermission(
+   *   fileId,
+   *   "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+   *   recipientPublicKey
+   * );
+   * const result = await tx.waitForEvents();
+   * console.log(`Permission granted with ID: ${result.permissionId}`);
    * ```
    */
   async submitFilePermission(

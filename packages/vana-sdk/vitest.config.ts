@@ -26,9 +26,10 @@ export default defineConfig({
       ],
       reportOnFailure: true,
       thresholds: {
+        // Add tests instead of lowering these
         statements: 93,
-        branches: 86.6, // Adjusted after adding relayer support
-        functions: 89.2, // Adjusted after adding relayer support
+        branches: 86.8,
+        functions: 89.4,
         lines: 93,
       },
     },

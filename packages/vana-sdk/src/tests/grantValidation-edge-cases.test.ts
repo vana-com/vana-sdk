@@ -187,7 +187,7 @@ describe("GrantValidation Edge Cases Coverage", () => {
       expect(() => {
         validateGranteeAccess(
           grant,
-          "0X1234567890123456789012345678901234567890",
+          "0X1234567890123456789012345678901234567890" as `0x${string}`,
         );
       }).toThrow(GranteeMismatchError);
     });

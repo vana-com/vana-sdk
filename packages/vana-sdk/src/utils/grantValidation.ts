@@ -344,26 +344,16 @@ export function validateGranteeAccess(
   grantFile: GrantFile,
   requestingAddress: Address,
 ): void {
-  // Normalize addresses for comparison (handle invalid addresses in tests)
-  try {
-    const normalizedGrantee = getAddress(grantFile.grantee);
-    const normalizedRequesting = getAddress(requestingAddress);
-    if (normalizedGrantee !== normalizedRequesting) {
-      throw new GranteeMismatchError(
-        "Permission denied: requesting address does not match grantee",
-        grantFile.grantee,
-        requestingAddress,
-      );
-    }
-  } catch {
-    // Fallback for invalid addresses (e.g., in tests) - case-insensitive comparison
-    if (grantFile.grantee.toLowerCase() !== requestingAddress.toLowerCase()) {
-      throw new GranteeMismatchError(
-        "Permission denied: requesting address does not match grantee",
-        grantFile.grantee,
-        requestingAddress,
-      );
-    }
+  // Use EIP-55 checksummed addresses for secure comparison
+  const normalizedGrantee = getAddress(grantFile.grantee);
+  const normalizedRequesting = getAddress(requestingAddress);
+
+  if (normalizedGrantee !== normalizedRequesting) {
+    throw new GranteeMismatchError(
+      "Permission denied: requesting address does not match grantee",
+      grantFile.grantee,
+      requestingAddress,
+    );
   }
 }
 

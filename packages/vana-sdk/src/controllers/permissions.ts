@@ -2849,19 +2849,9 @@ export class PermissionsController {
     );
     const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
 
-    // Normalize addresses for on-chain writing (checksum format)
-    let ownerAddress: Address;
-    let granteeAddress: Address;
-
-    try {
-      ownerAddress = getAddress(params.owner);
-      granteeAddress = getAddress(params.granteeAddress);
-    } catch {
-      // If addresses are invalid (e.g., in tests), use as-is
-      // Real blockchain calls will fail with invalid addresses anyway
-      ownerAddress = params.owner;
-      granteeAddress = params.granteeAddress;
-    }
+    // Normalize addresses to EIP-55 checksum format
+    const ownerAddress = getAddress(params.owner);
+    const granteeAddress = getAddress(params.granteeAddress);
 
     const txHash = await this.context.walletClient.writeContract({
       address: DataPortabilityGranteesAddress,

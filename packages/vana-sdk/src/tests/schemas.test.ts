@@ -43,20 +43,25 @@ vi.mock("../utils/schemaValidation", () => ({
   },
 }));
 
-vi.mock("viem", () => ({
-  decodeEventLog: vi.fn(),
-  parseEventLogs: vi.fn().mockReturnValue([
-    {
-      eventName: "SchemaAdded",
-      args: {
-        schemaId: 1n,
-        name: "Test Schema",
-        dialect: "jsonschema",
-        definitionUrl: "https://gateway.pinata.cloud/ipfs/QmTestHash",
+vi.mock("viem", async () => {
+  const actual = await vi.importActual("viem");
+  return {
+    ...actual,
+    getAddress: vi.fn((address) => address),
+    decodeEventLog: vi.fn(),
+    parseEventLogs: vi.fn().mockReturnValue([
+      {
+        eventName: "SchemaAdded",
+        args: {
+          schemaId: 1n,
+          name: "Test Schema",
+          dialect: "jsonschema",
+          definitionUrl: "https://gateway.pinata.cloud/ipfs/QmTestHash",
+        },
       },
-    },
-  ]),
-}));
+    ]),
+  };
+});
 
 vi.mock("../config/addresses", () => ({
   getContractAddress: vi.fn().mockReturnValue("0xRegistryAddress"),

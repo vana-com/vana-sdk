@@ -154,13 +154,8 @@ export class SignatureCache {
     walletAddress: string,
     messageHash: string,
   ): string {
-    // Try to checksum the address, but if it's invalid (e.g., in tests), use as-is
-    try {
-      return `${this.PREFIX}${getAddress(walletAddress)}:${messageHash}`;
-    } catch {
-      // For invalid addresses (e.g., in tests), use lowercase
-      return `${this.PREFIX}${walletAddress.toLowerCase()}:${messageHash}`;
-    }
+    // Use EIP-55 checksummed address for consistent cache keys
+    return `${this.PREFIX}${getAddress(walletAddress)}:${messageHash}`;
   }
 
   /**

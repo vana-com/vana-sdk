@@ -138,19 +138,9 @@ export async function handleRelayerRequest(
 
   // Step 2: Security check - verify signer matches expected user address if provided
   if (expectedUserAddress) {
-    // Normalize addresses for comparison
-    let normalizedSigner: string;
-    let normalizedExpected: string;
-
-    try {
-      // Try to checksum addresses for proper comparison
-      normalizedSigner = getAddress(signerAddress);
-      normalizedExpected = getAddress(expectedUserAddress);
-    } catch {
-      // Fallback for invalid addresses (e.g., in tests) - use lowercase
-      normalizedSigner = signerAddress.toLowerCase();
-      normalizedExpected = expectedUserAddress.toLowerCase();
-    }
+    // Normalize addresses for comparison using EIP-55 checksums
+    const normalizedSigner = getAddress(signerAddress);
+    const normalizedExpected = getAddress(expectedUserAddress);
 
     if (normalizedSigner !== normalizedExpected) {
       throw new SignatureError(

@@ -80,7 +80,7 @@ describe("PermissionsController - Grantee Methods", () => {
 
       expect(result).toEqual({
         id: 42,
-        owner: "0xOwnerAddress",
+        owner: "0xOwnerAddress" as Address,
         address: granteeAddress,
         publicKey: "0xPublicKey123",
         permissionIds: [1, 2, 3],
@@ -142,7 +142,7 @@ describe("PermissionsController - Grantee Methods", () => {
 
       expect(result).toEqual({
         id: 42,
-        owner: "0xOwnerAddress",
+        owner: "0xOwnerAddress" as Address,
         address: "0x1234567890123456789012345678901234567890",
         publicKey: "0xPublicKey123",
         permissionIds: [10, 20, 30],

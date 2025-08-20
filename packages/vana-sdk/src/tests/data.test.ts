@@ -28,43 +28,48 @@ vi.mock("../storage", () => ({
   })),
 }));
 
-vi.mock("viem", () => ({
-  createPublicClient: vi.fn(() => ({
-    readContract: vi.fn(),
-    waitForTransactionReceipt: vi.fn(),
-  })),
-  getContract: vi.fn(() => ({
-    read: {
-      filesCount: vi.fn().mockResolvedValue(BigInt(42)),
-      files: vi
-        .fn()
-        .mockResolvedValue([
-          BigInt(1),
-          "ipfs://QmTestFile",
-          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-          BigInt(123456),
-        ]),
-      schemas: vi.fn().mockResolvedValue({
-        name: "Test Schema",
-        dialect: "json",
-        definitionUrl: "https://example.com/schema.json",
-      }),
-      schemasCount: vi.fn().mockResolvedValue(BigInt(5)),
-      refiners: vi.fn().mockResolvedValue({
-        dlpId: BigInt(1),
-        owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        name: "Test Refiner",
-        schemaId: BigInt(0),
-        refinementInstructionUrl: "https://example.com/instructions",
-      }),
-      isValidSchemaId: vi.fn().mockResolvedValue(true),
-    },
-  })),
-  http: vi.fn(),
-  createWalletClient: vi.fn(),
-  decodeEventLog: vi.fn(),
-  parseEventLogs: vi.fn(() => []),
-}));
+vi.mock("viem", async () => {
+  const actual = await vi.importActual("viem");
+  return {
+    ...actual,
+    getAddress: vi.fn((address) => address),
+    createPublicClient: vi.fn(() => ({
+      readContract: vi.fn(),
+      waitForTransactionReceipt: vi.fn(),
+    })),
+    getContract: vi.fn(() => ({
+      read: {
+        filesCount: vi.fn().mockResolvedValue(BigInt(42)),
+        files: vi
+          .fn()
+          .mockResolvedValue([
+            BigInt(1),
+            "ipfs://QmTestFile",
+            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+            BigInt(123456),
+          ]),
+        schemas: vi.fn().mockResolvedValue({
+          name: "Test Schema",
+          dialect: "json",
+          definitionUrl: "https://example.com/schema.json",
+        }),
+        schemasCount: vi.fn().mockResolvedValue(BigInt(5)),
+        refiners: vi.fn().mockResolvedValue({
+          dlpId: BigInt(1),
+          owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          name: "Test Refiner",
+          schemaId: BigInt(0),
+          refinementInstructionUrl: "https://example.com/instructions",
+        }),
+        isValidSchemaId: vi.fn().mockResolvedValue(true),
+      },
+    })),
+    http: vi.fn(),
+    createWalletClient: vi.fn(),
+    decodeEventLog: vi.fn(),
+    parseEventLogs: vi.fn(() => []),
+  };
+});
 
 vi.mock("viem/accounts", () => ({
   privateKeyToAccount: vi.fn(() => ({

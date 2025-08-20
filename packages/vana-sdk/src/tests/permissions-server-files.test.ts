@@ -8,18 +8,23 @@ import { mockPlatformAdapter } from "./mocks/platformAdapter";
 import { TransactionHandle } from "../utils/transactionHandle";
 
 // Mock external dependencies
-vi.mock("viem", () => ({
-  createPublicClient: vi.fn(() => ({
-    readContract: vi.fn(),
-  })),
-  getContract: vi.fn(() => ({
-    read: {
-      userNonce: vi.fn(),
-    },
-  })),
-  http: vi.fn(),
-  createWalletClient: vi.fn(),
-}));
+vi.mock("viem", async () => {
+  const actual = await vi.importActual("viem");
+  return {
+    ...actual,
+    getAddress: vi.fn((address) => address),
+    createPublicClient: vi.fn(() => ({
+      readContract: vi.fn(),
+    })),
+    getContract: vi.fn(() => ({
+      read: {
+        userNonce: vi.fn(),
+      },
+    })),
+    http: vi.fn(),
+    createWalletClient: vi.fn(),
+  };
+});
 
 vi.mock("../config/addresses", () => ({
   getContractAddress: vi

@@ -7,20 +7,25 @@ import {
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock ALL external dependencies to ensure pure unit tests
-vi.mock("viem", () => ({
-  createPublicClient: vi.fn(() => ({
-    readContract: vi.fn(),
-  })),
-  getContract: vi.fn(() => ({
-    read: {
-      userPermissionIdsLength: vi.fn(),
-      userPermissionIdsAt: vi.fn(),
-      permissions: vi.fn(),
-    },
-  })),
-  http: vi.fn(),
-  createWalletClient: vi.fn(),
-}));
+vi.mock("viem", async () => {
+  const actual = await vi.importActual("viem");
+  return {
+    ...actual,
+    getAddress: vi.fn((address) => address),
+    createPublicClient: vi.fn(() => ({
+      readContract: vi.fn(),
+    })),
+    getContract: vi.fn(() => ({
+      read: {
+        userPermissionIdsLength: vi.fn(),
+        userPermissionIdsAt: vi.fn(),
+        permissions: vi.fn(),
+      },
+    })),
+    http: vi.fn(),
+    createWalletClient: vi.fn(),
+  };
+});
 
 vi.mock("../config/addresses", () => ({
   getContractAddress: vi

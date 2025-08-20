@@ -30,19 +30,24 @@ vi.mock("../utils/schemaValidation", () => ({
   SchemaValidationError: Error,
 }));
 
-vi.mock("viem", () => ({
-  createPublicClient: vi.fn(() => ({
-    readContract: vi.fn(),
-  })),
-  getContract: vi.fn(() => ({
-    read: {
-      filesCount: vi.fn().mockResolvedValue(BigInt(42)),
-    },
-  })),
-  http: vi.fn(),
-  decodeEventLog: vi.fn(),
-  defineChain: vi.fn((config) => config),
-}));
+vi.mock("viem", async () => {
+  const actual = await vi.importActual("viem");
+  return {
+    ...actual,
+    getAddress: vi.fn((address) => address),
+    createPublicClient: vi.fn(() => ({
+      readContract: vi.fn(),
+    })),
+    getContract: vi.fn(() => ({
+      read: {
+        filesCount: vi.fn().mockResolvedValue(BigInt(42)),
+      },
+    })),
+    http: vi.fn(),
+    decodeEventLog: vi.fn(),
+    defineChain: vi.fn((config) => config),
+  };
+});
 
 /**
  * Tests to improve coverage for specific uncovered lines in data.ts

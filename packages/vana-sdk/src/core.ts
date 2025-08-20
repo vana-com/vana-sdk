@@ -11,7 +11,10 @@ import {
   isVanaChainId,
   hasStorageConfig,
 } from "./types";
-import type { RelayerCallbacks } from "./types/config";
+import type {
+  RelayerCallbacks,
+  DownloadRelayerCallbacks,
+} from "./types/config";
 import { InvalidConfigurationError } from "./errors";
 import {
   PermissionsController,
@@ -146,6 +149,7 @@ export class VanaCore {
   protected platform: VanaPlatformAdapter;
 
   private readonly relayerCallbacks?: RelayerCallbacks;
+  private readonly downloadRelayer?: DownloadRelayerCallbacks;
   private readonly storageManager?: StorageManager;
   private readonly hasRequiredStorage: boolean;
   private readonly ipfsGateways?: string[];
@@ -181,6 +185,9 @@ export class VanaCore {
 
     // Store relayer callbacks if provided
     this.relayerCallbacks = config.relayerCallbacks;
+
+    // Store download relayer if provided
+    this.downloadRelayer = config.downloadRelayer;
 
     // Store IPFS gateways if provided
     this.ipfsGateways = config.ipfsGateways;
@@ -263,6 +270,7 @@ export class VanaCore {
       publicClient,
       applicationClient: walletClient, // Using same wallet for now
       relayerCallbacks: this.relayerCallbacks,
+      downloadRelayer: this.downloadRelayer,
       storageManager: this.storageManager,
       subgraphUrl,
       platform: this.platform, // Pass the platform adapter to controllers

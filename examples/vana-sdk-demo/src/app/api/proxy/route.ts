@@ -11,6 +11,30 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  return handleProxy(url);
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const { url } = await request.json();
+
+    if (!url) {
+      return NextResponse.json(
+        { error: "URL is required in request body" },
+        { status: 400 },
+      );
+    }
+
+    return handleProxy(url);
+  } catch {
+    return NextResponse.json(
+      { error: "Invalid request body" },
+      { status: 400 },
+    );
+  }
+}
+
+async function handleProxy(url: string): Promise<NextResponse> {
   try {
     // Validate that we only proxy certain domains for security
     const parsedUrl = new URL(url);
@@ -65,4 +89,16 @@ export async function GET(request: NextRequest) {
       { status: 500 },
     );
   }
+}
+
+// Handle CORS preflight
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST",
+      "Access-Control-Allow-Headers": "Content-Type",
+    },
+  });
 }

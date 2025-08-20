@@ -139,6 +139,8 @@ export async function storeGrantFile(
  *
  * @param grantUrl - The grant file URL from OnChainPermissionGrant.grantUrl
  * @param _relayerUrl - URL of the relayer service (optional, unused)
+ * @param downloadRelayer - Optional download relayer for proxying CORS-restricted downloads
+ * @param downloadRelayer.proxyDownload - Function to proxy download requests through application server
  * @returns Promise resolving to the complete grant file with operation details
  * @throws {NetworkError} When all retrieval attempts fail
  * @throws {SerializationError} When grant file format is invalid
@@ -164,6 +166,7 @@ export async function storeGrantFile(
 export async function retrieveGrantFile(
   grantUrl: string,
   _relayerUrl?: string,
+  downloadRelayer?: { proxyDownload: (url: string) => Promise<Blob> },
 ): Promise<GrantFile> {
   try {
     // Check if the URL is a gateway URL instead of ipfs:// protocol
@@ -175,70 +178,24 @@ export async function retrieveGrantFile(
       );
     }
 
-    // Try direct fetch first (works for any HTTP/HTTPS URL)
-    if (grantUrl.startsWith("http")) {
-      try {
-        const timeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error("Request timeout")), 10000);
-        });
+    // Use the unified download utility
+    const { fetchWithRelayer } = await import("./download");
+    const response = await fetchWithRelayer(grantUrl, downloadRelayer);
 
-        const response = await Promise.race([fetch(grantUrl), timeoutPromise]);
-
-        if (response.ok) {
-          const text = await response.text();
-          const grantFile = JSON.parse(text);
-
-          if (validateGrantFile(grantFile)) {
-            return grantFile;
-          }
-        }
-      } catch (directFetchError) {
-        console.warn(`Direct fetch failed for ${grantUrl}:`, directFetchError);
-        // Continue to IPFS fallback if this might be an IPFS URL
-      }
+    if (!response.ok) {
+      throw new NetworkError(
+        `Failed to retrieve grant file: HTTP ${response.status}`,
+      );
     }
 
-    // Try IPFS gateways as fallback (for ipfs:// URLs or failed gateway URLs)
-    const { extractIpfsHash } = await import("./ipfs");
-    const ipfsHash = extractIpfsHash(grantUrl);
+    const text = await response.text();
+    const grantFile = JSON.parse(text);
 
-    if (ipfsHash) {
-      // Try multiple IPFS gateways
-      const gateways = [
-        `https://gateway.pinata.cloud/ipfs/${ipfsHash}`,
-        `https://ipfs.io/ipfs/${ipfsHash}`,
-        `https://dweb.link/ipfs/${ipfsHash}`,
-      ];
-
-      for (const gatewayUrl of gateways) {
-        try {
-          const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error("Request timeout")), 10000);
-          });
-
-          const response = await Promise.race([
-            fetch(gatewayUrl),
-            timeoutPromise,
-          ]);
-
-          if (response.ok) {
-            const text = await response.text();
-            const grantFile = JSON.parse(text);
-
-            if (validateGrantFile(grantFile)) {
-              return grantFile;
-            }
-          }
-        } catch (gatewayError) {
-          console.warn(`Gateway ${gatewayUrl} failed:`, gatewayError);
-          continue; // Try next gateway
-        }
-      }
+    if (!validateGrantFile(grantFile)) {
+      throw new NetworkError(`Invalid grant file format from ${grantUrl}`);
     }
 
-    throw new NetworkError(
-      `Failed to retrieve grant file from ${grantUrl}. Tried direct fetch${ipfsHash ? " and IPFS gateways" : ""}.`,
-    );
+    return grantFile;
   } catch (error) {
     if (error instanceof NetworkError) {
       throw error;

@@ -12,6 +12,11 @@ import { NetworkError, SerializationError } from "../errors";
 // Mock fetch globally
 global.fetch = vi.fn();
 
+// Mock the download module
+vi.mock("../utils/download", () => ({
+  fetchWithRelayer: vi.fn(),
+}));
+
 describe("Grant Files Utils", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -232,86 +237,83 @@ describe("Grant Files Utils", () => {
     };
 
     it("should retrieve grant file from IPFS URL", async () => {
-      const mockFetch = fetch as Mock;
-      mockFetch.mockResolvedValueOnce({
+      const { fetchWithRelayer } = await import("../utils/download");
+      const mockFetchWithRelayer = fetchWithRelayer as Mock;
+
+      mockFetchWithRelayer.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve(mockGrantFile),
         text: () => Promise.resolve(JSON.stringify(mockGrantFile)),
       });
 
       const result = await retrieveGrantFile("ipfs://QmGrantFile123");
 
       expect(result).toEqual(mockGrantFile);
-      expect(mockFetch).toHaveBeenCalledWith(
-        "https://gateway.pinata.cloud/ipfs/QmGrantFile123",
+      expect(mockFetchWithRelayer).toHaveBeenCalledWith(
+        "ipfs://QmGrantFile123",
+        undefined,
       );
     });
 
-    it("should try multiple IPFS gateways on failure", async () => {
-      const mockFetch = fetch as Mock;
+    it("should handle fetchWithRelayer failures gracefully", async () => {
+      const { fetchWithRelayer } = await import("../utils/download");
+      const mockFetchWithRelayer = fetchWithRelayer as Mock;
 
-      // First gateway fails
-      mockFetch.mockRejectedValueOnce(new Error("Timeout"));
-
-      // Second gateway succeeds
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockGrantFile),
-        text: () => Promise.resolve(JSON.stringify(mockGrantFile)),
-      });
-
-      const result = await retrieveGrantFile("ipfs://QmGrantFile123");
-
-      expect(result).toEqual(mockGrantFile);
-      expect(mockFetch).toHaveBeenCalledTimes(2);
-      expect(mockFetch).toHaveBeenCalledWith(
-        "https://gateway.pinata.cloud/ipfs/QmGrantFile123",
+      // fetchWithRelayer handles retries internally, so we just test final failure
+      mockFetchWithRelayer.mockRejectedValueOnce(
+        new Error("All gateways failed"),
       );
-      expect(mockFetch).toHaveBeenCalledWith(
-        "https://ipfs.io/ipfs/QmGrantFile123",
+
+      await expect(retrieveGrantFile("ipfs://QmGrantFile123")).rejects.toThrow(
+        NetworkError,
       );
     });
 
     it("should handle 404 responses", async () => {
-      const mockFetch = fetch as Mock;
-      mockFetch.mockResolvedValue({
+      const { fetchWithRelayer } = await import("../utils/download");
+      const mockFetchWithRelayer = fetchWithRelayer as Mock;
+
+      mockFetchWithRelayer.mockResolvedValueOnce({
         ok: false,
         status: 404,
         statusText: "Not Found",
       });
 
       await expect(retrieveGrantFile("ipfs://QmMissing")).rejects.toThrow(
-        "Failed to retrieve grant file from ipfs://QmMissing. Tried direct fetch and IPFS gateways",
+        NetworkError,
       );
     });
 
     it("should handle timeout", async () => {
-      const mockFetch = fetch as Mock;
-      // Mock all gateways to timeout
-      mockFetch.mockRejectedValue(new Error("Request timeout"));
+      const { fetchWithRelayer } = await import("../utils/download");
+      const mockFetchWithRelayer = fetchWithRelayer as Mock;
+
+      mockFetchWithRelayer.mockRejectedValueOnce(new Error("Request timeout"));
 
       await expect(retrieveGrantFile("ipfs://QmTimeout")).rejects.toThrow(
-        "Failed to retrieve grant file from ipfs://QmTimeout. Tried direct fetch and IPFS gateways",
+        NetworkError,
       );
     });
 
     it("should handle malformed JSON", async () => {
-      const mockFetch = fetch as Mock;
-      mockFetch.mockResolvedValue({
+      const { fetchWithRelayer } = await import("../utils/download");
+      const mockFetchWithRelayer = fetchWithRelayer as Mock;
+
+      mockFetchWithRelayer.mockResolvedValueOnce({
         ok: true,
         text: () => Promise.resolve("invalid json {"),
       });
 
       await expect(retrieveGrantFile("ipfs://QmBadJSON")).rejects.toThrow(
-        "Failed to retrieve grant file from ipfs://QmBadJSON",
+        NetworkError,
       );
     });
 
     it("should retrieve grant file from regular HTTP URL", async () => {
-      const mockFetch = fetch as Mock;
-      mockFetch.mockResolvedValueOnce({
+      const { fetchWithRelayer } = await import("../utils/download");
+      const mockFetchWithRelayer = fetchWithRelayer as Mock;
+
+      mockFetchWithRelayer.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve(mockGrantFile),
         text: () => Promise.resolve(JSON.stringify(mockGrantFile)),
       });
 
@@ -320,49 +322,47 @@ describe("Grant Files Utils", () => {
       );
 
       expect(result).toEqual(mockGrantFile);
-      expect(mockFetch).toHaveBeenCalledWith(
+      expect(mockFetchWithRelayer).toHaveBeenCalledWith(
         "https://example.com/grants/grant123.json",
+        undefined,
       );
     });
 
-    it("should try IPFS gateways as fallback when direct HTTP fetch fails", async () => {
-      const mockFetch = fetch as Mock;
+    it("should pass downloadRelayer to fetchWithRelayer", async () => {
+      const { fetchWithRelayer } = await import("../utils/download");
+      const mockFetchWithRelayer = fetchWithRelayer as Mock;
 
-      // First call (direct fetch) fails
-      mockFetch.mockRejectedValueOnce(new Error("Direct fetch failed"));
-
-      // Second call (IPFS gateway) succeeds
-      mockFetch.mockResolvedValueOnce({
+      mockFetchWithRelayer.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve(mockGrantFile),
         text: () => Promise.resolve(JSON.stringify(mockGrantFile)),
       });
 
+      const mockDownloadRelayer = {
+        proxyDownload: vi.fn(),
+      };
+
       const result = await retrieveGrantFile(
-        "https://gateway.pinata.cloud/ipfs/QmGrantFile123",
+        "https://example.com/grant.json",
+        undefined,
+        mockDownloadRelayer,
       );
 
       expect(result).toEqual(mockGrantFile);
-      expect(mockFetch).toHaveBeenCalledTimes(2);
-      expect(mockFetch).toHaveBeenNthCalledWith(
-        1,
-        "https://gateway.pinata.cloud/ipfs/QmGrantFile123",
-      );
-      expect(mockFetch).toHaveBeenNthCalledWith(
-        2,
-        "https://gateway.pinata.cloud/ipfs/QmGrantFile123",
+      expect(mockFetchWithRelayer).toHaveBeenCalledWith(
+        "https://example.com/grant.json",
+        mockDownloadRelayer,
       );
     });
 
-    it("should fail gracefully for non-IPFS URLs when direct fetch fails", async () => {
-      const mockFetch = fetch as Mock;
-      mockFetch.mockRejectedValueOnce(new Error("Server error"));
+    it("should fail gracefully when fetchWithRelayer fails", async () => {
+      const { fetchWithRelayer } = await import("../utils/download");
+      const mockFetchWithRelayer = fetchWithRelayer as Mock;
+
+      mockFetchWithRelayer.mockRejectedValueOnce(new Error("Server error"));
 
       await expect(
         retrieveGrantFile("https://example.com/grants/missing.json"),
-      ).rejects.toThrow(
-        "Failed to retrieve grant file from https://example.com/grants/missing.json. Tried direct fetch",
-      );
+      ).rejects.toThrow(NetworkError);
     });
   });
 

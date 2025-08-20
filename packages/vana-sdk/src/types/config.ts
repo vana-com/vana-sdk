@@ -65,6 +65,37 @@ export interface StorageConfig {
 }
 
 /**
+ * Download relayer callbacks for proxying CORS-restricted downloads.
+ *
+ * Provides a callback to proxy download requests through your application server
+ * when direct browser access fails due to CORS restrictions (e.g., Google Drive).
+ *
+ * @category Configuration
+ * @example
+ * ```typescript
+ * const downloadRelayer: DownloadRelayerCallbacks = {
+ *   async proxyDownload(url) {
+ *     const response = await fetch('https://my-app.com/api/proxy', {
+ *       method: 'POST',
+ *       headers: { 'Content-Type': 'application/json' },
+ *       body: JSON.stringify({ url })
+ *     });
+ *     return response.blob();
+ *   }
+ * };
+ * ```
+ */
+export interface DownloadRelayerCallbacks {
+  /**
+   * Proxy a download request through your application server
+   *
+   * @param url - The URL to download from
+   * @returns Promise resolving to the downloaded content as a Blob
+   */
+  proxyDownload: (url: string) => Promise<Blob>;
+}
+
+/**
  * Relayer callback functions for handling gasless transactions.
  *
  * Instead of hardcoding HTTP/REST API calls, users can provide custom callback
@@ -407,6 +438,12 @@ export interface BaseConfig {
   relayerCallbacks?: RelayerCallbacks;
 
   /**
+   * Optional download relayer for proxying CORS-restricted downloads.
+   * Provides a proxy mechanism for files stored on servers with CORS restrictions.
+   */
+  downloadRelayer?: DownloadRelayerCallbacks;
+
+  /**
    * Optional storage providers configuration for file upload/download.
    *   Required for: upload(), grant() without pre-stored URLs, schema operations.
    *   See StorageConfig for provider selection guidance.
@@ -448,6 +485,12 @@ export interface BaseConfigWithStorage {
    * Provides flexible relay mechanism - can use HTTP, WebSocket, or any custom implementation.
    */
   relayerCallbacks?: RelayerCallbacks;
+
+  /**
+   * Optional download relayer for proxying CORS-restricted downloads.
+   * Provides a proxy mechanism for files stored on servers with CORS restrictions.
+   */
+  downloadRelayer?: DownloadRelayerCallbacks;
 
   /** Required storage providers configuration for file upload/download */
   storage: StorageConfig;

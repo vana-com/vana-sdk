@@ -2771,7 +2771,11 @@ export class DataController {
    */
   async fetch(url: string): Promise<Blob> {
     try {
-      const response = await fetch(url);
+      const { fetchWithRelayer } = await import("../utils/download");
+      const response = await fetchWithRelayer(
+        url,
+        this.context.downloadRelayer,
+      );
 
       if (!response.ok) {
         throw new Error(
@@ -2851,14 +2855,11 @@ export class DataController {
     const gateways =
       options?.gateways || this.context.ipfsGateways || defaultGateways;
 
-    // Extract CID from ipfs:// URL or use raw CID
-    let cid: string;
-    if (url.startsWith("ipfs://")) {
-      cid = url.replace("ipfs://", "");
-    } else if (url.startsWith("Qm") || url.startsWith("bafy")) {
-      // Looks like a raw CID
-      cid = url;
-    } else {
+    // Use ipfs utilities to extract hash
+    const { extractIpfsHash } = await import("../utils/ipfs");
+    const cid = extractIpfsHash(url);
+
+    if (!cid) {
       throw new Error(
         `Invalid IPFS URL format. Expected ipfs://... or a raw CID, got: ${url}`,
       );
@@ -2932,6 +2933,22 @@ export class DataController {
     }
 
     // All gateways failed
+    // Try download relayer as final fallback if configured
+    if (this.context.downloadRelayer && gateways.length > 0) {
+      try {
+        // Try with the first gateway URL format
+        const relayerUrl = gateways[0].endsWith("/")
+          ? `${gateways[0]}${cid}`
+          : `${gateways[0]}/${cid}`;
+        return await this.context.downloadRelayer.proxyDownload(relayerUrl);
+      } catch (relayerError) {
+        errors.push({
+          gateway: "download-relayer",
+          error: `Proxy failed: ${relayerError instanceof Error ? relayerError.message : "Unknown error"}`,
+        });
+      }
+    }
+
     const errorDetails = errors
       .map((e) => `${e.gateway}: ${e.error}`)
       .join("\n  ");

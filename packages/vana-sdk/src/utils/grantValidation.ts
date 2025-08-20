@@ -344,7 +344,6 @@ export function validateGranteeAccess(
   grantFile: GrantFile,
   requestingAddress: Address,
 ): void {
-  // Use EIP-55 checksummed addresses for secure comparison
   const normalizedGrantee = getAddress(grantFile.grantee);
   const normalizedRequesting = getAddress(requestingAddress);
 

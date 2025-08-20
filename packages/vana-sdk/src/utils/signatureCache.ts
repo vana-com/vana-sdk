@@ -154,7 +154,6 @@ export class SignatureCache {
     walletAddress: string,
     messageHash: string,
   ): string {
-    // Use EIP-55 checksummed address for consistent cache keys
     return `${this.PREFIX}${getAddress(walletAddress)}:${messageHash}`;
   }
 

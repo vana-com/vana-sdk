@@ -1716,18 +1716,8 @@ export class PermissionsController {
       const userAddress =
         this.context.walletClient.account?.address ||
         (await this.getUserAddress());
-      // Normalize addresses for on-chain writing
-      let normalizedUserAddress: Address;
-      let normalizedServerAddress: Address;
-
-      try {
-        normalizedUserAddress = getAddress(userAddress);
-        normalizedServerAddress = getAddress(params.serverAddress);
-      } catch {
-        // If addresses are invalid (e.g., in tests), use as-is
-        normalizedUserAddress = userAddress;
-        normalizedServerAddress = params.serverAddress;
-      }
+      const normalizedUserAddress = getAddress(userAddress);
+      const normalizedServerAddress = getAddress(params.serverAddress);
 
       const txHash = await this.context.walletClient.writeContract({
         address: DataPortabilityServersAddress,
@@ -2849,7 +2839,6 @@ export class PermissionsController {
     );
     const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
 
-    // Normalize addresses to EIP-55 checksum format
     const ownerAddress = getAddress(params.owner);
     const granteeAddress = getAddress(params.granteeAddress);
 

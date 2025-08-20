@@ -1810,13 +1810,7 @@ export class PermissionsController {
       const nonce = await this.getServersUserNonce();
 
       // Create add and trust server message
-      // Try to normalize the address, but don't fail if it's invalid
-      let serverAddress: Address;
-      try {
-        serverAddress = getAddress(params.serverAddress);
-      } catch {
-        serverAddress = params.serverAddress;
-      }
+      const serverAddress = getAddress(params.serverAddress);
 
       const addAndTrustServerInput: AddAndTrustServerInput = {
         nonce,
@@ -2879,16 +2873,8 @@ export class PermissionsController {
   ): Promise<TransactionHandle<GranteeRegisterResult>> {
     const nonce = await this.getServersUserNonce();
 
-    // Try to normalize addresses, but don't fail if they're invalid
-    let owner: Address;
-    let granteeAddress: Address;
-    try {
-      owner = getAddress(params.owner);
-      granteeAddress = getAddress(params.granteeAddress);
-    } catch {
-      owner = params.owner;
-      granteeAddress = params.granteeAddress;
-    }
+    const owner = getAddress(params.owner);
+    const granteeAddress = getAddress(params.granteeAddress);
 
     const registerGranteeInput: RegisterGranteeInput = {
       nonce,

@@ -144,8 +144,8 @@ describe("handleRelayerRequest", () => {
       );
     });
 
-    it("should route PermissionRevoke type to submitSignedRevoke", async () => {
-      mockTypedData.primaryType = "PermissionRevoke";
+    it("should route RevokePermission type to submitSignedRevoke", async () => {
+      mockTypedData.primaryType = "RevokePermission";
 
       await handleRelayerRequest(mockVana, {
         typedData: mockTypedData,

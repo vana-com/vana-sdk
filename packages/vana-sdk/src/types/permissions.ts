@@ -370,6 +370,65 @@ export interface GenericTypedData extends RecordCompatible {
 }
 
 /**
+ * Represents EIP-712 typed data for permission revocation.
+ *
+ * @remarks
+ * Used when revoking previously granted permissions through gasless transactions.
+ * The message contains a nonce and the permission ID to revoke.
+ *
+ * @category Permissions
+ */
+export interface RevokePermissionTypedData extends GenericTypedData {
+  /** EIP-712 type definitions for the RevokePermission structure */
+  types: {
+    RevokePermission: Array<{
+      name: string;
+      type: string;
+    }>;
+  };
+  /** The primary type identifier for revocation operations */
+  primaryType: "RevokePermission";
+  /** The structured message containing revocation parameters */
+  message: RevokePermissionInput;
+}
+
+/**
+ * Defines all valid primary types for EIP-712 typed data in the Vana SDK.
+ *
+ * @remarks
+ * These literal types ensure compile-time safety when handling typed data operations.
+ * Each corresponds to a specific blockchain operation type.
+ *
+ * @category Permissions
+ */
+export type TypedDataPrimaryType =
+  | "Permission"
+  | "RevokePermission"
+  | "TrustServer"
+  | "UntrustServer"
+  | "AddServer"
+  | "RegisterGrantee"
+  | "ServerFilesAndPermission";
+
+/**
+ * Represents the union of all specific typed data interfaces.
+ *
+ * @remarks
+ * Enables type-safe handling of any typed data structure in the SDK.
+ * Used internally by relayer handlers and signature verification.
+ *
+ * @category Permissions
+ */
+export type SpecificTypedData =
+  | PermissionGrantTypedData
+  | RevokePermissionTypedData
+  | TrustServerTypedData
+  | UntrustServerTypedData
+  | AddAndTrustServerTypedData
+  | RegisterGranteeTypedData
+  | ServerFilesAndPermissionTypedData;
+
+/**
  * Permission operation types
  *
  * @category Permissions

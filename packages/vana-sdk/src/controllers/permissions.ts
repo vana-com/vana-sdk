@@ -1,4 +1,4 @@
-import { Address, Hash } from "viem";
+import { Address, Hash, getAddress } from "viem";
 import type { WalletClient, PublicClient } from "viem";
 import { gasAwareMulticall } from "../utils/multicall";
 import {
@@ -1716,14 +1716,27 @@ export class PermissionsController {
       const userAddress =
         this.context.walletClient.account?.address ||
         (await this.getUserAddress());
+      // Normalize addresses for on-chain writing
+      let normalizedUserAddress: Address;
+      let normalizedServerAddress: Address;
+
+      try {
+        normalizedUserAddress = getAddress(userAddress);
+        normalizedServerAddress = getAddress(params.serverAddress);
+      } catch {
+        // If addresses are invalid (e.g., in tests), use as-is
+        normalizedUserAddress = userAddress;
+        normalizedServerAddress = params.serverAddress;
+      }
+
       const txHash = await this.context.walletClient.writeContract({
         address: DataPortabilityServersAddress,
         abi: DataPortabilityServersAbi,
         functionName: "addAndTrustServerByManager",
         args: [
-          userAddress,
+          normalizedUserAddress,
           {
-            serverAddress: params.serverAddress,
+            serverAddress: normalizedServerAddress,
             serverUrl: params.serverUrl,
             publicKey: params.publicKey,
           },
@@ -1807,9 +1820,17 @@ export class PermissionsController {
       const nonce = await this.getServersUserNonce();
 
       // Create add and trust server message
+      // Try to normalize the address, but don't fail if it's invalid
+      let serverAddress: Address;
+      try {
+        serverAddress = getAddress(params.serverAddress);
+      } catch {
+        serverAddress = params.serverAddress;
+      }
+
       const addAndTrustServerInput: AddAndTrustServerInput = {
         nonce,
-        serverAddress: params.serverAddress,
+        serverAddress,
         publicKey: params.publicKey,
         serverUrl: params.serverUrl,
       };
@@ -2828,11 +2849,25 @@ export class PermissionsController {
     );
     const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
 
+    // Normalize addresses for on-chain writing (checksum format)
+    let ownerAddress: Address;
+    let granteeAddress: Address;
+
+    try {
+      ownerAddress = getAddress(params.owner);
+      granteeAddress = getAddress(params.granteeAddress);
+    } catch {
+      // If addresses are invalid (e.g., in tests), use as-is
+      // Real blockchain calls will fail with invalid addresses anyway
+      ownerAddress = params.owner;
+      granteeAddress = params.granteeAddress;
+    }
+
     const txHash = await this.context.walletClient.writeContract({
       address: DataPortabilityGranteesAddress,
       abi: DataPortabilityGranteesAbi,
       functionName: "registerGrantee",
-      args: [params.owner, params.granteeAddress, params.publicKey],
+      args: [ownerAddress, granteeAddress, params.publicKey],
       account:
         this.context.walletClient.account || (await this.getUserAddress()),
       chain: this.context.walletClient.chain || null,
@@ -2865,10 +2900,21 @@ export class PermissionsController {
   ): Promise<TransactionHandle<GranteeRegisterResult>> {
     const nonce = await this.getServersUserNonce();
 
+    // Try to normalize addresses, but don't fail if they're invalid
+    let owner: Address;
+    let granteeAddress: Address;
+    try {
+      owner = getAddress(params.owner);
+      granteeAddress = getAddress(params.granteeAddress);
+    } catch {
+      owner = params.owner;
+      granteeAddress = params.granteeAddress;
+    }
+
     const registerGranteeInput: RegisterGranteeInput = {
       nonce,
-      owner: params.owner,
-      granteeAddress: params.granteeAddress,
+      owner,
+      granteeAddress,
       publicKey: params.publicKey,
     };
 

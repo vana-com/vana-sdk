@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { SignatureCache, withSignatureCache } from "../signatureCache";
+import { getAddress } from "viem";
 
 // Mock cache adapter
 const mockCacheAdapter = {
@@ -18,6 +19,7 @@ const mockCacheAdapter = {
 
 describe("SignatureCache", () => {
   const walletAddress = "0x1234567890123456789012345678901234567890";
+  const checksummedAddress = getAddress(walletAddress); // Get checksummed version
   const messageHash = "test-message-hash";
   const signature = "0xabcdef" as const;
 
@@ -40,7 +42,7 @@ describe("SignatureCache", () => {
     it("should return cached signature if valid", () => {
       const expires = Date.now() + 3600000; // 1 hour from now
       const cached = JSON.stringify({ signature, expires });
-      const key = `vana_sig_${walletAddress.toLowerCase()}:${messageHash}`;
+      const key = `vana_sig_${checksummedAddress}:${messageHash}`;
 
       mockCacheAdapter.store.set(key, cached);
 
@@ -55,7 +57,7 @@ describe("SignatureCache", () => {
     it("should return null and clean up if signature is expired", () => {
       const expires = Date.now() - 1000; // 1 second ago (expired)
       const cached = JSON.stringify({ signature, expires });
-      const key = `vana_sig_${walletAddress.toLowerCase()}:${messageHash}`;
+      const key = `vana_sig_${checksummedAddress}:${messageHash}`;
 
       mockCacheAdapter.store.set(key, cached);
 
@@ -69,7 +71,7 @@ describe("SignatureCache", () => {
     });
 
     it("should handle invalid JSON gracefully", () => {
-      const key = `vana_sig_${walletAddress.toLowerCase()}:${messageHash}`;
+      const key = `vana_sig_${checksummedAddress}:${messageHash}`;
       mockCacheAdapter.store.set(key, "invalid-json");
 
       const result = SignatureCache.get(
@@ -93,9 +95,7 @@ describe("SignatureCache", () => {
 
       expect(mockCacheAdapter.set).toHaveBeenCalled();
       const [key, value] = mockCacheAdapter.set.mock.calls[0];
-      expect(key).toBe(
-        `vana_sig_${walletAddress.toLowerCase()}:${messageHash}`,
-      );
+      expect(key).toBe(`vana_sig_${checksummedAddress}:${messageHash}`);
 
       const parsed = JSON.parse(value);
       expect(parsed.signature).toBe(signature);

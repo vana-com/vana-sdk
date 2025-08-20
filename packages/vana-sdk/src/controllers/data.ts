@@ -586,7 +586,7 @@ export class DataController {
         body: JSON.stringify({
           query: print(GetUserFilesDocument),
           variables: {
-            userId: owner.toLowerCase(), // Subgraph stores addresses in lowercase
+            userId: owner.toLowerCase(), // Subgraph requires lowercase addresses
           },
         }),
       });
@@ -1530,7 +1530,7 @@ export class DataController {
         body: JSON.stringify({
           query: print(GetUserTrustedServersDocument),
           variables: {
-            userId: user.toLowerCase(), // Subgraph stores addresses in lowercase
+            userId: user.toLowerCase(), // Subgraph requires lowercase addresses
           },
         }),
       });

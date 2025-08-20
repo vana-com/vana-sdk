@@ -46,7 +46,10 @@ import {
 } from "../types/transactionResults";
 import { TransactionHandle } from "../utils/transactionHandle";
 import { PermissionInfo } from "../types/permissions";
-import type { RelayerCallbacks } from "../types/config";
+import type {
+  RelayerCallbacks,
+  DownloadRelayerCallbacks,
+} from "../types/config";
 import {
   RelayerError,
   UserRejectedRequestError,
@@ -95,6 +98,8 @@ export interface ControllerContext {
   applicationClient?: WalletClient;
   /** Handles gasless transaction submission through relayer services. */
   relayerCallbacks?: RelayerCallbacks;
+  /** Proxies CORS-restricted downloads through application server. */
+  downloadRelayer?: DownloadRelayerCallbacks;
   /** Manages file upload and download operations across storage providers. */
   storageManager?: StorageManager;
   /** Provides subgraph endpoint for querying indexed blockchain data. */

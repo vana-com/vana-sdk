@@ -13,6 +13,7 @@ export type {
   ConfigValidationOptions,
   ConfigValidationResult,
   RelayerCallbacks,
+  DownloadRelayerCallbacks,
   StorageRequiredMarker,
 } from "./config";
 

@@ -233,6 +233,8 @@ export class SchemaValidator {
    * Fetches and validates a data schema from a URL
    *
    * @param url - The URL to fetch the data schema from
+   * @param downloadRelayer - Optional download relayer for CORS bypass
+   * @param downloadRelayer.proxyDownload - Function to proxy downloads through application server
    * @returns The validated data schema
    * @throws SchemaValidationError if invalid or fetch fails
    * @example
@@ -241,9 +243,13 @@ export class SchemaValidator {
    * const schema = await validator.fetchAndValidateSchema("https://example.com/schema.json");
    * ```
    */
-  async fetchAndValidateSchema(url: string): Promise<DataSchema> {
+  async fetchAndValidateSchema(
+    url: string,
+    downloadRelayer?: { proxyDownload: (url: string) => Promise<Blob> },
+  ): Promise<DataSchema> {
     try {
-      const response = await fetch(url);
+      const { fetchWithRelayer } = await import("./download");
+      const response = await fetchWithRelayer(url, downloadRelayer);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
@@ -321,9 +327,14 @@ export function validateDataAgainstSchema(
  * Convenience function to fetch and validate a data schema from a URL
  *
  * @param url - The URL to fetch the data schema from
+ * @param downloadRelayer - Optional download relayer for CORS bypass
+ * @param downloadRelayer.proxyDownload - Function to proxy downloads through application server
  * @returns The validated data schema
  * @throws SchemaValidationError if invalid or fetch fails
  */
-export function fetchAndValidateSchema(url: string): Promise<DataSchema> {
-  return schemaValidator.fetchAndValidateSchema(url);
+export function fetchAndValidateSchema(
+  url: string,
+  downloadRelayer?: { proxyDownload: (url: string) => Promise<Blob> },
+): Promise<DataSchema> {
+  return schemaValidator.fetchAndValidateSchema(url, downloadRelayer);
 }

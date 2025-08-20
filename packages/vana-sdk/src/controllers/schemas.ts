@@ -308,7 +308,10 @@ export class SchemaController {
     }
 
     // Fetch the definition (should be a complete DataSchema)
-    const definition = await fetchFromUrl(metadata.definitionUrl);
+    const definition = await fetchFromUrl(
+      metadata.definitionUrl,
+      this.context.downloadRelayer,
+    );
 
     if (!definition || typeof definition !== "object") {
       throw new Error(
@@ -756,7 +759,10 @@ export class SchemaController {
         if (!schema.definitionUrl) return;
 
         try {
-          const definition = await fetchFromUrl(schema.definitionUrl);
+          const definition = await fetchFromUrl(
+            schema.definitionUrl,
+            this.context.downloadRelayer,
+          );
 
           if (definition && typeof definition === "object") {
             // Validate the fetched DataSchema

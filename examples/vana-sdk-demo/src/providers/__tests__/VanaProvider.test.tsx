@@ -267,6 +267,7 @@ describe("VanaProvider", () => {
     expect(VanaMock).toHaveBeenCalledWith({
       walletClient: mockWalletClient,
       relayerCallbacks: expect.any(Object),
+      downloadRelayer: expect.any(Object),
       subgraphUrl: defaultConfig.subgraphUrl,
       storage: {
         providers: {
@@ -322,6 +323,7 @@ describe("VanaProvider", () => {
     expect(VanaMock).toHaveBeenCalledWith({
       walletClient: mockWalletClient,
       relayerCallbacks: expect.any(Object),
+      downloadRelayer: expect.any(Object),
       subgraphUrl: defaultConfig.subgraphUrl,
       storage: {
         providers: {
@@ -378,6 +380,7 @@ describe("VanaProvider", () => {
     expect(VanaMock).toHaveBeenCalledWith({
       walletClient: mockWalletClient,
       relayerCallbacks: expect.any(Object),
+      downloadRelayer: expect.any(Object),
       subgraphUrl: defaultConfig.subgraphUrl,
       storage: {
         providers: {
@@ -480,6 +483,7 @@ describe("VanaProvider", () => {
     expect(VanaMock).toHaveBeenCalledWith({
       walletClient: mockWalletClient,
       relayerCallbacks: undefined, // Should be undefined when gasless is disabled
+      downloadRelayer: expect.any(Object), // Download relayer is always provided
       subgraphUrl: defaultConfig.subgraphUrl,
       storage: {
         providers: {

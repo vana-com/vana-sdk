@@ -1,4 +1,4 @@
-import { Hash } from "viem";
+import { Hash, getAddress } from "viem";
 import type { VanaCacheAdapter } from "../platform/interface";
 import { toBase64 } from "../platform/shared/crypto-utils";
 
@@ -154,7 +154,7 @@ export class SignatureCache {
     walletAddress: string,
     messageHash: string,
   ): string {
-    return `${this.PREFIX}${walletAddress.toLowerCase()}:${messageHash}`;
+    return `${this.PREFIX}${getAddress(walletAddress)}:${messageHash}`;
   }
 
   /**

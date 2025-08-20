@@ -1,4 +1,4 @@
-import { Address, Hash, recoverTypedDataAddress } from "viem";
+import { Address, Hash, recoverTypedDataAddress, getAddress } from "viem";
 import type { VanaInstance } from "../index.node";
 import type {
   GenericTypedData,
@@ -138,8 +138,8 @@ export async function handleRelayerRequest(
 
   // Step 2: Security check - verify signer matches expected user address if provided
   if (expectedUserAddress) {
-    const normalizedSigner = signerAddress.toLowerCase();
-    const normalizedExpected = expectedUserAddress.toLowerCase();
+    const normalizedSigner = getAddress(signerAddress);
+    const normalizedExpected = getAddress(expectedUserAddress);
 
     if (normalizedSigner !== normalizedExpected) {
       throw new SignatureError(

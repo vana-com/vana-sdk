@@ -1,4 +1,4 @@
-import { Address, Hash } from "viem";
+import { Address, Hash, getAddress } from "viem";
 import type { WalletClient, PublicClient } from "viem";
 import { gasAwareMulticall } from "../utils/multicall";
 import {
@@ -1716,14 +1716,17 @@ export class PermissionsController {
       const userAddress =
         this.context.walletClient.account?.address ||
         (await this.getUserAddress());
+      const normalizedUserAddress = getAddress(userAddress);
+      const normalizedServerAddress = getAddress(params.serverAddress);
+
       const txHash = await this.context.walletClient.writeContract({
         address: DataPortabilityServersAddress,
         abi: DataPortabilityServersAbi,
         functionName: "addAndTrustServerByManager",
         args: [
-          userAddress,
+          normalizedUserAddress,
           {
-            serverAddress: params.serverAddress,
+            serverAddress: normalizedServerAddress,
             serverUrl: params.serverUrl,
             publicKey: params.publicKey,
           },
@@ -1807,9 +1810,11 @@ export class PermissionsController {
       const nonce = await this.getServersUserNonce();
 
       // Create add and trust server message
+      const serverAddress = getAddress(params.serverAddress);
+
       const addAndTrustServerInput: AddAndTrustServerInput = {
         nonce,
-        serverAddress: params.serverAddress,
+        serverAddress,
         publicKey: params.publicKey,
         serverUrl: params.serverUrl,
       };
@@ -2828,11 +2833,14 @@ export class PermissionsController {
     );
     const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
 
+    const ownerAddress = getAddress(params.owner);
+    const granteeAddress = getAddress(params.granteeAddress);
+
     const txHash = await this.context.walletClient.writeContract({
       address: DataPortabilityGranteesAddress,
       abi: DataPortabilityGranteesAbi,
       functionName: "registerGrantee",
-      args: [params.owner, params.granteeAddress, params.publicKey],
+      args: [ownerAddress, granteeAddress, params.publicKey],
       account:
         this.context.walletClient.account || (await this.getUserAddress()),
       chain: this.context.walletClient.chain || null,
@@ -2865,10 +2873,13 @@ export class PermissionsController {
   ): Promise<TransactionHandle<GranteeRegisterResult>> {
     const nonce = await this.getServersUserNonce();
 
+    const owner = getAddress(params.owner);
+    const granteeAddress = getAddress(params.granteeAddress);
+
     const registerGranteeInput: RegisterGranteeInput = {
       nonce,
-      owner: params.owner,
-      granteeAddress: params.granteeAddress,
+      owner,
+      granteeAddress,
       publicKey: params.publicKey,
     };
 

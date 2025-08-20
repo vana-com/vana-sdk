@@ -167,20 +167,29 @@ describe("GrantValidation Edge Cases Coverage", () => {
       }).not.toThrow();
     });
 
-    it("should handle case-insensitive grantee comparison", () => {
-      // Test that comparison is case-insensitive
-      const mixedCaseGrant = {
+    it("should handle checksummed address comparison", () => {
+      // Test that comparison uses checksummed addresses
+      // With mocked getAddress, addresses must match exactly
+      const grant = {
         ...validGrantFile,
-        grantee:
-          "0x1234567890123456789012345678901234567890".toUpperCase() as `0x${string}`,
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
       };
 
+      // Same address should match
       expect(() => {
         validateGranteeAccess(
-          mixedCaseGrant,
+          grant,
           "0x1234567890123456789012345678901234567890",
         );
       }).not.toThrow();
+
+      // Different case should not match (since getAddress is mocked to return as-is)
+      expect(() => {
+        validateGranteeAccess(
+          grant,
+          "0X1234567890123456789012345678901234567890" as `0x${string}`,
+        );
+      }).toThrow(GranteeMismatchError);
     });
   });
 

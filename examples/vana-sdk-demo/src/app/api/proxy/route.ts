@@ -1,16 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-
-// Allowed domains for proxy (security)
-const ALLOWED_DOMAINS = [
-  "drive.google.com",
-  "docs.google.com",
-  "gateway.pinata.cloud",
-  "cloudflare-ipfs.com",
-  "ipfs.io",
-  "dweb.link",
-  "w3s.link",
-  "arweave.net",
-];
+import { promises as dns } from "dns";
+import { isIPv4 } from "net";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -46,31 +36,70 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function handleProxy(url: string): Promise<NextResponse> {
+async function handleProxy(
+  url: string,
+  redirectCount = 0,
+): Promise<NextResponse> {
   try {
-    const parsedUrl = new URL(url);
-
-    // Basic security: only allow HTTPS and specific domains
-    if (parsedUrl.protocol !== "https:") {
+    // Prevent infinite redirect loops
+    if (redirectCount > 5) {
       return NextResponse.json(
-        { error: "Only HTTPS URLs are allowed" },
+        { error: "Too many redirects" },
         { status: 400 },
       );
     }
 
-    if (!ALLOWED_DOMAINS.includes(parsedUrl.hostname)) {
+    const { hostname } = new URL(url);
+
+    // Resolve hostname to IP address
+    // Special handling for localhost, direct IPs, and hostnames
+    const ip =
+      hostname === "localhost"
+        ? "127.0.0.1"
+        : isIPv4(hostname) || hostname === "::1"
+          ? hostname
+          : await dns
+              .lookup(hostname)
+              .then((r) => r.address)
+              .catch(() => hostname);
+
+    // SSRF Protection: Block private/internal IP ranges
+    if (isIPv4(ip)) {
+      const [a, b] = ip.split(".").map(Number);
+      if (
+        a === 10 ||
+        a === 127 ||
+        a === 0 ||
+        (a === 172 && b >= 16 && b <= 31) ||
+        (a === 192 && b === 168) ||
+        (a === 169 && b === 254) ||
+        a >= 224
+      ) {
+        // Also block multicast/reserved ranges
+        return NextResponse.json(
+          { error: "Access to private/internal addresses not allowed" },
+          { status: 403 },
+        );
+      }
+    } else if (ip === "::1") {
+      // Block IPv6 loopback
       return NextResponse.json(
-        { error: "Domain not allowed" },
+        { error: "Access to private/internal addresses not allowed" },
         { status: 403 },
       );
     }
 
-    // Fetch the content
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent": "Vana-SDK-Demo/1.0",
-      },
-    });
+    // Fetch with manual redirect handling for safety
+    const response = await fetch(url, { redirect: "manual" });
+
+    // Handle redirects recursively with the same security checks
+    if (response.status >= 301 && response.status <= 308) {
+      const location = response.headers.get("location");
+      if (location) {
+        const redirectUrl = new URL(location, url);
+        return handleProxy(redirectUrl.toString(), redirectCount + 1);
+      }
+    }
 
     if (!response.ok) {
       return NextResponse.json(
@@ -79,13 +108,12 @@ async function handleProxy(url: string): Promise<NextResponse> {
       );
     }
 
-    const data = await response.arrayBuffer();
-    const contentType =
-      response.headers.get("content-type") || "application/octet-stream";
+    const data = await response.blob();
 
     return new NextResponse(data, {
       headers: {
-        "Content-Type": contentType,
+        "Content-Type":
+          response.headers.get("Content-Type") || "application/octet-stream",
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET, POST",
         "Access-Control-Allow-Headers": "Content-Type",
@@ -94,7 +122,7 @@ async function handleProxy(url: string): Promise<NextResponse> {
   } catch (error) {
     console.error("Proxy error:", error);
     return NextResponse.json(
-      { error: "Failed to fetch file through proxy" },
+      { error: "Failed to proxy request" },
       { status: 500 },
     );
   }

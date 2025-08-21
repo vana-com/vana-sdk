@@ -22,6 +22,21 @@
         "GOOGLE_DRIVE_FOLDER"
       ]
     },
+    "build:types": {
+      "outputs": ["dist/**/*.d.ts"]
+    },
+    "build:node": {
+      "outputs": ["dist/**/*.node.*"]
+    },
+    "build:browser": {
+      "outputs": ["dist/**/*.browser.*"]
+    },
+    "build:chains": {
+      "outputs": ["dist/chains.*"]
+    },
+    "build:platform": {
+      "outputs": ["dist/platform.*"]
+    },
     "dev": {
       "cache": false,
       "persistent": true

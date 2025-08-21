@@ -551,7 +551,8 @@ export const DataPortabilityServersABI = [
             type: "string",
           },
         ],
-        internalType: "struct IDataPortabilityServers.AddServerWithSignatureInput",
+        internalType:
+          "struct IDataPortabilityServers.AddServerWithSignatureInput",
         name: "addServerInput",
         type: "tuple",
       },
@@ -591,7 +592,8 @@ export const DataPortabilityServersABI = [
             type: "string",
           },
         ],
-        internalType: "struct IDataPortabilityServers.AddServerWithSignatureInput",
+        internalType:
+          "struct IDataPortabilityServers.AddServerWithSignatureInput",
         name: "addServerInput",
         type: "tuple",
       },

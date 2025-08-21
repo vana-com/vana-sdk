@@ -170,7 +170,7 @@ export class ServerController {
    *   permissionId: 123
    * });
    * console.log(`Operation ID: ${operation.id}`);
-   * 
+   *
    * // Wait for completion
    * const result = await operation.waitForResult();
    * console.log("Result:", result);

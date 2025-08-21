@@ -1,0 +1,36 @@
+// tsup-browser.config.ts
+import { defineConfig } from "tsup";
+var browserOptimizationPlugin = {
+  name: "browser-optimization",
+  setup(build) {
+    build.onResolve({ filter: /^secp256k1$/ }, () => {
+      return { path: "secp256k1", external: true };
+    });
+    build.onResolve({ filter: /^crypto$/ }, () => {
+      return { path: "crypto", external: true };
+    });
+  }
+};
+var tsup_browser_config_default = defineConfig({
+  entry: ["src/index.browser.ts"],
+  format: ["esm"],
+  target: "es2020",
+  platform: "browser",
+  splitting: false,
+  sourcemap: true,
+  clean: false,
+  dts: true,
+  outDir: "dist",
+  esbuildPlugins: [browserOptimizationPlugin],
+  // External modules that shouldn't be bundled for browsers
+  external: ["secp256k1", "crypto"],
+  // Define process.browser to help with environment detection
+  define: {
+    "process.browser": "true",
+    "process.env.NODE_ENV": JSON.stringify("production")
+  }
+});
+export {
+  tsup_browser_config_default as default
+};
+//# sourceMappingURL=data:application/json;base64,ewogICJ2ZXJzaW9uIjogMywKICAic291cmNlcyI6IFsidHN1cC1icm93c2VyLmNvbmZpZy50cyJdLAogICJzb3VyY2VzQ29udGVudCI6IFsiY29uc3QgX19pbmplY3RlZF9maWxlbmFtZV9fID0gXCIvd29ya3NwYWNlL3BhY2thZ2VzL3ZhbmEtc2RrL3RzdXAtYnJvd3Nlci5jb25maWcudHNcIjtjb25zdCBfX2luamVjdGVkX2Rpcm5hbWVfXyA9IFwiL3dvcmtzcGFjZS9wYWNrYWdlcy92YW5hLXNka1wiO2NvbnN0IF9faW5qZWN0ZWRfaW1wb3J0X21ldGFfdXJsX18gPSBcImZpbGU6Ly8vd29ya3NwYWNlL3BhY2thZ2VzL3ZhbmEtc2RrL3RzdXAtYnJvd3Nlci5jb25maWcudHNcIjtpbXBvcnQgeyBkZWZpbmVDb25maWcgfSBmcm9tIFwidHN1cFwiO1xuaW1wb3J0IHR5cGUgeyBQbHVnaW4gfSBmcm9tIFwiZXNidWlsZFwiO1xuXG4vLyBQbHVnaW4gdG8gaGFuZGxlIHBsYXRmb3JtLXNwZWNpZmljIG1vZHVsZXMgZm9yIGJyb3dzZXIgYnVpbGRzXG5jb25zdCBicm93c2VyT3B0aW1pemF0aW9uUGx1Z2luOiBQbHVnaW4gPSB7XG4gIG5hbWU6IFwiYnJvd3Nlci1vcHRpbWl6YXRpb25cIixcbiAgc2V0dXAoYnVpbGQpIHtcbiAgICAvLyBFeGNsdWRlIE5vZGUuanMgbmF0aXZlIHNlY3AyNTZrMSBmcm9tIGJyb3dzZXIgYnVpbGRzXG4gICAgYnVpbGQub25SZXNvbHZlKHsgZmlsdGVyOiAvXnNlY3AyNTZrMSQvIH0sICgpID0+IHtcbiAgICAgIHJldHVybiB7IHBhdGg6IFwic2VjcDI1NmsxXCIsIGV4dGVybmFsOiB0cnVlIH07XG4gICAgfSk7XG5cbiAgICAvLyBQcmV2ZW50IE5vZGUuanMgY3J5cHRvIGZyb20gYmVpbmcgaW1wb3J0ZWRcbiAgICBidWlsZC5vblJlc29sdmUoeyBmaWx0ZXI6IC9eY3J5cHRvJC8gfSwgKCkgPT4ge1xuICAgICAgcmV0dXJuIHsgcGF0aDogXCJjcnlwdG9cIiwgZXh0ZXJuYWw6IHRydWUgfTtcbiAgICB9KTtcbiAgfSxcbn07XG5cbmV4cG9ydCBkZWZhdWx0IGRlZmluZUNvbmZpZyh7XG4gIGVudHJ5OiBbXCJzcmMvaW5kZXguYnJvd3Nlci50c1wiXSxcbiAgZm9ybWF0OiBbXCJlc21cIl0sXG4gIHRhcmdldDogXCJlczIwMjBcIixcbiAgcGxhdGZvcm06IFwiYnJvd3NlclwiLFxuICBzcGxpdHRpbmc6IGZhbHNlLFxuICBzb3VyY2VtYXA6IHRydWUsXG4gIGNsZWFuOiBmYWxzZSxcbiAgZHRzOiB0cnVlLFxuICBvdXREaXI6IFwiZGlzdFwiLFxuICBlc2J1aWxkUGx1Z2luczogW2Jyb3dzZXJPcHRpbWl6YXRpb25QbHVnaW5dLFxuICAvLyBFeHRlcm5hbCBtb2R1bGVzIHRoYXQgc2hvdWxkbid0IGJlIGJ1bmRsZWQgZm9yIGJyb3dzZXJzXG4gIGV4dGVybmFsOiBbXCJzZWNwMjU2azFcIiwgXCJjcnlwdG9cIl0sXG4gIC8vIERlZmluZSBwcm9jZXNzLmJyb3dzZXIgdG8gaGVscCB3aXRoIGVudmlyb25tZW50IGRldGVjdGlvblxuICBkZWZpbmU6IHtcbiAgICBcInByb2Nlc3MuYnJvd3NlclwiOiBcInRydWVcIixcbiAgICBcInByb2Nlc3MuZW52Lk5PREVfRU5WXCI6IEpTT04uc3RyaW5naWZ5KFwicHJvZHVjdGlvblwiKSxcbiAgfSxcbn0pO1xuIl0sCiAgIm1hcHBpbmdzIjogIjtBQUFrUCxTQUFTLG9CQUFvQjtBQUkvUSxJQUFNLDRCQUFvQztBQUFBLEVBQ3hDLE1BQU07QUFBQSxFQUNOLE1BQU0sT0FBTztBQUVYLFVBQU0sVUFBVSxFQUFFLFFBQVEsY0FBYyxHQUFHLE1BQU07QUFDL0MsYUFBTyxFQUFFLE1BQU0sYUFBYSxVQUFVLEtBQUs7QUFBQSxJQUM3QyxDQUFDO0FBR0QsVUFBTSxVQUFVLEVBQUUsUUFBUSxXQUFXLEdBQUcsTUFBTTtBQUM1QyxhQUFPLEVBQUUsTUFBTSxVQUFVLFVBQVUsS0FBSztBQUFBLElBQzFDLENBQUM7QUFBQSxFQUNIO0FBQ0Y7QUFFQSxJQUFPLDhCQUFRLGFBQWE7QUFBQSxFQUMxQixPQUFPLENBQUMsc0JBQXNCO0FBQUEsRUFDOUIsUUFBUSxDQUFDLEtBQUs7QUFBQSxFQUNkLFFBQVE7QUFBQSxFQUNSLFVBQVU7QUFBQSxFQUNWLFdBQVc7QUFBQSxFQUNYLFdBQVc7QUFBQSxFQUNYLE9BQU87QUFBQSxFQUNQLEtBQUs7QUFBQSxFQUNMLFFBQVE7QUFBQSxFQUNSLGdCQUFnQixDQUFDLHlCQUF5QjtBQUFBO0FBQUEsRUFFMUMsVUFBVSxDQUFDLGFBQWEsUUFBUTtBQUFBO0FBQUEsRUFFaEMsUUFBUTtBQUFBLElBQ04sbUJBQW1CO0FBQUEsSUFDbkIsd0JBQXdCLEtBQUssVUFBVSxZQUFZO0FBQUEsRUFDckQ7QUFDRixDQUFDOyIsCiAgIm5hbWVzIjogW10KfQo=

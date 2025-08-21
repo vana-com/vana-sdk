@@ -1,6 +1,19 @@
 import "@testing-library/jest-dom";
 import { vi, beforeEach, afterEach } from "vitest";
 
+// Note: SDK mocks should be set up explicitly in each test file using the factory functions
+// from ./mocks.ts. This ensures test isolation and explicit dependencies.
+// Example usage in a test file:
+//
+// import { vi } from "vitest";
+// import { createMockUseVana } from "@/tests/mocks";
+//
+// beforeEach(() => {
+//   vi.mock("@/providers/VanaProvider", () => ({
+//     useVana: () => createMockUseVana({ isInitialized: true })
+//   }));
+// });
+
 // Global test setup to silence console output during tests
 // This keeps test output clean while preserving debugging capabilities
 

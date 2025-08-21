@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createPinataProvider } from "@/lib/storage";
+import { createPinataProvider } from "@/lib/storage-server";
 
 export async function POST(request: NextRequest) {
   try {

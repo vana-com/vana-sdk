@@ -6,9 +6,19 @@
     "access": "public"
   },
   "type": "module",
+  "sideEffects": false,
   "main": "dist/index.node.js",
   "types": "dist/index.node.d.ts",
   "exports": {
+    ".": {
+      "browser": {
+        "types": "./dist/index.browser.d.ts",
+        "import": "./dist/index.browser.js"
+      },
+      "types": "./dist/index.node.d.ts",
+      "import": "./dist/index.node.js",
+      "require": "./dist/index.node.cjs"
+    },
     "./browser": {
       "types": "./dist/index.browser.d.ts",
       "import": "./dist/index.browser.js"
@@ -19,14 +29,14 @@
       "require": "./dist/index.node.cjs"
     },
     "./chains": {
+      "browser": {
+        "types": "./dist/chains.browser.d.ts",
+        "import": "./dist/chains.browser.js"
+      },
       "node": {
         "types": "./dist/chains.node.d.ts",
         "import": "./dist/chains.node.js",
         "require": "./dist/chains.node.cjs"
-      },
-      "browser": {
-        "import": "./dist/chains.browser.js",
-        "types": "./dist/chains.browser.d.ts"
       },
       "default": {
         "types": "./dist/chains.node.d.ts",
@@ -35,14 +45,14 @@
       }
     },
     "./platform": {
+      "browser": {
+        "types": "./dist/platform.browser.d.ts",
+        "import": "./dist/platform.browser.js"
+      },
       "node": {
         "types": "./dist/platform.node.d.ts",
         "import": "./dist/platform.node.js",
         "require": "./dist/platform.node.cjs"
-      },
-      "browser": {
-        "import": "./dist/platform.browser.js",
-        "types": "./dist/platform.browser.d.ts"
       },
       "default": {
         "types": "./dist/platform.node.d.ts",
@@ -50,6 +60,10 @@
         "require": "./dist/platform.node.cjs"
       }
     }
+  },
+  "browser": {
+    "secp256k1": false,
+    "crypto": false
   },
   "files": [
     "dist",
@@ -60,11 +74,10 @@
     "clean": "rimraf dist",
     "build:types": "tsup src/index.ts --dts-only --out-dir dist --no-clean",
     "build:node": "tsup src/index.node.ts --platform node --format esm,cjs --target node18 --out-dir dist --no-clean",
-    "build:browser": "tsup src/index.browser.ts --platform browser --format esm --target es2020 --out-dir dist --dts --no-clean",
+    "build:browser": "tsup --config tsup-browser.config.ts",
     "build:chains": "tsup src/chains.ts src/chains.node.ts src/chains.browser.ts --platform node --format esm,cjs --target node18 --out-dir dist --dts --no-clean",
     "build:platform": "tsup src/platform.ts src/platform.node.ts src/node.ts --platform node --format esm,cjs --target node18 --out-dir dist --dts --no-clean && tsup src/platform.browser.ts src/browser.ts --platform browser --format esm --target es2020 --out-dir dist --dts --no-clean",
-    "build": "npm run clean && npm run build:types && npm run build:node && npm run build:browser && npm run build:chains && npm run build:platform",
-    "prepare": "npm run build",
+    "build": "npm run clean && npx npm-run-all --parallel build:types build:node build:browser build:chains build:platform",
     "dev": "npm run build -- --watch",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -88,10 +101,11 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@noble/hashes": "^1.8.0",
+    "@noble/secp256k1": "^2.3.0",
     "abitype": "^1.0.8",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
-    "eccrypto": "^1.1.6",
     "eccrypto-js": "^5.4.0",
     "graphql": "^16.11.0",
     "openpgp": "^6.1.1",
@@ -102,14 +116,13 @@
     "@graphql-codegen/typed-document-node": "^5.1.2",
     "@graphql-codegen/typescript": "^4.1.6",
     "@graphql-codegen/typescript-operations": "^4.6.1",
-    "@types/eccrypto": "^1.1.6",
     "@types/node": "^24.0.10",
+    "@types/secp256k1": "^4.0.6",
     "@typescript-eslint/eslint-plugin": "^8.32.1",
     "@typescript-eslint/parser": "^8.32.1",
     "@vitest/coverage-v8": "^3.2.4",
     "bundle-require": "^5.1.0",
     "consola": "^3.4.0",
-    "eccrypto": "^1.1.6",
     "eslint": "^9.26.0",
     "eslint-config-prettier": "^10.1.5",
     "eslint-plugin-prettier": "^5.4.0",
@@ -123,6 +136,9 @@
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"
+  },
+  "optionalDependencies": {
+    "secp256k1": "^5.0.1"
   },
   "engines": {
     "node": ">=20.0.0"

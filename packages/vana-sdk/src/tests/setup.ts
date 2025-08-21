@@ -16,6 +16,10 @@ vi.mock("viem", async (importOriginal) => {
 // Global test setup to silence console output during tests
 // This keeps test output clean while preserving debugging capabilities
 
+// Configure tests to use custom ECIES implementation by default
+// This ensures the custom implementation is thoroughly tested
+process.env.VANA_USE_CUSTOM_ECIES = "true";
+
 let originalConsole: {
   log: typeof console.log;
   warn: typeof console.warn;

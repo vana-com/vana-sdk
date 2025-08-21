@@ -8,82 +8,76 @@ import { describe, it, expect } from "vitest";
 describe("Shared Platform Utilities", () => {
   describe("Crypto Utilities", () => {
     it("should process wallet public key with 0x prefix", async () => {
-      const { processWalletPublicKey } = await import(
-        "../platform/shared/crypto-utils"
-      );
+      const { processWalletPublicKey } = await import("../utils/crypto-utils");
 
+      // Use properly formatted uncompressed key (0x04 prefix + 64 bytes)
       const publicKey =
-        "0xc68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";
+        "0x04c68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";
       const result = processWalletPublicKey(publicKey);
 
-      expect(result).toBeInstanceOf(Buffer);
+      expect(result).toBeInstanceOf(Uint8Array);
       expect(result.length).toBe(65); // Should be uncompressed format
       expect(result[0]).toBe(4); // Should start with 0x04 prefix
     });
 
     it("should process wallet public key without 0x prefix", async () => {
-      const { processWalletPublicKey } = await import(
-        "../platform/shared/crypto-utils"
-      );
+      const { processWalletPublicKey } = await import("../utils/crypto-utils");
 
+      // Use properly formatted uncompressed key (04 prefix + 64 bytes)
       const publicKey =
-        "c68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";
+        "04c68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";
       const result = processWalletPublicKey(publicKey);
 
-      expect(result).toBeInstanceOf(Buffer);
+      expect(result).toBeInstanceOf(Uint8Array);
       expect(result.length).toBe(65); // Should be uncompressed format
       expect(result[0]).toBe(4); // Should start with 0x04 prefix
     });
 
     it("should handle already uncompressed public key", async () => {
-      const { processWalletPublicKey } = await import(
-        "../platform/shared/crypto-utils"
-      );
+      const { processWalletPublicKey } = await import("../utils/crypto-utils");
 
       const publicKey =
         "04c68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";
       const result = processWalletPublicKey(publicKey);
 
-      expect(result).toBeInstanceOf(Buffer);
+      expect(result).toBeInstanceOf(Uint8Array);
       expect(result.length).toBe(65); // Should remain uncompressed format
       expect(result[0]).toBe(4); // Should still start with 0x04 prefix
     });
 
     it("should process wallet private key with 0x prefix", async () => {
-      const { processWalletPrivateKey } = await import(
-        "../platform/shared/crypto-utils"
-      );
+      const { processWalletPrivateKey } = await import("../utils/crypto-utils");
 
       const privateKey =
         "0x85271071a553feafb93839045545c233d0518e0b0fc583f88038f8b0e32e9f18";
       const result = processWalletPrivateKey(privateKey);
 
-      expect(result).toBeInstanceOf(Buffer);
+      expect(result).toBeInstanceOf(Uint8Array);
       expect(result.length).toBe(32); // Private key should be 32 bytes
-      expect(result.toString("hex")).toBe(
+      const { bytesToHex } = await import("../crypto/ecies/utils");
+      expect(bytesToHex(result)).toBe(
         "85271071a553feafb93839045545c233d0518e0b0fc583f88038f8b0e32e9f18",
       );
     });
 
     it("should process wallet private key without 0x prefix", async () => {
-      const { processWalletPrivateKey } = await import(
-        "../platform/shared/crypto-utils"
-      );
+      const { processWalletPrivateKey } = await import("../utils/crypto-utils");
 
       const privateKey =
         "85271071a553feafb93839045545c233d0518e0b0fc583f88038f8b0e32e9f18";
       const result = processWalletPrivateKey(privateKey);
 
-      expect(result).toBeInstanceOf(Buffer);
+      expect(result).toBeInstanceOf(Uint8Array);
       expect(result.length).toBe(32); // Private key should be 32 bytes
-      expect(result.toString("hex")).toBe(
+      const { bytesToHex } = await import("../crypto/ecies/utils");
+      expect(bytesToHex(result)).toBe(
         "85271071a553feafb93839045545c233d0518e0b0fc583f88038f8b0e32e9f18",
       );
     });
 
     it("should parse encrypted data buffer correctly", async () => {
       const { parseEncryptedDataBuffer } = await import(
-        "../platform/shared/crypto-utils"
+        "../utils/crypto-utils"
       );
 
       // Create a test buffer with known structure
@@ -102,12 +96,10 @@ describe("Shared Platform Utilities", () => {
     });
 
     it("should convert hex string to Uint8Array", async () => {
-      const { hexToUint8Array } = await import(
-        "../platform/shared/crypto-utils"
-      );
+      const { hexToBytes } = await import("../crypto/ecies/utils");
 
       const hex = "deadbeef";
-      const result = hexToUint8Array(hex);
+      const result = hexToBytes(hex);
 
       expect(result).toBeInstanceOf(Uint8Array);
       expect(result.length).toBe(4);
@@ -115,24 +107,20 @@ describe("Shared Platform Utilities", () => {
     });
 
     it("should convert Uint8Array to hex string", async () => {
-      const { uint8ArrayToHex } = await import(
-        "../platform/shared/crypto-utils"
-      );
+      const { bytesToHex } = await import("../crypto/ecies/utils");
 
       const array = new Uint8Array([0xde, 0xad, 0xbe, 0xef]);
-      const result = uint8ArrayToHex(array);
+      const result = bytesToHex(array);
 
       expect(result).toBe("deadbeef");
     });
 
     it("should round-trip hex conversions", async () => {
-      const { hexToUint8Array, uint8ArrayToHex } = await import(
-        "../platform/shared/crypto-utils"
-      );
+      const { hexToBytes, bytesToHex } = await import("../crypto/ecies/utils");
 
       const originalHex = "1234567890abcdef";
-      const array = hexToUint8Array(originalHex);
-      const backToHex = uint8ArrayToHex(array);
+      const array = hexToBytes(originalHex);
+      const backToHex = bytesToHex(array);
 
       expect(backToHex).toBe(originalHex);
     });

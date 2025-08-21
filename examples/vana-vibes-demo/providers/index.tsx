@@ -36,7 +36,7 @@ export function Providers({ children }: ProvidersProps) {
   }
 
   // Use environment variable to determine wallet provider
-  const useRainbow = process.env.NEXT_PUBLIC_WALLET_PROVIDER === 'rainbow';
+  const useRainbow = process.env.NEXT_PUBLIC_WALLET_PROVIDER === "rainbow";
   const WalletProvider = useRainbow ? RainbowProvider : ParaProvider;
 
   return (

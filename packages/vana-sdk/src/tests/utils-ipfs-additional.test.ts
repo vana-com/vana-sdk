@@ -5,10 +5,12 @@ import {
   extractIpfsHash,
   getGatewayUrls,
   convertIpfsUrlWithFallbacks,
-  fetchWithFallbacks,
   DEFAULT_IPFS_GATEWAY,
   IPFS_GATEWAYS,
 } from "../utils/ipfs";
+
+// Import for testing, but we'll mock it for problematic tests
+import { fetchWithFallbacks } from "../utils/ipfs";
 
 // Mock global fetch
 const originalFetch = globalThis.fetch;
@@ -206,6 +208,13 @@ describe("Additional IPFS Utils", () => {
     });
 
     it("should try multiple gateways on failure", async () => {
+      vi.useFakeTimers();
+      const originalTimeout = AbortSignal.timeout;
+      AbortSignal.timeout = vi.fn(() => {
+        const controller = new AbortController();
+        return controller.signal;
+      });
+
       const url = "ipfs://QmFailingHash";
       const failResponse = new Response("Not found", { status: 404 });
       const successResponse = new Response("success data", { status: 200 });
@@ -215,7 +224,9 @@ describe("Additional IPFS Utils", () => {
         .mockResolvedValueOnce(failResponse) // First gateway fails
         .mockResolvedValueOnce(successResponse); // Second gateway succeeds
 
-      const result = await fetchWithFallbacks(url);
+      const fetchPromise = fetchWithFallbacks(url);
+      await vi.runAllTimersAsync();
+      const result = await fetchPromise;
 
       expect(result).toBe(successResponse);
       expect(globalThis.fetch).toHaveBeenCalledTimes(2);
@@ -229,9 +240,19 @@ describe("Additional IPFS Utils", () => {
         `${IPFS_GATEWAYS[1]}QmFailingHash`,
         expect.objectContaining({ signal: expect.any(AbortSignal) }),
       );
+
+      AbortSignal.timeout = originalTimeout;
+      vi.useRealTimers();
     });
 
     it("should handle rate limiting (429) and continue to next gateway", async () => {
+      vi.useFakeTimers();
+      const originalTimeout = AbortSignal.timeout;
+      AbortSignal.timeout = vi.fn(() => {
+        const controller = new AbortController();
+        return controller.signal;
+      });
+
       const url = "ipfs://QmRateLimitedHash";
       const rateLimitResponse = new Response("Rate limited", { status: 429 });
       const successResponse = new Response("success data", { status: 200 });
@@ -241,13 +262,25 @@ describe("Additional IPFS Utils", () => {
         .mockResolvedValueOnce(rateLimitResponse)
         .mockResolvedValueOnce(successResponse);
 
-      const result = await fetchWithFallbacks(url);
+      const fetchPromise = fetchWithFallbacks(url);
+      await vi.runAllTimersAsync();
+      const result = await fetchPromise;
 
       expect(result).toBe(successResponse);
       expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+
+      AbortSignal.timeout = originalTimeout;
+      vi.useRealTimers();
     });
 
     it("should handle network errors and continue to next gateway", async () => {
+      vi.useFakeTimers();
+      const originalTimeout = AbortSignal.timeout;
+      AbortSignal.timeout = vi.fn(() => {
+        const controller = new AbortController();
+        return controller.signal;
+      });
+
       const url = "ipfs://QmNetworkErrorHash";
       const networkError = new Error("Network error");
       const successResponse = new Response("success data", { status: 200 });
@@ -257,13 +290,25 @@ describe("Additional IPFS Utils", () => {
         .mockRejectedValueOnce(networkError)
         .mockResolvedValueOnce(successResponse);
 
-      const result = await fetchWithFallbacks(url);
+      const fetchPromise = fetchWithFallbacks(url);
+      await vi.runAllTimersAsync();
+      const result = await fetchPromise;
 
       expect(result).toBe(successResponse);
       expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+
+      AbortSignal.timeout = originalTimeout;
+      vi.useRealTimers();
     });
 
     it("should handle timeout errors", async () => {
+      vi.useFakeTimers();
+      const originalTimeout = AbortSignal.timeout;
+      AbortSignal.timeout = vi.fn(() => {
+        const controller = new AbortController();
+        return controller.signal;
+      });
+
       const url = "ipfs://QmTimeoutHash";
       const timeoutError = new Error("TimeoutError");
       timeoutError.name = "TimeoutError";
@@ -274,12 +319,24 @@ describe("Additional IPFS Utils", () => {
         .mockRejectedValueOnce(timeoutError)
         .mockResolvedValueOnce(successResponse);
 
-      const result = await fetchWithFallbacks(url);
+      const fetchPromise = fetchWithFallbacks(url);
+      await vi.runAllTimersAsync();
+      const result = await fetchPromise;
 
       expect(result).toBe(successResponse);
+
+      AbortSignal.timeout = originalTimeout;
+      vi.useRealTimers();
     });
 
     it("should handle non-Error exceptions", async () => {
+      vi.useFakeTimers();
+      const originalTimeout = AbortSignal.timeout;
+      AbortSignal.timeout = vi.fn(() => {
+        const controller = new AbortController();
+        return controller.signal;
+      });
+
       const url = "ipfs://QmStringErrorHash";
       const stringError = "String error message";
       const successResponse = new Response("success data", { status: 200 });
@@ -289,22 +346,62 @@ describe("Additional IPFS Utils", () => {
         .mockRejectedValueOnce(stringError)
         .mockResolvedValueOnce(successResponse);
 
-      const result = await fetchWithFallbacks(url);
+      const fetchPromise = fetchWithFallbacks(url);
+      await vi.runAllTimersAsync();
+      const result = await fetchPromise;
 
       expect(result).toBe(successResponse);
+
+      AbortSignal.timeout = originalTimeout;
+      vi.useRealTimers();
     });
 
     it("should throw error when all gateways fail", async () => {
+      // Use fake timers to control the delays
+      vi.useFakeTimers();
+
+      // Store original AbortSignal.timeout
+      const originalTimeout = AbortSignal.timeout;
+
+      // Mock AbortSignal.timeout to return a non-aborting signal
+      // This prevents the timeout from interfering with our test
+      AbortSignal.timeout = vi.fn(() => {
+        const controller = new AbortController();
+        return controller.signal;
+      });
+
       const url = "ipfs://QmAllFailHash";
       const errorResponse = new Response("Server error", { status: 500 });
-      globalThis.fetch = vi.fn().mockResolvedValue(errorResponse);
 
-      await expect(fetchWithFallbacks(url)).rejects.toThrow(
+      globalThis.fetch = vi
+        .fn()
+        .mockImplementation(() => Promise.resolve(errorResponse));
+
+      let errorMessage: string | null = null;
+
+      // Start the fetch operation with proper error handling
+      const fetchPromise = fetchWithFallbacks(url).catch((e: Error) => {
+        errorMessage = e.message;
+      });
+
+      // Advance all timers to handle the setTimeout delays
+      await vi.runAllTimersAsync();
+
+      // Wait for the promise to settle
+      await fetchPromise;
+
+      // Assert the error was thrown
+      expect(errorMessage).toBeTruthy();
+      expect(errorMessage).toContain(
         "All IPFS gateways failed for hash QmAllFailHash",
       );
 
       expect(globalThis.fetch).toHaveBeenCalledTimes(IPFS_GATEWAYS.length);
-    }, 20000); // Increase timeout to allow for delays
+
+      // Restore original implementations
+      AbortSignal.timeout = originalTimeout;
+      vi.useRealTimers();
+    });
 
     it("should pass through fetch options", async () => {
       const url = "https://example.com/api";

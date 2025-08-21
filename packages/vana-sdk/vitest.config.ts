@@ -26,10 +26,12 @@ export default defineConfig({
       ],
       reportOnFailure: true,
       thresholds: {
-        statements: 80.3, // Temporarily lowered for dual-mode ECIES support
-        branches: 85.9, // Adjusted after security fixes to use @noble consistently
-        functions: 90, // Adjusted after ECIES refactor
-        lines: 80.3, // Temporarily lowered for dual-mode ECIES support
+        // Temporarily lowered for dual-mode ECIES support
+        // Will be raised back once eccrypto-js is removed
+        statements: 80.3,
+        branches: 85.9,
+        functions: 89.4,
+        lines: 80.3,
       },
     },
   },

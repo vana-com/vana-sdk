@@ -57,19 +57,19 @@ export const EVENT_MAPPINGS = {
   // DataRegistry operations
   addFile: {
     contract: "DataRegistry",
-    event: "FileAdded",
+    event: "FileAddedV2",
   },
   addFileWithPermissionsAndSchema: {
     contract: "DataRegistry",
-    event: "FileAdded",
+    event: "FileAddedV2",
   },
   addFileWithSchema: {
     contract: "DataRegistry",
-    event: "FileAdded",
+    event: "FileAddedV2",
   },
   addFileWithPermissions: {
     contract: "DataRegistry",
-    event: "FileAdded",
+    event: "FileAddedV2",
   },
   addRefinement: {
     contract: "DataRegistry",

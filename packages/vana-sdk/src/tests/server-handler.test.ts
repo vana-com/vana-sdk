@@ -10,6 +10,7 @@ vi.mock("viem", async () => {
   const actual = await vi.importActual("viem");
   return {
     ...actual,
+    getAddress: vi.fn((address) => address),
     recoverTypedDataAddress: vi.fn(),
   };
 });
@@ -144,8 +145,8 @@ describe("handleRelayerRequest", () => {
       );
     });
 
-    it("should route PermissionRevoke type to submitSignedRevoke", async () => {
-      mockTypedData.primaryType = "PermissionRevoke";
+    it("should route RevokePermission type to submitSignedRevoke", async () => {
+      mockTypedData.primaryType = "RevokePermission";
 
       await handleRelayerRequest(mockVana, {
         typedData: mockTypedData,

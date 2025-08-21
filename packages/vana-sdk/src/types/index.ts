@@ -13,6 +13,7 @@ export type {
   ConfigValidationOptions,
   ConfigValidationResult,
   RelayerCallbacks,
+  DownloadRelayerCallbacks,
   StorageRequiredMarker,
 } from "./config";
 
@@ -97,7 +98,7 @@ export type { DataSchema } from "../utils/schemaValidation";
 export {
   SchemaValidationError,
   SchemaValidator,
-  validateDataSchema,
+  validateDataSchemaAgainstMetaSchema,
   validateDataAgainstSchema,
   fetchAndValidateSchema,
 } from "../utils/schemaValidation";
@@ -116,7 +117,10 @@ export type {
   SimplifiedPermissionMessage,
   GrantFile,
   PermissionGrantTypedData,
+  RevokePermissionTypedData,
   GenericTypedData,
+  TypedDataPrimaryType,
+  SpecificTypedData,
   PermissionOperation,
   PermissionStatus,
   QueryPermissionsParams,

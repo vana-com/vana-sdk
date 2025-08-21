@@ -531,12 +531,16 @@ export function usePermissions(): UsePermissionsReturn {
                 id: permission.id,
                 grantUrl: permission.grant,
                 grantSignature: "", // Would need lookup
-                grantHash: "", // Would need computation
                 nonce: BigInt(permission.nonce || 0),
+                startBlock: BigInt(0), // Would need lookup
                 addedAtBlock: permission.blockNumber || BigInt(0),
                 addedAtTimestamp: BigInt(permission.grantedAt || 0),
                 transactionHash: permission.transactionHash || "",
                 grantor: permission.grantor,
+                grantee: {
+                  id: "", // Would need lookup
+                  address: "", // Would need lookup
+                },
                 active: permission.active,
               };
               return [...prev, onChainEntry];

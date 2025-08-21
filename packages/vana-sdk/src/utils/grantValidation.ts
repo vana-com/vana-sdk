@@ -1,4 +1,4 @@
-import { Address } from "viem";
+import { Address, getAddress } from "viem";
 import Ajv, { type ValidateFunction } from "ajv";
 import addFormats from "ajv-formats";
 import type { GrantFile } from "../types/permissions";
@@ -344,7 +344,10 @@ export function validateGranteeAccess(
   grantFile: GrantFile,
   requestingAddress: Address,
 ): void {
-  if (grantFile.grantee.toLowerCase() !== requestingAddress.toLowerCase()) {
+  const normalizedGrantee = getAddress(grantFile.grantee);
+  const normalizedRequesting = getAddress(requestingAddress);
+
+  if (normalizedGrantee !== normalizedRequesting) {
     throw new GranteeMismatchError(
       "Permission denied: requesting address does not match grantee",
       grantFile.grantee,

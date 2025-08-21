@@ -1,4 +1,4 @@
-import { Address, Hash } from "viem";
+import { Address, Hash, getAddress } from "viem";
 import type { WalletClient, PublicClient } from "viem";
 import { gasAwareMulticall } from "../utils/multicall";
 import {
@@ -46,7 +46,10 @@ import {
 } from "../types/transactionResults";
 import { TransactionHandle } from "../utils/transactionHandle";
 import { PermissionInfo } from "../types/permissions";
-import type { RelayerCallbacks } from "../types/config";
+import type {
+  RelayerCallbacks,
+  DownloadRelayerCallbacks,
+} from "../types/config";
 import {
   RelayerError,
   UserRejectedRequestError,
@@ -67,29 +70,13 @@ import { formatSignatureForContract } from "../utils/signatureFormatter";
 import { toViemTypedDataDefinition } from "../utils/typedDataConverter";
 import { StorageManager } from "../storage";
 import type { VanaPlatformAdapter } from "../platform/interface";
+import type { GetUserPermissionsQuery } from "../generated/subgraph";
 
-interface SubgraphPermissionsResponse {
-  data?: {
-    user?: {
-      permissions?: Array<{
-        id: string;
-        grant: string;
-        nonce: string;
-        signature: string;
-        startBlock: string;
-        endBlock?: string;
-        addedAtBlock: string;
-        addedAtTimestamp?: string;
-        transactionHash?: string;
-        grantee: {
-          id: string;
-          address: string;
-        };
-      }>;
-    };
-  };
+// Wrapper type for GraphQL responses with potential errors
+type SubgraphPermissionsResponse = {
+  data?: GetUserPermissionsQuery;
   errors?: Array<{ message: string }>;
-}
+};
 
 /**
  * Provides shared configuration and services for all SDK controllers.
@@ -111,6 +98,8 @@ export interface ControllerContext {
   applicationClient?: WalletClient;
   /** Handles gasless transaction submission through relayer services. */
   relayerCallbacks?: RelayerCallbacks;
+  /** Proxies CORS-restricted downloads through application server. */
+  downloadRelayer?: DownloadRelayerCallbacks;
   /** Manages file upload and download operations across storage providers. */
   storageManager?: StorageManager;
   /** Provides subgraph endpoint for querying indexed blockchain data. */
@@ -1623,18 +1612,21 @@ export class PermissionsController {
       // Process permissions without expensive network calls - FAST PATH
       const onChainGrants: OnChainPermissionGrant[] = userData.permissions
         .slice(0, limit)
-        .map((permission) => ({
-          id: BigInt(permission.id),
-          grantUrl: permission.grant,
-          grantSignature: permission.signature,
-          grantHash: "", // Not available in new schema, compute if needed
-          nonce: BigInt(permission.nonce),
-          addedAtBlock: BigInt(permission.addedAtBlock),
-          addedAtTimestamp: BigInt(permission.addedAtTimestamp || "0"),
-          transactionHash: permission.transactionHash || "",
-          grantor: userAddress as Address,
-          active: !permission.endBlock || BigInt(permission.endBlock) === 0n, // Active if no end block or end block is 0
-        }));
+        .map(
+          (permission: NonNullable<typeof userData.permissions>[number]) => ({
+            id: BigInt(permission.id),
+            grantUrl: permission.grant,
+            grantSignature: permission.signature,
+            nonce: BigInt(permission.nonce),
+            startBlock: BigInt(permission.startBlock),
+            addedAtBlock: BigInt(permission.addedAtBlock),
+            addedAtTimestamp: BigInt(permission.addedAtTimestamp || "0"),
+            transactionHash: permission.transactionHash || "",
+            grantor: userAddress as Address,
+            grantee: permission.grantee,
+            active: !permission.endBlock || BigInt(permission.endBlock) === 0n, // Active if no end block or end block is 0
+          }),
+        );
 
       return onChainGrants.sort((a, b) => {
         // Sort by ID - most recent first
@@ -1729,14 +1721,17 @@ export class PermissionsController {
       const userAddress =
         this.context.walletClient.account?.address ||
         (await this.getUserAddress());
+      const normalizedUserAddress = getAddress(userAddress);
+      const normalizedServerAddress = getAddress(params.serverAddress);
+
       const txHash = await this.context.walletClient.writeContract({
         address: DataPortabilityServersAddress,
         abi: DataPortabilityServersAbi,
         functionName: "addAndTrustServerByManager",
         args: [
-          userAddress,
+          normalizedUserAddress,
           {
-            serverAddress: params.serverAddress,
+            serverAddress: normalizedServerAddress,
             serverUrl: params.serverUrl,
             publicKey: params.publicKey,
           },
@@ -1820,9 +1815,11 @@ export class PermissionsController {
       const nonce = await this.getServersUserNonce();
 
       // Create add and trust server message
+      const serverAddress = getAddress(params.serverAddress);
+
       const addAndTrustServerInput: AddAndTrustServerInput = {
         nonce,
-        serverAddress: params.serverAddress,
+        serverAddress,
         publicKey: params.publicKey,
         serverUrl: params.serverUrl,
       };
@@ -2841,11 +2838,14 @@ export class PermissionsController {
     );
     const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
 
+    const ownerAddress = getAddress(params.owner);
+    const granteeAddress = getAddress(params.granteeAddress);
+
     const txHash = await this.context.walletClient.writeContract({
       address: DataPortabilityGranteesAddress,
       abi: DataPortabilityGranteesAbi,
       functionName: "registerGrantee",
-      args: [params.owner, params.granteeAddress, params.publicKey],
+      args: [ownerAddress, granteeAddress, params.publicKey],
       account:
         this.context.walletClient.account || (await this.getUserAddress()),
       chain: this.context.walletClient.chain || null,
@@ -2878,10 +2878,13 @@ export class PermissionsController {
   ): Promise<TransactionHandle<GranteeRegisterResult>> {
     const nonce = await this.getServersUserNonce();
 
+    const owner = getAddress(params.owner);
+    const granteeAddress = getAddress(params.granteeAddress);
+
     const registerGranteeInput: RegisterGranteeInput = {
       nonce,
-      owner: params.owner,
-      granteeAddress: params.granteeAddress,
+      owner,
+      granteeAddress,
       publicKey: params.publicKey,
     };
 

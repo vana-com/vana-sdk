@@ -15,6 +15,7 @@ import {
   PersonalServerError,
 } from "../errors";
 import { ControllerContext } from "./permissions";
+import { OperationHandle } from "../utils/operationHandle";
 
 // Server types are now auto-imported from the generated exports
 
@@ -150,31 +151,34 @@ export class ServerController {
   }
 
   /**
-   * Creates an operation via the personal server API.
+   * Creates a server operation and returns a handle for lifecycle management.
    *
    * @remarks
-   * This method submits a computation request to the personal server API.
-   * The response includes the operation ID.
-   * @param params - The request parameters object
+   * This method submits a computation request to the personal server and returns
+   * an OperationHandle that provides Promise-based methods for waiting on results.
+   * The handle pattern matches TransactionHandle for consistency across async operations.
+   *
+   * @param params - The operation request parameters
    * @param params.permissionId - The permission ID authorizing this operation.
-   *   Obtain from granted permissions via `vana.permissions.getUserPermissionGrantsOnChain()`.
-   * @returns A Promise that resolves to an operation response with status and control URLs
-   * @throws {PersonalServerError} When server request fails or parameters are invalid.
-   *   Verify permissionId exists and is active for the target server.
-   * @throws {NetworkError} When personal server API communication fails.
-   *   Check server URL configuration and network connectivity.
+   *   Obtain via `vana.permissions.getUserPermissionGrantsOnChain()`.
+   * @returns An OperationHandle providing access to the operation ID and result methods
+   * @throws {PersonalServerError} When the server request fails or parameters are invalid
+   * @throws {NetworkError} When personal server API communication fails
    * @example
    * ```typescript
-   * const response = await vana.server.createOperation({
-   *   permissionId: 123,
+   * const operation = await vana.server.createOperation({
+   *   permissionId: 123
    * });
+   * console.log(`Operation ID: ${operation.id}`);
    *
-   * console.log(`Operation created: ${response.id}`);
+   * // Wait for completion
+   * const result = await operation.waitForResult();
+   * console.log("Result:", result);
    * ```
    */
-  async createOperation(
+  async createOperation<T = unknown>(
     params: CreateOperationParams,
-  ): Promise<CreateOperationResponse> {
+  ): Promise<OperationHandle<T>> {
     try {
       const requestData = {
         permission_id: params.permissionId,
@@ -193,7 +197,7 @@ export class ServerController {
       console.debug("🔍 Debug - createOperation requestBody", requestBody);
       const response = await this.makeRequest(requestBody);
 
-      return response;
+      return new OperationHandle<T>(this, response.id);
     } catch (error) {
       if (error instanceof Error) {
         // Re-throw known Vana errors directly
@@ -218,30 +222,20 @@ export class ServerController {
   }
 
   /**
-   * Polls the status of a computation request for updates and results.
+   * Retrieves the current status and result of a server operation.
    *
    * @remarks
-   * This method checks the current status of a computation request by querying
-   * the personal server API using the provided operation ID. It returns the current
-   * status, any available output, and error information. The method can be
-   * called periodically until the operation completes or fails.
+   * Common status values: `starting`, `running`, `succeeded`, `failed`, `canceled`.
+   * When status is `succeeded`, the result field contains the operation output.
    *
-   * Common status values include: `starting`, `processing`, `succeeded`, `failed`, `canceled`.
-   * @param operationId - The operation ID returned from the initial request submission
-   * @returns A Promise that resolves to the current operation response with status and results
-   * @throws {NetworkError} When the polling request fails or returns invalid data
+   * @param operationId - The ID of the operation to query
+   * @returns The operation response containing status, result, and metadata
+   * @throws {NetworkError} When the API request fails or returns invalid data
    * @example
    * ```typescript
-   * // Poll until completion
-   * let result = await vana.server.getOperation(response.id);
-   *
-   * while (result.status === "processing") {
-   *   await new Promise(resolve => setTimeout(resolve, 1000));
-   *   result = await vana.server.getOperation(response.id);
-   * }
-   *
-   * if (result.status === "succeeded") {
-   *   console.log("Computation completed:", result.output);
+   * const status = await vana.server.getOperation(operationId);
+   * if (status.status === 'succeeded') {
+   *   console.log('Result:', JSON.parse(status.result));
    * }
    * ```
    */

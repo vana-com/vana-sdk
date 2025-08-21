@@ -1,0 +1,36 @@
+query GetUserFiles($userId: ID!) {
+  user(id: $userId) {
+    id
+    files {
+      id
+      url
+      schemaId
+      addedAtBlock
+      addedAtTimestamp
+      transactionHash
+      owner {
+        id
+      }
+    }
+  }
+}
+
+query GetFileProofs($fileIds: [BigInt!]!) {
+  dataRegistryProofs(where: { fileId_in: $fileIds }) {
+    fileId
+    dlp {
+      id
+    }
+  }
+}
+
+query GetDLP($id: ID!) {
+  dlp(id: $id) {
+    id
+    name
+    metadata
+    status
+    address
+    owner
+  }
+}

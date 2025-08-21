@@ -26,6 +26,7 @@ import {
   UntrustServerTypedData,
   AddAndTrustServerTypedData,
   ServerFilesAndPermissionTypedData,
+  DownloadRelayerCallbacks,
 } from "@opendatalabs/vana-sdk/browser";
 import type { VanaChain } from "@opendatalabs/vana-sdk/browser";
 
@@ -441,10 +442,28 @@ export function VanaProvider({
             }
           : undefined;
 
+        // Create download relayer for CORS bypass
+        const downloadRelayer: DownloadRelayerCallbacks = {
+          async proxyDownload(url: string): Promise<Blob> {
+            const response = await fetch("/api/proxy", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ url }),
+            });
+
+            if (!response.ok) {
+              throw new Error(`Proxy download failed: ${response.statusText}`);
+            }
+
+            return response.blob();
+          },
+        };
+
         // Initialize Vana SDK
         const vanaInstance = Vana({
           walletClient: walletClient as WalletClient & { chain: VanaChain },
           relayerCallbacks,
+          downloadRelayer,
           ...(config.subgraphUrl && { subgraphUrl: config.subgraphUrl }),
           defaultPersonalServerUrl: config.defaultPersonalServerUrl,
           storage: {

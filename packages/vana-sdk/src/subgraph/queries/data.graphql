@@ -9,6 +9,12 @@ query GetUserPermissions($userId: ID!) {
       startBlock
       endBlock
       addedAtBlock
+      addedAtTimestamp
+      transactionHash
+      grantee {
+        id
+        address
+      }
       filePermissions {
         file {
           id

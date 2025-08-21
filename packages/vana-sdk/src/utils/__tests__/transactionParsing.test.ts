@@ -22,14 +22,15 @@ vi.mock("viem", () => ({
         },
       ];
     }
-    if (params.eventName === "FileAdded") {
+    if (params.eventName === "FileAddedV2") {
       return [
         {
-          eventName: "FileAdded",
+          eventName: "FileAddedV2",
           args: {
             fileId: 42n,
             ownerAddress: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
             url: "ipfs://QmHash123",
+            schemaId: 19n,
           },
         },
       ];
@@ -130,7 +131,7 @@ describe("parseTransactionResult", () => {
     });
   });
 
-  it("should parse FileAdded event correctly", async () => {
+  it("should parse FileAddedV2 event correctly", async () => {
     const hash =
       "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" as Hash;
 
@@ -140,6 +141,7 @@ describe("parseTransactionResult", () => {
       fileId: 42n,
       ownerAddress: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
       url: "ipfs://QmHash123",
+      schemaId: 19n,
       transactionHash: hash,
       blockNumber: 3676747n,
       gasUsed: 537754n,

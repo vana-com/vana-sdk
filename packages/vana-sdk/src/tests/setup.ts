@@ -1,5 +1,18 @@
 import { vi, beforeEach, afterEach } from "vitest";
 
+// Mock viem's getAddress to allow tests to use readable mock addresses
+vi.mock("viem", async (importOriginal) => {
+  const actual = (await importOriginal()) as any;
+  return {
+    ...actual,
+    getAddress: vi.fn((address: string) => {
+      // In tests, just return the address as-is
+      // This allows tests to use descriptive addresses like "0xOwnerAddress"
+      return address;
+    }),
+  };
+});
+
 // Global test setup to silence console output during tests
 // This keeps test output clean while preserving debugging capabilities
 

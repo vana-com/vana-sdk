@@ -32,6 +32,12 @@ export interface UserFile {
   transactionHash?: Address;
   /** Additional file properties and custom application data. */
   metadata?: FileMetadata;
+  /**
+   * Array of DLP IDs that have submitted proofs for this file.
+   * Each proof represents verification or processing by a Data Liquidity Pool.
+   * Obtain DLP details via `vana.data.getDLP(dlpId)`.
+   */
+  dlpIds?: number[];
 }
 
 /**

@@ -13,7 +13,7 @@ import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../generated/abi";
 import { gasAwareMulticall } from "../utils/multicall";
 import {
-  validateDataSchema,
+  validateDataSchemaAgainstMetaSchema,
   SchemaValidationError,
   type DataSchema,
 } from "../utils/schemaValidation";
@@ -179,7 +179,7 @@ export class SchemaController {
         schema: schemaDefinition,
       };
 
-      validateDataSchema(dataSchema);
+      validateDataSchemaAgainstMetaSchema(dataSchema);
 
       // Step 3: Upload to IPFS (unencrypted for public access)
       if (!this.context.storageManager) {
@@ -308,7 +308,10 @@ export class SchemaController {
     }
 
     // Fetch the definition (should be a complete DataSchema)
-    const definition = await fetchFromUrl(metadata.definitionUrl);
+    const definition = await fetchFromUrl(
+      metadata.definitionUrl,
+      this.context.downloadRelayer,
+    );
 
     if (!definition || typeof definition !== "object") {
       throw new Error(
@@ -317,7 +320,7 @@ export class SchemaController {
     }
 
     // Validate the fetched DataSchema
-    validateDataSchema(definition);
+    validateDataSchemaAgainstMetaSchema(definition);
     const dataSchema = definition as DataSchema;
 
     // Verify on-chain and off-chain data match
@@ -756,11 +759,14 @@ export class SchemaController {
         if (!schema.definitionUrl) return;
 
         try {
-          const definition = await fetchFromUrl(schema.definitionUrl);
+          const definition = await fetchFromUrl(
+            schema.definitionUrl,
+            this.context.downloadRelayer,
+          );
 
           if (definition && typeof definition === "object") {
             // Validate the fetched DataSchema
-            validateDataSchema(definition);
+            validateDataSchemaAgainstMetaSchema(definition);
             const dataSchema = definition as DataSchema;
 
             // Populate flat fields

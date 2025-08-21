@@ -3,6 +3,7 @@
 import React, { ReactNode, useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ParaProvider } from "./para-provider";
+import { RainbowProvider } from "./rainbow-provider";
 import { VanaProvider } from "./vana-provider";
 import { GoogleDriveOAuthProvider } from "./google-drive-oauth";
 
@@ -34,15 +35,27 @@ export function Providers({ children }: ProvidersProps) {
     );
   }
 
+  // Use environment variable to determine wallet provider
+  const useRainbow = process.env.NEXT_PUBLIC_WALLET_PROVIDER === "rainbow";
+  const WalletProvider = useRainbow ? RainbowProvider : ParaProvider;
+
   return (
     <GoogleDriveOAuthProvider
       clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""}
     >
-      <QueryClientProvider client={queryClient}>
-        <ParaProvider>
+      {useRainbow ? (
+        // RainbowProvider includes its own QueryClientProvider
+        <WalletProvider>
           <VanaProvider>{children}</VanaProvider>
-        </ParaProvider>
-      </QueryClientProvider>
+        </WalletProvider>
+      ) : (
+        // Para needs external QueryClientProvider
+        <QueryClientProvider client={queryClient}>
+          <WalletProvider>
+            <VanaProvider>{children}</VanaProvider>
+          </WalletProvider>
+        </QueryClientProvider>
+      )}
     </GoogleDriveOAuthProvider>
   );
 }

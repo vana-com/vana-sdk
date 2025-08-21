@@ -111,7 +111,7 @@ describe("Chain Definitions", () => {
       expect(vanaMainnet.nativeCurrency.decimals).toBe(18);
       expect(Array.isArray(vanaMainnet.rpcUrls.default.http)).toBe(true);
       expect(vanaMainnet.rpcUrls.default.http.length).toBeGreaterThan(0);
-      expect(vanaMainnet.subgraphUrl).toContain("goldsky.com");
+      expect(vanaMainnet.subgraphUrl).toContain("vanagraph.io");
     });
 
     it("should have valid moksha configuration", () => {
@@ -122,7 +122,7 @@ describe("Chain Definitions", () => {
       expect(moksha.nativeCurrency.decimals).toBe(18);
       expect(Array.isArray(moksha.rpcUrls.default.http)).toBe(true);
       expect(moksha.rpcUrls.default.http.length).toBeGreaterThan(0);
-      expect(moksha.subgraphUrl).toContain("goldsky.com");
+      expect(moksha.subgraphUrl).toContain("moksha.vanagraph.io");
     });
 
     it("should have different chain IDs", () => {

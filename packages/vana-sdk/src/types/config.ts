@@ -65,6 +65,86 @@ export interface StorageConfig {
 }
 
 /**
+ * Download relayer callbacks for proxying CORS-restricted downloads.
+ *
+ * Provides a callback to proxy download requests through your application server
+ * when direct browser access fails due to CORS restrictions (e.g., Google Drive).
+ *
+ * IMPORTANT SECURITY REQUIREMENTS for your proxy endpoint:
+ * 1. MUST block requests to private/internal IPs (SSRF protection)
+ * 2. SHOULD NOT restrict domains (files can be hosted anywhere)
+ *
+ * @category Configuration
+ * @example Client-side implementation:
+ * ```typescript
+ * const downloadRelayer: DownloadRelayerCallbacks = {
+ *   async proxyDownload(url) {
+ *     const response = await fetch('/api/proxy', {
+ *       method: 'POST',
+ *       headers: { 'Content-Type': 'application/json' },
+ *       body: JSON.stringify({ url })
+ *     });
+ *     return response.blob();
+ *   }
+ * };
+ * ```
+ *
+ * @example Server-side proxy endpoint (Next.js):
+ * ```typescript
+ * // /api/proxy/route.ts
+ * import { promises as dns } from 'dns';
+ * import { isIPv4 } from 'net';
+ *
+ * async function handleProxy(url: string) {
+ *   const { hostname } = new URL(url);
+ *
+ *   // Resolve hostname to IP (handle localhost specially)
+ *   const ip = hostname === 'localhost' ? '127.0.0.1' :
+ *              isIPv4(hostname) ? hostname :
+ *              await dns.lookup(hostname).then(r => r.address);
+ *
+ *   // SSRF Protection: Block private/internal IPs
+ *   if (isIPv4(ip)) {
+ *     const [a, b] = ip.split('.').map(Number);
+ *     if (a === 10 || a === 127 || a === 0 ||
+ *         (a === 172 && b >= 16 && b <= 31) ||
+ *         (a === 192 && b === 168) ||
+ *         (a === 169 && b === 254) ||
+ *         a >= 224) { // Also block multicast/reserved
+ *       return new Response('Private/internal addresses not allowed', { status: 403 });
+ *     }
+ *   }
+ *
+ *   // Proxy the request
+ *   const response = await fetch(url, { redirect: 'manual' });
+ *
+ *   // Handle redirects (with recursion limit)
+ *   if (response.status >= 301 && response.status <= 308) {
+ *     const location = response.headers.get('location');
+ *     if (location) return handleProxy(new URL(location, url).href);
+ *   }
+ *
+ *   const data = await response.arrayBuffer();
+ *   return new Response(data, {
+ *     headers: {
+ *       'Content-Type': response.headers.get('content-type') || 'application/octet-stream',
+ *       'Access-Control-Allow-Origin': '*'
+ *     }
+ *   });
+ * }
+ * ```
+ */
+export interface DownloadRelayerCallbacks {
+  /**
+   * Proxy a download request through your application server
+   *
+   * @param url - The URL to download from
+   * @returns Promise resolving to the downloaded content as a Blob
+   */
+  proxyDownload: (url: string) => Promise<Blob>;
+}
+
+/**
  * Relayer callback functions for handling gasless transactions.
  *
  * Instead of hardcoding HTTP/REST API calls, users can provide custom callback
@@ -407,6 +487,12 @@ export interface BaseConfig {
   relayerCallbacks?: RelayerCallbacks;
 
   /**
+   * Optional download relayer for proxying CORS-restricted downloads.
+   * Provides a proxy mechanism for files stored on servers with CORS restrictions.
+   */
+  downloadRelayer?: DownloadRelayerCallbacks;
+
+  /**
    * Optional storage providers configuration for file upload/download.
    *   Required for: upload(), grant() without pre-stored URLs, schema operations.
    *   See StorageConfig for provider selection guidance.
@@ -448,6 +534,12 @@ export interface BaseConfigWithStorage {
    * Provides flexible relay mechanism - can use HTTP, WebSocket, or any custom implementation.
    */
   relayerCallbacks?: RelayerCallbacks;
+
+  /**
+   * Optional download relayer for proxying CORS-restricted downloads.
+   * Provides a proxy mechanism for files stored on servers with CORS restrictions.
+   */
+  downloadRelayer?: DownloadRelayerCallbacks;
 
   /** Required storage providers configuration for file upload/download */
   storage: StorageConfig;

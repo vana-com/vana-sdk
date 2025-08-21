@@ -7046,6 +7046,9 @@ export type GetUserPermissionsQuery = {
       startBlock: string;
       endBlock?: string | null;
       addedAtBlock: string;
+      addedAtTimestamp: string;
+      transactionHash: string;
+      grantee: { id: string; address: string };
       filePermissions: Array<{ file: { id: string; url: string } }>;
     }>;
   } | null;
@@ -7071,6 +7074,48 @@ export type GetUserTrustedServersQuery = {
         publicKey: string;
       };
     }>;
+  } | null;
+};
+
+export type GetUserFilesQueryVariables = Exact<{
+  userId: Scalars["ID"]["input"];
+}>;
+
+export type GetUserFilesQuery = {
+  user?: {
+    id: string;
+    files: Array<{
+      id: string;
+      url: string;
+      schemaId: string;
+      addedAtBlock: string;
+      addedAtTimestamp: string;
+      transactionHash: string;
+      owner: { id: string };
+    }>;
+  } | null;
+};
+
+export type GetFileProofsQueryVariables = Exact<{
+  fileIds: Array<Scalars["BigInt"]["input"]> | Scalars["BigInt"]["input"];
+}>;
+
+export type GetFileProofsQuery = {
+  dataRegistryProofs: Array<{ fileId: string; dlp?: { id: string } | null }>;
+};
+
+export type GetDlpQueryVariables = Exact<{
+  id: Scalars["ID"]["input"];
+}>;
+
+export type GetDlpQuery = {
+  dlp?: {
+    id: string;
+    name?: string | null;
+    metadata?: string | null;
+    status?: string | null;
+    address?: string | null;
+    owner?: string | null;
   } | null;
 };
 
@@ -7176,6 +7221,31 @@ export const GetUserPermissionsDocument = {
                       {
                         kind: "Field",
                         name: { kind: "Name", value: "addedAtBlock" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "addedAtTimestamp" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "transactionHash" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "grantee" },
+                        selectionSet: {
+                          kind: "SelectionSet",
+                          selections: [
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "id" },
+                            },
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "address" },
+                            },
+                          ],
+                        },
                       },
                       {
                         kind: "Field",
@@ -7319,6 +7389,220 @@ export const GetUserTrustedServersDocument = {
   GetUserTrustedServersQuery,
   GetUserTrustedServersQueryVariables
 >;
+export const GetUserFilesDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "GetUserFiles" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "userId" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "ID" } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "user" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "id" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "userId" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "id" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "files" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                      { kind: "Field", name: { kind: "Name", value: "url" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "schemaId" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "addedAtBlock" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "addedAtTimestamp" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "transactionHash" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "owner" },
+                        selectionSet: {
+                          kind: "SelectionSet",
+                          selections: [
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "id" },
+                            },
+                          ],
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<GetUserFilesQuery, GetUserFilesQueryVariables>;
+export const GetFileProofsDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "GetFileProofs" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "fileIds" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: {
+              kind: "ListType",
+              type: {
+                kind: "NonNullType",
+                type: {
+                  kind: "NamedType",
+                  name: { kind: "Name", value: "BigInt" },
+                },
+              },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "dataRegistryProofs" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "where" },
+                value: {
+                  kind: "ObjectValue",
+                  fields: [
+                    {
+                      kind: "ObjectField",
+                      name: { kind: "Name", value: "fileId_in" },
+                      value: {
+                        kind: "Variable",
+                        name: { kind: "Name", value: "fileIds" },
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "fileId" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "dlp" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<GetFileProofsQuery, GetFileProofsQueryVariables>;
+export const GetDlpDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "GetDLP" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "id" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "ID" } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "dlp" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "id" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "id" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "id" } },
+                { kind: "Field", name: { kind: "Name", value: "name" } },
+                { kind: "Field", name: { kind: "Name", value: "metadata" } },
+                { kind: "Field", name: { kind: "Name", value: "status" } },
+                { kind: "Field", name: { kind: "Name", value: "address" } },
+                { kind: "Field", name: { kind: "Name", value: "owner" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<GetDlpQuery, GetDlpQueryVariables>;
 export const GetSchemaDocument = {
   kind: "Document",
   definitions: [

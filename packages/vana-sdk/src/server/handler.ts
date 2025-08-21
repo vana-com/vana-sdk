@@ -1,12 +1,14 @@
-import { Address, Hash, recoverTypedDataAddress } from "viem";
+import { Address, Hash, recoverTypedDataAddress, getAddress } from "viem";
 import type { VanaInstance } from "../index.node";
 import type {
   GenericTypedData,
   PermissionGrantTypedData,
+  RevokePermissionTypedData,
   RegisterGranteeTypedData,
   TrustServerTypedData,
   AddAndTrustServerTypedData,
   ServerFilesAndPermissionTypedData,
+  TypedDataPrimaryType,
 } from "../types";
 import { SignatureError } from "../errors";
 import { TransactionHandle } from "../utils/transactionHandle";
@@ -136,8 +138,8 @@ export async function handleRelayerRequest(
 
   // Step 2: Security check - verify signer matches expected user address if provided
   if (expectedUserAddress) {
-    const normalizedSigner = signerAddress.toLowerCase();
-    const normalizedExpected = expectedUserAddress.toLowerCase();
+    const normalizedSigner = getAddress(signerAddress);
+    const normalizedExpected = getAddress(expectedUserAddress);
 
     if (normalizedSigner !== normalizedExpected) {
       throw new SignatureError(
@@ -148,16 +150,17 @@ export async function handleRelayerRequest(
 
   // Step 3: Route to appropriate SDK method based on primaryType
   // Route to appropriate SDK method and return TransactionHandle directly
-  switch (typedData.primaryType) {
+  const primaryType = typedData.primaryType as TypedDataPrimaryType;
+  switch (primaryType) {
     case "Permission":
       return sdk.permissions.submitSignedGrant(
         typedData as unknown as PermissionGrantTypedData,
         signature,
       );
 
-    case "PermissionRevoke":
+    case "RevokePermission":
       return sdk.permissions.submitSignedRevoke(
-        typedData as unknown as GenericTypedData,
+        typedData as unknown as RevokePermissionTypedData,
         signature,
       );
 

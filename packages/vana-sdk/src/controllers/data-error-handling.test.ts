@@ -24,7 +24,7 @@ vi.mock("../storage", () => ({
 }));
 
 vi.mock("../utils/schemaValidation", () => ({
-  validateDataSchema: vi.fn(),
+  validateDataSchemaAgainstMetaSchema: vi.fn(),
   validateDataAgainstSchema: vi.fn(),
   fetchAndValidateSchema: vi.fn(),
   SchemaValidationError: class extends Error {

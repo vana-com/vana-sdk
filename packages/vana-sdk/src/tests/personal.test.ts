@@ -121,7 +121,7 @@ describe("ServerController", () => {
 
       const result = await serverController.createOperation(validParams);
 
-      expect(result).toEqual(mockOperationResponse);
+      expect(result.id).toEqual(mockOperationResponse.id);
       expect(mockAccount.signMessage).toHaveBeenCalled();
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/operations"),

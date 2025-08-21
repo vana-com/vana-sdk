@@ -5,22 +5,19 @@ import { useChainId } from "wagmi";
 
 interface PermissionDisplayProps {
   permissionId: bigint;
-  grantHash?: string;
   showExternalLink?: boolean;
   className?: string;
 }
 
 export function PermissionDisplay({
   permissionId,
-  grantHash,
   showExternalLink = true,
   className = "",
 }: PermissionDisplayProps) {
   const chainId = useChainId();
 
   // Calculate the hash for the contract tab URL
-  const hashForUrl =
-    grantHash || `0x${permissionId.toString(16).padStart(64, "0")}`; // Use 64 chars for full uint256
+  const hashForUrl = `0x${permissionId.toString(16).padStart(64, "0")}`; // Use 64 chars for full uint256
 
   // Link to the DataPermissions contract with the permission hash
   const contractUrl = getContractUrl(

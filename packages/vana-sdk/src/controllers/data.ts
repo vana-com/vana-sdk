@@ -1892,18 +1892,18 @@ export class DataController {
         chain: this.context.walletClient.chain || null,
       });
 
-      // Return transaction result POJO
-      const txResult = {
+      // Wait for transaction confirmation and parse events
+      const receipt = await this.context.publicClient.waitForTransactionReceipt({
         hash: txHash,
-        from: this.context.walletClient.account?.address,
-      };
+        confirmations: 1,
+      });
 
-      // TODO: Use SDK's waitForTransactionEvents when available
-      // const result = await this.context.waitForTransactionEvents(txResult.hash);
+      // Parse the FileAddedV2 event to get the file ID
+      const { parseFileAddedEvent } = await import("../utils/eventParsing");
+      const eventData = parseFileAddedEvent(receipt);
 
-      // For now, return the transaction hash - users need to wait for events separately
       return {
-        fileId: 0, // Will be available after waiting for events
+        fileId: Number(eventData.fileId),
         transactionHash: txHash,
       };
     } catch (error) {
@@ -1971,18 +1971,18 @@ export class DataController {
         chain: this.context.walletClient.chain || null,
       });
 
-      // Return transaction result POJO
-      const txResult = {
+      // Wait for transaction confirmation and parse events
+      const receipt = await this.context.publicClient.waitForTransactionReceipt({
         hash: txHash,
-        from: this.context.walletClient.account?.address,
-      };
+        confirmations: 1,
+      });
 
-      // TODO: Use SDK's waitForTransactionEvents when available
-      // const result = await this.context.waitForTransactionEvents(txResult.hash);
+      // Parse the FileAddedV2 event to get the file ID
+      const { parseFileAddedEvent } = await import("../utils/eventParsing");
+      const eventData = parseFileAddedEvent(receipt);
 
-      // For now, return the transaction hash - users need to wait for events separately
       return {
-        fileId: 0, // Will be available after waiting for events
+        fileId: Number(eventData.fileId),
         transactionHash: txHash,
       };
     } catch (error) {
@@ -2035,18 +2035,18 @@ export class DataController {
         chain: this.context.walletClient.chain || null,
       });
 
-      // Return transaction result POJO
-      const txResult = {
+      // Wait for transaction confirmation and parse events
+      const receipt = await this.context.publicClient.waitForTransactionReceipt({
         hash: txHash,
-        from: this.context.walletClient.account?.address,
-      };
+        confirmations: 1,
+      });
 
-      // TODO: Use SDK's waitForTransactionEvents when available
-      // const result = await this.context.waitForTransactionEvents(txResult.hash);
+      // Parse the FileAddedV2 event to get the file ID
+      const { parseFileAddedEvent } = await import("../utils/eventParsing");
+      const eventData = parseFileAddedEvent(receipt);
 
-      // For now, return the transaction hash - users need to wait for events separately
       return {
-        fileId: 0, // Will be available after waiting for events
+        fileId: Number(eventData.fileId),
         transactionHash: txHash,
       };
     } catch (error) {
@@ -2113,17 +2113,18 @@ export class DataController {
         chain: this.context.walletClient.chain || null,
       });
 
-      // Return transaction result POJO
-      const txResult = {
+      // Wait for transaction confirmation and parse events
+      const receipt = await this.context.publicClient.waitForTransactionReceipt({
         hash: txHash,
-        from: this.context.walletClient.account?.address,
-      };
+        confirmations: 1,
+      });
 
-      // TODO: Use SDK's waitForTransactionEvents when available
-      // const result = await this.context.waitForTransactionEvents(txResult.hash);
+      // Parse the RefinerAdded event to get the refiner ID
+      const { parseRefinerAddedEvent } = await import("../utils/eventParsing");
+      const eventData = parseRefinerAddedEvent(receipt);
 
       return {
-        refinerId: 0, // Will be available after waiting for events
+        refinerId: Number(eventData.refinerId),
         transactionHash: txHash,
       };
     } catch (error) {

@@ -284,6 +284,8 @@ export class VanaCore {
       hasStorage: this.hasStorage.bind(this),
       ipfsGateways: this.ipfsGateways,
       defaultPersonalServerUrl: this.defaultPersonalServerUrl,
+      waitForTransactionEvents: this.waitForTransactionEvents.bind(this),
+      waitForOperation: this.waitForOperation.bind(this),
     };
 
     // Initialize controllers

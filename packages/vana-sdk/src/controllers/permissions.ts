@@ -118,6 +118,16 @@ export interface ControllerContext {
   ipfsGateways?: string[];
   /** Default personal server base URL for server operations. */
   defaultPersonalServerUrl?: string;
+  /** Waits for transaction confirmation and parses typed events. */
+  waitForTransactionEvents?: <T = unknown>(
+    hashOrObj: Hash | TransactionResult | { hash: Hash },
+    options?: import("../types/operations").TransactionWaitOptions
+  ) => Promise<T>;
+  /** Waits for an operation to complete with polling. */
+  waitForOperation?: <T = unknown>(
+    opOrId: import("../types/operations").Operation<T> | string,
+    options?: import("../types/operations").PollingOptions
+  ) => Promise<import("../types/operations").Operation<T>>;
 }
 
 /**

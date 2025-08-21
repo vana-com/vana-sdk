@@ -229,12 +229,22 @@ export class SchemaController {
         chain: this.context.walletClient.chain || null,
       });
 
-      // TODO: Use SDK's waitForTransactionEvents when available
-      // const result = await this.context.waitForTransactionEvents(txHash);
+      // Wait for transaction confirmation and parse events
+      if (!this.context.waitForTransactionEvents) {
+        throw new Error("Event waiting not available in this context");
+      }
 
-      // For now, return placeholder values - users need to wait for events separately
+      const receipt = await this.context.publicClient.waitForTransactionReceipt({
+        hash: txHash,
+        confirmations: 1,
+      });
+
+      // Parse the SchemaAdded event to get the schema ID
+      const { parseSchemaAddedEvent } = await import("../utils/eventParsing");
+      const eventData = parseSchemaAddedEvent(receipt);
+
       return {
-        schemaId: 0, // Will be available after waiting for events
+        schemaId: Number(eventData.schemaId),
         definitionUrl: uploadResult.url,
         transactionHash: txHash,
       };
@@ -541,8 +551,18 @@ export class SchemaController {
         chain: this.context.walletClient.chain || null,
       });
 
+      // Wait for transaction confirmation and parse events
+      const receipt = await this.context.publicClient.waitForTransactionReceipt({
+        hash: txHash,
+        confirmations: 1,
+      });
+
+      // Parse the SchemaAdded event to get the schema ID
+      const { parseSchemaAddedEvent } = await import("../utils/eventParsing");
+      const eventData = parseSchemaAddedEvent(receipt);
+
       return {
-        schemaId: 0, // TODO: Parse from transaction receipt
+        schemaId: Number(eventData.schemaId),
         transactionHash: txHash,
       };
     } catch (error) {

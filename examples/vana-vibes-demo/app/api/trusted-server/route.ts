@@ -15,12 +15,12 @@ export async function POST(request: NextRequest) {
 
     const vana = getApiVanaInstance();
 
-    const handle = await vana.server.createOperation({
+    const operation = await vana.server.createOperation({
       permissionId: +permissionId,
     });
 
-    // Wait for the operation to complete using the built-in polling
-    const result = await handle.waitForResult({
+    // Wait for the operation to complete using the SDK's waitForOperation method
+    const completedOp = await vana.waitForOperation(operation, {
       timeout: 60000,
       pollingInterval: 500,
     });
@@ -28,8 +28,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        id: handle.id,
-        result: result,
+        id: operation.id,
+        result: completedOp.result,
       },
     });
   } catch (error) {

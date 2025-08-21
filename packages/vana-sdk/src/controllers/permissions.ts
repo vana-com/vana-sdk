@@ -44,7 +44,11 @@ import {
   ServerUpdateResult,
   GranteeRegisterResult,
 } from "../types/transactionResults";
-import { TransactionHandle } from "../utils/transactionHandle";
+import type { 
+  TransactionResult,
+  TransactionReceipt,
+  TransactionWaitOptions,
+} from "../types/operations";
 import { PermissionInfo } from "../types/permissions";
 import type {
   RelayerCallbacks,
@@ -199,9 +203,10 @@ export class PermissionsController {
    * await vana.permissions.revoke({ permissionId: result.permissionId });
    * ```
    */
-  async grant(params: GrantPermissionParams): Promise<PermissionGrantResult> {
-    const txHandle = await this.submitPermissionGrant(params);
-    return await txHandle.waitForEvents();
+  async grant(
+    params: GrantPermissionParams
+  ): Promise<TransactionResult & { eventData?: PermissionGrantResult }> {
+    return await this.submitPermissionGrant(params);
   }
 
   /**
@@ -209,11 +214,11 @@ export class PermissionsController {
    *
    * @remarks
    * This lower-level method provides maximum control over transaction timing.
-   * Returns a TransactionHandle that allows immediate hash access or optional event parsing.
+   * Returns a TransactionResult that can be serialized and passed across API boundaries.
    * Use this when handling multiple transactions or when you need granular control.
    *
    * @param params - The permission grant configuration object
-   * @returns Promise resolving to TransactionHandle with hash and event parsing capabilities
+   * @returns Promise resolving to TransactionResult with hash and event parsing capabilities
    * @throws {RelayerError} When gasless transaction submission fails
    * @throws {SignatureError} When user rejects the signature request
    * @throws {SerializationError} When grant data cannot be serialized
@@ -224,14 +229,14 @@ export class PermissionsController {
    * const tx = await vana.permissions.submitPermissionGrant(params);
    * console.log(`Transaction submitted: ${tx.hash}`);
    *
-   * // Optionally wait for and parse events
-   * const eventData = await tx.waitForEvents();
+   * // To wait for events, use SDK's waitForTransactionEvents
+   * const eventData = await vana.waitForTransactionEvents(tx.hash);
    * console.log(`Permission ID: ${eventData.permissionId}`);
    * ```
    */
   async submitPermissionGrant(
     params: GrantPermissionParams,
-  ): Promise<TransactionHandle<PermissionGrantResult>> {
+  ): Promise<TransactionResult & { eventData?: PermissionGrantResult }> {
     const { typedData, signature } = await this.createAndSign(params);
     return await this.submitSignedGrant(typedData, signature);
   }
@@ -263,7 +268,7 @@ export class PermissionsController {
    */
   async prepareGrant(params: GrantPermissionParams): Promise<{
     preview: GrantFile;
-    confirm: () => Promise<TransactionHandle<PermissionGrantResult>>;
+    confirm: () => Promise<TransactionResult & { eventData?: PermissionGrantResult }>;
   }> {
     try {
       // Step 1: Create grant file in memory (no IPFS upload yet)
@@ -276,7 +281,7 @@ export class PermissionsController {
       return {
         preview: grantFile,
         confirm: async (): Promise<
-          TransactionHandle<PermissionGrantResult>
+          TransactionResult & { eventData?: PermissionGrantResult }
         > => {
           // Phase 2: Now we upload, sign, and submit
           return await this.confirmGrantInternal(params, grantFile);
@@ -316,7 +321,7 @@ export class PermissionsController {
    *
    * @param params - The permission grant parameters containing user and operation details
    * @param grantFile - The prepared grant file with permissions and metadata
-   * @returns Promise resolving to TransactionHandle for flexible result access
+   * @returns Promise resolving to TransactionResult for flexible result access
    * @throws {BlockchainError} When permission grant confirmation fails
    * @throws {NetworkError} When IPFS upload fails
    * @throws {SignatureError} When user rejects the signature
@@ -324,7 +329,7 @@ export class PermissionsController {
   private async confirmGrantInternal(
     params: GrantPermissionParams,
     grantFile: GrantFile,
-  ): Promise<TransactionHandle<PermissionGrantResult>> {
+  ): Promise<TransactionResult & { eventData?: PermissionGrantResult }> {
     try {
       // Step 1: Use provided grantUrl or store grant file in IPFS
       let grantUrl = params.grantUrl;
@@ -558,7 +563,7 @@ export class PermissionsController {
   async submitSignedGrant(
     typedData: PermissionGrantTypedData,
     signature: Hash,
-  ): Promise<TransactionHandle<PermissionGrantResult>> {
+  ): Promise<TransactionResult & { eventData?: PermissionGrantResult }> {
     try {
       console.debug(
         "🔍 Debug - submitSignedGrant called with typed data:",
@@ -580,11 +585,10 @@ export class PermissionsController {
       } else {
         hash = await this.submitDirectTransaction(typedData, signature);
       }
-      return new TransactionHandle<PermissionGrantResult>(
-        this.context,
+      return {
         hash,
-        "grant",
-      );
+        from: this.context.walletClient.account?.address,
+      };
     } catch (error) {
       // Re-throw known Vana errors directly to preserve error types
       if (
@@ -612,7 +616,7 @@ export class PermissionsController {
    *
    * @param typedData - The EIP-712 typed data for TrustServer
    * @param signature - The user's signature obtained via `signTypedData()`
-   * @returns Promise resolving to TransactionHandle for transaction tracking
+   * @returns Promise resolving to TransactionResult for transaction tracking
    * @throws {BlockchainError} When contract submission fails
    * @throws {NetworkError} When blockchain communication fails
    * @example
@@ -627,7 +631,7 @@ export class PermissionsController {
   async submitSignedTrustServer(
     typedData: TrustServerTypedData,
     signature: Hash,
-  ): Promise<TransactionHandle<ServerTrustResult>> {
+  ): Promise<TransactionResult & { eventData?: ServerTrustResult }> {
     try {
       const trustServerInput: TrustServerInput = {
         nonce: BigInt(typedData.message.nonce),
@@ -638,11 +642,10 @@ export class PermissionsController {
         trustServerInput,
         signature,
       );
-      return new TransactionHandle<ServerTrustResult>(
-        this.context,
+      return {
         hash,
-        "trustServer",
-      );
+        from: this.context.walletClient.account?.address,
+      };
     } catch (error) {
       // Re-throw known Vana errors directly to preserve error types
       if (
@@ -690,7 +693,7 @@ export class PermissionsController {
    *
    * @param typedData - The EIP-712 typed data for AddAndTrustServer
    * @param signature - The user's signature obtained via `signTypedData()`
-   * @returns Promise resolving to TransactionHandle for transaction tracking
+   * @returns Promise resolving to TransactionResult for transaction tracking
    * @throws {BlockchainError} When contract submission fails
    * @throws {NetworkError} When blockchain communication fails
    * @example
@@ -705,7 +708,7 @@ export class PermissionsController {
   async submitSignedAddAndTrustServer(
     typedData: AddAndTrustServerTypedData,
     signature: Hash,
-  ): Promise<TransactionHandle<ServerTrustResult>> {
+  ): Promise<TransactionResult & { eventData?: ServerTrustResult }> {
     try {
       const addAndTrustServerInput: AddAndTrustServerInput = {
         nonce: BigInt(typedData.message.nonce),
@@ -718,11 +721,10 @@ export class PermissionsController {
         addAndTrustServerInput,
         signature,
       );
-      return new TransactionHandle<ServerTrustResult>(
-        this.context,
+      return {
         hash,
-        "addAndTrustServer",
-      );
+        from: this.context.walletClient.account?.address,
+      };
     } catch (error) {
       // Re-throw known Vana errors directly to preserve error types
       if (
@@ -751,7 +753,7 @@ export class PermissionsController {
    *
    * @param typedData - The EIP-712 typed data for PermissionRevoke
    * @param signature - The user's signature obtained via `signTypedData()`
-   * @returns Promise resolving to TransactionHandle for transaction tracking
+   * @returns Promise resolving to TransactionResult for transaction tracking
    * @throws {BlockchainError} When contract submission fails
    * @throws {NetworkError} When blockchain communication fails
    * @example
@@ -766,7 +768,7 @@ export class PermissionsController {
   async submitSignedRevoke(
     typedData: GenericTypedData,
     signature: Hash,
-  ): Promise<TransactionHandle<PermissionRevokeResult>> {
+  ): Promise<TransactionResult & { eventData?: PermissionRevokeResult }> {
     try {
       // Use relayer callbacks or direct transaction
       let hash: Hash;
@@ -778,11 +780,10 @@ export class PermissionsController {
       } else {
         hash = await this.submitDirectRevokeTransaction(typedData, signature);
       }
-      return new TransactionHandle<PermissionRevokeResult>(
-        this.context,
+      return {
         hash,
-        "revoke",
-      );
+        from: this.context.walletClient.account?.address,
+      };
     } catch (error) {
       if (
         error instanceof RelayerError ||
@@ -809,7 +810,7 @@ export class PermissionsController {
    *
    * @param typedData - The EIP-712 typed data for UntrustServer
    * @param signature - The user's signature obtained via `signTypedData()`
-   * @returns Promise resolving to TransactionHandle for transaction tracking
+   * @returns Promise resolving to TransactionResult for transaction tracking
    * @throws {BlockchainError} When contract submission fails
    * @throws {NetworkError} When blockchain communication fails
    * @example
@@ -824,7 +825,7 @@ export class PermissionsController {
   async submitSignedUntrustServer(
     typedData: GenericTypedData,
     signature: Hash,
-  ): Promise<TransactionHandle<ServerUntrustResult>> {
+  ): Promise<TransactionResult & { eventData?: ServerUntrustResult }> {
     try {
       // Use relayer callbacks or direct transaction
       let hash: Hash;
@@ -836,11 +837,10 @@ export class PermissionsController {
       } else {
         hash = await this.submitSignedUntrustTransaction(typedData, signature);
       }
-      return new TransactionHandle<ServerUntrustResult>(
-        this.context,
+      return {
         hash,
-        "untrustServer",
-      );
+        from: this.context.walletClient.account?.address,
+      };
     } catch (error) {
       if (
         error instanceof RelayerError ||
@@ -943,9 +943,8 @@ export class PermissionsController {
    */
   async revoke(
     params: RevokePermissionParams,
-  ): Promise<PermissionRevokeResult> {
-    const txHandle = await this.submitPermissionRevoke(params);
-    return await txHandle.waitForEvents();
+  ): Promise<TransactionResult & { eventData?: PermissionRevokeResult }> {
+    return await this.submitPermissionRevoke(params);
   }
 
   /**
@@ -969,7 +968,7 @@ export class PermissionsController {
    */
   async submitPermissionRevoke(
     params: RevokePermissionParams,
-  ): Promise<TransactionHandle<PermissionRevokeResult>> {
+  ): Promise<TransactionResult & { eventData?: PermissionRevokeResult }> {
     try {
       // Check chain ID availability early
       if (!this.context.walletClient.chain?.id) {
@@ -996,11 +995,10 @@ export class PermissionsController {
         chain: this.context.walletClient.chain || null,
       });
 
-      return new TransactionHandle<PermissionRevokeResult>(
-        this.context,
-        txHash,
-        "revoke",
-      );
+      return {
+        hash: txHash,
+        from: this.context.walletClient.account?.address,
+      };
     } catch (error) {
       if (error instanceof Error) {
         // Re-throw known Vana errors directly
@@ -1033,7 +1031,7 @@ export class PermissionsController {
    *
    * @param params - Parameters for revoking the permission
    * @param params.permissionId - Permission identifier to revoke (accepts bigint, number, or string)
-   * @returns Promise resolving to TransactionHandle for transaction tracking
+   * @returns Promise resolving to TransactionResult for transaction tracking
    * @throws {BlockchainError} When chain ID is not available
    * @throws {NonceError} When retrieving user nonce fails
    * @throws {SignatureError} When user rejects the signature request
@@ -1050,7 +1048,7 @@ export class PermissionsController {
    */
   async submitRevokeWithSignature(
     params: RevokePermissionParams,
-  ): Promise<TransactionHandle<PermissionRevokeResult>> {
+  ): Promise<TransactionResult & { eventData?: PermissionRevokeResult }> {
     try {
       // Check chain ID availability early
       if (!this.context.walletClient.chain?.id) {
@@ -1091,11 +1089,10 @@ export class PermissionsController {
         hash = await this.submitDirectRevokeTransaction(typedData, signature);
       }
 
-      return new TransactionHandle<PermissionRevokeResult>(
-        this.context,
+      return {
         hash,
-        "revoke",
-      );
+        from: this.context.walletClient.account?.address,
+      };
     } catch (error) {
       throw new PermissionError(
         `Failed to revoke permission with signature: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -1708,7 +1705,7 @@ export class PermissionsController {
    */
   async addAndTrustServer(
     params: AddAndTrustServerParams,
-  ): Promise<TransactionHandle<ServerTrustResult>> {
+  ): Promise<TransactionResult & { eventData?: ServerTrustResult }> {
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
@@ -1741,11 +1738,10 @@ export class PermissionsController {
         chain: this.context.walletClient.chain || null,
       });
 
-      return new TransactionHandle<ServerTrustResult>(
-        this.context,
-        txHash,
-        "addAndTrustServer",
-      );
+      return {
+        hash: txHash,
+        from: this.context.walletClient.account?.address,
+      };
     } catch (error) {
       if (error instanceof Error && error.message.includes("rejected")) {
         throw new UserRejectedRequestError();
@@ -1766,7 +1762,7 @@ export class PermissionsController {
    */
   async submitTrustServer(
     params: TrustServerParams,
-  ): Promise<TransactionHandle<ServerTrustResult>> {
+  ): Promise<TransactionResult & { eventData?: ServerTrustResult }> {
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
@@ -1786,11 +1782,10 @@ export class PermissionsController {
         chain: this.context.walletClient.chain || null,
       });
 
-      return new TransactionHandle<ServerTrustResult>(
-        this.context,
-        txHash,
-        "trustServer",
-      );
+      return {
+        hash: txHash,
+        from: this.context.walletClient.account?.address,
+      };
     } catch (error) {
       if (error instanceof Error && error.message.includes("rejected")) {
         throw new UserRejectedRequestError();
@@ -1806,11 +1801,11 @@ export class PermissionsController {
    * Adds and trusts a server using a signature (gasless transaction).
    *
    * @param params - Parameters for adding and trusting the server
-   * @returns Promise resolving to TransactionHandle with ServerTrustResult event data
+   * @returns Promise resolving to TransactionResult with ServerTrustResult event data
    */
   async submitAddAndTrustServerWithSignature(
     params: AddAndTrustServerParams,
-  ): Promise<TransactionHandle<ServerTrustResult>> {
+  ): Promise<TransactionResult & { eventData?: ServerTrustResult }> {
     try {
       const nonce = await this.getServersUserNonce();
 
@@ -1857,11 +1852,10 @@ export class PermissionsController {
         );
       }
 
-      return new TransactionHandle<ServerTrustResult>(
-        this.context,
+      return {
         hash,
-        "addAndTrustServer",
-      );
+        from: this.context.walletClient.account?.address,
+      };
     } catch (error) {
       if (error instanceof Error) {
         // Re-throw known Vana errors directly
@@ -1901,7 +1895,7 @@ export class PermissionsController {
    */
   async submitTrustServerWithSignature(
     params: TrustServerParams,
-  ): Promise<TransactionHandle<ServerTrustResult>> {
+  ): Promise<TransactionResult & { eventData?: ServerTrustResult }> {
     try {
       const nonce = await this.getServersUserNonce();
 
@@ -1931,11 +1925,10 @@ export class PermissionsController {
         );
       }
 
-      return new TransactionHandle<ServerTrustResult>(
-        this.context,
+      return {
         hash,
-        "trustServer",
-      );
+        from: this.context.walletClient.account?.address,
+      };
     } catch (error) {
       if (error instanceof Error) {
         // Re-throw known Vana errors directly
@@ -1972,12 +1965,12 @@ export class PermissionsController {
    * when relayer callbacks are not available.
    *
    * @param params - The untrust server parameters
-   * @returns Promise resolving to TransactionHandle for transaction tracking
+   * @returns Promise resolving to TransactionResult for transaction tracking
    * @throws {BlockchainError} When contract submission fails
    */
   private async submitDirectUntrustTransaction(
     params: UntrustServerInput,
-  ): Promise<TransactionHandle<ServerUntrustResult>> {
+  ): Promise<TransactionResult & { eventData?: ServerUntrustResult }> {
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
@@ -1997,11 +1990,10 @@ export class PermissionsController {
         chain: this.context.walletClient.chain || null,
       });
 
-      return new TransactionHandle<ServerUntrustResult>(
-        this.context,
-        txHash,
-        "untrustServer",
-      );
+      return {
+        hash: txHash,
+        from: this.context.walletClient.account?.address,
+      };
     } catch (error) {
       if (error instanceof Error && error.message.includes("rejected")) {
         throw new UserRejectedRequestError();
@@ -2043,7 +2035,7 @@ export class PermissionsController {
    */
   async submitUntrustServer(
     params: UntrustServerParams,
-  ): Promise<TransactionHandle<ServerUntrustResult>> {
+  ): Promise<TransactionResult & { eventData?: ServerUntrustResult }> {
     // Convert UntrustServerParams to UntrustServerInput by adding nonce
     const nonce = await this.getServersUserNonce();
     const untrustServerInput: UntrustServerInput = {
@@ -2068,7 +2060,7 @@ export class PermissionsController {
    */
   async submitUntrustServerWithSignature(
     params: UntrustServerParams,
-  ): Promise<TransactionHandle<ServerUntrustResult>> {
+  ): Promise<TransactionResult & { eventData?: ServerUntrustResult }> {
     try {
       const nonce = await this.getServersUserNonce();
 
@@ -2096,11 +2088,10 @@ export class PermissionsController {
         hash = await this.submitSignedUntrustTransaction(typedData, signature);
       }
 
-      return new TransactionHandle<ServerUntrustResult>(
-        this.context,
+      return {
         hash,
-        "untrustServer",
-      );
+        from: this.context.walletClient.account?.address,
+      };
     } catch (error) {
       if (error instanceof Error) {
         // Re-throw known Vana errors directly
@@ -2830,7 +2821,7 @@ export class PermissionsController {
    */
   async submitRegisterGrantee(
     params: RegisterGranteeParams,
-  ): Promise<TransactionHandle<GranteeRegisterResult>> {
+  ): Promise<TransactionResult & { eventData?: GranteeRegisterResult }> {
     const chainId = await this.context.walletClient.getChainId();
     const DataPortabilityGranteesAddress = getContractAddress(
       chainId,
@@ -2851,11 +2842,10 @@ export class PermissionsController {
       chain: this.context.walletClient.chain || null,
     });
 
-    return new TransactionHandle<GranteeRegisterResult>(
-      this.context,
-      txHash,
-      "registerGrantee",
-    );
+    return {
+      hash: txHash,
+      from: this.context.walletClient.account?.address,
+    };
   }
 
   /**
@@ -2875,7 +2865,7 @@ export class PermissionsController {
    */
   async submitRegisterGranteeWithSignature(
     params: RegisterGranteeParams,
-  ): Promise<TransactionHandle<GranteeRegisterResult>> {
+  ): Promise<TransactionResult & { eventData?: GranteeRegisterResult }> {
     const nonce = await this.getServersUserNonce();
 
     const owner = getAddress(params.owner);
@@ -2898,11 +2888,10 @@ export class PermissionsController {
       typedData,
       signature,
     );
-    return new TransactionHandle<GranteeRegisterResult>(
-      this.context,
+    return {
       hash,
-      "registerGrantee",
-    );
+      from: this.context.walletClient.account?.address,
+    };
   }
 
   /**
@@ -2920,16 +2909,15 @@ export class PermissionsController {
   async submitSignedRegisterGrantee(
     typedData: RegisterGranteeTypedData,
     signature: Hash,
-  ): Promise<TransactionHandle<GranteeRegisterResult>> {
+  ): Promise<TransactionResult & { eventData?: GranteeRegisterResult }> {
     const hash = await this.submitSignedRegisterGranteeTransaction(
       typedData,
       signature,
     );
-    return new TransactionHandle<GranteeRegisterResult>(
-      this.context,
+    return {
       hash,
-      "registerGrantee",
-    );
+      from: this.context.walletClient.account?.address,
+    };
   }
 
   /**
@@ -4045,7 +4033,7 @@ export class PermissionsController {
   async submitUpdateServer(
     serverId: bigint,
     url: string,
-  ): Promise<TransactionHandle<ServerUpdateResult>> {
+  ): Promise<TransactionResult & { eventData?: ServerUpdateResult }> {
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
@@ -4063,11 +4051,10 @@ export class PermissionsController {
         account: this.context.walletClient.account || null,
       });
 
-      return new TransactionHandle<ServerUpdateResult>(
-        this.context,
+      return {
         hash,
-        "updateServer",
-      );
+        from: this.context.walletClient.account?.address,
+      };
     } catch (error) {
       throw new BlockchainError(
         `Failed to update server: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -4235,7 +4222,7 @@ export class PermissionsController {
    */
   async submitAddPermission(
     params: ServerFilesAndPermissionParams,
-  ): Promise<TransactionHandle<PermissionGrantResult>> {
+  ): Promise<TransactionResult & { eventData?: PermissionGrantResult }> {
     try {
       const nonce = await this.getPermissionsUserNonce();
 
@@ -4284,7 +4271,7 @@ export class PermissionsController {
    *
    * @param typedData - The EIP-712 typed data for AddPermission
    * @param signature - The user's signature
-   * @returns Promise resolving to TransactionHandle with PermissionGrantResult event data
+   * @returns Promise resolving to TransactionResult with PermissionGrantResult event data
    * @throws {RelayerError} When gasless transaction submission fails
    * @throws {BlockchainError} When permission addition fails
    * @throws {NetworkError} When network communication fails
@@ -4292,7 +4279,7 @@ export class PermissionsController {
   async submitSignedAddPermission(
     typedData: GenericTypedData,
     signature: Hash,
-  ): Promise<TransactionHandle<PermissionGrantResult>> {
+  ): Promise<TransactionResult & { eventData?: PermissionGrantResult }> {
     try {
       // Use relayer callbacks or direct transaction
       let hash: Hash;
@@ -4308,11 +4295,10 @@ export class PermissionsController {
         );
       }
 
-      return new TransactionHandle<PermissionGrantResult>(
-        this.context,
+      return {
         hash,
-        "addServerFilesAndPermissions",
-      );
+        from: this.context.walletClient.account?.address,
+      };
     } catch (error) {
       // Re-throw known Vana errors directly to preserve error types
       if (
@@ -4351,7 +4337,7 @@ export class PermissionsController {
    * @param params.serverPublicKey - Server's public key for encryption.
    *   Obtain via `vana.server.getIdentity(userAddress).public_key`.
    * @param params.filePermissions - Nested array of permissions for each file
-   * @returns TransactionHandle with immediate hash access and event parsing capability
+   * @returns TransactionResult with immediate hash access and optional event data
    * @throws {Error} When schemaIds array length doesn't match fileUrls array length
    * @throws {SchemaValidationError} When file data doesn't match the specified schema.
    *   Verify data structure matches schema definition from `vana.schemas.get(schemaId)`.
@@ -4383,7 +4369,7 @@ export class PermissionsController {
    */
   async submitAddServerFilesAndPermissions(
     params: ServerFilesAndPermissionParams,
-  ): Promise<TransactionHandle<PermissionGrantResult>> {
+  ): Promise<TransactionResult & { eventData?: PermissionGrantResult }> {
     try {
       // Validate that schemaIds array has same length as fileUrls
       if (params.schemaIds.length !== params.fileUrls.length) {
@@ -4445,13 +4431,12 @@ export class PermissionsController {
    * Submits an already-signed add server files and permissions transaction to the blockchain.
    *
    * @remarks
-   * This method returns a TransactionHandle that provides immediate access to the transaction hash
-   * while allowing lazy-loaded access to parsed event data. Use `waitForEvents()` to retrieve
-   * the permission ID and other event details after transaction confirmation.
+   * This method returns a TransactionResult that provides immediate access to the transaction hash.
+   * The eventData field may contain parsed event details after transaction confirmation.
    *
    * @param typedData - The EIP-712 typed data for AddServerFilesAndPermissions
    * @param signature - The user's signature
-   * @returns TransactionHandle with immediate hash access and optional event parsing
+   * @returns TransactionResult with immediate hash access and optional event data
    * @throws {RelayerError} When gasless transaction submission fails
    * @throws {BlockchainError} When server files and permissions addition fails
    * @throws {NetworkError} When network communication fails
@@ -4472,7 +4457,7 @@ export class PermissionsController {
   async submitSignedAddServerFilesAndPermissions(
     typedData: ServerFilesAndPermissionTypedData,
     signature: Hash,
-  ): Promise<TransactionHandle<PermissionGrantResult>> {
+  ): Promise<TransactionResult & { eventData?: PermissionGrantResult }> {
     try {
       // Debug logging to understand relayer callback availability
       console.debug("🔍 submitSignedAddServerFilesAndPermissions Debug Info:", {
@@ -4494,11 +4479,10 @@ export class PermissionsController {
             typedData,
             signature,
           );
-        return new TransactionHandle<PermissionGrantResult>(
-          this.context,
+        return {
           hash,
-          "addServerFilesAndPermissions",
-        );
+          from: this.context.walletClient.account?.address,
+        };
       } else {
         console.debug(
           "📝 Using direct transaction for submitAddServerFilesAndPermissions",
@@ -4508,11 +4492,10 @@ export class PermissionsController {
             typedData,
             signature,
           );
-        return new TransactionHandle<PermissionGrantResult>(
-          this.context,
+        return {
           hash,
-          "addServerFilesAndPermissions",
-        );
+          from: this.context.walletClient.account?.address,
+        };
       }
     } catch (error) {
       // Re-throw known Vana errors directly to preserve error types
@@ -4540,7 +4523,7 @@ export class PermissionsController {
    */
   async submitRevokePermission(
     permissionId: bigint,
-  ): Promise<TransactionHandle<PermissionRevokeResult>> {
+  ): Promise<TransactionResult & { eventData?: PermissionRevokeResult }> {
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityPermissionsAddress = getContractAddress(
@@ -4560,11 +4543,10 @@ export class PermissionsController {
         account: this.context.walletClient.account || null,
       });
 
-      return new TransactionHandle<PermissionRevokeResult>(
-        this.context,
+      return {
         hash,
-        "revokePermission",
-      );
+        from: this.context.walletClient.account?.address,
+      };
     } catch (error) {
       throw new BlockchainError(
         `Failed to revoke permission: ${error instanceof Error ? error.message : "Unknown error"}`,

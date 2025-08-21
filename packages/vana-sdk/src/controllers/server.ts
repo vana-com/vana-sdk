@@ -15,7 +15,12 @@ import {
   PersonalServerError,
 } from "../errors";
 import { ControllerContext } from "./permissions";
-import { OperationHandle } from "../utils/operationHandle";
+import type {
+  Operation,
+  PollingOptions,
+  toOperation,
+  getOperationId,
+} from "../types/operations";
 
 // Server types are now auto-imported from the generated exports
 
@@ -151,17 +156,17 @@ export class ServerController {
   }
 
   /**
-   * Creates a server operation and returns a handle for lifecycle management.
+   * Creates a server operation and returns its details as a plain object.
    *
    * @remarks
    * This method submits a computation request to the personal server and returns
-   * an OperationHandle that provides Promise-based methods for waiting on results.
-   * The handle pattern matches TransactionHandle for consistency across async operations.
+   * an Operation object that can be serialized and passed across API boundaries.
+   * Use `waitForOperation()` to poll for completion.
    *
    * @param params - The operation request parameters
    * @param params.permissionId - The permission ID authorizing this operation.
    *   Obtain via `vana.permissions.getUserPermissionGrantsOnChain()`.
-   * @returns An OperationHandle providing access to the operation ID and result methods
+   * @returns An Operation object containing the operation ID and status
    * @throws {PersonalServerError} When the server request fails or parameters are invalid
    * @throws {NetworkError} When personal server API communication fails
    * @example
@@ -172,13 +177,13 @@ export class ServerController {
    * console.log(`Operation ID: ${operation.id}`);
    * 
    * // Wait for completion
-   * const result = await operation.waitForResult();
-   * console.log("Result:", result);
+   * const result = await vana.server.waitForOperation(operation.id);
+   * console.log("Result:", result.result);
    * ```
    */
   async createOperation<T = unknown>(
     params: CreateOperationParams,
-  ): Promise<OperationHandle<T>> {
+  ): Promise<Operation<T>> {
     try {
       const requestData = {
         permission_id: params.permissionId,
@@ -197,7 +202,11 @@ export class ServerController {
       console.debug("🔍 Debug - createOperation requestBody", requestBody);
       const response = await this.makeRequest(requestBody);
 
-      return new OperationHandle<T>(this, response.id);
+      return {
+        id: response.id,
+        status: "starting",
+        createdAt: Date.now(),
+      } as Operation<T>;
     } catch (error) {
       if (error instanceof Error) {
         // Re-throw known Vana errors directly
@@ -229,17 +238,17 @@ export class ServerController {
    * When status is `succeeded`, the result field contains the operation output.
    *
    * @param operationId - The ID of the operation to query
-   * @returns The operation response containing status, result, and metadata
+   * @returns The operation as a plain object containing status, result, and metadata
    * @throws {NetworkError} When the API request fails or returns invalid data
    * @example
    * ```typescript
-   * const status = await vana.server.getOperation(operationId);
-   * if (status.status === 'succeeded') {
-   *   console.log('Result:', JSON.parse(status.result));
+   * const operation = await vana.server.getOperation(operationId);
+   * if (operation.status === 'succeeded') {
+   *   console.log('Result:', operation.result);
    * }
    * ```
    */
-  async getOperation(operationId: string): Promise<GetOperationResponse> {
+  async getOperation<T = unknown>(operationId: string): Promise<Operation<T>> {
     try {
       console.debug("Polling Operation Status:", operationId);
 
@@ -269,7 +278,14 @@ export class ServerController {
 
       console.debug("Polling Success Response:", data);
 
-      return data;
+      return {
+        id: data.id,
+        status: data.status as Operation["status"],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        result: data.status === "succeeded" ? (data.result as T) : undefined,
+        error: data.status === "failed" ? (data.result || undefined) : undefined,
+      };
     } catch (error) {
       if (error instanceof NetworkError) {
         throw error;
@@ -277,6 +293,68 @@ export class ServerController {
       throw new NetworkError(
         `Failed to poll status: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
+    }
+  }
+
+  /**
+   * Waits for an operation to complete and returns the final result.
+   *
+   * @remarks
+   * This method polls the operation status at regular intervals until it
+   * reaches a terminal state (succeeded, failed, or canceled). Supports
+   * ergonomic overloads to accept either an Operation object or just the ID.
+   *
+   * @param opOrId - Either an Operation object or operation ID string
+   * @param options - Optional polling configuration
+   * @returns The completed operation with result or error
+   * @throws {PersonalServerError} When the operation fails or times out
+   * @example
+   * ```typescript
+   * // Using operation object
+   * const operation = await vana.server.createOperation({ permissionId: 123 });
+   * const completed = await vana.server.waitForOperation(operation);
+   *
+   * // Using just the ID
+   * const completed = await vana.server.waitForOperation("op_abc123");
+   *
+   * // With custom timeout
+   * const completed = await vana.server.waitForOperation(operation, {
+   *   timeout: 60000,
+   *   pollingInterval: 1000
+   * });
+   * ```
+   */
+  async waitForOperation<T = unknown>(
+    opOrId: Operation<T> | string,
+    options?: PollingOptions,
+  ): Promise<Operation<T>> {
+    const id = typeof opOrId === "string" ? opOrId : opOrId.id;
+    const startTime = Date.now();
+    const timeout = options?.timeout ?? 30000;
+    const interval = options?.pollingInterval ?? 500;
+
+    while (true) {
+      const operation = await this.getOperation<T>(id);
+
+      if (operation.status === "succeeded") {
+        return operation;
+      }
+
+      if (operation.status === "failed") {
+        throw new PersonalServerError(
+          `Operation ${operation.status}: ${operation.error || "Unknown error"}`,
+        );
+      }
+
+      if (operation.status === "canceled") {
+        throw new PersonalServerError(`Operation was canceled`);
+      }
+
+      if (Date.now() - startTime > timeout) {
+        throw new PersonalServerError(`Operation timed out after ${timeout}ms`);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, interval));
     }
   }
 

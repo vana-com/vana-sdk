@@ -1,5 +1,5 @@
 import { Address } from "viem";
-import { TransactionHandle } from "../utils/transactionHandle";
+import type { TransactionResult } from "../types/operations";
 import { SchemaAddedResult } from "../types/transactionResults";
 import {
   Schema,
@@ -229,17 +229,12 @@ export class SchemaController {
         chain: this.context.walletClient.chain || null,
       });
 
-      // Use TransactionHandle to wait for and parse events
-      const txHandle = new TransactionHandle<SchemaAddedResult>(
-        this.context,
-        txHash,
-        "addSchema",
-      );
+      // TODO: Use SDK's waitForTransactionEvents when available
+      // const result = await this.context.waitForTransactionEvents(txHash);
 
-      const result = await txHandle.waitForEvents();
-
+      // For now, return placeholder values - users need to wait for events separately
       return {
-        schemaId: Number(result.schemaId),
+        schemaId: 0, // Will be available after waiting for events
         definitionUrl: uploadResult.url,
         transactionHash: txHash,
       };

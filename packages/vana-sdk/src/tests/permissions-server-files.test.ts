@@ -5,7 +5,7 @@ import {
   ControllerContext,
 } from "../controllers/permissions";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
-import { TransactionHandle } from "../utils/transactionHandle";
+import type { TransactionResult } from "../types/operations";
 
 // Mock external dependencies
 vi.mock("viem", async () => {
@@ -267,7 +267,8 @@ describe("Permissions Server Files and Permissions", () => {
       const result =
         await controller.submitAddServerFilesAndPermissions(baseParams);
 
-      expect(result).toBeInstanceOf(TransactionHandle);
+      expect(result).toHaveProperty('hash');
+      expect(result).toHaveProperty('from');
       expect(capturedArgs).toBeDefined();
       expect(capturedArgs.functionName).toBe("addServerFilesAndPermissions");
 
@@ -309,7 +310,8 @@ describe("Permissions Server Files and Permissions", () => {
         );
 
       expect(mockRelayerCallback).toHaveBeenCalled();
-      expect(result).toBeInstanceOf(TransactionHandle);
+      expect(result).toHaveProperty('hash');
+      expect(result).toHaveProperty('from');
 
       // Verify the typed data passed to relayer has schemaIds
       const [typedData] = mockRelayerCallback.mock.calls[0];

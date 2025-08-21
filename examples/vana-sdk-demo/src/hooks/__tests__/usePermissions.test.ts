@@ -372,8 +372,7 @@ describe("usePermissions", () => {
       });
       mockVana.permissions.submitSignedGrant.mockResolvedValue({
         hash: "0xtxhash",
-        waitForEvents: vi.fn(),
-        waitForReceipt: vi.fn(),
+        from: "0xuser123",
       });
 
       // Mock retrieveGrantFile
@@ -453,8 +452,7 @@ describe("usePermissions", () => {
       });
       mockVana.permissions.submitSignedGrant.mockResolvedValue({
         hash: "0xtxhash",
-        waitForEvents: vi.fn(),
-        waitForReceipt: vi.fn(),
+        from: "0xuser123",
       });
 
       // Mock retrieveGrantFile failure

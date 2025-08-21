@@ -2,7 +2,6 @@ import { parseEventLogs, type Log, type TransactionReceipt, type Hash } from "vi
 import type { 
   SchemaAddedResult, 
   FileAddedResult,
-  PermissionGrantResult,
   RefinerAddedResult
 } from "../types/transactionResults";
 import { getAbi } from "../generated/abi";
@@ -42,6 +41,7 @@ export function parseSchemaAddedEvent(receipt: TransactionReceipt): SchemaAddedR
   return {
     transactionHash: receipt.transactionHash,
     blockNumber: receipt.blockNumber,
+    gasUsed: receipt.gasUsed,
     schemaId: event.args.schemaId as bigint,
     name: event.args.name as string,
     dialect: event.args.dialect as string,
@@ -67,43 +67,18 @@ export function parseFileAddedEvent(receipt: TransactionReceipt): FileAddedResul
   }
 
   const event = logs[0];
+  // FileAddedV2 event has 'ownerAddress' field, not 'owner'
   return {
     transactionHash: receipt.transactionHash,
     blockNumber: receipt.blockNumber,
+    gasUsed: receipt.gasUsed,
     fileId: event.args.fileId as bigint,
-    ownerAddress: event.args.owner as `0x${string}`,
+    ownerAddress: event.args.ownerAddress as `0x${string}`,
     url: event.args.url as string,
     schemaId: event.args.schemaId as bigint,
   };
 }
 
-/**
- * Parse PermissionGranted event from transaction receipt
- * @throws {EventParsingError} When PermissionGranted event is not found
- */
-export function parsePermissionGrantedEvent(receipt: TransactionReceipt): PermissionGrantResult {
-  const abi = getAbi("DataPortability");
-  
-  const logs = parseEventLogs({
-    abi,
-    logs: receipt.logs as Log[],
-    eventName: "PermissionGranted"
-  });
-
-  if (logs.length === 0) {
-    throw new EventParsingError("PermissionGranted", receipt.transactionHash);
-  }
-
-  const event = logs[0];
-  return {
-    transactionHash: receipt.transactionHash,
-    blockNumber: receipt.blockNumber,
-    permissionId: event.args.permissionId as bigint,
-    owner: event.args.owner as `0x${string}`,
-    grantee: event.args.grantee as `0x${string}`,
-    expirationTime: event.args.expirationTime as bigint,
-  };
-}
 
 /**
  * Parse RefinerAdded event from transaction receipt
@@ -126,10 +101,12 @@ export function parseRefinerAddedEvent(receipt: TransactionReceipt): RefinerAdde
   return {
     transactionHash: receipt.transactionHash,
     blockNumber: receipt.blockNumber,
+    gasUsed: receipt.gasUsed,
     refinerId: event.args.refinerId as bigint,
     dlpId: event.args.dlpId as bigint,
     name: event.args.name as string,
     schemaId: event.args.schemaId as bigint,
+    schemaDefinitionUrl: event.args.schemaDefinitionUrl as string,
     refinementInstructionUrl: event.args.refinementInstructionUrl as string,
   };
 }

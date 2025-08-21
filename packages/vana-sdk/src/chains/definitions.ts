@@ -34,8 +34,7 @@ export const vanaMainnet: VanaChainConfig = {
       url: "https://vanascan.io",
     },
   },
-  subgraphUrl:
-    "https://api.goldsky.com/api/public/project_cm168cz887zva010j39il7a6p/subgraphs/vana/prod/gn",
+  subgraphUrl: "https://vanagraph.io/v7",
 } as const;
 
 /**
@@ -60,8 +59,7 @@ export const moksha: VanaChainConfig = {
       url: "https://moksha.vanascan.io",
     },
   },
-  subgraphUrl:
-    "https://api.goldsky.com/api/public/project_cm168cz887zva010j39il7a6p/subgraphs/moksha/prod/gn",
+  subgraphUrl: "https://moksha.vanagraph.io/v7",
 } as const;
 
 /**

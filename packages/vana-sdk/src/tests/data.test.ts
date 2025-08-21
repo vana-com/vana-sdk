@@ -170,8 +170,7 @@ describe("DataController", () => {
         mockWalletClient as unknown as ControllerContext["walletClient"],
       publicClient:
         mockPublicClient as unknown as ControllerContext["publicClient"],
-      subgraphUrl:
-        "https://api.goldsky.com/api/public/project_cm168cz887zva010j39il7a6p/subgraphs/moksha/prod/gn",
+      subgraphUrl: "https://moksha.vanagraph.io/v7",
       platform: mockPlatformAdapter,
     };
 

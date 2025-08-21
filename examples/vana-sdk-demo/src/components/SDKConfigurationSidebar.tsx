@@ -66,7 +66,7 @@ export const SDKConfigurationSidebar: React.FC<
 
               <Input
                 label="Subgraph URL"
-                placeholder="https://api.goldsky.com/..."
+                placeholder="https://moksha.vanagraph.io/v7"
                 value={sdkConfig.subgraphUrl}
                 onValueChange={(value) =>
                   onConfigChange({ subgraphUrl: value })

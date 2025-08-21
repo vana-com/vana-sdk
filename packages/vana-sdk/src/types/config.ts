@@ -70,12 +70,16 @@ export interface StorageConfig {
  * Provides a callback to proxy download requests through your application server
  * when direct browser access fails due to CORS restrictions (e.g., Google Drive).
  *
+ * IMPORTANT SECURITY REQUIREMENTS for your proxy endpoint:
+ * 1. MUST block requests to private/internal IPs (SSRF protection)
+ * 2. SHOULD NOT restrict domains (files can be hosted anywhere)
+ *
  * @category Configuration
- * @example
+ * @example Client-side implementation:
  * ```typescript
  * const downloadRelayer: DownloadRelayerCallbacks = {
  *   async proxyDownload(url) {
- *     const response = await fetch('https://my-app.com/api/proxy', {
+ *     const response = await fetch('/api/proxy', {
  *       method: 'POST',
  *       headers: { 'Content-Type': 'application/json' },
  *       body: JSON.stringify({ url })
@@ -83,6 +87,51 @@ export interface StorageConfig {
  *     return response.blob();
  *   }
  * };
+ * ```
+ *
+ * @example Server-side proxy endpoint (Next.js):
+ * ```typescript
+ * // /api/proxy/route.ts
+ * import { promises as dns } from 'dns';
+ * import { isIPv4 } from 'net';
+ *
+ * async function handleProxy(url: string) {
+ *   const { hostname } = new URL(url);
+ *
+ *   // Resolve hostname to IP (handle localhost specially)
+ *   const ip = hostname === 'localhost' ? '127.0.0.1' :
+ *              isIPv4(hostname) ? hostname :
+ *              await dns.lookup(hostname).then(r => r.address);
+ *
+ *   // SSRF Protection: Block private/internal IPs
+ *   if (isIPv4(ip)) {
+ *     const [a, b] = ip.split('.').map(Number);
+ *     if (a === 10 || a === 127 || a === 0 ||
+ *         (a === 172 && b >= 16 && b <= 31) ||
+ *         (a === 192 && b === 168) ||
+ *         (a === 169 && b === 254) ||
+ *         a >= 224) { // Also block multicast/reserved
+ *       return new Response('Private/internal addresses not allowed', { status: 403 });
+ *     }
+ *   }
+ *
+ *   // Proxy the request
+ *   const response = await fetch(url, { redirect: 'manual' });
+ *
+ *   // Handle redirects (with recursion limit)
+ *   if (response.status >= 301 && response.status <= 308) {
+ *     const location = response.headers.get('location');
+ *     if (location) return handleProxy(new URL(location, url).href);
+ *   }
+ *
+ *   const data = await response.arrayBuffer();
+ *   return new Response(data, {
+ *     headers: {
+ *       'Content-Type': response.headers.get('content-type') || 'application/octet-stream',
+ *       'Access-Control-Allow-Origin': '*'
+ *     }
+ *   });
+ * }
  * ```
  */
 export interface DownloadRelayerCallbacks {

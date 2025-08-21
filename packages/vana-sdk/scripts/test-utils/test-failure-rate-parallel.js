@@ -20,7 +20,6 @@
  */
 
 /* eslint-env node */
-/* eslint-disable no-undef */
 
 import { Worker, isMainThread, parentPort, workerData } from "worker_threads";
 import { spawn } from "child_process";

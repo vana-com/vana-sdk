@@ -77,8 +77,7 @@
     "build:browser": "tsup --config tsup-browser.config.ts",
     "build:chains": "tsup src/chains.ts src/chains.node.ts src/chains.browser.ts --platform node --format esm,cjs --target node18 --out-dir dist --dts --no-clean",
     "build:platform": "tsup src/platform.ts src/platform.node.ts src/node.ts --platform node --format esm,cjs --target node18 --out-dir dist --dts --no-clean && tsup src/platform.browser.ts src/browser.ts --platform browser --format esm --target es2020 --out-dir dist --dts --no-clean",
-    "build": "npm run clean && npm-run-all --parallel build:types build:node build:browser build:chains build:platform",
-    "prepare": "npm run build",
+    "build": "npm run clean && npx npm-run-all --parallel build:types build:node build:browser build:chains build:platform",
     "dev": "npm run build -- --watch",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -107,6 +106,7 @@
     "abitype": "^1.0.8",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
+    "eccrypto-js": "^5.4.0",
     "graphql": "^16.11.0",
     "openpgp": "^6.1.1",
     "viem": "^2.31.7"

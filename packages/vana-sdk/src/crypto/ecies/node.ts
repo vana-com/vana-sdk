@@ -14,6 +14,7 @@ import {
   createCipheriv,
   createDecipheriv,
 } from "crypto";
+import secp256k1Import from "secp256k1";
 import { BaseECIESUint8 } from "./base";
 
 // Type definition for secp256k1 module
@@ -32,19 +33,8 @@ interface Secp256k1Module {
   ): Buffer;
 }
 
-// Load native secp256k1 as optional dependency
-/* global require */
-
-let secp256k1: Secp256k1Module;
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  secp256k1 = require("secp256k1");
-} catch {
-  throw new Error(
-    "Native secp256k1 module not found. Please install with: npm install secp256k1\n" +
-      "This is required for optimal performance in Node.js environments.",
-  );
-}
+// Use the imported secp256k1 module
+const secp256k1 = secp256k1Import as unknown as Secp256k1Module;
 
 /**
  * Node.js-specific ECIES provider using native secp256k1

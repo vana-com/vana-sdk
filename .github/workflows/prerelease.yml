@@ -4,9 +4,7 @@ on:
   push:
     branches:
       - feature/data-portability-sdk-v1
-      - fix/build-system-platform-separation
-      - feat/validation
-      - schemas-demo
+      - fix/sdk-build-system
 
 jobs:
   publish-prerelease:

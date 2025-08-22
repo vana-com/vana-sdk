@@ -113,7 +113,6 @@
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
     "eccrypto-js": "^5.4.0",
-    "elliptic": "^6.6.1",
     "graphql": "^16.11.0",
     "openpgp": "^6.1.1",
     "viem": "^2.31.7"
@@ -150,9 +149,6 @@
   "engines": {
     "node": ">=20.0.0"
   },
-  "bundledDependencies": [
-    "elliptic"
-  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/vana-com/vana-sdk.git",

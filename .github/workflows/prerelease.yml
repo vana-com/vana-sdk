@@ -25,6 +25,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build SDK
+        run: |
+          cd packages/vana-sdk
+          npm run build
+
       - name: Set pre-release version
         run: |
           cd packages/vana-sdk

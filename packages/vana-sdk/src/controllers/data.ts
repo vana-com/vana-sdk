@@ -16,11 +16,7 @@ import {
   EncryptedUploadParams,
   UnencryptedUploadParams,
 } from "../types/index";
-import {
-  FilePermissionResult,
-  FileAddedResult,
-  RefinerAddedResult,
-} from "../types/transactionResults";
+import { FilePermissionResult } from "../types/transactionResults";
 import type { TransactionResult } from "../types/operations";
 import { ControllerContext } from "./permissions";
 import { getContractAddress } from "../config/addresses";
@@ -1893,10 +1889,12 @@ export class DataController {
       });
 
       // Wait for transaction confirmation and parse events
-      const receipt = await this.context.publicClient.waitForTransactionReceipt({
-        hash: txHash,
-        confirmations: 1,
-      });
+      const receipt = await this.context.publicClient.waitForTransactionReceipt(
+        {
+          hash: txHash,
+          confirmations: 1,
+        },
+      );
 
       // Parse the FileAddedV2 event to get the file ID
       const { parseFileAddedEvent } = await import("../utils/eventParsing");
@@ -1972,10 +1970,12 @@ export class DataController {
       });
 
       // Wait for transaction confirmation and parse events
-      const receipt = await this.context.publicClient.waitForTransactionReceipt({
-        hash: txHash,
-        confirmations: 1,
-      });
+      const receipt = await this.context.publicClient.waitForTransactionReceipt(
+        {
+          hash: txHash,
+          confirmations: 1,
+        },
+      );
 
       // Parse the FileAddedV2 event to get the file ID
       const { parseFileAddedEvent } = await import("../utils/eventParsing");
@@ -2036,10 +2036,12 @@ export class DataController {
       });
 
       // Wait for transaction confirmation and parse events
-      const receipt = await this.context.publicClient.waitForTransactionReceipt({
-        hash: txHash,
-        confirmations: 1,
-      });
+      const receipt = await this.context.publicClient.waitForTransactionReceipt(
+        {
+          hash: txHash,
+          confirmations: 1,
+        },
+      );
 
       // Parse the FileAddedV2 event to get the file ID
       const { parseFileAddedEvent } = await import("../utils/eventParsing");
@@ -2114,10 +2116,12 @@ export class DataController {
       });
 
       // Wait for transaction confirmation and parse events
-      const receipt = await this.context.publicClient.waitForTransactionReceipt({
-        hash: txHash,
-        confirmations: 1,
-      });
+      const receipt = await this.context.publicClient.waitForTransactionReceipt(
+        {
+          hash: txHash,
+          confirmations: 1,
+        },
+      );
 
       // Parse the RefinerAdded event to get the refiner ID
       const { parseRefinerAddedEvent } = await import("../utils/eventParsing");

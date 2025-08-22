@@ -44,9 +44,8 @@ import {
   ServerUpdateResult,
   GranteeRegisterResult,
 } from "../types/transactionResults";
-import type { 
+import type {
   TransactionResult,
-  TransactionReceipt,
   TransactionWaitOptions,
 } from "../types/operations";
 import { PermissionInfo } from "../types/permissions";
@@ -121,12 +120,12 @@ export interface ControllerContext {
   /** Waits for transaction confirmation and parses typed events. */
   waitForTransactionEvents?: <T = unknown>(
     hashOrObj: Hash | TransactionResult | { hash: Hash },
-    options?: import("../types/operations").TransactionWaitOptions
+    options?: import("../types/operations").TransactionWaitOptions,
   ) => Promise<T>;
   /** Waits for an operation to complete with polling. */
   waitForOperation?: <T = unknown>(
     opOrId: import("../types/operations").Operation<T> | string,
-    options?: import("../types/operations").PollingOptions
+    options?: import("../types/operations").PollingOptions,
   ) => Promise<import("../types/operations").Operation<T>>;
 }
 
@@ -214,7 +213,7 @@ export class PermissionsController {
    * ```
    */
   async grant(
-    params: GrantPermissionParams
+    params: GrantPermissionParams,
   ): Promise<TransactionResult & { eventData?: PermissionGrantResult }> {
     return await this.submitPermissionGrant(params);
   }
@@ -278,7 +277,9 @@ export class PermissionsController {
    */
   async prepareGrant(params: GrantPermissionParams): Promise<{
     preview: GrantFile;
-    confirm: () => Promise<TransactionResult & { eventData?: PermissionGrantResult }>;
+    confirm: () => Promise<
+      TransactionResult & { eventData?: PermissionGrantResult }
+    >;
   }> {
     try {
       // Step 1: Create grant file in memory (no IPFS upload yet)

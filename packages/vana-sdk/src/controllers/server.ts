@@ -15,12 +15,7 @@ import {
   PersonalServerError,
 } from "../errors";
 import { ControllerContext } from "./permissions";
-import type {
-  Operation,
-  PollingOptions,
-  toOperation,
-  getOperationId,
-} from "../types/operations";
+import type { Operation, PollingOptions } from "../types/operations";
 
 // Server types are now auto-imported from the generated exports
 
@@ -175,7 +170,7 @@ export class ServerController {
    *   permissionId: 123
    * });
    * console.log(`Operation ID: ${operation.id}`);
-   * 
+   *
    * // Wait for completion
    * const result = await vana.server.waitForOperation(operation.id);
    * console.log("Result:", result.result);
@@ -284,7 +279,7 @@ export class ServerController {
         createdAt: Date.now(),
         updatedAt: Date.now(),
         result: data.status === "succeeded" ? (data.result as T) : undefined,
-        error: data.status === "failed" ? (data.result || undefined) : undefined,
+        error: data.status === "failed" ? data.result || undefined : undefined,
       };
     } catch (error) {
       if (error instanceof NetworkError) {

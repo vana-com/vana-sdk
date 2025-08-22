@@ -64,90 +64,69 @@ describe("VanaCore Extended Tests", () => {
   describe("Configuration Validation", () => {
     it("should validate RPC URL format for ChainConfig", () => {
       expect(() => {
-        new VanaCore(
-          mockPlatformAdapter,
-          {
-            chainId: 14800,
-            account: testAccount,
-            rpcUrl: "not-a-valid-url",
-          },
-        );
+        new VanaCore(mockPlatformAdapter, {
+          chainId: 14800,
+          account: testAccount,
+          rpcUrl: "not-a-valid-url",
+        });
       }).toThrow(InvalidConfigurationError);
     });
 
     it("should work with empty RPC URL (uses default)", () => {
       expect(() => {
-        new VanaCore(
-          mockPlatformAdapter,
-          {
-            chainId: 14800,
-            account: testAccount,
-            rpcUrl: "",
-          },
-        );
+        new VanaCore(mockPlatformAdapter, {
+          chainId: 14800,
+          account: testAccount,
+          rpcUrl: "",
+        });
       }).not.toThrow();
     });
 
     it("should validate whitespace-only RPC URL", () => {
       expect(() => {
-        new VanaCore(
-          mockPlatformAdapter,
-          {
-            chainId: 14800,
-            account: testAccount,
-            rpcUrl: "   ",
-          },
-        );
+        new VanaCore(mockPlatformAdapter, {
+          chainId: 14800,
+          account: testAccount,
+          rpcUrl: "   ",
+        });
       }).toThrow(InvalidConfigurationError);
     });
 
     it("should accept valid HTTPS RPC URL", () => {
       expect(() => {
-        new VanaCore(
-          mockPlatformAdapter,
-          {
-            chainId: 14800,
-            account: testAccount,
-            rpcUrl: "https://rpc.moksha.vana.org",
-          },
-        );
+        new VanaCore(mockPlatformAdapter, {
+          chainId: 14800,
+          account: testAccount,
+          rpcUrl: "https://rpc.moksha.vana.org",
+        });
       }).not.toThrow();
     });
 
     it("should accept valid HTTP RPC URL", () => {
       expect(() => {
-        new VanaCore(
-          mockPlatformAdapter,
-          {
-            chainId: 14800,
-            account: testAccount,
-            rpcUrl: "http://localhost:8545",
-          },
-        );
+        new VanaCore(mockPlatformAdapter, {
+          chainId: 14800,
+          account: testAccount,
+          rpcUrl: "http://localhost:8545",
+        });
       }).not.toThrow();
     });
 
     it("should validate account object format", () => {
       expect(() => {
-        new VanaCore(
-          mockPlatformAdapter,
-          {
-            chainId: 14800,
-            account: { invalid: "account" } as unknown as Account,
-          },
-        );
+        new VanaCore(mockPlatformAdapter, {
+          chainId: 14800,
+          account: { invalid: "account" } as unknown as Account,
+        });
       }).toThrow(InvalidConfigurationError);
     });
 
     it("should require account for ChainConfig", () => {
       expect(() => {
-        new VanaCore(
-          mockPlatformAdapter,
-          {
-            chainId: 14800,
-            rpcUrl: "https://rpc.moksha.vana.org",
-          },
-        );
+        new VanaCore(mockPlatformAdapter, {
+          chainId: 14800,
+          rpcUrl: "https://rpc.moksha.vana.org",
+        });
       }).toThrow("Account is required when using ChainConfig");
     });
   });
@@ -155,57 +134,48 @@ describe("VanaCore Extended Tests", () => {
   describe("Storage Configuration", () => {
     it("should validate storage providers object", () => {
       expect(() => {
-        new VanaCore(
-          mockPlatformAdapter,
-          {
-            walletClient: validWalletClient,
-            storage: {
-              providers: "not-an-object" as unknown as Record<
-                string,
-                StorageProvider
-              >,
-            },
+        new VanaCore(mockPlatformAdapter, {
+          walletClient: validWalletClient,
+          storage: {
+            providers: "not-an-object" as unknown as Record<
+              string,
+              StorageProvider
+            >,
           },
-        );
+        });
       }).toThrow(InvalidConfigurationError);
     });
 
     it("should validate individual storage providers", () => {
       expect(() => {
-        new VanaCore(
-          mockPlatformAdapter,
-          {
-            walletClient: validWalletClient,
-            storage: {
-              providers: {
-                invalid: null as unknown as StorageProvider,
-              },
+        new VanaCore(mockPlatformAdapter, {
+          walletClient: validWalletClient,
+          storage: {
+            providers: {
+              invalid: null as unknown as StorageProvider,
             },
           },
-        );
+        });
       }).toThrow(InvalidConfigurationError);
     });
 
     it("should validate default provider exists", () => {
       expect(() => {
-        new VanaCore(
-          mockPlatformAdapter,
-          {
-            walletClient: validWalletClient,
-            storage: {
-              providers: {
-                ipfs: {
-                  upload: vi.fn(),
-                  download: vi.fn(),
-                  list: vi.fn(),
-                  delete: vi.fn(),
-                  getConfig: vi.fn(),
-                } as unknown as StorageProvider,
-              },
-              defaultProvider: "nonexistent",
+        new VanaCore(mockPlatformAdapter, {
+          walletClient: validWalletClient,
+          storage: {
+            providers: {
+              ipfs: {
+                upload: vi.fn(),
+                download: vi.fn(),
+                list: vi.fn(),
+                delete: vi.fn(),
+                getConfig: vi.fn(),
+              } as unknown as StorageProvider,
             },
+            defaultProvider: "nonexistent",
           },
-        );
+        });
       }).toThrow(InvalidConfigurationError);
     });
 
@@ -218,18 +188,15 @@ describe("VanaCore Extended Tests", () => {
         getConfig: vi.fn(),
       };
 
-      const vana = new VanaCore(
-        mockPlatformAdapter,
-        {
-          walletClient: validWalletClient,
-          storage: {
-            providers: {
-              first: mockProvider as StorageProvider,
-              second: mockProvider as StorageProvider,
-            },
+      const vana = new VanaCore(mockPlatformAdapter, {
+        walletClient: validWalletClient,
+        storage: {
+          providers: {
+            first: mockProvider as StorageProvider,
+            second: mockProvider as StorageProvider,
           },
         },
-      );
+      });
 
       expect(vana).toBeDefined();
     });
@@ -243,19 +210,16 @@ describe("VanaCore Extended Tests", () => {
         getConfig: vi.fn(),
       };
 
-      const vana = new VanaCore(
-        mockPlatformAdapter,
-        {
-          walletClient: validWalletClient,
-          storage: {
-            providers: {
-              ipfs: mockProvider as StorageProvider,
-              pinata: mockProvider as StorageProvider,
-            },
-            defaultProvider: "pinata",
+      const vana = new VanaCore(mockPlatformAdapter, {
+        walletClient: validWalletClient,
+        storage: {
+          providers: {
+            ipfs: mockProvider as StorageProvider,
+            pinata: mockProvider as StorageProvider,
           },
+          defaultProvider: "pinata",
         },
-      );
+      });
 
       expect(vana).toBeDefined();
     });
@@ -263,25 +227,19 @@ describe("VanaCore Extended Tests", () => {
 
   describe("Direct Instantiation", () => {
     it("should create instance from ChainConfig via constructor", () => {
-      const vana = new VanaCore(
-        mockPlatformAdapter,
-        {
-          chainId: 14800,
-          account: testAccount,
-        },
-      );
+      const vana = new VanaCore(mockPlatformAdapter, {
+        chainId: 14800,
+        account: testAccount,
+      });
 
       expect(vana).toBeInstanceOf(VanaCore);
       expect(vana.chainId).toBe(14800);
     });
 
     it("should create instance from WalletConfig via constructor", () => {
-      const vana = new VanaCore(
-        mockPlatformAdapter,
-        {
-          walletClient: validWalletClient,
-        },
-      );
+      const vana = new VanaCore(mockPlatformAdapter, {
+        walletClient: validWalletClient,
+      });
 
       expect(vana).toBeInstanceOf(VanaCore);
       expect(vana.chainId).toBe(14800);
@@ -298,21 +256,18 @@ describe("VanaCore Extended Tests", () => {
         getConfig: vi.fn(),
       };
 
-      const vana = new VanaCore(
-        mockPlatformAdapter,
-        {
-          walletClient: validWalletClient,
-          storage: {
-            providers: {
-              test: mockProvider as StorageProvider,
-            },
-            defaultProvider: "test",
+      const vana = new VanaCore(mockPlatformAdapter, {
+        walletClient: validWalletClient,
+        storage: {
+          providers: {
+            test: mockProvider as StorageProvider,
           },
-          relayerCallbacks: {
-            submitPermissionGrant: vi.fn(),
-          },
+          defaultProvider: "test",
         },
-      );
+        relayerCallbacks: {
+          submitPermissionGrant: vi.fn(),
+        },
+      });
 
       const config = vana.getConfig();
       expect(config.chainId).toBe(14800);
@@ -323,12 +278,9 @@ describe("VanaCore Extended Tests", () => {
     });
 
     it("should return config without storage when not configured", () => {
-      const vana = new VanaCore(
-        mockPlatformAdapter,
-        {
-          walletClient: validWalletClient,
-        },
-      );
+      const vana = new VanaCore(mockPlatformAdapter, {
+        walletClient: validWalletClient,
+      });
 
       const config = vana.getConfig();
       expect(config.storageProviders).toEqual([]);
@@ -338,15 +290,12 @@ describe("VanaCore Extended Tests", () => {
 
   describe("Address Retrieval", () => {
     it("should get user address from permissions controller", async () => {
-      const vana = new VanaCore(
-        mockPlatformAdapter,
-        {
-          walletClient: validWalletClient,
-        },
-      );
+      const vana = new VanaCore(mockPlatformAdapter, {
+        walletClient: validWalletClient,
+      });
 
       const address = await vana.getUserAddress();
-      expect(address).toBe("0x1234567890123456789012345678901234567890");
+      expect(address).toBe("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
     });
   });
 
@@ -357,36 +306,34 @@ describe("VanaCore Extended Tests", () => {
       );
 
       expect(() => {
-        new VanaCore(
-          mockPlatformAdapter,
-          {
-            chainId: 1480, // Vana mainnet
-            account: mainnetAccount,
-          },
-        );
+        new VanaCore(mockPlatformAdapter, {
+          chainId: 1480, // Vana mainnet
+          account: mainnetAccount,
+        });
       }).not.toThrow();
     });
 
     it("should reject unsupported chain IDs", () => {
       expect(() => {
-        new VanaCore(
-          mockPlatformAdapter,
-          {
-            chainId: 1 as VanaChainId, // Ethereum mainnet - not supported
-            account: testAccount,
-          },
-        );
+        new VanaCore(mockPlatformAdapter, {
+          chainId: 1 as VanaChainId, // Ethereum mainnet - not supported
+          account: testAccount,
+        });
       }).toThrow(InvalidConfigurationError);
     });
   });
 
   describe("Legacy API Removal", () => {
     it("should not expose legacy fromChain method", () => {
-      expect((VanaCore as unknown as { fromChain?: unknown }).fromChain).toBeUndefined();
+      expect(
+        (VanaCore as unknown as { fromChain?: unknown }).fromChain,
+      ).toBeUndefined();
     });
 
     it("should not expose legacy fromWallet method", () => {
-      expect((VanaCore as unknown as { fromWallet?: unknown }).fromWallet).toBeUndefined();
+      expect(
+        (VanaCore as unknown as { fromWallet?: unknown }).fromWallet,
+      ).toBeUndefined();
     });
   });
 });

@@ -1,8 +1,13 @@
-import { parseEventLogs, type Log, type TransactionReceipt, type Hash } from "viem";
-import type { 
-  SchemaAddedResult, 
+import {
+  parseEventLogs,
+  type Log,
+  type TransactionReceipt,
+  type Hash,
+} from "viem";
+import type {
+  SchemaAddedResult,
   FileAddedResult,
-  RefinerAddedResult
+  RefinerAddedResult,
 } from "../types/transactionResults";
 import { getAbi } from "../generated/abi";
 
@@ -13,24 +18,32 @@ export class EventParsingError extends Error {
   constructor(
     public readonly eventName: string,
     public readonly transactionHash: Hash,
-    message?: string
+    message?: string,
   ) {
-    super(message || `Event "${eventName}" not found in transaction ${transactionHash}`);
+    super(
+      message ||
+        `Event "${eventName}" not found in transaction ${transactionHash}`,
+    );
     this.name = "EventParsingError";
   }
 }
 
 /**
- * Parse SchemaAdded event from transaction receipt
- * @throws {EventParsingError} When SchemaAdded event is not found
+ * Parses SchemaAdded event from a transaction receipt.
+ *
+ * @param receipt - The transaction receipt containing event logs.
+ * @returns A SchemaAddedResult with the schema ID and metadata from the event.
+ * @throws {EventParsingError} When the SchemaAdded event is not present in the receipt logs.
  */
-export function parseSchemaAddedEvent(receipt: TransactionReceipt): SchemaAddedResult {
+export function parseSchemaAddedEvent(
+  receipt: TransactionReceipt,
+): SchemaAddedResult {
   const abi = getAbi("DataRefinerRegistry");
-  
+
   const logs = parseEventLogs({
     abi,
     logs: receipt.logs as Log[],
-    eventName: "SchemaAdded"
+    eventName: "SchemaAdded",
   });
 
   if (logs.length === 0) {
@@ -50,16 +63,21 @@ export function parseSchemaAddedEvent(receipt: TransactionReceipt): SchemaAddedR
 }
 
 /**
- * Parse FileAddedV2 event from transaction receipt
- * @throws {EventParsingError} When FileAddedV2 event is not found
+ * Parses FileAddedV2 event from a transaction receipt.
+ *
+ * @param receipt - The transaction receipt containing event logs.
+ * @returns A FileAddedResult with the file ID and metadata from the event.
+ * @throws {EventParsingError} When the FileAddedV2 event is not present in the receipt logs.
  */
-export function parseFileAddedEvent(receipt: TransactionReceipt): FileAddedResult {
+export function parseFileAddedEvent(
+  receipt: TransactionReceipt,
+): FileAddedResult {
   const abi = getAbi("DataRegistry");
-  
+
   const logs = parseEventLogs({
     abi,
     logs: receipt.logs as Log[],
-    eventName: "FileAddedV2"
+    eventName: "FileAddedV2",
   });
 
   if (logs.length === 0) {
@@ -79,18 +97,22 @@ export function parseFileAddedEvent(receipt: TransactionReceipt): FileAddedResul
   };
 }
 
-
 /**
- * Parse RefinerAdded event from transaction receipt
- * @throws {EventParsingError} When RefinerAdded event is not found
+ * Parses RefinerAdded event from a transaction receipt.
+ *
+ * @param receipt - The transaction receipt containing event logs.
+ * @returns A RefinerAddedResult with the refiner ID and metadata from the event.
+ * @throws {EventParsingError} When the RefinerAdded event is not present in the receipt logs.
  */
-export function parseRefinerAddedEvent(receipt: TransactionReceipt): RefinerAddedResult {
+export function parseRefinerAddedEvent(
+  receipt: TransactionReceipt,
+): RefinerAddedResult {
   const abi = getAbi("DataRefinerRegistry");
-  
+
   const logs = parseEventLogs({
     abi,
     logs: receipt.logs as Log[],
-    eventName: "RefinerAdded"
+    eventName: "RefinerAdded",
   });
 
   if (logs.length === 0) {

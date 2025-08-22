@@ -1,6 +1,4 @@
 import { Address } from "viem";
-import type { TransactionResult } from "../types/operations";
-import { SchemaAddedResult } from "../types/transactionResults";
 import {
   Schema,
   SchemaMetadata,
@@ -230,14 +228,12 @@ export class SchemaController {
       });
 
       // Wait for transaction confirmation and parse events
-      if (!this.context.waitForTransactionEvents) {
-        throw new Error("Event waiting not available in this context");
-      }
-
-      const receipt = await this.context.publicClient.waitForTransactionReceipt({
-        hash: txHash,
-        confirmations: 1,
-      });
+      const receipt = await this.context.publicClient.waitForTransactionReceipt(
+        {
+          hash: txHash,
+          confirmations: 1,
+        },
+      );
 
       // Parse the SchemaAdded event to get the schema ID
       const { parseSchemaAddedEvent } = await import("../utils/eventParsing");
@@ -552,10 +548,12 @@ export class SchemaController {
       });
 
       // Wait for transaction confirmation and parse events
-      const receipt = await this.context.publicClient.waitForTransactionReceipt({
-        hash: txHash,
-        confirmations: 1,
-      });
+      const receipt = await this.context.publicClient.waitForTransactionReceipt(
+        {
+          hash: txHash,
+          confirmations: 1,
+        },
+      );
 
       // Parse the SchemaAdded event to get the schema ID
       const { parseSchemaAddedEvent } = await import("../utils/eventParsing");

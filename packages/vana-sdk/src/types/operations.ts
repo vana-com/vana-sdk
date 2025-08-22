@@ -72,7 +72,10 @@ export interface TransactionWaitOptions {
 }
 
 /**
- * Type guard to check if an object is an Operation
+ * Validates whether an object conforms to the Operation interface.
+ *
+ * @param obj - The object to validate as an Operation.
+ * @returns `true` if the object has required Operation properties, `false` otherwise.
  */
 export function isOperation(obj: unknown): obj is Operation {
   return (
@@ -80,49 +83,61 @@ export function isOperation(obj: unknown): obj is Operation {
     obj !== null &&
     "id" in obj &&
     "status" in obj &&
-    typeof (obj as any).id === "string" &&
-    typeof (obj as any).status === "string"
+    typeof (obj as Record<string, unknown>).id === "string" &&
+    typeof (obj as Record<string, unknown>).status === "string"
   );
 }
 
 /**
- * Type guard to check if an object is a TransactionResult
+ * Validates whether an object conforms to the TransactionResult interface.
+ *
+ * @param obj - The object to validate as a TransactionResult.
+ * @returns `true` if the object has a valid transaction hash, `false` otherwise.
  */
 export function isTransactionResult(obj: unknown): obj is TransactionResult {
-  return (
-    typeof obj === "object" &&
-    obj !== null &&
-    "hash" in obj &&
-    typeof (obj as any).hash === "string" &&
-    (obj as any).hash.startsWith("0x")
-  );
+  if (typeof obj !== "object" || obj === null || !("hash" in obj)) {
+    return false;
+  }
+  const hash = (obj as Record<string, unknown>).hash;
+  return typeof hash === "string" && hash.startsWith("0x");
 }
 
 /**
- * Convert server response to Operation POJO
+ * Converts a server response to an Operation POJO.
+ *
+ * @param response - The raw server response containing operation status data.
+ * @returns An Operation object with normalized fields for client consumption.
  */
 export function toOperation<T>(response: GetOperationResponse): Operation<T> {
   return {
     id: response.id,
     status: response.status as Operation["status"],
     createdAt: Date.now(), // Server doesn't provide this, so we use current time
-    result: response.status === "succeeded" ? (response.result as T) : undefined,
-    error: response.status === "failed" ? (response.result || undefined) : undefined,
+    result:
+      response.status === "succeeded" ? (response.result as T) : undefined,
+    error:
+      response.status === "failed" ? response.result || undefined : undefined,
   };
 }
 
 /**
- * Extract operation ID from either an Operation object or a string ID
+ * Extracts the operation ID from flexible input types.
+ *
+ * @param opOrId - An Operation object containing an `id` field or a raw operation ID string.
+ * @returns The operation ID string for use in API calls.
  */
 export function getOperationId(opOrId: Operation | string): string {
   return typeof opOrId === "string" ? opOrId : opOrId.id;
 }
 
 /**
- * Extract transaction hash from either a TransactionResult object or a hash string
+ * Extracts the transaction hash from flexible input types.
+ *
+ * @param txOrHash - A TransactionResult object, any object with a `hash` field, or a raw hash string.
+ * @returns The transaction hash as a `0x`-prefixed string.
  */
 export function getTransactionHash(
-  txOrHash: TransactionResult | { hash: Hash } | Hash
+  txOrHash: TransactionResult | { hash: Hash } | Hash,
 ): Hash {
   if (typeof txOrHash === "string") {
     return txOrHash;

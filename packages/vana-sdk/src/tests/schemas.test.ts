@@ -49,17 +49,7 @@ vi.mock("viem", async () => {
     ...actual,
     getAddress: vi.fn((address) => address),
     decodeEventLog: vi.fn(),
-    parseEventLogs: vi.fn().mockReturnValue([
-      {
-        eventName: "SchemaAdded",
-        args: {
-          schemaId: 1n,
-          name: "Test Schema",
-          dialect: "jsonschema",
-          definitionUrl: "https://gateway.pinata.cloud/ipfs/QmTestHash",
-        },
-      },
-    ]),
+    parseEventLogs: vi.fn(), // Let each test configure this
   };
 });
 
@@ -86,13 +76,27 @@ describe("SchemaController", () => {
   let mockContext: ControllerContext;
   let mockStorageManager: Partial<StorageManager>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
 
     // Reset validateDataSchemaAgainstMetaSchema to not throw by default
     vi.mocked(validateDataSchemaAgainstMetaSchema).mockImplementation(
       (schema) => schema as any,
     );
+
+    // Set up default parseEventLogs mock that can be overridden
+    const { parseEventLogs } = await import("viem");
+    vi.mocked(parseEventLogs).mockReturnValue([
+      {
+        eventName: "SchemaAdded",
+        args: {
+          schemaId: 1n,
+          name: "Test Schema",
+          dialect: "jsonschema",
+          definitionUrl: "https://gateway.pinata.cloud/ipfs/QmTestHash",
+        },
+      },
+    ] as any);
 
     // Create mock storage manager
     mockStorageManager = {
@@ -122,6 +126,9 @@ describe("SchemaController", () => {
       } as any,
       publicClient: {
         waitForTransactionReceipt: vi.fn().mockResolvedValue({
+          transactionHash: "0xTransactionHash",
+          blockNumber: 12345n,
+          gasUsed: 100000n,
           logs: [{ data: "0x", topics: ["0xSchemaAdded"] }],
         }),
         getChainId: vi.fn().mockResolvedValue(14800),
@@ -552,7 +559,9 @@ describe("SchemaController", () => {
           dialect: "json",
           schema: { type: "object" },
         }),
-      ).rejects.toThrow("No SchemaAdded event found");
+      ).rejects.toThrow(
+        'Schema creation failed: Event "SchemaAdded" not found in transaction',
+      );
     });
 
     it("should handle empty logs in receipt", async () => {
@@ -565,7 +574,9 @@ describe("SchemaController", () => {
           dialect: "json",
           schema: { type: "object" },
         }),
-      ).rejects.toThrow("No SchemaAdded event found");
+      ).rejects.toThrow(
+        'Schema creation failed: Event "SchemaAdded" not found in transaction',
+      );
     });
 
     it("should handle transaction timeout", async () => {
@@ -579,9 +590,7 @@ describe("SchemaController", () => {
           dialect: "json",
           schema: { type: "object" },
         }),
-      ).rejects.toThrow(
-        "Schema creation failed: Transaction 0xTransactionHash confirmation timeout after 30 seconds. The transaction may still be pending.",
-      );
+      ).rejects.toThrow("Schema creation failed: Transaction timeout");
     });
 
     it("should sanitize schema name for filename", async () => {
@@ -621,7 +630,7 @@ describe("SchemaController", () => {
       });
 
       expect(result).toEqual({
-        schemaId: 0, // TODO comment in code
+        schemaId: 1,
         transactionHash: "0xTransactionHash",
       });
 

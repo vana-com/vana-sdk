@@ -558,6 +558,7 @@ describe("VanaCore Extended Tests", () => {
         const operation = {
           id: "op_123",
           status: "pending" as const,
+          createdAt: new Date().toISOString(),
         };
 
         const result = await vanaCore.waitForOperation(operation);
@@ -619,6 +620,7 @@ describe("VanaCore Extended Tests", () => {
         const operation = {
           id: "op_456",
           status: "pending" as const,
+          createdAt: new Date().toISOString(),
         };
 
         const result = await vanaCore.waitForOperation<CustomResult>(operation);
@@ -674,6 +676,7 @@ describe("VanaCore Extended Tests", () => {
         const operationResult = {
           id: "op_789",
           status: "pending" as const,
+          createdAt: new Date().toISOString(),
         };
 
         // User can directly pass the result to waitForOperation

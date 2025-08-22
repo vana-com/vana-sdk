@@ -20,6 +20,7 @@ const browserOptimizationPlugin: Plugin = {
 export default defineConfig({
   entry: [
     "src/**/*.ts",
+    "src/**/*.json",
     "!src/**/*.test.ts",
     "!src/**/*.spec.ts",
     "!src/tests/**",
@@ -33,6 +34,9 @@ export default defineConfig({
   dts: true,
   outDir: "dist",
   bundle: false,
+  loader: {
+    ".json": "copy",
+  },
   esbuildPlugins: [browserOptimizationPlugin],
   // External modules that shouldn't be bundled for browsers
   external: ["secp256k1", "crypto"],

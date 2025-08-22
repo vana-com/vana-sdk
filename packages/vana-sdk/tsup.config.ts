@@ -8,6 +8,9 @@ export default defineConfig((options) => ({
   clean: false,
   dts: true,
   bundle: false,
+  loader: {
+    ".json": "copy",
+  },
   external: [
     // Node-specific dependencies that should not be bundled
     // secp256k1 is a native module that should be externalized for Node builds

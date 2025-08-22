@@ -28,7 +28,7 @@ jobs:
       - name: Build SDK
         run: |
           cd packages/vana-sdk
-          npm run build
+          NODE_OPTIONS="--max-old-space-size=4096" npm run build
 
       - name: Set pre-release version
         run: |

@@ -146,14 +146,6 @@
   "optionalDependencies": {
     "secp256k1": "^5.0.1"
   },
-  "peerDependencies": {
-    "elliptic": "^6.5.4"
-  },
-  "peerDependenciesMeta": {
-    "elliptic": {
-      "optional": false
-    }
-  },
   "engines": {
     "node": ">=20.0.0"
   },

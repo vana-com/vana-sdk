@@ -4,7 +4,7 @@ import {
   StorageFile,
   StorageListOptions,
   StorageError,
-} from "./index";
+} from "../types/storage";
 
 /**
  * Manages multiple storage providers with a unified interface for file operations.

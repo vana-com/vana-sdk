@@ -113,6 +113,7 @@
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
     "eccrypto-js": "^5.4.0",
+    "elliptic": "^6.5.4",
     "graphql": "^16.11.0",
     "openpgp": "^6.1.1",
     "viem": "^2.31.7"
@@ -145,14 +146,6 @@
   },
   "optionalDependencies": {
     "secp256k1": "^5.0.1"
-  },
-  "peerDependencies": {
-    "elliptic": "^6.5.4"
-  },
-  "peerDependenciesMeta": {
-    "elliptic": {
-      "optional": false
-    }
   },
   "engines": {
     "node": ">=20.0.0"

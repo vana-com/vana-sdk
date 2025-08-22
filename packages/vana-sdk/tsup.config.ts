@@ -5,8 +5,9 @@ import { defineConfig } from "tsup";
 export default defineConfig((options) => ({
   splitting: false,
   sourcemap: true,
-  clean: true,
+  clean: false,
   dts: true,
+  bundle: false,
   external: [
     // Node-specific dependencies that should not be bundled
     // secp256k1 is a native module that should be externalized for Node builds

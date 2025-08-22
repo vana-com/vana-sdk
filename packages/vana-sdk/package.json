@@ -59,6 +59,14 @@
         "import": "./dist/platform.node.js",
         "require": "./dist/platform.node.cjs"
       }
+    },
+    "./*": {
+      "browser": {
+        "types": "./dist/*.d.ts",
+        "import": "./dist/*.js"
+      },
+      "types": "./dist/*.d.ts",
+      "import": "./dist/*.js"
     }
   },
   "browser": {
@@ -72,12 +80,10 @@
   ],
   "scripts": {
     "clean": "rimraf dist",
-    "build:types": "tsup src/index.ts --dts-only --out-dir dist --no-clean",
-    "build:node": "tsup src/index.node.ts --platform node --format esm,cjs --target node18 --out-dir dist --no-clean",
+    "build:types": "tsup 'src/**/*.ts' '!src/**/*.test.ts' '!src/**/*.spec.ts' '!src/tests/**' --dts-only --out-dir dist --no-clean",
+    "build:node": "tsup 'src/**/*.ts' '!src/**/*.test.ts' '!src/**/*.spec.ts' '!src/tests/**' --platform node --format esm,cjs --target node18 --out-dir dist --no-clean --no-dts",
     "build:browser": "tsup --config tsup-browser.config.ts",
-    "build:chains": "tsup src/chains.ts src/chains.node.ts src/chains.browser.ts --platform node --format esm,cjs --target node18 --out-dir dist --dts --no-clean",
-    "build:platform": "tsup src/platform.ts src/platform.node.ts src/node.ts --platform node --format esm,cjs --target node18 --out-dir dist --dts --no-clean && tsup src/platform.browser.ts src/browser.ts --platform browser --format esm --target es2020 --out-dir dist --dts --no-clean",
-    "build": "npm run clean && npx npm-run-all --parallel build:types build:node build:browser build:chains build:platform",
+    "build": "npm run clean && npm run build:types && npm run build:node && npm run build:browser",
     "dev": "npm run build -- --watch",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

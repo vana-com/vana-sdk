@@ -18,7 +18,12 @@ const browserOptimizationPlugin: Plugin = {
 };
 
 export default defineConfig({
-  entry: ["src/index.browser.ts"],
+  entry: [
+    "src/**/*.ts",
+    "!src/**/*.test.ts",
+    "!src/**/*.spec.ts",
+    "!src/tests/**",
+  ],
   format: ["esm"],
   target: "es2020",
   platform: "browser",
@@ -27,6 +32,7 @@ export default defineConfig({
   clean: false,
   dts: true,
   outDir: "dist",
+  bundle: false,
   esbuildPlugins: [browserOptimizationPlugin],
   // External modules that shouldn't be bundled for browsers
   external: ["secp256k1", "crypto"],

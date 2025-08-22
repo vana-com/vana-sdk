@@ -511,7 +511,9 @@ function SchemaExplorerContent() {
       setStatus("Waiting for transaction confirmation...");
 
       // Wait for transaction confirmation and extract permission ID from events
-      const events = await txHandle.waitForEvents();
+      const events = await vanaContext.vana.waitForTransactionEvents<{
+        permissionId: bigint;
+      }>(txHandle);
       const permissionId = events.permissionId;
 
       if (!permissionId) {

@@ -171,7 +171,14 @@ export * from "./utils/grants";
 export * from "./utils/ipfs";
 export * from "./utils/schemaValidation";
 export * from "./utils/signatureCache";
-export { TransactionHandle } from "./utils/transactionHandle";
+// TransactionHandle removed - using POJOs instead
+export type {
+  Operation,
+  TransactionResult,
+  TransactionReceipt,
+  PollingOptions,
+  TransactionWaitOptions,
+} from "./types/operations";
 
 // Storage API
 export * from "./storage";

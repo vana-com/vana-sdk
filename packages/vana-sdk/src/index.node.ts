@@ -237,7 +237,14 @@ export {
 // Server-side utilities
 export { handleRelayerRequest } from "./server/handler";
 export type { RelayerRequestPayload } from "./server/handler";
-export { TransactionHandle } from "./utils/transactionHandle";
+// TransactionHandle removed - using POJOs instead
+export type {
+  Operation,
+  TransactionResult,
+  TransactionReceipt,
+  PollingOptions,
+  TransactionWaitOptions,
+} from "./types/operations";
 
 // Platform adapters
 export { NodePlatformAdapter } from "./platform/node";

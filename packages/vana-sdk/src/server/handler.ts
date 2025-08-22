@@ -11,7 +11,7 @@ import type {
   TypedDataPrimaryType,
 } from "../types";
 import { SignatureError } from "../errors";
-import { TransactionHandle } from "../utils/transactionHandle";
+import type { TransactionResult } from "../types/operations";
 import type {
   PermissionGrantResult,
   PermissionRevokeResult,
@@ -65,7 +65,7 @@ export interface RelayerRequestPayload {
  *
  * @param sdk - Initialized Vana SDK instance
  * @param payload - Request payload containing typed data, signature, and optional security check
- * @returns Promise resolving to TransactionHandle with hash and event parsing capability
+ * @returns Promise resolving to TransactionResult with hash and optional event data
  * @throws {SignatureError} When signature verification fails or signer mismatch occurs
  * @throws {Error} When primaryType is unsupported or SDK operations fail
  * @category Server
@@ -110,7 +110,7 @@ export interface RelayerRequestPayload {
 export async function handleRelayerRequest(
   sdk: VanaInstance,
   payload: RelayerRequestPayload,
-): Promise<TransactionHandle<RelayerTransactionResult>> {
+): Promise<TransactionResult & { eventData?: RelayerTransactionResult }> {
   const { typedData, signature, expectedUserAddress } = payload;
 
   console.debug({
@@ -149,7 +149,7 @@ export async function handleRelayerRequest(
   }
 
   // Step 3: Route to appropriate SDK method based on primaryType
-  // Route to appropriate SDK method and return TransactionHandle directly
+  // Route to appropriate SDK method and return TransactionResult directly
   const primaryType = typedData.primaryType as TypedDataPrimaryType;
   switch (primaryType) {
     case "Permission":

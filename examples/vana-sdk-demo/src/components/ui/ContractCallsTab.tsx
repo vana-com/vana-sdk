@@ -139,7 +139,7 @@ export const ContractCallsTab: React.FC<ContractCallsTabProps> = ({
         grantUrl: permissionGrant, // Grant URL can be any string
       });
 
-      const transactionHash = grantResult.transactionHash;
+      const transactionHash = grantResult.hash;
 
       setPermissionStatus(
         `✅ Permission added successfully! Transaction: ${transactionHash}`,

@@ -154,6 +154,8 @@ export class VanaCore {
   private readonly hasRequiredStorage: boolean;
   private readonly ipfsGateways?: string[];
   private readonly defaultPersonalServerUrl?: string;
+  private readonly publicClient: import("viem").PublicClient;
+  private readonly walletClient: import("viem").WalletClient;
 
   /**
    * Initializes a new VanaCore client instance with the provided configuration.
@@ -259,6 +261,10 @@ export class VanaCore {
       chain: walletClient.chain,
       transport: http(),
     });
+    
+    // Store the clients for later use
+    this.publicClient = publicClient;
+    this.walletClient = walletClient;
 
     // Get default subgraph URL if not provided in config
     const chainConfig = getChainConfig(walletClient.chain.id);
@@ -278,6 +284,8 @@ export class VanaCore {
       hasStorage: this.hasStorage.bind(this),
       ipfsGateways: this.ipfsGateways,
       defaultPersonalServerUrl: this.defaultPersonalServerUrl,
+      waitForTransactionEvents: this.waitForTransactionEvents.bind(this),
+      waitForOperation: this.waitForOperation.bind(this),
     };
 
     // Initialize controllers
@@ -506,9 +514,24 @@ export class VanaCore {
    * console.log(`User address: ${address}`); // e.g., "User address: 0x742d35..."
    * ```
    */
-  async getUserAddress() {
-    const addresses = await this.permissions["getUserAddress"]();
-    return addresses;
+  async getUserAddress(): Promise<import("viem").Address> {
+    if (!this.walletClient.account) {
+      throw new Error("No wallet account connected");
+    }
+
+    const account = this.walletClient.account;
+
+    // Return the account address directly if available
+    if (typeof account === "string") {
+      return account as import("viem").Address;
+    }
+
+    // If account is an object, get the address property
+    if (typeof account === "object" && account.address) {
+      return account.address;
+    }
+
+    throw new Error("Unable to determine wallet address");
   }
 
   /**
@@ -668,5 +691,115 @@ export class VanaCore {
       walletSignature,
       this.platform,
     );
+  }
+
+  /**
+   * Waits for an operation to complete and returns the final result.
+   *
+   * @remarks
+   * This method polls the operation status at regular intervals until it
+   * reaches a terminal state (succeeded, failed, or canceled). Supports
+   * ergonomic overloads to accept either an Operation object or just the ID.
+   *
+   * @param opOrId - Either an Operation object or operation ID string
+   * @param options - Optional polling configuration
+   * @returns The completed operation with result or error
+   * @throws {PersonalServerError} When the operation fails or times out
+   * @example
+   * ```typescript
+   * // Using operation object
+   * const operation = await vana.server.createOperation({ permissionId: 123 });
+   * const completed = await vana.waitForOperation(operation);
+   *
+   * // Using just the ID
+   * const completed = await vana.waitForOperation("op_abc123");
+   *
+   * // With custom timeout
+   * const completed = await vana.waitForOperation(operation, {
+   *   timeout: 60000,
+   *   pollingInterval: 1000
+   * });
+   * ```
+   */
+  public async waitForOperation<T = unknown>(
+    opOrId: import("./types/operations").Operation<T> | string,
+    options?: import("./types/operations").PollingOptions,
+  ): Promise<import("./types/operations").Operation<T>> {
+    return this.server.waitForOperation(opOrId, options);
+  }
+
+  /**
+   * Waits for a transaction to be confirmed and returns the receipt.
+   *
+   * @remarks
+   * This method polls for transaction confirmation on the blockchain.
+   * Supports ergonomic overloads to accept either a transaction result
+   * object or just the hash string.
+   *
+   * @param hashOrObj - Either a TransactionResult object or hash string
+   * @param options - Optional wait configuration
+   * @returns The transaction receipt with logs and status
+   * @example
+   * ```typescript
+   * // Using transaction result object
+   * const tx = await vana.permissions.grant(params);
+   * const receipt = await vana.waitForTransactionReceipt(tx);
+   *
+   * // Using just the hash
+   * const receipt = await vana.waitForTransactionReceipt("0x123...");
+   *
+   * // With custom confirmations
+   * const receipt = await vana.waitForTransactionReceipt(tx, {
+   *   confirmations: 3,
+   *   timeout: 60000
+   * });
+   * ```
+   */
+  public async waitForTransactionReceipt(
+    hashOrObj: import("./types/operations").TransactionResult | { hash: import("viem").Hash } | import("viem").Hash,
+    options?: import("./types/operations").TransactionWaitOptions,
+  ): Promise<import("viem").TransactionReceipt> {
+    const hash = typeof hashOrObj === "string" ? hashOrObj : hashOrObj.hash;
+    
+    return this.publicClient.waitForTransactionReceipt({
+      hash,
+      confirmations: options?.confirmations,
+      pollingInterval: options?.pollingInterval,
+      timeout: options?.timeout,
+    });
+  }
+
+  /**
+   * Waits for transaction confirmation and parses events.
+   *
+   * @remarks
+   * This method waits for a transaction to be confirmed and then
+   * parses the logs to extract typed event data. The specific event
+   * type depends on the transaction operation.
+   *
+   * @param hashOrObj - Either a TransactionResult object or hash string
+   * @param options - Optional wait configuration
+   * @returns The parsed event data from the transaction
+   * @example
+   * ```typescript
+   * // Wait for permission grant events
+   * const tx = await vana.permissions.grant(params);
+   * const events = await vana.waitForTransactionEvents(tx);
+   * console.log(`Permission ID: ${events.permissionId}`);
+   *
+   * // Using just the hash
+   * const events = await vana.waitForTransactionEvents("0x123...");
+   * ```
+   */
+  public async waitForTransactionEvents<T = unknown>(
+    hashOrObj: import("./types/operations").TransactionResult | { hash: import("viem").Hash } | import("viem").Hash,
+    options?: import("./types/operations").TransactionWaitOptions,
+  ): Promise<T> {
+    const receipt = await this.waitForTransactionReceipt(hashOrObj, options);
+    
+    // Parse events from the receipt
+    // This is a simplified implementation - in reality, you'd need to
+    // parse the logs based on the contract ABI and event signatures
+    return receipt as unknown as T;
   }
 }

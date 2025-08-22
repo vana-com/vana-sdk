@@ -1,6 +1,4 @@
 import { Address } from "viem";
-import { TransactionHandle } from "../utils/transactionHandle";
-import { SchemaAddedResult } from "../types/transactionResults";
 import {
   Schema,
   SchemaMetadata,
@@ -229,17 +227,20 @@ export class SchemaController {
         chain: this.context.walletClient.chain || null,
       });
 
-      // Use TransactionHandle to wait for and parse events
-      const txHandle = new TransactionHandle<SchemaAddedResult>(
-        this.context,
-        txHash,
-        "addSchema",
+      // Wait for transaction confirmation and parse events
+      const receipt = await this.context.publicClient.waitForTransactionReceipt(
+        {
+          hash: txHash,
+          confirmations: 1,
+        },
       );
 
-      const result = await txHandle.waitForEvents();
+      // Parse the SchemaAdded event to get the schema ID
+      const { parseSchemaAddedEvent } = await import("../utils/eventParsing");
+      const eventData = parseSchemaAddedEvent(receipt);
 
       return {
-        schemaId: Number(result.schemaId),
+        schemaId: Number(eventData.schemaId),
         definitionUrl: uploadResult.url,
         transactionHash: txHash,
       };
@@ -546,8 +547,20 @@ export class SchemaController {
         chain: this.context.walletClient.chain || null,
       });
 
+      // Wait for transaction confirmation and parse events
+      const receipt = await this.context.publicClient.waitForTransactionReceipt(
+        {
+          hash: txHash,
+          confirmations: 1,
+        },
+      );
+
+      // Parse the SchemaAdded event to get the schema ID
+      const { parseSchemaAddedEvent } = await import("../utils/eventParsing");
+      const eventData = parseSchemaAddedEvent(receipt);
+
       return {
-        schemaId: 0, // TODO: Parse from transaction receipt
+        schemaId: Number(eventData.schemaId),
         transactionHash: txHash,
       };
     } catch (error) {

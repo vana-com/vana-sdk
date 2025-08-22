@@ -221,13 +221,8 @@ describe("PermissionsController", () => {
       const result = await controller.grant(mockGrantParams);
 
       expect(result).toMatchObject({
-        permissionId: 75n,
-        user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        grant: "https://mock-grant-url.com",
-        fileIds: [],
-        transactionHash: "0xtxhash",
-        blockNumber: 12345n,
-        gasUsed: 100000n,
+        hash: "0xtxhash",
+        from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
       });
       expect(mockWalletClient.signTypedData).toHaveBeenCalled();
       // Should use relayerCallbacks pattern
@@ -314,10 +309,8 @@ describe("PermissionsController", () => {
       const result = await controller.revoke(mockRevokeParams);
 
       expect(result).toMatchObject({
-        permissionId: 123n,
-        transactionHash: "0xrevokehash",
-        blockNumber: 12345n,
-        gasUsed: 100000n,
+        hash: "0xrevokehash",
+        from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
       });
       expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -443,13 +436,8 @@ describe("PermissionsController", () => {
       const result = await directController.grant(mockParams);
 
       expect(result).toMatchObject({
-        permissionId: 75n,
-        user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        grant: "https://mock-grant-url.com",
-        fileIds: [],
-        transactionHash: "0xdirecttxhash",
-        blockNumber: 12345n,
-        gasUsed: 100000n,
+        hash: "0xdirecttxhash",
+        from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
       });
       expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -582,13 +570,8 @@ describe("PermissionsController", () => {
         }),
       );
       expect(result).toMatchObject({
-        permissionId: 75n,
-        user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        grant: "https://mock-grant-url.com",
-        fileIds: [],
-        transactionHash: "0xtxhash",
-        blockNumber: 12345n,
-        gasUsed: 100000n,
+        hash: "0xtxhash",
+        from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
       });
     });
   });
@@ -1046,13 +1029,8 @@ describe("PermissionsController", () => {
 
       const result = await directController.grant(mockParams);
       expect(result).toMatchObject({
-        permissionId: 75n,
-        user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        grant: "https://mock-grant-url.com",
-        fileIds: [],
-        transactionHash: "0xtxhash",
-        blockNumber: 12345n,
-        gasUsed: 100000n,
+        hash: "0xtxhash",
+        from: undefined,
       });
     });
 
@@ -1230,11 +1208,8 @@ describe("PermissionsController", () => {
 
       // Should return event data from parsed transaction
       expect(result).toMatchObject({
-        permissionId: 123n,
-        transactionHash:
-          "0xmockabcdef1234567890abcdef1234567890abcdef1234567890abcdef123456",
-        blockNumber: 12345n,
-        gasUsed: 100000n,
+        hash: "0xmockabcdef1234567890abcdef1234567890abcdef1234567890abcdef123456",
+        from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
       });
     });
 
@@ -1292,10 +1267,8 @@ describe("PermissionsController", () => {
 
       // Should return event data from parsed transaction
       expect(result).toMatchObject({
-        permissionId: 123n,
-        transactionHash: "0xmockdirecttxhash",
-        blockNumber: 12345n,
-        gasUsed: 100000n,
+        hash: "0xmockdirecttxhash",
+        from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
       });
     });
 
@@ -1402,13 +1375,8 @@ describe("PermissionsController", () => {
 
       const result = await controller.grant(mockParams);
       expect(result).toMatchObject({
-        permissionId: 75n,
-        user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        grant: "https://mock-grant-url.com",
-        fileIds: [],
-        transactionHash: "0xtxhash",
-        blockNumber: 12345n,
-        gasUsed: 100000n,
+        hash: "0xtxhash",
+        from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
       });
     });
   });

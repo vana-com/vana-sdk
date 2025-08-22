@@ -16,12 +16,8 @@ import {
   EncryptedUploadParams,
   UnencryptedUploadParams,
 } from "../types/index";
-import {
-  FilePermissionResult,
-  FileAddedResult,
-  RefinerAddedResult,
-} from "../types/transactionResults";
-import { TransactionHandle } from "../utils/transactionHandle";
+import { FilePermissionResult } from "../types/transactionResults";
+import type { TransactionResult } from "../types/operations";
 import { ControllerContext } from "./permissions";
 import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../generated/abi";
@@ -1892,17 +1888,20 @@ export class DataController {
         chain: this.context.walletClient.chain || null,
       });
 
-      // Use TransactionHandle to wait for and parse events
-      const txHandle = new TransactionHandle<FileAddedResult>(
-        this.context,
-        txHash,
-        "addFileWithSchema",
+      // Wait for transaction confirmation and parse events
+      const receipt = await this.context.publicClient.waitForTransactionReceipt(
+        {
+          hash: txHash,
+          confirmations: 1,
+        },
       );
 
-      const result = await txHandle.waitForEvents();
+      // Parse the FileAddedV2 event to get the file ID
+      const { parseFileAddedEvent } = await import("../utils/eventParsing");
+      const eventData = parseFileAddedEvent(receipt);
 
       return {
-        fileId: Number(result.fileId),
+        fileId: Number(eventData.fileId),
         transactionHash: txHash,
       };
     } catch (error) {
@@ -1970,17 +1969,20 @@ export class DataController {
         chain: this.context.walletClient.chain || null,
       });
 
-      // Use TransactionHandle to wait for and parse events
-      const txHandle = new TransactionHandle<FileAddedResult>(
-        this.context,
-        txHash,
-        "addFileWithPermissions",
+      // Wait for transaction confirmation and parse events
+      const receipt = await this.context.publicClient.waitForTransactionReceipt(
+        {
+          hash: txHash,
+          confirmations: 1,
+        },
       );
 
-      const result = await txHandle.waitForEvents();
+      // Parse the FileAddedV2 event to get the file ID
+      const { parseFileAddedEvent } = await import("../utils/eventParsing");
+      const eventData = parseFileAddedEvent(receipt);
 
       return {
-        fileId: Number(result.fileId),
+        fileId: Number(eventData.fileId),
         transactionHash: txHash,
       };
     } catch (error) {
@@ -2033,17 +2035,20 @@ export class DataController {
         chain: this.context.walletClient.chain || null,
       });
 
-      // Use TransactionHandle to wait for and parse events
-      const txHandle = new TransactionHandle<FileAddedResult>(
-        this.context,
-        txHash,
-        "addFileWithPermissionsAndSchema",
+      // Wait for transaction confirmation and parse events
+      const receipt = await this.context.publicClient.waitForTransactionReceipt(
+        {
+          hash: txHash,
+          confirmations: 1,
+        },
       );
 
-      const result = await txHandle.waitForEvents();
+      // Parse the FileAddedV2 event to get the file ID
+      const { parseFileAddedEvent } = await import("../utils/eventParsing");
+      const eventData = parseFileAddedEvent(receipt);
 
       return {
-        fileId: Number(result.fileId),
+        fileId: Number(eventData.fileId),
         transactionHash: txHash,
       };
     } catch (error) {
@@ -2110,17 +2115,20 @@ export class DataController {
         chain: this.context.walletClient.chain || null,
       });
 
-      // Use TransactionHandle to wait for and parse events
-      const txHandle = new TransactionHandle<RefinerAddedResult>(
-        this.context,
-        txHash,
-        "addRefiner",
+      // Wait for transaction confirmation and parse events
+      const receipt = await this.context.publicClient.waitForTransactionReceipt(
+        {
+          hash: txHash,
+          confirmations: 1,
+        },
       );
 
-      const result = await txHandle.waitForEvents();
+      // Parse the RefinerAdded event to get the refiner ID
+      const { parseRefinerAddedEvent } = await import("../utils/eventParsing");
+      const eventData = parseRefinerAddedEvent(receipt);
 
       return {
-        refinerId: Number(result.refinerId),
+        refinerId: Number(eventData.refinerId),
         transactionHash: txHash,
       };
     } catch (error) {
@@ -2554,7 +2562,7 @@ export class DataController {
     fileId: number,
     account: Address,
     publicKey: string,
-  ): Promise<TransactionHandle<FilePermissionResult>> {
+  ): Promise<TransactionResult & { eventData?: FilePermissionResult }> {
     return await this.submitFilePermission(fileId, account, publicKey);
   }
 
@@ -2570,7 +2578,7 @@ export class DataController {
    * @param account - The recipient's wallet address that will access the file
    * @param publicKey - The recipient's public key for encryption.
    *   Obtain via `vana.server.getIdentity(account).public_key`
-   * @returns Promise resolving to TransactionHandle for tracking the transaction
+   * @returns Promise resolving to TransactionResult for tracking the transaction
    * @throws {Error} When chain ID is not available
    * @throws {Error} When encryption key generation fails
    * @throws {Error} When public key encryption fails
@@ -2590,7 +2598,7 @@ export class DataController {
     fileId: number,
     account: Address,
     publicKey: string,
-  ): Promise<TransactionHandle<FilePermissionResult>> {
+  ): Promise<TransactionResult & { eventData?: FilePermissionResult }> {
     try {
       // 1. Generate user's encryption key
       const userEncryptionKey = await generateEncryptionKey(
@@ -2625,11 +2633,10 @@ export class DataController {
         chain: this.context.walletClient.chain || null,
       });
 
-      return new TransactionHandle<FilePermissionResult>(
-        this.context,
-        txHash,
-        "addFilePermission",
-      );
+      return {
+        hash: txHash,
+        from: this.context.walletClient.account?.address,
+      };
     } catch (error) {
       console.error("Failed to add permission to file:", error);
       throw new Error(

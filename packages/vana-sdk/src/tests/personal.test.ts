@@ -303,7 +303,14 @@ describe("ServerController", () => {
 
       const result = await serverController.getOperation("test-123");
 
-      expect(result).toEqual(mockStatusResponse);
+      expect(result).toEqual({
+        id: "test-123",
+        status: "processing",
+        createdAt: expect.any(Number),
+        updatedAt: expect.any(Number),
+        result: undefined,
+        error: undefined,
+      });
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/operations/test-123"),
         {

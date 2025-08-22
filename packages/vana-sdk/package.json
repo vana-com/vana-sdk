@@ -85,7 +85,6 @@
     "build:browser": "tsup --config tsup-browser.config.ts",
     "build": "npm run clean && npm run build:types && npm run build:node && npm run build:browser",
     "dev": "npm run build -- --watch",
-    "smoke": "scripts/smoke-esbuild.sh",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",

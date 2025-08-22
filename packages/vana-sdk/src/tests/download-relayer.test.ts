@@ -42,13 +42,11 @@ describe("Download Relayer", () => {
       };
 
       const mockRelayer = {
-        proxyDownload: vi
-          .fn()
-          .mockResolvedValue(
-            new Blob([JSON.stringify(mockGrantFile)], {
-              type: "application/json",
-            }),
-          ),
+        proxyDownload: vi.fn().mockResolvedValue(
+          new Blob([JSON.stringify(mockGrantFile)], {
+            type: "application/json",
+          }),
+        ),
       };
 
       // Make direct fetch fail

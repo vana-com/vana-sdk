@@ -6,7 +6,7 @@ import {
   StorageProviderConfig,
   StorageError,
 } from "../index";
-import { toBase64 } from "../../platform/shared/crypto-utils";
+import { toBase64 } from "../../utils/encoding";
 
 export interface IpfsConfig {
   /** IPFS API endpoint for uploads */
@@ -93,8 +93,9 @@ export class IpfsStorage implements StorageProvider {
     projectId: string;
     projectSecret: string;
   }): IpfsStorage {
+    const encoder = new TextEncoder();
     const auth = toBase64(
-      `${credentials.projectId}:${credentials.projectSecret}`,
+      encoder.encode(`${credentials.projectId}:${credentials.projectSecret}`),
     );
     return new IpfsStorage({
       apiEndpoint: "https://ipfs.infura.io:5001/api/v0/add",

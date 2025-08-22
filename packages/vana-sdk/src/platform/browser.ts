@@ -1,12 +1,8 @@
 /**
- * Browser implementation of the Vana Platform Adapter
+ * Browser implementation of the Vana Platform Adapter using Uint8Array
  *
- * This implementation uses browser-compatible libraries and configurations
- * to provide crypto, PGP, and HTTP functionality without Node.js dependencies.
- *
- * WARNING: Dependencies that access globals during init
- * MUST be dynamically imported to support Turbopack.
- * See: https://github.com/vercel/next.js/issues/82632
+ * This implementation uses browser-compatible libraries and native APIs
+ * without requiring Buffer or other Node.js polyfills.
  */
 
 import type {
@@ -16,50 +12,94 @@ import type {
   VanaHttpAdapter,
   VanaCacheAdapter,
 } from "./interface";
-import {
-  processWalletPublicKey,
-  processWalletPrivateKey,
-  parseEncryptedDataBuffer,
-} from "./shared/crypto-utils";
 import { getPGPKeyGenParams } from "./shared/pgp-utils";
 import { wrapCryptoError } from "./shared/error-utils";
 import { lazyImport } from "../utils/lazy-import";
+import { WalletKeyEncryptionService } from "../crypto/services/WalletKeyEncryptionService";
+import { parseEncryptedDataBuffer } from "../utils/crypto-utils";
+import { toHex, fromHex, stringToBytes, bytesToString } from "viem";
+import { concatBytes } from "../crypto/ecies/utils";
+import * as secp256k1 from "@noble/secp256k1";
+import { features } from "../config/features";
+
+// Import browser ECIES provider
+import { BrowserECIESUint8Provider } from "../crypto/ecies/browser";
 
 // Lazy-loaded dependencies to avoid Turbopack TDZ issues
 const getOpenPGP = lazyImport(() => import("openpgp"));
+const getEccryptoJS = lazyImport(() => import("eccrypto-js"));
 
 /**
- * Browser implementation of crypto operations using eccrypto-js
+ * Browser implementation of crypto operations using Uint8Array
+ * Supports both eccrypto-js (default) and custom ECIES implementation
  */
 class BrowserCryptoAdapter implements VanaCryptoAdapter {
+  // Initialize both providers - only one will be used based on feature flag
+  private customEciesProvider = new BrowserECIESUint8Provider();
+  private customWalletService = new WalletKeyEncryptionService({
+    eciesProvider: this.customEciesProvider,
+  });
+
   async encryptWithPublicKey(
     data: string,
     publicKeyHex: string,
   ): Promise<string> {
     try {
-      // Import eccrypto-js for secp256k1 encryption
-      const eccrypto = await import("eccrypto-js");
+      if (features.useCustomECIES) {
+        // Use custom ECIES implementation
+        const prefixedHex = publicKeyHex.startsWith("0x")
+          ? publicKeyHex
+          : `0x${publicKeyHex}`;
+        const publicKeyBytes = fromHex(prefixedHex as `0x${string}`, "bytes");
 
-      // Convert hex public key to Buffer
-      const publicKeyBuffer = Buffer.from(publicKeyHex, "hex");
+        // Encrypt data using ECIES
+        const encrypted = await this.customEciesProvider.encrypt(
+          publicKeyBytes,
+          stringToBytes(data),
+        );
 
-      // Encrypt data using secp256k1 ECDH
-      const encrypted = await eccrypto.encrypt(
-        publicKeyBuffer,
-        Buffer.from(data, "utf8"),
-      );
+        // Concatenate all components and return as hex string
+        const result = concatBytes(
+          encrypted.iv,
+          encrypted.ephemPublicKey,
+          encrypted.ciphertext,
+          encrypted.mac,
+        );
 
-      // Concatenate all components and return as hex string for API consistency
-      const result = Buffer.concat([
-        encrypted.iv,
-        encrypted.ephemPublicKey,
-        encrypted.ciphertext,
-        encrypted.mac,
-      ]);
+        return toHex(result).slice(2); // Remove '0x' prefix for backward compatibility
+      } else {
+        // Use eccrypto-js (default)
+        const eccryptojs = await getEccryptoJS();
 
-      return result.toString("hex");
+        // Remove 0x prefix if present
+        const cleanKey = publicKeyHex.startsWith("0x")
+          ? publicKeyHex.slice(2)
+          : publicKeyHex;
+        const publicKeyBytes = Buffer.from(cleanKey, "hex");
+
+        // Ensure public key is in uncompressed format (65 bytes with 0x04 prefix)
+        // If it's 64 bytes, add the 0x04 prefix; if already 65 bytes, use as-is
+        const publicKeyBuffer =
+          publicKeyBytes.length === 64
+            ? Buffer.concat([Buffer.from([4]), publicKeyBytes])
+            : publicKeyBytes;
+
+        const message = Buffer.from(data, "utf8");
+
+        const encrypted = await eccryptojs.encrypt(publicKeyBuffer, message);
+
+        // Concatenate all components and return as hex string
+        const result = Buffer.concat([
+          encrypted.iv,
+          encrypted.ephemPublicKey,
+          encrypted.ciphertext,
+          encrypted.mac,
+        ]);
+
+        return result.toString("hex");
+      }
     } catch (error) {
-      throw new Error(`Encryption failed: ${error}`);
+      throw wrapCryptoError("encryptWithPublicKey", error);
     }
   }
 
@@ -68,49 +108,48 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
     privateKeyHex: string,
   ): Promise<string> {
     try {
-      // Import eccrypto-js for secp256k1 decryption
-      const eccrypto = await import("eccrypto-js");
+      if (features.useCustomECIES) {
+        // Use custom ECIES implementation
+        const encryptedHex = encryptedData.startsWith("0x")
+          ? encryptedData
+          : `0x${encryptedData}`;
+        const privateHex = privateKeyHex.startsWith("0x")
+          ? privateKeyHex
+          : `0x${privateKeyHex}`;
+        const encryptedBytes = fromHex(encryptedHex as `0x${string}`, "bytes");
+        const privateKeyBytes = fromHex(privateHex as `0x${string}`, "bytes");
 
-      // Use shared utilities to process keys and parse data
-      const privateKeyBuffer = processWalletPrivateKey(privateKeyHex);
-      const encryptedBuffer = Buffer.from(encryptedData, "hex");
-      const { iv, ephemPublicKey, ciphertext, mac } =
-        parseEncryptedDataBuffer(encryptedBuffer);
+        // Parse the encrypted data into components
+        const encrypted = parseEncryptedDataBuffer(encryptedBytes);
 
-      // Reconstruct the encrypted data structure for eccrypto
-      const encryptedObj = { iv, ephemPublicKey, ciphertext, mac };
+        // Decrypt using ECIES
+        const decrypted = await this.customEciesProvider.decrypt(
+          privateKeyBytes,
+          encrypted,
+        );
 
-      // Decrypt using secp256k1 ECDH
-      const decryptedBuffer = await eccrypto.decrypt(
-        privateKeyBuffer,
-        encryptedObj,
-      );
+        return bytesToString(decrypted);
+      } else {
+        // Use eccrypto-js (default)
+        const eccryptojs = await getEccryptoJS();
+        const privateKey = Buffer.from(privateKeyHex, "hex");
+        const encryptedBuffer = Buffer.from(encryptedData, "hex");
 
-      return decryptedBuffer.toString("utf8");
+        // Parse the encrypted data
+        const { iv, ephemPublicKey, ciphertext, mac } =
+          parseEncryptedDataBuffer(encryptedBuffer);
+
+        const decrypted = await eccryptojs.decrypt(privateKey, {
+          iv: Buffer.from(iv),
+          ephemPublicKey: Buffer.from(ephemPublicKey),
+          ciphertext: Buffer.from(ciphertext),
+          mac: Buffer.from(mac),
+        });
+
+        return decrypted.toString("utf8");
+      }
     } catch (error) {
-      throw new Error(`Decryption failed: ${error}`);
-    }
-  }
-
-  async generateKeyPair(): Promise<{ publicKey: string; privateKey: string }> {
-    try {
-      // Import eccrypto-js for secp256k1 key generation (browser-compatible)
-      const eccrypto = await import("eccrypto-js");
-
-      // Generate a random 32-byte private key for secp256k1
-      const privateKeyBytes = new Uint8Array(32);
-      crypto.getRandomValues(privateKeyBytes);
-      const privateKey = Buffer.from(privateKeyBytes);
-
-      // Generate the corresponding compressed public key
-      const publicKey = eccrypto.getPublicCompressed(privateKey);
-
-      return {
-        privateKey: privateKey.toString("hex"),
-        publicKey: publicKey.toString("hex"),
-      };
-    } catch (error) {
-      throw wrapCryptoError("key generation", error);
+      throw wrapCryptoError("decryptWithPrivateKey", error);
     }
   }
 
@@ -119,29 +158,45 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
     publicKey: string,
   ): Promise<string> {
     try {
-      // Import eccrypto for ECDH encryption
-      const eccrypto = await import("eccrypto-js");
+      if (features.useCustomECIES) {
+        // Use custom ECIES implementation via WalletKeyEncryptionService
+        return await this.customWalletService.encryptWithWalletPublicKey(
+          data,
+          publicKey,
+        );
+      } else {
+        // Use eccrypto-js directly for wallet encryption
+        const eccryptojs = await getEccryptoJS();
 
-      // Use shared utility to process public key
-      const uncompressedKey = processWalletPublicKey(publicKey);
+        // Remove 0x prefix if present
+        const cleanKey = publicKey.startsWith("0x")
+          ? publicKey.slice(2)
+          : publicKey;
+        const publicKeyBytes = Buffer.from(cleanKey, "hex");
 
-      // Encrypt using ECDH with randomly generated parameters
-      const encryptedBuffer = await eccrypto.encrypt(
-        uncompressedKey,
-        Buffer.from(data),
-      );
+        // Ensure public key is in uncompressed format (65 bytes with 0x04 prefix)
+        // If it's 64 bytes, add the 0x04 prefix; if already 65 bytes, use as-is
+        const publicKeyBuffer =
+          publicKeyBytes.length === 64
+            ? Buffer.concat([Buffer.from([4]), publicKeyBytes])
+            : publicKeyBytes;
 
-      // Concatenate all components and return as hex
-      const result = Buffer.concat([
-        encryptedBuffer.iv,
-        encryptedBuffer.ephemPublicKey,
-        encryptedBuffer.ciphertext,
-        encryptedBuffer.mac,
-      ]);
+        const message = Buffer.from(data, "utf8");
 
-      return result.toString("hex");
+        const encrypted = await eccryptojs.encrypt(publicKeyBuffer, message);
+
+        // Concatenate all components and return as hex string
+        const result = Buffer.concat([
+          encrypted.iv,
+          encrypted.ephemPublicKey,
+          encrypted.ciphertext,
+          encrypted.mac,
+        ]);
+
+        return result.toString("hex");
+      }
     } catch (error) {
-      throw wrapCryptoError("encrypt with wallet public key", error);
+      throw wrapCryptoError("encryptWithWalletPublicKey", error);
     }
   }
 
@@ -150,27 +205,66 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
     privateKey: string,
   ): Promise<string> {
     try {
-      // Import eccrypto for ECDH decryption
-      const eccrypto = await import("eccrypto-js");
+      if (features.useCustomECIES) {
+        // Use custom ECIES implementation via WalletKeyEncryptionService
+        return await this.customWalletService.decryptWithWalletPrivateKey(
+          encryptedData,
+          privateKey,
+        );
+      } else {
+        // Use eccrypto-js directly for wallet decryption
+        const eccryptojs = await getEccryptoJS();
+        const privateKeyBuffer = Buffer.from(privateKey, "hex");
+        const encryptedBuffer = Buffer.from(encryptedData, "hex");
 
-      // Use shared utilities to process keys and parse data
-      const privateKeyBuffer = processWalletPrivateKey(privateKey);
-      const encryptedBuffer = Buffer.from(encryptedData, "hex");
-      const { iv, ephemPublicKey, ciphertext, mac } =
-        parseEncryptedDataBuffer(encryptedBuffer);
+        // Parse the encrypted data
+        const { iv, ephemPublicKey, ciphertext, mac } =
+          parseEncryptedDataBuffer(encryptedBuffer);
 
-      // Reconstruct the encrypted data structure for eccrypto
-      const encryptedObj = { iv, ephemPublicKey, ciphertext, mac };
+        const decrypted = await eccryptojs.decrypt(privateKeyBuffer, {
+          iv: Buffer.from(iv),
+          ephemPublicKey: Buffer.from(ephemPublicKey),
+          ciphertext: Buffer.from(ciphertext),
+          mac: Buffer.from(mac),
+        });
 
-      // Decrypt using ECDH
-      const decryptedBuffer = await eccrypto.decrypt(
-        privateKeyBuffer,
-        encryptedObj,
-      );
-
-      return decryptedBuffer.toString("utf8");
+        return decrypted.toString("utf8");
+      }
     } catch (error) {
-      throw wrapCryptoError("decrypt with wallet private key", error);
+      throw wrapCryptoError("decryptWithWalletPrivateKey", error);
+    }
+  }
+
+  async generateKeyPair(): Promise<{
+    privateKey: string;
+    publicKey: string;
+  }> {
+    try {
+      if (features.useCustomECIES) {
+        // Use custom implementation with @noble/secp256k1
+        // Generate random private key
+        const privateKeyBytes = secp256k1.utils.randomPrivateKey();
+
+        // Generate public key (compressed for consistency with Node implementation)
+        const publicKeyBytes = secp256k1.getPublicKey(privateKeyBytes, true);
+
+        return {
+          privateKey: toHex(privateKeyBytes).slice(2),
+          publicKey: toHex(publicKeyBytes).slice(2),
+        };
+      } else {
+        // Use eccrypto-js (default)
+        const eccryptojs = await getEccryptoJS();
+        const privateKey = eccryptojs.generatePrivate();
+        const publicKey = eccryptojs.getPublic(privateKey);
+
+        return {
+          privateKey: privateKey.toString("hex"),
+          publicKey: publicKey.toString("hex"),
+        };
+      }
+    } catch (error) {
+      throw wrapCryptoError("generateKeyPair", error);
     }
   }
 
@@ -179,28 +273,21 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
     password: string,
   ): Promise<Uint8Array> {
     try {
-      // Import openpgp for password-based encryption
       const openpgp = await getOpenPGP();
 
-      const message = await openpgp.createMessage({
-        binary: data,
-      });
+      // Create a message from the data
+      const message = await openpgp.createMessage({ binary: data });
 
-      // Use password-based encryption with wallet signature as password
-      // Note: For deterministic encryption, we would need to control the salt
-      // This implementation is secure but not deterministic due to OpenPGP's design
+      // Encrypt with password
       const encrypted = await openpgp.encrypt({
         message,
         passwords: [password],
         format: "binary",
       });
 
-      // Convert WebStream<Uint8Array> to Uint8Array
-      const response = new Response(encrypted as ReadableStream<Uint8Array>);
-      const arrayBuffer = await response.arrayBuffer();
-      return new Uint8Array(arrayBuffer);
+      return new Uint8Array(encrypted as ArrayBuffer);
     } catch (error) {
-      throw new Error(`Failed to encrypt with password: ${error}`);
+      throw wrapCryptoError("encryptWithPassword", error);
     }
   }
 
@@ -209,30 +296,29 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
     password: string,
   ): Promise<Uint8Array> {
     try {
-      // Import openpgp for password-based decryption
       const openpgp = await getOpenPGP();
 
+      // Read the encrypted message
       const message = await openpgp.readMessage({
         binaryMessage: encryptedData,
       });
 
-      // Use password-based decryption with wallet signature as password
-      const { data: decrypted } = await openpgp.decrypt({
+      // Decrypt with password
+      const { data } = await openpgp.decrypt({
         message,
         passwords: [password],
         format: "binary",
       });
 
-      // Convert decrypted data back to Uint8Array
-      return new Uint8Array(decrypted as ArrayBuffer);
+      return new Uint8Array(data as ArrayBuffer);
     } catch (error) {
-      throw new Error(`Failed to decrypt with password: ${error}`);
+      throw wrapCryptoError("decryptWithPassword", error);
     }
   }
 }
 
 /**
- * Browser implementation of PGP operations using openpgp with browser-specific configuration
+ * Browser implementation of PGP operations
  */
 class BrowserPGPAdapter implements VanaPGPAdapter {
   async encrypt(data: string, publicKeyArmored: string): Promise<string> {
@@ -298,20 +384,17 @@ class BrowserPGPAdapter implements VanaPGPAdapter {
 }
 
 /**
- * Browser implementation of HTTP operations using fetch API
+ * Browser implementation of HTTP operations using Fetch API
  */
 class BrowserHttpAdapter implements VanaHttpAdapter {
   async fetch(url: string, options?: RequestInit): Promise<Response> {
-    if (typeof fetch === "undefined") {
-      throw new Error("Fetch API not available in this browser environment");
-    }
-
     return fetch(url, options);
   }
 }
 
 /**
- * Browser implementation of cache operations using sessionStorage
+ * Browser implementation of caching using sessionStorage for security
+ * SessionStorage is cleared when the tab closes, making it more secure for signature caching
  */
 class BrowserCacheAdapter implements VanaCacheAdapter {
   private readonly prefix = "vana_cache_";
@@ -329,21 +412,23 @@ class BrowserCacheAdapter implements VanaCacheAdapter {
 
   set(key: string, value: string): void {
     try {
-      if (typeof sessionStorage !== "undefined") {
-        sessionStorage.setItem(this.prefix + key, value);
+      if (typeof sessionStorage === "undefined") {
+        return;
       }
+      sessionStorage.setItem(this.prefix + key, value);
     } catch {
-      // Silently ignore storage errors (quota exceeded, etc.)
+      // Ignore storage errors (quota exceeded, etc.)
     }
   }
 
   delete(key: string): void {
     try {
-      if (typeof sessionStorage !== "undefined") {
-        sessionStorage.removeItem(this.prefix + key);
+      if (typeof sessionStorage === "undefined") {
+        return;
       }
+      sessionStorage.removeItem(this.prefix + key);
     } catch {
-      // Silently ignore storage errors
+      // Ignore storage errors
     }
   }
 
@@ -352,39 +437,31 @@ class BrowserCacheAdapter implements VanaCacheAdapter {
       if (typeof sessionStorage === "undefined") {
         return;
       }
-
-      const keys = Object.keys(sessionStorage);
-      for (const key of keys) {
-        if (key.startsWith(this.prefix)) {
-          sessionStorage.removeItem(key);
+      // Only clear our prefixed keys to avoid affecting other data
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key?.startsWith(this.prefix)) {
+          keysToRemove.push(key);
         }
       }
+      keysToRemove.forEach((key) => sessionStorage.removeItem(key));
     } catch {
-      // Silently ignore storage errors
+      // Ignore storage errors
     }
   }
 }
 
 /**
- * Complete browser platform adapter implementation
+ * Browser implementation of the Vana Platform Adapter
+ *
+ * This adapter provides all platform-specific functionality for browser environments
+ * without requiring any Node.js polyfills.
  */
 export class BrowserPlatformAdapter implements VanaPlatformAdapter {
-  crypto: VanaCryptoAdapter;
-  pgp: VanaPGPAdapter;
-  http: VanaHttpAdapter;
-  cache: VanaCacheAdapter;
-  platform: "browser" = "browser" as const;
-
-  constructor() {
-    this.crypto = new BrowserCryptoAdapter();
-    this.pgp = new BrowserPGPAdapter();
-    this.http = new BrowserHttpAdapter();
-    this.cache = new BrowserCacheAdapter();
-  }
+  public readonly crypto = new BrowserCryptoAdapter();
+  public readonly pgp = new BrowserPGPAdapter();
+  public readonly http = new BrowserHttpAdapter();
+  public readonly cache = new BrowserCacheAdapter();
+  public readonly platform = "browser" as const;
 }
-
-/**
- * Default instance export for backwards compatibility
- */
-export const browserPlatformAdapter: VanaPlatformAdapter =
-  new BrowserPlatformAdapter();

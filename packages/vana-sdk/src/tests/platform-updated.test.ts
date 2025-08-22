@@ -1,9 +1,12 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { browserPlatformAdapter } from "../platform/browser";
+import { BrowserPlatformAdapter } from "../platform/browser";
 import { nodePlatformAdapter } from "../platform/node";
 
 // Store original fetch for restoration
 const originalFetch = globalThis.fetch;
+
+// Create browser platform adapter instance
+const browserPlatformAdapter = new BrowserPlatformAdapter();
 
 describe("Platform Adapters - Production Ready", () => {
   afterEach(() => {

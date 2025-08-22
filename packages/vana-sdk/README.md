@@ -28,12 +28,19 @@ npm install viem@^2.31.7
 
 ## Quick Start
 
-The Vana SDK supports both browser and Node.js environments with explicit entry points:
+The Vana SDK provides optimized builds for different environments:
 
-### Browser Applications (React, Vue, etc.)
+| Build          | Use Case                          | Crypto Implementation              | Configuration     |
+| -------------- | --------------------------------- | ---------------------------------- | ----------------- |
+| **`/browser`** | Browser apps (React, Vue)         | Pure JavaScript (@noble/secp256k1) | **Zero config** ✓ |
+| **`/node`**    | Server-side (Node.js, API routes) | Native bindings (secp256k1)        | Zero config ✓     |
+
+### Browser Applications
+
+The browser build uses pure JavaScript cryptography and requires **no special configuration**:
 
 ```typescript
-// For browser-based applications (React, Vue, etc.)
+// Browser build - works out of the box with any bundler
 import { Vana, mokshaTestnet } from "@opendatalabs/vana-sdk/browser";
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -53,7 +60,9 @@ const vana = Vana({
 });
 ```
 
-### Server-side Applications (Next.js API routes, Express)
+### Server-side Applications (Node.js)
+
+The Node.js build uses native secp256k1 bindings for optimal performance:
 
 ```typescript
 // For server-side applications (Next.js API routes, Express)

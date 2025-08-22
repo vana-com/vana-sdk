@@ -67,9 +67,13 @@ export default function DashboardLayout({
     googleDriveAccessToken: "",
     googleDriveRefreshToken: "",
     googleDriveExpiresAt: null as number | null,
-    defaultPersonalServerUrl: process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL || (() => {
-      throw new Error("NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL environment variable is required");
-    })(),
+    defaultPersonalServerUrl:
+      process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL ||
+      (() => {
+        throw new Error(
+          "NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL environment variable is required",
+        );
+      })(),
   }));
 
   // App Configuration state

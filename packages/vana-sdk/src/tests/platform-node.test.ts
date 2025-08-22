@@ -12,25 +12,7 @@ describe("NodePlatformAdapter", () => {
   });
 
   describe("NodeCryptoAdapter", () => {
-    describe("getEccrypto error handling", () => {
-      it("should throw error when eccrypto library fails to load", async () => {
-        // Mock eccrypto import to fail
-        vi.doMock("eccrypto", () => {
-          throw new Error("Module not found");
-        });
-
-        // Import NodePlatformAdapter after mocking
-        const { NodePlatformAdapter: NPAdapter } = await import(
-          "../platform/node"
-        );
-        const adapter = new NPAdapter();
-
-        // Test should fail initially - this tests the error handling branch
-        await expect(adapter.crypto.generateKeyPair()).rejects.toThrow(
-          "key generation failed: Failed to load module",
-        );
-      });
-    });
+    // Removed obsolete eccrypto error handling tests - we now use our own ECIES implementation
 
     describe("encryptWithPassword edge cases", () => {
       it("should handle unexpected encrypted data format", async () => {

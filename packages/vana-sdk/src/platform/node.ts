@@ -13,46 +13,105 @@ import type {
   VanaHttpAdapter,
   VanaCacheAdapter,
 } from "./interface";
-import {
-  processWalletPublicKey,
-  processWalletPrivateKey,
-  parseEncryptedDataBuffer,
-} from "./shared/crypto-utils";
 import { getPGPKeyGenParams } from "./shared/pgp-utils";
 import { wrapCryptoError } from "./shared/error-utils";
 import { streamToUint8Array } from "./shared/stream-utils";
 import { lazyImport } from "../utils/lazy-import";
+import { features } from "../config/features";
+import { WalletKeyEncryptionService } from "../crypto/services/WalletKeyEncryptionService";
+import {
+  processWalletPrivateKey,
+  parseEncryptedDataBuffer,
+  processWalletPublicKey,
+} from "../utils/crypto-utils";
 
 // Lazy-loaded dependencies to avoid Turbopack TDZ issues
 const getOpenPGP = lazyImport(() => import("openpgp"));
-const getEccrypto = lazyImport(() => import("eccrypto"));
+const getEccryptoJS = lazyImport(() => import("eccrypto-js"));
+
+// Import both ECIES implementations statically
+import { NodeECIESUint8Provider } from "../crypto/ecies/node";
+import { ECIESError } from "../crypto/ecies/interface";
+import type { ECIESEncrypted } from "../crypto/ecies";
+import { randomBytes } from "crypto";
+import secp256k1Import from "secp256k1";
+
+// Type definition for secp256k1 module
+interface Secp256k1Module {
+  privateKeyVerify(privateKey: Buffer): boolean;
+  publicKeyCreate(privateKey: Buffer, compressed: boolean): Buffer;
+  publicKeyVerify(publicKey: Buffer): boolean;
+  publicKeyConvert(publicKey: Buffer, compressed: boolean): Buffer;
+  ecdh(
+    publicKey: Buffer,
+    privateKey: Buffer,
+    options: {
+      hashfn: (x: Uint8Array, y: Uint8Array, output?: Uint8Array) => Uint8Array;
+    },
+    output: Buffer,
+  ): Buffer;
+}
 
 /**
- * Node.js implementation of crypto operations using secp256k1
+ * Node.js implementation of crypto operations
+ * Supports both eccrypto (default) and custom ECIES implementation
  */
 class NodeCryptoAdapter implements VanaCryptoAdapter {
+  // Initialize both providers - only one will be used based on feature flag
+  private customEciesProvider = new NodeECIESUint8Provider();
+  private customWalletService = new WalletKeyEncryptionService({
+    eciesProvider: this.customEciesProvider,
+  });
+
   async encryptWithPublicKey(
     data: string,
     publicKeyHex: string,
   ): Promise<string> {
     try {
-      const eccrypto = await getEccrypto();
-      const publicKey = Buffer.from(publicKeyHex, "hex");
-      const message = Buffer.from(data, "utf8");
+      if (features.useCustomECIES) {
+        // Use custom ECIES implementation
+        const publicKey = Buffer.from(publicKeyHex, "hex");
+        const message = Buffer.from(data, "utf8");
 
-      const encrypted = await eccrypto.encrypt(publicKey, message);
+        const encrypted = await this.customEciesProvider.encrypt(
+          publicKey,
+          message,
+        );
 
-      // Concatenate all components and return as hex string for API consistency
-      const result = Buffer.concat([
-        encrypted.iv,
-        encrypted.ephemPublicKey,
-        encrypted.ciphertext,
-        encrypted.mac,
-      ]);
+        // Concatenate all components and return as hex string for API consistency
+        const result = Buffer.concat([
+          encrypted.iv,
+          encrypted.ephemPublicKey,
+          encrypted.ciphertext,
+          encrypted.mac,
+        ]);
 
-      return result.toString("hex");
+        return result.toString("hex");
+      } else {
+        // Use eccrypto-js (default)
+        const eccryptojs = await getEccryptoJS();
+        const publicKey = Buffer.from(publicKeyHex, "hex");
+        const message = Buffer.from(data, "utf8");
+
+        const encrypted = await eccryptojs.encrypt(publicKey, message);
+
+        // Concatenate all components and return as hex string for API consistency
+        const result = Buffer.concat([
+          encrypted.iv,
+          encrypted.ephemPublicKey,
+          encrypted.ciphertext,
+          encrypted.mac,
+        ]);
+
+        return result.toString("hex");
+      }
     } catch (error) {
-      throw new Error(`Encryption failed: ${error}`);
+      if (features.useCustomECIES && error instanceof ECIESError) {
+        throw error;
+      }
+      throw new Error(
+        `Encryption failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -61,34 +120,87 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
     privateKeyHex: string,
   ): Promise<string> {
     try {
-      const eccrypto = await getEccrypto();
+      if (features.useCustomECIES) {
+        // Use custom ECIES implementation
+        const privateKeyBuffer = processWalletPrivateKey(privateKeyHex);
+        const encryptedBuffer = Buffer.from(encryptedData, "hex");
+        const { iv, ephemPublicKey, ciphertext, mac } =
+          parseEncryptedDataBuffer(encryptedBuffer);
 
-      // Use shared utilities to process keys and parse data
-      const privateKeyBuffer = processWalletPrivateKey(privateKeyHex);
-      const encryptedBuffer = Buffer.from(encryptedData, "hex");
-      const { iv, ephemPublicKey, ciphertext, mac } =
-        parseEncryptedDataBuffer(encryptedBuffer);
+        // Reconstruct the encrypted data structure
+        const encryptedObj: ECIESEncrypted = {
+          iv,
+          ephemPublicKey,
+          ciphertext,
+          mac,
+        };
 
-      // Reconstruct the encrypted data structure for eccrypto
-      const encryptedObj = { iv, ephemPublicKey, ciphertext, mac };
+        const decrypted = await this.customEciesProvider.decrypt(
+          privateKeyBuffer,
+          encryptedObj,
+        );
+        return new TextDecoder().decode(decrypted);
+      } else {
+        // Use eccrypto-js (default)
+        const eccryptojs = await getEccryptoJS();
+        const privateKey = Buffer.from(privateKeyHex, "hex");
+        const encryptedBuffer = Buffer.from(encryptedData, "hex");
 
-      const decrypted = await eccrypto.decrypt(privateKeyBuffer, encryptedObj);
-      return decrypted.toString("utf8");
+        // Parse the encrypted data
+        const { iv, ephemPublicKey, ciphertext, mac } =
+          parseEncryptedDataBuffer(encryptedBuffer);
+
+        const decrypted = await eccryptojs.decrypt(privateKey, {
+          iv: Buffer.from(iv),
+          ephemPublicKey: Buffer.from(ephemPublicKey),
+          ciphertext: Buffer.from(ciphertext),
+          mac: Buffer.from(mac),
+        });
+
+        return decrypted.toString("utf8");
+      }
     } catch (error) {
-      throw new Error(`Decryption failed: ${error}`);
+      if (features.useCustomECIES && error instanceof ECIESError) {
+        throw error;
+      }
+      throw new Error(
+        `Decryption failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
   async generateKeyPair(): Promise<{ publicKey: string; privateKey: string }> {
     try {
-      const eccrypto = await getEccrypto();
-      const privateKey = eccrypto.generatePrivate();
-      const publicKey = eccrypto.getPublicCompressed(privateKey);
+      if (features.useCustomECIES) {
+        // Use custom implementation with secp256k1
+        const secp256k1 = secp256k1Import as unknown as Secp256k1Module;
 
-      return {
-        privateKey: privateKey.toString("hex"),
-        publicKey: publicKey.toString("hex"),
-      };
+        // Generate private key
+        let privateKey: Buffer;
+        do {
+          privateKey = randomBytes(32);
+        } while (!secp256k1.privateKeyVerify(privateKey));
+
+        // Get compressed public key
+        const publicKey = Buffer.from(
+          secp256k1.publicKeyCreate(privateKey, true),
+        );
+
+        return {
+          privateKey: privateKey.toString("hex"),
+          publicKey: publicKey.toString("hex"),
+        };
+      } else {
+        // Use eccrypto-js (default)
+        const eccryptojs = await getEccryptoJS();
+        const privateKey = eccryptojs.generatePrivate();
+        const publicKey = eccryptojs.getPublic(privateKey);
+
+        return {
+          privateKey: privateKey.toString("hex"),
+          publicKey: publicKey.toString("hex"),
+        };
+      }
     } catch (error) {
       throw wrapCryptoError("key generation", error);
     }
@@ -99,25 +211,30 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
     publicKey: string,
   ): Promise<string> {
     try {
-      const eccrypto = await getEccrypto();
+      if (features.useCustomECIES) {
+        // Use custom ECIES implementation via WalletKeyEncryptionService
+        return await this.customWalletService.encryptWithWalletPublicKey(
+          data,
+          publicKey,
+        );
+      } else {
+        // Use eccrypto-js directly for wallet encryption
+        const eccryptojs = await getEccryptoJS();
+        const publicKeyBuffer = Buffer.from(processWalletPublicKey(publicKey));
+        const message = Buffer.from(data, "utf8");
 
-      // Use shared utility to process public key
-      const uncompressedKey = processWalletPublicKey(publicKey);
+        const encrypted = await eccryptojs.encrypt(publicKeyBuffer, message);
 
-      const encrypted = await eccrypto.encrypt(
-        uncompressedKey,
-        Buffer.from(data),
-      );
+        // Concatenate all components and return as hex string
+        const result = Buffer.concat([
+          encrypted.iv,
+          encrypted.ephemPublicKey,
+          encrypted.ciphertext,
+          encrypted.mac,
+        ]);
 
-      // Concatenate all components and return as hex (same format as browser)
-      const result = Buffer.concat([
-        encrypted.iv,
-        encrypted.ephemPublicKey,
-        encrypted.ciphertext,
-        encrypted.mac,
-      ]);
-
-      return result.toString("hex");
+        return result.toString("hex");
+      }
     } catch (error) {
       throw wrapCryptoError("encrypt with wallet public key", error);
     }
@@ -128,24 +245,33 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
     privateKey: string,
   ): Promise<string> {
     try {
-      const eccrypto = await getEccrypto();
+      if (features.useCustomECIES) {
+        // Use custom ECIES implementation via WalletKeyEncryptionService
+        return await this.customWalletService.decryptWithWalletPrivateKey(
+          encryptedData,
+          privateKey,
+        );
+      } else {
+        // Use eccrypto-js directly for wallet decryption
+        const eccryptojs = await getEccryptoJS();
+        const privateKeyBuffer = Buffer.from(
+          processWalletPrivateKey(privateKey),
+        );
+        const encryptedBuffer = Buffer.from(encryptedData, "hex");
 
-      // Use shared utilities to process keys and parse data
-      const privateKeyBuffer = processWalletPrivateKey(privateKey);
-      const encryptedBuffer = Buffer.from(encryptedData, "hex");
-      const { iv, ephemPublicKey, ciphertext, mac } =
-        parseEncryptedDataBuffer(encryptedBuffer);
+        // Parse the encrypted data
+        const { iv, ephemPublicKey, ciphertext, mac } =
+          parseEncryptedDataBuffer(encryptedBuffer);
 
-      // Reconstruct the encrypted data structure for eccrypto
-      const encryptedObj = { iv, ephemPublicKey, ciphertext, mac };
+        const decrypted = await eccryptojs.decrypt(privateKeyBuffer, {
+          iv: Buffer.from(iv),
+          ephemPublicKey: Buffer.from(ephemPublicKey),
+          ciphertext: Buffer.from(ciphertext),
+          mac: Buffer.from(mac),
+        });
 
-      // Decrypt using ECDH
-      const decryptedBuffer = await eccrypto.decrypt(
-        privateKeyBuffer,
-        encryptedObj,
-      );
-
-      return decryptedBuffer.toString("utf8");
+        return decrypted.toString("utf8");
+      }
     } catch (error) {
       throw wrapCryptoError("decrypt with wallet private key", error);
     }

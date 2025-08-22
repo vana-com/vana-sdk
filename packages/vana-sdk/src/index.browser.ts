@@ -216,6 +216,7 @@ export {
 
 // Platform adapters - browser-safe exports
 export { BrowserPlatformAdapter } from "./platform/browser";
+export { BrowserECIESUint8Provider as BrowserECIESProvider } from "./crypto/ecies/browser";
 export type { VanaPlatformAdapter } from "./platform/interface";
 
 // Browser-only platform adapter utilities

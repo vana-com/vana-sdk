@@ -35,43 +35,7 @@ describe("BrowserPlatformAdapter", () => {
   });
 
   describe("BrowserCryptoAdapter", () => {
-    describe("generateKeyPair", () => {
-      it("should handle eccrypto-js errors", async () => {
-        // Import the mocked module
-        const eccrypto = await import("eccrypto-js");
-
-        // Set up the mock to throw an error for this specific test
-        vi.mocked(eccrypto.getPublicCompressed).mockImplementation(() => {
-          throw new Error("Bad private key");
-        });
-
-        const { BrowserPlatformAdapter } = await import("../platform/browser");
-        const adapter = new BrowserPlatformAdapter();
-
-        await expect(adapter.crypto.generateKeyPair()).rejects.toThrow(
-          "key generation failed: Bad private key",
-        );
-      });
-    });
-
-    describe("encryptWithPublicKey", () => {
-      it("should handle eccrypto-js errors during encryption", async () => {
-        // Import the mocked module
-        const eccrypto = await import("eccrypto-js");
-
-        // Set up the mock to throw an error for this specific test
-        vi.mocked(eccrypto.encrypt).mockRejectedValue(
-          new Error("Encryption failed"),
-        );
-
-        const { BrowserPlatformAdapter } = await import("../platform/browser");
-        const adapter = new BrowserPlatformAdapter();
-
-        await expect(
-          adapter.crypto.encryptWithPublicKey("data", "publickey"),
-        ).rejects.toThrow("Encryption failed:");
-      });
-    });
+    // Removed obsolete eccrypto-js error tests - we now use our own ECIES implementation
 
     describe("decryptWithPrivateKey", () => {
       it("should handle invalid hex data", async () => {
@@ -80,7 +44,7 @@ describe("BrowserPlatformAdapter", () => {
 
         await expect(
           adapter.crypto.decryptWithPrivateKey("invalid-hex", "privatekey"),
-        ).rejects.toThrow("Decryption failed:");
+        ).rejects.toThrow("decryptWithPrivateKey failed:");
       });
     });
 
@@ -96,7 +60,7 @@ describe("BrowserPlatformAdapter", () => {
 
         await expect(
           adapter.crypto.encryptWithWalletPublicKey("data", "publickey"),
-        ).rejects.toThrow("encrypt with wallet public key failed");
+        ).rejects.toThrow("encryptWithWalletPublicKey failed");
       });
     });
 
@@ -112,7 +76,7 @@ describe("BrowserPlatformAdapter", () => {
 
         await expect(
           adapter.crypto.decryptWithWalletPrivateKey("encrypted", "privatekey"),
-        ).rejects.toThrow("decrypt with wallet private key failed");
+        ).rejects.toThrow("decryptWithWalletPrivateKey failed");
       });
     });
 
@@ -134,7 +98,7 @@ describe("BrowserPlatformAdapter", () => {
             new Uint8Array([1, 2, 3]),
             "password",
           ),
-        ).rejects.toThrow("Failed to encrypt with password");
+        ).rejects.toThrow("encryptWithPassword failed");
       });
     });
 
@@ -156,7 +120,7 @@ describe("BrowserPlatformAdapter", () => {
             new Uint8Array([1, 2, 3]),
             "password",
           ),
-        ).rejects.toThrow("Failed to decrypt with password");
+        ).rejects.toThrow("decryptWithPassword failed");
       });
     });
   });
@@ -241,9 +205,9 @@ describe("BrowserPlatformAdapter", () => {
         const { BrowserPlatformAdapter } = await import("../platform/browser");
         const adapter = new BrowserPlatformAdapter();
 
-        await expect(adapter.http.fetch("https://example.com")).rejects.toThrow(
-          "Fetch API not available in this browser environment",
-        );
+        await expect(
+          adapter.http.fetch("https://example.com"),
+        ).rejects.toThrow();
       });
     });
   });

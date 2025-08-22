@@ -150,9 +150,6 @@
   "engines": {
     "node": ">=20.0.0"
   },
-  "bundledDependencies": [
-    "elliptic"
-  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/vana-com/vana-sdk.git",

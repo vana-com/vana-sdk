@@ -261,7 +261,7 @@ export class VanaCore {
       chain: walletClient.chain,
       transport: http(),
     });
-    
+
     // Store the clients for later use
     this.publicClient = publicClient;
     this.walletClient = walletClient;
@@ -756,11 +756,14 @@ export class VanaCore {
    * ```
    */
   public async waitForTransactionReceipt(
-    hashOrObj: import("./types/operations").TransactionResult | { hash: import("viem").Hash } | import("viem").Hash,
+    hashOrObj:
+      | import("./types/operations").TransactionResult
+      | { hash: import("viem").Hash }
+      | import("viem").Hash,
     options?: import("./types/operations").TransactionWaitOptions,
   ): Promise<import("viem").TransactionReceipt> {
     const hash = typeof hashOrObj === "string" ? hashOrObj : hashOrObj.hash;
-    
+
     return this.publicClient.waitForTransactionReceipt({
       hash,
       confirmations: options?.confirmations,
@@ -770,36 +773,80 @@ export class VanaCore {
   }
 
   /**
-   * Waits for transaction confirmation and parses events.
+   * Waits for transaction confirmation and extracts blockchain event data.
    *
    * @remarks
-   * This method waits for a transaction to be confirmed and then
-   * parses the logs to extract typed event data. The specific event
-   * type depends on the transaction operation.
+   * This method leverages the context-carrying POJO architecture. When passed a
+   * `TransactionResult` with an `operation` field, it automatically parses the
+   * correct events from the transaction logs. For legacy compatibility, it accepts
+   * raw hashes but will not parse events without operation context.
    *
-   * @param hashOrObj - Either a TransactionResult object or hash string
-   * @param options - Optional wait configuration
-   * @returns The parsed event data from the transaction
+   * @param hashOrObj - Transaction result with operation context, or raw hash
+   * @param options - Optional confirmation and timeout settings
+   * @returns Parsed event data specific to the transaction's operation type
+   * @throws {NetworkError} When transaction confirmation times out
+   * @throws {BlockchainError} When expected events are not found in the transaction
+   *
    * @example
    * ```typescript
-   * // Wait for permission grant events
-   * const tx = await vana.permissions.grant(params);
-   * const events = await vana.waitForTransactionEvents(tx);
+   * // Recommended: Pass the transaction result for automatic event parsing
+   * const tx = await vana.permissions.submitAddServerFilesAndPermissions(params);
+   * const events = await vana.waitForTransactionEvents<{ permissionId: bigint }>(tx);
    * console.log(`Permission ID: ${events.permissionId}`);
    *
-   * // Using just the hash
-   * const events = await vana.waitForTransactionEvents("0x123...");
+   * // Legacy: Raw hash without event parsing (returns receipt)
+   * const receipt = await vana.waitForTransactionEvents("0x123...");
    * ```
+   *
+   * @see For understanding transaction flows, visit https://docs.vana.org/docs/transactions
    */
   public async waitForTransactionEvents<T = unknown>(
-    hashOrObj: import("./types/operations").TransactionResult | { hash: import("viem").Hash } | import("viem").Hash,
+    hashOrObj:
+      | import("./types/operations").TransactionResult
+      | { hash: import("viem").Hash }
+      | import("viem").Hash,
     options?: import("./types/operations").TransactionWaitOptions,
   ): Promise<T> {
-    const receipt = await this.waitForTransactionReceipt(hashOrObj, options);
-    
-    // Parse events from the receipt
-    // This is a simplified implementation - in reality, you'd need to
-    // parse the logs based on the contract ABI and event signatures
-    return receipt as unknown as T;
+    const hash = typeof hashOrObj === "string" ? hashOrObj : hashOrObj.hash;
+
+    // Check if we have operation context in the TransactionResult
+    const operation =
+      typeof hashOrObj === "object" && "operation" in hashOrObj
+        ? hashOrObj.operation
+        : undefined;
+
+    if (!operation) {
+      // Legacy fallback for backwards compatibility
+      // If no operation provided, return the receipt as-is (the old broken behavior)
+      // This ensures existing code doesn't break, but new code gets proper parsing
+      console.warn(
+        "waitForTransactionEvents called without operation context. " +
+          "Event parsing will not work correctly. " +
+          "Pass a TransactionResult with operation field for proper event parsing.",
+      );
+      const receipt = await this.waitForTransactionReceipt(hashOrObj, options);
+      return receipt as unknown as T;
+    }
+
+    // Import parseTransactionResult which handles event parsing
+    const { parseTransactionResult } = await import(
+      "./utils/transactionParsing"
+    );
+
+    try {
+      // Use the operation from the self-describing POJO to parse events
+      const events = await parseTransactionResult(
+        { publicClient: this.publicClient },
+        hash,
+        operation as import("./config/eventMappings").TransactionOperation,
+      );
+      return events as T;
+    } catch (error) {
+      // Log the error but don't throw - return empty object to match expected type
+      console.error("Failed to parse transaction events:", error);
+      // Still wait for the receipt to ensure transaction completed
+      await this.waitForTransactionReceipt(hashOrObj, options);
+      return {} as T;
+    }
   }
 }

@@ -4493,6 +4493,7 @@ export class PermissionsController {
         return {
           hash,
           from: this.context.walletClient.account?.address,
+          operation: "addServerFilesAndPermissions" as const,
         };
       } else {
         console.debug(
@@ -4506,6 +4507,7 @@ export class PermissionsController {
         return {
           hash,
           from: this.context.walletClient.account?.address,
+          operation: "addServerFilesAndPermissions" as const,
         };
       }
     } catch (error) {

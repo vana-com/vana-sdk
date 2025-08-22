@@ -124,10 +124,11 @@ export function Vana(config: VanaConfig) {
 
 /**
  * The type of a Vana SDK instance in browser environments.
+ * Uses InstanceType to properly expose all public methods from the class hierarchy.
  *
  * @see {@link Vana}
  */
-export type VanaInstance = VanaBrowserImpl;
+export type VanaInstance = InstanceType<typeof VanaBrowserImpl>;
 
 // Export as default export
 export default Vana;

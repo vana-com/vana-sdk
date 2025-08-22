@@ -23,22 +23,28 @@ export interface Operation<T = unknown> {
 }
 
 /**
- * Transaction submission result as a plain object.
- * Contains immediate transaction details without waiting for confirmation.
+ * Represents a submitted blockchain transaction as a serializable plain object.
+ *
+ * @remarks
+ * Transaction results are self-describing POJOs that can be passed across API boundaries.
+ * The `operation` field enables proper event parsing when used with `waitForTransactionEvents`.
+ * This design follows the POJO architecture for full serializability while maintaining context.
  */
 export interface TransactionResult {
-  /** Transaction hash */
+  /** Transaction hash for tracking and confirmation */
   hash: Hash;
-  /** Sender address */
+  /** Sender's wallet address */
   from?: Address;
-  /** Recipient address */
+  /** Contract address that received the transaction */
   to?: Address;
-  /** Transaction nonce */
+  /** Transaction sequence number for the sender */
   nonce?: number;
-  /** Transaction value in wei */
+  /** Transaction value in wei (for payable functions) */
   value?: bigint;
-  /** Chain ID where transaction was submitted */
+  /** Network chain ID where transaction was submitted */
   chainId?: number;
+  /** SDK operation type for event parsing context */
+  operation?: import("../config/eventMappings").TransactionOperation;
 }
 
 /**

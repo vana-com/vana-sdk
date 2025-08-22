@@ -1,11 +1,10 @@
 import { parseEventLogs } from "viem";
-import type { Hash } from "viem";
+import type { Hash, PublicClient } from "viem";
 import {
   EVENT_MAPPINGS,
   type TransactionOperation,
 } from "../config/eventMappings";
 import { getAbi } from "../generated/abi";
-import type { ControllerContext } from "../controllers/permissions";
 import { BlockchainError, NetworkError } from "../errors";
 import type { TransactionResultMap } from "../types/transactionResults";
 
@@ -20,32 +19,35 @@ export interface BaseTransactionResult {
 }
 
 /**
- * Generic transaction result parser that extracts event data from transaction receipts.
+ * Parses blockchain events from confirmed transactions based on operation type.
  *
- * This utility provides a consistent way to parse blockchain events from completed
- * transactions across all SDK controllers. It handles receipt fetching, event parsing,
- * error handling, and result formatting automatically.
+ * @remarks
+ * This utility is the centralized event parser for all SDK operations. It uses the
+ * `EVENT_MAPPINGS` configuration to determine which contract ABI and event to parse
+ * based on the operation type. The function handles receipt fetching, log parsing,
+ * and type-safe event extraction automatically.
  *
- * @param context - Controller context containing blockchain clients
- * @param hash - Transaction hash to parse
- * @param operation - SDK operation name (maps to contract/event via EVENT_MAPPINGS)
- * @returns Promise resolving to event args plus transaction metadata
- * @throws {NetworkError} When transaction receipt cannot be fetched
- * @throws {BlockchainError} When expected event is not found in transaction
+ * @param context - Minimal context object for transaction parsing
+ * @param context.publicClient - Viem public client for blockchain queries
+ * @param hash - Transaction hash to fetch and parse
+ * @param operation - SDK operation type that determines which event to extract
+ * @returns Type-safe event data specific to the operation
+ * @throws {NetworkError} When transaction receipt cannot be fetched within timeout
+ * @throws {BlockchainError} When expected event is not found in transaction logs
  *
  * @example
  * ```typescript
- * // Parse a permission grant transaction
- * const result = await parseTransactionResult(context, txHash, 'grant');
- * console.log(`Permission ${result.permissionId} granted to ${result.user}`);
- *
- * // Parse a file addition transaction
- * const result = await parseTransactionResult(context, txHash, 'addFile');
- * console.log(`File ${result.fileId} added at ${result.url}`);
+ * // Parse events from a permission grant transaction
+ * const result = await parseTransactionResult(
+ *   { publicClient },
+ *   "0xabc123...",
+ *   'addServerFilesAndPermissions'
+ * );
+ * console.log(`Permission ${result.permissionId} granted with ${result.fileIds.length} files`);
  * ```
  */
 export async function parseTransactionResult<K extends TransactionOperation>(
-  context: ControllerContext,
+  context: { publicClient: PublicClient },
   hash: Hash,
   operation: K,
 ): Promise<TransactionResultMap[K]> {

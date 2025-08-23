@@ -314,12 +314,19 @@ export class DataController {
 
         // Fallback: No relay support, use a direct transaction
       } else {
-        result = await this.addFileWithPermissionsAndSchema(
+        const txResult = await this.addFileWithPermissionsAndSchema(
           uploadResult.url,
           userAddress,
           encryptedPermissions,
           schemaId || 0,
         );
+        
+        // For consistency with the breaking change, return a placeholder fileId
+        // Users must use waitForTransactionEvents to get the actual fileId
+        result = {
+          fileId: 0, // Placeholder - actual fileId available after waiting for events
+          transactionHash: txResult.hash,
+        };
       }
 
       return {
@@ -1868,7 +1875,7 @@ export class DataController {
   async registerFileWithSchema(
     url: string,
     schemaId: number,
-  ): Promise<{ fileId: number; transactionHash: Address }> {
+  ): Promise<TransactionResult<"DataRegistry", "addFileWithSchema">> {
     try {
       const chainId = this.context.walletClient.chain?.id;
       if (!chainId) {
@@ -1877,33 +1884,25 @@ export class DataController {
 
       const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
       const dataRegistryAbi = getAbi("DataRegistry");
-      const userAddress = await this.getUserAddress();
+      const account = this.context.walletClient.account || await this.getUserAddress();
+      const from = typeof account === 'string' ? account : account.address;
 
-      const txHash = await this.context.walletClient.writeContract({
+      const hash = await this.context.walletClient.writeContract({
         address: dataRegistryAddress,
         abi: dataRegistryAbi,
         functionName: "addFileWithSchema",
         args: [url, BigInt(schemaId)],
-        account: this.context.walletClient.account || userAddress,
+        account,
         chain: this.context.walletClient.chain || null,
       });
 
-      // Wait for transaction confirmation and parse events
-      const receipt = await this.context.publicClient.waitForTransactionReceipt(
-        {
-          hash: txHash,
-          confirmations: 1,
-        },
-      );
-
-      // Parse the FileAddedV2 event to get the file ID
-      const { parseFileAddedEvent } = await import("../utils/eventParsing");
-      const eventData = parseFileAddedEvent(receipt);
-
-      return {
-        fileId: Number(eventData.fileId),
-        transactionHash: txHash,
-      };
+      const { tx } = await import("../utils/transactionHelpers");
+      return tx({
+        hash,
+        from,
+        contract: "DataRegistry",
+        fn: "addFileWithSchema",
+      });
     } catch (error) {
       console.error("Failed to register file with schema:", error);
       throw new Error(
@@ -1946,10 +1945,7 @@ export class DataController {
     url: string,
     ownerAddress: Address,
     permissions: Array<{ account: Address; key: string }> = [],
-  ): Promise<{
-    fileId: number;
-    transactionHash: string;
-  }> {
+  ): Promise<TransactionResult<"DataRegistry", "addFileWithPermissions">> {
     try {
       const chainId = this.context.walletClient.chain?.id;
       if (!chainId) {
@@ -1958,33 +1954,26 @@ export class DataController {
 
       const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
       const dataRegistryAbi = getAbi("DataRegistry");
+      const account = this.context.walletClient.account || ownerAddress;
+      const from = typeof account === 'string' ? account : account.address;
 
       // Execute the transaction using the wallet client
-      const txHash = await this.context.walletClient.writeContract({
+      const hash = await this.context.walletClient.writeContract({
         address: dataRegistryAddress,
         abi: dataRegistryAbi,
         functionName: "addFileWithPermissions",
         args: [url, ownerAddress, permissions],
-        account: this.context.walletClient.account || ownerAddress,
+        account,
         chain: this.context.walletClient.chain || null,
       });
 
-      // Wait for transaction confirmation and parse events
-      const receipt = await this.context.publicClient.waitForTransactionReceipt(
-        {
-          hash: txHash,
-          confirmations: 1,
-        },
-      );
-
-      // Parse the FileAddedV2 event to get the file ID
-      const { parseFileAddedEvent } = await import("../utils/eventParsing");
-      const eventData = parseFileAddedEvent(receipt);
-
-      return {
-        fileId: Number(eventData.fileId),
-        transactionHash: txHash,
-      };
+      const { tx } = await import("../utils/transactionHelpers");
+      return tx({
+        hash,
+        from,
+        contract: "DataRegistry",
+        fn: "addFileWithPermissions",
+      });
     } catch (error) {
       console.error("Failed to add file with permissions:", error);
       throw new Error(
@@ -2012,10 +2001,7 @@ export class DataController {
     ownerAddress: Address,
     permissions: Array<{ account: Address; key: string }> = [],
     schemaId: number = 0,
-  ): Promise<{
-    fileId: number;
-    transactionHash: string;
-  }> {
+  ): Promise<TransactionResult<"DataRegistry", "addFileWithPermissionsAndSchema">> {
     try {
       const chainId = this.context.walletClient.chain?.id;
       if (!chainId) {
@@ -2024,33 +2010,26 @@ export class DataController {
 
       const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
       const dataRegistryAbi = getAbi("DataRegistry");
+      const account = this.context.walletClient.account || ownerAddress;
+      const from = typeof account === 'string' ? account : account.address;
 
       // Execute the transaction using the wallet client
-      const txHash = await this.context.walletClient.writeContract({
+      const hash = await this.context.walletClient.writeContract({
         address: dataRegistryAddress,
         abi: dataRegistryAbi,
         functionName: "addFileWithPermissionsAndSchema",
         args: [url, ownerAddress, permissions, BigInt(schemaId)],
-        account: this.context.walletClient.account || ownerAddress,
+        account,
         chain: this.context.walletClient.chain || null,
       });
 
-      // Wait for transaction confirmation and parse events
-      const receipt = await this.context.publicClient.waitForTransactionReceipt(
-        {
-          hash: txHash,
-          confirmations: 1,
-        },
-      );
-
-      // Parse the FileAddedV2 event to get the file ID
-      const { parseFileAddedEvent } = await import("../utils/eventParsing");
-      const eventData = parseFileAddedEvent(receipt);
-
-      return {
-        fileId: Number(eventData.fileId),
-        transactionHash: txHash,
-      };
+      const { tx } = await import("../utils/transactionHelpers");
+      return tx({
+        hash,
+        from,
+        contract: "DataRegistry",
+        fn: "addFileWithPermissionsAndSchema",
+      });
     } catch (error) {
       console.error("Failed to add file with permissions and schema:", error);
       throw new Error(
@@ -2087,7 +2066,7 @@ export class DataController {
    * console.log(`Created refiner ${result.refinerId} in tx ${result.transactionHash}`);
    * ```
    */
-  async addRefiner(params: AddRefinerParams): Promise<AddRefinerResult> {
+  async addRefiner(params: AddRefinerParams): Promise<TransactionResult<"DataRefinerRegistry", "addRefinerWithSchemaId">> {
     try {
       const chainId = this.context.walletClient.chain?.id;
       if (!chainId) {
@@ -2099,8 +2078,10 @@ export class DataController {
         "DataRefinerRegistry",
       );
       const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
+      const account = this.context.walletClient.account || (await this.getUserAddress());
+      const from = typeof account === 'string' ? account : account.address;
 
-      const txHash = await this.context.walletClient.writeContract({
+      const hash = await this.context.walletClient.writeContract({
         address: dataRefinerRegistryAddress,
         abi: dataRefinerRegistryAbi,
         functionName: "addRefinerWithSchemaId",
@@ -2110,27 +2091,17 @@ export class DataController {
           BigInt(params.schemaId),
           params.refinementInstructionUrl,
         ],
-        account:
-          this.context.walletClient.account || (await this.getUserAddress()),
+        account,
         chain: this.context.walletClient.chain || null,
       });
 
-      // Wait for transaction confirmation and parse events
-      const receipt = await this.context.publicClient.waitForTransactionReceipt(
-        {
-          hash: txHash,
-          confirmations: 1,
-        },
-      );
-
-      // Parse the RefinerAdded event to get the refiner ID
-      const { parseRefinerAddedEvent } = await import("../utils/eventParsing");
-      const eventData = parseRefinerAddedEvent(receipt);
-
-      return {
-        refinerId: Number(eventData.refinerId),
-        transactionHash: txHash,
-      };
+      const { tx } = await import("../utils/transactionHelpers");
+      return tx({
+        hash,
+        from,
+        contract: "DataRefinerRegistry",
+        fn: "addRefinerWithSchemaId",
+      });
     } catch (error) {
       console.error("Failed to add refiner:", error);
       throw new Error(
@@ -2318,7 +2289,7 @@ export class DataController {
    */
   async updateSchemaId(
     params: UpdateSchemaIdParams,
-  ): Promise<UpdateSchemaIdResult> {
+  ): Promise<TransactionResult<"DataRefinerRegistry", "updateSchemaId">> {
     try {
       const chainId = this.context.walletClient.chain?.id;
       if (!chainId) {
@@ -2330,25 +2301,25 @@ export class DataController {
         "DataRefinerRegistry",
       );
       const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
+      const account = this.context.walletClient.account || (await this.getUserAddress());
+      const from = typeof account === 'string' ? account : account.address;
 
-      const txHash = await this.context.walletClient.writeContract({
+      const hash = await this.context.walletClient.writeContract({
         address: dataRefinerRegistryAddress,
         abi: dataRefinerRegistryAbi,
         functionName: "updateSchemaId",
         args: [BigInt(params.refinerId), BigInt(params.newSchemaId)],
-        account:
-          this.context.walletClient.account || (await this.getUserAddress()),
+        account,
         chain: this.context.walletClient.chain || null,
       });
 
-      await this.context.publicClient.waitForTransactionReceipt({
-        hash: txHash,
-        timeout: 30_000,
+      const { tx } = await import("../utils/transactionHelpers");
+      return tx({
+        hash,
+        from,
+        contract: "DataRefinerRegistry",
+        fn: "updateSchemaId",
       });
-
-      return {
-        transactionHash: txHash,
-      };
     } catch (error) {
       console.error("Failed to update schema ID:", error);
       throw new Error(
@@ -2413,30 +2384,37 @@ export class DataController {
       );
 
       // 5. Register file with permissions (either via relayer or direct)
-      let result;
       if (this.context.relayerCallbacks?.submitFileAdditionWithPermissions) {
         // Use callback for file addition with permissions
-        result =
+        const result =
           await this.context.relayerCallbacks.submitFileAdditionWithPermissions(
             uploadResult.url,
             userAddress,
             encryptedPermissions,
           );
+        return {
+          fileId: result.fileId,
+          url: uploadResult.url,
+          size: uploadResult.size,
+          transactionHash: result.transactionHash as `0x${string}`,
+        };
       } else {
-        // Direct transaction
-        result = await this.addFileWithPermissions(
+        // Direct transaction - returns TransactionResult POJO
+        const txResult = await this.addFileWithPermissions(
           uploadResult.url,
           userAddress,
           encryptedPermissions,
         );
+        
+        // For now, return the transaction result with URL and size
+        // Users need to call waitForTransactionEvents to get the fileId
+        return {
+          fileId: 0, // Placeholder - user must wait for events to get actual fileId
+          url: uploadResult.url,
+          size: uploadResult.size,
+          transactionHash: txResult.hash,
+        };
       }
-
-      return {
-        fileId: result.fileId,
-        url: uploadResult.url,
-        size: uploadResult.size,
-        transactionHash: result.transactionHash as `0x${string}`,
-      };
     } catch (error) {
       console.error("Failed to upload file with permissions:", error);
       throw new Error(
@@ -2622,21 +2600,25 @@ export class DataController {
 
       const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
       const dataRegistryAbi = getAbi("DataRegistry");
+      
+      const walletAccount = this.context.walletClient.account || (await this.getUserAddress());
 
       const txHash = await this.context.walletClient.writeContract({
         address: dataRegistryAddress,
         abi: dataRegistryAbi,
         functionName: "addFilePermission",
         args: [BigInt(fileId), account, encryptedKey],
-        account:
-          this.context.walletClient.account || (await this.getUserAddress()),
+        account: walletAccount,
         chain: this.context.walletClient.chain || null,
       });
 
-      return {
+      const { tx } = await import("../utils/transactionHelpers");
+      return tx({
         hash: txHash,
-        from: this.context.walletClient.account?.address,
-      };
+        from: typeof walletAccount === 'string' ? walletAccount : walletAccount.address,
+        contract: "DataRegistry",
+        fn: "addFilePermission",
+      });
     } catch (error) {
       console.error("Failed to add permission to file:", error);
       throw new Error(

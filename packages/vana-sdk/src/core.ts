@@ -800,53 +800,24 @@ export class VanaCore {
    *
    * @see For understanding transaction flows, visit https://docs.vana.org/docs/transactions
    */
-  public async waitForTransactionEvents<T = unknown>(
-    hashOrObj:
-      | import("./types/operations").TransactionResult
-      | { hash: import("viem").Hash }
-      | import("viem").Hash,
+  public async waitForTransactionEvents<
+    C extends import("./generated/event-types").Contract,
+    F extends import("./generated/event-types").Fn<C>
+  >(
+    transaction: import("./types/operations").TransactionResult<C, F>,
     options?: import("./types/operations").TransactionWaitOptions,
-  ): Promise<T> {
-    const hash = typeof hashOrObj === "string" ? hashOrObj : hashOrObj.hash;
-
-    // Check if we have operation context in the TransactionResult
-    const operation =
-      typeof hashOrObj === "object" && "operation" in hashOrObj
-        ? hashOrObj.operation
-        : undefined;
-
-    if (!operation) {
-      // Legacy fallback for backwards compatibility
-      // If no operation provided, return the receipt as-is (the old broken behavior)
-      // This ensures existing code doesn't break, but new code gets proper parsing
-      console.warn(
-        "waitForTransactionEvents called without operation context. " +
-          "Event parsing will not work correctly. " +
-          "Pass a TransactionResult with operation field for proper event parsing.",
-      );
-      const receipt = await this.waitForTransactionReceipt(hashOrObj, options);
-      return receipt as unknown as T;
-    }
-
-    // Import parseTransactionResult which handles event parsing
-    const { parseTransactionResult } = await import(
-      "./utils/transactionParsing"
-    );
-
-    try {
-      // Use the operation from the self-describing POJO to parse events
-      const events = await parseTransactionResult(
-        { publicClient: this.publicClient },
-        hash,
-        operation as import("./config/eventMappings").TransactionOperation,
-      );
-      return events as T;
-    } catch (error) {
-      // Log the error but don't throw - return empty object to match expected type
-      console.error("Failed to parse transaction events:", error);
-      // Still wait for the receipt to ensure transaction completed
-      await this.waitForTransactionReceipt(hashOrObj, options);
-      return {} as T;
-    }
+  ): Promise<import("./generated/event-types").TypedTransactionResult<C, F>> {
+    // Import the POJO-based parser
+    const { parseTransaction } = await import("./utils/parseTransactionPojo");
+    
+    // Wait for the transaction to be mined
+    const receipt = await this.waitForTransactionReceipt(transaction.hash, options);
+    
+    // Parse events using our heuristic-free POJO system
+    const result = parseTransaction(transaction, receipt);
+    
+    // Return the strongly-typed result
+    // TypeScript knows exactly what events are possible!
+    return result as import("./generated/event-types").TypedTransactionResult<C, F>;
   }
 }

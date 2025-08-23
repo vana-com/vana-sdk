@@ -1,5 +1,10 @@
 import type { Address } from "viem";
-import type { BaseTransactionResult } from "../utils/transactionParsing";
+// BaseTransactionResult will be replaced once migration is complete
+interface BaseTransactionResult {
+  transactionHash: `0x${string}`;
+  blockNumber: bigint;
+  gasUsed: bigint;
+}
 
 /**
  * Transaction result types for all SDK operations.

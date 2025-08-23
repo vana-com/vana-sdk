@@ -23,28 +23,32 @@ export interface Operation<T = unknown> {
 }
 
 /**
- * Represents a submitted blockchain transaction as a serializable plain object.
+ * Represents a submitted blockchain transaction as a self-describing POJO.
  *
  * @remarks
- * Transaction results are self-describing POJOs that can be passed across API boundaries.
- * The `operation` field enables proper event parsing when used with `waitForTransactionEvents`.
- * This design follows the POJO architecture for full serializability while maintaining context.
+ * Transaction results MUST include contract and function for proper event parsing.
+ * This is a strongly-typed, heuristic-free design following POJO architecture.
  */
-export interface TransactionResult {
+export interface TransactionResult<
+  C extends import("../generated/event-types").Contract = import("../generated/event-types").Contract,
+  F extends import("../generated/event-types").Fn<C> = import("../generated/event-types").Fn<C>
+> {
   /** Transaction hash for tracking and confirmation */
   hash: Hash;
   /** Sender's wallet address */
-  from?: Address;
-  /** Contract address that received the transaction */
-  to?: Address;
-  /** Transaction sequence number for the sender */
-  nonce?: number;
-  /** Transaction value in wei (for payable functions) */
-  value?: bigint;
+  from: Address;
+  /** Contract that was called (required for event parsing) */
+  contract: C;
+  /** Function that was called (required for event parsing) */
+  fn: F;
   /** Network chain ID where transaction was submitted */
   chainId?: number;
-  /** SDK operation type for event parsing context */
-  operation?: import("../config/eventMappings").TransactionOperation;
+  /** Transaction value in wei (for payable functions) */
+  value?: bigint;
+  /** Transaction sequence number for the sender */
+  nonce?: number;
+  /** Contract address (if different from standard deployment) */
+  to?: Address;
 }
 
 /**

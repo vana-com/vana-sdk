@@ -6,6 +6,7 @@ import {
   AddSchemaParams,
   AddSchemaResult,
 } from "../types/index";
+import type { TransactionResult } from "../types/operations";
 import { ControllerContext } from "./permissions";
 import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../generated/abi";
@@ -150,7 +151,7 @@ export class SchemaController {
    * console.log(`Schema created with ID: ${result.schemaId}`);
    * ```
    */
-  async create(params: CreateSchemaParams): Promise<CreateSchemaResult> {
+  async create(params: CreateSchemaParams): Promise<TransactionResult<"DataRefinerRegistry", "addSchema"> & { definitionUrl: string }> {
     const { name, dialect, schema } = params;
 
     try {
@@ -216,33 +217,30 @@ export class SchemaController {
       );
       const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
 
-      const userAddress = await this.getUserAddress();
+      const account = this.context.walletClient.account || await this.getUserAddress();
+      const from = typeof account === 'string' ? account : account.address;
 
-      const txHash = await this.context.walletClient.writeContract({
+      const hash = await this.context.walletClient.writeContract({
         address: dataRefinerRegistryAddress,
         abi: dataRefinerRegistryAbi,
         functionName: "addSchema",
         args: [name, dialect, uploadResult.url],
-        account: this.context.walletClient.account || userAddress,
+        account,
         chain: this.context.walletClient.chain || null,
       });
 
-      // Wait for transaction confirmation and parse events
-      const receipt = await this.context.publicClient.waitForTransactionReceipt(
-        {
-          hash: txHash,
-          confirmations: 1,
-        },
-      );
+      const { tx } = await import("../utils/transactionHelpers");
+      const result = tx({
+        hash,
+        from,
+        contract: "DataRefinerRegistry",
+        fn: "addSchema",
+      });
 
-      // Parse the SchemaAdded event to get the schema ID
-      const { parseSchemaAddedEvent } = await import("../utils/eventParsing");
-      const eventData = parseSchemaAddedEvent(receipt);
-
+      // Add the definitionUrl to the result
       return {
-        schemaId: Number(eventData.schemaId),
+        ...result,
         definitionUrl: uploadResult.url,
-        transactionHash: txHash,
       };
     } catch (error) {
       if (error instanceof SchemaValidationError) {
@@ -523,7 +521,7 @@ export class SchemaController {
    * @param params - Schema parameters including pre-generated definition URL
    * @returns Promise resolving to the add schema result
    */
-  async addSchema(params: AddSchemaParams): Promise<AddSchemaResult> {
+  async addSchema(params: AddSchemaParams): Promise<TransactionResult<"DataRefinerRegistry", "addSchema">> {
     try {
       const chainId = this.context.walletClient.chain?.id;
       if (!chainId) {
@@ -536,33 +534,25 @@ export class SchemaController {
       );
       const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
 
-      const userAddress = await this.getUserAddress();
+      const account = this.context.walletClient.account || await this.getUserAddress();
+      const from = typeof account === 'string' ? account : account.address;
 
-      const txHash = await this.context.walletClient.writeContract({
+      const hash = await this.context.walletClient.writeContract({
         address: dataRefinerRegistryAddress,
         abi: dataRefinerRegistryAbi,
         functionName: "addSchema",
         args: [params.name, params.dialect, params.definitionUrl],
-        account: this.context.walletClient.account || userAddress,
+        account,
         chain: this.context.walletClient.chain || null,
       });
 
-      // Wait for transaction confirmation and parse events
-      const receipt = await this.context.publicClient.waitForTransactionReceipt(
-        {
-          hash: txHash,
-          confirmations: 1,
-        },
-      );
-
-      // Parse the SchemaAdded event to get the schema ID
-      const { parseSchemaAddedEvent } = await import("../utils/eventParsing");
-      const eventData = parseSchemaAddedEvent(receipt);
-
-      return {
-        schemaId: Number(eventData.schemaId),
-        transactionHash: txHash,
-      };
+      const { tx } = await import("../utils/transactionHelpers");
+      return tx({
+        hash,
+        from,
+        contract: "DataRefinerRegistry",
+        fn: "addSchema",
+      });
     } catch (error) {
       throw new Error(
         `Failed to add schema: ${error instanceof Error ? error.message : "Unknown error"}`,

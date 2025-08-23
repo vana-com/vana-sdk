@@ -1,0 +1,1255 @@
+{
+  "contracts": {
+    "DataPortabilityPermissions": {
+      "abiModule": "src/generated/abi/DataPortabilityPermissionsImplementation.ts",
+      "abiExport": "DataPortabilityPermissionsABI",
+      "functions": {
+        "addPermission": [
+          "PermissionAdded"
+        ],
+        "revokePermission": [
+          "PermissionRevoked"
+        ],
+        "revokePermissionWithSignature": [
+          "PermissionRevoked"
+        ],
+        "addServerFilesAndPermissions": [
+          "PermissionAdded"
+        ],
+        "pause": [
+          "Paused"
+        ],
+        "unpause": [
+          "Unpaused"
+        ],
+        "grantRole": [
+          "RoleGranted"
+        ],
+        "revokeRole": [
+          "RoleRevoked"
+        ],
+        "renounceRole": [
+          "RoleRevoked"
+        ],
+        "initialize": [
+          "Initialized"
+        ],
+        "upgradeToAndCall": [
+          "Upgraded"
+        ]
+      }
+    },
+    "DataPortabilityServers": {
+      "abiModule": "src/generated/abi/DataPortabilityServersImplementation.ts",
+      "abiExport": "DataPortabilityServersABI",
+      "functions": {
+        "addAndTrustServerByManager": [
+          "ServerRegistered",
+          "ServerTrusted"
+        ],
+        "addAndTrustServerWithSignature": [
+          "ServerRegistered",
+          "ServerTrusted"
+        ],
+        "addServerWithSignature": [
+          "ServerRegistered"
+        ],
+        "trustServer": [
+          "ServerTrusted"
+        ],
+        "trustServerByManager": [
+          "ServerTrusted"
+        ],
+        "trustServerWithSignature": [
+          "ServerTrusted"
+        ],
+        "untrustServer": [
+          "ServerUntrusted"
+        ],
+        "untrustServerByManager": [
+          "ServerUntrusted"
+        ],
+        "untrustServerWithSignature": [
+          "ServerUntrusted"
+        ],
+        "updateServer": [
+          "ServerUpdated"
+        ],
+        "pause": [
+          "Paused"
+        ],
+        "unpause": [
+          "Unpaused"
+        ],
+        "grantRole": [
+          "RoleGranted"
+        ],
+        "revokeRole": [
+          "RoleRevoked"
+        ],
+        "renounceRole": [
+          "RoleRevoked"
+        ],
+        "initialize": [
+          "Initialized"
+        ],
+        "upgradeToAndCall": [
+          "Upgraded"
+        ]
+      }
+    },
+    "DataPortabilityGrantees": {
+      "abiModule": "src/generated/abi/DataPortabilityGranteesImplementation.ts",
+      "abiExport": "DataPortabilityGranteesABI",
+      "functions": {
+        "registerGrantee": [
+          "GranteeRegistered"
+        ],
+        "addPermissionToGrantee": [],
+        "removePermissionFromGrantee": [],
+        "pause": [
+          "Paused"
+        ],
+        "unpause": [
+          "Unpaused"
+        ],
+        "grantRole": [
+          "RoleGranted"
+        ],
+        "revokeRole": [
+          "RoleRevoked"
+        ],
+        "renounceRole": [
+          "RoleRevoked"
+        ],
+        "initialize": [
+          "Initialized"
+        ],
+        "upgradeToAndCall": [
+          "Upgraded"
+        ]
+      }
+    },
+    "DataRegistry": {
+      "abiModule": "src/generated/abi/DataRegistryImplementation.ts",
+      "abiExport": "DataRegistryABI",
+      "functions": {
+        "addFile": [
+          "FileAdded"
+        ],
+        "addFileWithSignature": [
+          "FileAdded"
+        ],
+        "addFileWithSchema": [
+          "FileAdded"
+        ],
+        "addFileWithPermissions": [
+          "FileAdded",
+          "PermissionGranted"
+        ],
+        "addFileWithPermissionsAndSchema": [
+          "FileAdded",
+          "PermissionGranted"
+        ],
+        "addFilePermissionsAndSchema": [
+          "FileAddedV2",
+          "PermissionGranted"
+        ],
+        "addFilePermission": [
+          "PermissionGranted"
+        ],
+        "addProof": [
+          "ProofAdded"
+        ],
+        "addRefinementWithPermission": [
+          "RefinementAdded",
+          "PermissionGranted"
+        ],
+        "updateFileMetadata": [
+          "FileMetadataUpdated"
+        ],
+        "deleteFile": [
+          "FileDeleted"
+        ],
+        "addSchema": [],
+        "updateSchemaId": [],
+        "addRefinerWithSchemaId": [],
+        "pause": [
+          "Paused"
+        ],
+        "unpause": [
+          "Unpaused"
+        ],
+        "grantRole": [
+          "RoleGranted"
+        ],
+        "revokeRole": [
+          "RoleRevoked"
+        ],
+        "renounceRole": [
+          "RoleRevoked"
+        ],
+        "initialize": [
+          "Initialized"
+        ],
+        "upgradeToAndCall": [
+          "Upgraded"
+        ]
+      }
+    },
+    "TeePoolPhala": {
+      "abiModule": "src/generated/abi/TeePoolPhalaImplementation.ts",
+      "abiExport": "TeePoolPhalaABI",
+      "functions": {
+        "addTee": [
+          "TeeAdded"
+        ],
+        "removeTee": [
+          "TeeRemoved"
+        ],
+        "submitJob": [
+          "JobSubmitted"
+        ],
+        "requestContributionProof": [
+          "JobSubmitted"
+        ],
+        "cancelJob": [
+          "JobCanceled"
+        ],
+        "addProof": [
+          "ProofAdded"
+        ],
+        "claim": [
+          "Claimed"
+        ],
+        "pause": [
+          "Paused"
+        ],
+        "unpause": [
+          "Unpaused"
+        ],
+        "grantRole": [
+          "RoleGranted"
+        ],
+        "revokeRole": [
+          "RoleRevoked"
+        ],
+        "renounceRole": [
+          "RoleRevoked"
+        ],
+        "initialize": [
+          "Initialized"
+        ],
+        "upgradeToAndCall": [
+          "Upgraded"
+        ]
+      }
+    },
+    "ComputeEngine": {
+      "abiModule": "src/generated/abi/ComputeEngineImplementation.ts",
+      "abiExport": "ComputeEngineABI",
+      "functions": {
+        "registerJob": [
+          "JobRegistered"
+        ],
+        "submitJob": [
+          "JobSubmitted"
+        ],
+        "updateJobStatus": [
+          "JobStatusUpdated"
+        ],
+        "cancelJob": [
+          "JobCanceled"
+        ],
+        "executePayment": [
+          "PaymentExecuted"
+        ],
+        "withdraw": [
+          "Transfer",
+          "Withdraw"
+        ],
+        "deposit": [
+          "Deposit"
+        ],
+        "pause": [
+          "Paused"
+        ],
+        "unpause": [
+          "Unpaused"
+        ],
+        "grantRole": [
+          "RoleGranted"
+        ],
+        "revokeRole": [
+          "RoleRevoked"
+        ],
+        "renounceRole": [
+          "RoleRevoked"
+        ],
+        "initialize": [
+          "Initialized"
+        ],
+        "upgradeToAndCall": [
+          "Upgraded"
+        ]
+      }
+    },
+    "DataRefinerRegistry": {
+      "abiModule": "src/generated/abi/DataRefinerRegistryImplementation.ts",
+      "abiExport": "DataRefinerRegistryABI",
+      "functions": {
+        "addRefiner": [
+          "RefinerAdded"
+        ],
+        "addRefinerWithSchemaId": [
+          "RefinerAdded"
+        ],
+        "addSchema": [
+          "SchemaAdded"
+        ],
+        "addRefinementService": [],
+        "removeRefinementService": [],
+        "updateSchemaId": [],
+        "updateRefinerOwner": [],
+        "updateDlpRefinersOwner": [],
+        "pause": [
+          "Paused"
+        ],
+        "unpause": [
+          "Unpaused"
+        ],
+        "grantRole": [
+          "RoleGranted"
+        ],
+        "revokeRole": [
+          "RoleRevoked"
+        ],
+        "renounceRole": [
+          "RoleRevoked"
+        ],
+        "initialize": [
+          "Initialized"
+        ],
+        "upgradeToAndCall": [
+          "Upgraded"
+        ]
+      }
+    },
+    "QueryEngine": {
+      "abiModule": "src/generated/abi/QueryEngineImplementation.ts",
+      "abiExport": "QueryEngineABI",
+      "functions": {
+        "updatePermissionApproval": [
+          "PermissionApprovalUpdated"
+        ],
+        "claimDlpPayment": [
+          "DlpPaymentClaimed",
+          "Transfer"
+        ],
+        "executeQuery": [],
+        "cacheResult": [],
+        "invalidateCache": [],
+        "updateQueryLimit": [],
+        "pause": [
+          "Paused"
+        ],
+        "unpause": [
+          "Unpaused"
+        ],
+        "grantRole": [
+          "RoleGranted"
+        ],
+        "revokeRole": [
+          "RoleRevoked"
+        ],
+        "renounceRole": [
+          "RoleRevoked"
+        ],
+        "initialize": [
+          "Initialized"
+        ],
+        "upgradeToAndCall": [
+          "Upgraded"
+        ]
+      }
+    },
+    "ComputeInstructionRegistry": {
+      "abiModule": "src/generated/abi/ComputeInstructionRegistryImplementation.ts",
+      "abiExport": "ComputeInstructionRegistryABI",
+      "functions": {
+        "addComputeInstruction": [
+          "ComputeInstructionAdded"
+        ],
+        "updateComputeInstruction": [
+          "ComputeInstructionUpdated"
+        ],
+        "removeComputeInstruction": [
+          "ComputeInstructionRemoved"
+        ],
+        "pause": [
+          "Paused"
+        ],
+        "unpause": [
+          "Unpaused"
+        ],
+        "grantRole": [
+          "RoleGranted"
+        ],
+        "revokeRole": [
+          "RoleRevoked"
+        ],
+        "renounceRole": [
+          "RoleRevoked"
+        ],
+        "initialize": [
+          "Initialized"
+        ],
+        "upgradeToAndCall": [
+          "Upgraded"
+        ]
+      }
+    },
+    "TeePoolEphemeralStandard": {
+      "abiModule": "src/generated/abi/TeePoolEphemeralStandardImplementation.ts",
+      "abiExport": "TeePoolEphemeralStandardABI",
+      "functions": {
+        "addTee": [
+          "TeeAdded"
+        ],
+        "removeTee": [
+          "TeeRemoved"
+        ],
+        "submitJob": [
+          "JobSubmitted"
+        ],
+        "removeJob": [
+          "JobRemoved"
+        ],
+        "cancelJob": [
+          "JobCanceled"
+        ],
+        "addProof": [
+          "ProofAdded"
+        ],
+        "claim": [
+          "Claimed"
+        ],
+        "pause": [
+          "Paused"
+        ],
+        "unpause": [
+          "Unpaused"
+        ],
+        "grantRole": [
+          "RoleGranted"
+        ],
+        "revokeRole": [
+          "RoleRevoked"
+        ],
+        "renounceRole": [
+          "RoleRevoked"
+        ],
+        "initialize": [
+          "Initialized"
+        ],
+        "upgradeToAndCall": [
+          "Upgraded"
+        ]
+      }
+    },
+    "TeePoolPersistentStandard": {
+      "abiModule": "src/generated/abi/TeePoolPersistentStandardImplementation.ts",
+      "abiExport": "TeePoolPersistentStandardABI",
+      "functions": {
+        "addTee": [
+          "TeeAdded"
+        ],
+        "removeTee": [
+          "TeeRemoved"
+        ],
+        "submitJob": [
+          "JobSubmitted"
+        ],
+        "removeJob": [
+          "JobRemoved"
+        ],
+        "cancelJob": [
+          "JobCanceled"
+        ],
+        "addProof": [
+          "ProofAdded"
+        ],
+        "claim": [
+          "Claimed"
+        ],
+        "pause": [
+          "Paused"
+        ],
+        "unpause": [
+          "Unpaused"
+        ],
+        "grantRole": [
+          "RoleGranted"
+        ],
+        "revokeRole": [
+          "RoleRevoked"
+        ],
+        "renounceRole": [
+          "RoleRevoked"
+        ],
+        "initialize": [
+          "Initialized"
+        ],
+        "upgradeToAndCall": [
+          "Upgraded"
+        ]
+      }
+    },
+    "TeePoolPersistentGpu": {
+      "abiModule": "src/generated/abi/TeePoolPersistentGpuImplementation.ts",
+      "abiExport": "TeePoolPersistentGpuABI",
+      "functions": {
+        "addTee": [
+          "TeeAdded"
+        ],
+        "removeTee": [
+          "TeeRemoved"
+        ],
+        "submitJob": [
+          "JobSubmitted"
+        ],
+        "removeJob": [
+          "JobRemoved"
+        ],
+        "cancelJob": [
+          "JobCanceled"
+        ],
+        "addProof": [
+          "ProofAdded"
+        ],
+        "claim": [
+          "Claimed"
+        ],
+        "pause": [
+          "Paused"
+        ],
+        "unpause": [
+          "Unpaused"
+        ],
+        "grantRole": [
+          "RoleGranted"
+        ],
+        "revokeRole": [
+          "RoleRevoked"
+        ],
+        "renounceRole": [
+          "RoleRevoked"
+        ],
+        "initialize": [
+          "Initialized"
+        ],
+        "upgradeToAndCall": [
+          "Upgraded"
+        ]
+      }
+    },
+    "TeePoolDedicatedStandard": {
+      "abiModule": "src/generated/abi/TeePoolDedicatedStandardImplementation.ts",
+      "abiExport": "TeePoolDedicatedStandardABI",
+      "functions": {
+        "addTee": [
+          "TeeAdded"
+        ],
+        "removeTee": [
+          "TeeRemoved"
+        ],
+        "submitJob": [
+          "JobSubmitted"
+        ],
+        "removeJob": [
+          "JobRemoved"
+        ],
+        "cancelJob": [
+          "JobCanceled"
+        ],
+        "addProof": [
+          "ProofAdded"
+        ],
+        "claim": [
+          "Claimed"
+        ],
+        "pause": [
+          "Paused"
+        ],
+        "unpause": [
+          "Unpaused"
+        ],
+        "grantRole": [
+          "RoleGranted"
+        ],
+        "revokeRole": [
+          "RoleRevoked"
+        ],
+        "renounceRole": [
+          "RoleRevoked"
+        ],
+        "initialize": [
+          "Initialized"
+        ],
+        "upgradeToAndCall": [
+          "Upgraded"
+        ]
+      }
+    },
+    "TeePoolDedicatedGpu": {
+      "abiModule": "src/generated/abi/TeePoolDedicatedGpuImplementation.ts",
+      "abiExport": "TeePoolDedicatedGpuABI",
+      "functions": {
+        "addTee": [
+          "TeeAdded"
+        ],
+        "removeTee": [
+          "TeeRemoved"
+        ],
+        "submitJob": [
+          "JobSubmitted"
+        ],
+        "removeJob": [
+          "JobRemoved"
+        ],
+        "cancelJob": [
+          "JobCanceled"
+        ],
+        "addProof": [
+          "ProofAdded"
+        ],
+        "claim": [
+          "Claimed"
+        ],
+        "pause": [
+          "Paused"
+        ],
+        "unpause": [
+          "Unpaused"
+        ],
+        "grantRole": [
+          "RoleGranted"
+        ],
+        "revokeRole": [
+          "RoleRevoked"
+        ],
+        "renounceRole": [
+          "RoleRevoked"
+        ],
+        "initialize": [
+          "Initialized"
+        ],
+        "upgradeToAndCall": [
+          "Upgraded"
+        ]
+      }
+    },
+    "VanaEpoch": {
+      "abiModule": "src/generated/abi/VanaEpochImplementation.ts",
+      "abiExport": "VanaEpochABI",
+      "functions": {
+        "updateEpochSize": [
+          "EpochSizeUpdated"
+        ],
+        "updateEpochRewardAmount": [
+          "EpochRewardAmountUpdated"
+        ],
+        "saveEpochDlpRewards": [
+          "EpochDlpRewardAdded",
+          "EpochFinalized"
+        ],
+        "overrideEpochDlpReward": [
+          "EpochDlpRewardOverridden"
+        ],
+        "forceFinalizedEpoch": [
+          "EpochFinalized"
+        ],
+        "updateEpoch": [
+          "EpochCreated",
+          "EpochUpdated"
+        ],
+        "updateDaySize": [
+          "EpochDayUpdated"
+        ],
+        "pause": [
+          "Paused"
+        ],
+        "unpause": [
+          "Unpaused"
+        ],
+        "grantRole": [
+          "RoleGranted"
+        ],
+        "revokeRole": [
+          "RoleRevoked"
+        ],
+        "renounceRole": [
+          "RoleRevoked"
+        ],
+        "initialize": [
+          "Initialized"
+        ],
+        "upgradeToAndCall": [
+          "Upgraded"
+        ]
+      }
+    },
+    "DLPRegistry": {
+      "abiModule": "src/generated/abi/DLPRegistryImplementation.ts",
+      "abiExport": "DLPRegistryABI",
+      "functions": {
+        "registerDlp": [
+          "DlpRegistered"
+        ],
+        "updateDlpOwner": [
+          "DlpOwnerUpdated"
+        ],
+        "updateDlpRegistrationDepositAmount": [
+          "DlpRegistrationDepositAmountUpdated"
+        ],
+        "updateDlpVerificationBlock": [
+          "DlpVerificationBlockUpdated"
+        ],
+        "unverifyDlp": [
+          "DlpVerificationBlockUpdated"
+        ],
+        "updateDlpToken": [
+          "DlpTokenUpdated"
+        ],
+        "updateDlpTokenAndVerification": [
+          "DlpTokenUpdated",
+          "DlpVerificationBlockUpdated"
+        ],
+        "updateDlp": [
+          "DlpUpdated"
+        ],
+        "deregisterDlp": [
+          "DlpStatusUpdated"
+        ],
+        "migrateDlpData": [
+          "DlpRegistered"
+        ],
+        "dlpOwnerVotesSubmitted": [
+          "DlpOwnerVotesSubmitted"
+        ],
+        "dlpConsumerVotesSubmitted": [
+          "DlpConsumerVotesSubmitted"
+        ],
+        "dlpUnregistrationRequested": [
+          "DlpUnregistrationRequested"
+        ],
+        "unregisterDlp": [
+          "DlpUnregistered"
+        ],
+        "pause": [
+          "Paused"
+        ],
+        "unpause": [
+          "Unpaused"
+        ],
+        "grantRole": [
+          "RoleGranted"
+        ],
+        "revokeRole": [
+          "RoleRevoked"
+        ],
+        "renounceRole": [
+          "RoleRevoked"
+        ],
+        "initialize": [
+          "Initialized"
+        ],
+        "upgradeToAndCall": [
+          "Upgraded"
+        ]
+      }
+    },
+    "DLPRegistryTreasury": {
+      "abiModule": "src/generated/abi/DLPRegistryTreasuryImplementation.ts",
+      "abiExport": "DLPRegistryTreasuryABI",
+      "functions": {
+        "transfer": [
+          "Transfer"
+        ],
+        "deposit": [],
+        "withdraw": [],
+        "allocateFunds": [],
+        "updateBudget": [],
+        "pause": [
+          "Paused"
+        ],
+        "unpause": [
+          "Unpaused"
+        ],
+        "grantRole": [
+          "RoleGranted"
+        ],
+        "revokeRole": [
+          "RoleRevoked"
+        ],
+        "renounceRole": [
+          "RoleRevoked"
+        ],
+        "initialize": [
+          "Initialized"
+        ],
+        "upgradeToAndCall": [
+          "Upgraded"
+        ]
+      }
+    },
+    "DLPPerformance": {
+      "abiModule": "src/generated/abi/DLPPerformanceImplementation.ts",
+      "abiExport": "DLPPerformanceABI",
+      "functions": {
+        "updateMetricWeights": [
+          "MetricWeightsUpdated"
+        ],
+        "saveEpochPerformances": [
+          "EpochDlpPerformancesSaved"
+        ],
+        "overrideEpochPerformances": [
+          "EpochDlpPerformancesOverridden"
+        ],
+        "overrideEpochDlpPenalty": [
+          "EpochDlpPenaltyUpdated"
+        ],
+        "pause": [
+          "Paused"
+        ],
+        "unpause": [
+          "Unpaused"
+        ],
+        "grantRole": [
+          "RoleGranted"
+        ],
+        "revokeRole": [
+          "RoleRevoked"
+        ],
+        "renounceRole": [
+          "RoleRevoked"
+        ],
+        "initialize": [
+          "Initialized"
+        ],
+        "upgradeToAndCall": [
+          "Upgraded"
+        ]
+      }
+    },
+    "DLPRewardDeployer": {
+      "abiModule": "src/generated/abi/DLPRewardDeployerImplementation.ts",
+      "abiExport": "DLPRewardDeployerABI",
+      "functions": {
+        "distributeRewards": [
+          "EpochDlpRewardDistributed"
+        ],
+        "withdrawEpochDlpPenaltyAmount": [
+          "EpochDlpPenaltyDistributed"
+        ],
+        "pause": [
+          "Paused"
+        ],
+        "unpause": [
+          "Unpaused"
+        ],
+        "grantRole": [
+          "RoleGranted"
+        ],
+        "revokeRole": [
+          "RoleRevoked"
+        ],
+        "renounceRole": [
+          "RoleRevoked"
+        ],
+        "initialize": [
+          "Initialized"
+        ],
+        "upgradeToAndCall": [
+          "Upgraded"
+        ]
+      }
+    },
+    "DLPRewardDeployerTreasury": {
+      "abiModule": "src/generated/abi/DLPRewardDeployerTreasuryImplementation.ts",
+      "abiExport": "DLPRewardDeployerTreasuryABI",
+      "functions": {
+        "transfer": [
+          "Transfer"
+        ],
+        "deposit": [],
+        "withdraw": [],
+        "allocateRewards": [],
+        "updateAllocation": [],
+        "pause": [
+          "Paused"
+        ],
+        "unpause": [
+          "Unpaused"
+        ],
+        "grantRole": [
+          "RoleGranted"
+        ],
+        "revokeRole": [
+          "RoleRevoked"
+        ],
+        "renounceRole": [
+          "RoleRevoked"
+        ],
+        "initialize": [
+          "Initialized"
+        ],
+        "upgradeToAndCall": [
+          "Upgraded"
+        ]
+      }
+    },
+    "DLPRewardSwap": {
+      "abiModule": "src/generated/abi/DLPRewardSwapImplementation.ts",
+      "abiExport": "DLPRewardSwapABI",
+      "functions": {
+        "splitRewardSwap": [
+          "Reward"
+        ],
+        "swap": [],
+        "addLiquidity": [],
+        "removeLiquidity": [],
+        "updateSwapFee": [],
+        "pause": [
+          "Paused"
+        ],
+        "unpause": [
+          "Unpaused"
+        ],
+        "grantRole": [
+          "RoleGranted"
+        ],
+        "revokeRole": [
+          "RoleRevoked"
+        ],
+        "renounceRole": [
+          "RoleRevoked"
+        ],
+        "initialize": [
+          "Initialized"
+        ],
+        "upgradeToAndCall": [
+          "Upgraded"
+        ]
+      }
+    },
+    "SwapHelper": {
+      "abiModule": "src/generated/abi/SwapHelperImplementation.ts",
+      "abiExport": "SwapHelperABI",
+      "functions": {
+        "swap": [],
+        "getQuote": [],
+        "updateSlippage": [],
+        "updateRouter": [],
+        "pause": [
+          "Paused"
+        ],
+        "unpause": [
+          "Unpaused"
+        ],
+        "grantRole": [
+          "RoleGranted"
+        ],
+        "revokeRole": [
+          "RoleRevoked"
+        ],
+        "renounceRole": [
+          "RoleRevoked"
+        ],
+        "initialize": [
+          "Initialized"
+        ],
+        "upgradeToAndCall": [
+          "Upgraded"
+        ]
+      }
+    },
+    "VanaPoolStaking": {
+      "abiModule": "src/generated/abi/VanaPoolStakingImplementation.ts",
+      "abiExport": "VanaPoolStakingABI",
+      "functions": {
+        "stake": [
+          "Staked"
+        ],
+        "unstake": [
+          "Unstaked"
+        ],
+        "registerEntityStake": [
+          "Staked"
+        ],
+        "claimRewards": [],
+        "updateMinStakeAmount": [
+          "MinStakeUpdated"
+        ],
+        "pause": [
+          "Paused"
+        ],
+        "unpause": [
+          "Unpaused"
+        ],
+        "grantRole": [
+          "RoleGranted"
+        ],
+        "revokeRole": [
+          "RoleRevoked"
+        ],
+        "renounceRole": [
+          "RoleRevoked"
+        ],
+        "initialize": [
+          "Initialized"
+        ],
+        "upgradeToAndCall": [
+          "Upgraded"
+        ]
+      }
+    },
+    "VanaPoolEntity": {
+      "abiModule": "src/generated/abi/VanaPoolEntityImplementation.ts",
+      "abiExport": "VanaPoolEntityABI",
+      "functions": {
+        "createEntity": [
+          "EntityCreated",
+          "EntityStatusUpdated"
+        ],
+        "registerEntity": [
+          "EntityRegistered"
+        ],
+        "updateEntity": [
+          "EntityUpdated"
+        ],
+        "updateEntityMetadata": [
+          "EntityMetadataUpdated"
+        ],
+        "unregisterEntity": [
+          "EntityUnregistered"
+        ],
+        "updateEntityMaxAPY": [
+          "EntityMaxAPYUpdated",
+          "RewardsProcessed"
+        ],
+        "addRewards": [
+          "RewardsAdded"
+        ],
+        "processRewards": [
+          "RewardsProcessed"
+        ],
+        "pause": [
+          "Paused"
+        ],
+        "unpause": [
+          "Unpaused"
+        ],
+        "grantRole": [
+          "RoleGranted"
+        ],
+        "revokeRole": [
+          "RoleRevoked"
+        ],
+        "renounceRole": [
+          "RoleRevoked"
+        ],
+        "initialize": [
+          "Initialized"
+        ],
+        "upgradeToAndCall": [
+          "Upgraded"
+        ]
+      }
+    },
+    "VanaPoolTreasury": {
+      "abiModule": "src/generated/abi/VanaPoolTreasuryImplementation.ts",
+      "abiExport": "VanaPoolTreasuryABI",
+      "functions": {
+        "deposit": [],
+        "withdraw": [],
+        "allocateFunds": [],
+        "updateBudget": [],
+        "updateTreasuryAddress": [],
+        "pause": [
+          "Paused"
+        ],
+        "unpause": [
+          "Unpaused"
+        ],
+        "grantRole": [
+          "RoleGranted"
+        ],
+        "revokeRole": [
+          "RoleRevoked"
+        ],
+        "renounceRole": [
+          "RoleRevoked"
+        ],
+        "initialize": [
+          "Initialized"
+        ],
+        "upgradeToAndCall": [
+          "Upgraded"
+        ]
+      }
+    },
+    "DAT": {
+      "abiModule": "src/generated/abi/DATImplementation.ts",
+      "abiExport": "DATABI",
+      "functions": {
+        "mint": [],
+        "burn": [],
+        "transfer": [
+          "Transfer"
+        ],
+        "approve": [
+          "Approval"
+        ],
+        "transferFrom": [
+          "Transfer"
+        ],
+        "blockAddress": [
+          "AddressBlocked"
+        ],
+        "unblockAddress": [
+          "AddressUnblocked"
+        ],
+        "pause": [
+          "Paused"
+        ],
+        "unpause": [
+          "Unpaused"
+        ],
+        "upgradeToAndCall": [
+          "Upgraded"
+        ]
+      }
+    },
+    "DATFactory": {
+      "abiModule": "src/generated/abi/DATFactoryImplementation.ts",
+      "abiExport": "DATFactoryABI",
+      "functions": {
+        "createDAT": [
+          "DATCreated"
+        ],
+        "createToken": [
+          "DATCreated"
+        ],
+        "updateDATTemplate": [],
+        "updateFactoryFee": [],
+        "pause": [
+          "Paused"
+        ],
+        "unpause": [
+          "Unpaused"
+        ],
+        "grantRole": [
+          "RoleGranted"
+        ],
+        "revokeRole": [
+          "RoleRevoked"
+        ],
+        "renounceRole": [
+          "RoleRevoked"
+        ],
+        "initialize": [
+          "Initialized"
+        ],
+        "upgradeToAndCall": [
+          "Upgraded"
+        ]
+      }
+    },
+    "DATPausable": {
+      "abiModule": "src/generated/abi/DATPausableImplementation.ts",
+      "abiExport": "DATPausableABI",
+      "functions": {
+        "mint": [],
+        "burn": [],
+        "transfer": [
+          "Transfer"
+        ],
+        "approve": [
+          "Approval"
+        ],
+        "transferFrom": [
+          "Transfer"
+        ],
+        "blockAddress": [
+          "AddressBlocked"
+        ],
+        "unblockAddress": [
+          "AddressUnblocked"
+        ],
+        "pause": [
+          "Paused"
+        ],
+        "unpause": [
+          "Unpaused"
+        ],
+        "upgradeToAndCall": [
+          "Upgraded"
+        ]
+      }
+    },
+    "DATVotes": {
+      "abiModule": "src/generated/abi/DATVotesImplementation.ts",
+      "abiExport": "DATVotesABI",
+      "functions": {
+        "mint": [],
+        "burn": [],
+        "transfer": [
+          "Transfer"
+        ],
+        "approve": [
+          "Approval"
+        ],
+        "transferFrom": [
+          "Transfer"
+        ],
+        "delegate": [
+          "DelegateChanged",
+          "DelegateVotesChanged"
+        ],
+        "delegateBySig": [
+          "DelegateChanged",
+          "DelegateVotesChanged"
+        ],
+        "blockAddress": [
+          "AddressBlocked"
+        ],
+        "unblockAddress": [
+          "AddressUnblocked"
+        ],
+        "pause": [
+          "Paused"
+        ],
+        "unpause": [
+          "Unpaused"
+        ],
+        "upgradeToAndCall": [
+          "Upgraded"
+        ]
+      }
+    },
+    "TeePool": {
+      "abiModule": "src/generated/abi/TeePoolImplementation.ts",
+      "abiExport": "TeePoolABI",
+      "functions": {
+        "addJob": [],
+        "submitProof": [],
+        "cancelJob": [],
+        "claimReward": [],
+        "updateFeeRecipient": [],
+        "updateJobTimeout": [],
+        "updateMinJobDuration": []
+      }
+    }
+  }
+}

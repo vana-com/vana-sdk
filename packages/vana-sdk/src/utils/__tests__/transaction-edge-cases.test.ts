@@ -131,28 +131,28 @@ describe('Transaction System Edge Cases', () => {
 
   describe('parseTransaction edge cases', () => {
     it('handles empty function registry gracefully', () => {
-      const txResult: TransactionResult<'UnknownContract', 'unknownFunction'> = {
+      const txResult = {
         hash: '0xunknown' as `0x${string}`,
         from: '0xaddr' as `0x${string}`,
         contract: 'UnknownContract' as any,
         fn: 'unknownFunction' as any,
       };
 
-      const receipt: TransactionReceipt = {
+      const receipt = {
         logs: [
           {
             topics: ['0xsometopic'],
             data: '0x',
-          } as Log,
+          } as unknown as Log,
         ],
-      } as TransactionReceipt;
+      } as unknown as TransactionReceipt;
 
-      const result = parseTransaction(txResult, receipt);
+      const result = parseTransaction(txResult as any, receipt);
 
-      expect(result.expectedEvents).toEqual([]);
+      expect(result.expectedEvents).toEqual({});
       // allEvents will have Unknown events for unregistered topics
       expect(result.allEvents).toHaveLength(1);
-      expect(result.allEvents[0].name).toBe('Unknown');
+      expect(result.allEvents[0].eventName).toBe('Unknown');
       expect(result.contract).toBe('UnknownContract');
       expect(result.fn).toBe('unknownFunction');
     });
@@ -171,24 +171,24 @@ describe('Transaction System Edge Cases', () => {
         logs.push({
           topics: [`0xinvalid${i}`],
           data: '0x',
-        } as Log);
+        } as unknown as Log);
       }
       
       // Add one valid log
       logs.push({
         topics: ['0xvalidtopic'],
         data: '0x',
-      } as Log);
+      } as unknown as Log);
 
-      const receipt: TransactionReceipt = {
+      const receipt = {
         logs,
-      } as TransactionReceipt;
+      } as unknown as TransactionReceipt;
 
       const result = parseTransaction(txResult, receipt);
 
       // Should still find the valid event
-      expect(result.expectedEvents).toHaveLength(1);
-      expect(result.expectedEvents[0].name).toBe('PermissionAdded');
+      expect(result.hasExpectedEvents).toBe(true);
+      expect(result.expectedEvents.PermissionAdded).toBeDefined();
     });
 
     it('handles logs with missing or malformed data', () => {
@@ -199,16 +199,16 @@ describe('Transaction System Edge Cases', () => {
         fn: 'addPermission',
       };
 
-      const receipt: TransactionReceipt = {
+      const receipt = {
         logs: [
-          {} as Log, // Empty log
+          {} as unknown as Log, // Empty log
           { topics: null } as any, // Null topics
           { topics: undefined } as any, // Undefined topics
-          { topics: [] } as Log, // Empty topics array
+          { topics: [] } as unknown as Log, // Empty topics array
           { data: null } as any, // Null data
-          { topics: ['0xvalidtopic'] } as Log, // Missing data field
+          { topics: ['0xvalidtopic'] } as unknown as Log, // Missing data field
         ],
-      } as TransactionReceipt;
+      } as unknown as TransactionReceipt;
 
       // Should not throw
       expect(() => {
@@ -230,19 +230,19 @@ describe('Transaction System Edge Cases', () => {
         topics.push(`0xextra${i}`);
       }
 
-      const receipt: TransactionReceipt = {
+      const receipt = {
         logs: [
           {
             topics: topics as any,
             data: '0x',
-          } as Log,
+          } as unknown as Log,
         ],
-      } as TransactionReceipt;
+      } as unknown as TransactionReceipt;
 
       const result = parseTransaction(txResult, receipt);
 
       // Should still process the first topic
-      expect(result.expectedEvents).toHaveLength(1);
+      expect(result.hasExpectedEvents).toBe(true);
     });
 
     it('handles duplicate events in logs', () => {
@@ -253,19 +253,19 @@ describe('Transaction System Edge Cases', () => {
         fn: 'addPermission',
       };
 
-      const receipt: TransactionReceipt = {
+      const receipt = {
         logs: [
-          { topics: ['0xvalidtopic'], data: '0x1' } as Log,
-          { topics: ['0xvalidtopic'], data: '0x2' } as Log,
-          { topics: ['0xvalidtopic'], data: '0x3' } as Log,
+          { topics: ['0xvalidtopic'], data: '0x1' } as unknown as Log,
+          { topics: ['0xvalidtopic'], data: '0x2' } as unknown as Log,
+          { topics: ['0xvalidtopic'], data: '0x3' } as unknown as Log,
         ],
-      } as TransactionReceipt;
+      } as unknown as TransactionReceipt;
 
       const result = parseTransaction(txResult, receipt);
 
       // Should process all duplicate events
-      expect(result.expectedEvents).toHaveLength(3);
-      expect(result.expectedEvents.every(e => e.name === 'PermissionAdded')).toBe(true);
+      expect(result.hasExpectedEvents).toBe(true);
+      expect(result.expectedEvents.PermissionAdded).toBeDefined();
     });
   });
 
@@ -318,10 +318,10 @@ describe('Transaction System Edge Cases', () => {
       expect(result.fn).toBe('nonExistentFunction');
 
       // But parseTransaction would handle this gracefully
-      const receipt: TransactionReceipt = { logs: [] } as TransactionReceipt;
+      const receipt = { logs: [] } as unknown as TransactionReceipt;
       const parsed = parseTransaction(result as any, receipt);
       
-      expect(parsed.expectedEvents).toEqual([]);
+      expect(parsed.expectedEvents).toEqual({});
     });
   });
 

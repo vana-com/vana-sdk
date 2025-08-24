@@ -6,23 +6,10 @@
  * Principle: Explicit over implicit, guarantees over guesses.
  */
 
-import { decodeEventLog, type Log, type TransactionReceipt } from 'viem';
+import { decodeEventLog, type TransactionReceipt } from 'viem';
 import type { TransactionResult } from '../types/operations';
-import { EVENT_REGISTRY } from '../generated/eventRegistry';
-
-/**
- * Represents a parsed blockchain event from a transaction log.
- */
-export interface ParsedEvent {
-  /** The name of the event */
-  name: string;
-  /** The decoded event arguments */
-  args: Record<string, unknown>;
-  /** The contract address that emitted the event */
-  address?: string;
-  /** The index of this log in the transaction */
-  logIndex?: number;
-}
+import type { TypedTransactionResult, Contract, Fn, ExpectedEvents } from '../generated/event-types';
+import { EVENT_REGISTRY, TOPIC_TO_ABIS } from '../generated/eventRegistry';
 
 /**
  * Parses a transaction using TransactionResult POJO with ZERO heuristics.
@@ -30,93 +17,96 @@ export interface ParsedEvent {
  * @remarks
  * - Uses function-scoped event registry for O(1) lookups
  * - Only expects events explicitly mapped for this contract.function
- * - Returns all events but distinguishes expected from unexpected
+ * - Returns typed events matching the exact TypedTransactionResult interface
  * 
  * @param transactionResult - The TransactionResult POJO with context
  * @param receipt - The transaction receipt from the blockchain
- * @returns Transaction result with parsed events
+ * @returns Typed transaction result with parsed events
  */
-export function parseTransaction<C extends string, F extends string>(
+export function parseTransaction<C extends Contract, F extends Fn<C>>(
   transactionResult: TransactionResult<C, F>,
   receipt: TransactionReceipt
-): TransactionResult<C, F> & {
-  expectedEvents: ParsedEvent[];
-  allEvents: ParsedEvent[];
-  receipt: TransactionReceipt;
-} {
+): TypedTransactionResult<C, F> {
   const { contract: contractName, fn: functionName } = transactionResult;
   
   // Look up expected events from the function-specific registry
   const registryKey = `${contractName}.${functionName}`;
   const registry = EVENT_REGISTRY[registryKey as keyof typeof EVENT_REGISTRY];
   
-  const expectedEvents: ParsedEvent[] = [];
-  const allEvents: ParsedEvent[] = [];
+  // Initialize the expected events object with proper types
+  const expectedEvents: any = {};
+  const allEvents: Array<{
+    contractAddress: string;
+    eventName: string;
+    args: Record<string, unknown>;
+    logIndex: number;
+  }> = [];
   
-  if (!receipt.logs) {
-    // No logs to parse
-    return {
-      ...transactionResult,
-      expectedEvents,
-      allEvents,
-      receipt,
-    };
-  }
+  let hasExpectedEvents = false;
   
-  // Parse logs using the function-scoped registry
-  for (const log of receipt.logs) {
-    if (!log.topics || log.topics.length === 0) {
-      // Skip malformed logs
-      continue;
-    }
-    
-    const eventTopic = log.topics[0];
-    
-    // Try to decode using the function-specific registry
-    if (registry && registry.topicToAbi && registry.topicToAbi[eventTopic]) {
-      const abiEvent = registry.topicToAbi[eventTopic];
+  if (receipt.logs) {
+    // Parse logs using the function-scoped registry
+    for (const log of receipt.logs) {
+      if (!log.topics || log.topics.length === 0) {
+        // Skip malformed logs
+        continue;
+      }
       
-      try {
-        const decoded = decodeEventLog({
-          abi: [abiEvent],
-          data: log.data,
-          topics: log.topics as readonly `0x${string}`[],
-        });
-        
-        const parsedEvent: ParsedEvent = {
-          name: decoded.eventName,
-          args: decoded.args as Record<string, unknown>,
-          address: log.address,
-          logIndex: log.logIndex ?? undefined,
-        };
-        
-        expectedEvents.push(parsedEvent);
-        allEvents.push(parsedEvent);
-      } catch {
-        // Failed to decode, treat as unknown event
+      const eventTopic = log.topics[0] as `0x${string}`;
+      
+      // Try to decode using TOPIC_TO_ABIS for O(1) lookup
+      const abiCandidates = TOPIC_TO_ABIS.get(eventTopic);
+      
+      if (abiCandidates && abiCandidates.length > 0) {
+        // Try each ABI variant (handles collisions)
+        for (const abiEvent of abiCandidates) {
+          try {
+            const decoded = decodeEventLog({
+              abi: [abiEvent],
+              data: log.data,
+              topics: log.topics as [`0x${string}`, ...`0x${string}`[]],
+            });
+            
+            // Add to allEvents
+            allEvents.push({
+              contractAddress: log.address || '',
+              eventName: decoded.eventName,
+              args: decoded.args as Record<string, unknown>,
+              logIndex: log.logIndex ?? 0,
+            });
+            
+            // If this event is expected for this function, add to expectedEvents
+            if (registry && registry.eventNames.includes(decoded.eventName)) {
+              expectedEvents[decoded.eventName] = decoded.args;
+              hasExpectedEvents = true;
+            }
+            
+            break; // Successfully decoded, don't try other variants
+          } catch {
+            // Try next ABI variant
+            continue;
+          }
+        }
+      } else {
+        // Event not decodable, add as unknown
         allEvents.push({
-          name: 'Unknown',
+          contractAddress: log.address || '',
+          eventName: 'Unknown',
           args: { topic0: eventTopic, data: log.data },
-          address: log.address,
-          logIndex: log.logIndex ?? undefined,
+          logIndex: log.logIndex ?? 0,
         });
       }
-    } else {
-      // Event not in function-specific registry
-      allEvents.push({
-        name: 'Unknown',
-        args: { topic0: eventTopic, data: log.data },
-        address: log.address,
-        logIndex: log.logIndex ?? undefined,
-      });
     }
   }
   
-  // Return a new POJO with all the information
+  // Return a properly typed TypedTransactionResult
   return {
-    ...transactionResult,
-    expectedEvents,
+    hash: transactionResult.hash,
+    from: transactionResult.from,
+    contract: contractName as C,
+    fn: functionName as F,
+    expectedEvents: expectedEvents as ExpectedEvents<C, F>,
     allEvents,
-    receipt,
+    hasExpectedEvents,
   };
 }

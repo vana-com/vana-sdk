@@ -182,7 +182,7 @@ describe('POJO Serialization and Next.js Compatibility', () => {
       setState(transaction);
 
       expect(state).toBe(transaction);
-      expect(state?.contract).toBe('ComputeInstructionRegistry');
+      expect(state!.contract).toBe('ComputeInstructionRegistry');
       
       // Creating a new object (React re-render trigger)
       const newTransaction = tx({
@@ -275,9 +275,9 @@ describe('POJO Serialization and Next.js Compatibility', () => {
         fn: 'addPermission',
       };
 
-      const receipt: TransactionReceipt = {
+      const receipt = {
         logs: [],
-      } as TransactionReceipt;
+      } as unknown as TransactionReceipt;
 
       // Note: This uses the mocked parseTransaction
       const parsed = parseTransaction(txResult, receipt);

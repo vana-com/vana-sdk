@@ -46,19 +46,25 @@ export async function POST(request: NextRequest) {
 
     // Use the SDK's DataController to add file with permissions
     // This handles all the contract interaction and receipt parsing internally
-    const result = await vana.data.addFileWithPermissions(
+    const txResult = await vana.data.addFileWithPermissions(
       url,
       userAddress as `0x${string}`,
       permissions,
     );
 
-    console.info(`✅ File registered with ID: ${result.fileId}`);
-    console.info(`🔗 Transaction: ${result.transactionHash}`);
+    // Wait for transaction and get events
+    const result = await vana.waitForTransactionEvents(txResult);
+    
+    // Extract fileId from FileAdded event
+    const fileId = result.expectedEvents?.FileAdded?.fileId;
+
+    console.info(`✅ File registered with ID: ${fileId}`);
+    console.info(`🔗 Transaction: ${txResult.hash}`);
 
     return NextResponse.json({
       success: true,
-      fileId: result.fileId,
-      transactionHash: result.transactionHash,
+      fileId: fileId ? Number(fileId) : 0,
+      transactionHash: txResult.hash,
     });
   } catch (error) {
     console.error("❌ Error registering file with permissions:", error);

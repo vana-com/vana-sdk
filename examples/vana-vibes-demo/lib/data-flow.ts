@@ -248,10 +248,9 @@ export class DataPortabilityFlow {
         "Waiting for transaction confirmation and permission ID...",
       );
 
-      const events = await this.vana.waitForTransactionEvents<{
-        permissionId: bigint;
-      }>(txHandle);
-      const permissionId = events.permissionId;
+      const result = await this.vana.waitForTransactionEvents(txHandle);
+      // Access the PermissionAdded event from expectedEvents
+      const permissionId = result.expectedEvents?.PermissionAdded?.permissionId;
 
       if (!permissionId) {
         throw new Error(

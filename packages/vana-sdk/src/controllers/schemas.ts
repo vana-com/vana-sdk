@@ -4,9 +4,9 @@ import {
   SchemaMetadata,
   CompleteSchema,
   AddSchemaParams,
-  AddSchemaResult,
 } from "../types/index";
-import type { TransactionResult } from "../types/operations";
+// import type { TransactionResult } from "../types/operations";
+import type { SchemaAddedResult } from "../types/transactionResults";
 import { ControllerContext } from "./permissions";
 import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../generated/abi";
@@ -151,7 +151,7 @@ export class SchemaController {
    * console.log(`Schema created with ID: ${result.schemaId}`);
    * ```
    */
-  async create(params: CreateSchemaParams): Promise<TransactionResult<"DataRefinerRegistry", "addSchema"> & { definitionUrl: string }> {
+  async create(params: CreateSchemaParams): Promise<CreateSchemaResult> {
     const { name, dialect, schema } = params;
 
     try {
@@ -230,17 +230,28 @@ export class SchemaController {
       });
 
       const { tx } = await import("../utils/transactionHelpers");
-      const result = tx({
+      const txResult = tx({
         hash,
         from,
         contract: "DataRefinerRegistry",
         fn: "addSchema",
       });
 
-      // Add the definitionUrl to the result
+      // Wait for events and extract domain data
+      if (!this.context.waitForTransactionEvents) {
+        throw new Error("waitForTransactionEvents not configured");
+      }
+      
+      const result = await this.context.waitForTransactionEvents(txResult);
+      const event = result.expectedEvents.SchemaAdded;
+      if (!event) {
+        throw new Error("SchemaAdded event not found in transaction");
+      }
+      
       return {
-        ...result,
+        schemaId: Number(event.schemaId),
         definitionUrl: uploadResult.url,
+        transactionHash: hash,
       };
     } catch (error) {
       if (error instanceof SchemaValidationError) {
@@ -521,7 +532,7 @@ export class SchemaController {
    * @param params - Schema parameters including pre-generated definition URL
    * @returns Promise resolving to the add schema result
    */
-  async addSchema(params: AddSchemaParams): Promise<TransactionResult<"DataRefinerRegistry", "addSchema">> {
+  async addSchema(params: AddSchemaParams): Promise<SchemaAddedResult> {
     try {
       const chainId = this.context.walletClient.chain?.id;
       if (!chainId) {
@@ -546,13 +557,37 @@ export class SchemaController {
         chain: this.context.walletClient.chain || null,
       });
 
+      // Create TransactionResult POJO
       const { tx } = await import("../utils/transactionHelpers");
-      return tx({
+      const txResult = tx({
         hash,
         from,
         contract: "DataRefinerRegistry",
         fn: "addSchema",
       });
+      
+      // Wait for events and extract domain data
+      if (!this.context.waitForTransactionEvents) {
+        throw new Error("waitForTransactionEvents not configured");
+      }
+      
+      const result = await this.context.waitForTransactionEvents(txResult);
+      const event = result.expectedEvents.SchemaAdded;
+      if (!event) {
+        throw new Error("SchemaAdded event not found in transaction");
+      }
+      
+      const receipt = await this.context.publicClient.getTransactionReceipt({ hash });
+      
+      return {
+        transactionHash: hash,
+        blockNumber: receipt.blockNumber,
+        gasUsed: receipt.gasUsed,
+        schemaId: event.schemaId,
+        name: event.name,
+        dialect: event.dialect,
+        definitionUrl: event.definitionUrl,
+      };
     } catch (error) {
       throw new Error(
         `Failed to add schema: ${error instanceof Error ? error.message : "Unknown error"}`,

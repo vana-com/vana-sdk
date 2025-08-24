@@ -148,8 +148,10 @@ describe("DataController Relayer Integration", () => {
       const addFileWithPermissionsSpy = vi
         .spyOn(controller, "addFileWithPermissions")
         .mockResolvedValue({
-          fileId: 42,
-          transactionHash: "0xDirectTxHash",
+          hash: "0xDirectTxHash" as `0x${string}`,
+          from: "0xuser" as `0x${string}`,
+          contract: "DataRegistry",
+          fn: "addFileWithPermissions",
         });
 
       const testBlob = new Blob(["test data"], { type: "text/plain" });

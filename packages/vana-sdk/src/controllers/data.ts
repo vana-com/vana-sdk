@@ -16,7 +16,7 @@ import {
   EncryptedUploadParams,
   UnencryptedUploadParams,
 } from "../types/index";
-import { FilePermissionResult } from "../types/transactionResults";
+// import { FilePermissionResult } from "../types/transactionResults";
 import type { TransactionResult } from "../types/operations";
 import { ControllerContext } from "./permissions";
 import { getContractAddress } from "../config/addresses";
@@ -2556,7 +2556,7 @@ export class DataController {
     fileId: number,
     account: Address,
     publicKey: string,
-  ): Promise<TransactionResult & { eventData?: FilePermissionResult }> {
+  ): Promise<TransactionResult<"DataRegistry", "addFilePermission">> {
     return await this.submitFilePermission(fileId, account, publicKey);
   }
 
@@ -2592,7 +2592,7 @@ export class DataController {
     fileId: number,
     account: Address,
     publicKey: string,
-  ): Promise<TransactionResult & { eventData?: FilePermissionResult }> {
+  ): Promise<TransactionResult<"DataRegistry", "addFilePermission">> {
     try {
       // 1. Generate user's encryption key
       const userEncryptionKey = await generateEncryptionKey(

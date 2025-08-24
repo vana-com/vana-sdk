@@ -75,6 +75,8 @@ export function txForRelayed<C extends Contract, F extends Fn<C>>(
     fn: F;
   }
 ): TransactionResult<C, F> {
+  // Dynamic import to avoid circular dependency
+  // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
   const { tx } = require("./transactionHelpers");
   return tx(input);
 }

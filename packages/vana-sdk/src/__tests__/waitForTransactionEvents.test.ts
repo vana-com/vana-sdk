@@ -26,19 +26,20 @@ vi.mock('viem', async (importOriginal) => {
 vi.mock('../utils/parseTransactionPojo', () => ({
   parseTransaction: vi.fn((txResult, receipt) => ({
     ...txResult,
-    expectedEvents: [
-      {
-        name: 'PermissionAdded',
-        args: { permissionId: 1n, grantor: '0xaddr1', grantee: '0xaddr2' },
+    expectedEvents: {
+      PermissionAdded: {
+        permissionId: 1n,
+        grantor: '0xaddr1',
+        grantee: '0xaddr2',
       },
-    ],
+    },
     allEvents: [
       {
-        name: 'PermissionAdded',
+        eventName: 'PermissionAdded',
         args: { permissionId: 1n, grantor: '0xaddr1', grantee: '0xaddr2' },
       },
     ],
-    receipt,
+    hasExpectedEvents: receipt.logs.length > 0,
   })),
 }));
 
@@ -89,12 +90,12 @@ describe('waitForTransactionEvents', () => {
       fn: 'addPermission',
     };
 
-    const mockReceipt: TransactionReceipt = {
+    const mockReceipt = {
       blockHash: '0xblockhash' as `0x${string}`,
       blockNumber: 123n,
       status: 'success',
       logs: [],
-    } as TransactionReceipt;
+    } as unknown as TransactionReceipt;
 
     mockPublicClient.waitForTransactionReceipt.mockResolvedValue(mockReceipt);
 
@@ -109,8 +110,8 @@ describe('waitForTransactionEvents', () => {
     });
 
     // Should include parsed events
-    expect(result.expectedEvents).toHaveLength(1);
-    expect(result.expectedEvents[0].name).toBe('PermissionAdded');
+    expect(result.expectedEvents).toBeDefined();
+    expect(result.expectedEvents.PermissionAdded).toBeDefined(); // Mock always returns it
     
     // Should preserve transaction context
     expect(result.hash).toBe('0xtxhash');
@@ -118,8 +119,8 @@ describe('waitForTransactionEvents', () => {
     expect(result.contract).toBe('DataPortabilityPermissions');
     expect(result.fn).toBe('addPermission');
     
-    // Should include receipt
-    expect(result.receipt).toBe(mockReceipt);
+    // Should have expected events flag
+    expect(result.hasExpectedEvents).toBe(false); // No logs means no events
   });
 
   it('accepts custom wait options', async () => {
@@ -130,12 +131,12 @@ describe('waitForTransactionEvents', () => {
       fn: 'addFile',
     };
 
-    const mockReceipt: TransactionReceipt = {
+    const mockReceipt = {
       blockHash: '0xblock2' as `0x${string}`,
       blockNumber: 456n,
       status: 'success',
       logs: [],
-    } as TransactionReceipt;
+    } as unknown as TransactionReceipt;
 
     mockPublicClient.waitForTransactionReceipt.mockResolvedValue(mockReceipt);
 
@@ -163,12 +164,12 @@ describe('waitForTransactionEvents', () => {
     // Verify input is a POJO
     expect(Object.getPrototypeOf(transactionResult)).toBe(Object.prototype);
 
-    const mockReceipt: TransactionReceipt = {
+    const mockReceipt = {
       blockHash: '0xblock3' as `0x${string}`,
       blockNumber: 999n,
       status: 'success',
       logs: [],
-    } as TransactionReceipt;
+    } as unknown as TransactionReceipt;
 
     mockPublicClient.waitForTransactionReceipt.mockResolvedValue(mockReceipt);
 
@@ -177,8 +178,10 @@ describe('waitForTransactionEvents', () => {
     // Verify output is also a POJO
     expect(Object.getPrototypeOf(result)).toBe(Object.prototype);
     
-    // Should be JSON serializable
-    const serialized = JSON.stringify(result);
+    // Should be JSON serializable (with BigInt handling)
+    const serialized = JSON.stringify(result, (_key, value) =>
+      typeof value === 'bigint' ? value.toString() : value
+    );
     const deserialized = JSON.parse(serialized);
     
     // Core properties should survive serialization
@@ -225,12 +228,12 @@ describe('waitForTransactionEvents', () => {
         fn,
       };
 
-      const mockReceipt: TransactionReceipt = {
+      const mockReceipt = {
         blockHash: '0xblock' as `0x${string}`,
         blockNumber: 1n,
         status: 'success',
         logs: [],
-      } as TransactionReceipt;
+      } as unknown as TransactionReceipt;
 
       mockPublicClient.waitForTransactionReceipt.mockResolvedValue(mockReceipt);
 
@@ -249,12 +252,12 @@ describe('waitForTransactionEvents', () => {
       fn: 'addPermission',
     };
 
-    const mockReceipt: TransactionReceipt = {
+    const mockReceipt = {
       blockHash: '0xblock' as `0x${string}`,
       blockNumber: 123n,
       status: 'success',
       logs: [],
-    } as TransactionReceipt;
+    } as unknown as TransactionReceipt;
 
     mockPublicClient.waitForTransactionReceipt.mockResolvedValue(mockReceipt);
 

@@ -24,17 +24,23 @@ export async function POST(request: NextRequest) {
     }
 
     const vana = await createRelayerVana();
-    const result = await vana.data.addFileWithPermissionsAndSchema(
+    const txResult = await vana.data.addFileWithPermissionsAndSchema(
       url,
       ownerAddress || userAddress, // Use ownerAddress if provided, otherwise fallback to userAddress
       permissions,
       schemaId,
     );
 
+    // Wait for transaction and get events
+    const result = await vana.waitForTransactionEvents(txResult);
+    
+    // Extract fileId from FileAdded event
+    const fileId = result.expectedEvents?.FileAdded?.fileId;
+
     return NextResponse.json({
       success: true,
-      fileId: result.fileId,
-      transactionHash: result.transactionHash,
+      fileId: fileId ? Number(fileId) : 0,
+      transactionHash: txResult.hash,
     });
   } catch (error) {
     console.error("Relay error in addFileComplete:", error);

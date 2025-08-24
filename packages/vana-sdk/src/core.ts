@@ -818,6 +818,6 @@ export class VanaCore {
     
     // Return the strongly-typed result
     // TypeScript knows exactly what events are possible!
-    return result as import("./generated/event-types").TypedTransactionResult<C, F>;
+    return result;
   }
 }

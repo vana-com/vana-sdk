@@ -39,9 +39,9 @@ import {
   PermissionGrantResult,
   PermissionRevokeResult,
   ServerTrustResult,
-  ServerUntrustResult,
-  ServerUpdateResult,
-  GranteeRegisterResult,
+  // ServerUntrustResult,
+  // ServerUpdateResult,
+  // GranteeRegisterResult,
 } from "../types/transactionResults";
 import type {
   TransactionResult,
@@ -208,7 +208,7 @@ export class PermissionsController {
    */
   async submitPermissionGrant(
     params: GrantPermissionParams,
-  ): Promise<TransactionResult & { eventData?: PermissionGrantResult }> {
+  ): Promise<TransactionResult<"DataPortabilityPermissions", "addPermission">> {
     const { typedData, signature } = await this.createAndSign(params);
     return await this.submitSignedGrant(typedData, signature);
   }
@@ -604,7 +604,7 @@ export class PermissionsController {
   async submitSignedTrustServer(
     typedData: TrustServerTypedData,
     signature: Hash,
-  ): Promise<TransactionResult & { eventData?: ServerTrustResult }> {
+  ): Promise<TransactionResult<"DataPortabilityServers", "trustServerWithSignature">> {
     try {
       const trustServerInput: TrustServerInput = {
         nonce: BigInt(typedData.message.nonce),
@@ -685,7 +685,7 @@ export class PermissionsController {
   async submitSignedAddAndTrustServer(
     typedData: AddAndTrustServerTypedData,
     signature: Hash,
-  ): Promise<TransactionResult & { eventData?: ServerTrustResult }> {
+  ): Promise<TransactionResult<"DataPortabilityServers", "addAndTrustServerWithSignature">> {
     try {
       const addAndTrustServerInput: AddAndTrustServerInput = {
         nonce: BigInt(typedData.message.nonce),
@@ -936,7 +936,7 @@ export class PermissionsController {
   async submitSignedUntrustServer(
     typedData: GenericTypedData,
     signature: Hash,
-  ): Promise<TransactionResult & { eventData?: ServerUntrustResult }> {
+  ): Promise<TransactionResult<"DataPortabilityServers", "untrustServerWithSignature">> {
     try {
       // Use relayer callbacks or direct transaction
       let hash: Hash;
@@ -1199,7 +1199,7 @@ export class PermissionsController {
    */
   async submitRevokeWithSignature(
     params: RevokePermissionParams,
-  ): Promise<TransactionResult & { eventData?: PermissionRevokeResult }> {
+  ): Promise<TransactionResult<"DataPortabilityPermissions", "revokePermissionWithSignature">> {
     try {
       // Check chain ID availability early
       if (!this.context.walletClient.chain?.id) {
@@ -1941,7 +1941,7 @@ export class PermissionsController {
    */
   async submitTrustServer(
     params: TrustServerParams,
-  ): Promise<TransactionResult & { eventData?: ServerTrustResult }> {
+  ): Promise<TransactionResult<"DataPortabilityServers", "trustServer">> {
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
@@ -1988,7 +1988,7 @@ export class PermissionsController {
    */
   async submitAddAndTrustServerWithSignature(
     params: AddAndTrustServerParams,
-  ): Promise<TransactionResult & { eventData?: ServerTrustResult }> {
+  ): Promise<TransactionResult<"DataPortabilityServers", "addAndTrustServerWithSignature">> {
     try {
       const nonce = await this.getServersUserNonce();
 
@@ -2082,7 +2082,7 @@ export class PermissionsController {
    */
   async submitTrustServerWithSignature(
     params: TrustServerParams,
-  ): Promise<TransactionResult & { eventData?: ServerTrustResult }> {
+  ): Promise<TransactionResult<"DataPortabilityServers", "trustServerWithSignature">> {
     try {
       const nonce = await this.getServersUserNonce();
 
@@ -2161,7 +2161,7 @@ export class PermissionsController {
    */
   private async submitDirectUntrustTransaction(
     params: UntrustServerInput,
-  ): Promise<TransactionResult & { eventData?: ServerUntrustResult }> {
+  ): Promise<TransactionResult<"DataPortabilityServers", "untrustServer">> {
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
@@ -2230,7 +2230,7 @@ export class PermissionsController {
    */
   async submitUntrustServer(
     params: UntrustServerParams,
-  ): Promise<TransactionResult & { eventData?: ServerUntrustResult }> {
+  ): Promise<TransactionResult<"DataPortabilityServers", "untrustServer">> {
     // Convert UntrustServerParams to UntrustServerInput by adding nonce
     const nonce = await this.getServersUserNonce();
     const untrustServerInput: UntrustServerInput = {
@@ -2255,7 +2255,7 @@ export class PermissionsController {
    */
   async submitUntrustServerWithSignature(
     params: UntrustServerParams,
-  ): Promise<TransactionResult & { eventData?: ServerUntrustResult }> {
+  ): Promise<TransactionResult<"DataPortabilityServers", "untrustServerWithSignature">> {
     try {
       const nonce = await this.getServersUserNonce();
 
@@ -3020,7 +3020,7 @@ export class PermissionsController {
    */
   async submitRegisterGrantee(
     params: RegisterGranteeParams,
-  ): Promise<TransactionResult & { eventData?: GranteeRegisterResult }> {
+  ): Promise<TransactionResult<"DataPortabilityGrantees", "registerGrantee">> {
     const chainId = await this.context.walletClient.getChainId();
     const DataPortabilityGranteesAddress = getContractAddress(
       chainId,
@@ -3067,7 +3067,7 @@ export class PermissionsController {
    */
   async submitRegisterGranteeWithSignature(
     params: RegisterGranteeParams,
-  ): Promise<TransactionResult & { eventData?: GranteeRegisterResult }> {
+  ): Promise<TransactionResult<"DataPortabilityGrantees", "registerGrantee">> {
     const nonce = await this.getServersUserNonce();
 
     const owner = getAddress(params.owner);
@@ -3115,7 +3115,7 @@ export class PermissionsController {
   async submitSignedRegisterGrantee(
     typedData: RegisterGranteeTypedData,
     signature: Hash,
-  ): Promise<TransactionResult & { eventData?: GranteeRegisterResult }> {
+  ): Promise<TransactionResult<"DataPortabilityGrantees", "registerGrantee">> {
     const hash = await this.submitSignedRegisterGranteeTransaction(
       typedData,
       signature,
@@ -3125,8 +3125,8 @@ export class PermissionsController {
     return tx({
       hash,
       from: typeof account === 'string' ? account : account.address,
-      contract: "DataPortabilityPermissions",
-      fn: "addPermission",
+      contract: "DataPortabilityGrantees",
+      fn: "registerGrantee",
     });
   }
 
@@ -4243,7 +4243,7 @@ export class PermissionsController {
   async submitUpdateServer(
     serverId: bigint,
     url: string,
-  ): Promise<TransactionResult & { eventData?: ServerUpdateResult }> {
+  ): Promise<TransactionResult<"DataPortabilityServers", "updateServer">> {
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
@@ -4437,7 +4437,7 @@ export class PermissionsController {
    */
   async submitAddPermission(
     params: ServerFilesAndPermissionParams,
-  ): Promise<TransactionResult & { eventData?: PermissionGrantResult }> {
+  ): Promise<TransactionResult<"DataPortabilityPermissions", "addPermission">> {
     try {
       const nonce = await this.getPermissionsUserNonce();
 
@@ -4494,7 +4494,7 @@ export class PermissionsController {
   async submitSignedAddPermission(
     typedData: GenericTypedData,
     signature: Hash,
-  ): Promise<TransactionResult & { eventData?: PermissionGrantResult }> {
+  ): Promise<TransactionResult<"DataPortabilityPermissions", "addPermission">> {
     try {
       // Use relayer callbacks or direct transaction
       let hash: Hash;
@@ -4515,8 +4515,8 @@ export class PermissionsController {
       return tx({
         hash,
         from: typeof account === 'string' ? account : account.address,
-        contract: "DataPortabilityGrantees",
-        fn: "registerGrantee",
+        contract: "DataPortabilityPermissions",
+        fn: "addPermission",
       });
     } catch (error) {
       // Re-throw known Vana errors directly to preserve error types
@@ -4588,7 +4588,7 @@ export class PermissionsController {
    */
   async submitAddServerFilesAndPermissions(
     params: ServerFilesAndPermissionParams,
-  ): Promise<TransactionResult & { eventData?: PermissionGrantResult }> {
+  ): Promise<TransactionResult<"DataPortabilityPermissions", "addServerFilesAndPermissions">> {
     try {
       // Validate that schemaIds array has same length as fileUrls
       if (params.schemaIds.length !== params.fileUrls.length) {
@@ -4676,7 +4676,7 @@ export class PermissionsController {
   async submitSignedAddServerFilesAndPermissions(
     typedData: ServerFilesAndPermissionTypedData,
     signature: Hash,
-  ): Promise<TransactionResult & { eventData?: PermissionGrantResult }> {
+  ): Promise<TransactionResult<"DataPortabilityPermissions", "addServerFilesAndPermissions">> {
     try {
       // Debug logging to understand relayer callback availability
       console.debug("🔍 submitSignedAddServerFilesAndPermissions Debug Info:", {

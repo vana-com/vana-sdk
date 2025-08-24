@@ -483,9 +483,15 @@ describe("VanaCore Extended Tests", () => {
           permissionId: bigint;
         }
 
+        const txResult = {
+          ...transactionResult,
+          contract: 'DataPortabilityPermissions' as const,
+          fn: 'addPermission' as const,
+        };
+
         const events =
-          await vanaCore.waitForTransactionEvents<PermissionEvents>(
-            transactionResult,
+          await vanaCore.waitForTransactionEvents(
+            txResult,
           );
 
         expect(mockPublicClient.waitForTransactionReceipt).toHaveBeenCalledWith(
@@ -506,7 +512,13 @@ describe("VanaCore Extended Tests", () => {
         );
 
         const hash = "0xabc123" as `0x${string}`;
-        const events = await vanaCore.waitForTransactionEvents(hash);
+        const txResult = {
+          hash,
+          from: '0xuser' as `0x${string}`,
+          contract: 'DataPortabilityPermissions' as const,
+          fn: 'addPermission' as const,
+        };
+        const events = await vanaCore.waitForTransactionEvents(txResult);
 
         expect(mockPublicClient.waitForTransactionReceipt).toHaveBeenCalledWith(
           {
@@ -534,9 +546,14 @@ describe("VanaCore Extended Tests", () => {
           from: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         };
 
+        const txResult = {
+          ...transactionResult,
+          contract: 'DataRegistry' as const,
+          fn: 'addFile' as const,
+        };
         const events =
-          await vanaCore.waitForTransactionEvents<CustomEventData>(
-            transactionResult,
+          await vanaCore.waitForTransactionEvents(
+            txResult,
           );
 
         expect(mockPublicClient.waitForTransactionReceipt).toHaveBeenCalled();
@@ -649,7 +666,13 @@ describe("VanaCore Extended Tests", () => {
         };
 
         // User can directly pass the result to waitForTransactionEvents
-        await vanaCore.waitForTransactionEvents(grantResult);
+        const txResult = {
+          hash: grantResult.hash,
+          from: grantResult.from || '0xuser' as `0x${string}`,
+          contract: 'DataPortabilityPermissions' as const,
+          fn: 'addPermission' as const,
+        };
+        await vanaCore.waitForTransactionEvents(txResult);
 
         expect(mockPublicClient.waitForTransactionReceipt).toHaveBeenCalledWith(
           {

@@ -26,32 +26,45 @@ vi.mock('viem', () => ({
 vi.mock('../../generated/eventRegistry', () => ({
   EVENT_REGISTRY: {
     'DataPortabilityPermissions.addPermission': {
-      topicToAbi: {
-        '0x1234567890': {
-          name: 'PermissionAdded',
-          type: 'event',
-          inputs: [
-            { name: 'permissionId', type: 'uint256', indexed: true },
-            { name: 'grantor', type: 'address', indexed: true },
-            { name: 'grantee', type: 'address', indexed: false },
-          ],
-        },
-      },
+      contract: 'DataPortabilityPermissions',
+      fn: 'addPermission',
+      eventNames: ['PermissionAdded'] as const,
     },
     'DataRegistry.addFile': {
-      topicToAbi: {
-        '0xabcdef1234': {
-          name: 'FileAdded',
-          type: 'event',
-          inputs: [
-            { name: 'fileId', type: 'uint256', indexed: true },
-            { name: 'owner', type: 'address', indexed: true },
-            { name: 'url', type: 'string', indexed: false },
-          ],
-        },
-      },
+      contract: 'DataRegistry',
+      fn: 'addFile',
+      eventNames: ['FileAdded'] as const,
     },
   },
+  TOPIC_TO_ABIS: new Map([
+    ['0x1234567890', [{
+      name: 'PermissionAdded',
+      type: 'event',
+      inputs: [
+        { name: 'permissionId', type: 'uint256', indexed: true },
+        { name: 'grantor', type: 'address', indexed: true },
+        { name: 'grantee', type: 'address', indexed: false },
+      ],
+    }]],
+    ['0xabcdef1234', [{
+      name: 'FileAdded',
+      type: 'event',
+      inputs: [
+        { name: 'fileId', type: 'uint256', indexed: true },
+        { name: 'owner', type: 'address', indexed: true },
+        { name: 'url', type: 'string', indexed: false },
+      ],
+    }]],
+    ['0xvalidtopic', [{
+      name: 'PermissionAdded',
+      type: 'event',
+      inputs: [
+        { name: 'permissionId', type: 'uint256', indexed: true },
+        { name: 'grantor', type: 'address', indexed: true },
+        { name: 'grantee', type: 'address', indexed: false },
+      ],
+    }]],
+  ]),
 }));
 
 describe('parseTransaction', () => {
@@ -104,15 +117,15 @@ describe('parseTransaction', () => {
     const result = parseTransaction(transactionResult, receipt);
 
     // Should only parse events for DataRegistry.addFile
-    expect(result.expectedEvents).toHaveLength(1);
-    expect(result.expectedEvents[0]).toHaveProperty('name', 'FileAdded');
+    expect(result.expectedEvents).toBeDefined();
+    expect(result.expectedEvents.FileAdded).toBeDefined();
   });
 
   it('returns empty expectedEvents when no registry exists for function', () => {
-    const transactionResult: TransactionResult<'DataRegistry', 'unknownFunction'> = {
+    const transactionResult = {
       hash: '0xtxhash' as `0x${string}`,
       from: '0xfrom' as `0x${string}`,
-      contract: 'DataRegistry',
+      contract: 'UnknownContract' as any,
       fn: 'unknownFunction' as any,
     };
 
@@ -125,12 +138,12 @@ describe('parseTransaction', () => {
       ],
     } as TransactionReceipt;
 
-    const result = parseTransaction(transactionResult, receipt);
+    const result = parseTransaction(transactionResult as any, receipt);
 
-    expect(result.expectedEvents).toEqual([]);
+    expect(result.expectedEvents).toEqual({});
     // allEvents will include Unknown events for unregistered topics
     expect(result.allEvents).toHaveLength(1);
-    expect(result.allEvents[0].name).toBe('Unknown');
+    expect(result.allEvents[0].eventName).toBe('Unknown');
   });
 
   it('handles receipts with no logs', () => {
@@ -141,13 +154,13 @@ describe('parseTransaction', () => {
       fn: 'addPermission',
     };
 
-    const receipt: TransactionReceipt = {
+    const receipt = {
       logs: [],
-    } as TransactionReceipt;
+    } as unknown as TransactionReceipt;
 
     const result = parseTransaction(transactionResult, receipt);
 
-    expect(result.expectedEvents).toEqual([]);
+    expect(result.expectedEvents).toEqual({});
     expect(result.allEvents).toEqual([]);
   });
 
@@ -159,9 +172,9 @@ describe('parseTransaction', () => {
       fn: 'revokePermission',
     };
 
-    const receipt: TransactionReceipt = {
+    const receipt = {
       logs: [],
-    } as TransactionReceipt;
+    } as unknown as TransactionReceipt;
 
     const result = parseTransaction(transactionResult, receipt);
 
@@ -194,8 +207,8 @@ describe('parseTransaction', () => {
     const result = parseTransaction(transactionResult, receipt);
 
     // The event should be parsed correctly via the O(1) registry lookup
-    expect(result.expectedEvents).toHaveLength(1);
-    expect(result.expectedEvents[0].name).toBe('PermissionAdded');
+    expect(result.expectedEvents).toBeDefined();
+    expect(result.expectedEvents.PermissionAdded).toBeDefined();
   });
 
   it('parses both expected and unexpected events', () => {
@@ -222,13 +235,13 @@ describe('parseTransaction', () => {
     const result = parseTransaction(transactionResult, receipt);
 
     // Expected events only include those in the registry
-    expect(result.expectedEvents).toHaveLength(1);
-    expect(result.expectedEvents[0].name).toBe('PermissionAdded');
+    expect(result.expectedEvents).toBeDefined();
+    expect(result.expectedEvents.PermissionAdded).toBeDefined();
     
     // All events include both the parsed event and the unknown event
     expect(result.allEvents).toHaveLength(2);
-    expect(result.allEvents[0].name).toBe('PermissionAdded');
-    expect(result.allEvents[1].name).toBe('Unknown');
+    expect(result.allEvents[0].eventName).toBe('PermissionAdded');
+    expect(result.allEvents[1].eventName).toBe('Unknown');
   });
 
   it('handles malformed logs gracefully', () => {

@@ -10,11 +10,14 @@
 
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
-import { fileURLToPath, pathToFileURL } from "url";
+import { fileURLToPath } from "url";
 import { createHash } from "crypto";
 import { keccak256 } from "viem";
 import prettier from "prettier";
 import Ajv from "ajv";
+
+// Import all ABIs statically at build time
+import * as allAbis from "../src/generated/abi/index";
 
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -38,12 +41,8 @@ const MAPPING_SCHEMA = {
       type: "object",
       additionalProperties: {
         type: "object",
-        required: ["abiModule", "abiExport", "functions"],
+        required: ["abiExport", "functions"],
         properties: {
-          abiModule: {
-            type: "string",
-            pattern: "^src/generated/abi/.+\\.ts$",
-          },
           abiExport: {
             type: "string",
             pattern: "ABI$",
@@ -73,7 +72,6 @@ const MAPPING_SCHEMA = {
 interface EventMapping {
   contracts: {
     [contract: string]: {
-      abiModule: string;
       abiExport: string;
       functions: {
         [fn: string]: string | string[];
@@ -93,7 +91,11 @@ interface EventABI {
   }>;
 }
 
-// Load and validate mappings
+/**
+ * Load and validate mappings
+ *
+ * @returns The loaded mappings
+ */
 function loadMappings(): EventMapping {
   const content = readFileSync(MAPPINGS_PATH, "utf-8");
   const mappings = JSON.parse(content);
@@ -109,37 +111,45 @@ function loadMappings(): EventMapping {
     throw new Error(`Invalid mapping schema:\n${errors}`);
   }
 
-  return mappings as EventMapping;
+  return mappings as unknown as EventMapping;
 }
 
-// Load ABI for a specific contract
-async function loadContractABI(
-  abiModule: string,
+/**
+ * Load ABI for a specific contract
+ *
+ * @param abiExport - The ABI export name
+ * @returns The contract ABI events
+ */
+function loadContractABI(
   abiExport: string,
-): Promise<EventABI[]> {
-  const modulePath = join(PROJECT_ROOT, abiModule);
-
-  if (!existsSync(modulePath)) {
-    throw new Error(`ABI module not found: ${abiModule}`);
+): EventABI[] {
+  // All ABIs are statically imported at build time
+  const abiRecord = allAbis as Record<string, unknown>;
+  if (!(abiExport in abiRecord)) {
+    throw new Error(`Export ${abiExport} not found in ABIs`);
   }
 
-  const module = await import(pathToFileURL(modulePath).href);
-
-  if (!(abiExport in module)) {
-    throw new Error(`Export ${abiExport} not found in ${abiModule}`);
-  }
-
-  const abi = module[abiExport];
+  const abi = abiRecord[abiExport] as unknown[];
   const events = abi
     .filter(
-      (item: any): item is EventABI => item.type === "event" && !!item.name,
-    )
-    .map((item: any) => item as EventABI);
+      (item): item is EventABI => 
+        typeof item === 'object' && 
+        item !== null &&
+        'type' in item &&
+        item.type === "event" && 
+        'name' in item &&
+        !!item.name,
+    );
 
   return events;
 }
 
-// Convert Solidity type to TypeScript type
+/**
+ * Convert Solidity type to TypeScript type
+ *
+ * @param type - The Solidity type
+ * @returns The TypeScript type
+ */
 function solidityToTypeScript(type: string): string {
   // uint*, int* -> bigint
   if (type.match(/^u?int\d*$/)) return "bigint";
@@ -179,10 +189,7 @@ async function generateEventArgs(mappings: EventMapping): Promise<string> {
 
   for (const [contractName, contract] of Object.entries(mappings.contracts)) {
     try {
-      const events = await loadContractABI(
-        contract.abiModule,
-        contract.abiExport,
-      );
+      const events = loadContractABI(contract.abiExport);
 
       for (const event of events) {
         if (eventArgsMap.has(event.name)) continue;
@@ -355,10 +362,7 @@ async function generateEventRegistry(mappings: EventMapping): Promise<string> {
   
   for (const [contract, contractDef] of Object.entries(mappings.contracts)) {
     try {
-      const contractEvents = await loadContractABI(
-        contractDef.abiModule,
-        contractDef.abiExport,
-      );
+      const contractEvents = loadContractABI(contractDef.abiExport);
 
       for (const event of contractEvents) {
         const signature = `${event.name}(${event.inputs.map((i) => i.type).join(",")})`;
@@ -368,7 +372,7 @@ async function generateEventRegistry(mappings: EventMapping): Promise<string> {
         const hash = keccak256(bytes);
         
         // Deterministic deduplication key
-        const indexedMask = event.inputs.map((i: any) => i.indexed ? '1' : '0').join('');
+        const indexedMask = event.inputs.map((i) => i.indexed ? '1' : '0').join('');
         const dedupeKey = `${signature}|${indexedMask}`;
         
         // Group by topic with Set-based deduping (cleaner than array.some)
@@ -460,17 +464,18 @@ ${topicMapEntries}
   return formatted;
 }
 
-// Validate that all mapped events exist in ABIs
+/**
+ * Validate that all mapped events exist in ABIs
+ *
+ * @param mappings - The event mappings to validate
+ */
 async function validateMappings(mappings: EventMapping): Promise<void> {
   const errors: string[] = [];
   const warnings: string[] = [];
 
   for (const [contract, contractDef] of Object.entries(mappings.contracts)) {
     try {
-      const contractEvents = await loadContractABI(
-        contractDef.abiModule,
-        contractDef.abiExport,
-      );
+      const contractEvents = loadContractABI(contractDef.abiExport);
       const eventNames = new Set(contractEvents.map((e) => e.name));
 
       for (const [fn, events] of Object.entries(contractDef.functions)) {
@@ -499,7 +504,12 @@ async function validateMappings(mappings: EventMapping): Promise<void> {
   }
 }
 
-// Main generator
+/**
+ * Main generator
+ *
+ * @param checkMode - Whether to run in check mode
+ * @returns Success status
+ */
 async function generate(checkMode = false): Promise<boolean> {
   try {
     console.log("Loading contract-event-mappings.json...");

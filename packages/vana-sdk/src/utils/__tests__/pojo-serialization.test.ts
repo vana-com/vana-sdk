@@ -34,7 +34,7 @@ describe('POJO Serialization and Next.js Compatibility', () => {
       });
 
       // Check all properties are serializable
-      for (const [key, value] of Object.entries(result)) {
+      for (const [_key, value] of Object.entries(result)) {
         expect(typeof value).not.toBe('function');
         expect(typeof value).not.toBe('symbol');
         expect(value).not.toBe(undefined);

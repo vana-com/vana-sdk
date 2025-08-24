@@ -781,7 +781,7 @@ export class VanaCore {
    * correct events from the transaction logs. For legacy compatibility, it accepts
    * raw hashes but will not parse events without operation context.
    *
-   * @param hashOrObj - Transaction result with operation context, or raw hash
+   * @param transaction - Transaction result with operation context
    * @param options - Optional confirmation and timeout settings
    * @returns Parsed event data specific to the transaction's operation type
    * @throws {NetworkError} When transaction confirmation times out

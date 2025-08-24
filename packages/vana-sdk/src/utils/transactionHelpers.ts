@@ -14,6 +14,14 @@ import type { Contract, Fn } from '../generated/event-types';
  * reducing boilerplate and preventing mistakes.
  * 
  * @param input - Transaction details
+ * @param input.hash - Transaction hash
+ * @param input.from - Transaction sender address
+ * @param input.contract - Contract name
+ * @param input.fn - Function name
+ * @param input.chainId - Optional chain ID
+ * @param input.value - Optional transaction value
+ * @param input.nonce - Optional nonce
+ * @param input.to - Optional recipient address
  * @returns Typed TransactionResult
  * 
  * @example
@@ -52,6 +60,17 @@ export function tx<C extends Contract, F extends Fn<C>>(input: {
 /**
  * Creates a transaction result with literal type inference.
  * Use this when you need TypeScript to preserve exact string literals.
+ * 
+ * @param input - Transaction details
+ * @param input.hash - Transaction hash
+ * @param input.from - Transaction sender address
+ * @param input.contract - Contract name
+ * @param input.fn - Function name
+ * @param input.chainId - Optional chain ID
+ * @param input.value - Optional transaction value
+ * @param input.nonce - Optional nonce
+ * @param input.to - Optional recipient address
+ * @returns Typed TransactionResult
  * 
  * @example
  * ```typescript

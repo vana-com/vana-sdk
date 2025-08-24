@@ -20,6 +20,14 @@ import { EVENT_REGISTRY, TOPIC_TO_ABIS } from '../generated/eventRegistry';
  * - Returns typed events matching the exact TypedTransactionResult interface
  * 
  * @param transactionResult - The TransactionResult POJO with context
+ * @param transactionResult.hash - Transaction hash
+ * @param transactionResult.from - Transaction sender address
+ * @param transactionResult.contract - Contract name
+ * @param transactionResult.fn - Function name
+ * @param transactionResult.chainId - Optional chain ID
+ * @param transactionResult.value - Optional transaction value
+ * @param transactionResult.nonce - Optional nonce
+ * @param transactionResult.to - Optional recipient address
  * @param receipt - The transaction receipt from the blockchain
  * @returns Typed transaction result with parsed events
  */
@@ -34,7 +42,7 @@ export function parseTransaction<C extends Contract, F extends Fn<C>>(
   const registry = EVENT_REGISTRY[registryKey as keyof typeof EVENT_REGISTRY];
   
   // Initialize the expected events object with proper types
-  const expectedEvents: any = {};
+  const expectedEvents: Record<string, unknown> = {};
   const allEvents: Array<{
     contractAddress: string;
     eventName: string;

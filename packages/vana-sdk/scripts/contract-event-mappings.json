@@ -1,7 +1,6 @@
 {
   "contracts": {
     "DataPortabilityPermissions": {
-      "abiModule": "src/generated/abi/DataPortabilityPermissionsImplementation.ts",
       "abiExport": "DataPortabilityPermissionsABI",
       "functions": {
         "addPermission": [
@@ -40,7 +39,6 @@
       }
     },
     "DataPortabilityServers": {
-      "abiModule": "src/generated/abi/DataPortabilityServersImplementation.ts",
       "abiExport": "DataPortabilityServersABI",
       "functions": {
         "addAndTrustServerByManager": [
@@ -99,7 +97,6 @@
       }
     },
     "DataPortabilityGrantees": {
-      "abiModule": "src/generated/abi/DataPortabilityGranteesImplementation.ts",
       "abiExport": "DataPortabilityGranteesABI",
       "functions": {
         "registerGrantee": [
@@ -131,7 +128,6 @@
       }
     },
     "DataRegistry": {
-      "abiModule": "src/generated/abi/DataRegistryImplementation.ts",
       "abiExport": "DataRegistryABI",
       "functions": {
         "addFile": [
@@ -198,7 +194,6 @@
       }
     },
     "TeePoolPhala": {
-      "abiModule": "src/generated/abi/TeePoolPhalaImplementation.ts",
       "abiExport": "TeePoolPhalaABI",
       "functions": {
         "addTee": [
@@ -246,7 +241,6 @@
       }
     },
     "ComputeEngine": {
-      "abiModule": "src/generated/abi/ComputeEngineImplementation.ts",
       "abiExport": "ComputeEngineABI",
       "functions": {
         "registerJob": [
@@ -295,7 +289,6 @@
       }
     },
     "DataRefinerRegistry": {
-      "abiModule": "src/generated/abi/DataRefinerRegistryImplementation.ts",
       "abiExport": "DataRefinerRegistryABI",
       "functions": {
         "addRefiner": [
@@ -336,7 +329,6 @@
       }
     },
     "QueryEngine": {
-      "abiModule": "src/generated/abi/QueryEngineImplementation.ts",
       "abiExport": "QueryEngineABI",
       "functions": {
         "updatePermissionApproval": [
@@ -374,7 +366,6 @@
       }
     },
     "ComputeInstructionRegistry": {
-      "abiModule": "src/generated/abi/ComputeInstructionRegistryImplementation.ts",
       "abiExport": "ComputeInstructionRegistryABI",
       "functions": {
         "addComputeInstruction": [
@@ -410,7 +401,6 @@
       }
     },
     "TeePoolEphemeralStandard": {
-      "abiModule": "src/generated/abi/TeePoolEphemeralStandardImplementation.ts",
       "abiExport": "TeePoolEphemeralStandardABI",
       "functions": {
         "addTee": [
@@ -458,7 +448,6 @@
       }
     },
     "TeePoolPersistentStandard": {
-      "abiModule": "src/generated/abi/TeePoolPersistentStandardImplementation.ts",
       "abiExport": "TeePoolPersistentStandardABI",
       "functions": {
         "addTee": [
@@ -506,7 +495,6 @@
       }
     },
     "TeePoolPersistentGpu": {
-      "abiModule": "src/generated/abi/TeePoolPersistentGpuImplementation.ts",
       "abiExport": "TeePoolPersistentGpuABI",
       "functions": {
         "addTee": [
@@ -554,7 +542,6 @@
       }
     },
     "TeePoolDedicatedStandard": {
-      "abiModule": "src/generated/abi/TeePoolDedicatedStandardImplementation.ts",
       "abiExport": "TeePoolDedicatedStandardABI",
       "functions": {
         "addTee": [
@@ -602,7 +589,6 @@
       }
     },
     "TeePoolDedicatedGpu": {
-      "abiModule": "src/generated/abi/TeePoolDedicatedGpuImplementation.ts",
       "abiExport": "TeePoolDedicatedGpuABI",
       "functions": {
         "addTee": [
@@ -650,7 +636,6 @@
       }
     },
     "VanaEpoch": {
-      "abiModule": "src/generated/abi/VanaEpochImplementation.ts",
       "abiExport": "VanaEpochABI",
       "functions": {
         "updateEpochSize": [
@@ -700,7 +685,6 @@
       }
     },
     "DLPRegistry": {
-      "abiModule": "src/generated/abi/DLPRegistryImplementation.ts",
       "abiExport": "DLPRegistryABI",
       "functions": {
         "registerDlp": [
@@ -770,7 +754,6 @@
       }
     },
     "DLPRegistryTreasury": {
-      "abiModule": "src/generated/abi/DLPRegistryTreasuryImplementation.ts",
       "abiExport": "DLPRegistryTreasuryABI",
       "functions": {
         "transfer": [
@@ -804,7 +787,6 @@
       }
     },
     "DLPPerformance": {
-      "abiModule": "src/generated/abi/DLPPerformanceImplementation.ts",
       "abiExport": "DLPPerformanceABI",
       "functions": {
         "updateMetricWeights": [
@@ -843,7 +825,6 @@
       }
     },
     "DLPRewardDeployer": {
-      "abiModule": "src/generated/abi/DLPRewardDeployerImplementation.ts",
       "abiExport": "DLPRewardDeployerABI",
       "functions": {
         "distributeRewards": [
@@ -876,7 +857,6 @@
       }
     },
     "DLPRewardDeployerTreasury": {
-      "abiModule": "src/generated/abi/DLPRewardDeployerTreasuryImplementation.ts",
       "abiExport": "DLPRewardDeployerTreasuryABI",
       "functions": {
         "transfer": [
@@ -910,7 +890,6 @@
       }
     },
     "DLPRewardSwap": {
-      "abiModule": "src/generated/abi/DLPRewardSwapImplementation.ts",
       "abiExport": "DLPRewardSwapABI",
       "functions": {
         "splitRewardSwap": [
@@ -944,7 +923,6 @@
       }
     },
     "SwapHelper": {
-      "abiModule": "src/generated/abi/SwapHelperImplementation.ts",
       "abiExport": "SwapHelperABI",
       "functions": {
         "swap": [],
@@ -975,7 +953,6 @@
       }
     },
     "VanaPoolStaking": {
-      "abiModule": "src/generated/abi/VanaPoolStakingImplementation.ts",
       "abiExport": "VanaPoolStakingABI",
       "functions": {
         "stake": [
@@ -1015,7 +992,6 @@
       }
     },
     "VanaPoolEntity": {
-      "abiModule": "src/generated/abi/VanaPoolEntityImplementation.ts",
       "abiExport": "VanaPoolEntityABI",
       "functions": {
         "createEntity": [
@@ -1068,7 +1044,6 @@
       }
     },
     "VanaPoolTreasury": {
-      "abiModule": "src/generated/abi/VanaPoolTreasuryImplementation.ts",
       "abiExport": "VanaPoolTreasuryABI",
       "functions": {
         "deposit": [],
@@ -1100,7 +1075,6 @@
       }
     },
     "DAT": {
-      "abiModule": "src/generated/abi/DATImplementation.ts",
       "abiExport": "DATABI",
       "functions": {
         "mint": [],
@@ -1132,7 +1106,6 @@
       }
     },
     "DATFactory": {
-      "abiModule": "src/generated/abi/DATFactoryImplementation.ts",
       "abiExport": "DATFactoryABI",
       "functions": {
         "createDAT": [
@@ -1167,7 +1140,6 @@
       }
     },
     "DATPausable": {
-      "abiModule": "src/generated/abi/DATPausableImplementation.ts",
       "abiExport": "DATPausableABI",
       "functions": {
         "mint": [],
@@ -1199,7 +1171,6 @@
       }
     },
     "DATVotes": {
-      "abiModule": "src/generated/abi/DATVotesImplementation.ts",
       "abiExport": "DATVotesABI",
       "functions": {
         "mint": [],
@@ -1239,7 +1210,6 @@
       }
     },
     "TeePool": {
-      "abiModule": "src/generated/abi/TeePoolImplementation.ts",
       "abiExport": "TeePoolABI",
       "functions": {
         "addJob": [],

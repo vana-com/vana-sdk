@@ -60,7 +60,6 @@ describe('transactionHelpers', () => {
       });
 
       // TypeScript should infer the correct types
-      type Result = typeof result;
       type ExpectedResult = TransactionResult<'DataPortabilityPermissions', 'revokePermission'>;
       
       // This is a compile-time check - if it compiles, the types are correct

@@ -479,10 +479,6 @@ describe("VanaCore Extended Tests", () => {
           from: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         };
 
-        interface PermissionEvents {
-          permissionId: bigint;
-        }
-
         const txResult = {
           ...transactionResult,
           contract: 'DataPortabilityPermissions' as const,
@@ -535,11 +531,6 @@ describe("VanaCore Extended Tests", () => {
         mockPublicClient.waitForTransactionReceipt.mockResolvedValue(
           mockReceipt,
         );
-
-        interface CustomEventData {
-          fileId: bigint;
-          schemaId: bigint;
-        }
 
         const transactionResult = {
           hash: "0xdef456" as `0x${string}`,

@@ -19,15 +19,18 @@ vi.mock('viem', () => ({
 vi.mock('../../generated/eventRegistry', () => ({
   EVENT_REGISTRY: {
     'DataPortabilityPermissions.addPermission': {
-      topicToAbi: {
-        '0xvalidtopic': {
-          name: 'PermissionAdded',
-          type: 'event',
-          inputs: [],
-        },
-      },
+      contract: 'DataPortabilityPermissions',
+      fn: 'addPermission',
+      eventNames: ['PermissionAdded'] as const,
     },
   },
+  TOPIC_TO_ABIS: new Map([
+    ['0xvalidtopic' as `0x${string}`, [{
+      name: 'PermissionAdded',
+      type: 'event',
+      inputs: [],
+    }]],
+  ]),
 }));
 
 describe('Transaction System Edge Cases', () => {

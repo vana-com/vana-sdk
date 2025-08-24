@@ -5,7 +5,7 @@ import type { Log, TransactionReceipt } from 'viem';
 
 // Mock viem's decodeEventLog
 vi.mock('viem', () => ({
-  decodeEventLog: vi.fn(({ abi, data, topics }) => {
+  decodeEventLog: vi.fn(({ abi }) => {
     // Simple mock that returns a predictable result
     const eventAbi = abi[0];
     return {

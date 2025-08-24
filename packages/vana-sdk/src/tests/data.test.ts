@@ -36,6 +36,13 @@ vi.mock("viem", async () => {
     createPublicClient: vi.fn(() => ({
       readContract: vi.fn(),
       waitForTransactionReceipt: vi.fn(),
+      getTransactionReceipt: vi.fn().mockResolvedValue({
+        transactionHash: "0xTransactionHash",
+        blockNumber: 12345n,
+        gasUsed: 100000n,
+        status: "success" as const,
+        logs: [],
+      }),
     })),
     getContract: vi.fn(() => ({
       read: {
@@ -131,6 +138,7 @@ interface MockWalletClient {
 
 interface MockPublicClient {
   waitForTransactionReceipt: ReturnType<typeof vi.fn>;
+  getTransactionReceipt: ReturnType<typeof vi.fn>;
 }
 
 describe("DataController", () => {
@@ -162,6 +170,13 @@ describe("DataController", () => {
     // Create a fully mocked public client
     mockPublicClient = {
       waitForTransactionReceipt: vi.fn().mockResolvedValue({ logs: [] }),
+      getTransactionReceipt: vi.fn().mockResolvedValue({
+        transactionHash: "0xTransactionHash",
+        blockNumber: 12345n,
+        gasUsed: 100000n,
+        status: "success" as const,
+        logs: [],
+      }),
     };
 
     // Base context without relayer (for direct transaction tests)

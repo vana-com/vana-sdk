@@ -24,6 +24,13 @@ vi.mock("viem", async () => {
     createPublicClient: vi.fn(() => ({
       readContract: vi.fn(),
       waitForTransactionReceipt: vi.fn(),
+      getTransactionReceipt: vi.fn().mockResolvedValue({
+        transactionHash: "0xTransactionHash",
+        blockNumber: 12345n,
+        gasUsed: 100000n,
+        status: "success" as const,
+        logs: [],
+      }),
     })),
     getContract: vi.fn(() => ({
       read: {
@@ -107,6 +114,7 @@ interface MockWalletClient {
 interface MockPublicClient {
   readContract: ReturnType<typeof vi.fn>;
   waitForTransactionReceipt: ReturnType<typeof vi.fn>;
+  getTransactionReceipt: ReturnType<typeof vi.fn>;
   getChainId: ReturnType<typeof vi.fn>;
 }
 
@@ -186,6 +194,13 @@ describe("PermissionsController", () => {
       waitForTransactionReceipt: vi.fn().mockResolvedValue({
         blockNumber: 12345n,
         gasUsed: 100000n,
+        logs: [],
+      }),
+      getTransactionReceipt: vi.fn().mockResolvedValue({
+        transactionHash: "0xTransactionHash",
+        blockNumber: 12345n,
+        gasUsed: 100000n,
+        status: "success" as const,
         logs: [],
       }),
       getChainId: vi.fn().mockResolvedValue(14800),

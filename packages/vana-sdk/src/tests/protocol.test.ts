@@ -59,7 +59,10 @@ describe("ProtocolController", () => {
   let controller: ProtocolController;
   let mockContext: ControllerContext;
   let mockWalletClient: ReturnType<typeof createWalletClient>;
-  let mockPublicClient: { waitForTransactionReceipt: ReturnType<typeof vi.fn> };
+  let mockPublicClient: {
+    waitForTransactionReceipt: ReturnType<typeof vi.fn>;
+    getTransactionReceipt: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -73,6 +76,13 @@ describe("ProtocolController", () => {
     // Create a fully mocked public client
     mockPublicClient = {
       waitForTransactionReceipt: vi.fn().mockResolvedValue({ logs: [] }),
+      getTransactionReceipt: vi.fn().mockResolvedValue({
+        transactionHash: "0xTransactionHash",
+        blockNumber: 12345n,
+        gasUsed: 100000n,
+        status: "success" as const,
+        logs: [],
+      }),
     };
 
     mockContext = {

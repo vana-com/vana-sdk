@@ -51,6 +51,7 @@ interface MockWalletClient {
 interface MockPublicClient {
   readContract: ReturnType<typeof vi.fn>;
   waitForTransactionReceipt: ReturnType<typeof vi.fn>;
+  getTransactionReceipt: ReturnType<typeof vi.fn>;
   getChainId: ReturnType<typeof vi.fn>;
 }
 
@@ -89,6 +90,13 @@ describe("PermissionsController - Helper Methods", () => {
     mockPublicClient = {
       readContract: vi.fn(),
       waitForTransactionReceipt: vi.fn().mockResolvedValue({ logs: [] }),
+      getTransactionReceipt: vi.fn().mockResolvedValue({
+        transactionHash: "0xTransactionHash",
+        blockNumber: 12345n,
+        gasUsed: 100000n,
+        status: "success" as const,
+        logs: [],
+      }),
       getChainId: vi.fn().mockResolvedValue(14800),
     };
 

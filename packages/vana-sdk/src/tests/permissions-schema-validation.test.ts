@@ -77,6 +77,13 @@ describe("Permissions Schema Validation", () => {
       } as any,
       publicClient: {
         waitForTransactionReceipt: vi.fn().mockResolvedValue({
+          getTransactionReceipt: vi.fn().mockResolvedValue({
+            transactionHash: "0xTransactionHash",
+            blockNumber: 12345n,
+            gasUsed: 100000n,
+            status: "success" as const,
+            logs: [],
+          }),
           status: "success",
           logs: [],
         }),

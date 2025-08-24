@@ -131,6 +131,13 @@ describe("SchemaController", () => {
           gasUsed: 100000n,
           logs: [{ data: "0x", topics: ["0xSchemaAdded"] }],
         }),
+        getTransactionReceipt: vi.fn().mockResolvedValue({
+          transactionHash: "0xTransactionHash",
+          blockNumber: 12345n,
+          gasUsed: 100000n,
+          status: "success" as const,
+          logs: [{ data: "0x", topics: ["0xSchemaAdded"] }],
+        }),
         getChainId: vi.fn().mockResolvedValue(14800),
         multicall: vi.fn().mockResolvedValue([]),
       } as any,
@@ -645,10 +652,19 @@ describe("SchemaController", () => {
         definitionUrl: "https://example.com/schema.json",
       });
 
-      expect(result).toEqual({
-        schemaId: 1,
+      expect(result).toMatchObject({
+        schemaId: 1n,
         transactionHash: "0xTransactionHash",
       });
+
+      // Verify all fields are present
+      expect(result.name).toBe("Test Schema");
+      expect(result.dialect).toBe("jsonschema");
+      expect(result.definitionUrl).toBe(
+        "https://gateway.pinata.cloud/ipfs/QmTestHash",
+      );
+      expect(result.blockNumber).toBe(12345n);
+      expect(result.gasUsed).toBe(100000n);
 
       expect(mockContext.walletClient.writeContract).toHaveBeenCalledWith({
         address: "0xRegistryAddress",

@@ -45,12 +45,14 @@ export interface PermissionRevokeResult extends BaseTransactionResult {
  * Contains data from the ServerTrusted blockchain event.
  */
 export interface ServerTrustResult extends BaseTransactionResult {
-  /** Address of the user who trusted the server */
+  /** Address of the user who trusted the server (from event) */
   user: Address;
-  /** Address/ID of the trusted server */
-  serverId: Address;
-  /** URL of the trusted server */
-  serverUrl: string;
+  /** Numeric ID of the trusted server (from event) */
+  serverId: bigint;
+  /** Address of the trusted server (from params/derived) */
+  serverAddress?: Address;
+  /** URL of the trusted server (from params/provided) */
+  serverUrl?: string;
 }
 
 /**

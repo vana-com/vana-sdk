@@ -1,5 +1,4 @@
 import { Address, Hash, getAddress } from "viem";
-import type { WalletClient, PublicClient } from "viem";
 import { gasAwareMulticall } from "../utils/multicall";
 import {
   GrantPermissionParams,
@@ -46,13 +45,9 @@ import {
 } from "../types/transactionResults";
 import type {
   TransactionResult,
-  TransactionWaitOptions,
 } from "../types/operations";
 import { PermissionInfo } from "../types/permissions";
-import type {
-  RelayerCallbacks,
-  DownloadRelayerCallbacks,
-} from "../types/config";
+// RelayerCallbacks and DownloadRelayerCallbacks are imported via ControllerContext
 import {
   RelayerError,
   UserRejectedRequestError,
@@ -71,8 +66,6 @@ import { validateGrant } from "../utils/grantValidation";
 import { withSignatureCache } from "../utils/signatureCache";
 import { formatSignatureForContract } from "../utils/signatureFormatter";
 import { toViemTypedDataDefinition } from "../utils/typedDataConverter";
-import { StorageManager } from "../storage";
-import type { VanaPlatformAdapter } from "../platform/interface";
 import type { GetUserPermissionsQuery } from "../generated/subgraph";
 
 // Wrapper type for GraphQL responses with potential errors
@@ -181,8 +174,11 @@ export class PermissionsController {
    */
   async grant(
     params: GrantPermissionParams,
-  ): Promise<TransactionResult & { eventData?: PermissionGrantResult }> {
-    return await this.submitPermissionGrant(params);
+  ): Promise<PermissionGrantResult> {
+    // Submit the transaction and wait for events internally
+    const { typedData, signature } = await this.createAndSign(params);
+    const result = await this.submitSignedGrantWithEvents(typedData, signature);
+    return result;
   }
 
   /**
@@ -244,9 +240,7 @@ export class PermissionsController {
    */
   async prepareGrant(params: GrantPermissionParams): Promise<{
     preview: GrantFile;
-    confirm: () => Promise<
-      TransactionResult & { eventData?: PermissionGrantResult }
-    >;
+    confirm: () => Promise<PermissionGrantResult>;
   }> {
     try {
       // Step 1: Create grant file in memory (no IPFS upload yet)
@@ -258,11 +252,9 @@ export class PermissionsController {
       // Step 3: Return preview and confirm function
       return {
         preview: grantFile,
-        confirm: async (): Promise<
-          TransactionResult & { eventData?: PermissionGrantResult }
-        > => {
+        confirm: async (): Promise<PermissionGrantResult> => {
           // Phase 2: Now we upload, sign, and submit
-          return await this.confirmGrantInternal(params, grantFile);
+          return await this.confirmGrantInternalWithEvents(params, grantFile);
         },
       };
     } catch (error) {
@@ -307,7 +299,7 @@ export class PermissionsController {
   private async confirmGrantInternal(
     params: GrantPermissionParams,
     grantFile: GrantFile,
-  ): Promise<TransactionResult & { eventData?: PermissionGrantResult }> {
+  ): Promise<TransactionResult<"DataPortabilityPermissions", "addPermission">> {
     try {
       // Step 1: Use provided grantUrl or store grant file in IPFS
       let grantUrl = params.grantUrl;
@@ -541,7 +533,7 @@ export class PermissionsController {
   async submitSignedGrant(
     typedData: PermissionGrantTypedData,
     signature: Hash,
-  ): Promise<TransactionResult & { eventData?: PermissionGrantResult }> {
+  ): Promise<TransactionResult<"DataPortabilityPermissions", "addPermission">> {
     try {
       console.debug(
         "🔍 Debug - submitSignedGrant called with typed data:",
@@ -734,6 +726,132 @@ export class PermissionsController {
   }
 
   /**
+   * Internal method to submit a signed grant and wait for events.
+   * 
+   * @internal
+   * @param typedData - The EIP-712 typed data for the permission grant
+   * @param signature - The user's signature authorizing the transaction
+   * @returns Promise resolving to PermissionGrantResult with parsed events
+   */
+  private async submitSignedGrantWithEvents(
+    typedData: PermissionGrantTypedData,
+    signature: Hash,
+  ): Promise<PermissionGrantResult> {
+    const txResult = await this.submitSignedGrant(typedData, signature);
+    
+    if (!this.context.waitForTransactionEvents) {
+      throw new BlockchainError("waitForTransactionEvents not configured");
+    }
+    
+    // Now TypeScript knows this is a DataPortabilityPermissions.addPermission transaction
+    const result = await this.context.waitForTransactionEvents(txResult);
+    
+    // TypeScript knows exactly what events are possible!
+    const event = result.expectedEvents.PermissionAdded;
+    if (!event) {
+      throw new BlockchainError("PermissionAdded event not found in transaction");
+    }
+    
+    // Need to get receipt for block number and gas used
+    const receipt = await this.context.publicClient.getTransactionReceipt({
+      hash: result.hash
+    });
+    
+    return {
+      transactionHash: result.hash,
+      blockNumber: receipt.blockNumber,
+      gasUsed: receipt.gasUsed,
+      permissionId: event.permissionId,
+      user: event.user,
+      grant: event.grant,
+      fileIds: event.fileIds,
+    };
+  }
+
+  /**
+   * Internal method for confirm grant with events.
+   * 
+   * @internal
+   * @param params - The permission grant parameters
+   * @param grantFile - The pre-created grant file object
+   * @returns Promise resolving to PermissionGrantResult with parsed events
+   */
+  private async confirmGrantInternalWithEvents(
+    params: GrantPermissionParams,
+    grantFile: GrantFile,
+  ): Promise<PermissionGrantResult> {
+    const txResult = await this.confirmGrantInternal(params, grantFile);
+    
+    if (!this.context.waitForTransactionEvents) {
+      throw new BlockchainError("waitForTransactionEvents not configured");
+    }
+    
+    // Wait for transaction events
+    const result = await this.context.waitForTransactionEvents(txResult);
+    
+    // Extract the expected event
+    const event = result.expectedEvents.PermissionAdded;
+    if (!event) {
+      throw new BlockchainError("PermissionAdded event not found in transaction");
+    }
+    
+    // Get receipt for block number and gas used
+    const receipt = await this.context.publicClient.getTransactionReceipt({
+      hash: result.hash
+    });
+    
+    return {
+      transactionHash: result.hash,
+      blockNumber: receipt.blockNumber,
+      gasUsed: receipt.gasUsed,
+      permissionId: event.permissionId,
+      user: event.user,
+      grant: event.grant,
+      fileIds: event.fileIds,
+    };
+  }
+
+  /**
+   * Internal method to submit a signed revoke and wait for events.
+   * 
+   * @internal
+   * @param typedData - The EIP-712 typed data for the permission revoke
+   * @param signature - The user's signature authorizing the transaction  
+   * @returns Promise resolving to PermissionRevokeResult with parsed events
+   */
+  private async submitSignedRevokeWithEvents(
+    typedData: GenericTypedData,
+    signature: Hash,
+  ): Promise<PermissionRevokeResult> {
+    const txResult = await this.submitSignedRevoke(typedData, signature);
+    
+    if (!this.context.waitForTransactionEvents) {
+      throw new BlockchainError("waitForTransactionEvents not configured");
+    }
+    
+    // Wait for transaction events
+    const result = await this.context.waitForTransactionEvents(txResult);
+    
+    // Extract the expected event
+    const event = result.expectedEvents.PermissionRevoked;
+    if (!event) {
+      throw new BlockchainError("PermissionRevoked event not found in transaction");
+    }
+    
+    // Get receipt for block number and gas used
+    const receipt = await this.context.publicClient.getTransactionReceipt({
+      hash: result.hash
+    });
+    
+    return {
+      transactionHash: result.hash,
+      blockNumber: receipt.blockNumber,
+      gasUsed: receipt.gasUsed,
+      permissionId: event.permissionId,
+    };
+  }
+
+  /**
    * Submits an already-signed permission revoke transaction to the blockchain.
    *
    * @remarks
@@ -757,7 +875,7 @@ export class PermissionsController {
   async submitSignedRevoke(
     typedData: GenericTypedData,
     signature: Hash,
-  ): Promise<TransactionResult & { eventData?: PermissionRevokeResult }> {
+  ): Promise<TransactionResult<"DataPortabilityPermissions", "revokePermissionWithSignature">> {
     try {
       // Use relayer callbacks or direct transaction
       let hash: Hash;
@@ -947,8 +1065,33 @@ export class PermissionsController {
    */
   async revoke(
     params: RevokePermissionParams,
-  ): Promise<TransactionResult & { eventData?: PermissionRevokeResult }> {
-    return await this.submitPermissionRevoke(params);
+  ): Promise<PermissionRevokeResult> {
+    const txResult = await this.submitPermissionRevoke(params);
+    
+    if (!this.context.waitForTransactionEvents) {
+      throw new BlockchainError("waitForTransactionEvents not configured");
+    }
+    
+    // Wait for transaction events  
+    const result = await this.context.waitForTransactionEvents(txResult);
+    
+    // Extract the expected event
+    const event = result.expectedEvents.PermissionRevoked;
+    if (!event) {
+      throw new BlockchainError("PermissionRevoked event not found in transaction");
+    }
+    
+    // Get receipt for block number and gas used
+    const receipt = await this.context.publicClient.getTransactionReceipt({
+      hash: result.hash
+    });
+    
+    return {
+      transactionHash: result.hash,
+      blockNumber: receipt.blockNumber,
+      gasUsed: receipt.gasUsed,
+      permissionId: event.permissionId,
+    };
   }
 
   /**
@@ -972,7 +1115,7 @@ export class PermissionsController {
    */
   async submitPermissionRevoke(
     params: RevokePermissionParams,
-  ): Promise<TransactionResult & { eventData?: PermissionRevokeResult }> {
+  ): Promise<TransactionResult<"DataPortabilityPermissions", "revokePermission">> {
     try {
       // Check chain ID availability early
       if (!this.context.walletClient.chain?.id) {
@@ -1717,7 +1860,7 @@ export class PermissionsController {
    */
   async addAndTrustServer(
     params: AddAndTrustServerParams,
-  ): Promise<TransactionResult & { eventData?: ServerTrustResult }> {
+  ): Promise<ServerTrustResult> {
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
@@ -1749,12 +1892,35 @@ export class PermissionsController {
       });
 
       const { tx } = await import("../utils/transactionHelpers");
-      return tx({
+      const txResult = tx({
         hash: txHash,
         from: userAddress,
         contract: "DataPortabilityServers",
         fn: "addAndTrustServerByManager",
       });
+      
+      // Wait for events and extract domain data
+      if (!this.context.waitForTransactionEvents) {
+        throw new BlockchainError("waitForTransactionEvents not configured");
+      }
+      
+      const result = await this.context.waitForTransactionEvents(txResult);
+      const event = result.expectedEvents.ServerTrusted;
+      if (!event) {
+        throw new BlockchainError("ServerTrusted event not found in transaction");
+      }
+      
+      const receipt = await this.context.publicClient.getTransactionReceipt({ hash: txHash });
+      
+      return {
+        transactionHash: txHash,
+        blockNumber: receipt.blockNumber,
+        gasUsed: receipt.gasUsed,
+        user: event.user,
+        serverId: event.serverId,                     // bigint from event
+        serverAddress: normalizedServerAddress,       // derived from params
+        serverUrl: params.serverUrl,                  // provided in params
+      };
     } catch (error) {
       if (error instanceof Error && error.message.includes("rejected")) {
         throw new UserRejectedRequestError();

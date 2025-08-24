@@ -2066,7 +2066,7 @@ export class DataController {
    * console.log(`Created refiner ${result.refinerId} in tx ${result.transactionHash}`);
    * ```
    */
-  async addRefiner(params: AddRefinerParams): Promise<TransactionResult<"DataRefinerRegistry", "addRefinerWithSchemaId">> {
+  async addRefiner(params: AddRefinerParams): Promise<AddRefinerResult> {
     try {
       const chainId = this.context.walletClient.chain?.id;
       if (!chainId) {
@@ -2095,13 +2095,30 @@ export class DataController {
         chain: this.context.walletClient.chain || null,
       });
 
+      // Create TransactionResult POJO
       const { tx } = await import("../utils/transactionHelpers");
-      return tx({
+      const txResult = tx({
         hash,
         from,
         contract: "DataRefinerRegistry",
         fn: "addRefinerWithSchemaId",
       });
+      
+      // Wait for events and extract domain data
+      if (!this.context.waitForTransactionEvents) {
+        throw new Error("waitForTransactionEvents not configured");
+      }
+      
+      const result = await this.context.waitForTransactionEvents(txResult);
+      const event = result.expectedEvents.RefinerAdded;
+      if (!event) {
+        throw new Error("RefinerAdded event not found in transaction");
+      }
+      
+      return {
+        refinerId: Number(event.refinerId),
+        transactionHash: hash,
+      };
     } catch (error) {
       console.error("Failed to add refiner:", error);
       throw new Error(
@@ -2289,7 +2306,7 @@ export class DataController {
    */
   async updateSchemaId(
     params: UpdateSchemaIdParams,
-  ): Promise<TransactionResult<"DataRefinerRegistry", "updateSchemaId">> {
+  ): Promise<UpdateSchemaIdResult> {
     try {
       const chainId = this.context.walletClient.chain?.id;
       if (!chainId) {
@@ -2302,7 +2319,6 @@ export class DataController {
       );
       const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
       const account = this.context.walletClient.account || (await this.getUserAddress());
-      const from = typeof account === 'string' ? account : account.address;
 
       const hash = await this.context.walletClient.writeContract({
         address: dataRefinerRegistryAddress,
@@ -2313,13 +2329,13 @@ export class DataController {
         chain: this.context.walletClient.chain || null,
       });
 
-      const { tx } = await import("../utils/transactionHelpers");
-      return tx({
-        hash,
-        from,
-        contract: "DataRefinerRegistry",
-        fn: "updateSchemaId",
-      });
+      // Wait for transaction confirmation
+      await this.context.publicClient.waitForTransactionReceipt({ hash });
+
+      // Return simple domain result
+      return {
+        transactionHash: hash,
+      };
     } catch (error) {
       console.error("Failed to update schema ID:", error);
       throw new Error(

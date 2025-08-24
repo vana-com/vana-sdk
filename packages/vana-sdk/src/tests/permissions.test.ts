@@ -201,6 +201,19 @@ describe("PermissionsController", () => {
         submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
       },
       platform: mockPlatformAdapter,
+      waitForTransactionEvents: vi.fn().mockResolvedValue({
+        hash: "0xtxhash",
+        from: "0xfrom",
+        contract: "DataPortabilityPermissions",
+        fn: "addPermission",
+        expectedEvents: {
+          PermissionAdded: {
+            permissionId: 1n,
+          },
+        },
+        allEvents: [],
+        hasExpectedEvents: true,
+      }),
     };
 
     controller = new PermissionsController(mockContext);

@@ -337,6 +337,19 @@ describe("Correct Vana Encryption Implementation", () => {
         applicationClient: mockWalletClient,
         platform: mockPlatformAdapter,
         storageManager: mockStorageManager,
+        waitForTransactionEvents: vi.fn().mockResolvedValue({
+          hash: "0xtxhash",
+          from: "0xfrom",
+          contract: "DataRegistry",
+          fn: "addFile",
+          expectedEvents: {
+            FileAdded: {
+              fileId: 123n,
+            },
+          },
+          allEvents: [],
+          hasExpectedEvents: true,
+        }),
       };
 
       const controller = new DataController(mockContext);
@@ -387,6 +400,15 @@ describe("Correct Vana Encryption Implementation", () => {
         publicClient: mockPublicClient,
         applicationClient: mockWalletClient,
         platform: mockPlatformAdapter,
+        waitForTransactionEvents: vi.fn().mockResolvedValue({
+          hash: "0xtxhash",
+          from: "0xfrom",
+          contract: "DataRegistry",
+          fn: "addPermission",
+          expectedEvents: {},
+          allEvents: [],
+          hasExpectedEvents: true,
+        }),
       };
 
       const controller = new DataController(mockContext);
@@ -423,6 +445,15 @@ describe("Correct Vana Encryption Implementation", () => {
         walletClient: mockWalletClient,
         publicClient: mockPublicClient,
         platform: mockPlatformAdapter,
+        waitForTransactionEvents: vi.fn().mockResolvedValue({
+          hash: "0xtxhash",
+          from: "0xfrom",
+          contract: "DataRegistry",
+          fn: "getFile",
+          expectedEvents: {},
+          allEvents: [],
+          hasExpectedEvents: true,
+        }),
       };
 
       const controller = new DataController(mockContext);

@@ -120,9 +120,7 @@ function loadMappings(): EventMapping {
  * @param abiExport - The ABI export name
  * @returns The contract ABI events
  */
-function loadContractABI(
-  abiExport: string,
-): EventABI[] {
+function loadContractABI(abiExport: string): EventABI[] {
   // All ABIs are statically imported at build time
   const abiRecord = allAbis as Record<string, unknown>;
   if (!(abiExport in abiRecord)) {
@@ -130,16 +128,15 @@ function loadContractABI(
   }
 
   const abi = abiRecord[abiExport] as unknown[];
-  const events = abi
-    .filter(
-      (item): item is EventABI => 
-        typeof item === 'object' && 
-        item !== null &&
-        'type' in item &&
-        item.type === "event" && 
-        'name' in item &&
-        !!item.name,
-    );
+  const events = abi.filter(
+    (item): item is EventABI =>
+      typeof item === "object" &&
+      item !== null &&
+      "type" in item &&
+      item.type === "event" &&
+      "name" in item &&
+      !!item.name,
+  );
 
   return events;
 }
@@ -183,7 +180,12 @@ function solidityToTypeScript(type: string): string {
   return "unknown";
 }
 
-// Generate EventArgs interfaces
+/**
+ * Generate EventArgs interfaces from contract event mappings
+ *
+ * @param mappings - The event mappings configuration
+ * @returns TypeScript interface definitions for event arguments
+ */
 async function generateEventArgs(mappings: EventMapping): Promise<string> {
   const eventArgsMap = new Map<string, string>();
 
@@ -221,7 +223,12 @@ async function generateEventArgs(mappings: EventMapping): Promise<string> {
   return `export interface EventArgs {\n${interfaces}\n}`;
 }
 
-// Generate flat EventNameMap
+/**
+ * Generate flat EventNameMap type from contract mappings
+ *
+ * @param mappings - The event mappings configuration
+ * @returns TypeScript type definition for event name map
+ */
 function generateEventNameMap(mappings: EventMapping): string {
   const entries: string[] = [];
 
@@ -253,12 +260,22 @@ function generateEventNameMap(mappings: EventMapping): string {
   return `export type EventNameMap = {\n${entries.join("\n")}\n};`;
 }
 
-// Calculate content hash for banner
+/**
+ * Calculate SHA256 hash for content versioning
+ *
+ * @param content - The content to hash
+ * @returns First 8 characters of the hex hash
+ */
 function calculateHash(content: string): string {
   return createHash("sha256").update(content).digest("hex").slice(0, 8);
 }
 
-// Generate event-types.ts
+/**
+ * Generate TypeScript type definitions for contract events
+ *
+ * @param mappings - The event mappings configuration
+ * @returns Complete TypeScript file content for event types
+ */
 async function generateEventTypes(mappings: EventMapping): Promise<string> {
   const mappingsHash = calculateHash(JSON.stringify(mappings));
 
@@ -352,14 +369,19 @@ export type TypedTransactionResult<C extends Contract, F extends Fn<C>> = {
   return formatted;
 }
 
-// Generate eventRegistry.ts
+/**
+ * Generate runtime event registry for transaction parsing
+ *
+ * @param mappings - The event mappings configuration
+ * @returns Complete TypeScript file content for event registry
+ */
 async function generateEventRegistry(mappings: EventMapping): Promise<string> {
   const mappingsHash = calculateHash(JSON.stringify(mappings));
   const registryEntries: string[] = [];
 
   // First pass: collect all event ABIs and group by topic
   const topicData: Record<string, { seen: Set<string>; abis: EventABI[] }> = {};
-  
+
   for (const [contract, contractDef] of Object.entries(mappings.contracts)) {
     try {
       const contractEvents = loadContractABI(contractDef.abiExport);
@@ -370,13 +392,16 @@ async function generateEventRegistry(mappings: EventMapping): Promise<string> {
         const encoder = new TextEncoder();
         const bytes = encoder.encode(signature);
         const hash = keccak256(bytes);
-        
+
         // Deterministic deduplication key
-        const indexedMask = event.inputs.map((i) => i.indexed ? '1' : '0').join('');
+        const indexedMask = event.inputs
+          .map((i) => (i.indexed ? "1" : "0"))
+          .join("");
         const dedupeKey = `${signature}|${indexedMask}`;
-        
+
         // Group by topic with Set-based deduping (cleaner than array.some)
-        const entry = topicData[hash] ?? (topicData[hash] = { seen: new Set(), abis: [] });
+        const entry =
+          topicData[hash] ?? (topicData[hash] = { seen: new Set(), abis: [] });
         if (!entry.seen.has(dedupeKey)) {
           entry.seen.add(dedupeKey);
           entry.abis.push(event);
@@ -386,7 +411,7 @@ async function generateEventRegistry(mappings: EventMapping): Promise<string> {
       console.warn(`Warning: Could not load events for ${contract}: ${error}`);
     }
   }
-  
+
   // Convert to the structure we need
   const byTopic: Record<string, EventABI[]> = {};
   for (const [topic, data] of Object.entries(topicData)) {
@@ -415,16 +440,16 @@ async function generateEventRegistry(mappings: EventMapping): Promise<string> {
 
   // Sort topics for deterministic output
   const sortedTopics = Object.keys(byTopic).sort();
-  
+
   // Build topic map entries with proper grouping
   const topicMapEntries = sortedTopics
-    .map(topic => {
+    .map((topic) => {
       const abis = byTopic[topic]
         .sort((a, b) => a.name.localeCompare(b.name)) // Deterministic sort
-        .map(abi => JSON.stringify(abi));
-      return `  ['${topic}' as \`0x\${string}\`, [${abis.join(', ')}] as const]`;
+        .map((abi) => JSON.stringify(abi));
+      return `  ['${topic}' as \`0x\${string}\`, [${abis.join(", ")}] as const]`;
     })
-    .join(',\n');
+    .join(",\n");
 
   const content = `/**
  * Runtime event registry for decoding
@@ -497,10 +522,12 @@ async function validateMappings(mappings: EventMapping): Promise<void> {
   if (errors.length > 0) {
     throw new Error("Validation errors:\n" + errors.join("\n"));
   }
-  
+
   // Strict mode for CI: treat warnings as errors
   if (process.env.STRICT_EVENT_MAP && warnings.length > 0) {
-    throw new Error("Mapping drift detected (STRICT_EVENT_MAP=1):\n" + warnings.join("\n"));
+    throw new Error(
+      "Mapping drift detected (STRICT_EVENT_MAP=1):\n" + warnings.join("\n"),
+    );
   }
 }
 

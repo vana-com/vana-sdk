@@ -50,6 +50,15 @@ describe("PermissionsController - Grantee Methods", () => {
       walletClient: mockWalletClient,
       applicationClient: {} as any,
       platform: {} as any,
+      waitForTransactionEvents: vi.fn().mockResolvedValue({
+        hash: "0xtxhash",
+        from: "0xfrom",
+        contract: "DataPortabilityGrantees",
+        fn: "updateServer",
+        expectedEvents: {},
+        allEvents: [],
+        hasExpectedEvents: true,
+      }),
     } as ControllerContext;
 
     controller = new PermissionsController(mockContext);

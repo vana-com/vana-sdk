@@ -136,6 +136,22 @@ describe("SchemaController", () => {
       } as any,
       platform: mockPlatformAdapter,
       storageManager: mockStorageManager as StorageManager,
+      waitForTransactionEvents: vi.fn().mockResolvedValue({
+        hash: "0xTransactionHash",
+        from: "0xTestAddress",
+        contract: "DataRefinerRegistry",
+        fn: "addSchema",
+        expectedEvents: {
+          SchemaAdded: {
+            schemaId: 1n,
+            name: "Test Schema",
+            dialect: "jsonschema",
+            definitionUrl: "https://gateway.pinata.cloud/ipfs/QmTestHash",
+          },
+        },
+        allEvents: [],
+        hasExpectedEvents: true,
+      }),
     };
 
     controller = new SchemaController(mockContext);

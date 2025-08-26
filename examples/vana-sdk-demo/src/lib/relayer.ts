@@ -90,9 +90,7 @@ export const generateContentId = (parameters: string): string => {
 /**
  * Create a pre-configured Vana SDK instance using the relayer wallet
  */
-export async function createRelayerVana(
-  chainId: VanaChainId = 14800,
-): Promise<VanaInstance> {
+export function createRelayerVana(chainId: VanaChainId = 14800): VanaInstance {
   const config = createRelayerConfig(chainId);
   return Vana({ walletClient: config.walletClient });
 }

@@ -167,7 +167,7 @@ export type {
 } from "./personal";
 
 // Server API types (auto-generated via fetch-server-types.ts)
-export * from "../generated/server/server-exports";
+export type * from "../generated/server/server-exports";
 
 // External API types
 export type {

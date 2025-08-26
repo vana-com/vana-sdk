@@ -5,30 +5,30 @@ import React, {
   useContext,
   useEffect,
   useState,
-  ReactNode,
+  type ReactNode,
 } from "react";
 import { useAccount, useWalletClient } from "wagmi";
 import {
+  type PermissionGrantTypedData,
+  type GenericTypedData,
+  type TrustServerTypedData,
+  type UntrustServerTypedData,
+  type AddAndTrustServerTypedData,
+  type ServerFilesAndPermissionTypedData,
+  type DownloadRelayerCallbacks,
   Vana,
-  VanaInstance,
-  StorageProvider,
   CallbackStorage,
-  StorageCallbacks,
   PinataStorage,
   GoogleDriveStorage,
-  WalletClient,
-  Hash,
-  Address,
-  GrantFile,
-  PermissionGrantTypedData,
-  GenericTypedData,
-  TrustServerTypedData,
-  UntrustServerTypedData,
-  AddAndTrustServerTypedData,
-  ServerFilesAndPermissionTypedData,
-  DownloadRelayerCallbacks,
+  type VanaChain,
+  type VanaInstance,
+  type StorageProvider,
+  type StorageCallbacks,
+  type WalletClient,
+  type Hash,
+  type Address,
+  type GrantFile,
 } from "@opendatalabs/vana-sdk/browser";
-import type { VanaChain } from "@opendatalabs/vana-sdk/browser";
 
 interface VanaConfig {
   relayerUrl?: string;
@@ -311,7 +311,7 @@ export function VanaProvider({
 
   // Initialize Vana SDK when wallet is connected
   useEffect(() => {
-    if (!isConnected || !walletClient || !walletClient.account) {
+    if (!isConnected || !walletClient?.account) {
       setVana(null);
       setIsInitialized(false);
       return;
@@ -490,7 +490,7 @@ export function VanaProvider({
       }
     };
 
-    initializeVana();
+    void initializeVana();
   }, [
     isConnected,
     walletClient,

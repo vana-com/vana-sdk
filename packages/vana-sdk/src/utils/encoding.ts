@@ -83,8 +83,7 @@ export function isNodeEnvironment(): boolean {
     typeof Buffer !== "undefined" &&
     typeof Buffer.from === "function" &&
     typeof process !== "undefined" &&
-    process.versions &&
-    process.versions.node !== undefined
+    process.versions?.node !== undefined
   );
 }
 

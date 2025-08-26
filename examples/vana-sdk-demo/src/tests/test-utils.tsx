@@ -1,8 +1,8 @@
-import React, { ReactElement } from 'react';
-import { render, RenderOptions } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { HeroUIProvider, ToastProvider } from '@heroui/react';
-import { ThemeProvider as NextThemesProvider } from 'next-themes';
+import React, { type ReactElement } from "react";
+import { render, type RenderOptions } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { HeroUIProvider, ToastProvider } from "@heroui/react";
+import { ThemeProvider as NextThemesProvider } from "next-themes";
 
 // Create a test-specific QueryClient with shorter retry times
 const createTestQueryClient = () =>
@@ -47,13 +47,13 @@ const AllTheProviders = ({ children }: AllTheProvidersProps) => {
 // Custom render function that wraps components with providers
 const renderWithProviders = (
   ui: ReactElement,
-  options?: Omit<RenderOptions, 'wrapper'>
+  options?: Omit<RenderOptions, "wrapper">,
 ) => {
   return render(ui, { wrapper: AllTheProviders, ...options });
 };
 
 // Re-export everything from testing-library/react
-export * from '@testing-library/react';
+export * from "@testing-library/react";
 
 // Override the default render with our custom one
 export { renderWithProviders as render };

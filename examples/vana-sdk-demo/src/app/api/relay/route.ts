@@ -1,8 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import type { Hash } from "viem";
 import { createRelayerVana } from "@/lib/relayer";
-import { handleRelayerRequest } from "@opendatalabs/vana-sdk/node";
-import type { GenericTypedData } from "@opendatalabs/vana-sdk/node";
+import {
+  handleRelayerRequest,
+  type GenericTypedData,
+} from "@opendatalabs/vana-sdk/node";
 
 export async function POST(request: NextRequest) {
   try {
@@ -35,7 +37,7 @@ export async function POST(request: NextRequest) {
     );
 
     // Use the new unified relayer handler
-    const vana = await createRelayerVana();
+    const vana = createRelayerVana();
     const txHandle = await handleRelayerRequest(vana, {
       typedData,
       signature,

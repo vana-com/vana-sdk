@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
 /**
  * OAuth2 authorization endpoint for Google Drive
  * Redirects user to Google's OAuth consent screen
  */
-export async function GET(request: NextRequest) {
+export function GET(request: NextRequest) {
   try {
     const clientId = process.env.GOOGLE_DRIVE_CLIENT_ID;
     const redirectUri =

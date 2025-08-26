@@ -1,7 +1,7 @@
 // examples/vana-sdk-demo/src/app/api/relay/addFileComplete/route.ts
 
 import { createRelayerVana } from "@/lib/relayer";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const vana = await createRelayerVana();
+    const vana = createRelayerVana();
     const txResult = await vana.data.addFileWithPermissionsAndSchema(
       url,
       ownerAddress || userAddress, // Use ownerAddress if provided, otherwise fallback to userAddress
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
 
     // Wait for transaction and get events
     const result = await vana.waitForTransactionEvents(txResult);
-    
+
     // Extract fileId from FileAdded event
     const fileId = result.expectedEvents?.FileAdded?.fileId;
 

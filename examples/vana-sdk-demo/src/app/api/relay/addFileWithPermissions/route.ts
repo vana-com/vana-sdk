@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { createRelayerVana } from "@/lib/relayer";
 
 export async function POST(request: NextRequest) {
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     console.info("🔐 Permissions:", permissions.length, "granted");
 
     // Create Vana SDK instance with relayer wallet
-    const vana = await createRelayerVana();
+    const vana = createRelayerVana();
 
     // Use the SDK's DataController to add file with permissions
     // This handles all the contract interaction and receipt parsing internally
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
 
     // Wait for transaction and get events
     const result = await vana.waitForTransactionEvents(txResult);
-    
+
     // Extract fileId from FileAdded event
     const fileId = result.expectedEvents?.FileAdded?.fileId;
 

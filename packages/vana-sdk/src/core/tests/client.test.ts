@@ -5,7 +5,8 @@ import {
   defaultFromBlocks,
   getDefaultFromBlock,
 } from "../client";
-import { chains, mokshaTestnet } from "../../config/chains";
+import type { chains } from "../../config/chains";
+import { mokshaTestnet } from "../../config/chains";
 import { privateKeyToAccount } from "viem/accounts";
 
 describe("client", () => {

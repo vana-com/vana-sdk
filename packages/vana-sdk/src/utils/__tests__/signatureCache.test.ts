@@ -263,8 +263,8 @@ describe("SignatureCache", () => {
 
       expect(hash).toBeDefined();
       expect(typeof hash).toBe("string");
-      expect(hash.length).toBe(64); // SHA-256 produces 64 hex characters
-      expect(hash).toMatch(/^[a-f0-9]{64}$/); // Should be valid hex
+      expect(hash.length).toBe(66); // SHA-256 produces 64 hex characters + 0x prefix
+      expect(hash).toMatch(/^0x[a-f0-9]{64}$/); // Should be valid hex with 0x prefix
     });
 
     it("should handle objects with BigInt values", () => {
@@ -276,8 +276,8 @@ describe("SignatureCache", () => {
       const hash = SignatureCache.hashMessage(message);
       expect(hash).toBeDefined();
       expect(typeof hash).toBe("string");
-      expect(hash.length).toBe(64); // SHA-256 produces 64 hex characters
-      expect(hash).toMatch(/^[a-f0-9]{64}$/); // Should be valid hex
+      expect(hash.length).toBe(66); // SHA-256 produces 64 hex characters + 0x prefix
+      expect(hash).toMatch(/^0x[a-f0-9]{64}$/); // Should be valid hex with 0x prefix
     });
 
     it("should create consistent hashes for equivalent BigInt values", () => {
@@ -317,8 +317,8 @@ describe("SignatureCache", () => {
       const hash = SignatureCache.hashMessage(message);
       expect(hash).toBeDefined();
       expect(typeof hash).toBe("string");
-      expect(hash.length).toBe(64); // SHA-256 produces 64 hex characters
-      expect(hash).toMatch(/^[a-f0-9]{64}$/); // Should be valid hex
+      expect(hash.length).toBe(66); // SHA-256 produces 64 hex characters + 0x prefix
+      expect(hash).toMatch(/^0x[a-f0-9]{64}$/); // Should be valid hex with 0x prefix
     });
   });
 });

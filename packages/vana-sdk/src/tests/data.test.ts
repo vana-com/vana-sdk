@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
+import type { Mock } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DataController } from "../controllers/data";
-import { ControllerContext } from "../controllers/permissions";
+import type { ControllerContext } from "../controllers/permissions";
 import type { StorageManager } from "../storage/manager";
 import type {
   StorageProvider as _StorageProvider,
@@ -163,7 +164,7 @@ describe("DataController", () => {
       getAddresses: vi
         .fn()
         .mockResolvedValue(["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"]),
-      signMessage: vi.fn().mockResolvedValue("0xsignature"),
+      signMessage: vi.fn().mockResolvedValue(`0x${"0".repeat(130)}`),
       writeContract: vi.fn().mockResolvedValue("0xtxhash"),
     };
 

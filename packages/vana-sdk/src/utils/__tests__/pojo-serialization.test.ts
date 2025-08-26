@@ -3,6 +3,7 @@ import { tx } from "../transactionHelpers";
 import { parseTransaction } from "../parseTransactionPojo";
 import type { TransactionResult } from "../../types/operations";
 import type { TransactionReceipt } from "viem";
+import type { Contract, Fn } from "../../generated/event-types";
 
 describe("POJO Serialization and Next.js Compatibility", () => {
   describe("TransactionResult POJOs", () => {
@@ -164,8 +165,9 @@ describe("POJO Serialization and Next.js Compatibility", () => {
           tx !== null &&
           "contract" in tx &&
           "fn" in tx &&
-          (tx as any).contract === "DataPortabilityPermissions" &&
-          (tx as any).fn === "revokePermission"
+          (tx as { contract: unknown; fn: unknown }).contract ===
+            "DataPortabilityPermissions" &&
+          (tx as { contract: unknown; fn: unknown }).fn === "revokePermission"
         );
       }
 
@@ -173,8 +175,8 @@ describe("POJO Serialization and Next.js Compatibility", () => {
 
       if (isPermissionTransaction(deserialized)) {
         // TypeScript now knows the exact type
-        const contract: "DataPortabilityPermissions" = deserialized.contract;
-        const fn: "revokePermission" = deserialized.fn;
+        const { contract } = deserialized;
+        const { fn } = deserialized;
         expect(contract).toBe("DataPortabilityPermissions");
         expect(fn).toBe("revokePermission");
       }
@@ -182,9 +184,11 @@ describe("POJO Serialization and Next.js Compatibility", () => {
 
     it("works with React state management", () => {
       // Simulate React useState with our POJO
-      let state: TransactionResult<any, any> | null = null;
+      let state: TransactionResult<Contract, Fn<Contract>> | null = null;
 
-      const setState = (newState: TransactionResult<any, any>) => {
+      const setState = (
+        newState: TransactionResult<Contract, Fn<Contract>>,
+      ) => {
         // React internally uses Object.is for comparison
         // POJOs work perfectly with this
         state = newState;
@@ -220,7 +224,7 @@ describe("POJO Serialization and Next.js Compatibility", () => {
     it("works with Redux/Zustand state serialization", () => {
       // Simulate Redux/Zustand store
       const store = {
-        transactions: [] as TransactionResult<any, any>[],
+        transactions: [] as TransactionResult<Contract, Fn<Contract>>[],
       };
 
       // Add transactions

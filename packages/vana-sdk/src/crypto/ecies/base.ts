@@ -1,7 +1,8 @@
 import type { ECIESProvider, ECIESEncrypted } from "./interface";
 import { ECIESError, isECIESEncrypted } from "./interface";
 import { CURVE, CIPHER, KDF } from "./constants";
-import { concatBytes, constantTimeEqual } from "./utils";
+import { constantTimeEqual } from "./utils";
+import { concat } from "viem";
 
 /**
  * Provides shared ECIES encryption logic across platforms using Uint8Array.
@@ -245,7 +246,7 @@ export abstract class BaseECIESUint8 implements ECIESProvider {
       const ciphertext = await this.aesEncrypt(encryptionKey, iv, message);
 
       // Calculate MAC (Encrypt-then-MAC)
-      const macData = concatBytes(iv, ephemeralPublicKey, ciphertext);
+      const macData = concat([iv, ephemeralPublicKey, ciphertext]);
       const mac = this.hmacSha256(macKey, macData);
 
       // Clear sensitive data
@@ -321,11 +322,11 @@ export abstract class BaseECIESUint8 implements ECIESProvider {
       );
 
       // Verify MAC before decryption (Encrypt-then-MAC)
-      const macData = concatBytes(
+      const macData = concat([
         encrypted.iv,
         encrypted.ephemPublicKey,
         encrypted.ciphertext,
-      );
+      ]);
       const expectedMac = this.hmacSha256(macKey, macData);
 
       if (!constantTimeEqual(encrypted.mac, expectedMac)) {

@@ -16,7 +16,6 @@ import {
   Radio,
 } from "@heroui/react";
 import { Lock, Key, Database, TestTube, Wrench } from "lucide-react";
-import type { VanaInstance, Schema } from "@opendatalabs/vana-sdk/browser";
 import type { WalletClient } from "viem";
 import {
   generateEncryptionKey as sdkGenerateEncryptionKey,
@@ -25,6 +24,8 @@ import {
   DEFAULT_ENCRYPTION_SEED,
   BrowserPlatformAdapter,
   convertIpfsUrl,
+  type VanaInstance,
+  type Schema,
 } from "@opendatalabs/vana-sdk/browser";
 import { InputModeToggle } from "./InputModeToggle";
 import { CodeDisplay } from "./CodeDisplay";

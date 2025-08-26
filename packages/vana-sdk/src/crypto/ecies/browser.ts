@@ -8,6 +8,7 @@
 
 import * as secp256k1 from "@noble/secp256k1";
 import { BaseECIESUint8 } from "./base";
+import { toHex } from "viem";
 import { hmac } from "@noble/hashes/hmac";
 import { sha256, sha512 as nobleSha512 } from "@noble/hashes/sha2";
 
@@ -175,7 +176,7 @@ export class BrowserECIESUint8Provider extends BaseECIESUint8 {
       const decompressed = this.decompressPublicKey(publicKey);
       if (!decompressed) {
         throw new Error(
-          `Failed to decompress public key with prefix 0x${publicKey[0].toString(16).padStart(2, "0")}`,
+          `Failed to decompress public key with prefix ${toHex(publicKey[0])}`,
         );
       }
       return decompressed;

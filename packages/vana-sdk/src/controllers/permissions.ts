@@ -1,6 +1,7 @@
-import { Address, Hash, getAddress } from "viem";
+import type { Address, Hash } from "viem";
+import { getAddress, toHex } from "viem";
 import { gasAwareMulticall } from "../utils/multicall";
-import {
+import type {
   GrantPermissionParams,
   RevokePermissionParams,
   PermissionGrantTypedData,
@@ -36,7 +37,7 @@ import {
   ServerFilesAndPermissionTypedData,
   Permission,
 } from "../types/index";
-import {
+import type {
   PermissionGrantResult,
   PermissionRevokeResult,
   ServerTrustResult,
@@ -45,7 +46,7 @@ import {
   // GranteeRegisterResult,
 } from "../types/transactionResults";
 import type { TransactionResult } from "../types/operations";
-import { PermissionInfo } from "../types/permissions";
+import type { PermissionInfo } from "../types/permissions";
 // RelayerCallbacks and DownloadRelayerCallbacks are imported via ControllerContext
 import {
   RelayerError,
@@ -299,7 +300,7 @@ export class PermissionsController {
   ): Promise<TransactionResult<"DataPortabilityPermissions", "addPermission">> {
     try {
       // Step 1: Use provided grantUrl or store grant file in IPFS
-      let grantUrl = params.grantUrl;
+      let { grantUrl } = params;
       console.debug("🔍 Debug - Grant URL from params:", grantUrl);
       if (!grantUrl) {
         // Validate storage is available using the centralized validation method
@@ -423,7 +424,7 @@ export class PermissionsController {
       validateGrant(grantFile);
 
       // Step 2: Use provided grantUrl or store grant file in IPFS
-      let grantUrl = params.grantUrl;
+      let { grantUrl } = params;
       console.debug("🔍 Debug - Grant URL from params:", grantUrl);
       if (!grantUrl) {
         // Validate storage is available using the centralized validation method
@@ -1351,12 +1352,12 @@ export class PermissionsController {
       );
       const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
 
-      const nonce = (await this.context.publicClient.readContract({
+      const nonce = await this.context.publicClient.readContract({
         address: DataPortabilityServersAddress,
         abi: DataPortabilityServersAbi,
         functionName: "userNonce",
         args: [userAddress],
-      })) as bigint;
+      });
 
       return nonce;
     } catch (error) {
@@ -1453,12 +1454,12 @@ export class PermissionsController {
         "DataPortabilityPermissions",
       );
 
-      const nonce = (await this.context.publicClient.readContract({
+      const nonce = await this.context.publicClient.readContract({
         address: DataPortabilityPermissionsAddress,
         abi: DataPortabilityPermissionsAbi,
         functionName: "userNonce",
         args: [userAddress],
-      })) as bigint;
+      });
 
       return nonce;
     } catch (error) {
@@ -1539,7 +1540,7 @@ export class PermissionsController {
       primaryType: "Permission",
       message: {
         nonce: params.nonce,
-        granteeId: granteeId as bigint,
+        granteeId,
         grant: params.grantUrl,
         fileIds: params.files.map((fileId) => BigInt(fileId)),
       },
@@ -1805,7 +1806,7 @@ export class PermissionsController {
       }
 
       const userData = result.data?.user;
-      if (!userData || !userData.permissions?.length) {
+      if (!userData?.permissions?.length) {
         return [];
       }
 
@@ -1822,7 +1823,7 @@ export class PermissionsController {
             addedAtBlock: BigInt(permission.addedAtBlock),
             addedAtTimestamp: BigInt(permission.addedAtTimestamp || "0"),
             transactionHash: permission.transactionHash || "",
-            grantor: userAddress as Address,
+            grantor: userAddress,
             grantee: permission.grantee,
             active: !permission.endBlock || BigInt(permission.endBlock) === 0n, // Active if no end block or end block is 0
           }),
@@ -1864,7 +1865,7 @@ export class PermissionsController {
     // Convert permission ID to hex format (same logic as demo was using)
     try {
       const bigIntId = BigInt(grantId);
-      return `0x${bigIntId.toString(16).padStart(64, "0")}` as Hash;
+      return toHex(bigIntId, { size: 32 });
     } catch {
       throw new Error(
         `Invalid grant ID format: ${grantId}. Must be a permission ID (number/bigint/string) or a 32-byte hex hash.`,
@@ -2347,10 +2348,7 @@ export class PermissionsController {
           signature,
         );
       } else {
-        hash = await this.submitSignedUntrustTransaction(
-          typedData as UntrustServerTypedData,
-          signature,
-        );
+        hash = await this.submitSignedUntrustTransaction(typedData, signature);
       }
 
       const account =
@@ -2449,12 +2447,12 @@ export class PermissionsController {
       );
       const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
 
-      const count = (await this.context.publicClient.readContract({
+      const count = await this.context.publicClient.readContract({
         address: DataPortabilityServersAddress,
         abi: DataPortabilityServersAbi,
         functionName: "userServerIdsLength",
         args: [user],
-      })) as bigint;
+      });
 
       return Number(count);
     } catch (error) {
@@ -2488,12 +2486,12 @@ export class PermissionsController {
       const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
 
       // Get total count first
-      const totalCount = (await this.context.publicClient.readContract({
+      const totalCount = await this.context.publicClient.readContract({
         address: DataPortabilityServersAddress,
         abi: DataPortabilityServersAbi,
         functionName: "userServerIdsLength",
         args: [user],
-      })) as bigint;
+      });
 
       const total = Number(totalCount);
 
@@ -2532,7 +2530,7 @@ export class PermissionsController {
 
       // Extract server IDs from results
       const servers = serverIdResults
-        .map((result) => Number(result as bigint))
+        .map((result) => Number(result))
         .filter((id) => id > 0);
 
       return {
@@ -3251,11 +3249,11 @@ export class PermissionsController {
     const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
 
     // Get total count
-    const totalCount = (await this.context.publicClient.readContract({
+    const totalCount = await this.context.publicClient.readContract({
       address: DataPortabilityGranteesAddress,
       abi: DataPortabilityGranteesAbi,
       functionName: "granteesCount",
-    })) as bigint;
+    });
 
     const total = Number(totalCount);
     const limit = options.limit || 50;
@@ -3349,12 +3347,12 @@ export class PermissionsController {
       };
 
       // Get the grantee ID
-      const granteeId = (await this.context.publicClient.readContract({
+      const granteeId = await this.context.publicClient.readContract({
         address: DataPortabilityGranteesAddress,
         abi: DataPortabilityGranteesAbi,
         functionName: "granteeAddressToId",
         args: [granteeAddress],
-      })) as bigint;
+      });
 
       return {
         id: Number(granteeId),
@@ -4855,7 +4853,7 @@ export class PermissionsController {
         "DataPortabilityPermissions",
       );
 
-      const account = this.context.walletClient.account;
+      const { account } = this.context.walletClient;
       if (!account) {
         throw new Error("No wallet account connected");
       }
@@ -4866,7 +4864,7 @@ export class PermissionsController {
         functionName: "revokePermission",
         args: [permissionId],
         chain: this.context.walletClient.chain,
-        account: account,
+        account,
       });
 
       // Return the strongly-typed, self-describing POJO

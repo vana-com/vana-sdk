@@ -67,10 +67,13 @@ describe("FakeWaitForTransactionEvents", () => {
     const mockFn = vi.fn().mockImplementation(fake.asMockFunction());
 
     // Attach fake to mock for test access
-    (mockFn as any).__fake = fake;
+    interface MockWithFake {
+      __fake: FakeWaitForTransactionEvents;
+    }
+    (mockFn as unknown as MockWithFake).__fake = fake;
 
     // Access the fake and set a response
-    const attachedFake = (mockFn as any).__fake as FakeWaitForTransactionEvents;
+    const attachedFake = (mockFn as unknown as MockWithFake).__fake;
     attachedFake.setResponse("0xtest", {
       hash: "0xtest" as Hash,
       from: "0xfrom" as Address,

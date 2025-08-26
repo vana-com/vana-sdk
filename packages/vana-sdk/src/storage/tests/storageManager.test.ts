@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { StorageManager } from "../manager";
-import {
+import type {
   StorageProvider,
   StorageUploadResult,
   StorageFile,
-  StorageError,
   StorageProviderConfig,
 } from "../index";
+import { StorageError } from "../index";
 
 // Mock storage provider for testing
 class MockStorageProvider implements StorageProvider {

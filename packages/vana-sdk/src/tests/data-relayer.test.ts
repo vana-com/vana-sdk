@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DataController } from "../controllers/data";
-import { ControllerContext } from "../controllers/permissions";
-import { Address } from "viem";
+import type { ControllerContext } from "../controllers/permissions";
+import type { Address } from "viem";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock global fetch
@@ -42,7 +42,7 @@ describe("DataController Relayer Integration", () => {
       walletClient: {
         account: { address: "0xTestUser" },
         getAddresses: vi.fn().mockResolvedValue(["0xTestUser"]),
-        signMessage: vi.fn().mockResolvedValue("0xSignature"),
+        signMessage: vi.fn().mockResolvedValue(`0x${"0".repeat(130)}`),
       } as unknown as ControllerContext["walletClient"],
       publicClient: {} as unknown as ControllerContext["publicClient"],
       applicationClient:

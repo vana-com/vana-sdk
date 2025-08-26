@@ -1,9 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { Address } from "viem";
-import {
-  PermissionsController,
-  ControllerContext,
-} from "../controllers/permissions";
+import type { Address } from "viem";
+import type { ControllerContext } from "../controllers/permissions";
+import { PermissionsController } from "../controllers/permissions";
+import type { ServerFilesAndPermissionTypedData } from "../types/permissions";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock external dependencies
@@ -86,7 +85,7 @@ describe("Permissions Server Files and Permissions", () => {
 
     mockWalletClient = {
       writeContract: vi.fn().mockResolvedValue("0xmocktxhash"),
-      signTypedData: vi.fn().mockResolvedValue("0xmocksignature"),
+      signTypedData: vi.fn().mockResolvedValue(`0x${"0".repeat(130)}`),
       account: { address: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" },
       chain: { id: 14800 },
       getChainId: vi.fn().mockResolvedValue(14800),
@@ -144,17 +143,18 @@ describe("Permissions Server Files and Permissions", () => {
     };
 
     it("should include schemaIds in the typed data message", async () => {
-      let capturedTypedData: any;
+      let capturedTypedData: ServerFilesAndPermissionTypedData | undefined =
+        undefined;
       mockWalletClient.signTypedData.mockImplementation((data) => {
         capturedTypedData = data;
-        return Promise.resolve("0xmocksignature");
+        return Promise.resolve(`0x${"0".repeat(130)}`);
       });
 
       await controller.submitAddServerFilesAndPermissions(baseParams);
 
       expect(capturedTypedData).toBeDefined();
-      expect(capturedTypedData.message.schemaIds).toEqual([BigInt(0)]);
-      expect(capturedTypedData.types.ServerFilesAndPermission).toContainEqual({
+      expect(capturedTypedData!.message.schemaIds).toEqual([BigInt(0)]);
+      expect(capturedTypedData!.types.ServerFilesAndPermission).toContainEqual({
         name: "schemaIds",
         type: "uint256[]",
       });
@@ -205,15 +205,17 @@ describe("Permissions Server Files and Permissions", () => {
         ],
       };
 
-      let capturedTypedData: any;
+      let capturedTypedData: ServerFilesAndPermissionTypedData | undefined =
+        undefined;
       mockWalletClient.signTypedData.mockImplementation((data) => {
         capturedTypedData = data;
-        return Promise.resolve("0xmocksignature");
+        return Promise.resolve(`0x${"0".repeat(130)}`);
       });
 
       await controller.submitAddServerFilesAndPermissions(params);
 
-      expect(capturedTypedData.message.schemaIds).toEqual([
+      expect(capturedTypedData).toBeDefined();
+      expect(capturedTypedData!.message.schemaIds).toEqual([
         BigInt(123),
         BigInt(0),
         BigInt(456),
@@ -228,36 +230,44 @@ describe("Permissions Server Files and Permissions", () => {
         filePermissions: [],
       };
 
-      let capturedTypedData: any;
+      let capturedTypedData: ServerFilesAndPermissionTypedData | undefined =
+        undefined;
       mockWalletClient.signTypedData.mockImplementation((data) => {
         capturedTypedData = data;
-        return Promise.resolve("0xmocksignature");
+        return Promise.resolve(`0x${"0".repeat(130)}`);
       });
 
       await controller.submitAddServerFilesAndPermissions(params);
 
-      expect(capturedTypedData.message.fileUrls).toEqual([]);
-      expect(capturedTypedData.message.schemaIds).toEqual([]);
-      expect(capturedTypedData.message.filePermissions).toEqual([]);
+      expect(capturedTypedData).toBeDefined();
+      expect(capturedTypedData!.message.fileUrls).toEqual([]);
+      expect(capturedTypedData!.message.schemaIds).toEqual([]);
+      expect(capturedTypedData!.message.filePermissions).toEqual([]);
     });
 
     it("should convert number schemaIds to bigint in typed data", async () => {
-      let capturedTypedData: any;
+      let capturedTypedData: ServerFilesAndPermissionTypedData | undefined =
+        undefined;
       mockWalletClient.signTypedData.mockImplementation((data) => {
         capturedTypedData = data;
-        return Promise.resolve("0xmocksignature");
+        return Promise.resolve(`0x${"0".repeat(130)}`);
       });
 
       await controller.submitAddServerFilesAndPermissions(baseParams);
 
       // Verify the schemaIds are bigints in the message
-      expect(capturedTypedData.message.schemaIds[0]).toBeTypeOf("bigint");
-      expect(capturedTypedData.message.schemaIds[0]).toBe(BigInt(0));
+      expect(capturedTypedData).toBeDefined();
+      expect(capturedTypedData!.message.schemaIds[0]).toBeTypeOf("bigint");
+      expect(capturedTypedData!.message.schemaIds[0]).toBe(BigInt(0));
     });
 
     it("should include schemaIds in direct transaction path", async () => {
       // No relayer callbacks - will use direct transaction
-      let capturedArgs: any;
+      let capturedArgs: {
+        functionName?: string;
+        args?: unknown[];
+        [key: string]: unknown;
+      } = {};
       mockWalletClient.writeContract.mockImplementation((args) => {
         capturedArgs = args;
         return Promise.resolve("0xmocktxhash");
@@ -269,12 +279,12 @@ describe("Permissions Server Files and Permissions", () => {
       expect(result).toHaveProperty("hash");
       expect(result).toHaveProperty("from");
       expect(capturedArgs).toBeDefined();
-      expect(capturedArgs.functionName).toBe("addServerFilesAndPermissions");
+      expect(capturedArgs?.functionName).toBe("addServerFilesAndPermissions");
 
       // The first argument should be the serverFilesAndPermissionInput struct
-      const inputStruct = capturedArgs.args[0];
-      expect(inputStruct.schemaIds).toBeDefined();
-      expect(inputStruct.schemaIds).toEqual([BigInt(0)]);
+      const inputStruct = capturedArgs?.args?.[0] as any;
+      expect(inputStruct?.schemaIds).toBeDefined();
+      expect(inputStruct?.schemaIds).toEqual([BigInt(0)]);
     });
 
     it("should use relayer callback when available", async () => {
@@ -323,15 +333,17 @@ describe("Permissions Server Files and Permissions", () => {
         schemaIds: [999999999], // Large number
       };
 
-      let capturedTypedData: any;
+      let capturedTypedData: ServerFilesAndPermissionTypedData | undefined =
+        undefined;
       mockWalletClient.signTypedData.mockImplementation((data) => {
         capturedTypedData = data;
-        return Promise.resolve("0xmocksignature");
+        return Promise.resolve(`0x${"0".repeat(130)}`);
       });
 
       await controller.submitAddServerFilesAndPermissions(params);
 
-      expect(capturedTypedData.message.schemaIds[0]).toBe(BigInt(999999999));
+      expect(capturedTypedData).toBeDefined();
+      expect(capturedTypedData!.message.schemaIds[0]).toBe(BigInt(999999999));
     });
 
     it("should maintain order of schemaIds array", async () => {
@@ -347,15 +359,17 @@ describe("Permissions Server Files and Permissions", () => {
         ],
       };
 
-      let capturedTypedData: any;
+      let capturedTypedData: ServerFilesAndPermissionTypedData | undefined =
+        undefined;
       mockWalletClient.signTypedData.mockImplementation((data) => {
         capturedTypedData = data;
-        return Promise.resolve("0xmocksignature");
+        return Promise.resolve(`0x${"0".repeat(130)}`);
       });
 
       await controller.submitAddServerFilesAndPermissions(params);
 
-      expect(capturedTypedData.message.schemaIds).toEqual([
+      expect(capturedTypedData).toBeDefined();
+      expect(capturedTypedData!.message.schemaIds).toEqual([
         BigInt(100),
         BigInt(0),
         BigInt(200),

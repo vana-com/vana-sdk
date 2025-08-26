@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, ButtonProps, Spinner } from "@heroui/react";
+import { Button, Spinner, type ButtonProps } from "@heroui/react";
 
 interface ActionButtonProps extends Omit<ButtonProps, "children"> {
   /**

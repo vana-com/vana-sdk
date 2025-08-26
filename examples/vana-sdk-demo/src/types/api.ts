@@ -170,7 +170,7 @@ export function extractReplicateOutput<T>(
     return null;
   }
 
-  const output = apiResponse.data.output;
+  const { output } = apiResponse.data;
   console.debug("🔍 Extract: Output type:", typeof output);
   console.debug("🔍 Extract: Output content:", output);
 

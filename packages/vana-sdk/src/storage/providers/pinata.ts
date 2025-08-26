@@ -1,11 +1,11 @@
-import {
+import type {
   StorageProvider,
   StorageUploadResult,
   StorageFile,
   StorageListOptions,
   StorageProviderConfig,
-  StorageError,
 } from "../index";
+import { StorageError } from "../index";
 
 export interface PinataConfig {
   /** Pinata JWT token for authentication */

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { relayerConfig } from "@/lib/relayer";
 import { createPinataProvider } from "@/lib/storage-server";
 
-export async function GET() {
+export function GET() {
   // Test Pinata connection using SDK
   let pinataTest: { success: boolean; error?: string; data?: unknown } = {
     success: false,

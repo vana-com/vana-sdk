@@ -1,9 +1,9 @@
-import {
+import type {
   CreateOperationParams,
   InitPersonalServerParams,
   PersonalServerIdentity,
 } from "../types";
-import {
+import type {
   CreateOperationResponse,
   GetOperationResponse,
   IdentityResponseModel,
@@ -14,7 +14,7 @@ import {
   SignatureError,
   PersonalServerError,
 } from "../errors";
-import { ControllerContext } from "./permissions";
+import type { ControllerContext } from "./permissions";
 import type { Operation, PollingOptions } from "../types/operations";
 
 // Server types are now auto-imported from the generated exports
@@ -491,7 +491,7 @@ export class ServerController {
         this.context.applicationClient || this.context.walletClient;
 
       // Get the account from the wallet client
-      const account = client.account;
+      const { account } = client;
       if (!account) {
         throw new SignatureError("No account available for signing");
       }

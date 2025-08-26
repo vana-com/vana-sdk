@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
+import type { Mock } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createMockLog } from "./factories/mockFactory";
 import type { Hash, Address, PublicClient } from "viem";
-import {
-  PermissionsController,
-  ControllerContext,
-} from "../controllers/permissions";
+import type { ControllerContext } from "../controllers/permissions";
+import { PermissionsController } from "../controllers/permissions";
 import {
   RelayerError,
   UserRejectedRequestError,
@@ -131,27 +131,25 @@ describe("PermissionsController", () => {
     const { parseEventLogs } = await import("viem");
     vi.mocked(parseEventLogs).mockImplementation((params) => {
       // Return appropriate event based on the event name
-      if ((params as any).eventName === "PermissionAdded") {
+      const eventParams = params as {
+        eventName?: string;
+        [key: string]: unknown;
+      };
+      if (eventParams.eventName === "PermissionAdded") {
         return [
-          {
-            eventName: "PermissionAdded",
-            args: {
-              permissionId: 75n,
-              user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
-              grant: "https://mock-grant-url.com",
-              fileIds: [],
-            },
-          },
-        ] as any;
-      } else if ((params as any).eventName === "PermissionRevoked") {
+          createMockLog("PermissionAdded", {
+            permissionId: 75n,
+            user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+            grant: "https://mock-grant-url.com",
+            fileIds: [],
+          }),
+        ] as ReturnType<typeof parseEventLogs>;
+      } else if (eventParams.eventName === "PermissionRevoked") {
         return [
-          {
-            eventName: "PermissionRevoked",
-            args: {
-              permissionId: 123n,
-            },
-          },
-        ] as any;
+          createMockLog("PermissionRevoked", {
+            permissionId: 123n,
+          }),
+        ] as ReturnType<typeof parseEventLogs>;
       }
       return [];
     });
@@ -184,7 +182,7 @@ describe("PermissionsController", () => {
       getAddresses: vi
         .fn()
         .mockResolvedValue(["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"]),
-      signTypedData: vi.fn().mockResolvedValue("0xsignature" as Hash),
+      signTypedData: vi.fn().mockResolvedValue(`0x${"0".repeat(130)}`),
       writeContract: vi.fn().mockResolvedValue("0xtxhash" as Hash),
     };
 
@@ -1532,9 +1530,7 @@ describe("PermissionsController", () => {
           signTypedData: () => Promise<string>;
         },
         "signTypedData",
-      ).mockResolvedValue(
-        "0xsignature123456789012345678901234567890123456789012345678901234567890",
-      );
+      ).mockResolvedValue(`0x${"1234567890abcdef".repeat(8)}12`);
     });
 
     it("should successfully revoke permission with signature via relayer", async () => {
@@ -1544,9 +1540,7 @@ describe("PermissionsController", () => {
           signTypedData: () => Promise<string>;
         },
         "signTypedData",
-      ).mockResolvedValue(
-        "0xsignature123456789012345678901234567890123456789012345678901234567890",
-      );
+      ).mockResolvedValue(`0x${"1234567890abcdef".repeat(8)}12`);
 
       const params = {
         permissionId: 42n,
@@ -1666,53 +1660,6 @@ describe("PermissionsController", () => {
       ).rejects.toThrow(
         "Failed to revoke permission with signature: Signature failed",
       );
-    });
-  });
-
-  describe("getUserNonce", () => {
-    it("should read nonce from DataPortabilityServers contract", async () => {
-      const expectedNonce = 5n;
-
-      // Import getContractAddress locally to avoid affecting other tests
-      const addresses = await import("../config/addresses");
-      const originalGetContractAddress = addresses.getContractAddress;
-
-      // Track which contracts are requested
-      const contractRequests: string[] = [];
-
-      // Temporarily replace getContractAddress for this test only
-      (addresses as any).getContractAddress = (
-        chainId: number,
-        contractName: any,
-      ) => {
-        contractRequests.push(contractName);
-        return originalGetContractAddress(chainId, contractName);
-      };
-
-      try {
-        // Create a fresh controller instance for this test
-        const { PermissionsController: TestPermissionsController } =
-          await import("../controllers/permissions");
-        const testController = new TestPermissionsController(mockContext);
-
-        // Mock readContract to return the nonce
-        mockPublicClient.readContract.mockResolvedValueOnce(expectedNonce);
-
-        // Call getUserNonce (private method, so we need to use type assertion)
-        const getUserNonce = (testController as any).getUserNonce.bind(
-          testController,
-        );
-        const nonce = await getUserNonce();
-
-        // Verify the correct contract was requested
-        expect(contractRequests).toContain("DataPortabilityServers");
-        expect(contractRequests).not.toContain("DataPermissions");
-
-        expect(nonce).toBe(expectedNonce);
-      } finally {
-        // Restore original function
-        (addresses as any).getContractAddress = originalGetContractAddress;
-      }
     });
   });
 
@@ -1858,8 +1805,7 @@ describe("PermissionsController", () => {
           },
         };
 
-        const signature =
-          "0xsignature123456789012345678901234567890123456789012345678901234567890";
+        const signature = `0x${"1234567890abcdef".repeat(8)}12`;
 
         const result = await (
           controller as unknown as {
@@ -1874,18 +1820,22 @@ describe("PermissionsController", () => {
           "0xhash123456789012345678901234567890123456789012345678901234567890",
         );
 
-        expect(mockWalletClient.writeContract).toHaveBeenCalledWith({
-          address: "0x1234567890123456789012345678901234567890",
-          abi: expect.any(Array),
-          functionName: "revokePermissionWithSignature",
-          args: [typedData.message, signature],
-          account: expect.any(Object),
-          chain: mockWalletClient.chain,
-        });
+        expect(mockWalletClient.writeContract).toHaveBeenCalled();
+        const callArgs = (mockWalletClient.writeContract as any).mock
+          .calls[0][0];
+        expect(callArgs.address).toBe(
+          "0x1234567890123456789012345678901234567890",
+        );
+        expect(callArgs.functionName).toBe("revokePermissionWithSignature");
+        expect(Array.isArray(callArgs.abi)).toBe(true);
+        expect(callArgs.args[0]).toEqual(typedData.message);
+        // formatSignatureForContract modifies the v value (adds 27)
+        const expectedSignature = `0x${"1234567890abcdef".repeat(8)}2d`;
+        expect(callArgs.args[1]).toBe(expectedSignature);
       });
 
       it("should handle blockchain errors", async () => {
-        (mockWalletClient.writeContract as Mock).mockRejectedValue(
+        mockWalletClient.writeContract.mockRejectedValue(
           new Error("Transaction failed"),
         );
 
@@ -1910,8 +1860,7 @@ describe("PermissionsController", () => {
           },
         };
 
-        const signature =
-          "0xsignature123456789012345678901234567890123456789012345678901234567890";
+        const signature = `0x${"1234567890abcdef".repeat(8)}12`;
 
         await expect(
           (

@@ -2,11 +2,11 @@
 
 import { useState, useCallback, useEffect } from "react";
 import {
-  OnChainPermissionGrant,
-  GrantedPermission,
-  GrantPermissionParams,
   retrieveGrantFile,
-  PermissionGrantTypedData,
+  type OnChainPermissionGrant,
+  type GrantedPermission,
+  type GrantPermissionParams,
+  type PermissionGrantTypedData,
 } from "@opendatalabs/vana-sdk/browser";
 import { useVana } from "@/providers/VanaProvider";
 import { useAccount } from "wagmi";
@@ -260,7 +260,7 @@ export function usePermissions(): UsePermissionsReturn {
   );
 
   const handleGrantPermission = useCallback(
-    async (
+    (
       selectedFiles: number[],
       promptText: string,
       customParams?: GrantPermissionParams & { expiresAt?: number },
@@ -382,7 +382,7 @@ export function usePermissions(): UsePermissionsReturn {
         // Submit the signed grant
         const txHandle = await vana.permissions.submitSignedGrant(
           typedData,
-          signature as `0x${string}`,
+          signature,
         );
 
         const txHash = txHandle.hash;
@@ -409,7 +409,7 @@ export function usePermissions(): UsePermissionsReturn {
 
         // Refresh permissions list after a short delay
         setTimeout(() => {
-          loadUserPermissions();
+          void loadUserPermissions();
         }, 3000);
       } catch (error) {
         console.error("Failed to confirm grant:", error);
@@ -449,7 +449,7 @@ export function usePermissions(): UsePermissionsReturn {
             permissionId: bigIntId,
           };
 
-          return await vana.permissions.revoke(params);
+          return vana.permissions.revoke(params);
         },
         {
           setLoading: setIsRevoking,
@@ -462,7 +462,7 @@ export function usePermissions(): UsePermissionsReturn {
               newMap.delete(permissionId);
               return newMap;
             });
-            loadUserPermissions();
+            void loadUserPermissions();
           },
         },
       );
@@ -556,7 +556,7 @@ export function usePermissions(): UsePermissionsReturn {
   // Load permissions when Vana is initialized
   useEffect(() => {
     if (vana && address) {
-      loadUserPermissions();
+      void loadUserPermissions();
     }
   }, [vana, address, loadUserPermissions]);
 

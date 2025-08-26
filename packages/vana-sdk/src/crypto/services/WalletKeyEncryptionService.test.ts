@@ -120,7 +120,7 @@ describe("WalletKeyEncryptionService", () => {
       vi.mocked(mockECIESProvider.encrypt).mockResolvedValue(mockEncrypted);
 
       const binaryData = new Uint8Array([1, 2, 3, 4, 5]);
-      const publicKey = "0x" + "42".repeat(32);
+      const publicKey = `0x${"42".repeat(32)}`;
 
       const result = await service.encryptBinary(binaryData, publicKey);
 

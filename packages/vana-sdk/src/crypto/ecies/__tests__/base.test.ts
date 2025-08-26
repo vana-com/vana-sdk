@@ -5,7 +5,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { BaseECIESUint8 } from "../base";
 import { SECURITY } from "../constants";
-import { constantTimeEqual, concatBytes } from "../utils";
+import { constantTimeEqual } from "../utils";
+import { concat } from "viem";
 
 // Create a concrete test class to access protected methods
 class TestECIES extends BaseECIESUint8 {
@@ -108,8 +109,8 @@ class TestECIES extends BaseECIESUint8 {
   }
 
   public testConcatBuffers(...buffers: Uint8Array[]): Uint8Array {
-    // Use the imported utility function
-    return concatBytes(...buffers);
+    // Use viem's concat function
+    return concat(buffers);
   }
 
   public testNormalizePublicKey(publicKey: Uint8Array): Uint8Array {

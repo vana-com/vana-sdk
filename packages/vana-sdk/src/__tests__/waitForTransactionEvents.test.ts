@@ -282,8 +282,8 @@ describe("waitForTransactionEvents", () => {
     const result = await client.waitForTransactionEvents(transactionResult);
 
     // TypeScript should enforce these types
-    const contract: "DataPortabilityPermissions" = result.contract;
-    const fn: "addPermission" = result.fn;
+    const { contract } = result;
+    const { fn } = result;
 
     expect(contract).toBe("DataPortabilityPermissions");
     expect(fn).toBe("addPermission");

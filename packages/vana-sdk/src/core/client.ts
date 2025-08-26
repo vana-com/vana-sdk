@@ -1,11 +1,8 @@
+import type { Chain, Account, PublicClient, WalletClient } from "viem";
 import {
-  Chain,
   createPublicClient,
   http,
-  Account,
   createWalletClient as viemCreateWalletClient,
-  PublicClient,
-  WalletClient,
 } from "viem";
 import { chains, mokshaTestnet } from "../config/chains";
 
@@ -24,8 +21,8 @@ import { chains, mokshaTestnet } from "../config/chains";
  * @category Blockchain
  */
 export const defaultFromBlocks: Record<number, bigint> = {
-  14800: BigInt(732312), // Moksha Testnet - earliest contract deployment
-  1480: BigInt(758584), // Vana Mainnet - earliest contract deployment
+  14800: 732312n, // Moksha Testnet - earliest contract deployment
+  1480: 758584n, // Vana Mainnet - earliest contract deployment
 };
 
 /**
@@ -36,7 +33,7 @@ export const defaultFromBlocks: Record<number, bigint> = {
  * @category Blockchain
  */
 export function getDefaultFromBlock(chainId: number): bigint {
-  return defaultFromBlocks[chainId] || BigInt(0);
+  return defaultFromBlocks[chainId] || 0n;
 }
 
 // Cache for clients

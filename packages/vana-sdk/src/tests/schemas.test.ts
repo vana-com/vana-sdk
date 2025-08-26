@@ -1,17 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { SchemaController } from "../controllers/schemas";
-import { ControllerContext } from "../controllers/permissions";
+import type { ControllerContext } from "../controllers/permissions";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 import type { StorageManager } from "../storage/manager";
 import { SchemaValidationError } from "../utils/schemaValidation";
 import { validateDataSchemaAgainstMetaSchema } from "../utils/schemaValidation";
+import type { DataSchema } from "../utils/schemaValidation";
 import {
   fetchSchemaFromChain,
   fetchSchemaCountFromChain,
 } from "../utils/blockchain/registry";
 import { fetchFromUrl } from "../utils/urlResolver";
 import { gasAwareMulticall } from "../utils/multicall";
-import { Address, parseEventLogs } from "viem";
+import type { Address } from "viem";
+import { parseEventLogs, type WalletClient } from "viem";
+import {
+  createTypedMockWalletClient,
+  createTypedMockPublicClient,
+  createMockLog,
+} from "./factories/mockFactory";
 
 // Apply mocks with factory functions
 vi.mock("../utils/blockchain/registry", () => ({
@@ -37,7 +44,13 @@ vi.mock("../utils/schemaValidation", () => ({
   SchemaValidationError: class SchemaValidationError extends Error {
     constructor(
       message: string,
-      public errors: any[] = [],
+      public errors: Array<{
+        instancePath: string;
+        schemaPath: string;
+        keyword: string;
+        params: Record<string, unknown>;
+        message?: string;
+      }> = [],
     ) {
       super(message);
       this.name = "SchemaValidationError";
@@ -55,7 +68,7 @@ vi.mock("../config/addresses", () => ({
 vi.mock("../utils/multicall", () => ({
   gasAwareMulticall: vi.fn().mockImplementation(async (client, params) => {
     // Return array of results based on the contracts passed
-    return params.contracts.map((_: any, i: number) => BigInt(i + 1));
+    return params.contracts.map((_: unknown, i: number) => BigInt(i + 1));
   }),
 }));
 
@@ -73,21 +86,18 @@ describe("SchemaController", () => {
 
     // Reset validateDataSchemaAgainstMetaSchema to not throw by default
     vi.mocked(validateDataSchemaAgainstMetaSchema).mockImplementation(
-      (schema) => schema as any,
+      (schema) => schema as DataSchema,
     );
 
     // Set up default parseEventLogs mock that can be overridden
     vi.mocked(parseEventLogs).mockReturnValue([
-      {
-        eventName: "SchemaAdded",
-        args: {
-          schemaId: 1n,
-          name: "Test Schema",
-          dialect: "jsonschema",
-          definitionUrl: "https://gateway.pinata.cloud/ipfs/QmTestHash",
-        },
-      },
-    ] as any);
+      createMockLog("SchemaAdded", {
+        schemaId: 1n,
+        name: "Test Schema",
+        dialect: "jsonschema",
+        definitionUrl: "https://gateway.pinata.cloud/ipfs/QmTestHash",
+      }),
+    ] as ReturnType<typeof parseEventLogs>);
 
     // Create mock storage manager
     mockStorageManager = {
@@ -108,30 +118,32 @@ describe("SchemaController", () => {
       getDefaultStorageProvider: vi.fn().mockReturnValue("ipfs"),
     };
 
+    // Create mock clients using factory functions
+    const mockWalletClient = createTypedMockWalletClient();
+    const mockPublicClient = createTypedMockPublicClient();
+
+    // Set up mock responses
+    vi.mocked(mockWalletClient.writeContract).mockResolvedValue(
+      "0xTransactionHash" as any,
+    );
+    vi.mocked(mockPublicClient.waitForTransactionReceipt).mockResolvedValue({
+      transactionHash: "0xTransactionHash",
+      blockNumber: 12345n,
+      gasUsed: 100000n,
+      logs: [{ data: "0x", topics: ["0xSchemaAdded"] }],
+    } as any);
+    vi.mocked(mockPublicClient.getTransactionReceipt).mockResolvedValue({
+      transactionHash: "0xTransactionHash",
+      blockNumber: 12345n,
+      gasUsed: 100000n,
+      status: "success" as const,
+      logs: [{ data: "0x", topics: ["0xSchemaAdded"] }],
+    } as any);
+
     // Create mock context
     mockContext = {
-      walletClient: {
-        account: { address: "0xTestAddress" },
-        chain: { id: 14800, name: "Moksha Testnet" },
-        writeContract: vi.fn().mockResolvedValue("0xTransactionHash"),
-      } as any,
-      publicClient: {
-        waitForTransactionReceipt: vi.fn().mockResolvedValue({
-          transactionHash: "0xTransactionHash",
-          blockNumber: 12345n,
-          gasUsed: 100000n,
-          logs: [{ data: "0x", topics: ["0xSchemaAdded"] }],
-        }),
-        getTransactionReceipt: vi.fn().mockResolvedValue({
-          transactionHash: "0xTransactionHash",
-          blockNumber: 12345n,
-          gasUsed: 100000n,
-          status: "success" as const,
-          logs: [{ data: "0x", topics: ["0xSchemaAdded"] }],
-        }),
-        getChainId: vi.fn().mockResolvedValue(14800),
-        multicall: vi.fn().mockResolvedValue([]),
-      } as any,
+      walletClient: mockWalletClient,
+      publicClient: mockPublicClient,
       platform: mockPlatformAdapter,
       storageManager: mockStorageManager as StorageManager,
       waitForTransactionEvents: vi.fn().mockResolvedValue({
@@ -360,16 +372,13 @@ describe("SchemaController", () => {
   describe("create()", () => {
     it("should validate and upload schema to IPFS", async () => {
       vi.mocked(parseEventLogs).mockReturnValueOnce([
-        {
-          eventName: "SchemaAdded",
-          args: {
-            schemaId: BigInt(123),
-            name: "Test Schema",
-            dialect: "jsonschema",
-            definitionUrl: "https://ipfs.io/ipfs/QmTestHash",
-          },
-        },
-      ] as any);
+        createMockLog("SchemaAdded", {
+          schemaId: BigInt(123),
+          name: "Test Schema",
+          dialect: "jsonschema",
+          definitionUrl: "https://ipfs.io/ipfs/QmTestHash",
+        }),
+      ] as ReturnType<typeof parseEventLogs>);
 
       // Override waitForTransactionEvents for this test
       if (mockContext.waitForTransactionEvents) {
@@ -435,16 +444,13 @@ describe("SchemaController", () => {
 
     it("should handle JSON string definition", async () => {
       vi.mocked(parseEventLogs).mockReturnValueOnce([
-        {
-          eventName: "SchemaAdded",
-          args: {
-            schemaId: BigInt(123),
-            name: "Test Schema",
-            dialect: "jsonschema",
-            definitionUrl: "https://ipfs.io/ipfs/QmTestHash",
-          },
-        },
-      ] as any);
+        createMockLog("SchemaAdded", {
+          schemaId: BigInt(123),
+          name: "Test Schema",
+          dialect: "jsonschema",
+          definitionUrl: "https://ipfs.io/ipfs/QmTestHash",
+        }),
+      ] as ReturnType<typeof parseEventLogs>);
 
       // Override waitForTransactionEvents for this test
       if (mockContext.waitForTransactionEvents) {
@@ -508,7 +514,10 @@ describe("SchemaController", () => {
     });
 
     it("should handle storage upload errors", async () => {
-      vi.mocked(mockStorageManager.upload!).mockRejectedValue(
+      if (!mockStorageManager.upload) {
+        throw new Error("Storage manager upload method is not defined");
+      }
+      vi.mocked(mockStorageManager.upload).mockRejectedValue(
         new Error("Upload failed"),
       );
 
@@ -563,16 +572,13 @@ describe("SchemaController", () => {
     it("should parse SchemaAdded event correctly", async () => {
       // Mock parseEventLogs to return SchemaAdded event
       vi.mocked(parseEventLogs).mockReturnValueOnce([
-        {
-          eventName: "SchemaAdded",
-          args: {
-            schemaId: BigInt(456),
-            name: "Test Schema",
-            dialect: "jsonschema",
-            definitionUrl: "https://ipfs.io/ipfs/QmTestHash",
-          },
-        },
-      ] as any);
+        createMockLog("SchemaAdded", {
+          schemaId: BigInt(456),
+          name: "Test Schema",
+          dialect: "jsonschema",
+          definitionUrl: "https://ipfs.io/ipfs/QmTestHash",
+        }),
+      ] as ReturnType<typeof parseEventLogs>);
 
       // Override waitForTransactionEvents for this test
       if (mockContext.waitForTransactionEvents) {
@@ -677,16 +683,13 @@ describe("SchemaController", () => {
 
     it("should sanitize schema name for filename", async () => {
       vi.mocked(parseEventLogs).mockReturnValueOnce([
-        {
-          eventName: "SchemaAdded",
-          args: {
-            schemaId: BigInt(123),
-            name: "Test/Schema:With<>Special|Characters",
-            dialect: "jsonschema",
-            definitionUrl: "https://ipfs.io/ipfs/QmTestHash",
-          },
-        },
-      ] as any);
+        createMockLog("SchemaAdded", {
+          schemaId: BigInt(123),
+          name: "Test/Schema:With<>Special|Characters",
+          dialect: "jsonschema",
+          definitionUrl: "https://ipfs.io/ipfs/QmTestHash",
+        }),
+      ] as ReturnType<typeof parseEventLogs>);
 
       // Override waitForTransactionEvents for this test
       if (mockContext.waitForTransactionEvents) {

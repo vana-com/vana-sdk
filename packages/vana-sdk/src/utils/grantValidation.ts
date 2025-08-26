@@ -1,4 +1,5 @@
-import { Address, getAddress } from "viem";
+import type { Address } from "viem";
+import { getAddress } from "viem";
 import Ajv, { type ValidateFunction } from "ajv";
 import addFormats from "ajv-formats";
 import type { GrantFile } from "../types/permissions";

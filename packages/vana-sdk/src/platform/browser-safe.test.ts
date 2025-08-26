@@ -184,7 +184,9 @@ describe("browser-safe", () => {
 
     it("should default to BrowserPlatformAdapter when environment cannot be determined", async () => {
       // Use helper to setup process without versions.node
-      platformHelper.setupNodeWithProcess({ versions: {} as any }); // process exists but no versions.node
+      platformHelper.setupNodeWithProcess({
+        versions: {} as typeof process.versions,
+      }); // process exists but no versions.node
 
       const adapter = await createPlatformAdapterSafe();
 

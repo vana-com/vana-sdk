@@ -5,71 +5,7 @@
  * to bridge platform-specific implementations.
  */
 
-/**
- * Converts a hex string to Uint8Array
- *
- * @param hex - Hex string to convert
- * @returns Uint8Array representation of the hex string
- */
-export function hexToBytes(hex: string): Uint8Array {
-  if (hex.length % 2 !== 0) {
-    throw new Error("Hex string must have even length");
-  }
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < hex.length; i += 2) {
-    bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
-  }
-  return bytes;
-}
-
-/**
- * Converts Uint8Array to hex string
- *
- * @param bytes - Bytes to convert to hex
- * @returns Hex string representation
- */
-export function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-/**
- * Converts a string to Uint8Array using UTF-8 encoding
- *
- * @param str - String to convert
- * @returns UTF-8 encoded bytes
- */
-export function stringToBytes(str: string): Uint8Array {
-  return new TextEncoder().encode(str);
-}
-
-/**
- * Converts Uint8Array to string using UTF-8 decoding
- *
- * @param bytes - Bytes to decode
- * @returns Decoded UTF-8 string
- */
-export function bytesToString(bytes: Uint8Array): string {
-  return new TextDecoder().decode(bytes);
-}
-
-/**
- * Concatenates multiple Uint8Arrays into one
- *
- * @param arrays - Arrays to concatenate
- * @returns Concatenated Uint8Array
- */
-export function concatBytes(...arrays: Uint8Array[]): Uint8Array {
-  const totalLength = arrays.reduce((sum, arr) => sum + arr.length, 0);
-  const result = new Uint8Array(totalLength);
-  let offset = 0;
-  for (const arr of arrays) {
-    result.set(arr, offset);
-    offset += arr.length;
-  }
-  return result;
-}
+import { fromHex, toHex, concat } from "viem";
 
 /**
  * Checks if two Uint8Arrays are equal in constant time

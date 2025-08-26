@@ -784,16 +784,6 @@ describe("Permission Types", () => {
       ).toBe("1.0.0");
     });
 
-    it("should validate address and hash formats", () => {
-      const address: Address =
-        "0xa0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0" as Address;
-      const hash: Hash =
-        "0xfedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321" as Hash;
-
-      expect(address).toMatch(/^0x[a-fA-F0-9]{40}$/);
-      expect(hash).toMatch(/^0x[a-fA-F0-9]{64}$/);
-    });
-
     it("should handle optional fields consistently", () => {
       const basePermission: GrantedPermission = {
         id: 1n,

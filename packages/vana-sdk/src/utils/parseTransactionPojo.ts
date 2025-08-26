@@ -44,7 +44,7 @@ export function parseTransaction<C extends Contract, F extends Fn<C>>(
 
   // Look up expected events from the function-specific registry
   const registryKey = `${contractName}.${functionName}`;
-  const registry = EVENT_REGISTRY[registryKey as keyof typeof EVENT_REGISTRY];
+  const registry = EVENT_REGISTRY[registryKey];
 
   // Initialize the expected events object with proper types
   const expectedEvents: Record<string, unknown> = {};
@@ -116,8 +116,8 @@ export function parseTransaction<C extends Contract, F extends Fn<C>>(
   return {
     hash: transactionResult.hash,
     from: transactionResult.from,
-    contract: contractName as C,
-    fn: functionName as F,
+    contract: contractName,
+    fn: functionName,
     expectedEvents: expectedEvents as ExpectedEvents<C, F>,
     allEvents,
     hasExpectedEvents,

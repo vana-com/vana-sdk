@@ -142,8 +142,8 @@ export function useTrustedServers(): UseTrustedServersReturn {
     try {
       await vana.permissions.addAndTrustServer({
         serverAddress: serverAddress as `0x${string}`,
-        serverUrl: serverUrl,
-        publicKey: publicKey,
+        serverUrl,
+        publicKey,
       });
 
       // Success - form shows success via trustServerError being cleared
@@ -337,7 +337,7 @@ export function useTrustedServers(): UseTrustedServersReturn {
   // Load trusted servers when Vana is initialized
   useEffect(() => {
     if (vana && address) {
-      loadUserTrustedServers();
+      void loadUserTrustedServers();
     }
   }, [vana, address, loadUserTrustedServers]);
 

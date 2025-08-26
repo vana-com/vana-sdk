@@ -1,8 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DataController } from "../controllers/data";
-import { ControllerContext } from "../controllers/permissions";
+import type { ControllerContext } from "../controllers/permissions";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 import type { StorageManager } from "../storage/manager";
+import {
+  createTypedMockWalletClient,
+  createTypedMockPublicClient,
+} from "./factories/mockFactory";
 
 // Mock dependencies
 vi.mock("../config/addresses", () => ({
@@ -23,11 +27,11 @@ vi.mock("../utils/multicall", () => ({
 
     // First call: permission IDs (allowFailure: false, returns bigints directly)
     if (callIndex % 2 === 0) {
-      return params.contracts.map((_: any, i: number) => BigInt(i + 1));
+      return params.contracts.map((_: unknown, i: number) => BigInt(i + 1));
     }
 
     // Second call: permission info (allowFailure: true, returns status/result objects)
-    return params.contracts.map((_contract: any, i: number) => {
+    return params.contracts.map((_contract: unknown, i: number) => {
       // Check if we should simulate a failure for this index
       if (mockPermissionInfoFailureIndex === i) {
         return {
@@ -86,13 +90,11 @@ describe("DataController - getUserPermissions dual-mode functionality", () => {
 
     // Create mock context
     mockContext = {
-      walletClient: {
-        account: { address: "0xTestAddress" },
-        chain: { id: 14800, name: "Moksha Testnet" },
+      walletClient: createTypedMockWalletClient({
         writeContract: vi.fn().mockResolvedValue("0xTransactionHash"),
         getAddresses: vi.fn().mockResolvedValue(["0xTestAddress"]),
-      } as any,
-      publicClient: {
+      }),
+      publicClient: createTypedMockPublicClient({
         readContract: vi.fn().mockImplementation(async ({ functionName }) => {
           if (functionName === "userPermissionIdsLength") {
             return BigInt(3);
@@ -101,7 +103,7 @@ describe("DataController - getUserPermissions dual-mode functionality", () => {
         }),
         getChainId: vi.fn().mockResolvedValue(14800),
         multicall: vi.fn().mockResolvedValue([]),
-      } as any,
+      }),
       platform: mockPlatformAdapter,
       storageManager: mockStorageManager as StorageManager,
       subgraphUrl: undefined, // This will force RPC mode

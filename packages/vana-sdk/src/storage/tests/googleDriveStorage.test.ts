@@ -1,8 +1,7 @@
-import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
-import {
-  GoogleDriveStorage,
-  GoogleDriveConfig,
-} from "../providers/google-drive";
+import type { Mock } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { GoogleDriveConfig } from "../providers/google-drive";
+import { GoogleDriveStorage } from "../providers/google-drive";
 import { StorageError } from "../index";
 
 // Mock fetch globally

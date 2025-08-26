@@ -222,29 +222,3 @@ export function ensureError(error: unknown, fallbackMessage: string): Error {
   }
   return new Error(fallbackMessage);
 }
-
-/**
- * Type guard for checking if a value is a valid Ethereum address.
- *
- * @param value - The value to check
- * @returns True if value is a valid Ethereum address
- */
-export function isAddress(value: unknown): value is `0x${string}` {
-  return typeof value === "string" && /^0x[a-fA-F0-9]{40}$/.test(value);
-}
-
-/**
- * Asserts that a value is a valid Ethereum address.
- *
- * @param value - The value to check
- * @param message - Error message if assertion fails
- * @throws {Error} If value is not a valid address
- */
-export function assertAddress(
-  value: unknown,
-  message: string,
-): asserts value is `0x${string}` {
-  if (!isAddress(value)) {
-    throw new Error(`${message}: Invalid Ethereum address`);
-  }
-}

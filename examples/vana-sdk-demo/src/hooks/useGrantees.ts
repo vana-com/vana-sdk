@@ -218,7 +218,7 @@ export function useGrantees(): UseGranteesReturn {
   // Load grantees when Vana is initialized
   useEffect(() => {
     if (vana && address) {
-      loadGrantees();
+      void loadGrantees();
     }
   }, [vana, address, loadGrantees]);
 

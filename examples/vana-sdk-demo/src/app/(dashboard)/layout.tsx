@@ -113,7 +113,7 @@ export default function DashboardLayout({
   };
 
   // Grant modal handlers (these will be used by pages via context if needed)
-  const handleConfirmGrant = async () => {
+  const handleConfirmGrant = () => {
     // This will be implemented by the specific page/component that needs it
     onCloseGrant();
     setGrantPreview(null);

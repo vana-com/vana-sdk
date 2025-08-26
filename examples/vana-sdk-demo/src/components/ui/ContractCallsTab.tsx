@@ -139,7 +139,7 @@ export const ContractCallsTab: React.FC<ContractCallsTabProps> = ({
         grantUrl: permissionGrant, // Grant URL can be any string
       });
 
-      const transactionHash = grantResult.transactionHash;
+      const { transactionHash } = grantResult;
 
       setPermissionStatus(
         `✅ Permission added successfully! Transaction: ${transactionHash}`,
@@ -197,9 +197,9 @@ export const ContractCallsTab: React.FC<ContractCallsTabProps> = ({
         fileUrls: validUrls,
         schemaIds: validUrls.map(() => 0), // No schema validation for demo
         serverAddress: serverAddress as Address,
-        serverUrl: serverUrl,
-        serverPublicKey: serverPublicKey,
-        filePermissions: filePermissions,
+        serverUrl,
+        serverPublicKey,
+        filePermissions,
       };
 
       const transactionHash =

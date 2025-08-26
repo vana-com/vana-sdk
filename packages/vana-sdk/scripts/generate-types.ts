@@ -236,7 +236,7 @@ function generateEventNameMap(mappings: EventMapping): string {
   const sortedContracts = Object.keys(mappings.contracts).sort();
 
   for (const contract of sortedContracts) {
-    const functions = mappings.contracts[contract].functions;
+    const { functions } = mappings.contracts[contract];
     const sortedFunctions = Object.keys(functions).sort();
 
     for (const fn of sortedFunctions) {
@@ -520,13 +520,13 @@ async function validateMappings(mappings: EventMapping): Promise<void> {
   }
 
   if (errors.length > 0) {
-    throw new Error("Validation errors:\n" + errors.join("\n"));
+    throw new Error(`Validation errors:\n${errors.join("\n")}`);
   }
 
   // Strict mode for CI: treat warnings as errors
   if (process.env.STRICT_EVENT_MAP && warnings.length > 0) {
     throw new Error(
-      "Mapping drift detected (STRICT_EVENT_MAP=1):\n" + warnings.join("\n"),
+      `Mapping drift detected (STRICT_EVENT_MAP=1):\n${warnings.join("\n")}`,
     );
   }
 }

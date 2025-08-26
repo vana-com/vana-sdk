@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState, useCallback, useEffect } from "react";
 import { useChainId } from "wagmi";
-import { Card, CardBody, Tabs, Tab, SortDescriptor } from "@heroui/react";
+import { Card, CardBody, Tabs, Tab, type SortDescriptor } from "@heroui/react";
 import { Shield, Users, FileText, Key } from "lucide-react";
 import type {
   Schema,
@@ -156,7 +156,7 @@ export default function MyDataPage() {
   // Wrapper to convert number serverId to string for handleUntrustServer
   const onUntrustServer = useCallback(
     (serverId: number) => {
-      handleUntrustServer(serverId.toString());
+      void handleUntrustServer(serverId.toString());
     },
     [handleUntrustServer],
   );
@@ -201,7 +201,7 @@ export default function MyDataPage() {
       // Simulate file registration (this would normally be done via the SDK)
       const fileResult = {
         fileId: Math.floor(Math.random() * 10000), // Mock file ID
-        transactionHash: "0x" + Math.random().toString(16).substring(2), // Mock hash
+        transactionHash: `0x${Math.random().toString(16).substring(2)}`, // Mock hash
         isValid: data.isValid,
         validationErrors: data.validationErrors,
       };
@@ -209,7 +209,7 @@ export default function MyDataPage() {
       setUploadResult(fileResult);
 
       // Refresh files list
-      onRefreshFiles();
+      void onRefreshFiles();
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : "Upload failed");
     } finally {
@@ -219,26 +219,26 @@ export default function MyDataPage() {
 
   // Create wrapper functions
   const onLookupFile = useCallback(() => {
-    handleLookupFile(fileLookupId);
+    void handleLookupFile(fileLookupId);
   }, [handleLookupFile, fileLookupId]);
 
   const onLookupPermission = useCallback(() => {
-    handleLookupPermission();
+    void handleLookupPermission();
   }, [handleLookupPermission]);
 
   const onGrantPermission = useCallback(
     (customParams?: GrantPermissionParams & { expiresAt?: number }) => {
-      handleGrantPermission(selectedFiles, promptText, customParams);
+      void handleGrantPermission(selectedFiles, promptText, customParams);
     },
     [handleGrantPermission, selectedFiles, promptText],
   );
 
   const onTrustServer = useCallback(() => {
-    handleTrustServerGasless(false, serverAddress, serverUrl, publicKey);
+    void handleTrustServerGasless(false, serverAddress, serverUrl, publicKey);
   }, [handleTrustServerGasless, serverAddress, serverUrl, publicKey]);
 
   const onRefreshServers = useCallback(() => {
-    loadUserTrustedServers();
+    void loadUserTrustedServers();
   }, [loadUserTrustedServers]);
 
   // Files table state
@@ -294,7 +294,7 @@ export default function MyDataPage() {
     };
 
     if (userFiles.length > 0 && vana) {
-      fetchSchemas();
+      void fetchSchemas();
     }
   }, [userFiles, vana, fileSchemas]);
 

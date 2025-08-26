@@ -91,7 +91,7 @@ describe("Cross-Platform Crypto Compatibility", () => {
         "Simple message",
         "Message with special characters: !@#$%^&*()",
         "Unicode message: 🔐🌍🚀",
-        "Long message: " + "A".repeat(1000),
+        `Long message: ${"A".repeat(1000)}`,
         JSON.stringify({ data: "complex", nested: { value: 42 } }),
       ];
 

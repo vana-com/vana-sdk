@@ -1,4 +1,5 @@
-import { Address, Hash, recoverTypedDataAddress, getAddress } from "viem";
+import type { Address, Hash } from "viem";
+import { recoverTypedDataAddress, getAddress } from "viem";
 import type { VanaInstance } from "../index.node";
 import type {
   GenericTypedData,

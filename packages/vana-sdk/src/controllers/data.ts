@@ -1,7 +1,8 @@
-import { Address, getContract, Hash } from "viem";
-import { StorageUploadResult } from "../types/storage";
+import type { Address, Hash } from "viem";
+import { getContract } from "viem";
+import type { StorageUploadResult } from "../types/storage";
 
-import {
+import type {
   UserFile,
   UploadParams,
   UploadResult,
@@ -18,19 +19,21 @@ import {
 } from "../types/index";
 // import { FilePermissionResult } from "../types/transactionResults";
 import type { TransactionResult } from "../types/operations";
-import { ControllerContext } from "./permissions";
+import type { ControllerContext } from "./permissions";
 import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../generated/abi";
-import {
+import type {
   GetUserFilesQuery,
-  GetUserFilesDocument,
   GetFileProofsQuery,
-  GetFileProofsDocument,
   GetDlpQuery,
-  GetDlpDocument,
   GetUserPermissionsQuery,
-  GetUserPermissionsDocument,
   GetUserTrustedServersQuery,
+} from "../generated/subgraph";
+import {
+  GetUserFilesDocument,
+  GetFileProofsDocument,
+  GetDlpDocument,
+  GetUserPermissionsDocument,
   GetUserTrustedServersDocument,
 } from "../generated/subgraph";
 import { print } from "graphql";
@@ -291,7 +294,7 @@ export class DataController {
         result = await this.context.relayerCallbacks.submitFileAdditionComplete(
           {
             url: uploadResult.url,
-            userAddress: userAddress,
+            userAddress,
             permissions: encryptedPermissions,
             schemaId: schemaId || 0,
             ownerAddress: owner,
@@ -332,7 +335,7 @@ export class DataController {
       return {
         fileId: result.fileId,
         url: uploadResult.url,
-        transactionHash: result.transactionHash as Hash,
+        transactionHash: result.transactionHash,
         size: uploadResult.size,
         isValid,
         validationErrors:
@@ -610,7 +613,7 @@ export class DataController {
       }
 
       const user = result.data?.user;
-      if (!user || !user.files?.length) {
+      if (!user?.files?.length) {
         console.warn("No files found for user:", owner);
         return [];
       }
@@ -937,7 +940,7 @@ export class DataController {
         verificationBlockNumber: bigint;
       };
 
-      if (!dlpData || !dlpData.name) {
+      if (!dlpData?.name) {
         throw new Error(`DLP not found: ${dlpId}`);
       }
 
@@ -1081,12 +1084,12 @@ export class DataController {
       const dlpRegistryAbi = getAbi("DLPRegistry");
 
       // First get the total count
-      const dlpCount = (await this.context.publicClient.readContract({
+      const dlpCount = await this.context.publicClient.readContract({
         address: dlpRegistryAddress,
         abi: dlpRegistryAbi,
         functionName: "dlpsCount",
         args: [],
-      })) as bigint;
+      });
 
       const totalCount = Number(dlpCount);
       const start = offset;
@@ -1268,7 +1271,7 @@ export class DataController {
       }
 
       const userData = result.data?.user;
-      if (!userData || !userData.permissions?.length) {
+      if (!userData?.permissions?.length) {
         return [];
       }
 
@@ -1282,7 +1285,7 @@ export class DataController {
           addedAtBlock: BigInt(permission.addedAtBlock),
           addedAtTimestamp: BigInt(permission.addedAtTimestamp),
           transactionHash: permission.transactionHash as Address,
-          user: user as Address,
+          user,
         }))
         .sort((a, b) => Number(b.addedAtTimestamp - a.addedAtTimestamp)); // Latest first
     } catch (error) {
@@ -1325,12 +1328,12 @@ export class DataController {
       const permissionsAbi = getAbi("DataPortabilityPermissions");
 
       // Get total count of user permission IDs
-      const totalCount = (await this.context.publicClient.readContract({
+      const totalCount = await this.context.publicClient.readContract({
         address: permissionsAddress,
         abi: permissionsAbi,
         functionName: "userPermissionIdsLength",
         args: [user],
-      })) as bigint;
+      });
 
       const total = Number(totalCount);
 
@@ -1609,12 +1612,12 @@ export class DataController {
       const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
 
       // Get total count first
-      const totalCount = (await this.context.publicClient.readContract({
+      const totalCount = await this.context.publicClient.readContract({
         address: DataPortabilityServersAddress,
         abi: DataPortabilityServersAbi,
         functionName: "userServerIdsLength",
         args: [user],
-      })) as bigint;
+      });
 
       const total = Number(totalCount);
 
@@ -1826,8 +1829,8 @@ export class DataController {
         }
         return {
           id: Number(id),
-          url: url,
-          ownerAddress: ownerAddress,
+          url,
+          ownerAddress,
           addedAtBlock: BigInt(addedAtBlock),
         };
       } else {
@@ -2418,7 +2421,7 @@ export class DataController {
           fileId: result.fileId,
           url: uploadResult.url,
           size: uploadResult.size,
-          transactionHash: result.transactionHash as `0x${string}`,
+          transactionHash: result.transactionHash,
         };
       } else {
         // Direct transaction - returns TransactionResult POJO
@@ -2681,7 +2684,7 @@ export class DataController {
         account,
       ]);
 
-      return encryptedKey as string;
+      return encryptedKey;
     } catch (error) {
       console.error("Failed to get file permission:", error);
       throw new Error(

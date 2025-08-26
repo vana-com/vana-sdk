@@ -300,6 +300,8 @@ export function createMockDocument(overrides?: Partial<Document>): Document {
 
 /**
  * Utility for creating properly typed fetch mocks
+ *
+ * @returns A Vitest mock function typed as the global fetch function
  */
 export function createMockFetch() {
   return vi.fn() as unknown as typeof fetch;

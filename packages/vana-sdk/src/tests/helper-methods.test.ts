@@ -1,9 +1,8 @@
-import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
+import type { Mock } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Hash, Address } from "viem";
-import {
-  PermissionsController,
-  ControllerContext,
-} from "../controllers/permissions";
+import type { ControllerContext } from "../controllers/permissions";
+import { PermissionsController } from "../controllers/permissions";
 import { BlockchainError } from "../errors";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
@@ -82,7 +81,7 @@ describe("PermissionsController - Helper Methods", () => {
       getAddresses: vi
         .fn()
         .mockResolvedValue(["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"]),
-      signTypedData: vi.fn().mockResolvedValue("0xsignature" as Hash),
+      signTypedData: vi.fn().mockResolvedValue(`0x${"0".repeat(130)}`),
       writeContract: vi.fn().mockResolvedValue("0xtxhash" as Hash),
     };
 

@@ -6,6 +6,7 @@ import type { VanaChain } from "../types/chains";
 import { createMockPlatformAdapter } from "../tests/mocks/platformAdapter";
 import { createTypedMockWalletClient } from "../tests/factories/mockFactory";
 import { privateKeyToAccount } from "viem/accounts";
+import type { WalletClient } from "viem";
 
 // Mock the platform adapter creation
 vi.mock("../platform/utils", () => ({
@@ -297,7 +298,7 @@ describe("VanaCoreFactory", () => {
       };
 
       const config: VanaConfigWithStorage = {
-        walletClient: {
+        walletClient: createTypedMockWalletClient({
           signTypedData: vi.fn(),
           chain: {
             id: 14800,
@@ -307,9 +308,18 @@ describe("VanaCoreFactory", () => {
               default: {
                 http: ["https://rpc.moksha.vana.org"],
               },
+              public: {
+                http: ["https://rpc.moksha.vana.org"],
+              },
+            },
+            blockExplorers: {
+              default: {
+                name: "Explorer",
+                url: "https://explorer.moksha.vana.org",
+              },
             },
           },
-        } as any,
+        }) as WalletClient & { chain: VanaChain }, // VanaChain requires specific chain id type
         storage: {
           providers: {
             ipfs: mockIpfsProvider,

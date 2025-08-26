@@ -2,7 +2,7 @@ import { vi, beforeEach, afterEach } from "vitest";
 
 // Mock viem's functions for testing
 vi.mock("viem", async (importOriginal) => {
-  const actual = (await importOriginal()) as any;
+  const actual = await importOriginal();
   return {
     ...actual,
     getAddress: vi.fn((address: string) => {

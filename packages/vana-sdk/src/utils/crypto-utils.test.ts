@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import {
-  concatBytes,
   processWalletPublicKey,
   processWalletPrivateKey,
   parseEncryptedDataBuffer,
@@ -13,29 +12,6 @@ import {
 } from "./crypto-utils";
 
 describe("Crypto Utils", () => {
-  describe("concatBytes", () => {
-    it("concatenates multiple Uint8Arrays", () => {
-      const a = new Uint8Array([1, 2, 3]);
-      const b = new Uint8Array([4, 5]);
-      const c = new Uint8Array([6, 7, 8]);
-      const result = concatBytes(a, b, c);
-      expect(result).toEqual(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]));
-    });
-
-    it("handles empty arrays", () => {
-      const a = new Uint8Array([1, 2]);
-      const b = new Uint8Array([]);
-      const c = new Uint8Array([3]);
-      const result = concatBytes(a, b, c);
-      expect(result).toEqual(new Uint8Array([1, 2, 3]));
-    });
-
-    it("returns empty array when no arguments", () => {
-      const result = concatBytes();
-      expect(result).toEqual(new Uint8Array([]));
-    });
-  });
-
   describe("processWalletPublicKey", () => {
     it("processes hex string public key", () => {
       const result = processWalletPublicKey("0404");

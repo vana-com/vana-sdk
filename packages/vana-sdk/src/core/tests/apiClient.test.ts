@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { ApiClient, ApiClientConfig } from "../apiClient";
-import { Middleware } from "../../types/generics";
+import type { ApiClientConfig } from "../apiClient";
+import { ApiClient } from "../apiClient";
+import type { Middleware } from "../../types/generics";
 
 // Mock global fetch
 const mockFetch = vi.fn();

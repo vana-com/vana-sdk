@@ -41,7 +41,7 @@ vi.mock("../../generated/eventRegistry", () => ({
 describe("Transaction System Edge Cases", () => {
   describe("tx() helper edge cases", () => {
     it("handles very long hash values", () => {
-      const longHash = ("0x" + "a".repeat(64)) as `0x${string}`;
+      const longHash = `0x${"a".repeat(64)}`;
 
       const result = tx({
         hash: longHash,

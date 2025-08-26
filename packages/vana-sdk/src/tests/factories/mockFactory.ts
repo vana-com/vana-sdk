@@ -56,8 +56,8 @@ export function createMockAccount(overrides?: Partial<Account>): Account {
   return {
     address: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
     type: "local",
-    signMessage: vi.fn().mockResolvedValue("0xsignature" as Hash),
-    signTypedData: vi.fn().mockResolvedValue("0xsignature" as Hash),
+    signMessage: vi.fn().mockResolvedValue(`0x${"0".repeat(130)}`),
+    signTypedData: vi.fn().mockResolvedValue(`0x${"0".repeat(130)}`),
     signTransaction: vi.fn(),
     ...overrides,
   } as Account;
@@ -138,8 +138,8 @@ export function createTypedMockWalletClient(
     ccipRead: undefined,
     getAddresses: vi.fn().mockResolvedValue([account.address]),
     getChainId: vi.fn().mockResolvedValue(chain.id),
-    signMessage: vi.fn().mockResolvedValue("0xsignature" as Hash),
-    signTypedData: vi.fn().mockResolvedValue("0xsignature" as Hash),
+    signMessage: vi.fn().mockResolvedValue(`0x${"0".repeat(130)}`),
+    signTypedData: vi.fn().mockResolvedValue(`0x${"0".repeat(130)}`),
     signTransaction: vi.fn(),
     writeContract: vi.fn().mockResolvedValue("0xtxhash" as Hash),
     deployContract: vi.fn(),
@@ -448,6 +448,59 @@ export function createMockFn<
  */
 export function safeCast<T>(value: DeepPartial<T>): T {
   return value as T;
+}
+
+/**
+ * Creates a mock viem Log object for testing.
+ *
+ * @param eventName - The name of the event
+ * @param args - The event arguments
+ * @returns A complete Log object with all required properties
+ *
+ * @remarks
+ * This factory creates a complete viem Log object with all required blockchain
+ * metadata. Use this when mocking parseEventLogs return values.
+ *
+ * @example
+ * ```typescript
+ * const mockLog = createMockLog("PermissionGranted", {
+ *   permissionId: 123n,
+ *   user: "0xUserAddress" as Address,
+ *   grant: "grant-data"
+ * });
+ * ```
+ */
+export function createMockLog(
+  eventName: string,
+  args: Record<string, unknown>,
+): {
+  eventName: string;
+  args: Record<string, unknown>;
+  address: Address;
+  blockHash: Hash;
+  blockNumber: bigint;
+  data: Hash;
+  logIndex: number;
+  removed: boolean;
+  transactionHash: Hash;
+  transactionIndex: number;
+  topics: readonly Hash[];
+} {
+  return {
+    eventName,
+    args,
+    address: "0x0000000000000000000000000000000000000000" as Address,
+    blockHash:
+      "0x0000000000000000000000000000000000000000000000000000000000000000" as Hash,
+    blockNumber: 1n,
+    data: "0x" as Hash,
+    logIndex: 0,
+    removed: false,
+    transactionHash:
+      "0x0000000000000000000000000000000000000000000000000000000000000000" as Hash,
+    transactionIndex: 0,
+    topics: [] as readonly Hash[],
+  };
 }
 
 /**

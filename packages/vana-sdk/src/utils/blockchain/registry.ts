@@ -1,8 +1,8 @@
 import { getContract } from "viem";
-import { PublicClient, WalletClient } from "viem";
+import type { PublicClient, WalletClient } from "viem";
 import { getContractAddress } from "../../config/addresses";
 import { getAbi } from "../../generated/abi";
-import { SchemaMetadata } from "../../types/index";
+import type { SchemaMetadata } from "../../types/index";
 
 /**
  * Shared context for blockchain operations.

@@ -12,7 +12,7 @@ import type { StorageProvider } from "../types/storage";
 
 // Mock viem's parseEventLogs function
 vi.mock("viem", async (importOriginal) => {
-  const actual = (await importOriginal()) as typeof import("viem");
+  const actual = await importOriginal();
   return {
     ...actual,
     parseEventLogs: vi.fn(() => [

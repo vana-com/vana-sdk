@@ -49,7 +49,7 @@ export async function generateEncryptionKey(
   }
 
   // Store account reference to satisfy TypeScript
-  const account = wallet.account;
+  const { account } = wallet;
 
   // Use signature cache for encryption key generation
   // Create a simple message object for cache key generation
@@ -62,7 +62,7 @@ export async function generateEncryptionKey(
     async () => {
       // Sign the encryption seed to generate a deterministic encryption key
       return await wallet.signMessage({
-        account: account,
+        account,
         message: seed,
       });
     },

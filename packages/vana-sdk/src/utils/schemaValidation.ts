@@ -305,7 +305,7 @@ export function validateDataSchemaAgainstMetaSchema(
   const validator: SchemaValidator = schemaValidator;
   validator.validateDataSchemaAgainstMetaSchema(schema);
   // If we get here, schema is valid and typed as DataSchema
-  return schema as DataSchema;
+  return schema;
 }
 
 /**

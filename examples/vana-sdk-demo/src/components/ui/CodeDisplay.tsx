@@ -58,7 +58,7 @@ export const CodeDisplay: React.FC<CodeDisplayProps> = ({
     if (onCopy) {
       onCopy(code);
     } else {
-      navigator.clipboard.writeText(code);
+      void navigator.clipboard.writeText(code).catch(console.error);
     }
   };
 

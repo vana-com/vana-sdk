@@ -1,5 +1,5 @@
-import { Address } from "viem";
-import {
+import type { Address } from "viem";
+import type {
   Schema,
   SchemaMetadata,
   CompleteSchema,
@@ -7,7 +7,7 @@ import {
 } from "../types/index";
 // import type { TransactionResult } from "../types/operations";
 import type { SchemaAddedResult } from "../types/transactionResults";
-import { ControllerContext } from "./permissions";
+import type { ControllerContext } from "./permissions";
 import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../generated/abi";
 import { gasAwareMulticall } from "../utils/multicall";
@@ -710,8 +710,7 @@ export class SchemaController {
     }));
 
     // Optionally fetch definitions if requested
-    const includeDefinitions = (params as { includeDefinitions?: boolean })
-      .includeDefinitions;
+    const { includeDefinitions } = params as { includeDefinitions?: boolean };
     if (includeDefinitions) {
       await this._fetchDefinitionsForSchemas(schemas);
     }

@@ -1,10 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { Address } from "viem";
-import {
-  PermissionsController,
-  ControllerContext,
-} from "../controllers/permissions";
+import type { Address } from "viem";
+import { WalletClient, PublicClient } from "viem";
+import type { ControllerContext } from "../controllers/permissions";
+import { PermissionsController } from "../controllers/permissions";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
+import {
+  createTypedMockWalletClient,
+  createTypedMockPublicClient,
+} from "./factories/mockFactory";
 
 // Mock ALL external dependencies to ensure pure unit tests
 vi.mock("viem", async () => {
@@ -66,29 +69,18 @@ describe("Permissions Schema Validation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
+    const mockWalletClient = createTypedMockWalletClient();
+    const mockPublicClient = createTypedMockPublicClient();
+
+    // Set up mock responses
+    vi.mocked(mockWalletClient.writeContract).mockResolvedValue(
+      "0xTxHash" as any,
+    );
+    vi.mocked(mockPublicClient.readContract).mockResolvedValue(1n);
+
     mockContext = {
-      walletClient: {
-        account: { address: "0xTestAddress" },
-        chain: { id: 14800, name: "Moksha Testnet" },
-        writeContract: vi.fn().mockResolvedValue("0xTxHash"),
-        getAddresses: vi.fn().mockResolvedValue(["0xTestAddress"]),
-        getChainId: vi.fn().mockResolvedValue(14800),
-        signTypedData: vi.fn().mockResolvedValue("0xSignature"),
-      } as any,
-      publicClient: {
-        waitForTransactionReceipt: vi.fn().mockResolvedValue({
-          getTransactionReceipt: vi.fn().mockResolvedValue({
-            transactionHash: "0xTransactionHash",
-            blockNumber: 12345n,
-            gasUsed: 100000n,
-            status: "success" as const,
-            logs: [],
-          }),
-          status: "success",
-          logs: [],
-        }),
-        readContract: vi.fn().mockResolvedValue(1n), // Mock nonce
-      } as any,
+      walletClient: mockWalletClient,
+      publicClient: mockPublicClient,
       storageManager: undefined,
       subgraphUrl: undefined,
       platform: mockPlatformAdapter,
@@ -146,8 +138,12 @@ describe("Permissions Schema Validation", () => {
         }),
       });
 
-      (mockContext as any).submitAddServerFilesAndPermissions =
-        mockRelayerCallback;
+      // Add relayer callback to context for testing
+      (
+        mockContext as ControllerContext & {
+          submitAddServerFilesAndPermissions: typeof mockRelayerCallback;
+        }
+      ).submitAddServerFilesAndPermissions = mockRelayerCallback;
     });
 
     it("should accept files without schemas (schemaId = 0)", async () => {

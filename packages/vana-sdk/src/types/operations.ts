@@ -110,7 +110,7 @@ export function isTransactionResult(obj: unknown): obj is TransactionResult {
   if (typeof obj !== "object" || obj === null || !("hash" in obj)) {
     return false;
   }
-  const hash = (obj as Record<string, unknown>).hash;
+  const { hash } = obj as Record<string, unknown>;
   return typeof hash === "string" && hash.startsWith("0x");
 }
 

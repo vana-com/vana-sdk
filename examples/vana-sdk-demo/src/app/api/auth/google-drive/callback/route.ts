@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
 /**
  * OAuth2 callback endpoint for Google Drive
@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
           const tokens = ${JSON.stringify({
             accessToken: tokenData.access_token,
             refreshToken: tokenData.refresh_token,
-            expiresAt: expiresAt,
+            expiresAt,
             isAuthorized: true,
           })};
           

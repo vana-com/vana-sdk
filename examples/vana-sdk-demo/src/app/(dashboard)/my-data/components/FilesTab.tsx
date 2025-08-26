@@ -16,8 +16,8 @@ import {
   TableCell,
   Checkbox,
   Chip,
+  type SortDescriptor,
   Pagination,
-  SortDescriptor,
 } from "@heroui/react";
 import {
   Database,

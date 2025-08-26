@@ -4,7 +4,7 @@ import {
   clearContractCache,
   __contractCache,
 } from "../contractController";
-import { VanaContract } from "../../generated/abi";
+import type { VanaContract } from "../../generated/abi";
 import { createClient } from "../../core/client";
 import { vanaMainnet, mokshaTestnet } from "../../config/chains";
 import type { PublicClient, WalletClient as _WalletClient } from "viem";

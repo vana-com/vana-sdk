@@ -6,8 +6,8 @@ import {
   getContractInfo,
   ContractFactory,
 } from "../contracts/contractController";
-import { ContractAbis } from "../generated/abi";
-import { ControllerContext } from "./permissions";
+import type { ContractAbis } from "../generated/abi";
+import type { ControllerContext } from "./permissions";
 import type { GetContractReturnType } from "viem";
 
 /**

@@ -16,8 +16,8 @@ import {
   TableCell,
   Chip,
   Pagination,
-  SortDescriptor,
   Tooltip,
+  type SortDescriptor,
 } from "@heroui/react";
 import {
   Search,
@@ -27,11 +27,11 @@ import {
   Eye,
   FileText,
 } from "lucide-react";
-import type {
-  OnChainPermissionGrant,
-  GrantedPermission,
+import {
+  convertIpfsUrl,
+  type OnChainPermissionGrant,
+  type GrantedPermission,
 } from "@opendatalabs/vana-sdk/browser";
-import { convertIpfsUrl } from "@opendatalabs/vana-sdk/browser";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusDisplay } from "@/components/ui/StatusDisplay";

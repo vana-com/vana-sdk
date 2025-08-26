@@ -30,7 +30,7 @@ import {
 import { GrantPermissionModal } from "@/components/ui/GrantPermissionModal";
 import { useGrantees } from "@/hooks/useGrantees";
 import { useTrustedServers } from "@/hooks/useTrustedServers";
-import { useUserFiles, ExtendedUserFile } from "@/hooks/useUserFiles";
+import { useUserFiles, type ExtendedUserFile } from "@/hooks/useUserFiles";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useVana } from "@/providers/VanaProvider";
 import { ExplorerLink } from "@/components/ui/ExplorerLink";
@@ -653,7 +653,7 @@ export default function DemoExperiencePage() {
       const result = await response.json();
       if (result.data?.id) {
         addActivity("info", "AI processing started...");
-        pollOperationStatus(result.data.id, permissionId);
+        void pollOperationStatus(result.data.id, permissionId);
       } else {
         throw new Error("Unexpected response format");
       }
@@ -800,7 +800,7 @@ export default function DemoExperiencePage() {
         onConfirm={async (params) => {
           // Create new permission - the modal handles the UI flow
           if (grantPreview) {
-            setGrantPreview({ ...grantPreview, params: params });
+            setGrantPreview({ ...grantPreview, params });
           }
           await handleConfirmGrant(params);
         }}

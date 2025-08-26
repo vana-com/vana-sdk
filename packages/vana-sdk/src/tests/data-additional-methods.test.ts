@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { DataController } from "../controllers/data";
-import { ControllerContext } from "../controllers/permissions";
+import type { ControllerContext } from "../controllers/permissions";
 import { mokshaTestnet } from "../config/chains";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 

@@ -88,7 +88,7 @@ export const SchemaSelector: React.FC<SchemaSelectorProps> = ({
       }
     };
 
-    loadSchemas();
+    void loadSchemas();
   }, [vana]);
 
   // Update selected schema when selectedSchemaId changes

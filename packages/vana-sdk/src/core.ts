@@ -16,15 +16,14 @@ import type {
   DownloadRelayerCallbacks,
 } from "./types/config";
 import { InvalidConfigurationError } from "./errors";
-import {
-  PermissionsController,
-  ControllerContext,
-} from "./controllers/permissions";
+import type { ControllerContext } from "./controllers/permissions";
+import { PermissionsController } from "./controllers/permissions";
 import { DataController } from "./controllers/data";
 import { SchemaController } from "./controllers/schemas";
 import { ServerController } from "./controllers/server";
 import { ProtocolController } from "./controllers/protocol";
-import { StorageManager, StorageProvider } from "./storage";
+import type { StorageProvider } from "./storage";
+import { StorageManager } from "./storage";
 import { createWalletClient, createPublicClient, http } from "viem";
 import { chains } from "./config/chains";
 import { getChainConfig } from "./chains";
@@ -207,11 +206,7 @@ export class VanaCore {
       // Register all provided storage providers
       for (const [name, provider] of Object.entries(config.storage.providers)) {
         const isDefault = name === config.storage.defaultProvider;
-        this.storageManager.register(
-          name,
-          provider as StorageProvider,
-          isDefault,
-        );
+        this.storageManager.register(name, provider, isDefault);
       }
 
       // If no default was explicitly set but providers exist, use the first one
@@ -519,7 +514,7 @@ export class VanaCore {
       throw new Error("No wallet account connected");
     }
 
-    const account = this.walletClient.account;
+    const { account } = this.walletClient;
 
     // Return the account address directly if available
     if (typeof account === "string") {

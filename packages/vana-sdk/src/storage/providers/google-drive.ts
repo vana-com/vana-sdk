@@ -5,14 +5,14 @@
  * Based on patterns from dlp-ui-template with NextAuth integration.
  */
 
-import {
+import type {
   StorageProvider,
   StorageUploadResult,
   StorageFile,
   StorageListOptions,
   StorageProviderConfig,
-  StorageError,
 } from "../index";
+import { StorageError } from "../index";
 
 export interface GoogleDriveConfig {
   /** OAuth2 access token */
@@ -488,7 +488,7 @@ export class GoogleDriveStorage implements StorageProvider {
   async createFolder(name: string, parentId: string = "root"): Promise<string> {
     try {
       const metadata = {
-        name: name,
+        name,
         mimeType: "application/vnd.google-apps.folder",
         parents: [parentId],
       };

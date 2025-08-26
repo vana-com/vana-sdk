@@ -16,6 +16,7 @@ import {
 } from "crypto";
 import secp256k1Import from "secp256k1";
 import { BaseECIESUint8 } from "./base";
+import { toHex } from "viem";
 
 // Type definition for secp256k1 module
 interface Secp256k1Module {
@@ -199,7 +200,7 @@ export class NodeECIESUint8Provider extends BaseECIESUint8 {
       const decompressed = this.decompressPublicKey(publicKey);
       if (!decompressed) {
         throw new Error(
-          `Failed to decompress public key with prefix 0x${publicKey[0].toString(16).padStart(2, "0")}`,
+          `Failed to decompress public key with prefix ${toHex(publicKey[0])}`,
         );
       }
       return decompressed;

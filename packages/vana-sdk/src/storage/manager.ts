@@ -1,10 +1,10 @@
-import {
+import type {
   StorageProvider,
   StorageUploadResult,
   StorageFile,
   StorageListOptions,
-  StorageError,
 } from "../types/storage";
+import { StorageError } from "../types/storage";
 
 /**
  * Manages multiple storage providers with a unified interface for file operations.

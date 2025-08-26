@@ -17,8 +17,7 @@ import { wrapCryptoError } from "./shared/error-utils";
 import { lazyImport } from "../utils/lazy-import";
 import { WalletKeyEncryptionService } from "../crypto/services/WalletKeyEncryptionService";
 import { parseEncryptedDataBuffer } from "../utils/crypto-utils";
-import { toHex, fromHex, stringToBytes, bytesToString } from "viem";
-import { concatBytes } from "../crypto/ecies/utils";
+import { toHex, fromHex, stringToBytes, bytesToString, concat } from "viem";
 import * as secp256k1 from "@noble/secp256k1";
 import { features } from "../config/features";
 
@@ -59,12 +58,12 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
         );
 
         // Concatenate all components and return as hex string
-        const result = concatBytes(
+        const result = concat([
           encrypted.iv,
           encrypted.ephemPublicKey,
           encrypted.ciphertext,
           encrypted.mac,
-        );
+        ]);
 
         return toHex(result).slice(2); // Remove '0x' prefix for backward compatibility
       } else {

@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { Address } from "viem";
+import type { Address } from "viem";
 import { ServerController } from "../controllers/server";
-import { ControllerContext } from "../controllers/permissions";
+import type { ControllerContext } from "../controllers/permissions";
 import { NetworkError } from "../errors";
-import { CreateOperationParams } from "../types";
+import type { CreateOperationParams } from "../types";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock global fetch
@@ -49,7 +49,7 @@ describe("ServerController", () => {
     mockAccount = {
       type: "local",
       address: mockUserAddress as Address,
-      signMessage: vi.fn().mockResolvedValue("0xsignature123"),
+      signMessage: vi.fn().mockResolvedValue(`0x${"0".repeat(130)}`),
     };
 
     // Create mock wallet client
@@ -419,7 +419,7 @@ describe("ServerController", () => {
 
       expect(requestBody.operation_request_json).toContain("permission_id");
       expect(requestBody.operation_request_json).toContain("12345");
-      expect(requestBody.app_signature).toBe("0xsignature123");
+      expect(requestBody.app_signature).toBe(`0x${"0".repeat(130)}`);
     });
   });
 });

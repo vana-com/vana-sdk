@@ -320,7 +320,7 @@ export class DataController {
           encryptedPermissions,
           schemaId || 0,
         );
-        
+
         // For consistency with the breaking change, return a placeholder fileId
         // Users must use waitForTransactionEvents to get the actual fileId
         result = {
@@ -739,11 +739,12 @@ export class DataController {
           const fileId = parseInt(proof.fileId);
           const dlpId = parseInt(proof.dlp.id);
 
-          if (!proofMap.has(fileId)) {
-            proofMap.set(fileId, []);
+          let dlpIds = proofMap.get(fileId);
+          if (!dlpIds) {
+            dlpIds = [];
+            proofMap.set(fileId, dlpIds);
           }
 
-          const dlpIds = proofMap.get(fileId)!;
           if (!dlpIds.includes(dlpId)) {
             dlpIds.push(dlpId);
           }
@@ -1884,8 +1885,9 @@ export class DataController {
 
       const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
       const dataRegistryAbi = getAbi("DataRegistry");
-      const account = this.context.walletClient.account || await this.getUserAddress();
-      const from = typeof account === 'string' ? account : account.address;
+      const account =
+        this.context.walletClient.account || (await this.getUserAddress());
+      const from = typeof account === "string" ? account : account.address;
 
       const hash = await this.context.walletClient.writeContract({
         address: dataRegistryAddress,
@@ -1955,7 +1957,7 @@ export class DataController {
       const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
       const dataRegistryAbi = getAbi("DataRegistry");
       const account = this.context.walletClient.account || ownerAddress;
-      const from = typeof account === 'string' ? account : account.address;
+      const from = typeof account === "string" ? account : account.address;
 
       // Execute the transaction using the wallet client
       const hash = await this.context.walletClient.writeContract({
@@ -2001,7 +2003,9 @@ export class DataController {
     ownerAddress: Address,
     permissions: Array<{ account: Address; key: string }> = [],
     schemaId: number = 0,
-  ): Promise<TransactionResult<"DataRegistry", "addFileWithPermissionsAndSchema">> {
+  ): Promise<
+    TransactionResult<"DataRegistry", "addFileWithPermissionsAndSchema">
+  > {
     try {
       const chainId = this.context.walletClient.chain?.id;
       if (!chainId) {
@@ -2011,7 +2015,7 @@ export class DataController {
       const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
       const dataRegistryAbi = getAbi("DataRegistry");
       const account = this.context.walletClient.account || ownerAddress;
-      const from = typeof account === 'string' ? account : account.address;
+      const from = typeof account === "string" ? account : account.address;
 
       // Execute the transaction using the wallet client
       const hash = await this.context.walletClient.writeContract({
@@ -2078,8 +2082,9 @@ export class DataController {
         "DataRefinerRegistry",
       );
       const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
-      const account = this.context.walletClient.account || (await this.getUserAddress());
-      const from = typeof account === 'string' ? account : account.address;
+      const account =
+        this.context.walletClient.account || (await this.getUserAddress());
+      const from = typeof account === "string" ? account : account.address;
 
       const hash = await this.context.walletClient.writeContract({
         address: dataRefinerRegistryAddress,
@@ -2103,18 +2108,18 @@ export class DataController {
         contract: "DataRefinerRegistry",
         fn: "addRefinerWithSchemaId",
       });
-      
+
       // Wait for events and extract domain data
       if (!this.context.waitForTransactionEvents) {
         throw new Error("waitForTransactionEvents not configured");
       }
-      
+
       const result = await this.context.waitForTransactionEvents(txResult);
       const event = result.expectedEvents.RefinerAdded;
       if (!event) {
         throw new Error("RefinerAdded event not found in transaction");
       }
-      
+
       return {
         refinerId: Number(event.refinerId),
         transactionHash: hash,
@@ -2318,7 +2323,8 @@ export class DataController {
         "DataRefinerRegistry",
       );
       const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
-      const account = this.context.walletClient.account || (await this.getUserAddress());
+      const account =
+        this.context.walletClient.account || (await this.getUserAddress());
 
       const hash = await this.context.walletClient.writeContract({
         address: dataRefinerRegistryAddress,
@@ -2421,7 +2427,7 @@ export class DataController {
           userAddress,
           encryptedPermissions,
         );
-        
+
         // For now, return the transaction result with URL and size
         // Users need to call waitForTransactionEvents to get the fileId
         return {
@@ -2616,8 +2622,9 @@ export class DataController {
 
       const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
       const dataRegistryAbi = getAbi("DataRegistry");
-      
-      const walletAccount = this.context.walletClient.account || (await this.getUserAddress());
+
+      const walletAccount =
+        this.context.walletClient.account || (await this.getUserAddress());
 
       const txHash = await this.context.walletClient.writeContract({
         address: dataRegistryAddress,
@@ -2631,7 +2638,10 @@ export class DataController {
       const { tx } = await import("../utils/transactionHelpers");
       return tx({
         hash: txHash,
-        from: typeof walletAccount === 'string' ? walletAccount : walletAccount.address,
+        from:
+          typeof walletAccount === "string"
+            ? walletAccount
+            : walletAccount.address,
         contract: "DataRegistry",
         fn: "addFilePermission",
       });

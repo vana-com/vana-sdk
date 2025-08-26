@@ -33,7 +33,7 @@ export interface UseSchemasAndRefinersReturn {
   schemaDefinition: string;
   isCreatingSchema: boolean;
   schemaStatus: string;
-  lastCreatedSchemaId: number | null;
+  lastCreatedSchemaId: bigint | null;
 
   // Refiners state
   refiners: ExtendedRefiner[];
@@ -89,7 +89,7 @@ export function useSchemasAndRefiners(): UseSchemasAndRefinersReturn {
   const [schemaDefinition, setSchemaDefinition] = useState<string>("");
   const [isCreatingSchema, setIsCreatingSchema] = useState(false);
   const [schemaStatus, setSchemaStatus] = useState<string>("");
-  const [lastCreatedSchemaId, setLastCreatedSchemaId] = useState<number | null>(
+  const [lastCreatedSchemaId, setLastCreatedSchemaId] = useState<bigint | null>(
     null,
   );
 

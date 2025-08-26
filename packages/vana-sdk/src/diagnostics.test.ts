@@ -81,7 +81,7 @@ describe("diagnostics", () => {
     it("should handle non-process environments", async () => {
       // Mock a browser-like environment where process is undefined
       const originalProcess = global.process;
-      global.process = undefined as any;
+      (global as Record<string, unknown>).process = undefined;
 
       try {
         vi.resetModules();
@@ -121,7 +121,7 @@ describe("diagnostics", () => {
 
     it("should handle process.env being null", async () => {
       const originalProcess = global.process;
-      global.process = { env: null } as any;
+      (global as Record<string, unknown>).process = { env: null };
 
       try {
         vi.resetModules();

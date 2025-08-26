@@ -61,6 +61,9 @@ export async function fetchSchemaFromChain(
     throw new Error(`Schema with ID ${schemaId} not found`);
   }
 
+  // TODO(TYPES): Contract read returns unknown type from viem library.
+  // Future improvement: Create typed contract interface when viem adds support
+  // or implement a contract type generator from ABI definitions.
   const schemaObj = schemaData as unknown as SchemaContractData;
 
   if (!schemaObj.name || !schemaObj.dialect || !schemaObj.definitionUrl) {

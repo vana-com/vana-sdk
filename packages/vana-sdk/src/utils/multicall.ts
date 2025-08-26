@@ -191,6 +191,9 @@ export async function gasAwareMulticall<
 
   const { contracts } = parameters;
   if (!contracts || contracts.length === 0) {
+    // TODO(TYPES): Empty array needs to match complex generic return type.
+    // Future improvement: Use conditional types to properly type empty results
+    // based on TAllowFailure parameter. Consider creating utility type helper.
     return [] as unknown as MulticallReturnType<TContracts, TAllowFailure>;
   }
 

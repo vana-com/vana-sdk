@@ -2,7 +2,7 @@
  * Core blockchain types for the Vana SDK
  */
 
-import type { Hash, Address } from 'viem';
+import type { Hash, Address } from "viem";
 
 /**
  * Represents a transaction that has been submitted to the blockchain
@@ -56,7 +56,7 @@ export interface TransactionResult {
  * The parseTransaction function will:
  * 1. Return expectedEvents with typed args for mapped functions
  * 2. Return allEvents with all parsed events from the transaction
- * 
+ *
  * This approach avoids the need for specific result interfaces per event type,
  * letting the mapping file drive the types instead.
  */

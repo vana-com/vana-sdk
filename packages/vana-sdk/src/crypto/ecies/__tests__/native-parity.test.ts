@@ -192,10 +192,13 @@ describe("Public API Type Enforcement", () => {
     const nodeProvider = new NodeECIESUint8Provider();
 
     // Ensure Buffer helper methods don't exist
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect((nodeProvider as any).encryptWithBuffer).toBeUndefined();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect((nodeProvider as any).decryptWithBuffer).toBeUndefined();
+    // Type assertion to check for non-existent properties
+    const providerWithBufferMethods = nodeProvider as unknown as {
+      encryptWithBuffer?: unknown;
+      decryptWithBuffer?: unknown;
+    };
+    expect(providerWithBufferMethods.encryptWithBuffer).toBeUndefined();
+    expect(providerWithBufferMethods.decryptWithBuffer).toBeUndefined();
   });
 });
 

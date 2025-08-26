@@ -541,8 +541,8 @@ describe("gasAwareMulticall", () => {
 
       const config = analyzeCallsForOptimalConfig(contracts);
 
-      expect(config.checkpointFrequency!.calls).toBeLessThan(32);
-      expect(config.checkpointFrequency!.bytes).toBeLessThan(8192);
+      expect(config.checkpointFrequency?.calls).toBeLessThan(32);
+      expect(config.checkpointFrequency?.bytes).toBeLessThan(8192);
     });
 
     it("should suggest higher calldata limit for very large datasets", () => {

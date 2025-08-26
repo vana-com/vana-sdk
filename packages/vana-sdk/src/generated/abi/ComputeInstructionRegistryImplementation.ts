@@ -479,7 +479,8 @@ export const ComputeInstructionRegistryABI = [
             type: "string",
           },
         ],
-        internalType: "struct IComputeInstructionRegistry.ComputeInstructionInfo",
+        internalType:
+          "struct IComputeInstructionRegistry.ComputeInstructionInfo",
         name: "",
         type: "tuple",
       },

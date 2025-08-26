@@ -249,8 +249,8 @@ describe("PermissionsController", () => {
       const result = await controller.grant(mockGrantParams);
 
       expect(result).toMatchObject({
-        hash: "0xtxhash",
-        from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        transactionHash: "0xtxhash",
+        permissionId: 1n,
       });
       expect(mockWalletClient.signTypedData).toHaveBeenCalled();
       // Should use relayerCallbacks pattern
@@ -334,11 +334,28 @@ describe("PermissionsController", () => {
         .fn()
         .mockResolvedValue("0xrevokehash");
 
+      // Mock waitForTransactionEvents to return PermissionRevoked event
+      if (mockContext.waitForTransactionEvents) {
+        vi.mocked(mockContext.waitForTransactionEvents).mockResolvedValueOnce({
+          hash: "0xrevokehash",
+          from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          contract: "DataPortabilityPermissions",
+          fn: "revokePermission",
+          expectedEvents: {
+            PermissionRevoked: {
+              permissionId: BigInt(123),
+            },
+          },
+          allEvents: [],
+          hasExpectedEvents: true,
+        });
+      }
+
       const result = await controller.revoke(mockRevokeParams);
 
       expect(result).toMatchObject({
-        hash: "0xrevokehash",
-        from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        transactionHash: "0xrevokehash",
+        permissionId: BigInt(123),
       });
       expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -423,6 +440,23 @@ describe("PermissionsController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        waitForTransactionEvents: vi.fn().mockResolvedValue({
+          hash: "0xdirecttxhash",
+          from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          contract: "DataPortabilityPermissions",
+          fn: "addPermission",
+          expectedEvents: {
+            PermissionAdded: {
+              permissionId: 1n,
+              user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+              grantee: "0x1234567890123456789012345678901234567890",
+              grant: "https://example.com/grant.json",
+              fileIds: [1, 2, 3],
+            },
+          },
+          allEvents: [],
+          hasExpectedEvents: true,
+        }),
         // No relayerUrl - forces direct transaction path
       });
     });
@@ -464,8 +498,8 @@ describe("PermissionsController", () => {
       const result = await directController.grant(mockParams);
 
       expect(result).toMatchObject({
-        hash: "0xdirecttxhash",
-        from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        transactionHash: "0xdirecttxhash",
+        permissionId: 1n,
       });
       expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -598,8 +632,8 @@ describe("PermissionsController", () => {
         }),
       );
       expect(result).toMatchObject({
-        hash: "0xtxhash",
-        from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        transactionHash: "0xtxhash",
+        permissionId: 1n,
       });
     });
   });
@@ -1030,6 +1064,23 @@ describe("PermissionsController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        waitForTransactionEvents: vi.fn().mockResolvedValue({
+          hash: "0xtxhash",
+          from: undefined,
+          contract: "DataPortabilityPermissions",
+          fn: "submitPermission",
+          expectedEvents: {
+            PermissionAdded: {
+              permissionId: 1n,
+              user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+              grantee: "0x1234567890123456789012345678901234567890",
+              grant: "https://example.com/grant.json",
+              fileIds: [],
+            },
+          },
+          allEvents: [],
+          hasExpectedEvents: true,
+        }),
         // No relayerUrl - forces direct transaction path
       });
 
@@ -1057,8 +1108,8 @@ describe("PermissionsController", () => {
 
       const result = await directController.grant(mockParams);
       expect(result).toMatchObject({
-        hash: "0xtxhash",
-        from: undefined,
+        transactionHash: "0xtxhash",
+        permissionId: 1n,
       });
     });
 
@@ -1218,6 +1269,19 @@ describe("PermissionsController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        waitForTransactionEvents: vi.fn().mockResolvedValue({
+          hash: "0xmockabcdef1234567890abcdef1234567890abcdef1234567890abcdef123456",
+          from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          contract: "DataPortabilityPermissions",
+          fn: "revokePermission",
+          expectedEvents: {
+            PermissionRevoked: {
+              permissionId: 1n,
+            },
+          },
+          allEvents: [],
+          hasExpectedEvents: true,
+        }),
         // No relayer callbacks to force direct transaction path
       });
 
@@ -1234,10 +1298,11 @@ describe("PermissionsController", () => {
 
       const result = await controller.revoke(mockRevokeParams);
 
-      // Should return event data from parsed transaction
+      // Should return revoke result
       expect(result).toMatchObject({
-        hash: "0xmockabcdef1234567890abcdef1234567890abcdef1234567890abcdef123456",
-        from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        transactionHash:
+          "0xmockabcdef1234567890abcdef1234567890abcdef1234567890abcdef123456",
+        permissionId: 1n,
       });
     });
 
@@ -1281,6 +1346,19 @@ describe("PermissionsController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        waitForTransactionEvents: vi.fn().mockResolvedValue({
+          hash: "0xmockdirecttxhash",
+          from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          contract: "DataPortabilityPermissions",
+          fn: "revokePermission",
+          expectedEvents: {
+            PermissionRevoked: {
+              permissionId: 1n,
+            },
+          },
+          allEvents: [],
+          hasExpectedEvents: true,
+        }),
         // No relayer callbacks
       });
 
@@ -1293,10 +1371,10 @@ describe("PermissionsController", () => {
       // Since we're mocking, we need to test this indirectly through revoke
       const result = await controllerWithChain.revoke(mockRevokeParams);
 
-      // Should return event data from parsed transaction
+      // Should return revoke result
       expect(result).toMatchObject({
-        hash: "0xmockdirecttxhash",
-        from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        transactionHash: "0xmockdirecttxhash",
+        permissionId: 1n,
       });
     });
 
@@ -1379,6 +1457,22 @@ describe("PermissionsController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        waitForTransactionEvents: vi.fn().mockResolvedValue({
+          hash: "0xtxhash",
+          from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          contract: "DataPortabilityPermissions",
+          fn: "submitPermission",
+          expectedEvents: {
+            PermissionAdded: {
+              permissionId: 1n,
+              user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+              grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+              grant: "https://ipfs.io/ipfs/QmGrantFile",
+            },
+          },
+          allEvents: [],
+          hasExpectedEvents: true,
+        }),
         relayerCallbacks: {
           submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
           submitPermissionRevoke: vi.fn().mockResolvedValue("0xtxhash"),
@@ -1403,8 +1497,8 @@ describe("PermissionsController", () => {
 
       const result = await controller.grant(mockParams);
       expect(result).toMatchObject({
-        hash: "0xtxhash",
-        from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        permissionId: 1n,
+        transactionHash: "0xtxhash",
       });
     });
   });

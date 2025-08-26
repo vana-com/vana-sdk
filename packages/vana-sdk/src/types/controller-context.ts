@@ -1,31 +1,37 @@
 /**
  * Shared type definitions for controller contexts.
- * 
+ *
  * @remarks
  * These types ensure consistency across all controllers and prevent drift.
  * Single source of truth following Rich Hickey's principles.
  */
 
-import type { WalletClient, PublicClient } from 'viem';
-import type { VanaPlatformAdapter } from '../platform/interface';
-import type { StorageManager } from '../storage';
-import type { RelayerCallbacks, DownloadRelayerCallbacks } from './config';
-import type { TransactionResult, TransactionWaitOptions, Operation, PollingOptions } from './operations';
-import type { Contract, Fn, TypedTransactionResult } from '../generated/event-types';
+import type { WalletClient, PublicClient } from "viem";
+import type { VanaPlatformAdapter } from "../platform/interface";
+import type { StorageManager } from "../storage";
+import type { RelayerCallbacks, DownloadRelayerCallbacks } from "./config";
+import type {
+  TransactionResult,
+  TransactionWaitOptions,
+  Operation,
+  PollingOptions,
+} from "./operations";
+import type {
+  Contract,
+  Fn,
+  TypedTransactionResult,
+} from "../generated/event-types";
 
 /**
  * Type definition for waitForTransactionEvents function.
- * 
+ *
  * @remarks
  * This is THE single definition used everywhere to prevent drift.
  * If you need to change the signature, change it here.
  */
-export type WaitForTransactionEventsFn = <
-  C extends Contract,
-  F extends Fn<C>
->(
+export type WaitForTransactionEventsFn = <C extends Contract, F extends Fn<C>>(
   transaction: TransactionResult<C, F>,
-  options?: TransactionWaitOptions
+  options?: TransactionWaitOptions,
 ) => Promise<TypedTransactionResult<C, F>>;
 
 /**
@@ -33,12 +39,12 @@ export type WaitForTransactionEventsFn = <
  */
 export type WaitForOperationFn = <T = unknown>(
   opOrId: Operation<T> | string,
-  options?: PollingOptions
+  options?: PollingOptions,
 ) => Promise<Operation<T>>;
 
 /**
  * Shared controller context interface.
- * 
+ *
  * @remarks
  * This is the contract that all controllers depend on.
  * Changing this interface is a breaking change.

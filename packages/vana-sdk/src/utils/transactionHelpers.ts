@@ -2,17 +2,17 @@
  * Helper functions for creating typed transaction POJOs
  */
 
-import type { Hash, Address } from 'viem';
-import type { TransactionResult } from '../types/operations';
-import type { Contract, Fn } from '../generated/event-types';
+import type { Hash, Address } from "viem";
+import type { TransactionResult } from "../types/operations";
+import type { Contract, Fn } from "../generated/event-types";
 
 /**
  * Creates a strongly-typed TransactionResult POJO.
- * 
+ *
  * @remarks
  * This helper ensures all required fields are present and typed correctly,
  * reducing boilerplate and preventing mistakes.
- * 
+ *
  * @param input - Transaction details
  * @param input.hash - Transaction hash
  * @param input.from - Transaction sender address
@@ -23,7 +23,7 @@ import type { Contract, Fn } from '../generated/event-types';
  * @param input.nonce - Optional nonce
  * @param input.to - Optional recipient address
  * @returns Typed TransactionResult
- * 
+ *
  * @example
  * ```typescript
  * return tx({
@@ -60,7 +60,7 @@ export function tx<C extends Contract, F extends Fn<C>>(input: {
 /**
  * Creates a transaction result with literal type inference.
  * Use this when you need TypeScript to preserve exact string literals.
- * 
+ *
  * @param input - Transaction details
  * @param input.hash - Transaction hash
  * @param input.from - Transaction sender address
@@ -71,7 +71,7 @@ export function tx<C extends Contract, F extends Fn<C>>(input: {
  * @param input.nonce - Optional nonce
  * @param input.to - Optional recipient address
  * @returns Typed TransactionResult
- * 
+ *
  * @example
  * ```typescript
  * const transaction = txLiteral({
@@ -85,7 +85,7 @@ export function tx<C extends Contract, F extends Fn<C>>(input: {
  */
 export function txLiteral<
   const C extends Contract,
-  const F extends Fn<C>
+  const F extends Fn<C>,
 >(input: {
   hash: Hash;
   from: Address;

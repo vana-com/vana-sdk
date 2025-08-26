@@ -825,6 +825,7 @@ describe("PermissionsController - Grantee Methods", () => {
       const walletClientNoAccount = {
         ...mockWalletClient,
         account: null,
+        getAddresses: vi.fn().mockResolvedValue(["0xUserAddress"]),
       };
       mockContext.walletClient = walletClientNoAccount;
 
@@ -837,7 +838,7 @@ describe("PermissionsController - Grantee Methods", () => {
         expect.objectContaining({
           functionName: "updateServer",
           args: [serverId, newUrl],
-          account: null,
+          account: "0xUserAddress", // getUserAddress() is called when account is null
           chain: walletClientNoAccount.chain,
         }),
       );

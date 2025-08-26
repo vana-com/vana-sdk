@@ -1,31 +1,31 @@
-import { describe, it, expect } from 'vitest';
-import { tx } from '../transactionHelpers';
-import type { TransactionResult } from '../../types/operations';
+import { describe, it, expect } from "vitest";
+import { tx } from "../transactionHelpers";
+import type { TransactionResult } from "../../types/operations";
 
-describe('transactionHelpers', () => {
-  describe('tx()', () => {
-    it('creates a valid TransactionResult POJO', () => {
+describe("transactionHelpers", () => {
+  describe("tx()", () => {
+    it("creates a valid TransactionResult POJO", () => {
       const result = tx({
-        hash: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef' as `0x${string}`,
-        from: '0xabcdef1234567890abcdef1234567890abcdef12' as `0x${string}`,
-        contract: 'DataPortabilityPermissions',
-        fn: 'addPermission',
+        hash: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" as `0x${string}`,
+        from: "0xabcdef1234567890abcdef1234567890abcdef12" as `0x${string}`,
+        contract: "DataPortabilityPermissions",
+        fn: "addPermission",
       });
 
       expect(result).toEqual({
-        hash: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
-        from: '0xabcdef1234567890abcdef1234567890abcdef12',
-        contract: 'DataPortabilityPermissions',
-        fn: 'addPermission',
+        hash: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        from: "0xabcdef1234567890abcdef1234567890abcdef12",
+        contract: "DataPortabilityPermissions",
+        fn: "addPermission",
       });
     });
 
-    it('returns a plain object (not a class instance)', () => {
+    it("returns a plain object (not a class instance)", () => {
       const result = tx({
-        hash: '0xabc' as `0x${string}`,
-        from: '0xdef' as `0x${string}`,
-        contract: 'DataRegistry',
-        fn: 'addFile',
+        hash: "0xabc" as `0x${string}`,
+        from: "0xdef" as `0x${string}`,
+        contract: "DataRegistry",
+        fn: "addFile",
       });
 
       // Should be a plain object
@@ -33,76 +33,79 @@ describe('transactionHelpers', () => {
       expect(result.constructor).toBe(Object);
     });
 
-    it('creates a JSON-serializable object', () => {
+    it("creates a JSON-serializable object", () => {
       const result = tx({
-        hash: '0xhash' as `0x${string}`,
-        from: '0xfrom' as `0x${string}`,
-        contract: 'DataPortabilityServers',
-        fn: 'trustServer',
+        hash: "0xhash" as `0x${string}`,
+        from: "0xfrom" as `0x${string}`,
+        contract: "DataPortabilityServers",
+        fn: "trustServer",
       });
 
       const serialized = JSON.stringify(result);
       const deserialized = JSON.parse(serialized);
-      
+
       expect(deserialized).toEqual(result);
-      expect(deserialized.hash).toBe('0xhash');
-      expect(deserialized.from).toBe('0xfrom');
-      expect(deserialized.contract).toBe('DataPortabilityServers');
-      expect(deserialized.fn).toBe('trustServer');
+      expect(deserialized.hash).toBe("0xhash");
+      expect(deserialized.from).toBe("0xfrom");
+      expect(deserialized.contract).toBe("DataPortabilityServers");
+      expect(deserialized.fn).toBe("trustServer");
     });
 
-    it('preserves type information for TypeScript', () => {
+    it("preserves type information for TypeScript", () => {
       const result = tx({
-        hash: '0x123' as `0x${string}`,
-        from: '0x456' as `0x${string}`,
-        contract: 'DataPortabilityPermissions',
-        fn: 'revokePermission',
+        hash: "0x123" as `0x${string}`,
+        from: "0x456" as `0x${string}`,
+        contract: "DataPortabilityPermissions",
+        fn: "revokePermission",
       });
 
       // TypeScript should infer the correct types
-      type ExpectedResult = TransactionResult<'DataPortabilityPermissions', 'revokePermission'>;
-      
+      type ExpectedResult = TransactionResult<
+        "DataPortabilityPermissions",
+        "revokePermission"
+      >;
+
       // This is a compile-time check - if it compiles, the types are correct
       const typed: ExpectedResult = result;
       expect(typed).toBe(result);
     });
 
-    it('works with all contract types', () => {
+    it("works with all contract types", () => {
       const contracts = [
-        'DataPortabilityPermissions',
-        'DataPortabilityServers', 
-        'DataPortabilityGrantees',
-        'DataRegistry',
-        'ComputeInstructionRegistry',
+        "DataPortabilityPermissions",
+        "DataPortabilityServers",
+        "DataPortabilityGrantees",
+        "DataRegistry",
+        "ComputeInstructionRegistry",
       ] as const;
 
       for (const contract of contracts) {
         const result = tx({
-          hash: '0xtest' as `0x${string}`,
-          from: '0xaddr' as `0x${string}`,
+          hash: "0xtest" as `0x${string}`,
+          from: "0xaddr" as `0x${string}`,
           contract,
-          fn: 'initialize', // All contracts have initialize
+          fn: "initialize", // All contracts have initialize
         });
 
         expect(result.contract).toBe(contract);
-        expect(result.fn).toBe('initialize');
+        expect(result.fn).toBe("initialize");
       }
     });
 
-    it('handles different function names correctly', () => {
+    it("handles different function names correctly", () => {
       const functions = [
-        { contract: 'DataPortabilityPermissions', fn: 'addPermission' },
-        { contract: 'DataPortabilityPermissions', fn: 'revokePermission' },
-        { contract: 'DataPortabilityServers', fn: 'trustServer' },
-        { contract: 'DataPortabilityServers', fn: 'untrustServer' },
-        { contract: 'DataRegistry', fn: 'addFile' },
-        { contract: 'DataRegistry', fn: 'deleteFile' },
+        { contract: "DataPortabilityPermissions", fn: "addPermission" },
+        { contract: "DataPortabilityPermissions", fn: "revokePermission" },
+        { contract: "DataPortabilityServers", fn: "trustServer" },
+        { contract: "DataPortabilityServers", fn: "untrustServer" },
+        { contract: "DataRegistry", fn: "addFile" },
+        { contract: "DataRegistry", fn: "deleteFile" },
       ] as const;
 
       for (const { contract, fn } of functions) {
         const result = tx({
-          hash: '0xtest' as `0x${string}`,
-          from: '0xaddr' as `0x${string}`,
+          hash: "0xtest" as `0x${string}`,
+          from: "0xaddr" as `0x${string}`,
           contract,
           fn,
         });
@@ -112,12 +115,12 @@ describe('transactionHelpers', () => {
       }
     });
 
-    it('maintains referential transparency', () => {
+    it("maintains referential transparency", () => {
       const input = {
-        hash: '0xabc' as `0x${string}`,
-        from: '0xdef' as `0x${string}`,
-        contract: 'DataRegistry' as const,
-        fn: 'addFile' as const,
+        hash: "0xabc" as `0x${string}`,
+        from: "0xdef" as `0x${string}`,
+        contract: "DataRegistry" as const,
+        fn: "addFile" as const,
       };
 
       const result1 = tx(input);
@@ -129,14 +132,14 @@ describe('transactionHelpers', () => {
       expect(result1).toEqual(result2);
     });
 
-    it('does not mutate the input', () => {
+    it("does not mutate the input", () => {
       const input = {
-        hash: '0xabc' as `0x${string}`,
-        from: '0xdef' as `0x${string}`,
-        contract: 'DataRegistry' as const,
-        fn: 'addFile' as const,
+        hash: "0xabc" as `0x${string}`,
+        from: "0xdef" as `0x${string}`,
+        contract: "DataRegistry" as const,
+        fn: "addFile" as const,
       };
-      
+
       const inputCopy = { ...input };
       const result = tx(input);
 

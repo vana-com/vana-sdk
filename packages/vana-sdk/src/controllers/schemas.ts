@@ -57,7 +57,7 @@ export interface CreateSchemaParams {
  */
 export interface CreateSchemaResult {
   /** The schema ID assigned by the contract */
-  schemaId: number;
+  schemaId: bigint;
   /** The IPFS URL where the schema definition is stored */
   definitionUrl: string;
   /** The transaction hash of the schema registration */
@@ -217,8 +217,9 @@ export class SchemaController {
       );
       const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
 
-      const account = this.context.walletClient.account || await this.getUserAddress();
-      const from = typeof account === 'string' ? account : account.address;
+      const account =
+        this.context.walletClient.account || (await this.getUserAddress());
+      const from = typeof account === "string" ? account : account.address;
 
       const hash = await this.context.walletClient.writeContract({
         address: dataRefinerRegistryAddress,
@@ -241,15 +242,15 @@ export class SchemaController {
       if (!this.context.waitForTransactionEvents) {
         throw new Error("waitForTransactionEvents not configured");
       }
-      
+
       const result = await this.context.waitForTransactionEvents(txResult);
       const event = result.expectedEvents.SchemaAdded;
       if (!event) {
         throw new Error("SchemaAdded event not found in transaction");
       }
-      
+
       return {
-        schemaId: Number(event.schemaId),
+        schemaId: event.schemaId,
         definitionUrl: uploadResult.url,
         transactionHash: hash,
       };
@@ -545,8 +546,9 @@ export class SchemaController {
       );
       const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
 
-      const account = this.context.walletClient.account || await this.getUserAddress();
-      const from = typeof account === 'string' ? account : account.address;
+      const account =
+        this.context.walletClient.account || (await this.getUserAddress());
+      const from = typeof account === "string" ? account : account.address;
 
       const hash = await this.context.walletClient.writeContract({
         address: dataRefinerRegistryAddress,
@@ -565,20 +567,22 @@ export class SchemaController {
         contract: "DataRefinerRegistry",
         fn: "addSchema",
       });
-      
+
       // Wait for events and extract domain data
       if (!this.context.waitForTransactionEvents) {
         throw new Error("waitForTransactionEvents not configured");
       }
-      
+
       const result = await this.context.waitForTransactionEvents(txResult);
       const event = result.expectedEvents.SchemaAdded;
       if (!event) {
         throw new Error("SchemaAdded event not found in transaction");
       }
-      
-      const receipt = await this.context.publicClient.getTransactionReceipt({ hash });
-      
+
+      const receipt = await this.context.publicClient.getTransactionReceipt({
+        hash,
+      });
+
       return {
         transactionHash: hash,
         blockNumber: receipt.blockNumber,

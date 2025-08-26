@@ -30,8 +30,10 @@ export interface Operation<T = unknown> {
  * This is a strongly-typed, heuristic-free design following POJO architecture.
  */
 export interface TransactionResult<
-  C extends import("../generated/event-types").Contract = import("../generated/event-types").Contract,
-  F extends import("../generated/event-types").Fn<C> = import("../generated/event-types").Fn<C>
+  C extends
+    import("../generated/event-types").Contract = import("../generated/event-types").Contract,
+  F extends
+    import("../generated/event-types").Fn<C> = import("../generated/event-types").Fn<C>,
 > {
   /** Transaction hash for tracking and confirmation */
   hash: Hash;

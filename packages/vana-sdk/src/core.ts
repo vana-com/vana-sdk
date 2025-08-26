@@ -802,20 +802,23 @@ export class VanaCore {
    */
   public async waitForTransactionEvents<
     C extends import("./generated/event-types").Contract,
-    F extends import("./generated/event-types").Fn<C>
+    F extends import("./generated/event-types").Fn<C>,
   >(
     transaction: import("./types/operations").TransactionResult<C, F>,
     options?: import("./types/operations").TransactionWaitOptions,
   ): Promise<import("./generated/event-types").TypedTransactionResult<C, F>> {
     // Import the POJO-based parser
     const { parseTransaction } = await import("./utils/parseTransactionPojo");
-    
+
     // Wait for the transaction to be mined
-    const receipt = await this.waitForTransactionReceipt(transaction.hash, options);
-    
+    const receipt = await this.waitForTransactionReceipt(
+      transaction.hash,
+      options,
+    );
+
     // Parse events using our heuristic-free POJO system
     const result = parseTransaction(transaction, receipt);
-    
+
     // Return the strongly-typed result
     // TypeScript knows exactly what events are possible!
     return result;

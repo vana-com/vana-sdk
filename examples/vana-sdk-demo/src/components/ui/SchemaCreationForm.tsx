@@ -30,7 +30,7 @@ export interface SchemaCreationFormProps {
   onCreateSchema: () => void;
   isCreatingSchema: boolean;
   schemaStatus: string;
-  lastCreatedSchemaId: number | null;
+  lastCreatedSchemaId: bigint | null;
 
   /** Chain ID for explorer links */
   chainId: number;

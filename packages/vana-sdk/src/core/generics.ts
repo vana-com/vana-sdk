@@ -77,6 +77,9 @@ export abstract class BaseController<
       }
 
       return {
+        // TODO(TYPES): undefined coerced to TResponse for error case.
+        // Future improvement: Use discriminated union with success: false
+        // to properly type data as undefined when error occurs.
         data: undefined as unknown as TResponse,
         success: false,
         error: {

@@ -5,6 +5,7 @@ import {
   createPlatformAdapterSafe,
 } from "./browser-safe";
 import { BrowserPlatformAdapter } from "./browser";
+import { PlatformTestHelper } from "../tests/helpers/platformTestHelpers";
 
 // Mock the browser module
 vi.mock("./browser", () => ({
@@ -37,23 +38,21 @@ vi.mock("./browser", () => ({
 }));
 
 describe("browser-safe", () => {
-  const originalWindow = global.window;
-  const originalProcess = global.process;
+  let platformHelper: PlatformTestHelper;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    platformHelper = new PlatformTestHelper();
   });
 
   afterEach(() => {
-    // Restore original values
-    global.window = originalWindow;
-    global.process = originalProcess;
+    platformHelper.restore();
   });
 
   describe("createNodePlatformAdapter", () => {
     it("should throw error in browser environment", async () => {
-      // Simulate browser environment
-      global.window = {} as any;
+      // Use helper for browser environment setup
+      platformHelper.setupBrowserEnvironment();
 
       await expect(createNodePlatformAdapter()).rejects.toThrow(
         "NodePlatformAdapter is not available in browser environments. Use BrowserPlatformAdapter instead.",
@@ -61,11 +60,8 @@ describe("browser-safe", () => {
     });
 
     it("should create NodePlatformAdapter in Node environment", async () => {
-      // Simulate Node environment
-      delete (global as any).window;
-      global.process = {
-        versions: { node: "16.0.0" },
-      } as any;
+      // Use helper for Node environment setup
+      platformHelper.setupNodeEnvironment("16.0.0");
 
       // Mock dynamic import
       vi.doMock("./node", () => ({
@@ -124,8 +120,8 @@ describe("browser-safe", () => {
 
   describe("createPlatformAdapterSafe", () => {
     it("should return BrowserPlatformAdapter in browser environment", async () => {
-      // Simulate browser environment
-      global.window = {} as any;
+      // Use helper for browser environment setup
+      platformHelper.setupBrowserEnvironment();
 
       const adapter = await createPlatformAdapterSafe();
 
@@ -135,11 +131,8 @@ describe("browser-safe", () => {
     });
 
     it("should return NodePlatformAdapter in Node environment", async () => {
-      // Simulate Node environment
-      delete (global as any).window;
-      global.process = {
-        versions: { node: "16.0.0" },
-      } as any;
+      // Use helper for Node environment setup
+      platformHelper.setupNodeEnvironment("16.0.0");
 
       // Mock dynamic import
       vi.doMock("./node", () => ({
@@ -178,11 +171,9 @@ describe("browser-safe", () => {
     });
 
     it("should return BrowserPlatformAdapter when process exists but window is defined", async () => {
-      // Simulate an edge case where both window and process exist
-      global.window = {} as any;
-      global.process = {
-        versions: { node: "16.0.0" },
-      } as any;
+      // Use helper for Node environment setup then add window
+      platformHelper.setupNodeEnvironment("16.0.0");
+      globalThis.window = {} as Window & typeof globalThis;
 
       const adapter = await createPlatformAdapterSafe();
 
@@ -192,9 +183,8 @@ describe("browser-safe", () => {
     });
 
     it("should default to BrowserPlatformAdapter when environment cannot be determined", async () => {
-      // Simulate environment where neither window nor process.versions.node exists
-      delete (global as any).window;
-      global.process = {} as any; // process exists but no versions.node
+      // Use helper to setup process without versions.node
+      platformHelper.setupNodeWithProcess({ versions: {} as any }); // process exists but no versions.node
 
       const adapter = await createPlatformAdapterSafe();
 
@@ -204,9 +194,8 @@ describe("browser-safe", () => {
     });
 
     it("should default to BrowserPlatformAdapter when process does not exist", async () => {
-      // Simulate environment where neither window nor process exists
-      delete (global as any).window;
-      delete (global as any).process;
+      // Use helper for ambiguous environment (no window, no process)
+      platformHelper.setupAmbiguousEnvironment();
 
       const adapter = await createPlatformAdapterSafe();
 

@@ -1,6 +1,6 @@
 import { vi, beforeEach, afterEach } from "vitest";
 
-// Mock viem's getAddress to allow tests to use readable mock addresses
+// Mock viem's functions for testing
 vi.mock("viem", async (importOriginal) => {
   const actual = (await importOriginal()) as any;
   return {
@@ -10,6 +10,15 @@ vi.mock("viem", async (importOriginal) => {
       // This allows tests to use descriptive addresses like "0xOwnerAddress"
       return address;
     }),
+    decodeEventLog: vi.fn(),
+    parseEventLogs: vi.fn(),
+    getContract: vi.fn(() => ({
+      read: {
+        schemas: vi.fn(),
+        schemaCount: vi.fn(),
+      },
+      write: {},
+    })),
   };
 });
 

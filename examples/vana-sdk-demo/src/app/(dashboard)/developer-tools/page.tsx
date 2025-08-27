@@ -665,7 +665,9 @@ export default function DeveloperToolsPage() {
       <Tabs
         aria-label="Developer tools tabs"
         selectedKey={activeTab}
-        onSelectionChange={(key) => setActiveTab(key as string)}
+        onSelectionChange={(key) => {
+          setActiveTab(key as string);
+        }}
         className="w-full"
       >
         <Tab key="schemas" title="Schemas">

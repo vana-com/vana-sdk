@@ -4,6 +4,16 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HeroUIProvider, ToastProvider } from "@heroui/react";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 
+// Re-export commonly used testing-library utilities
+export {
+  screen,
+  waitFor,
+  within,
+  fireEvent,
+  act,
+} from "@testing-library/react";
+export { render } from "@testing-library/react";
+
 // Create a test-specific QueryClient with shorter retry times
 const createTestQueryClient = () =>
   new QueryClient({
@@ -45,15 +55,9 @@ const AllTheProviders = ({ children }: AllTheProvidersProps) => {
 };
 
 // Custom render function that wraps components with providers
-const renderWithProviders = (
+export const renderWithProviders = (
   ui: ReactElement,
   options?: Omit<RenderOptions, "wrapper">,
 ) => {
   return render(ui, { wrapper: AllTheProviders, ...options });
 };
-
-// Re-export everything from testing-library/react
-export * from "@testing-library/react";
-
-// Override the default render with our custom one
-export { renderWithProviders as render };

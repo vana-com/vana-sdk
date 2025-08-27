@@ -95,7 +95,9 @@ export function FileCard({
           {onSelect && (
             <Checkbox
               isSelected={isSelected}
-              onValueChange={() => onSelect()}
+              onValueChange={() => {
+                onSelect();
+              }}
               size="sm"
             />
           )}
@@ -103,7 +105,9 @@ export function FileCard({
           <Button
             size="sm"
             variant="light"
-            onPress={() => setIsExpanded(!isExpanded)}
+            onPress={() => {
+              setIsExpanded(!isExpanded);
+            }}
           >
             {isExpanded ? (
               <ChevronDown className="h-4 w-4" />

@@ -1,5 +1,6 @@
 import type { Hash, TransactionReceipt as ViemReceipt, Address } from "viem";
 import type { GetOperationResponse } from "../generated/server/server-exports";
+import type { Contract, Fn } from "../generated/event-types";
 
 /**
  * Server operation result as a plain object.
@@ -30,10 +31,8 @@ export interface Operation<T = unknown> {
  * This is a strongly-typed, heuristic-free design following POJO architecture.
  */
 export interface TransactionResult<
-  C extends
-    import("../generated/event-types").Contract = import("../generated/event-types").Contract,
-  F extends
-    import("../generated/event-types").Fn<C> = import("../generated/event-types").Fn<C>,
+  C extends Contract = Contract,
+  F extends Fn<C> = Fn<C>,
 > {
   /** Transaction hash for tracking and confirmation */
   hash: Hash;
@@ -128,7 +127,7 @@ export function toOperation<T>(response: GetOperationResponse): Operation<T> {
     result:
       response.status === "succeeded" ? (response.result as T) : undefined,
     error:
-      response.status === "failed" ? response.result || undefined : undefined,
+      response.status === "failed" ? (response.result ?? undefined) : undefined,
   };
 }
 

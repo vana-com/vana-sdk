@@ -116,8 +116,12 @@ export function usePermissions(): UsePermissionsReturn {
   const [lookedUpPermission, setLookedUpPermission] =
     useState<GrantedPermission | null>(null);
 
-  const onOpenGrant = useCallback(() => setShowGrantPreview(true), []);
-  const onCloseGrant = useCallback(() => setShowGrantPreview(false), []);
+  const onOpenGrant = useCallback(() => {
+    setShowGrantPreview(true);
+  }, []);
+  const onCloseGrant = useCallback(() => {
+    setShowGrantPreview(false);
+  }, []);
 
   /**
    * Load fast on-chain permission data
@@ -173,12 +177,13 @@ export function usePermissions(): UsePermissionsReturn {
 
       try {
         // Step 1: Get permission info and file IDs from contract
-        let _permissionInfo, fileIds;
+        let fileIds;
         try {
-          [_permissionInfo, fileIds] = await Promise.all([
+          const results = await Promise.all([
             vana.permissions.getPermissionInfo(BigInt(permissionId)),
             vana.permissions.getPermissionFileIds(BigInt(permissionId)),
           ]);
+          fileIds = results[1];
         } catch (contractError) {
           console.warn(
             `Permission ID ${permissionId} not found in contract (likely stale data):`,
@@ -260,11 +265,11 @@ export function usePermissions(): UsePermissionsReturn {
   );
 
   const handleGrantPermission = useCallback(
-    (
+    async (
       selectedFiles: number[],
       promptText: string,
       customParams?: GrantPermissionParams & { expiresAt?: number },
-    ) => {
+    ): Promise<void> => {
       console.debug("🟢 [usePermissions] handleGrantPermission called");
       console.debug("🟢 [usePermissions] selectedFiles:", selectedFiles);
       console.debug("🟢 [usePermissions] promptText:", promptText);
@@ -297,9 +302,9 @@ export function usePermissions(): UsePermissionsReturn {
         // Use custom parameters if provided, otherwise use defaults
         const params: GrantPermissionParams = {
           grantee: applicationAddress as `0x${string}`,
-          operation: customParams?.operation || "llm_inference",
+          operation: customParams?.operation ?? "llm_inference",
           files: selectedFiles,
-          parameters: customParams?.parameters || {
+          parameters: customParams?.parameters ?? {
             prompt: promptText,
           },
         };
@@ -353,7 +358,7 @@ export function usePermissions(): UsePermissionsReturn {
       }
 
       // Use updated params if provided, otherwise use original grant preview params
-      const paramsToUse = updatedParams || grantPreview.params;
+      const paramsToUse = updatedParams ?? grantPreview.params;
       console.debug("🔵 [usePermissions] Using params:", paramsToUse);
 
       setIsGranting(true);
@@ -531,11 +536,11 @@ export function usePermissions(): UsePermissionsReturn {
                 id: permission.id,
                 grantUrl: permission.grant,
                 grantSignature: "", // Would need lookup
-                nonce: BigInt(permission.nonce || 0),
+                nonce: BigInt(Number(permission.nonce) || 0),
                 startBlock: BigInt(0), // Would need lookup
-                addedAtBlock: permission.blockNumber || BigInt(0),
-                addedAtTimestamp: BigInt(permission.grantedAt || 0),
-                transactionHash: permission.transactionHash || "",
+                addedAtBlock: BigInt(Number(permission.blockNumber) || 0),
+                addedAtTimestamp: BigInt(Number(permission.grantedAt) || 0),
+                transactionHash: permission.transactionHash ?? "",
                 grantor: permission.grantor,
                 grantee: {
                   id: "", // Would need lookup

@@ -15,15 +15,18 @@ class TestECIES extends BaseECIESUint8 {
     return new Uint8Array(length);
   }
 
-  protected verifyPrivateKey(_privateKey: Uint8Array): boolean {
+  protected verifyPrivateKey(privateKey: Uint8Array): boolean {
+    void privateKey;
     return true;
   }
 
-  protected createPublicKey(_privateKey: Uint8Array): Uint8Array {
+  protected createPublicKey(privateKey: Uint8Array): Uint8Array {
+    void privateKey;
     return new Uint8Array(65);
   }
 
-  protected validatePublicKey(_publicKey: Uint8Array): boolean {
+  protected validatePublicKey(publicKey: Uint8Array): boolean {
+    void publicKey;
     return true;
   }
 
@@ -35,14 +38,19 @@ class TestECIES extends BaseECIESUint8 {
     _publicKey: Uint8Array,
     _privateKey: Uint8Array,
   ): Uint8Array {
+    void _publicKey;
+    void _privateKey;
     return new Uint8Array(32);
   }
 
-  protected sha512(_data: Uint8Array): Uint8Array {
+  protected sha512(data: Uint8Array): Uint8Array {
+    void data;
     return new Uint8Array(64);
   }
 
   protected hmacSha256(_key: Uint8Array, _data: Uint8Array): Uint8Array {
+    void _key;
+    void _data;
     return new Uint8Array(32);
   }
 
@@ -51,6 +59,9 @@ class TestECIES extends BaseECIESUint8 {
     _iv: Uint8Array,
     _plaintext: Uint8Array,
   ): Promise<Uint8Array> {
+    void _key;
+    void _iv;
+    void _plaintext;
     return new Uint8Array(0);
   }
 
@@ -59,6 +70,9 @@ class TestECIES extends BaseECIESUint8 {
     _iv: Uint8Array,
     _ciphertext: Uint8Array,
   ): Promise<Uint8Array> {
+    void _key;
+    void _iv;
+    void _ciphertext;
     return new Uint8Array(0);
   }
 
@@ -142,7 +156,9 @@ describe("BaseECIESUint8", () => {
 
     it("should handle empty buffers", () => {
       const emptyBuffer = new Uint8Array(0);
-      expect(() => testProvider.testClearBuffer(emptyBuffer)).not.toThrow();
+      expect(() => {
+        testProvider.testClearBuffer(emptyBuffer);
+      }).not.toThrow();
     });
 
     it("should clear all patterns according to SECURITY constants", () => {

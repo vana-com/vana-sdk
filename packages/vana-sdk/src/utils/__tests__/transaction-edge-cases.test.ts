@@ -44,7 +44,7 @@ describe("Transaction System Edge Cases", () => {
       const longHash = `0x${"a".repeat(64)}`;
 
       const result = tx({
-        hash: longHash,
+        hash: longHash as `0x${string}`,
         from: "0xaddr" as `0x${string}`,
         contract: "DataRegistry",
         fn: "addFile",

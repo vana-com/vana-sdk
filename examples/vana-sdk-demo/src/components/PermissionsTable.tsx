@@ -296,7 +296,9 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
                   color="danger"
                   variant="flat"
                   size="sm"
-                  onPress={() => handleRevoke(permission)}
+                  onPress={() => {
+                    handleRevoke(permission);
+                  }}
                   isLoading={isRevoking}
                   isDisabled={isRevoking}
                 >

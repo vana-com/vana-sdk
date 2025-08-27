@@ -1,7 +1,7 @@
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-explicit-any */
+import { screen, waitFor } from "@testing-library/react";
+import { renderWithProviders } from "../../tests/test-utils";
+
 import {
   describe,
   it,
@@ -232,7 +232,7 @@ describe("VanaProvider", () => {
     // Mock console.error to prevent error output in tests
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    expect(() => render(<TestComponent />)).toThrow(
+    expect(() => renderWithProviders(<TestComponent />)).toThrow(
       "useVana must be used within a VanaProvider",
     );
 
@@ -249,7 +249,7 @@ describe("VanaProvider", () => {
       }),
     );
 
-    render(
+    renderWithProviders(
       <VanaProvider config={defaultConfig}>
         <TestComponent />
       </VanaProvider>,
@@ -277,7 +277,7 @@ describe("VanaProvider", () => {
       }),
     );
 
-    render(
+    renderWithProviders(
       <VanaProvider config={defaultConfig}>
         <TestComponent />
       </VanaProvider>,
@@ -322,7 +322,7 @@ describe("VanaProvider", () => {
         }),
     });
 
-    render(
+    renderWithProviders(
       <VanaProvider config={defaultConfig}>
         <TestComponent />
       </VanaProvider>,
@@ -396,7 +396,7 @@ describe("VanaProvider", () => {
         }),
     });
 
-    render(
+    renderWithProviders(
       <VanaProvider config={configWithPinata}>
         <TestComponent />
       </VanaProvider>,
@@ -464,7 +464,7 @@ describe("VanaProvider", () => {
         }),
     });
 
-    render(
+    renderWithProviders(
       <VanaProvider config={configWithGoogleDrive}>
         <TestComponent />
       </VanaProvider>,
@@ -531,7 +531,7 @@ describe("VanaProvider", () => {
         }),
     });
 
-    render(
+    renderWithProviders(
       <VanaProvider config={configWithoutPinata}>
         <TestComponent />
       </VanaProvider>,
@@ -587,7 +587,7 @@ describe("VanaProvider", () => {
         }),
     });
 
-    render(
+    renderWithProviders(
       <VanaProvider config={defaultConfig} useGaslessTransactions={false}>
         <TestComponent />
       </VanaProvider>,
@@ -643,7 +643,7 @@ describe("VanaProvider", () => {
       throw new Error("Vana initialization failed");
     });
 
-    render(
+    renderWithProviders(
       <VanaProvider config={defaultConfig}>
         <TestComponent />
       </VanaProvider>,
@@ -687,7 +687,7 @@ describe("VanaProvider", () => {
     // Mock failed application address fetch
     mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
-    render(
+    renderWithProviders(
       <VanaProvider config={defaultConfig}>
         <TestComponent />
       </VanaProvider>,
@@ -708,7 +708,7 @@ describe("VanaProvider", () => {
   });
 
   it("reinitializes when wallet connection changes", async () => {
-    const { rerender } = render(
+    const { rerender } = renderWithProviders(
       <VanaProvider config={defaultConfig}>
         <TestComponent />
       </VanaProvider>,
@@ -823,7 +823,7 @@ describe("VanaProvider", () => {
     );
 
     // Mock Google Drive folder creation failure
-    const { GoogleDriveStorage: _GoogleDriveStorageImported } = await import(
+    const { GoogleDriveStorage: GoogleDriveStorageImported } = await import(
       "@opendatalabs/vana-sdk/browser"
     );
     const mockGoogleDriveInstance = {
@@ -831,7 +831,7 @@ describe("VanaProvider", () => {
         .fn()
         .mockRejectedValue(new Error("Folder creation failed")),
     };
-    vi.mocked(_GoogleDriveStorageImported).mockImplementation(
+    vi.mocked(GoogleDriveStorageImported).mockImplementation(
       () => mockGoogleDriveInstance as unknown as _GoogleDriveStorage,
     );
 
@@ -844,7 +844,7 @@ describe("VanaProvider", () => {
         }),
     });
 
-    render(
+    renderWithProviders(
       <VanaProvider config={configWithGoogleDrive}>
         <TestComponent />
       </VanaProvider>,

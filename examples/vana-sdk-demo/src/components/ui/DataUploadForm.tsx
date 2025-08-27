@@ -120,7 +120,7 @@ export const DataUploadForm: React.FC<DataUploadFormProps> = ({
    * Handles file selection from input
    */
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0] || null;
+    const file = event.target.files?.[0] ?? null;
     onFileSelect(file);
   };
 
@@ -135,7 +135,7 @@ export const DataUploadForm: React.FC<DataUploadFormProps> = ({
 
     try {
       const content =
-        inputMode === "text" ? textData : (await selectedFile?.text()) || "";
+        inputMode === "text" ? textData : ((await selectedFile?.text()) ?? "");
 
       if (!content.trim()) {
         setValidationResult({
@@ -164,7 +164,7 @@ export const DataUploadForm: React.FC<DataUploadFormProps> = ({
    */
   const handleUpload = async () => {
     const content =
-      inputMode === "text" ? textData : (await selectedFile?.text()) || "";
+      inputMode === "text" ? textData : ((await selectedFile?.text()) ?? "");
 
     if (!content.trim()) {
       return;
@@ -190,7 +190,7 @@ export const DataUploadForm: React.FC<DataUploadFormProps> = ({
     onUpload({
       content,
       filename: selectedFile?.name,
-      schemaId: selectedSchemaId || undefined,
+      schemaId: selectedSchemaId ?? undefined,
       isValid,
       validationErrors,
     });
@@ -209,7 +209,7 @@ export const DataUploadForm: React.FC<DataUploadFormProps> = ({
    * Gets the current data content for display
    */
   const getCurrentContent = () => {
-    return inputMode === "text" ? textData : selectedFile?.name || "";
+    return inputMode === "text" ? textData : (selectedFile?.name ?? "");
   };
 
   return (
@@ -238,7 +238,9 @@ export const DataUploadForm: React.FC<DataUploadFormProps> = ({
               label="Text Data"
               placeholder="Enter your text data here..."
               value={textData}
-              onChange={(e) => onTextDataChange(e.target.value)}
+              onChange={(e) => {
+                onTextDataChange(e.target.value);
+              }}
               minRows={4}
               maxRows={8}
               description="Enter the text data you want to upload and encrypt"
@@ -275,7 +277,7 @@ export const DataUploadForm: React.FC<DataUploadFormProps> = ({
                 selectedSchemaId={selectedSchemaId}
                 onSchemaChange={(schemaId, schema) => {
                   onSchemaChange(schemaId);
-                  setSelectedSchema(schema || null);
+                  setSelectedSchema(schema ?? null);
                   setValidationResult(null);
                 }}
                 showSchemaInfo={true}
@@ -416,16 +418,29 @@ export const DataUploadForm: React.FC<DataUploadFormProps> = ({
                   />
                 </div>
                 {uploadResult.isValid !== undefined && (
-                  <div className="flex items-center gap-1 mt-2">
-                    <Database className="h-3 w-3" />
-                    <span
-                      className={
-                        uploadResult.isValid ? "text-success" : "text-warning"
-                      }
-                    >
-                      Schema validation:{" "}
-                      {uploadResult.isValid ? "Passed" : "Failed"}
-                    </span>
+                  <div className="mt-2">
+                    <div className="flex items-center gap-1">
+                      <Database className="h-3 w-3" />
+                      <span
+                        className={
+                          uploadResult.isValid ? "text-success" : "text-warning"
+                        }
+                      >
+                        Schema validation:{" "}
+                        {uploadResult.isValid ? "Passed" : "Failed"}
+                      </span>
+                    </div>
+                    {!uploadResult.isValid &&
+                      uploadResult.validationErrors &&
+                      uploadResult.validationErrors.length > 0 && (
+                        <div className="mt-1 ml-4 space-y-1">
+                          {uploadResult.validationErrors.map((err, i) => (
+                            <div key={i} className="text-xs text-warning">
+                              • {err}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                   </div>
                 )}
               </div>

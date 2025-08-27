@@ -305,4 +305,4 @@ async function main(): Promise<void> {
 }
 
 // Run the script
-main();
+void main();

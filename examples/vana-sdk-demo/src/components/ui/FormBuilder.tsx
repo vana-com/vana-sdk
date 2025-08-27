@@ -75,7 +75,9 @@ export function FormBuilder({
       value: field.value,
       onChange: (
         e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-      ) => field.onChange(e.target.value),
+      ) => {
+        field.onChange(e.target.value);
+      },
       required: field.required,
     };
 
@@ -95,7 +97,7 @@ export function FormBuilder({
               field.onChange(selectedKey ? selectedKey.toString() : "");
             }}
           >
-            {(field.options || []).map((option) => (
+            {(field.options ?? []).map((option) => (
               <SelectItem key={option.value}>{option.label}</SelectItem>
             ))}
           </Select>

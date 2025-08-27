@@ -1,6 +1,5 @@
 import { createWalletClient, createPublicClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { createHash } from "crypto";
 import {
   mokshaTestnet,
   vanaMainnet,
@@ -14,9 +13,7 @@ import {
 const parameterStorage = new Map<string, string>();
 
 // Demo relayer configuration
-const RELAYER_PRIVATE_KEY =
-  process.env.RELAYER_PRIVATE_KEY ||
-  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+const RELAYER_PRIVATE_KEY = process.env.RELAYER_PRIVATE_KEY;
 
 // Set up relayer wallet client
 const relayerAccount = privateKeyToAccount(
@@ -74,17 +71,6 @@ export const relayerStorage = {
       preview: data.substring(0, 100) + (data.length > 100 ? "..." : ""),
     }));
   },
-};
-
-export const generateMockTxHash = (data: unknown): string => {
-  return `0x${createHash("sha256")
-    .update(JSON.stringify(data) + Date.now())
-    .digest("hex")}`;
-};
-
-export const generateContentId = (parameters: string): string => {
-  const hash = createHash("sha256").update(parameters).digest("hex");
-  return `Qm${hash.substring(0, 44)}`; // Mock IPFS CID format
 };
 
 /**

@@ -121,7 +121,7 @@ export const AdvancedToolsTab: React.FC<AdvancedToolsTabProps> = ({
       const key = await sdkGenerateEncryptionKey(
         walletClient,
         platformAdapter,
-        encryptionSeed || DEFAULT_ENCRYPTION_SEED,
+        encryptionSeed ?? DEFAULT_ENCRYPTION_SEED,
       );
       setEncryptionKey(key);
       setEncryptionStatus("Encryption key generated successfully!");
@@ -145,7 +145,7 @@ export const AdvancedToolsTab: React.FC<AdvancedToolsTabProps> = ({
 
     try {
       const data =
-        inputMode === "text" ? testData : (await selectedFile?.text()) || "";
+        inputMode === "text" ? testData : ((await selectedFile?.text()) ?? "");
       const blob = new Blob([data], { type: "text/plain" });
       const encrypted = await sdkEncryptUserData(
         blob,
@@ -288,7 +288,7 @@ export const AdvancedToolsTab: React.FC<AdvancedToolsTabProps> = ({
           fileId: file.id,
           fileName: `file-${file.id}`,
           fileSize: `${decryptedBlob.size} bytes`,
-          fileType: decryptedBlob.type || "application/octet-stream",
+          fileType: decryptedBlob.type ?? "application/octet-stream",
           isTextFile,
           storageUrl: file.url,
           encryptionSeed: decryptSeed,
@@ -364,7 +364,9 @@ export const AdvancedToolsTab: React.FC<AdvancedToolsTabProps> = ({
               label="Encryption Seed"
               placeholder="Enter custom seed (optional)"
               value={encryptionSeed}
-              onChange={(e) => setEncryptionSeed(e.target.value)}
+              onChange={(e) => {
+                setEncryptionSeed(e.target.value);
+              }}
               description="Used to derive your encryption key via wallet signature"
             />
 
@@ -409,14 +411,18 @@ export const AdvancedToolsTab: React.FC<AdvancedToolsTabProps> = ({
                 label="Test Data"
                 placeholder="Enter test data to encrypt..."
                 value={testData}
-                onChange={(e) => setTestData(e.target.value)}
+                onChange={(e) => {
+                  setTestData(e.target.value);
+                }}
                 minRows={4}
               />
             ) : (
               <Input
                 type="file"
                 label="Select Test File"
-                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                onChange={(e) => {
+                  setSelectedFile(e.target.files?.[0] ?? null);
+                }}
               />
             )}
 
@@ -460,7 +466,7 @@ export const AdvancedToolsTab: React.FC<AdvancedToolsTabProps> = ({
                     </p>
                     <p>
                       <strong>Type:</strong>{" "}
-                      {encryptedData.type || "application/octet-stream"}
+                      {encryptedData.type ?? "application/octet-stream"}
                     </p>
                     <p className="text-warning-600 mt-2">
                       ⚠️ Encrypted binary data - not human readable
@@ -522,7 +528,9 @@ export const AdvancedToolsTab: React.FC<AdvancedToolsTabProps> = ({
               label="File ID"
               placeholder="Enter file ID to decrypt"
               value={decryptFileId}
-              onChange={(e) => setDecryptFileId(e.target.value)}
+              onChange={(e) => {
+                setDecryptFileId(e.target.value);
+              }}
               description="The numeric ID of the file you want to decrypt"
             />
 
@@ -531,7 +539,9 @@ export const AdvancedToolsTab: React.FC<AdvancedToolsTabProps> = ({
               label="Encryption Seed"
               placeholder="Enter encryption seed"
               value={decryptSeed}
-              onChange={(e) => setDecryptSeed(e.target.value)}
+              onChange={(e) => {
+                setDecryptSeed(e.target.value);
+              }}
               description="Seed used to derive the encryption key for decryption"
             />
 
@@ -539,9 +549,9 @@ export const AdvancedToolsTab: React.FC<AdvancedToolsTabProps> = ({
             <RadioGroup
               label="Decryption Mode"
               value={decryptMode}
-              onValueChange={(value) =>
-                setDecryptMode(value as "wallet" | "private-key")
-              }
+              onValueChange={(value) => {
+                setDecryptMode(value as "wallet" | "private-key");
+              }}
             >
               <Radio value="wallet">Use Connected Wallet</Radio>
               <Radio value="private-key">Manual Encryption Key</Radio>
@@ -553,7 +563,9 @@ export const AdvancedToolsTab: React.FC<AdvancedToolsTabProps> = ({
                 label="Encryption Key"
                 placeholder="Enter the derived encryption key"
                 value={decryptPrivateKey}
-                onChange={(e) => setDecryptPrivateKey(e.target.value)}
+                onChange={(e) => {
+                  setDecryptPrivateKey(e.target.value);
+                }}
                 description="The already-derived encryption key (same as what wallet mode generates)"
                 type="password"
               />
@@ -680,8 +692,8 @@ export const AdvancedToolsTab: React.FC<AdvancedToolsTabProps> = ({
                                 a.href = url;
                                 a.download =
                                   (decryptionResult.metadata
-                                    .fileName as string) ||
-                                  `decrypted-file-${decryptionResult.metadata.fileId}`;
+                                    .fileName as string) ??
+                                  `decrypted-file-${String(decryptionResult.metadata.fileId)}`;
                                 a.click();
                                 URL.revokeObjectURL(url);
                               }
@@ -735,9 +747,9 @@ export const AdvancedToolsTab: React.FC<AdvancedToolsTabProps> = ({
               label="Storage Provider"
               placeholder="Select storage provider"
               selectedKeys={[storageProvider]}
-              onSelectionChange={(keys) =>
-                setStorageProvider(Array.from(keys)[0] as string)
-              }
+              onSelectionChange={(keys) => {
+                setStorageProvider(Array.from(keys)[0] as string);
+              }}
             >
               <SelectItem key="ipfs" textValue="IPFS">
                 IPFS
@@ -753,7 +765,9 @@ export const AdvancedToolsTab: React.FC<AdvancedToolsTabProps> = ({
             <Input
               type="file"
               label="Test File"
-              onChange={(e) => setTestFile(e.target.files?.[0] || null)}
+              onChange={(e) => {
+                setTestFile(e.target.files?.[0] ?? null);
+              }}
             />
 
             <Button
@@ -826,7 +840,9 @@ export const AdvancedToolsTab: React.FC<AdvancedToolsTabProps> = ({
       <Tabs
         aria-label="Advanced tools tabs"
         selectedKey={activeSubTab}
-        onSelectionChange={(key) => setActiveSubTab(key as string)}
+        onSelectionChange={(key) => {
+          setActiveSubTab(key as string);
+        }}
         className="w-full"
       >
         <Tab key="encryption" title="Encryption Testing">

@@ -5,14 +5,14 @@
  * Based on patterns from dlp-ui-template with NextAuth integration.
  */
 
-import type {
-  StorageProvider,
-  StorageUploadResult,
-  StorageFile,
-  StorageListOptions,
-  StorageProviderConfig,
+import {
+  StorageError,
+  type StorageProvider,
+  type StorageUploadResult,
+  type StorageFile,
+  type StorageListOptions,
+  type StorageProviderConfig,
 } from "../index";
-import { StorageError } from "../index";
 
 export interface GoogleDriveConfig {
   /** OAuth2 access token */
@@ -90,7 +90,7 @@ export class GoogleDriveStorage implements StorageProvider {
 
   async upload(file: Blob, filename?: string): Promise<StorageUploadResult> {
     try {
-      const fileName = filename || `vana-file-${Date.now()}.dat`;
+      const fileName = filename ?? `vana-file-${Date.now()}.dat`;
 
       // Create file metadata
       const metadata = {
@@ -238,7 +238,7 @@ export class GoogleDriveStorage implements StorageProvider {
       const params = new URLSearchParams({
         q: query,
         fields: "files(id,name,size,mimeType,createdTime,webViewLink)",
-        pageSize: (options?.limit || 100).toString(),
+        pageSize: (options?.limit ?? 100).toString(),
       });
 
       if (options?.offset && typeof options.offset === "string") {

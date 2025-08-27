@@ -306,7 +306,9 @@ export function PermissionsTab({
               placeholder="Enter permission ID"
               type="text"
               value={permissionLookupId}
-              onChange={(e) => onPermissionLookupIdChange(e.target.value)}
+              onChange={(e) => {
+                onPermissionLookupIdChange(e.target.value);
+              }}
               className="max-w-xs"
               size="sm"
               description="Search for a specific permission by its numeric ID"
@@ -475,9 +477,9 @@ export function PermissionsTab({
                           color="danger"
                           variant="flat"
                           size="sm"
-                          onPress={() =>
-                            onRevokePermission(permission.id.toString())
-                          }
+                          onPress={() => {
+                            onRevokePermission(permission.id.toString());
+                          }}
                           isLoading={isRevoking}
                           isDisabled={isRevoking || !permission.active}
                         >

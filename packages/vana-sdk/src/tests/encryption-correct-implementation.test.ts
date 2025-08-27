@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import * as viem from "viem";
 import type { WalletClient, PublicClient } from "viem";
@@ -12,7 +11,7 @@ import type { StorageProvider } from "../types/storage";
 
 // Mock viem's parseEventLogs function
 vi.mock("viem", async (importOriginal) => {
-  const actual = await importOriginal();
+  const actual = await importOriginal<typeof import("viem")>();
   return {
     ...actual,
     parseEventLogs: vi.fn(() => [
@@ -50,8 +49,8 @@ vi.mock("viem", async (importOriginal) => {
     createWalletClient: vi.fn((config) => {
       // Return a mock wallet client
       const mockClient = {
-        account: config?.account || testAccount,
-        chain: config?.chain || mokshaTestnet,
+        account: config?.account ?? testAccount,
+        chain: config?.chain ?? mokshaTestnet,
         signMessage: vi.fn(),
         signTypedData: vi.fn(),
         writeContract: vi.fn(),

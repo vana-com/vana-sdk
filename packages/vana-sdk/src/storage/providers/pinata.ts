@@ -1,11 +1,11 @@
-import type {
-  StorageProvider,
-  StorageUploadResult,
-  StorageFile,
-  StorageListOptions,
-  StorageProviderConfig,
+import {
+  StorageError,
+  type StorageProvider,
+  type StorageUploadResult,
+  type StorageFile,
+  type StorageListOptions,
+  type StorageProviderConfig,
 } from "../index";
-import { StorageError } from "../index";
 
 export interface PinataConfig {
   /** Pinata JWT token for authentication */
@@ -109,7 +109,7 @@ export class PinataStorage implements StorageProvider {
   private readonly gatewayUrl: string;
 
   constructor(private config: PinataConfig) {
-    this.gatewayUrl = config.gatewayUrl || "https://gateway.pinata.cloud";
+    this.gatewayUrl = config.gatewayUrl ?? "https://gateway.pinata.cloud";
     if (!config.jwt) {
       throw new StorageError(
         "Pinata JWT token is required",
@@ -147,7 +147,7 @@ export class PinataStorage implements StorageProvider {
    */
   async upload(file: Blob, filename?: string): Promise<StorageUploadResult> {
     try {
-      const fileName = filename || `vana-file-${Date.now()}.dat`;
+      const fileName = filename ?? `vana-file-${Date.now()}.dat`;
 
       // Create form data for Pinata upload
       const formData = new FormData();
@@ -195,7 +195,7 @@ export class PinataStorage implements StorageProvider {
       return {
         url: `ipfs://${ipfsHash}`,
         size: file.size,
-        contentType: file.type || "application/octet-stream",
+        contentType: file.type ?? "application/octet-stream",
       };
     } catch (error) {
       if (error instanceof StorageError) {
@@ -281,7 +281,7 @@ export class PinataStorage implements StorageProvider {
     try {
       const params = new URLSearchParams({
         status: "pinned",
-        pageLimit: (options?.limit || 10).toString(),
+        pageLimit: (options?.limit ?? 10).toString(),
         metadata: JSON.stringify({
           keyvalues: {
             uploadedBy: "vana-sdk",
@@ -316,12 +316,12 @@ export class PinataStorage implements StorageProvider {
 
       return result.rows.map((pin) => ({
         id: pin.id,
-        name: pin.metadata?.name || "Unnamed",
+        name: pin.metadata?.name ?? "Unnamed",
         url: `ipfs://${pin.ipfs_pin_hash}`,
         size: parseInt(String(pin.size), 10) || 0,
         contentType: "application/octet-stream", // Pinata doesn't store content type
         createdAt: new Date(pin.date_pinned),
-        metadata: pin.metadata?.keyvalues || {},
+        metadata: pin.metadata?.keyvalues ?? {},
       }));
     } catch (error) {
       if (error instanceof StorageError) {

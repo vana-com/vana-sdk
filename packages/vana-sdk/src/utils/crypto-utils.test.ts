@@ -217,39 +217,43 @@ describe("Crypto Utils", () => {
     it("accepts valid uncompressed key", () => {
       const uncompressed = new Uint8Array(65);
       uncompressed[0] = 0x04;
-      expect(() => assertUncompressedPublicKey(uncompressed)).not.toThrow();
+      expect(() => {
+        assertUncompressedPublicKey(uncompressed);
+      }).not.toThrow();
     });
 
     it("throws for compressed keys", () => {
       const compressed = new Uint8Array(33);
       compressed[0] = 0x02;
-      expect(() => assertUncompressedPublicKey(compressed)).toThrow(
-        "Public key must be uncompressed (65 bytes), got 33 bytes",
-      );
+      expect(() => {
+        assertUncompressedPublicKey(compressed);
+      }).toThrow("Public key must be uncompressed (65 bytes), got 33 bytes");
     });
 
     it("throws for raw coordinates", () => {
       const raw = new Uint8Array(64);
-      expect(() => assertUncompressedPublicKey(raw)).toThrow(
-        "Public key must be uncompressed (65 bytes), got 64 bytes",
-      );
+      expect(() => {
+        assertUncompressedPublicKey(raw);
+      }).toThrow("Public key must be uncompressed (65 bytes), got 64 bytes");
     });
 
     it("throws for invalid prefix", () => {
       const invalidPrefix = new Uint8Array(65);
       invalidPrefix[0] = 0x05;
-      expect(() => assertUncompressedPublicKey(invalidPrefix)).toThrow(
+      expect(() => {
+        assertUncompressedPublicKey(invalidPrefix);
+      }).toThrow(
         "Uncompressed public key must start with 0x04 prefix, got 0x05",
       );
     });
 
     it("throws for invalid lengths", () => {
-      expect(() => assertUncompressedPublicKey(new Uint8Array(32))).toThrow(
-        "Public key must be uncompressed (65 bytes), got 32 bytes",
-      );
-      expect(() => assertUncompressedPublicKey(new Uint8Array(100))).toThrow(
-        "Public key must be uncompressed (65 bytes), got 100 bytes",
-      );
+      expect(() => {
+        assertUncompressedPublicKey(new Uint8Array(32));
+      }).toThrow("Public key must be uncompressed (65 bytes), got 32 bytes");
+      expect(() => {
+        assertUncompressedPublicKey(new Uint8Array(100));
+      }).toThrow("Public key must be uncompressed (65 bytes), got 100 bytes");
     });
   });
 });

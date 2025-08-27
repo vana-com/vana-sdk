@@ -85,7 +85,7 @@ export async function checkGrantAccess(
   grantUrl: string,
   requestingAddress: Address,
   operation: string,
-  fileIds: number[],
+  _fileIds: number[],
   relayerUrl?: string,
 ): Promise<{ allowed: boolean; reason?: string; grantFile?: GrantFile }> {
   try {

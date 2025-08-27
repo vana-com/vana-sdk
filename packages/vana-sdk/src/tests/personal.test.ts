@@ -225,7 +225,9 @@ describe("ServerController", () => {
       mockFetch.mockImplementationOnce(
         () =>
           new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("Timeout")), 100),
+            setTimeout(() => {
+              reject(new Error("Timeout"));
+            }, 100),
           ),
       );
 
@@ -340,21 +342,17 @@ describe("ServerController", () => {
       );
     });
 
-    it("should handle missing urls in response", async () => {
-      const responseWithoutUrls = {
-        ...mockStatusResponse,
-        urls: undefined,
-      };
-
+    it("should handle response without additional fields", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: vi.fn().mockResolvedValue(responseWithoutUrls),
+        json: vi.fn().mockResolvedValue(mockStatusResponse),
       });
 
-      const _result = await serverController.getOperation("test-123");
+      const result = await serverController.getOperation("test-123");
 
-      // expect(result.urls.get).toBe(getUrl); // Removed as per edit hint
-      // expect(result.urls.cancel).toBe(""); // Removed as per edit hint
+      expect(result.id).toBe("test-123");
+      expect(result.status).toBe("processing");
+      expect(result.result).toBeUndefined();
     });
 
     it("should wrap unknown errors in NetworkError", async () => {

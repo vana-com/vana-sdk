@@ -221,7 +221,9 @@ export function GranteesTab({
                         color="danger"
                         variant="flat"
                         size="sm"
-                        onPress={() => onRemoveGrantee(grantee.id)}
+                        onPress={() => {
+                          onRemoveGrantee(grantee.id);
+                        }}
                         isLoading={isRemoving}
                         isDisabled={isRemoving}
                         startContent={<Trash2 className="h-3 w-3" />}

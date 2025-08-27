@@ -141,9 +141,9 @@ describe("DataController Schema Validation", () => {
         ]);
       });
 
-      expect(() =>
-        controller.validateDataAgainstSchema(mockData, mockSchema),
-      ).toThrow(SchemaValidationError);
+      expect(() => {
+        controller.validateDataAgainstSchema(mockData, mockSchema);
+      }).toThrow(SchemaValidationError);
     });
   });
 

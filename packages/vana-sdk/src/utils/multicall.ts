@@ -170,7 +170,7 @@ export async function gasAwareMulticall<
   // Get the chain-specific Multicall3 address
   const chainId = await client.getChainId();
   const multicall3Address =
-    options.multicallAddress ||
+    options.multicallAddress ??
     getUtilityAddress(chainId as VanaChainId, "Multicall3");
 
   // Normalize options with defaults
@@ -296,7 +296,9 @@ async function createBatches(
         } else {
           // Single call failed, skip it or throw based on allowFailure
           if (!options.allowFailure) {
-            throw new Error(`Gas estimation failed for call ${i}: ${error}`);
+            throw new Error(
+              `Gas estimation failed for call ${i}: ${String(error)}`,
+            );
           }
           currentBatch = [];
           currentBytes = 0;

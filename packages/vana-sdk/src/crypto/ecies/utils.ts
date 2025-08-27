@@ -5,8 +5,6 @@
  * to bridge platform-specific implementations.
  */
 
-import { fromHex, toHex, concat } from "viem";
-
 /**
  * Checks if two Uint8Arrays are equal in constant time
  *

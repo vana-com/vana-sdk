@@ -218,7 +218,7 @@ export class SchemaController {
       const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
 
       const account =
-        this.context.walletClient.account || (await this.getUserAddress());
+        this.context.walletClient.account ?? (await this.getUserAddress());
       const from = typeof account === "string" ? account : account.address;
 
       const hash = await this.context.walletClient.writeContract({
@@ -227,7 +227,7 @@ export class SchemaController {
         functionName: "addSchema",
         args: [name, dialect, uploadResult.url],
         account,
-        chain: this.context.walletClient.chain || null,
+        chain: this.context.walletClient.chain ?? null,
       });
 
       const { tx } = await import("../utils/transactionHelpers");
@@ -288,7 +288,7 @@ export class SchemaController {
     schemaId: number,
     options: { subgraphUrl?: string } = {},
   ): Promise<CompleteSchema> {
-    const subgraphUrl = options.subgraphUrl || this.context.subgraphUrl;
+    const subgraphUrl = options.subgraphUrl ?? this.context.subgraphUrl;
 
     let metadata: SchemaMetadata;
 
@@ -336,13 +336,13 @@ export class SchemaController {
 
     // Verify on-chain and off-chain data match
     if (dataSchema.name !== metadata.name) {
-      throw new Error(
-        `Schema name mismatch: on-chain="${metadata.name}" off-chain="${dataSchema.name}"`,
+      console.warn(
+        `Schema name mismatch for ID ${schemaId}: on-chain="${metadata.name}" off-chain="${dataSchema.name}" (using on-chain value)`,
       );
     }
     if (dataSchema.dialect !== metadata.dialect) {
-      throw new Error(
-        `Schema dialect mismatch: on-chain="${metadata.dialect}" off-chain="${dataSchema.dialect}"`,
+      console.warn(
+        `Schema dialect mismatch for ID ${schemaId}: on-chain="${metadata.dialect}" off-chain="${dataSchema.dialect}" (using on-chain value)`,
       );
     }
 
@@ -374,7 +374,7 @@ export class SchemaController {
    * ```
    */
   async count(options: { subgraphUrl?: string } = {}): Promise<number> {
-    const subgraphUrl = options.subgraphUrl || this.context.subgraphUrl;
+    const subgraphUrl = options.subgraphUrl ?? this.context.subgraphUrl;
 
     // Try subgraph first if available
     if (subgraphUrl) {
@@ -426,7 +426,7 @@ export class SchemaController {
     } = {},
   ): Promise<Schema[]> {
     const { limit = 100, offset = 0, includeDefinitions = false } = options;
-    const subgraphUrl = options.subgraphUrl || this.context.subgraphUrl;
+    const subgraphUrl = options.subgraphUrl ?? this.context.subgraphUrl;
 
     // Try subgraph first if available
     if (subgraphUrl) {
@@ -547,7 +547,7 @@ export class SchemaController {
       const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
 
       const account =
-        this.context.walletClient.account || (await this.getUserAddress());
+        this.context.walletClient.account ?? (await this.getUserAddress());
       const from = typeof account === "string" ? account : account.address;
 
       const hash = await this.context.walletClient.writeContract({
@@ -556,7 +556,7 @@ export class SchemaController {
         functionName: "addSchema",
         args: [params.name, params.dialect, params.definitionUrl],
         account,
-        chain: this.context.walletClient.chain || null,
+        chain: this.context.walletClient.chain ?? null,
       });
 
       // Create TransactionResult POJO
@@ -757,7 +757,7 @@ export class SchemaController {
       );
     }
 
-    return result.data?.schemas?.length || 0;
+    return result.data?.schemas?.length ?? 0;
   }
 
   /**

@@ -61,9 +61,9 @@ vi.mock("@/components/ui/DataUploadForm", () => ({
   }) => (
     <div data-testid="data-upload-form">
       <button
-        onClick={() =>
-          onUploadComplete({ fileId: 123, transactionHash: "0xtx123" })
-        }
+        onClick={() => {
+          onUploadComplete({ fileId: 123, transactionHash: "0xtx123" });
+        }}
       >
         Upload File
       </button>

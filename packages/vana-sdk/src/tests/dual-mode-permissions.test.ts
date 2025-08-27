@@ -22,7 +22,7 @@ let gasAwareMulticallCallCount = 0;
 let mockPermissionInfoFailureIndex: number | null = null;
 
 vi.mock("../utils/multicall", () => ({
-  gasAwareMulticall: vi.fn().mockImplementation(async (client, params) => {
+  gasAwareMulticall: vi.fn().mockImplementation(async (_client, params) => {
     const callIndex = gasAwareMulticallCallCount++;
 
     // First call: permission IDs (allowFailure: false, returns bigints directly)

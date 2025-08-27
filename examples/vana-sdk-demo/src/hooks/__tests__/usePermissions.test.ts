@@ -74,7 +74,9 @@ vi.mock("@heroui/react", () => ({
 
 const useAccountMock = useAccount as MockedFunction<typeof useAccount>;
 const useVanaMock = useVana as MockedFunction<typeof useVana>;
-const retrieveGrantFileMock = retrieveGrantFile;
+const retrieveGrantFileMock = retrieveGrantFile as MockedFunction<
+  typeof retrieveGrantFile
+>;
 const addToastMock = addToast as MockedFunction<typeof addToast>;
 
 describe("usePermissions", () => {

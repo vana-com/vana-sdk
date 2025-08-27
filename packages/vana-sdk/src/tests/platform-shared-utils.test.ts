@@ -229,7 +229,9 @@ describe("Shared Platform Utilities", () => {
         ephemeralPublicKey: [7, 8, 9],
       };
 
-      expect(() => validateEncryptedDataStructure(validData)).not.toThrow();
+      expect(() => {
+        validateEncryptedDataStructure(validData);
+      }).not.toThrow();
     });
 
     it("should throw for invalid encrypted data structure", async () => {
@@ -239,9 +241,9 @@ describe("Shared Platform Utilities", () => {
 
       const invalidData = { encrypted: [1, 2, 3] }; // Missing iv and ephemeralPublicKey
 
-      expect(() => validateEncryptedDataStructure(invalidData)).toThrow(
-        "Invalid encrypted data format",
-      );
+      expect(() => {
+        validateEncryptedDataStructure(invalidData);
+      }).toThrow("Invalid encrypted data format");
     });
 
     it("should throw for null or non-object data", async () => {
@@ -249,15 +251,15 @@ describe("Shared Platform Utilities", () => {
         "../platform/shared/error-utils"
       );
 
-      expect(() => validateEncryptedDataStructure(null)).toThrow(
-        "Invalid encrypted data format",
-      );
-      expect(() => validateEncryptedDataStructure("string")).toThrow(
-        "Invalid encrypted data format",
-      );
-      expect(() => validateEncryptedDataStructure(123)).toThrow(
-        "Invalid encrypted data format",
-      );
+      expect(() => {
+        validateEncryptedDataStructure(null);
+      }).toThrow("Invalid encrypted data format");
+      expect(() => {
+        validateEncryptedDataStructure("string");
+      }).toThrow("Invalid encrypted data format");
+      expect(() => {
+        validateEncryptedDataStructure(123);
+      }).toThrow("Invalid encrypted data format");
     });
   });
 

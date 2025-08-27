@@ -141,9 +141,9 @@ export class RetryUtility {
         // Calculate delay with exponential backoff and jitter
         const baseDelay =
           config.baseDelay *
-          Math.pow(config.backoffMultiplier || 2, attempt - 1);
-        const maxDelay = config.maxDelay || 30000;
-        const jitter = config.jitter || 0;
+          Math.pow(config.backoffMultiplier ?? 2, attempt - 1);
+        const maxDelay = config.maxDelay ?? 30000;
+        const jitter = config.jitter ?? 0;
 
         let delay = Math.min(baseDelay, maxDelay);
 
@@ -155,7 +155,7 @@ export class RetryUtility {
       }
     }
 
-    throw lastError || new Error("Operation failed after retries");
+    throw lastError ?? new Error("Operation failed after retries");
   }
 }
 
@@ -269,7 +269,9 @@ export class EventEmitter<TEvent = unknown> implements Observable<TEvent> {
   subscribe(observer: Observer<TEvent>): () => void {
     this.observers.push(observer);
 
-    return () => this.unsubscribe(observer);
+    return () => {
+      this.unsubscribe(observer);
+    };
   }
 
   unsubscribe(observer: Observer<TEvent>): void {
@@ -307,10 +309,8 @@ export class EventEmitter<TEvent = unknown> implements Observable<TEvent> {
  * Generic middleware pipeline
  */
 export class MiddlewarePipeline {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private middleware: Middleware<any, any>[] = [];
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   use(middleware: Middleware<any, any>): void {
     this.middleware.push(middleware);
   }
@@ -354,7 +354,6 @@ export class MiddlewarePipeline {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getMiddleware(): Middleware<any, any>[] {
     return [...this.middleware];
   }
@@ -464,7 +463,7 @@ export class CircuitBreaker {
 
     if (this.state === "half-open") {
       this.successes++;
-      if (this.successes >= (this.config.halfOpenMaxAttempts || 1)) {
+      if (this.successes >= (this.config.halfOpenMaxAttempts ?? 1)) {
         this.state = "closed";
       }
     }

@@ -53,7 +53,7 @@ describe.skip("Browser Bundle - No Buffer Dependency", () => {
     privateKey[0] = privateKey[0] & 0x7f;
 
     // Create public key
-    const publicKey = await ecies["createPublicKey"](privateKey, false);
+    const publicKey = ecies["createPublicKey"](privateKey, false);
     expect(publicKey).toBeDefined();
 
     if (!publicKey) {

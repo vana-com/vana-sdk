@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { type Address } from "viem";
 import { vanaMainnet } from "../chains/definitions";
@@ -686,7 +685,7 @@ describe("Enhanced Trusted Server Queries", () => {
 
     it("should handle invalid user addresses", async () => {
       const invalidAddress = "0xinvalid" as Address;
-      mockPublicClient.readContract.mockRejectedValueOnce(
+      mockPublicClient.readContract.mockRejectedValue(
         new Error("Invalid address"),
       );
 

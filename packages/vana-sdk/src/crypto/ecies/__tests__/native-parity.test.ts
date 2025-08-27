@@ -36,7 +36,7 @@ describe("ECDH Native vs Noble Parity", () => {
       publicKey,
       privateKey,
       {
-        hashfn: (x: Uint8Array, y: Uint8Array, out?: Uint8Array) => {
+        hashfn: (x: Uint8Array, _y: Uint8Array, out?: Uint8Array) => {
           if (out) {
             out.set(x);
             return out;
@@ -69,7 +69,7 @@ describe("ECDH Native vs Noble Parity", () => {
       compressedKey,
       privateKey,
       {
-        hashfn: (x: Uint8Array, y: Uint8Array, out?: Uint8Array) => {
+        hashfn: (x: Uint8Array, _y: Uint8Array, out?: Uint8Array) => {
           if (out) {
             out.set(x);
             return out;
@@ -86,7 +86,7 @@ describe("ECDH Native vs Noble Parity", () => {
       uncompressedKey,
       privateKey,
       {
-        hashfn: (x: Uint8Array, y: Uint8Array, out?: Uint8Array) => {
+        hashfn: (x: Uint8Array, _y: Uint8Array, out?: Uint8Array) => {
           if (out) {
             out.set(x);
             return out;

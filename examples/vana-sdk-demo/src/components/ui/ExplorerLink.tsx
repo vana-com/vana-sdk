@@ -57,7 +57,7 @@ export const ExplorerLink: React.FC<ExplorerLinkProps> = ({
   const explorerUrl =
     type === "tx" ? getTxUrl(chainId, hash) : getAddressUrl(chainId, hash);
 
-  const displayText = label || (truncate ? truncateHash(hash) : hash);
+  const displayText = label ?? (truncate ? truncateHash(hash) : hash);
 
   const handleClick = (e: React.MouseEvent) => {
     if (onClick) {

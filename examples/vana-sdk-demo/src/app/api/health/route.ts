@@ -32,7 +32,7 @@ export function GET() {
     storage: {
       ipfs: {
         enabled: pinataTest.success,
-        error: pinataTest.error || null,
+        error: pinataTest.error ?? null,
       },
       memory: {
         enabled: true,

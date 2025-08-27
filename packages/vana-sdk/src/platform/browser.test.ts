@@ -93,7 +93,9 @@ describe("BrowserPlatformAdapter", () => {
         Reflect.deleteProperty(global, "sessionStorage");
 
         // Should not throw
-        expect(() => adapter.cache.delete("testKey")).not.toThrow();
+        expect(() => {
+          adapter.cache.delete("testKey");
+        }).not.toThrow();
       });
 
       it("should silently handle sessionStorage errors", () => {
@@ -102,7 +104,9 @@ describe("BrowserPlatformAdapter", () => {
         });
 
         // Should not throw
-        expect(() => adapter.cache.delete("testKey")).not.toThrow();
+        expect(() => {
+          adapter.cache.delete("testKey");
+        }).not.toThrow();
       });
     });
 
@@ -159,7 +163,9 @@ describe("BrowserPlatformAdapter", () => {
         Reflect.deleteProperty(global, "sessionStorage");
 
         // Should not throw
-        expect(() => adapter.cache.clear()).not.toThrow();
+        expect(() => {
+          adapter.cache.clear();
+        }).not.toThrow();
       });
 
       it("should silently handle sessionStorage errors", () => {
@@ -169,7 +175,9 @@ describe("BrowserPlatformAdapter", () => {
         });
 
         // Should not throw
-        expect(() => adapter.cache.clear()).not.toThrow();
+        expect(() => {
+          adapter.cache.clear();
+        }).not.toThrow();
 
         // Restore Object.keys
         Object.keys = originalObjectKeys;
@@ -238,7 +246,9 @@ describe("BrowserPlatformAdapter", () => {
         Reflect.deleteProperty(global, "sessionStorage");
 
         // Should not throw
-        expect(() => adapter.cache.set("testKey", "testValue")).not.toThrow();
+        expect(() => {
+          adapter.cache.set("testKey", "testValue");
+        }).not.toThrow();
       });
 
       it("should silently handle sessionStorage errors", () => {
@@ -247,7 +257,9 @@ describe("BrowserPlatformAdapter", () => {
         });
 
         // Should not throw
-        expect(() => adapter.cache.set("testKey", "testValue")).not.toThrow();
+        expect(() => {
+          adapter.cache.set("testKey", "testValue");
+        }).not.toThrow();
       });
     });
   });

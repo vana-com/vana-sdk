@@ -44,7 +44,7 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
   disabled,
   ...buttonProps
 }) => {
-  const isDisabled = disabled || loading;
+  const isDisabled = (disabled ?? false) || (loading ?? false);
 
   const renderContent = () => {
     if (loading) {
@@ -55,7 +55,7 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
       return (
         <>
           <Spinner size="sm" className={loadingText ? "mr-2" : ""} />
-          {loadingText || children}
+          {loadingText ?? children}
         </>
       );
     }

@@ -119,8 +119,8 @@ export function createMockChain(overrides?: Partial<Chain>): Chain {
 export function createTypedMockWalletClient(
   overrides?: DeepPartial<WalletClient>,
 ): WalletClient {
-  const account = overrides?.account || createMockAccount();
-  const chain = overrides?.chain || createMockChain();
+  const account = overrides?.account ?? createMockAccount();
+  const chain = overrides?.chain ?? createMockChain();
 
   return {
     account,
@@ -180,7 +180,7 @@ export function createTypedMockWalletClient(
 export function createTypedMockPublicClient(
   overrides?: DeepPartial<PublicClient>,
 ): PublicClient {
-  const chain = overrides?.chain || createMockChain();
+  const chain = overrides?.chain ?? createMockChain();
 
   const defaultReceipt = {
     transactionHash: "0xtxhash" as Hash,
@@ -360,12 +360,12 @@ export function createMockControllerContext(
     walletClient,
     publicClient,
     applicationClient: walletClient,
-    platform: overrides?.platform || mockPlatformAdapter,
+    platform: overrides?.platform ?? mockPlatformAdapter,
     storageManager:
-      overrides?.storageManager || createTypedMockStorageManager(),
-    subgraphUrl: overrides?.subgraphUrl || "https://subgraph.test.com",
+      overrides?.storageManager ?? createTypedMockStorageManager(),
+    subgraphUrl: overrides?.subgraphUrl ?? "https://subgraph.test.com",
     defaultPersonalServerUrl: overrides?.defaultPersonalServerUrl,
-    relayerCallbacks: overrides?.relayerCallbacks || undefined,
+    relayerCallbacks: overrides?.relayerCallbacks ?? undefined,
     // Spread overrides but exclude waitForTransactionEvents if it's undefined
     ...(overrides
       ? Object.fromEntries(
@@ -377,7 +377,7 @@ export function createMockControllerContext(
       : {}),
     // Always include waitForTransactionEvents
     waitForTransactionEvents:
-      overrides?.waitForTransactionEvents || mockWaitForTransactionEvents,
+      overrides?.waitForTransactionEvents ?? mockWaitForTransactionEvents,
   };
 
   // Attach the fake instance to the mock for test access

@@ -22,13 +22,6 @@ import {
 vi.mock("wagmi");
 vi.mock("@/providers/VanaProvider");
 
-// Mock DOM APIs only when needed for specific tests
-const _mockElement = {
-  href: "",
-  download: "",
-  click: vi.fn(),
-};
-
 const useAccountMock = useAccount as MockedFunction<typeof useAccount>;
 const useVanaMock = useVana as MockedFunction<typeof useVana>;
 
@@ -384,13 +377,6 @@ describe("useUserFiles", () => {
   });
 
   describe("handleDownloadDecryptedFile", () => {
-    const _mockFile: UserFile = {
-      id: 1,
-      url: "ipfs://file1",
-      ownerAddress: "0x123" as `0x${string}`,
-      addedAtBlock: BigInt(1000),
-    };
-
     it.skip("downloads decrypted file when content is available", async () => {
       // Skipping DOM-related test for now
     });

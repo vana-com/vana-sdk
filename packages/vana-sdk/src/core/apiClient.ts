@@ -68,20 +68,20 @@ export class ApiClient {
 
   constructor(config: ApiClientConfig = {}) {
     this.config = {
-      baseUrl: config.baseUrl || "",
-      headers: config.headers || {},
-      timeout: config.timeout || 30000,
-      retry: config.retry || {
+      baseUrl: config.baseUrl ?? "",
+      headers: config.headers ?? {},
+      timeout: config.timeout ?? 30000,
+      retry: config.retry ?? {
         maxAttempts: 3,
         baseDelay: 1000,
         backoffMultiplier: 2,
         shouldRetry: (error) => error.message.includes("network"),
       },
-      rateLimit: config.rateLimit || {
+      rateLimit: config.rateLimit ?? {
         requestsPerWindow: 100,
         windowMs: 60000,
       },
-      circuitBreaker: config.circuitBreaker || {
+      circuitBreaker: config.circuitBreaker ?? {
         failureThreshold: 5,
         recoveryTimeout: 60000,
         halfOpenMaxAttempts: 3,
@@ -176,6 +176,7 @@ export class ApiClient {
         "Content-Type": "application/json",
         ...options.headers,
       },
+      params: data as Record<string, unknown>,
     });
   }
 
@@ -199,6 +200,7 @@ export class ApiClient {
         "Content-Type": "application/json",
         ...options.headers,
       },
+      params: data as Record<string, unknown>,
     });
   }
 
@@ -236,6 +238,7 @@ export class ApiClient {
         "Content-Type": "application/json",
         ...options.headers,
       },
+      params: data as Record<string, unknown>,
     });
   }
 
@@ -311,11 +314,11 @@ export class ApiClient {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
       controller.abort();
-    }, options.timeout || this.config.timeout);
+    }, options.timeout ?? this.config.timeout);
 
     try {
       const response = await fetch(url, {
-        method: options.method || "GET",
+        method: options.method ?? "GET",
         headers: {
           ...this.config.headers,
           ...options.headers,
@@ -339,7 +342,7 @@ export class ApiClient {
           success: false,
           error: {
             code: response.status.toString(),
-            message: data.message || response.statusText,
+            message: data.message ?? response.statusText,
             details: data,
           },
         };

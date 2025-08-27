@@ -1,0 +1,16 @@
+{
+  "name": "@vana/eslint-config-base",
+  "version": "1.0.0",
+  "description": "Base ESLint config for Vana - catches real bugs, not style",
+  "main": "index.js",
+  "type": "module",
+  "dependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.2.0",
+    "@typescript-eslint/parser": "^8.2.0",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-unused-imports": "^4.1.4"
+  },
+  "peerDependencies": {
+    "eslint": "^9.0.0"
+  }
+}

@@ -62,7 +62,6 @@ export const SchemaValidationTab: React.FC<SchemaValidationTabProps> = ({
 
     // Try to generate meaningful example based on schema name/type
     const schemaName = selectedSchema.name.toLowerCase();
-    const _schemaDialect = selectedSchema.dialect.toLowerCase();
 
     if (schemaName.includes("user") || schemaName.includes("profile")) {
       return JSON.stringify(
@@ -196,7 +195,7 @@ export const SchemaValidationTab: React.FC<SchemaValidationTabProps> = ({
             selectedSchemaId={selectedSchemaId}
             onSchemaChange={(schemaId, schema) => {
               setSelectedSchemaId(schemaId);
-              setSelectedSchema(schema || null);
+              setSelectedSchema(schema ?? null);
               setValidationResult(null);
             }}
             showSchemaInfo={true}
@@ -240,7 +239,9 @@ export const SchemaValidationTab: React.FC<SchemaValidationTabProps> = ({
               <Textarea
                 placeholder="Enter your test data here (JSON format)..."
                 value={testData}
-                onChange={(e) => setTestData(e.target.value)}
+                onChange={(e) => {
+                  setTestData(e.target.value);
+                }}
                 minRows={8}
                 maxRows={16}
                 description="Enter JSON data to validate against the selected schema"

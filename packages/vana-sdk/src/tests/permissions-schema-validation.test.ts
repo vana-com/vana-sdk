@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Address } from "viem";
-import { WalletClient, PublicClient } from "viem";
 import type { ControllerContext } from "../controllers/permissions";
 import { PermissionsController } from "../controllers/permissions";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";

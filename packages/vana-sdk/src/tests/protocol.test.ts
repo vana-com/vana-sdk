@@ -407,8 +407,8 @@ describe("ProtocolController", () => {
         );
         if (error.message.includes("Contract address not found")) {
           const fallbackChainId =
-            mockController.context.walletClient.chain?.id || 0;
-          expect(fallbackChainId).toBe(0); // This tests the || 0 fallback
+            mockController.context.walletClient.chain?.id ?? 0;
+          expect(fallbackChainId).toBe(0); // This tests the ?? 0 fallback
         }
       } catch {
         // This tests the fallback logic in the catch block

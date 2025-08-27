@@ -3,9 +3,11 @@ import { SchemaController } from "../controllers/schemas";
 import type { ControllerContext } from "../controllers/permissions";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 import type { StorageManager } from "../storage/manager";
-import { SchemaValidationError } from "../utils/schemaValidation";
-import { validateDataSchemaAgainstMetaSchema } from "../utils/schemaValidation";
-import type { DataSchema } from "../utils/schemaValidation";
+import {
+  SchemaValidationError,
+  validateDataSchemaAgainstMetaSchema,
+  type DataSchema,
+} from "../utils/schemaValidation";
 import {
   fetchSchemaFromChain,
   fetchSchemaCountFromChain,
@@ -13,7 +15,7 @@ import {
 import { fetchFromUrl } from "../utils/urlResolver";
 import { gasAwareMulticall } from "../utils/multicall";
 import type { Address } from "viem";
-import { parseEventLogs, type WalletClient } from "viem";
+import { parseEventLogs } from "viem";
 import {
   createTypedMockWalletClient,
   createTypedMockPublicClient,
@@ -66,7 +68,7 @@ vi.mock("../config/addresses", () => ({
 }));
 
 vi.mock("../utils/multicall", () => ({
-  gasAwareMulticall: vi.fn().mockImplementation(async (client, params) => {
+  gasAwareMulticall: vi.fn().mockImplementation(async (_client, params) => {
     // Return array of results based on the contracts passed
     return params.contracts.map((_: unknown, i: number) => BigInt(i + 1));
   }),

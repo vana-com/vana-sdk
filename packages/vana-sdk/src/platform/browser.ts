@@ -335,7 +335,7 @@ class BrowserPGPAdapter implements VanaPGPAdapter {
 
       return encrypted as string;
     } catch (error) {
-      throw new Error(`PGP encryption failed: ${error}`);
+      throw new Error(`PGP encryption failed: ${String(error)}`);
     }
   }
 
@@ -359,7 +359,7 @@ class BrowserPGPAdapter implements VanaPGPAdapter {
 
       return decrypted as string;
     } catch (error) {
-      throw new Error(`PGP decryption failed: ${error}`);
+      throw new Error(`PGP decryption failed: ${String(error)}`);
     }
   }
 
@@ -444,7 +444,9 @@ class BrowserCacheAdapter implements VanaCacheAdapter {
           keysToRemove.push(key);
         }
       }
-      keysToRemove.forEach((key) => sessionStorage.removeItem(key));
+      keysToRemove.forEach((key) => {
+        sessionStorage.removeItem(key);
+      });
     } catch {
       // Ignore storage errors
     }

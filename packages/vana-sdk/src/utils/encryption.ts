@@ -121,7 +121,9 @@ export async function encryptWithWalletPublicKey(
       publicKey,
     );
   } catch (error) {
-    throw new Error(`Failed to encrypt with wallet public key: ${error}`);
+    throw new Error(
+      `Failed to encrypt with wallet public key: ${String(error)}`,
+    );
   }
 }
 
@@ -184,7 +186,9 @@ export async function decryptWithWalletPrivateKey(
       privateKey,
     );
   } catch (error) {
-    throw new Error(`Failed to decrypt with wallet private key: ${error}`);
+    throw new Error(
+      `Failed to decrypt with wallet private key: ${String(error)}`,
+    );
   }
 }
 
@@ -207,7 +211,7 @@ export async function encryptFileKey(
       publicKey,
     );
   } catch (error) {
-    throw new Error(`Failed to encrypt file key: ${error}`);
+    throw new Error(`Failed to encrypt file key: ${String(error)}`);
   }
 }
 
@@ -234,7 +238,9 @@ export async function getEncryptionParameters(
       key: keyPair.privateKey.substring(0, 32),
     };
   } catch (error) {
-    throw new Error(`Failed to generate encryption parameters: ${error}`);
+    throw new Error(
+      `Failed to generate encryption parameters: ${String(error)}`,
+    );
   }
 }
 
@@ -257,7 +263,7 @@ export async function decryptWithPrivateKey(
       privateKey,
     );
   } catch (error) {
-    throw new Error(`Failed to decrypt with private key: ${error}`);
+    throw new Error(`Failed to decrypt with private key: ${String(error)}`);
   }
 }
 
@@ -328,7 +334,7 @@ export async function encryptBlobWithSignedKey(
       type: "application/octet-stream",
     });
   } catch (error) {
-    throw new Error(`Failed to encrypt data: ${error}`);
+    throw new Error(`Failed to encrypt data: ${String(error)}`);
   }
 }
 
@@ -347,7 +353,7 @@ export async function generateEncryptionKeyPair(
   try {
     return await platformAdapter.crypto.generateKeyPair();
   } catch (error) {
-    throw new Error(`Failed to generate encryption key pair: ${error}`);
+    throw new Error(`Failed to generate encryption key pair: ${String(error)}`);
   }
 }
 
@@ -372,7 +378,7 @@ export async function generatePGPKeyPair(
   try {
     return await platformAdapter.pgp.generateKeyPair(options);
   } catch (error) {
-    throw new Error(`Failed to generate PGP key pair: ${error}`);
+    throw new Error(`Failed to generate PGP key pair: ${String(error)}`);
   }
 }
 
@@ -452,6 +458,6 @@ export async function decryptBlobWithSignedKey(
     // Convert decrypted data back to Blob
     return new Blob([decryptedArrayBuffer], { type: "text/plain" });
   } catch (error) {
-    throw new Error(`Failed to decrypt data: ${error}`);
+    throw new Error(`Failed to decrypt data: ${String(error)}`);
   }
 }

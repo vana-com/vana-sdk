@@ -1,0 +1,32 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "packages/*/src/**/*",
+    "packages/*/scripts/**/*",
+    "examples/*/src/**/*",
+    "examples/*/**/*.ts",
+    "examples/*/**/*.tsx",
+    "**/*.config.ts",
+    "**/*.config.mjs",
+    "**/*.config.js",
+    "eslint.config.js",
+    "packages/eslint-config-*/*.js"
+  ],
+  "exclude": [
+    "node_modules",
+    "**/node_modules",
+    "dist",
+    "**/dist",
+    "build",
+    "**/build",
+    ".next",
+    "**/.next",
+    "coverage",
+    "**/coverage",
+    "packages/vana-sdk/test-pnpm-app",
+    "temp-test"
+  ]
+}

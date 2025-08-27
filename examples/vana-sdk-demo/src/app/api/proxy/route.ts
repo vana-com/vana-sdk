@@ -113,7 +113,7 @@ async function handleProxy(
     return new NextResponse(data, {
       headers: {
         "Content-Type":
-          response.headers.get("Content-Type") || "application/octet-stream",
+          response.headers.get("Content-Type") ?? "application/octet-stream",
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET, POST",
         "Access-Control-Allow-Headers": "Content-Type",

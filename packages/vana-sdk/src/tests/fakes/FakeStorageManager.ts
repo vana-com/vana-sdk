@@ -42,17 +42,17 @@ export class FakeStorageManager {
   private createFakeProvider(name: string): StorageProvider {
     return {
       upload: async (data: Blob, filename?: string) => {
-        const url = `https://${name}.io/fake/${filename || "file"}`;
+        const url = `https://${name}.io/fake/${filename ?? "file"}`;
         const result = {
           url,
           size: data.size,
-          contentType: data.type || "application/octet-stream",
+          contentType: data.type ?? "application/octet-stream",
         };
         this.uploads.set(url, result);
         return result;
       },
       download: async (url: string) => {
-        return this.downloads.get(url) || new Blob(["fake content"]);
+        return this.downloads.get(url) ?? new Blob(["fake content"]);
       },
       list: async () => [],
       delete: async () => true,
@@ -88,11 +88,11 @@ export class FakeStorageManager {
    */
   async upload(
     data: Blob,
-    filename?: string,
+    _filename?: string,
     providerName?: string,
   ): Promise<StorageUploadResult> {
     this.uploadCallCount++;
-    const provider = providerName || this.defaultProvider;
+    const provider = providerName ?? this.defaultProvider;
     const url = `https://${provider}.io/ipfs/QmTest${this.uploadCallCount}`;
     const result = {
       url,
@@ -119,7 +119,7 @@ export class FakeStorageManager {
    */
   async download(url: string): Promise<Blob> {
     this.downloadCallCount++;
-    return this.downloads.get(url) || new Blob(["default content"]);
+    return this.downloads.get(url) ?? new Blob(["default content"]);
   }
 
   /**
@@ -146,11 +146,11 @@ export class FakeStorageManager {
     const files: StorageFile[] = urls.map((url, index) => ({
       id: `file-${index}`,
       url,
-      name: url.split("/").pop() || "file",
-      size: this.uploads.get(url)?.size || 0,
+      name: url.split("/").pop() ?? "file",
+      size: this.uploads.get(url)?.size ?? 0,
       createdAt: new Date(),
       contentType:
-        this.uploads.get(url)?.contentType || "application/octet-stream",
+        this.uploads.get(url)?.contentType ?? "application/octet-stream",
     }));
 
     if (options?.namePattern) {
@@ -200,7 +200,7 @@ export class FakeStorageManager {
    * @returns The StorageProvider if found, undefined otherwise
    */
   getProvider(name?: string): StorageProvider {
-    const providerName = name || this.defaultProvider;
+    const providerName = name ?? this.defaultProvider;
     const provider = this.storageProviders.get(providerName);
     if (!provider) {
       throw new Error(`Provider ${providerName} not found`);

@@ -176,9 +176,9 @@ export function useTrustedServers(): UseTrustedServersReturn {
       if (!vana || !address) return;
 
       // Use override values if provided, otherwise use form state
-      const actualServerAddress = overrideServerAddress || serverAddress;
-      const actualServerUrl = overrideServerUrl || serverUrl;
-      const actualPublicKey = overridePublicKey || publicKey;
+      const actualServerAddress = overrideServerAddress ?? serverAddress;
+      const actualServerUrl = overrideServerUrl ?? serverUrl;
+      const actualPublicKey = overridePublicKey ?? publicKey;
 
       // Validate inputs
       if (
@@ -310,7 +310,7 @@ export function useTrustedServers(): UseTrustedServersReturn {
       const discoveredServerInfo = {
         serverAddress: identity.address,
         serverUrl: identity.base_url,
-        name: identity.name || "Personal Server",
+        name: identity.name ?? "Personal Server",
         publicKey: identity.public_key,
       };
 

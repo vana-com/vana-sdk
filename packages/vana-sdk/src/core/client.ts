@@ -37,7 +37,7 @@ export function getDefaultFromBlock(chainId: number): bigint {
 }
 
 // Cache for clients
-let _client: PublicClient & { chain: Chain };
+let cachedClient: PublicClient & { chain: Chain };
 
 /**
  * Creates or retrieves a cached public client for blockchain read operations.
@@ -67,19 +67,19 @@ let _client: PublicClient & { chain: Chain };
 export const createClient = (
   chainId: keyof typeof chains = mokshaTestnet.id,
 ): PublicClient & { chain: Chain } => {
-  if (!_client || _client.chain?.id !== chainId) {
+  if (!cachedClient || cachedClient.chain?.id !== chainId) {
     const chain = chains[chainId];
     if (!chain) {
       throw new Error(`Chain ${chainId} not found`);
     }
 
-    _client = createPublicClient({
+    cachedClient = createPublicClient({
       chain,
       transport: http(),
     });
   }
 
-  return _client;
+  return cachedClient;
 };
 
 /**

@@ -23,8 +23,8 @@ function getChain(chainId: number): Chain {
 export function getExplorerUrl(chainId: number): string {
   const chain = getChain(chainId);
   return (
-    chain.blockExplorers?.default?.url ||
-    vanaMainnet.blockExplorers?.default?.url ||
+    chain.blockExplorers?.default?.url ??
+    vanaMainnet.blockExplorers?.default?.url ??
     ""
   );
 }
@@ -36,8 +36,8 @@ export function getExplorerUrl(chainId: number): string {
 export function getTxUrl(chainId: number, txHash: string): string {
   const chain = getChain(chainId);
   const baseUrl =
-    chain.blockExplorers?.default?.url ||
-    vanaMainnet.blockExplorers?.default?.url ||
+    chain.blockExplorers?.default?.url ??
+    vanaMainnet.blockExplorers?.default?.url ??
     "";
   return `${baseUrl}/tx/${txHash}`;
 }
@@ -52,8 +52,8 @@ export function getBlockUrl(
 ): string {
   const chain = getChain(chainId);
   const baseUrl =
-    chain.blockExplorers?.default?.url ||
-    vanaMainnet.blockExplorers?.default?.url ||
+    chain.blockExplorers?.default?.url ??
+    vanaMainnet.blockExplorers?.default?.url ??
     "";
   const blockNum =
     typeof blockNumber === "bigint"
@@ -69,8 +69,8 @@ export function getBlockUrl(
 export function getAddressUrl(chainId: number, address: string): string {
   const chain = getChain(chainId);
   const baseUrl =
-    chain.blockExplorers?.default?.url ||
-    vanaMainnet.blockExplorers?.default?.url ||
+    chain.blockExplorers?.default?.url ??
+    vanaMainnet.blockExplorers?.default?.url ??
     "";
   return `${baseUrl}/address/${address}`;
 }
@@ -90,8 +90,8 @@ export function getContractUrl(
 ): string {
   const chain = getChain(chainId);
   const baseUrl =
-    chain.blockExplorers?.default?.url ||
-    vanaMainnet.blockExplorers?.default?.url ||
+    chain.blockExplorers?.default?.url ??
+    vanaMainnet.blockExplorers?.default?.url ??
     "";
   let url = `${baseUrl}/address/${address}`;
 

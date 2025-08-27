@@ -213,9 +213,6 @@ describe("Encryption Utilities Coverage", () => {
   });
 
   describe("Private key decryption", () => {
-    const _testPrivateKey =
-      "85271071a553feafb93839045545c233d0518e0b0fc583f88038f8b0e32e9f18";
-
     it("should decrypt data that was encrypted with the correct public key", async () => {
       // Test with a proper encrypt/decrypt cycle
       const testData = "Secret message for public key encryption";

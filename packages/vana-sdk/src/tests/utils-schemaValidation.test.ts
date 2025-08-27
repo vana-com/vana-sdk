@@ -53,7 +53,9 @@ describe("SchemaValidator", () => {
     it("should initialize with correct configuration", () => {
       expect(validator).toBeInstanceOf(SchemaValidator);
       // Test that the validator is properly initialized by using it
-      expect(() => validator.validateDataSchemaAgainstMetaSchema({})).toThrow();
+      expect(() => {
+        validator.validateDataSchemaAgainstMetaSchema({});
+      }).toThrow();
     });
   });
 
@@ -72,9 +74,9 @@ describe("SchemaValidator", () => {
         },
       };
 
-      expect(() =>
-        validator.validateDataSchemaAgainstMetaSchema(validSchema),
-      ).not.toThrow();
+      expect(() => {
+        validator.validateDataSchemaAgainstMetaSchema(validSchema);
+      }).not.toThrow();
     });
 
     it("should validate a correct SQLite schema", () => {
@@ -85,9 +87,9 @@ describe("SchemaValidator", () => {
         schema: "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);",
       };
 
-      expect(() =>
-        validator.validateDataSchemaAgainstMetaSchema(validSchema),
-      ).not.toThrow();
+      expect(() => {
+        validator.validateDataSchemaAgainstMetaSchema(validSchema);
+      }).not.toThrow();
     });
 
     it("should validate a schema with description", () => {
@@ -99,9 +101,9 @@ describe("SchemaValidator", () => {
         schema: { type: "object" },
       };
 
-      expect(() =>
-        validator.validateDataSchemaAgainstMetaSchema(validSchema),
-      ).not.toThrow();
+      expect(() => {
+        validator.validateDataSchemaAgainstMetaSchema(validSchema);
+      }).not.toThrow();
     });
 
     it("should validate a schema with dialectVersion", () => {
@@ -113,9 +115,9 @@ describe("SchemaValidator", () => {
         schema: "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);",
       };
 
-      expect(() =>
-        validator.validateDataSchemaAgainstMetaSchema(validSchema),
-      ).not.toThrow();
+      expect(() => {
+        validator.validateDataSchemaAgainstMetaSchema(validSchema);
+      }).not.toThrow();
     });
 
     it("should throw error for missing required fields", () => {
@@ -124,9 +126,9 @@ describe("SchemaValidator", () => {
         // missing version, dialect, schema
       };
 
-      expect(() =>
-        validator.validateDataSchemaAgainstMetaSchema(invalidSchema),
-      ).toThrow(SchemaValidationError);
+      expect(() => {
+        validator.validateDataSchemaAgainstMetaSchema(invalidSchema);
+      }).toThrow(SchemaValidationError);
     });
 
     it("should throw error for invalid dialect", () => {
@@ -137,9 +139,9 @@ describe("SchemaValidator", () => {
         schema: "some schema",
       };
 
-      expect(() =>
-        validator.validateDataSchemaAgainstMetaSchema(invalidSchema),
-      ).toThrow(SchemaValidationError);
+      expect(() => {
+        validator.validateDataSchemaAgainstMetaSchema(invalidSchema);
+      }).toThrow(SchemaValidationError);
     });
 
     it("should throw error for wrong schema type with json dialect", () => {
@@ -150,9 +152,9 @@ describe("SchemaValidator", () => {
         schema: "should be object not string",
       };
 
-      expect(() =>
-        validator.validateDataSchemaAgainstMetaSchema(invalidSchema),
-      ).toThrow(SchemaValidationError);
+      expect(() => {
+        validator.validateDataSchemaAgainstMetaSchema(invalidSchema);
+      }).toThrow(SchemaValidationError);
     });
 
     it("should throw error for wrong schema type with sqlite dialect", () => {
@@ -163,9 +165,9 @@ describe("SchemaValidator", () => {
         schema: { type: "object" },
       };
 
-      expect(() =>
-        validator.validateDataSchemaAgainstMetaSchema(invalidSchema),
-      ).toThrow(SchemaValidationError);
+      expect(() => {
+        validator.validateDataSchemaAgainstMetaSchema(invalidSchema);
+      }).toThrow(SchemaValidationError);
     });
 
     it("should throw error for invalid JSON schema", () => {
@@ -178,9 +180,9 @@ describe("SchemaValidator", () => {
         },
       };
 
-      expect(() =>
-        validator.validateDataSchemaAgainstMetaSchema(invalidSchema),
-      ).toThrow(SchemaValidationError);
+      expect(() => {
+        validator.validateDataSchemaAgainstMetaSchema(invalidSchema);
+      }).toThrow(SchemaValidationError);
     });
 
     it("should throw error for additional properties", () => {
@@ -192,9 +194,9 @@ describe("SchemaValidator", () => {
         extraProperty: "not allowed",
       };
 
-      expect(() =>
-        validator.validateDataSchemaAgainstMetaSchema(invalidSchema),
-      ).toThrow(SchemaValidationError);
+      expect(() => {
+        validator.validateDataSchemaAgainstMetaSchema(invalidSchema);
+      }).toThrow(SchemaValidationError);
     });
   });
 
@@ -216,33 +218,33 @@ describe("SchemaValidator", () => {
     it("should validate correct data against schema", () => {
       const validData = { name: "Alice", age: 30 };
 
-      expect(() =>
-        validator.validateDataAgainstSchema(validData, validSchema),
-      ).not.toThrow();
+      expect(() => {
+        validator.validateDataAgainstSchema(validData, validSchema);
+      }).not.toThrow();
     });
 
     it("should validate data without optional fields", () => {
       const validData = { name: "Bob" };
 
-      expect(() =>
-        validator.validateDataAgainstSchema(validData, validSchema),
-      ).not.toThrow();
+      expect(() => {
+        validator.validateDataAgainstSchema(validData, validSchema);
+      }).not.toThrow();
     });
 
     it("should throw error for missing required fields", () => {
       const invalidData = { age: 25 };
 
-      expect(() =>
-        validator.validateDataAgainstSchema(invalidData, validSchema),
-      ).toThrow(SchemaValidationError);
+      expect(() => {
+        validator.validateDataAgainstSchema(invalidData, validSchema);
+      }).toThrow(SchemaValidationError);
     });
 
     it("should throw error for wrong data types", () => {
       const invalidData = { name: "Alice", age: "thirty" };
 
-      expect(() =>
-        validator.validateDataAgainstSchema(invalidData, validSchema),
-      ).toThrow(SchemaValidationError);
+      expect(() => {
+        validator.validateDataAgainstSchema(invalidData, validSchema);
+      }).toThrow(SchemaValidationError);
     });
 
     it("should validate data against CompleteSchema from schemas.get()", () => {
@@ -268,9 +270,9 @@ describe("SchemaValidator", () => {
       };
 
       // This should NOT throw even though CompleteSchema has extra fields
-      expect(() =>
-        validator.validateDataAgainstSchema(validData, completeSchema),
-      ).not.toThrow();
+      expect(() => {
+        validator.validateDataAgainstSchema(validData, completeSchema);
+      }).not.toThrow();
     });
 
     it("should skip validation for non-json dialect with warning", () => {
@@ -286,9 +288,9 @@ describe("SchemaValidator", () => {
       // Mock console.warn to verify it's called
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-      expect(() =>
-        validator.validateDataAgainstSchema(data, sqliteSchema),
-      ).not.toThrow();
+      expect(() => {
+        validator.validateDataAgainstSchema(data, sqliteSchema);
+      }).not.toThrow();
 
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining("Data validation skipped: dialect 'sqlite'"),
@@ -307,9 +309,9 @@ describe("SchemaValidator", () => {
 
       const data = { name: "Alice" };
 
-      expect(() =>
-        validator.validateDataAgainstSchema(data, invalidSchema),
-      ).toThrow(SchemaValidationError);
+      expect(() => {
+        validator.validateDataAgainstSchema(data, invalidSchema);
+      }).toThrow(SchemaValidationError);
     });
 
     it("should skip validation for unknown dialect with warning", () => {
@@ -325,9 +327,9 @@ describe("SchemaValidator", () => {
       // Mock console.warn to verify it's called
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-      expect(() =>
-        validator.validateDataAgainstSchema(data, invalidSchema),
-      ).not.toThrow();
+      expect(() => {
+        validator.validateDataAgainstSchema(data, invalidSchema);
+      }).not.toThrow();
 
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining("Data validation skipped: dialect 'invalid'"),
@@ -342,7 +344,9 @@ describe("SchemaValidator", () => {
       const validDDL =
         "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);";
 
-      expect(() => validator.validateSQLiteDDL(validDDL)).not.toThrow();
+      expect(() => {
+        validator.validateSQLiteDDL(validDDL);
+      }).not.toThrow();
     });
 
     it("should validate DDL with multiple tables", () => {
@@ -351,90 +355,98 @@ describe("SchemaValidator", () => {
         CREATE TABLE posts (id INTEGER PRIMARY KEY, user_id INTEGER, title TEXT);
       `;
 
-      expect(() => validator.validateSQLiteDDL(validDDL)).not.toThrow();
+      expect(() => {
+        validator.validateSQLiteDDL(validDDL);
+      }).not.toThrow();
     });
 
     it("should validate DDL with dialect version", () => {
       const validDDL =
         "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);";
 
-      expect(() => validator.validateSQLiteDDL(validDDL, "3")).not.toThrow();
+      expect(() => {
+        validator.validateSQLiteDDL(validDDL, "3");
+      }).not.toThrow();
     });
 
     it("should throw error for empty DDL", () => {
-      expect(() => validator.validateSQLiteDDL("")).toThrow(
-        SchemaValidationError,
-      );
+      expect(() => {
+        validator.validateSQLiteDDL("");
+      }).toThrow(SchemaValidationError);
     });
 
     it("should throw error for whitespace-only DDL", () => {
-      expect(() => validator.validateSQLiteDDL("   \n  \t  ")).toThrow(
-        SchemaValidationError,
-      );
+      expect(() => {
+        validator.validateSQLiteDDL("   \n  \t  ");
+      }).toThrow(SchemaValidationError);
     });
 
     it("should throw error for non-string DDL", () => {
-      expect(() =>
-        validator.validateSQLiteDDL(null as unknown as string),
-      ).toThrow(SchemaValidationError);
+      expect(() => {
+        validator.validateSQLiteDDL(null as unknown as string);
+      }).toThrow(SchemaValidationError);
     });
 
     it("should throw error for unsupported dialect version", () => {
       const validDDL =
         "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);";
 
-      expect(() => validator.validateSQLiteDDL(validDDL, "2")).toThrow(
-        SchemaValidationError,
-      );
+      expect(() => {
+        validator.validateSQLiteDDL(validDDL, "2");
+      }).toThrow(SchemaValidationError);
     });
 
     it("should throw error for DDL without CREATE TABLE", () => {
       const invalidDDL = "INSERT INTO users VALUES (1, 'Alice');";
 
-      expect(() => validator.validateSQLiteDDL(invalidDDL)).toThrow(
-        SchemaValidationError,
-      );
+      expect(() => {
+        validator.validateSQLiteDDL(invalidDDL);
+      }).toThrow(SchemaValidationError);
     });
 
     it("should throw error for unbalanced parentheses (too many open)", () => {
       const invalidDDL =
         "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT;";
 
-      expect(() => validator.validateSQLiteDDL(invalidDDL)).toThrow(
-        SchemaValidationError,
-      );
+      expect(() => {
+        validator.validateSQLiteDDL(invalidDDL);
+      }).toThrow(SchemaValidationError);
     });
 
     it("should throw error for unbalanced parentheses (too many close)", () => {
       const invalidDDL =
         "CREATE TABLE users id INTEGER PRIMARY KEY, name TEXT);";
 
-      expect(() => validator.validateSQLiteDDL(invalidDDL)).toThrow(
-        SchemaValidationError,
-      );
+      expect(() => {
+        validator.validateSQLiteDDL(invalidDDL);
+      }).toThrow(SchemaValidationError);
     });
 
     it("should throw error for unbalanced parentheses (close before open)", () => {
       const invalidDDL =
         "CREATE TABLE users )id INTEGER PRIMARY KEY, name TEXT(;";
 
-      expect(() => validator.validateSQLiteDDL(invalidDDL)).toThrow(
-        SchemaValidationError,
-      );
+      expect(() => {
+        validator.validateSQLiteDDL(invalidDDL);
+      }).toThrow(SchemaValidationError);
     });
 
     it("should handle case insensitive CREATE TABLE", () => {
       const validDDL =
         "create table users (id integer primary key, name text);";
 
-      expect(() => validator.validateSQLiteDDL(validDDL)).not.toThrow();
+      expect(() => {
+        validator.validateSQLiteDDL(validDDL);
+      }).not.toThrow();
     });
 
     it("should handle mixed case CREATE TABLE", () => {
       const validDDL =
         "Create Table users (id INTEGER PRIMARY KEY, name TEXT);";
 
-      expect(() => validator.validateSQLiteDDL(validDDL)).not.toThrow();
+      expect(() => {
+        validator.validateSQLiteDDL(validDDL);
+      }).not.toThrow();
     });
   });
 
@@ -640,17 +652,17 @@ describe("Convenience functions", () => {
     it("should validate correct data", () => {
       const validData = { name: "Alice", age: 30 };
 
-      expect(() =>
-        validateDataAgainstSchema(validData, validSchema),
-      ).not.toThrow();
+      expect(() => {
+        validateDataAgainstSchema(validData, validSchema);
+      }).not.toThrow();
     });
 
     it("should throw error for invalid data", () => {
       const invalidData = { age: 30 }; // missing required name
 
-      expect(() => validateDataAgainstSchema(invalidData, validSchema)).toThrow(
-        SchemaValidationError,
-      );
+      expect(() => {
+        validateDataAgainstSchema(invalidData, validSchema);
+      }).toThrow(SchemaValidationError);
     });
   });
 

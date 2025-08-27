@@ -22,9 +22,26 @@ import { DataController } from "./controllers/data";
 import { SchemaController } from "./controllers/schemas";
 import { ServerController } from "./controllers/server";
 import { ProtocolController } from "./controllers/protocol";
-import type { StorageProvider } from "./storage";
 import { StorageManager } from "./storage";
 import { createWalletClient, createPublicClient, http } from "viem";
+import type {
+  PublicClient,
+  WalletClient,
+  Address,
+  Hash,
+  TransactionReceipt,
+} from "viem";
+import type {
+  Operation,
+  PollingOptions,
+  TransactionResult,
+  TransactionWaitOptions,
+} from "./types/operations";
+import type {
+  Contract,
+  Fn,
+  TypedTransactionResult,
+} from "./generated/event-types";
 import { chains } from "./config/chains";
 import { getChainConfig } from "./chains";
 import type { VanaPlatformAdapter } from "./platform/interface";
@@ -153,8 +170,8 @@ export class VanaCore {
   private readonly hasRequiredStorage: boolean;
   private readonly ipfsGateways?: string[];
   private readonly defaultPersonalServerUrl?: string;
-  private readonly publicClient: import("viem").PublicClient;
-  private readonly walletClient: import("viem").WalletClient;
+  private readonly publicClient: PublicClient;
+  private readonly walletClient: WalletClient;
 
   /**
    * Initializes a new VanaCore client instance with the provided configuration.
@@ -242,7 +259,7 @@ export class VanaCore {
 
       walletClient = createWalletClient({
         chain,
-        transport: http(config.rpcUrl || chain.rpcUrls.default.http[0]),
+        transport: http(config.rpcUrl ?? chain.rpcUrls.default.http[0]),
         account: config.account,
       });
     } else {
@@ -263,7 +280,7 @@ export class VanaCore {
 
     // Get default subgraph URL if not provided in config
     const chainConfig = getChainConfig(walletClient.chain.id);
-    const subgraphUrl = config.subgraphUrl || chainConfig?.subgraphUrl;
+    const subgraphUrl = config.subgraphUrl ?? chainConfig?.subgraphUrl;
 
     // Create shared context for all controllers, now including the platform adapter
     const sharedContext: ControllerContext = {
@@ -427,14 +444,14 @@ export class VanaCore {
       // Validate that the chain is supported
       if (!isVanaChainId(config.walletClient.chain.id)) {
         throw new InvalidConfigurationError(
-          `Unsupported chain ID: ${config.walletClient.chain.id}. Supported chains: 14800 (Moksha testnet), 1480 (Vana mainnet)`,
+          `Unsupported chain ID: ${String(config.walletClient.chain.id)}. Supported chains: 14800 (Moksha testnet), 1480 (Vana mainnet)`,
         );
       }
     } else if (isChainConfig(config)) {
       // Validate ChainConfig
       if (!isVanaChainId(config.chainId)) {
         throw new InvalidConfigurationError(
-          `Unsupported chain ID: ${config.chainId}. Supported chains: 14800 (Moksha testnet), 1480 (Vana mainnet)`,
+          `Unsupported chain ID: ${String(config.chainId)}. Supported chains: 14800 (Moksha testnet), 1480 (Vana mainnet)`,
         );
       }
 
@@ -509,7 +526,7 @@ export class VanaCore {
    * console.log(`User address: ${address}`); // e.g., "User address: 0x742d35..."
    * ```
    */
-  async getUserAddress(): Promise<import("viem").Address> {
+  async getUserAddress(): Promise<Address> {
     if (!this.walletClient.account) {
       throw new Error("No wallet account connected");
     }
@@ -518,7 +535,7 @@ export class VanaCore {
 
     // Return the account address directly if available
     if (typeof account === "string") {
-      return account as import("viem").Address;
+      return account as Address;
     }
 
     // If account is an object, get the address property
@@ -545,7 +562,7 @@ export class VanaCore {
       chainId: this.chainId as VanaChainId,
       chainName: this.chainName,
       relayerCallbacks: this.relayerCallbacks,
-      storageProviders: this.storageManager?.getStorageProviders() || [],
+      storageProviders: this.storageManager?.getStorageProviders() ?? [],
       defaultStorageProvider: this.storageManager?.getDefaultStorageProvider(),
     };
   }
@@ -717,9 +734,9 @@ export class VanaCore {
    * ```
    */
   public async waitForOperation<T = unknown>(
-    opOrId: import("./types/operations").Operation<T> | string,
-    options?: import("./types/operations").PollingOptions,
-  ): Promise<import("./types/operations").Operation<T>> {
+    opOrId: Operation<T> | string,
+    options?: PollingOptions,
+  ): Promise<Operation<T>> {
     return this.server.waitForOperation(opOrId, options);
   }
 
@@ -751,12 +768,9 @@ export class VanaCore {
    * ```
    */
   public async waitForTransactionReceipt(
-    hashOrObj:
-      | import("./types/operations").TransactionResult
-      | { hash: import("viem").Hash }
-      | import("viem").Hash,
-    options?: import("./types/operations").TransactionWaitOptions,
-  ): Promise<import("viem").TransactionReceipt> {
+    hashOrObj: TransactionResult | { hash: Hash } | Hash,
+    options?: TransactionWaitOptions,
+  ): Promise<TransactionReceipt> {
     const hash = typeof hashOrObj === "string" ? hashOrObj : hashOrObj.hash;
 
     return this.publicClient.waitForTransactionReceipt({
@@ -795,13 +809,10 @@ export class VanaCore {
    *
    * @see For understanding transaction flows, visit https://docs.vana.org/docs/transactions
    */
-  public async waitForTransactionEvents<
-    C extends import("./generated/event-types").Contract,
-    F extends import("./generated/event-types").Fn<C>,
-  >(
-    transaction: import("./types/operations").TransactionResult<C, F>,
-    options?: import("./types/operations").TransactionWaitOptions,
-  ): Promise<import("./generated/event-types").TypedTransactionResult<C, F>> {
+  public async waitForTransactionEvents<C extends Contract, F extends Fn<C>>(
+    transaction: TransactionResult<C, F>,
+    options?: TransactionWaitOptions,
+  ): Promise<TypedTransactionResult<C, F>> {
     // Import the POJO-based parser
     const { parseTransaction } = await import("./utils/parseTransactionPojo");
 

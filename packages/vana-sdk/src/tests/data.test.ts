@@ -3,12 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DataController } from "../controllers/data";
 import type { ControllerContext } from "../controllers/permissions";
 import type { StorageManager } from "../storage/manager";
-import type {
-  StorageProvider as _StorageProvider,
-  StorageUploadResult as _StorageUploadResult,
-  StorageFile as _StorageFile,
-  StorageListOptions as _StorageListOptions,
-} from "../storage/index";
+
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock ALL external dependencies for pure unit tests

@@ -27,7 +27,7 @@ export function FileUpload({
   className = "",
 }: FileUploadProps) {
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = event.target.files?.[0] || null;
+    const selectedFile = event.target.files?.[0] ?? null;
     onFileChange(selectedFile);
   };
 
@@ -58,7 +58,7 @@ export function FileUpload({
           {file && (
             <span className="text-xs text-muted-foreground">
               Size: {(file.size / 1024).toFixed(1)} KB | Type:{" "}
-              {file.type || "unknown"}
+              {file.type ?? "unknown"}
             </span>
           )}
         </label>

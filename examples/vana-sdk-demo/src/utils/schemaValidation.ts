@@ -2,6 +2,7 @@ import {
   validateDataAgainstSchema as sdkValidateDataAgainstSchema,
   type DataSchema,
   type Schema,
+  fetchWithFallbacks,
 } from "@opendatalabs/vana-sdk/browser";
 
 /**
@@ -37,29 +38,36 @@ export async function validateDataAgainstSchema(
       parsedData = data;
     }
 
-    // Fetch the schema definition from the URL
-    const response = await fetch(schema.definitionUrl);
-    if (!response.ok) {
+    // Fetch the schema definition from the URL (handles IPFS URLs)
+    let fetchedSchema;
+    try {
+      const response = await fetchWithFallbacks(schema.definitionUrl);
+      if (!response.ok) {
+        return {
+          isValid: false,
+          errors: [
+            `Failed to fetch schema definition: ${response.status} ${response.statusText}`,
+          ],
+        };
+      }
+      fetchedSchema = await response.json();
+    } catch (error) {
       return {
         isValid: false,
         errors: [
-          `Failed to fetch schema definition: ${response.status} ${response.statusText}`,
+          `Failed to fetch schema definition: ${error instanceof Error ? error.message : String(error)}`,
         ],
       };
     }
 
-    const schemaDefinition = await response.json();
-
-    // Convert to DataSchema format expected by SDK
+    // The fetched schema is already a DataSchema, use it directly
+    // Only override dialect from on-chain if there's a mismatch
     const dataSchema: DataSchema = {
-      name: schema.name,
-      version: "1.0.0", // Default version since it's not provided in Schema interface
-      description: `Schema for ${schema.name}`,
-      dialect: "json",
-      schema: schemaDefinition as string | object,
+      ...fetchedSchema,
+      dialect: schema.dialect, // Use on-chain dialect as authoritative
     };
 
-    // Use SDK validation
+    // Use SDK validation - this throws if invalid
     sdkValidateDataAgainstSchema(parsedData, dataSchema);
 
     return {
@@ -67,13 +75,32 @@ export async function validateDataAgainstSchema(
       errors: [],
     };
   } catch (error) {
-    // Extract error messages from SchemaValidationError or other errors
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown validation error";
+    // Extract detailed error messages
+    const errors: string[] = [];
+
+    // Check if it's a SchemaValidationError with AJV errors
+    if (error && typeof error === "object" && "errors" in error) {
+      const ajvErrors = (error as any).errors;
+      if (Array.isArray(ajvErrors) && ajvErrors.length > 0) {
+        // Extract detailed validation errors from AJV
+        for (const ajvError of ajvErrors) {
+          const path = ajvError.instancePath ?? "root";
+          const message = ajvError.message ?? "validation failed";
+          errors.push(`${path}: ${message}`);
+        }
+      }
+    }
+
+    // Fall back to error message if no detailed errors
+    if (errors.length === 0) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown validation error";
+      errors.push(errorMessage);
+    }
 
     return {
       isValid: false,
-      errors: [errorMessage],
+      errors,
     };
   }
 }

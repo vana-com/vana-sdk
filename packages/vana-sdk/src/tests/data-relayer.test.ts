@@ -137,10 +137,17 @@ describe("DataController Relayer Integration", () => {
     });
 
     it("should fallback to direct transaction when no relayerCallbacks", async () => {
-      // Remove relayer callbacks from context
+      // Remove relayer callbacks from context but add waitForTransactionEvents
       const contextWithoutRelayer = {
         ...mockContext,
         relayerCallbacks: undefined,
+        waitForTransactionEvents: vi.fn().mockResolvedValue({
+          expectedEvents: {
+            FileAdded: {
+              fileId: BigInt(789),
+            },
+          },
+        }),
       };
       const controller = new DataController(contextWithoutRelayer);
 
@@ -177,6 +184,7 @@ describe("DataController Relayer Integration", () => {
       );
 
       expect(result.transactionHash).toBe("0xDirectTxHash");
+      expect(result.fileId).toBe(789);
     });
 
     it("should handle relayer errors gracefully", async () => {

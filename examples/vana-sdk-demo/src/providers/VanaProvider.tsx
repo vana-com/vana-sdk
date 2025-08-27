@@ -85,7 +85,7 @@ const submitToRelayer = async (
   });
   const result = await response.json();
   if (!result.success) {
-    throw new Error(result.error || "Failed to submit to relayer");
+    throw new Error(result.error ?? "Failed to submit to relayer");
   }
   return result;
 };
@@ -110,9 +110,9 @@ const createStorageProviders = (
       }
       const data = await response.json();
       return {
-        url: data.url || data.identifier,
+        url: data.url ?? data.identifier,
         size: blob.size,
-        contentType: blob.type || "application/octet-stream",
+        contentType: blob.type ?? "application/octet-stream",
       };
     },
     async download(identifier: string) {
@@ -138,7 +138,7 @@ const createStorageProviders = (
     console.info("👤 Adding user-managed Pinata IPFS storage");
     providers["user-ipfs"] = new PinataStorage({
       jwt: config.pinataJwt,
-      gatewayUrl: config.pinataGateway || "https://gateway.pinata.cloud",
+      gatewayUrl: config.pinataGateway ?? "https://gateway.pinata.cloud",
     });
   }
 
@@ -174,7 +174,7 @@ const setupGoogleDriveStorage = async (
 
 // Helper to determine default storage provider
 const getDefaultProvider = (config: VanaConfig): string => {
-  const requested = config.defaultStorageProvider || "app-ipfs";
+  const requested = config.defaultStorageProvider ?? "app-ipfs";
   if (requested === "user-ipfs" && !config.pinataJwt) return "app-ipfs";
   if (requested === "google-drive" && !config.googleDriveAccessToken)
     return "app-ipfs";
@@ -325,7 +325,7 @@ export function VanaProvider({
         const actualDefaultProvider = getDefaultProvider(config);
 
         // Create relayer callbacks if using gasless transactions
-        const baseUrl = config.relayerUrl || window.location.origin;
+        const baseUrl = config.relayerUrl ?? window.location.origin;
         const relayerCallbacks = useGaslessTransactions
           ? {
               submitPermissionGrant: createPermissionGrantCallback(
@@ -367,7 +367,7 @@ export function VanaProvider({
                   baseUrl,
                 );
                 return {
-                  fileId: Number(result.fileId) || 0,
+                  fileId: Number(result.fileId) ?? 0,
                   transactionHash: result.transactionHash as Hash,
                 };
               },
@@ -383,7 +383,7 @@ export function VanaProvider({
                   baseUrl,
                 );
                 return {
-                  fileId: Number(result.fileId) || 0,
+                  fileId: Number(result.fileId) ?? 0,
                   transactionHash: result.transactionHash as Hash,
                 };
               },
@@ -400,7 +400,7 @@ export function VanaProvider({
                   baseUrl,
                 );
                 return {
-                  fileId: Number(result.fileId) || 0,
+                  fileId: Number(result.fileId) ?? 0,
                   transactionHash: result.transactionHash as Hash,
                 };
               },
@@ -428,7 +428,7 @@ export function VanaProvider({
 
                   const result = await response.json();
                   if (!result.success)
-                    throw new Error(result.error || "IPFS upload failed");
+                    throw new Error(result.error ?? "IPFS upload failed");
                   if (!result.url)
                     throw new Error("IPFS upload did not return a URL");
 

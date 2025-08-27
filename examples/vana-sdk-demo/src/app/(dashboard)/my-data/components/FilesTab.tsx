@@ -152,7 +152,9 @@ export function FilesTab({
               placeholder="Enter file ID"
               type="text"
               value={fileLookupId}
-              onChange={(e) => onFileLookupIdChange(e.target.value)}
+              onChange={(e) => {
+                onFileLookupIdChange(e.target.value);
+              }}
               className="max-w-xs"
               size="sm"
               description="Search for a specific file by its numeric ID"
@@ -245,7 +247,9 @@ export function FilesTab({
                     <Button
                       size="sm"
                       color="primary"
-                      onPress={() => setIsGrantModalOpen(true)}
+                      onPress={() => {
+                        setIsGrantModalOpen(true);
+                      }}
                       disabled={isGranting || !applicationAddress?.trim()}
                       startContent={<Users className="h-3 w-3" />}
                     >
@@ -329,9 +333,9 @@ export function FilesTab({
                         <TableCell>
                           <Checkbox
                             isSelected={isSelected}
-                            onValueChange={(selected) =>
-                              onFileSelection(file.id, selected)
-                            }
+                            onValueChange={(selected) => {
+                              onFileSelection(file.id, selected);
+                            }}
                           />
                         </TableCell>
                         <TableCell>
@@ -424,7 +428,9 @@ export function FilesTab({
                             <Button
                               size="sm"
                               variant="flat"
-                              onPress={() => onDecryptFile(file)}
+                              onPress={() => {
+                                onDecryptFile(file);
+                              }}
                               isLoading={isDecrypting}
                               isDisabled={isDecrypting}
                               startContent={
@@ -439,7 +445,9 @@ export function FilesTab({
                               <Button
                                 size="sm"
                                 variant="flat"
-                                onPress={() => onDownloadDecryptedFile(file)}
+                                onPress={() => {
+                                  onDownloadDecryptedFile(file);
+                                }}
                                 startContent={<Download className="h-3 w-3" />}
                               >
                                 Download
@@ -449,8 +457,10 @@ export function FilesTab({
                           {fileDecryptErrors.has(file.id) && (
                             <div className="mt-2">
                               <ErrorMessage
-                                error={fileDecryptErrors.get(file.id) || null}
-                                onDismiss={() => onClearFileError(file.id)}
+                                error={fileDecryptErrors.get(file.id) ?? null}
+                                onDismiss={() => {
+                                  onClearFileError(file.id);
+                                }}
                                 className="text-xs"
                               />
                             </div>
@@ -460,7 +470,7 @@ export function FilesTab({
                               <FilePreview
                                 content={decryptedContent}
                                 fileName={
-                                  file.url.split("/").pop() || `file-${file.id}`
+                                  file.url.split("/").pop() ?? `file-${file.id}`
                                 }
                                 className="max-w-md"
                               />

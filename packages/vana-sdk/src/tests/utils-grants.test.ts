@@ -9,7 +9,7 @@ import {
   getGrantTimeRemaining,
   summarizeGrant,
 } from "../utils/grants";
-import { GrantValidationError } from "../utils/grantValidation";
+import { validateGrant, GrantValidationError } from "../utils/grantValidation";
 
 // Mock the dependencies
 vi.mock("../utils/grantFiles", () => ({
@@ -37,7 +37,6 @@ import {
   storeGrantFile,
   retrieveGrantFile,
 } from "../utils/grantFiles";
-import { validateGrant } from "../utils/grantValidation";
 
 describe("Grant Utilities", () => {
   const mockGrantFile = {

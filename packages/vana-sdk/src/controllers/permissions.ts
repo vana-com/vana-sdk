@@ -1,5 +1,5 @@
 import type { Address, Hash } from "viem";
-import { getAddress, toHex } from "viem";
+import { getAddress } from "viem";
 import { gasAwareMulticall } from "../utils/multicall";
 import type {
   GrantPermissionParams,
@@ -41,13 +41,9 @@ import type {
   PermissionGrantResult,
   PermissionRevokeResult,
   ServerTrustResult,
-  // ServerUntrustResult,
-  // ServerUpdateResult,
-  // GranteeRegisterResult,
 } from "../types/transactionResults";
 import type { TransactionResult } from "../types/operations";
 import type { PermissionInfo } from "../types/permissions";
-// RelayerCallbacks and DownloadRelayerCallbacks are imported via ControllerContext
 import {
   RelayerError,
   UserRejectedRequestError,
@@ -537,7 +533,7 @@ export class PermissionsController {
         "🔍 Debug - submitSignedGrant called with typed data:",
         JSON.stringify(
           typedData,
-          (key, value) =>
+          (_key, value) =>
             typeof value === "bigint" ? value.toString() : value,
           2,
         ),
@@ -550,7 +546,7 @@ export class PermissionsController {
           signature,
         );
         const account =
-          this.context.walletClient.account || (await this.getUserAddress());
+          this.context.walletClient.account ?? (await this.getUserAddress());
         const { tx } = await import("../utils/transactionHelpers");
         return tx({
           hash,
@@ -617,7 +613,7 @@ export class PermissionsController {
         signature,
       );
       const account =
-        this.context.walletClient.account || (await this.getUserAddress());
+        this.context.walletClient.account ?? (await this.getUserAddress());
       const { tx } = await import("../utils/transactionHelpers");
       return tx({
         hash,
@@ -706,7 +702,7 @@ export class PermissionsController {
         signature,
       );
       const account =
-        this.context.walletClient.account || (await this.getUserAddress());
+        this.context.walletClient.account ?? (await this.getUserAddress());
       const { tx } = await import("../utils/transactionHelpers");
       return tx({
         hash,
@@ -824,48 +820,6 @@ export class PermissionsController {
   }
 
   /**
-   * Internal method to submit a signed revoke and wait for events.
-   *
-   * @internal
-   * @param typedData - The EIP-712 typed data for the permission revoke
-   * @param signature - The user's signature authorizing the transaction
-   * @returns Promise resolving to PermissionRevokeResult with parsed events
-   */
-  private async submitSignedRevokeWithEvents(
-    typedData: GenericTypedData,
-    signature: Hash,
-  ): Promise<PermissionRevokeResult> {
-    const txResult = await this.submitSignedRevoke(typedData, signature);
-
-    if (!this.context.waitForTransactionEvents) {
-      throw new BlockchainError("waitForTransactionEvents not configured");
-    }
-
-    // Wait for transaction events
-    const result = await this.context.waitForTransactionEvents(txResult);
-
-    // Extract the expected event
-    const event = result.expectedEvents.PermissionRevoked;
-    if (!event) {
-      throw new BlockchainError(
-        "PermissionRevoked event not found in transaction",
-      );
-    }
-
-    // Get receipt for block number and gas used
-    const receipt = await this.context.publicClient.getTransactionReceipt({
-      hash: result.hash,
-    });
-
-    return {
-      transactionHash: result.hash,
-      blockNumber: receipt.blockNumber,
-      gasUsed: receipt.gasUsed,
-      permissionId: event.permissionId,
-    };
-  }
-
-  /**
    * Submits an already-signed permission revoke transaction to the blockchain.
    *
    * @remarks
@@ -910,7 +864,7 @@ export class PermissionsController {
         );
       }
       const account =
-        this.context.walletClient.account || (await this.getUserAddress());
+        this.context.walletClient.account ?? (await this.getUserAddress());
       const { tx } = await import("../utils/transactionHelpers");
       return tx({
         hash,
@@ -977,7 +931,7 @@ export class PermissionsController {
         );
       }
       const account =
-        this.context.walletClient.account || (await this.getUserAddress());
+        this.context.walletClient.account ?? (await this.getUserAddress());
       const { tx } = await import("../utils/transactionHelpers");
       return tx({
         hash,
@@ -1017,12 +971,7 @@ export class PermissionsController {
   private async submitDirectTransaction(
     typedData: PermissionGrantTypedData,
     signature: Hash,
-  ): Promise<
-    import("../types/operations").TransactionResult<
-      "DataPortabilityPermissions",
-      "addPermission"
-    >
-  > {
+  ): Promise<TransactionResult<"DataPortabilityPermissions", "addPermission">> {
     const chainId = await this.context.walletClient.getChainId();
     const DataPortabilityPermissionsAddress = getContractAddress(
       chainId,
@@ -1046,7 +995,7 @@ export class PermissionsController {
     console.debug("🔍 Debug - Grant field value:", typedData.message.grant);
     console.debug(
       "🔍 Debug - Grant field length:",
-      typedData.message.grant?.length || 0,
+      typedData.message.grant?.length ?? 0,
     );
 
     // Format signature for contract compatibility
@@ -1054,7 +1003,7 @@ export class PermissionsController {
 
     // Submit directly to the contract using the provided wallet client
     const account =
-      this.context.walletClient.account || (await this.getUserAddress());
+      this.context.walletClient.account ?? (await this.getUserAddress());
 
     const txHash = await this.context.walletClient.writeContract({
       address: DataPortabilityPermissionsAddress,
@@ -1062,7 +1011,7 @@ export class PermissionsController {
       functionName: "addPermission",
       args: [permissionInput, formattedSignature],
       account,
-      chain: this.context.walletClient.chain || null,
+      chain: this.context.walletClient.chain ?? null,
     });
 
     const { tx } = await import("../utils/transactionHelpers");
@@ -1172,7 +1121,7 @@ export class PermissionsController {
 
       // Direct contract call for revocation
       const account =
-        this.context.walletClient.account || (await this.getUserAddress());
+        this.context.walletClient.account ?? (await this.getUserAddress());
 
       const txHash = await this.context.walletClient.writeContract({
         address: DataPortabilityPermissionsAddress,
@@ -1180,7 +1129,7 @@ export class PermissionsController {
         functionName: "revokePermission",
         args: [params.permissionId],
         account,
-        chain: this.context.walletClient.chain || null,
+        chain: this.context.walletClient.chain ?? null,
       });
 
       const { tx } = await import("../utils/transactionHelpers");
@@ -1289,7 +1238,7 @@ export class PermissionsController {
       }
 
       const account =
-        this.context.walletClient.account || (await this.getUserAddress());
+        this.context.walletClient.account ?? (await this.getUserAddress());
       const { tx } = await import("../utils/transactionHelpers");
       return tx({
         hash,
@@ -1301,68 +1250,6 @@ export class PermissionsController {
       throw new PermissionError(
         `Failed to revoke permission with signature: ${error instanceof Error ? error.message : "Unknown error"}`,
         error as Error,
-      );
-    }
-  }
-
-  /**
-   * @deprecated Use getPermissionsUserNonce() for permission operations or getServersUserNonce() for server operations
-   *
-   * Retrieves the user's current nonce from the DataPortabilityServers contract.
-   * This method is deprecated in favor of more specific nonce methods.
-   *
-   * The nonce is used to prevent replay attacks in signed transactions and must
-   * be incremented with each transaction to maintain security.
-   *
-   * @returns Promise resolving to the user's current nonce value as a bigint
-   * @throws {Error} When wallet account is not available
-   * @throws {Error} When chain ID is not available
-   * @throws {NonceError} When reading nonce from contract fails
-   * @private
-   * @example
-   * ```typescript
-   * // Deprecated - use specific methods instead
-   * const nonce = await this.getUserNonce();
-   *
-   * // Use these instead:
-   * const permissionsNonce = await this.getPermissionsUserNonce();
-   * const serversNonce = await this.getServersUserNonce();
-   * ```
-   */
-  /**
-   * @deprecated Use getPermissionsUserNonce() for permission operations or getServersUserNonce() for server operations
-   *
-   * Retrieves the user's current nonce from the DataPortabilityServers contract.
-   *
-   * @remarks
-   * This method is deprecated in favor of more specific nonce methods that target
-   * the appropriate contract for the operation being performed.
-   *
-   * @returns Promise resolving to the user's current nonce as a bigint
-   * @throws {NonceError} When retrieving the nonce fails
-   */
-  private async getUserNonce(): Promise<bigint> {
-    try {
-      const userAddress = await this.getUserAddress();
-      const chainId = await this.context.walletClient.getChainId();
-
-      const DataPortabilityServersAddress = getContractAddress(
-        chainId,
-        "DataPortabilityServers",
-      );
-      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
-
-      const nonce = await this.context.publicClient.readContract({
-        address: DataPortabilityServersAddress,
-        abi: DataPortabilityServersAbi,
-        functionName: "userNonce",
-        args: [userAddress],
-      });
-
-      return nonce;
-    } catch (error) {
-      throw new NonceError(
-        `Failed to retrieve user nonce: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }
@@ -1660,7 +1547,7 @@ export class PermissionsController {
     try {
       // Get wallet address for cache key - use account if available, otherwise get from wallet
       const walletAddress =
-        this.context.walletClient.account?.address ||
+        this.context.walletClient.account?.address ??
         (await this.getUserAddress());
 
       // Use signature cache to avoid repeated signing of identical messages
@@ -1674,7 +1561,7 @@ export class PermissionsController {
             ...viemCompatibleTypedData,
             // Use the account if available, otherwise use the wallet address
             // This follows the same pattern used throughout this file
-            account: this.context.walletClient.account || walletAddress,
+            account: this.context.walletClient.account ?? walletAddress,
           });
         },
       );
@@ -1746,7 +1633,7 @@ export class PermissionsController {
       const userAddress = await this.getUserAddress();
 
       // Use provided subgraph URL or default from context
-      const graphqlEndpoint = subgraphUrl || this.context.subgraphUrl;
+      const graphqlEndpoint = subgraphUrl ?? this.context.subgraphUrl;
 
       if (!graphqlEndpoint) {
         throw new BlockchainError(
@@ -1821,8 +1708,8 @@ export class PermissionsController {
             nonce: BigInt(permission.nonce),
             startBlock: BigInt(permission.startBlock),
             addedAtBlock: BigInt(permission.addedAtBlock),
-            addedAtTimestamp: BigInt(permission.addedAtTimestamp || "0"),
-            transactionHash: permission.transactionHash || "",
+            addedAtTimestamp: BigInt(permission.addedAtTimestamp ?? "0"),
+            transactionHash: permission.transactionHash ?? "",
             grantor: userAddress,
             grantee: permission.grantee,
             active: !permission.endBlock || BigInt(permission.endBlock) === 0n, // Active if no end block or end block is 0
@@ -1841,34 +1728,6 @@ export class PermissionsController {
       }
       throw new BlockchainError(
         `Failed to fetch user permission grants: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-    }
-  }
-
-  /**
-   * Normalizes grant ID to hex format.
-   * Handles conversion from permission ID (bigint/number/string) to proper hex hash format.
-   *
-   * @param grantId - Permission ID or grant hash in various formats
-   * @returns Normalized hex hash
-   */
-  private normalizeGrantId(grantId: Hash | bigint | number | string): Hash {
-    // If it's already a hex string (Hash), return as-is
-    if (
-      typeof grantId === "string" &&
-      grantId.startsWith("0x") &&
-      grantId.length === 66
-    ) {
-      return grantId as Hash;
-    }
-
-    // Convert permission ID to hex format (same logic as demo was using)
-    try {
-      const bigIntId = BigInt(grantId);
-      return toHex(bigIntId, { size: 32 });
-    } catch {
-      throw new Error(
-        `Invalid grant ID format: ${grantId}. Must be a permission ID (number/bigint/string) or a 32-byte hex hash.`,
       );
     }
   }
@@ -1920,7 +1779,7 @@ export class PermissionsController {
 
       // Submit directly to the contract
       const account =
-        this.context.walletClient.account || (await this.getUserAddress());
+        this.context.walletClient.account ?? (await this.getUserAddress());
       const userAddress =
         typeof account === "string" ? account : account.address;
       const normalizedUserAddress = getAddress(userAddress);
@@ -1939,7 +1798,7 @@ export class PermissionsController {
           },
         ],
         account,
-        chain: this.context.walletClient.chain || null,
+        chain: this.context.walletClient.chain ?? null,
       });
 
       const { tx } = await import("../utils/transactionHelpers");
@@ -2007,7 +1866,7 @@ export class PermissionsController {
 
       // Submit directly to the contract using trustServer method
       const account =
-        this.context.walletClient.account || (await this.getUserAddress());
+        this.context.walletClient.account ?? (await this.getUserAddress());
 
       const txHash = await this.context.walletClient.writeContract({
         address: DataPortabilityServersAddress,
@@ -2015,7 +1874,7 @@ export class PermissionsController {
         functionName: "trustServer",
         args: [BigInt(params.serverId)],
         account,
-        chain: this.context.walletClient.chain || null,
+        chain: this.context.walletClient.chain ?? null,
       });
 
       const { tx } = await import("../utils/transactionHelpers");
@@ -2097,7 +1956,7 @@ export class PermissionsController {
       }
 
       const account =
-        this.context.walletClient.account || (await this.getUserAddress());
+        this.context.walletClient.account ?? (await this.getUserAddress());
       const { tx } = await import("../utils/transactionHelpers");
       return tx({
         hash,
@@ -2177,7 +2036,7 @@ export class PermissionsController {
       }
 
       const account =
-        this.context.walletClient.account || (await this.getUserAddress());
+        this.context.walletClient.account ?? (await this.getUserAddress());
       const { tx } = await import("../utils/transactionHelpers");
       return tx({
         hash,
@@ -2237,7 +2096,7 @@ export class PermissionsController {
 
       // Submit directly to the contract
       const account =
-        this.context.walletClient.account || (await this.getUserAddress());
+        this.context.walletClient.account ?? (await this.getUserAddress());
 
       const txHash = await this.context.walletClient.writeContract({
         address: DataPortabilityServersAddress,
@@ -2245,7 +2104,7 @@ export class PermissionsController {
         functionName: "untrustServer",
         args: [BigInt(params.serverId)],
         account,
-        chain: this.context.walletClient.chain || null,
+        chain: this.context.walletClient.chain ?? null,
       });
 
       const { tx } = await import("../utils/transactionHelpers");
@@ -2352,7 +2211,7 @@ export class PermissionsController {
       }
 
       const account =
-        this.context.walletClient.account || (await this.getUserAddress());
+        this.context.walletClient.account ?? (await this.getUserAddress());
       const { tx } = await import("../utils/transactionHelpers");
       return tx({
         hash,
@@ -2406,7 +2265,7 @@ export class PermissionsController {
    */
   async getTrustedServers(userAddress?: Address): Promise<number[]> {
     try {
-      const user = userAddress || (await this.getUserAddress());
+      const user = userAddress ?? (await this.getUserAddress());
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
         chainId,
@@ -2439,7 +2298,7 @@ export class PermissionsController {
    */
   async getTrustedServersCount(userAddress?: Address): Promise<number> {
     try {
-      const user = userAddress || (await this.getUserAddress());
+      const user = userAddress ?? (await this.getUserAddress());
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
         chainId,
@@ -2474,9 +2333,9 @@ export class PermissionsController {
     options: TrustedServerQueryOptions = {},
   ): Promise<PaginatedTrustedServers> {
     try {
-      const user = options.userAddress || (await this.getUserAddress());
-      const limit = options.limit || 50;
-      const offset = options.offset || 0;
+      const user = options.userAddress ?? (await this.getUserAddress());
+      const limit = options.limit ?? 50;
+      const offset = options.offset ?? 0;
 
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
@@ -2773,7 +2632,7 @@ export class PermissionsController {
     userAddress?: Address,
   ): Promise<ServerTrustStatus> {
     try {
-      const user = userAddress || (await this.getUserAddress());
+      const user = userAddress ?? (await this.getUserAddress());
       const trustedServers = await this.getTrustedServers(user);
 
       const trustIndex = trustedServers.findIndex(
@@ -2940,8 +2799,8 @@ export class PermissionsController {
         formattedSignature,
       ],
       account:
-        this.context.walletClient.account || (await this.getUserAddress()),
-      chain: this.context.walletClient.chain || null,
+        this.context.walletClient.account ?? (await this.getUserAddress()),
+      chain: this.context.walletClient.chain ?? null,
     });
 
     return txHash;
@@ -2980,8 +2839,8 @@ export class PermissionsController {
         formattedSignature,
       ],
       account:
-        this.context.walletClient.account || (await this.getUserAddress()),
-      chain: this.context.walletClient.chain || null,
+        this.context.walletClient.account ?? (await this.getUserAddress()),
+      chain: this.context.walletClient.chain ?? null,
     });
 
     return txHash;
@@ -3014,8 +2873,8 @@ export class PermissionsController {
       functionName: "revokePermissionWithSignature",
       args: [typedData.message, formattedSignature],
       account:
-        this.context.walletClient.account || (await this.getUserAddress()),
-      chain: this.context.walletClient.chain || null,
+        this.context.walletClient.account ?? (await this.getUserAddress()),
+      chain: this.context.walletClient.chain ?? null,
     });
 
     return txHash;
@@ -3055,8 +2914,8 @@ export class PermissionsController {
       functionName: "untrustServerWithSignature",
       args: [contractMessage, formattedSignature],
       account:
-        this.context.walletClient.account || (await this.getUserAddress()),
-      chain: this.context.walletClient.chain || null,
+        this.context.walletClient.account ?? (await this.getUserAddress()),
+      chain: this.context.walletClient.chain ?? null,
     });
 
     return txHash;
@@ -3104,7 +2963,7 @@ export class PermissionsController {
     const ownerAddress = getAddress(params.owner);
     const granteeAddress = getAddress(params.granteeAddress);
     const account =
-      this.context.walletClient.account || (await this.getUserAddress());
+      this.context.walletClient.account ?? (await this.getUserAddress());
 
     const txHash = await this.context.walletClient.writeContract({
       address: DataPortabilityGranteesAddress,
@@ -3112,7 +2971,7 @@ export class PermissionsController {
       functionName: "registerGrantee",
       args: [ownerAddress, granteeAddress, params.publicKey],
       account,
-      chain: this.context.walletClient.chain || null,
+      chain: this.context.walletClient.chain ?? null,
     });
 
     const { tx } = await import("../utils/transactionHelpers");
@@ -3165,7 +3024,7 @@ export class PermissionsController {
       signature,
     );
     const account =
-      this.context.walletClient.account || (await this.getUserAddress());
+      this.context.walletClient.account ?? (await this.getUserAddress());
     const { tx } = await import("../utils/transactionHelpers");
     return tx({
       hash,
@@ -3196,7 +3055,7 @@ export class PermissionsController {
       signature,
     );
     const account =
-      this.context.walletClient.account || (await this.getUserAddress());
+      this.context.walletClient.account ?? (await this.getUserAddress());
     const { tx } = await import("../utils/transactionHelpers");
     return tx({
       hash,
@@ -3256,8 +3115,8 @@ export class PermissionsController {
     });
 
     const total = Number(totalCount);
-    const limit = options.limit || 50;
-    const offset = options.offset || 0;
+    const limit = options.limit ?? 50;
+    const offset = options.offset ?? 0;
 
     const grantees: Grantee[] = [];
 
@@ -3493,8 +3352,8 @@ export class PermissionsController {
         (typedData.message as RegisterGranteeInput).publicKey,
       ],
       account:
-        this.context.walletClient.account || (await this.getUserAddress()),
-      chain: this.context.walletClient.chain || null,
+        this.context.walletClient.account ?? (await this.getUserAddress()),
+      chain: this.context.walletClient.chain ?? null,
     });
 
     return txHash;
@@ -3512,7 +3371,7 @@ export class PermissionsController {
    */
   async getUserServerIds(userAddress?: Address): Promise<bigint[]> {
     try {
-      const targetAddress = userAddress || (await this.getUserAddress());
+      const targetAddress = userAddress ?? (await this.getUserAddress());
       const chainId = await this.context.publicClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
         chainId,
@@ -3579,7 +3438,7 @@ export class PermissionsController {
    */
   async getUserServerCount(userAddress?: Address): Promise<bigint> {
     try {
-      const targetAddress = userAddress || (await this.getUserAddress());
+      const targetAddress = userAddress ?? (await this.getUserAddress());
       const chainId = await this.context.publicClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
         chainId,
@@ -3613,7 +3472,7 @@ export class PermissionsController {
     userAddress?: Address,
   ): Promise<TrustedServerInfo[]> {
     try {
-      const targetAddress = userAddress || (await this.getUserAddress());
+      const targetAddress = userAddress ?? (await this.getUserAddress());
       const chainId = await this.context.publicClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
         chainId,
@@ -3746,7 +3605,7 @@ export class PermissionsController {
    */
   async getUserPermissionIds(userAddress?: Address): Promise<bigint[]> {
     try {
-      const targetAddress = userAddress || (await this.getUserAddress());
+      const targetAddress = userAddress ?? (await this.getUserAddress());
       const chainId = await this.context.publicClient.getChainId();
       const DataPortabilityPermissionsAddress = getContractAddress(
         chainId,
@@ -3817,7 +3676,7 @@ export class PermissionsController {
    */
   async getUserPermissionCount(userAddress?: Address): Promise<bigint> {
     try {
-      const targetAddress = userAddress || (await this.getUserAddress());
+      const targetAddress = userAddress ?? (await this.getUserAddress());
       const chainId = await this.context.publicClient.getChainId();
       const DataPortabilityPermissionsAddress = getContractAddress(
         chainId,
@@ -4329,7 +4188,7 @@ export class PermissionsController {
       const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
 
       const account =
-        this.context.walletClient.account || (await this.getUserAddress());
+        this.context.walletClient.account ?? (await this.getUserAddress());
 
       const hash = await this.context.walletClient.writeContract({
         address: DataPortabilityServersAddress,
@@ -4588,7 +4447,7 @@ export class PermissionsController {
       }
 
       const account =
-        this.context.walletClient.account || (await this.getUserAddress());
+        this.context.walletClient.account ?? (await this.getUserAddress());
       const { tx } = await import("../utils/transactionHelpers");
       return tx({
         hash,
@@ -4787,7 +4646,7 @@ export class PermissionsController {
             signature,
           );
         const account =
-          this.context.walletClient.account || (await this.getUserAddress());
+          this.context.walletClient.account ?? (await this.getUserAddress());
         const { tx } = await import("../utils/transactionHelpers");
         return tx({
           hash,
@@ -4805,7 +4664,7 @@ export class PermissionsController {
             signature,
           );
         const account =
-          this.context.walletClient.account || (await this.getUserAddress());
+          this.context.walletClient.account ?? (await this.getUserAddress());
         const { tx } = await import("../utils/transactionHelpers");
         return tx({
           hash,
@@ -4906,7 +4765,7 @@ export class PermissionsController {
       nonce: typedData.message.nonce as bigint,
       granteeId: typedData.message.granteeId as bigint,
       grant: typedData.message.grant as string,
-      fileIds: (typedData.message.fileIds as bigint[]) || [],
+      fileIds: (typedData.message.fileIds as bigint[]) ?? [],
     };
 
     // Format signature for contract compatibility
@@ -4918,8 +4777,8 @@ export class PermissionsController {
       functionName: "addPermission",
       args: [permissionInput, formattedSignature],
       account:
-        this.context.walletClient.account || (await this.getUserAddress()),
-      chain: this.context.walletClient.chain || null,
+        this.context.walletClient.account ?? (await this.getUserAddress()),
+      chain: this.context.walletClient.chain ?? null,
     });
 
     return hash;
@@ -4966,8 +4825,8 @@ export class PermissionsController {
       // @ts-expect-error - Viem's type inference for nested Permission[][] arrays is incompatible with our Permission type
       args: [serverFilesAndPermissionInput, formattedSignature],
       account:
-        this.context.walletClient.account || (await this.getUserAddress()),
-      chain: this.context.walletClient.chain || null,
+        this.context.walletClient.account ?? (await this.getUserAddress()),
+      chain: this.context.walletClient.chain ?? null,
     });
 
     return hash;

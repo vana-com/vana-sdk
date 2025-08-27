@@ -101,9 +101,9 @@ export function useGrantees(): UseGranteesReturn {
 
     try {
       await vana.permissions.submitRegisterGrantee({
-        owner: (ownerAddress || address) as `0x${string}`,
+        owner: (ownerAddress ?? address) as `0x${string}`,
         granteeAddress: granteeAddress as `0x${string}`,
-        publicKey: granteePublicKey || "0x", // Use provided public key or default
+        publicKey: granteePublicKey,
       });
 
       // Success - refresh grantees list
@@ -130,10 +130,10 @@ export function useGrantees(): UseGranteesReturn {
       if (!vana || !address) return;
 
       // Use override params if provided, otherwise use form state
-      const actualParams = overrideParams || {
-        owner: (ownerAddress || address) as `0x${string}`,
+      const actualParams = overrideParams ?? {
+        owner: (ownerAddress ?? address) as `0x${string}`,
         granteeAddress: granteeAddress as `0x${string}`,
-        publicKey: granteePublicKey || "0x", // Use provided public key or default
+        publicKey: granteePublicKey,
       };
 
       // Validate inputs

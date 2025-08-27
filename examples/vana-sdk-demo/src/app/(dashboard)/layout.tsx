@@ -50,11 +50,7 @@ export default function DashboardLayout({
 
   // Layout-level state for grant preview modal
   const [grantPreview, setGrantPreview] = useState<GrantPreview | null>(null);
-  const {
-    isOpen: showGrantPreview,
-    onOpen: _onOpenGrant,
-    onClose: onCloseGrant,
-  } = useDisclosure();
+  const { isOpen: showGrantPreview, onClose: onCloseGrant } = useDisclosure();
 
   // SDK Configuration state (layout-level since it affects entire app)
   const [sdkConfig, setSdkConfig] = useState(() => ({
@@ -68,7 +64,7 @@ export default function DashboardLayout({
     googleDriveRefreshToken: "",
     googleDriveExpiresAt: null as number | null,
     defaultPersonalServerUrl:
-      process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL ||
+      process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL ??
       (() => {
         throw new Error(
           "NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL environment variable is required",
@@ -184,13 +180,13 @@ export default function DashboardLayout({
           <div id="configuration">
             <SDKConfigurationSidebar
               sdkConfig={sdkConfig}
-              onConfigChange={(config) =>
-                setSdkConfig((prev) => ({ ...prev, ...config }))
-              }
+              onConfigChange={(config) => {
+                setSdkConfig((prev) => ({ ...prev, ...config }));
+              }}
               appConfig={appConfig}
-              onAppConfigChange={(config) =>
-                setAppConfig((prev) => ({ ...prev, ...config }))
-              }
+              onAppConfigChange={(config) => {
+                setAppConfig((prev) => ({ ...prev, ...config }));
+              }}
               onGoogleDriveAuth={handleGoogleDriveAuth}
               onGoogleDriveDisconnect={handleGoogleDriveDisconnect}
             />

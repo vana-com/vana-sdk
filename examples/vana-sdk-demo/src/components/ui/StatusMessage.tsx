@@ -26,7 +26,7 @@ export const StatusMessage: React.FC<StatusMessageProps> = ({
   inline = false,
 }) => {
   // Auto-detect type from status content if not provided
-  const detectedType = type || detectStatusType(status);
+  const detectedType = type ?? detectStatusType(status);
 
   if (inline) {
     const colorClasses = getInlineColorClasses(detectedType);

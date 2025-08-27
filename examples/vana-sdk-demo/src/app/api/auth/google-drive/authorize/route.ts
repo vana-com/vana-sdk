@@ -8,7 +8,7 @@ export function GET(request: NextRequest) {
   try {
     const clientId = process.env.GOOGLE_DRIVE_CLIENT_ID;
     const redirectUri =
-      process.env.GOOGLE_DRIVE_REDIRECT_URI ||
+      process.env.GOOGLE_DRIVE_REDIRECT_URI ??
       `${request.nextUrl.origin}/api/auth/google-drive/callback`;
 
     if (!clientId) {

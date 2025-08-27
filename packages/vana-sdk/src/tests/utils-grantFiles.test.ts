@@ -15,7 +15,7 @@ global.fetch = vi.fn();
 
 // Mock the download module
 vi.mock("../utils/download", () => ({
-  fetchWithRelayer: vi.fn(),
+  universalFetch: vi.fn(),
 }));
 
 describe("Grant Files Utils", () => {
@@ -238,10 +238,10 @@ describe("Grant Files Utils", () => {
     };
 
     it("should retrieve grant file from IPFS URL", async () => {
-      const { fetchWithRelayer } = await import("../utils/download");
-      const mockFetchWithRelayer = fetchWithRelayer as Mock;
+      const { universalFetch } = await import("../utils/download");
+      const mockUniversalFetch = universalFetch as Mock;
 
-      mockFetchWithRelayer.mockResolvedValueOnce({
+      mockUniversalFetch.mockResolvedValueOnce({
         ok: true,
         text: () => Promise.resolve(JSON.stringify(mockGrantFile)),
       });
@@ -249,18 +249,18 @@ describe("Grant Files Utils", () => {
       const result = await retrieveGrantFile("ipfs://QmGrantFile123");
 
       expect(result).toEqual(mockGrantFile);
-      expect(mockFetchWithRelayer).toHaveBeenCalledWith(
+      expect(mockUniversalFetch).toHaveBeenCalledWith(
         "ipfs://QmGrantFile123",
         undefined,
       );
     });
 
-    it("should handle fetchWithRelayer failures gracefully", async () => {
-      const { fetchWithRelayer } = await import("../utils/download");
-      const mockFetchWithRelayer = fetchWithRelayer as Mock;
+    it("should handle universalFetch failures gracefully", async () => {
+      const { universalFetch } = await import("../utils/download");
+      const mockUniversalFetch = universalFetch as Mock;
 
-      // fetchWithRelayer handles retries internally, so we just test final failure
-      mockFetchWithRelayer.mockRejectedValueOnce(
+      // universalFetch handles retries internally, so we just test final failure
+      mockUniversalFetch.mockRejectedValueOnce(
         new Error("All gateways failed"),
       );
 
@@ -270,10 +270,10 @@ describe("Grant Files Utils", () => {
     });
 
     it("should handle 404 responses", async () => {
-      const { fetchWithRelayer } = await import("../utils/download");
-      const mockFetchWithRelayer = fetchWithRelayer as Mock;
+      const { universalFetch } = await import("../utils/download");
+      const mockUniversalFetch = universalFetch as Mock;
 
-      mockFetchWithRelayer.mockResolvedValueOnce({
+      mockUniversalFetch.mockResolvedValueOnce({
         ok: false,
         status: 404,
         statusText: "Not Found",
@@ -285,10 +285,10 @@ describe("Grant Files Utils", () => {
     });
 
     it("should handle timeout", async () => {
-      const { fetchWithRelayer } = await import("../utils/download");
-      const mockFetchWithRelayer = fetchWithRelayer as Mock;
+      const { universalFetch } = await import("../utils/download");
+      const mockUniversalFetch = universalFetch as Mock;
 
-      mockFetchWithRelayer.mockRejectedValueOnce(new Error("Request timeout"));
+      mockUniversalFetch.mockRejectedValueOnce(new Error("Request timeout"));
 
       await expect(retrieveGrantFile("ipfs://QmTimeout")).rejects.toThrow(
         NetworkError,
@@ -296,10 +296,10 @@ describe("Grant Files Utils", () => {
     });
 
     it("should handle malformed JSON", async () => {
-      const { fetchWithRelayer } = await import("../utils/download");
-      const mockFetchWithRelayer = fetchWithRelayer as Mock;
+      const { universalFetch } = await import("../utils/download");
+      const mockUniversalFetch = universalFetch as Mock;
 
-      mockFetchWithRelayer.mockResolvedValueOnce({
+      mockUniversalFetch.mockResolvedValueOnce({
         ok: true,
         text: () => Promise.resolve("invalid json {"),
       });
@@ -310,10 +310,10 @@ describe("Grant Files Utils", () => {
     });
 
     it("should retrieve grant file from regular HTTP URL", async () => {
-      const { fetchWithRelayer } = await import("../utils/download");
-      const mockFetchWithRelayer = fetchWithRelayer as Mock;
+      const { universalFetch } = await import("../utils/download");
+      const mockUniversalFetch = universalFetch as Mock;
 
-      mockFetchWithRelayer.mockResolvedValueOnce({
+      mockUniversalFetch.mockResolvedValueOnce({
         ok: true,
         text: () => Promise.resolve(JSON.stringify(mockGrantFile)),
       });
@@ -323,17 +323,17 @@ describe("Grant Files Utils", () => {
       );
 
       expect(result).toEqual(mockGrantFile);
-      expect(mockFetchWithRelayer).toHaveBeenCalledWith(
+      expect(mockUniversalFetch).toHaveBeenCalledWith(
         "https://example.com/grants/grant123.json",
         undefined,
       );
     });
 
-    it("should pass downloadRelayer to fetchWithRelayer", async () => {
-      const { fetchWithRelayer } = await import("../utils/download");
-      const mockFetchWithRelayer = fetchWithRelayer as Mock;
+    it("should pass downloadRelayer to universalFetch", async () => {
+      const { universalFetch } = await import("../utils/download");
+      const mockUniversalFetch = universalFetch as Mock;
 
-      mockFetchWithRelayer.mockResolvedValueOnce({
+      mockUniversalFetch.mockResolvedValueOnce({
         ok: true,
         text: () => Promise.resolve(JSON.stringify(mockGrantFile)),
       });
@@ -349,17 +349,17 @@ describe("Grant Files Utils", () => {
       );
 
       expect(result).toEqual(mockGrantFile);
-      expect(mockFetchWithRelayer).toHaveBeenCalledWith(
+      expect(mockUniversalFetch).toHaveBeenCalledWith(
         "https://example.com/grant.json",
         mockDownloadRelayer,
       );
     });
 
-    it("should fail gracefully when fetchWithRelayer fails", async () => {
-      const { fetchWithRelayer } = await import("../utils/download");
-      const mockFetchWithRelayer = fetchWithRelayer as Mock;
+    it("should fail gracefully when universalFetch fails", async () => {
+      const { universalFetch } = await import("../utils/download");
+      const mockUniversalFetch = universalFetch as Mock;
 
-      mockFetchWithRelayer.mockRejectedValueOnce(new Error("Server error"));
+      mockUniversalFetch.mockRejectedValueOnce(new Error("Server error"));
 
       await expect(
         retrieveGrantFile("https://example.com/grants/missing.json"),

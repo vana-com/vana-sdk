@@ -368,7 +368,8 @@ export function validateGrantExpiry(
   currentTime?: number,
 ): void {
   if (grantFile.expires) {
-    const now = currentTime || Math.floor(Date.now() / 1000); // Current Unix timestamp
+    const now =
+      currentTime !== undefined ? currentTime : Math.floor(Date.now() / 1000); // Current Unix timestamp
 
     if (now > grantFile.expires) {
       throw new GrantExpiredError(

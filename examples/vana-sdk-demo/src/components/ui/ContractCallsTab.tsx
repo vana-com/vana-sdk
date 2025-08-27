@@ -206,7 +206,7 @@ export const ContractCallsTab: React.FC<ContractCallsTabProps> = ({
         await vana.permissions.submitAddServerFilesAndPermissions(batchParams);
 
       setServerFilesStatus(
-        `✅ Server files and permissions added successfully! Transaction: ${transactionHash}`,
+        `✅ Server files and permissions added successfully! Transaction: ${transactionHash.hash}`,
       );
 
       // Clear form on success
@@ -348,7 +348,9 @@ export const ContractCallsTab: React.FC<ContractCallsTabProps> = ({
                 label="Grantee ID"
                 placeholder="1"
                 value={permissionGranteeId}
-                onChange={(e) => setPermissionGranteeId(e.target.value)}
+                onChange={(e) => {
+                  setPermissionGranteeId(e.target.value);
+                }}
                 description="The ID of the grantee to grant permission to"
                 isRequired
               />
@@ -360,9 +362,9 @@ export const ContractCallsTab: React.FC<ContractCallsTabProps> = ({
                   <Button
                     size="sm"
                     variant="flat"
-                    onPress={() =>
-                      setPermissionFileIds([...permissionFileIds, ""])
-                    }
+                    onPress={() => {
+                      setPermissionFileIds([...permissionFileIds, ""]);
+                    }}
                   >
                     Add File ID
                   </Button>
@@ -404,7 +406,9 @@ export const ContractCallsTab: React.FC<ContractCallsTabProps> = ({
               label="Grant URL"
               placeholder="https://example.com/grant or any string value"
               value={permissionGrant}
-              onChange={(e) => setPermissionGrant(e.target.value)}
+              onChange={(e) => {
+                setPermissionGrant(e.target.value);
+              }}
               minRows={2}
               description="Grant parameters (can be any string)"
               isRequired
@@ -488,7 +492,9 @@ export const ContractCallsTab: React.FC<ContractCallsTabProps> = ({
                 label="Grantee ID"
                 placeholder="1"
                 value={serverGranteeId}
-                onChange={(e) => setServerGranteeId(e.target.value)}
+                onChange={(e) => {
+                  setServerGranteeId(e.target.value);
+                }}
                 description="The ID of the grantee"
                 isRequired
               />
@@ -496,7 +502,9 @@ export const ContractCallsTab: React.FC<ContractCallsTabProps> = ({
                 label="Grant URL"
                 placeholder="https://example.com/grant or any string value"
                 value={serverGrant}
-                onChange={(e) => setServerGrant(e.target.value)}
+                onChange={(e) => {
+                  setServerGrant(e.target.value);
+                }}
                 description="Grant parameters (can be any string)"
                 isRequired
               />
@@ -510,7 +518,9 @@ export const ContractCallsTab: React.FC<ContractCallsTabProps> = ({
                 label="Server Address"
                 placeholder="0x742d35Cc..."
                 value={serverAddress}
-                onChange={(e) => setServerAddress(e.target.value)}
+                onChange={(e) => {
+                  setServerAddress(e.target.value);
+                }}
                 description="The wallet address of the server"
                 isRequired
               />
@@ -518,7 +528,9 @@ export const ContractCallsTab: React.FC<ContractCallsTabProps> = ({
                 label="Server URL"
                 placeholder="https://api.example.com"
                 value={serverUrl}
-                onChange={(e) => setServerUrl(e.target.value)}
+                onChange={(e) => {
+                  setServerUrl(e.target.value);
+                }}
                 description="The public URL endpoint for the server"
                 isRequired
               />
@@ -527,7 +539,9 @@ export const ContractCallsTab: React.FC<ContractCallsTabProps> = ({
               label="Server Public Key"
               placeholder="0x04a7b5d5b7c8..."
               value={serverPublicKey}
-              onChange={(e) => setServerPublicKey(e.target.value)}
+              onChange={(e) => {
+                setServerPublicKey(e.target.value);
+              }}
               description="The server's public key for encryption"
               isRequired
             />
@@ -539,7 +553,9 @@ export const ContractCallsTab: React.FC<ContractCallsTabProps> = ({
               <Button
                 size="sm"
                 variant="flat"
-                onPress={() => setServerFileUrls([...serverFileUrls, ""])}
+                onPress={() => {
+                  setServerFileUrls([...serverFileUrls, ""]);
+                }}
               >
                 Add File
               </Button>
@@ -843,7 +859,9 @@ console.log("Batch operation completed:", transactionHash);`}
                 label="Server Address"
                 placeholder="0x742d35Cc..."
                 value={trustServerAddress}
-                onChange={(e) => setTrustServerAddress(e.target.value)}
+                onChange={(e) => {
+                  setTrustServerAddress(e.target.value);
+                }}
                 description="The wallet address of the server"
                 isRequired
               />
@@ -851,7 +869,9 @@ console.log("Batch operation completed:", transactionHash);`}
                 label="Server URL"
                 placeholder="https://api.example.com"
                 value={trustServerUrl}
-                onChange={(e) => setTrustServerUrl(e.target.value)}
+                onChange={(e) => {
+                  setTrustServerUrl(e.target.value);
+                }}
                 description="The public URL endpoint for the server"
                 isRequired
               />
@@ -860,7 +880,9 @@ console.log("Batch operation completed:", transactionHash);`}
               label="Server Public Key"
               placeholder="0x04a7b5d5b7c8..."
               value={trustServerPublicKey}
-              onChange={(e) => setTrustServerPublicKey(e.target.value)}
+              onChange={(e) => {
+                setTrustServerPublicKey(e.target.value);
+              }}
               description="The server's public key for encryption"
               isRequired
             />
@@ -970,7 +992,9 @@ console.log("Server trusted:", transactionHash);`}
                 label="Owner Address"
                 placeholder="0x..."
                 value={granteeOwnerAddress}
-                onChange={(e) => setGranteeOwnerAddress(e.target.value)}
+                onChange={(e) => {
+                  setGranteeOwnerAddress(e.target.value);
+                }}
                 description="The owner address for the grantee"
                 isRequired
               />
@@ -978,7 +1002,9 @@ console.log("Server trusted:", transactionHash);`}
                 label="Grantee Address"
                 placeholder="0x..."
                 value={granteeAddress}
-                onChange={(e) => setGranteeAddress(e.target.value)}
+                onChange={(e) => {
+                  setGranteeAddress(e.target.value);
+                }}
                 description="The Ethereum address of the grantee"
                 isRequired
               />
@@ -987,7 +1013,9 @@ console.log("Server trusted:", transactionHash);`}
               label="Public Key"
               placeholder="0x04a7b5d5b7c8..."
               value={granteePublicKey}
-              onChange={(e) => setGranteePublicKey(e.target.value)}
+              onChange={(e) => {
+                setGranteePublicKey(e.target.value);
+              }}
               description="The grantee's public key for encryption"
               isRequired
             />

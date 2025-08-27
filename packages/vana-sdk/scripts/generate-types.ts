@@ -19,15 +19,15 @@ import Ajv from "ajv";
 // Import all ABIs statically at build time
 import * as allAbis from "../src/generated/abi/index";
 
-// Get __dirname equivalent in ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+// Get dirname equivalent in ES modules
+const currentFilename = fileURLToPath(import.meta.url);
+const currentDirname = dirname(currentFilename);
 
 // Paths
-const PROJECT_ROOT = join(__dirname, "..");
+const PROJECT_ROOT = join(currentDirname, "..");
 const SRC_DIR = join(PROJECT_ROOT, "src");
 const GENERATED_DIR = join(SRC_DIR, "generated");
-const MAPPINGS_PATH = join(__dirname, "contract-event-mappings.json");
+const MAPPINGS_PATH = join(currentDirname, "contract-event-mappings.json");
 const EVENT_TYPES_PATH = join(GENERATED_DIR, "event-types.ts");
 const EVENT_REGISTRY_PATH = join(GENERATED_DIR, "eventRegistry.ts");
 
@@ -207,7 +207,9 @@ async function generateEventArgs(mappings: EventMapping): Promise<string> {
         eventArgsMap.set(event.name, fields);
       }
     } catch (error) {
-      console.warn(`Warning: Could not load ABI for ${contractName}: ${error}`);
+      console.warn(
+        `Warning: Could not load ABI for ${contractName}: ${String(error)}`,
+      );
     }
   }
 
@@ -408,7 +410,9 @@ async function generateEventRegistry(mappings: EventMapping): Promise<string> {
         }
       }
     } catch (error) {
-      console.warn(`Warning: Could not load events for ${contract}: ${error}`);
+      console.warn(
+        `Warning: Could not load events for ${contract}: ${String(error)}`,
+      );
     }
   }
 
@@ -515,7 +519,7 @@ async function validateMappings(mappings: EventMapping): Promise<void> {
         }
       }
     } catch (error) {
-      errors.push(`Failed to load ${contract}: ${error}`);
+      errors.push(`Failed to load ${contract}: ${String(error)}`);
     }
   }
 
@@ -586,7 +590,7 @@ async function generate(checkMode = false): Promise<boolean> {
 
 // CLI entry point
 const checkMode = process.argv.includes("--check");
-generate(checkMode).then((success) => {
+void generate(checkMode).then((success) => {
   process.exit(success ? 0 : 1);
 });
 

@@ -279,7 +279,8 @@ export class ServerController {
         createdAt: Date.now(),
         updatedAt: Date.now(),
         result: data.status === "succeeded" ? (data.result as T) : undefined,
-        error: data.status === "failed" ? data.result || undefined : undefined,
+        error:
+          data.status === "failed" ? (data.result ?? undefined) : undefined,
       };
     } catch (error) {
       if (error instanceof NetworkError) {
@@ -337,7 +338,7 @@ export class ServerController {
 
       if (operation.status === "failed") {
         throw new PersonalServerError(
-          `Operation ${operation.status}: ${operation.error || "Unknown error"}`,
+          `Operation ${operation.status}: ${operation.error ?? "Unknown error"}`,
         );
       }
 
@@ -488,7 +489,7 @@ export class ServerController {
 
       // Use applicationClient if available, fallback to walletClient
       const client =
-        this.context.applicationClient || this.context.walletClient;
+        this.context.applicationClient ?? this.context.walletClient;
 
       // Get the account from the wallet client
       const { account } = client;

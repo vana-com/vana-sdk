@@ -9,7 +9,7 @@
  * @category Cryptography
  */
 
-import { fromHex, toHex, concat } from "viem";
+import { fromHex } from "viem";
 
 /**
  * Processes a wallet public key for cryptographic operations.

@@ -11,12 +11,16 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@getpara/react-sdk": "2.0.0-alpha.50",
+    "@getpara/react-sdk": "2.0.0-fc.3",
     "@opendatalabs/vana-sdk": "*",
     "@radix-ui/react-label": "^2.1.7",
-    "@rainbow-me/rainbowkit": "^2.1.0",
     "@radix-ui/react-slot": "^1.2.3",
+    "@rainbow-me/rainbowkit": "^2.1.0",
     "@react-oauth/google": "^0.12.2",
+    "@solana-mobile/wallet-adapter-mobile": "^2.2.3",
+    "@solana/wallet-adapter-base": "^0.9.27",
+    "@solana/wallet-adapter-react": "^0.15.39",
+    "@solana/wallet-adapter-walletconnect": "^0.1.21",
     "@tanstack/react-query": "^5.85.5",
     "buffer": "^6.0.3",
     "class-variance-authority": "^0.7.1",

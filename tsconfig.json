@@ -19,7 +19,7 @@
       "vana-sdk/*": ["./packages/vana-sdk/src/*"]
     }
   },
-  "include": [],
+  "include": ["eslint.config.js"],
   "exclude": ["node_modules"],
   "references": [
     {

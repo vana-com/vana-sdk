@@ -194,9 +194,9 @@ describe("FakeStorageManager", () => {
     });
 
     it("should throw when setting non-existent provider as default", () => {
-      expect(() => fake.setDefaultProvider("nonexistent")).toThrow(
-        "Provider nonexistent not registered",
-      );
+      expect(() => {
+        fake.setDefaultProvider("nonexistent");
+      }).toThrow("Provider nonexistent not registered");
     });
   });
 

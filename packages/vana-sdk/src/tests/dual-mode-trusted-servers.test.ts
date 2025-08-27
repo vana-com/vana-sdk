@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { type Address } from "viem";
 import { vanaMainnet } from "../chains/definitions";
@@ -22,7 +21,7 @@ let gasAwareMulticallCallCount = 0;
 let mockServerInfoFailureIndex: number | null = null;
 
 vi.mock("../utils/multicall", () => ({
-  gasAwareMulticall: vi.fn().mockImplementation(async (client, params) => {
+  gasAwareMulticall: vi.fn().mockImplementation(async (_client, params) => {
     const callIndex = gasAwareMulticallCallCount++;
 
     // First call: server IDs (allowFailure: false, returns bigints directly)
@@ -81,30 +80,6 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
     "0x2222222222222222222222222222222222222222",
     "0x3333333333333333333333333333333333333333",
   ];
-
-  const _mockSubgraphData = {
-    data: {
-      user: {
-        id: userAddress.toLowerCase(),
-        trustedServers: [
-          {
-            id: "subgraph-server-1",
-            serverAddress: serverAddresses[0],
-            serverUrl: "https://server1.example.com",
-            trustedAt: "1640995200",
-            user: { id: userAddress.toLowerCase() },
-          },
-          {
-            id: "subgraph-server-2",
-            serverAddress: serverAddresses[1],
-            serverUrl: "https://server2.example.com",
-            trustedAt: "1640995300",
-            user: { id: userAddress.toLowerCase() },
-          },
-        ],
-      },
-    },
-  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -522,7 +497,9 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
       (global.fetch as any).mockImplementationOnce(
         () =>
           new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("Timeout")), 100),
+            setTimeout(() => {
+              reject(new Error("Timeout"));
+            }, 100),
           ),
       );
 

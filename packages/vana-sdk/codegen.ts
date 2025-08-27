@@ -23,7 +23,7 @@ import type { CodegenConfig } from "@graphql-codegen/cli";
 import { moksha, vanaMainnet } from "./src/chains/definitions";
 
 // Use moksha as default for development, can be overridden via environment variable
-const DEFAULT_NETWORK = process.env.VANA_CODEGEN_NETWORK || "moksha";
+const DEFAULT_NETWORK = process.env.VANA_CODEGEN_NETWORK ?? "moksha";
 
 const getSubgraphUrl = () => {
   switch (DEFAULT_NETWORK) {

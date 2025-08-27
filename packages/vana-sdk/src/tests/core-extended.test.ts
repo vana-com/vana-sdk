@@ -372,9 +372,9 @@ describe("VanaCore Extended Tests", () => {
       });
 
       // Mock the internal publicClient and server controller
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       (vanaCore as any).publicClient = mockPublicClient;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       (vanaCore as any).server = mockServerController;
     });
 

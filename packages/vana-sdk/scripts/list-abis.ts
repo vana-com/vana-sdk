@@ -8,10 +8,10 @@ import { readdirSync, readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const currentFilename = fileURLToPath(import.meta.url);
+const currentDirname = dirname(currentFilename);
 
-const ABIS_DIR = join(__dirname, "..", "src", "generated", "abi");
+const ABIS_DIR = join(currentDirname, "..", "src", "generated", "abi");
 
 /**
  * Lists all available ABI modules and their exported functions.
@@ -44,7 +44,7 @@ async function listABIs() {
         console.log();
       }
     } catch (error) {
-      console.warn(`Could not analyze ${file}: ${error}`);
+      console.warn(`Could not analyze ${file}: ${String(error)}`);
     }
   }
 

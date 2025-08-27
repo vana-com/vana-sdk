@@ -5,7 +5,7 @@ import { getAddress } from "viem";
 // Mock cache adapter
 const mockCacheAdapter = {
   store: new Map<string, string>(),
-  get: vi.fn((key: string) => mockCacheAdapter.store.get(key) || null),
+  get: vi.fn((key: string) => mockCacheAdapter.store.get(key) ?? null),
   set: vi.fn((key: string, value: string) => {
     mockCacheAdapter.store.set(key, value);
   }),

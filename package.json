@@ -18,6 +18,7 @@
     "dev:vibes": "turbo run dev --filter='vana-vibes-demo'",
     "lint": "turbo run lint",
     "lint:fix": "turbo run lint:fix",
+    "lint:ci": "turbo run lint --output-logs=new-only | tee lint-output.txt && echo '\\n=== Lint Summary ===' && grep -c warning lint-output.txt 2>/dev/null | xargs -I {} echo 'Warnings: {}' && grep -c error lint-output.txt 2>/dev/null | xargs -I {} echo 'Errors: {}' || true",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "turbo run typecheck",
@@ -60,6 +61,7 @@
     "url": "https://github.com/vana-com/vana-sdk.git"
   },
   "dependencies": {
-    "next-themes": "^0.4.6"
+    "next-themes": "^0.4.6",
+    "node-fetch": "^3.3.2"
   }
 }

@@ -161,7 +161,7 @@ describe("PermissionsController", () => {
         grantee: params.grantee,
         operation: params.operation,
         parameters: params.parameters,
-        expires: params.expiresAt || Math.floor(Date.now() / 1000) + 3600,
+        expires: params.expiresAt ?? Math.floor(Date.now() / 1000) + 3600,
       }),
     );
 
@@ -1503,44 +1503,29 @@ describe("PermissionsController", () => {
 
   describe("submitRevokeWithSignature", () => {
     beforeEach(() => {
-      // Mock getUserNonce for typed data creation
-      vi.spyOn(
-        controller as unknown as {
-          getUserNonce: () => Promise<bigint>;
-        },
-        "getUserNonce",
-      ).mockResolvedValue(123n);
+      // Mock the readContract call to return user nonce
+      mockPublicClient.readContract.mockResolvedValue(123n);
 
-      // Mock getPermissionDomain
-      vi.spyOn(
-        controller as unknown as {
-          getPermissionDomain: () => Promise<Record<string, unknown>>;
-        },
-        "getPermissionDomain",
-      ).mockResolvedValue({
-        name: "VanaDataPortabilityPermissions",
-        version: "1",
-        chainId: 14800,
-        verifyingContract: "0x1234567890123456789012345678901234567890",
-      });
+      // Mock getChainId
+      mockWalletClient.getChainId.mockResolvedValue(14800);
+
+      // Mock getAddresses
+      mockWalletClient.getAddresses.mockResolvedValue([
+        "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+      ]);
 
       // Mock signTypedData
-      vi.spyOn(
-        controller as unknown as {
-          signTypedData: () => Promise<string>;
-        },
-        "signTypedData",
-      ).mockResolvedValue(`0x${"1234567890abcdef".repeat(8)}12`);
+      mockWalletClient.signTypedData.mockResolvedValue(
+        `0x${"1234567890abcdef".repeat(8)}12` as Hash,
+      );
     });
 
     it("should successfully revoke permission with signature via relayer", async () => {
-      // Remove the spy on relayRevokeTransaction as it doesn't exist
-      vi.spyOn(
-        controller as unknown as {
-          signTypedData: () => Promise<string>;
-        },
-        "signTypedData",
-      ).mockResolvedValue(`0x${"1234567890abcdef".repeat(8)}12`);
+      // Setup context with relayer callbacks
+      mockContext.relayerCallbacks = {
+        submitPermissionRevoke: vi.fn().mockResolvedValue("0xtxhash" as Hash),
+      };
+      controller = new PermissionsController(mockContext);
 
       const params = {
         permissionId: 42n,
@@ -1548,29 +1533,64 @@ describe("PermissionsController", () => {
 
       const result = await controller.submitRevokeWithSignature(params);
 
+      // Verify the public API result
       expect(result.hash).toBe("0xtxhash");
+      expect(result.contract).toBe("DataPortabilityPermissions");
+      expect(result.fn).toBe("revokePermissionWithSignature");
+
+      // Verify that external dependencies were called correctly
+      expect(mockPublicClient.readContract).toHaveBeenCalledWith({
+        address: "0x1234567890123456789012345678901234567890",
+        abi: expect.any(Array),
+        functionName: "userNonce",
+        args: ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
+      });
+
+      expect(mockWalletClient.signTypedData).toHaveBeenCalledWith(
+        expect.objectContaining({
+          domain: expect.objectContaining({
+            name: "VanaDataPortabilityPermissions",
+            version: "1",
+            chainId: 14800,
+          }),
+          types: expect.objectContaining({
+            RevokePermission: [
+              { name: "nonce", type: "uint256" },
+              { name: "permissionId", type: "uint256" },
+            ],
+          }),
+          primaryType: "RevokePermission",
+          message: {
+            nonce: 123n,
+            permissionId: 42n,
+          },
+        }),
+      );
+
+      expect(
+        mockContext.relayerCallbacks.submitPermissionRevoke,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: {
+            nonce: 123n,
+            permissionId: 42n,
+          },
+        }),
+        `0x${"1234567890abcdef".repeat(8)}12`,
+      );
     });
 
     it("should successfully revoke permission with signature via direct transaction", async () => {
+      // Setup context without relayer callbacks
       const testContext = {
         ...mockContext,
         relayerCallbacks: undefined, // No relayer
-        walletClient: {
-          ...mockWalletClient,
-          chain: { id: 14800 },
-        } as unknown as ControllerContext["walletClient"],
-      } as unknown as ControllerContext;
+      };
+      controller = new PermissionsController(testContext);
 
-      const controller = new PermissionsController(testContext);
-
-      // Mock submitDirectRevokeTransaction
-      vi.spyOn(
-        controller as unknown as {
-          submitDirectRevokeTransaction: () => Promise<string>;
-        },
-        "submitDirectRevokeTransaction",
-      ).mockResolvedValue(
-        "0xhash123456789012345678901234567890123456789012345678901234567890",
+      // Mock writeContract for direct transaction
+      mockWalletClient.writeContract.mockResolvedValue(
+        "0xhash123456789012345678901234567890123456789012345678901234567890" as Hash,
       );
 
       const params = {
@@ -1579,9 +1599,28 @@ describe("PermissionsController", () => {
 
       const result = await controller.submitRevokeWithSignature(params);
 
+      // Verify the public API result
       expect(result.hash).toBe(
         "0xhash123456789012345678901234567890123456789012345678901234567890",
       );
+      expect(result.contract).toBe("DataPortabilityPermissions");
+      expect(result.fn).toBe("revokePermissionWithSignature");
+
+      // Verify that writeContract was called with correct parameters
+      expect(mockWalletClient.writeContract).toHaveBeenCalled();
+      const writeContractCall = mockWalletClient.writeContract.mock.calls[0][0];
+      expect(writeContractCall.address).toBe(
+        "0x1234567890123456789012345678901234567890",
+      );
+      expect(writeContractCall.functionName).toBe(
+        "revokePermissionWithSignature",
+      );
+      expect(Array.isArray(writeContractCall.abi)).toBe(true);
+      expect(writeContractCall.args[0]).toEqual({
+        nonce: 123n,
+        permissionId: 42n,
+      });
+      expect(writeContractCall.args[1]).toMatch(/^0x[a-f0-9]+$/);
     });
 
     it("should handle missing chain ID error", async () => {
@@ -1605,22 +1644,10 @@ describe("PermissionsController", () => {
     });
 
     it("should handle getUserNonce errors", async () => {
-      const testContext = {
-        ...mockContext,
-        walletClient: {
-          ...mockWalletClient,
-          chain: { id: 14800 },
-        } as unknown as ControllerContext["walletClient"],
-      } as unknown as ControllerContext;
-
-      const controller = new PermissionsController(testContext);
-
-      vi.spyOn(
-        controller as unknown as {
-          getPermissionsUserNonce: () => Promise<bigint>;
-        },
-        "getPermissionsUserNonce",
-      ).mockRejectedValue(new Error("Nonce retrieval failed"));
+      // Mock readContract to fail when retrieving nonce
+      mockPublicClient.readContract.mockRejectedValue(
+        new Error("Nonce retrieval failed"),
+      );
 
       const params = {
         permissionId: 42n,
@@ -1628,28 +1655,21 @@ describe("PermissionsController", () => {
 
       await expect(
         controller.submitRevokeWithSignature(params),
-      ).rejects.toThrow(
-        "Failed to revoke permission with signature: Nonce retrieval failed",
+      ).rejects.toThrow(PermissionError);
+
+      // Verify that readContract was called for nonce
+      expect(mockPublicClient.readContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          functionName: "userNonce",
+        }),
       );
     });
 
     it("should handle signature errors", async () => {
-      const testContext = {
-        ...mockContext,
-        walletClient: {
-          ...mockWalletClient,
-          chain: { id: 14800 },
-        } as unknown as ControllerContext["walletClient"],
-      } as unknown as ControllerContext;
-
-      const controller = new PermissionsController(testContext);
-
-      vi.spyOn(
-        controller as unknown as {
-          signTypedData: () => Promise<string>;
-        },
-        "signTypedData",
-      ).mockRejectedValue(new Error("Signature failed"));
+      // Mock signTypedData to fail
+      mockWalletClient.signTypedData.mockRejectedValue(
+        new Error("User rejected signature"),
+      );
 
       const params = {
         permissionId: 42n,
@@ -1657,9 +1677,10 @@ describe("PermissionsController", () => {
 
       await expect(
         controller.submitRevokeWithSignature(params),
-      ).rejects.toThrow(
-        "Failed to revoke permission with signature: Signature failed",
-      );
+      ).rejects.toThrow(PermissionError);
+
+      // Verify that signTypedData was called
+      expect(mockWalletClient.signTypedData).toHaveBeenCalled();
     });
   });
 

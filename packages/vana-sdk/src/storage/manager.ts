@@ -82,7 +82,7 @@ export class StorageManager {
    * @returns Storage provider instance
    */
   getProvider(name?: string): StorageProvider {
-    const providerName = name || this.defaultProvider;
+    const providerName = name ?? this.defaultProvider;
 
     if (!providerName) {
       throw new StorageError(
@@ -223,6 +223,6 @@ export class StorageManager {
    * @returns Default provider name or undefined
    */
   getDefaultStorageProvider(): string | undefined {
-    return this.defaultProvider || undefined;
+    return this.defaultProvider ?? undefined;
   }
 }

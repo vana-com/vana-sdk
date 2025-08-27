@@ -15,7 +15,7 @@ import { vanaMainnet } from "../config/chains";
 const contractCache = new Map<string, GetContractReturnType<Abi>>();
 
 // Export cache for testing
-export const __contractCache = contractCache;
+export const contractCacheForTesting = contractCache;
 
 /**
  * Creates a cache key for contract instances

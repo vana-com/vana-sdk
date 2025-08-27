@@ -1,0 +1,13 @@
+{
+  "name": "@vana/eslint-config-apps",
+  "version": "1.0.0",
+  "description": "ESLint config for Vana example apps - pragmatic rules for demos",
+  "main": "index.js",
+  "type": "module",
+  "dependencies": {
+    "@vana/eslint-config-base": "file:../eslint-config-vana-base"
+  },
+  "peerDependencies": {
+    "eslint": "^9.0.0"
+  }
+}

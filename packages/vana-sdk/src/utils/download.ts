@@ -7,37 +7,38 @@
 import { fetchWithFallbacks, extractIpfsHash } from "./ipfs";
 
 /**
- * Fetch content with automatic fallbacks for CORS and IPFS
+ * Universal fetch with protocol support and automatic fallbacks
  *
  * @remarks
  * This utility provides a robust download mechanism that handles:
- * 1. Direct fetch for regular URLs
- * 2. Download relayer for CORS-restricted URLs
- * 3. IPFS gateway fallbacks for IPFS content
+ * 1. IPFS URLs with automatic gateway fallbacks (5 different gateways)
+ * 2. Arweave URLs with ar:// protocol conversion
+ * 3. Regular HTTP/HTTPS URLs with optional CORS bypass via relayer
+ * 4. Automatic fallback strategies for resilient downloads
  *
  * The function automatically determines the best strategy based on the URL
  * and available configuration, providing transparent fallback behavior.
  *
- * @param url - The URL to fetch (HTTP, HTTPS, or IPFS)
+ * @param url - The URL to fetch (HTTP, HTTPS, IPFS, or Arweave)
  * @param downloadRelayer - Optional download relayer for CORS bypass
  * @param downloadRelayer.proxyDownload - Function to proxy downloads through application server
  * @returns Promise resolving to Response object
  * @throws Error if all download attempts fail
  * @example
  * ```typescript
- * // With download relayer configured
- * const response = await fetchWithRelayer(
+ * // IPFS URL - automatically uses gateway fallbacks
+ * const ipfsResponse = await universalFetch('ipfs://QmHash123');
+ * const content = await ipfsResponse.text();
+ *
+ * // With optional download relayer for CORS bypass
+ * const response = await universalFetch(
  *   'https://drive.google.com/file.json',
  *   vana.downloadRelayer
  * );
  * const data = await response.json();
- *
- * // IPFS URL - will use gateway fallbacks
- * const ipfsResponse = await fetchWithRelayer('ipfs://QmHash123');
- * const content = await ipfsResponse.text();
  * ```
  */
-export async function fetchWithRelayer(
+export async function universalFetch(
   url: string,
   downloadRelayer?: { proxyDownload: (url: string) => Promise<Blob> },
 ): Promise<Response> {

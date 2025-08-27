@@ -52,7 +52,7 @@ export class NodeECIESUint8Provider extends BaseECIESUint8 {
   // CRITICAL: Must handle (x, y, output) signature correctly
   private readonly identityHashFn = (
     x: Uint8Array,
-    y: Uint8Array,
+    _y: Uint8Array,
     output?: Uint8Array,
   ): Uint8Array => {
     // Copy x into output buffer if provided (prevents allocations)

@@ -17,7 +17,7 @@ import { ThemeProvider as NextThemesProvider } from "next-themes";
 const config = getDefaultConfig({
   appName: "Vana SDK Next.js Demo",
   projectId:
-    process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || "demo-project-id",
+    process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID ?? "demo-project-id",
   chains: [mokshaTestnet, vanaMainnet],
   ssr: true,
 });

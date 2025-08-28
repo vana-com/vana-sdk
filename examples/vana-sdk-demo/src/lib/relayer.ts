@@ -13,7 +13,9 @@ import {
 const parameterStorage = new Map<string, string>();
 
 // Demo relayer configuration
-const RELAYER_PRIVATE_KEY = process.env.RELAYER_PRIVATE_KEY;
+const RELAYER_PRIVATE_KEY =
+  process.env.RELAYER_PRIVATE_KEY ??
+  "0x0000000000000000000000000000000000000000000000000000000000000001"; // Dummy key for build process
 
 // Set up relayer wallet client
 const relayerAccount = privateKeyToAccount(

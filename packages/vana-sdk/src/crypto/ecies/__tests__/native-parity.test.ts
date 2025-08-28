@@ -36,7 +36,7 @@ describe("ECDH Native vs Noble Parity", () => {
       publicKey,
       privateKey,
       {
-        hashfn: (x: Uint8Array, y: Uint8Array, out?: Uint8Array) => {
+        hashfn: (x: Uint8Array, _y: Uint8Array, out?: Uint8Array) => {
           if (out) {
             out.set(x);
             return out;
@@ -69,7 +69,7 @@ describe("ECDH Native vs Noble Parity", () => {
       compressedKey,
       privateKey,
       {
-        hashfn: (x: Uint8Array, y: Uint8Array, out?: Uint8Array) => {
+        hashfn: (x: Uint8Array, _y: Uint8Array, out?: Uint8Array) => {
           if (out) {
             out.set(x);
             return out;
@@ -86,7 +86,7 @@ describe("ECDH Native vs Noble Parity", () => {
       uncompressedKey,
       privateKey,
       {
-        hashfn: (x: Uint8Array, y: Uint8Array, out?: Uint8Array) => {
+        hashfn: (x: Uint8Array, _y: Uint8Array, out?: Uint8Array) => {
           if (out) {
             out.set(x);
             return out;
@@ -192,10 +192,13 @@ describe("Public API Type Enforcement", () => {
     const nodeProvider = new NodeECIESUint8Provider();
 
     // Ensure Buffer helper methods don't exist
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect((nodeProvider as any).encryptWithBuffer).toBeUndefined();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect((nodeProvider as any).decryptWithBuffer).toBeUndefined();
+    // Type assertion to check for non-existent properties
+    const providerWithBufferMethods = nodeProvider as unknown as {
+      encryptWithBuffer?: unknown;
+      decryptWithBuffer?: unknown;
+    };
+    expect(providerWithBufferMethods.encryptWithBuffer).toBeUndefined();
+    expect(providerWithBufferMethods.decryptWithBuffer).toBeUndefined();
   });
 });
 

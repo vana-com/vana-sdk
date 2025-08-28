@@ -170,7 +170,7 @@ export async function gasAwareMulticall<
   // Get the chain-specific Multicall3 address
   const chainId = await client.getChainId();
   const multicall3Address =
-    options.multicallAddress ||
+    options.multicallAddress ??
     getUtilityAddress(chainId as VanaChainId, "Multicall3");
 
   // Normalize options with defaults
@@ -191,6 +191,9 @@ export async function gasAwareMulticall<
 
   const { contracts } = parameters;
   if (!contracts || contracts.length === 0) {
+    // TODO(TYPES): Empty array needs to match complex generic return type.
+    // Future improvement: Use conditional types to properly type empty results
+    // based on TAllowFailure parameter. Consider creating utility type helper.
     return [] as unknown as MulticallReturnType<TContracts, TAllowFailure>;
   }
 
@@ -293,7 +296,9 @@ async function createBatches(
         } else {
           // Single call failed, skip it or throw based on allowFailure
           if (!options.allowFailure) {
-            throw new Error(`Gas estimation failed for call ${i}: ${error}`);
+            throw new Error(
+              `Gas estimation failed for call ${i}: ${String(error)}`,
+            );
           }
           currentBatch = [];
           currentBytes = 0;

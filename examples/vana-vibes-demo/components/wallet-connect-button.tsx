@@ -1,10 +1,13 @@
 "use client";
 
 import React from "react";
-import { useModal, useAccount as useParaAccount } from "@getpara/react-sdk";
+import {
+  useModal,
+  useAccount as useParaAccount,
+  useWallet,
+} from "@getpara/react-sdk";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount } from "wagmi";
-import { useWallet } from "@getpara/react-sdk";
 import { Button } from "@/components/ui/button";
 
 interface WalletConnectButtonProps {
@@ -102,12 +105,14 @@ export function WalletConnectButton({
     | { address?: string; isConnected?: boolean }
     | undefined;
   const walletAddress =
-    wallet?.address || address || paraAccountWithAddress?.address;
-  const walletConnected = isConnected || paraAccountWithAddress?.isConnected;
+    wallet?.address ?? address ?? paraAccountWithAddress?.address;
+  const walletConnected = isConnected ?? paraAccountWithAddress?.isConnected;
 
   return (
     <Button
-      onClick={() => openModal?.()}
+      onClick={() => {
+        openModal?.();
+      }}
       disabled={disabled}
       className={className}
     >

@@ -20,13 +20,11 @@ export function lazyImport<T>(importFn: () => Promise<T>): () => Promise<T> {
   let cached: Promise<T> | null = null;
 
   return () => {
-    if (!cached) {
-      cached = importFn().catch((err) => {
-        // Clear cache on error so next attempt can retry
-        cached = null;
-        throw new Error("Failed to load module", { cause: err });
-      });
-    }
+    cached ??= importFn().catch((err) => {
+      // Clear cache on error so next attempt can retry
+      cached = null;
+      throw new Error("Failed to load module", { cause: err });
+    });
     return cached;
   };
 }

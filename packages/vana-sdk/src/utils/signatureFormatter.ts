@@ -1,4 +1,4 @@
-import type { Hash } from "viem";
+import { type Hash, fromHex, toHex } from "viem";
 
 const V_OFFSET_FOR_ETHEREUM = 27;
 
@@ -37,22 +37,21 @@ const V_OFFSET_FOR_ETHEREUM = 27;
  * @category Cryptography
  */
 export function formatSignatureForContract(signature: Hash): Hash {
-  const cleanSig = signature.startsWith("0x") ? signature.slice(2) : signature;
+  // Convert to bytes for safer manipulation
+  const sigBytes = fromHex(signature, "bytes");
 
-  if (cleanSig.length !== 130) {
+  if (sigBytes.length !== 65) {
     return signature;
   }
 
-  const vHex = cleanSig.slice(128, 130);
-  const v = parseInt(vHex, 16);
-
-  if (isNaN(v)) {
-    return signature;
-  }
+  // Extract v value (last byte)
+  const v = sigBytes[64];
 
   if (v < 27) {
-    const adjustedV = (v + V_OFFSET_FOR_ETHEREUM).toString(16).padStart(2, "0");
-    return `0x${cleanSig.slice(0, 128)}${adjustedV}` as Hash;
+    // Adjust v value
+    sigBytes[64] = v + V_OFFSET_FOR_ETHEREUM;
+    // Convert back to hex
+    return toHex(sigBytes);
   }
 
   return signature;

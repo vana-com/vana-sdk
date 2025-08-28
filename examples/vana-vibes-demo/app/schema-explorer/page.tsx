@@ -93,7 +93,7 @@ interface SchemaExplorerState {
 function SchemaExplorerContent() {
   const { isConnected: walletConnected, address } = useAccount();
   const walletLoading = false; // wagmi doesn't have isLoading
-  const { data: wallet } = useWallet?.() || {};
+  const { data: wallet } = useWallet?.() ?? {};
   const vanaContext = useVana();
   const {
     isConnected: googleDriveConnected,
@@ -167,7 +167,7 @@ function SchemaExplorerContent() {
         const dlpIds = [
           ...new Set(
             files
-              .flatMap((f: UserFile) => f.dlpIds || [])
+              .flatMap((f: UserFile) => f.dlpIds ?? [])
               .filter((id) => id > 0),
           ),
         ];
@@ -332,9 +332,9 @@ function SchemaExplorerContent() {
 
   // Load data when wallet is connected
   useEffect(() => {
-    const walletAddress = wallet?.address || address;
+    const walletAddress = wallet?.address ?? address;
     if (isVanaInitialized(vanaContext) && walletAddress && walletConnected) {
-      loadUserDataAndSchemas(vanaContext.vana, walletAddress);
+      void loadUserDataAndSchemas(vanaContext.vana, walletAddress);
     }
   }, [
     vanaContext,
@@ -347,7 +347,7 @@ function SchemaExplorerContent() {
   // Load DLPs after files are loaded
   useEffect(() => {
     if (isVanaInitialized(vanaContext) && state.userFiles.length > 0) {
-      loadUserDLPs(vanaContext.vana, state.userFiles);
+      void loadUserDLPs(vanaContext.vana, state.userFiles);
     }
   }, [vanaContext, state.userFiles, loadUserDLPs]);
 
@@ -355,7 +355,7 @@ function SchemaExplorerContent() {
   useEffect(() => {
     if (isProcessing) return;
 
-    const walletAddress = wallet?.address || address;
+    const walletAddress = wallet?.address ?? address;
 
     if (!walletConnected) {
       setStatus("Please connect your wallet first");
@@ -403,7 +403,7 @@ function SchemaExplorerContent() {
 
   // Handle processing with existing file - now uses fixed contract that supports existing files
   const handleStartFlow = async () => {
-    const walletAddress = wallet?.address || address;
+    const walletAddress = wallet?.address ?? address;
 
     if (
       !isVanaInitialized(vanaContext) ||
@@ -460,7 +460,7 @@ function SchemaExplorerContent() {
       // Encrypt the encryption key with the server's public key
       const encryptedKey = await encryptWithWalletPublicKey(
         userEncryptionKey,
-        serverInfo.public_key,
+        serverInfo.publicKey,
         platformAdapter,
       );
 
@@ -493,10 +493,10 @@ function SchemaExplorerContent() {
           granteeId: BigInt(granteeId),
           grant: grantUploadResult.url,
           fileUrls: [selectedFile.url], // Use the existing file's URL
-          schemaIds: [selectedFile.schemaId || 0], // Use existing schema ID or 0
+          schemaIds: [selectedFile.schemaId ?? 0], // Use existing schema ID or 0
           serverAddress: serverInfo.address as `0x${string}`,
-          serverUrl: serverInfo.base_url,
-          serverPublicKey: serverInfo.public_key,
+          serverUrl: serverInfo.baseUrl,
+          serverPublicKey: serverInfo.publicKey,
           filePermissions: [
             [
               {
@@ -511,10 +511,9 @@ function SchemaExplorerContent() {
       setStatus("Waiting for transaction confirmation...");
 
       // Wait for transaction confirmation and extract permission ID from events
-      const events = await vanaContext.vana.waitForTransactionEvents<{
-        permissionId: bigint;
-      }>(txHandle);
-      const permissionId = events.permissionId;
+      const result = await vanaContext.vana.waitForTransactionEvents(txHandle);
+      // Access the PermissionAdded event from expectedEvents
+      const permissionId = result.expectedEvents?.PermissionAdded?.permissionId;
 
       if (!permissionId) {
         throw new Error(
@@ -547,13 +546,13 @@ function SchemaExplorerContent() {
       const inferenceResult = await inferenceResponse.json();
 
       if (!inferenceResult.success) {
-        throw new Error(inferenceResult.error || "API request failed");
+        throw new Error(inferenceResult.error ?? "API request failed");
       }
 
       setStatus("AI inference completed!");
       setResult(
         JSON.stringify(
-          inferenceResult.data?.result || inferenceResult.data,
+          inferenceResult.data?.result ?? inferenceResult.data,
           null,
           2,
         ),
@@ -613,7 +612,9 @@ function SchemaExplorerContent() {
             {!googleDriveConnected ? (
               <div className="space-y-4">
                 <Button
-                  onClick={() => connectGoogleDrive()}
+                  onClick={() => {
+                    connectGoogleDrive();
+                  }}
                   disabled={googleDriveConnecting || isProcessing}
                   className="w-full"
                 >
@@ -657,8 +658,10 @@ function SchemaExplorerContent() {
                 <select
                   id="schema-select"
                   className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  onChange={(e) => handleSchemaSelect(e.target.value)}
-                  value={state.selectedSchemaId || ""}
+                  onChange={(e) => {
+                    handleSchemaSelect(e.target.value);
+                  }}
+                  value={state.selectedSchemaId ?? ""}
                   disabled={isProcessing}
                 >
                   <option value="">Choose a schema...</option>
@@ -671,7 +674,7 @@ function SchemaExplorerContent() {
                 </select>
               ) : (
                 <div className="text-sm text-gray-500">
-                  {state.errors.schema || "No schemas found"}
+                  {state.errors.schema ?? "No schemas found"}
                 </div>
               )}
             </Card>
@@ -694,8 +697,10 @@ function SchemaExplorerContent() {
                 <select
                   id="dlp-select"
                   className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  onChange={(e) => handleDlpSelect(e.target.value)}
-                  value={state.selectedDlpId || ""}
+                  onChange={(e) => {
+                    handleDlpSelect(e.target.value);
+                  }}
+                  value={state.selectedDlpId ?? ""}
                   disabled={isProcessing}
                 >
                   <option value="">Choose a DLP...</option>
@@ -708,7 +713,7 @@ function SchemaExplorerContent() {
                 </select>
               ) : (
                 <div className="text-sm text-gray-500">
-                  {state.errors.dlp || "No DLPs found for your files"}
+                  {state.errors.dlp ?? "No DLPs found for your files"}
                 </div>
               )}
             </Card>
@@ -726,7 +731,7 @@ function SchemaExplorerContent() {
               </p>
               <p>
                 <strong>Version:</strong>{" "}
-                {selectedSchema.schema.version || "1.0.0"}
+                {selectedSchema.schema.version ?? "1.0.0"}
               </p>
               {selectedSchema.schema.description && (
                 <p>
@@ -788,10 +793,10 @@ function SchemaExplorerContent() {
                   const fileId = parseInt(e.target.value);
                   setState((prev) => ({
                     ...prev,
-                    selectedFileId: fileId || null,
+                    selectedFileId: fileId ?? null,
                   }));
                 }}
-                value={state.selectedFileId || ""}
+                value={state.selectedFileId ?? ""}
                 disabled={isProcessing}
               >
                 <option value="">Choose a file...</option>
@@ -836,7 +841,9 @@ function SchemaExplorerContent() {
             <Textarea
               id="aiPrompt"
               value={aiPrompt}
-              onChange={(e) => setAiPrompt(e.target.value)}
+              onChange={(e) => {
+                setAiPrompt(e.target.value);
+              }}
               rows={2}
               className="resize-none"
               placeholder="Enter your AI prompt here..."
@@ -852,7 +859,7 @@ function SchemaExplorerContent() {
             disabled={
               isProcessing ||
               !walletConnected ||
-              !(wallet?.address || address) ||
+              !(wallet?.address ?? address) ||
               !googleDriveConnected ||
               !state.selectedFileId ||
               !vanaContext.isInitialized

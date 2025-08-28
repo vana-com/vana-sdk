@@ -1,8 +1,8 @@
 import { getContract } from "viem";
-import { PublicClient, WalletClient } from "viem";
+import type { PublicClient, WalletClient } from "viem";
 import { getContractAddress } from "../../config/addresses";
 import { getAbi } from "../../generated/abi";
-import { SchemaMetadata } from "../../types/index";
+import type { SchemaMetadata } from "../../types/index";
 
 /**
  * Shared context for blockchain operations.
@@ -61,6 +61,9 @@ export async function fetchSchemaFromChain(
     throw new Error(`Schema with ID ${schemaId} not found`);
   }
 
+  // TODO(TYPES): Contract read returns unknown type from viem library.
+  // Future improvement: Create typed contract interface when viem adds support
+  // or implement a contract type generator from ABI definitions.
   const schemaObj = schemaData as unknown as SchemaContractData;
 
   if (!schemaObj.name || !schemaObj.dialect || !schemaObj.definitionUrl) {

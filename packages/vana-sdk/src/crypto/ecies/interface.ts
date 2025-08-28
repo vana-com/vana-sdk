@@ -13,6 +13,7 @@
  */
 
 import { CIPHER, CURVE, MAC, FORMAT } from "./constants";
+import { fromHex, toHex } from "viem";
 
 /**
  * Represents ECIES encrypted data in eccrypto-compatible format.
@@ -55,7 +56,7 @@ export interface ECIESProvider {
    * @example
    * ```typescript
    * const encrypted = await provider.encrypt(
-   *   hexToBytes(publicKey),
+   *   fromHex(publicKey, 'bytes'),
    *   new TextEncoder().encode('sensitive data')
    * );
    * ```
@@ -74,7 +75,7 @@ export interface ECIESProvider {
    * @example
    * ```typescript
    * const decrypted = await provider.decrypt(
-   *   hexToBytes(privateKey),
+   *   fromHex(privateKey, 'bytes'),
    *   encrypted
    * );
    * const message = new TextDecoder().decode(decrypted);
@@ -218,9 +219,7 @@ export function serializeECIES(encrypted: ECIESEncrypted): string {
   offset += encrypted.ciphertext.length;
   combined.set(encrypted.mac, offset);
 
-  return Array.from(combined)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+  return toHex(combined).slice(2);
 }
 
 /**
@@ -238,10 +237,8 @@ export function serializeECIES(encrypted: ECIESEncrypted): string {
  * ```
  */
 export function deserializeECIES(hex: string): ECIESEncrypted {
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < hex.length; i += 2) {
-    bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
-  }
+  const hexWithPrefix = hex.startsWith("0x") ? hex : `0x${hex}`;
+  const bytes = fromHex(hexWithPrefix as `0x${string}`, "bytes");
 
   // Determine ephemPublicKey size based on prefix
   const ephemKeySize =

@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { Address } from "viem";
+import type { Address } from "viem";
 import { ServerController } from "../controllers/server";
-import { ControllerContext } from "../controllers/permissions";
+import type { ControllerContext } from "../controllers/permissions";
 import { NetworkError } from "../errors";
-import { CreateOperationParams } from "../types";
+import type { CreateOperationParams } from "../types";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock global fetch
@@ -49,7 +49,7 @@ describe("ServerController", () => {
     mockAccount = {
       type: "local",
       address: mockUserAddress as Address,
-      signMessage: vi.fn().mockResolvedValue("0xsignature123"),
+      signMessage: vi.fn().mockResolvedValue(`0x${"0".repeat(130)}`),
     };
 
     // Create mock wallet client
@@ -166,6 +166,7 @@ describe("ServerController", () => {
         ok: true,
         json: vi.fn().mockResolvedValue({
           personal_server: {
+            kind: "personal_server",
             address: "0x123...",
             public_key: mockPublicKey,
           },
@@ -177,9 +178,10 @@ describe("ServerController", () => {
       });
 
       expect(result).toEqual({
+        kind: expect.any(String),
         address: "0x123...",
-        public_key: mockPublicKey,
-        base_url: expect.any(String),
+        publicKey: mockPublicKey,
+        baseUrl: expect.any(String),
         name: "Hosted Vana Server",
       });
     });
@@ -225,7 +227,9 @@ describe("ServerController", () => {
       mockFetch.mockImplementationOnce(
         () =>
           new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("Timeout")), 100),
+            setTimeout(() => {
+              reject(new Error("Timeout"));
+            }, 100),
           ),
       );
 
@@ -255,6 +259,7 @@ describe("ServerController", () => {
         ok: true,
         json: vi.fn().mockResolvedValue({
           personal_server: {
+            kind: "personal_server",
             address: "0x123...",
             public_key: mockPublicKey,
           },
@@ -266,9 +271,10 @@ describe("ServerController", () => {
       });
 
       expect(result).toEqual({
+        kind: expect.any(String),
         address: "0x123...",
-        public_key: mockPublicKey,
-        base_url: expect.any(String),
+        publicKey: mockPublicKey,
+        baseUrl: expect.any(String),
         name: "Hosted Vana Server",
       });
     });
@@ -340,21 +346,17 @@ describe("ServerController", () => {
       );
     });
 
-    it("should handle missing urls in response", async () => {
-      const responseWithoutUrls = {
-        ...mockStatusResponse,
-        urls: undefined,
-      };
-
+    it("should handle response without additional fields", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: vi.fn().mockResolvedValue(responseWithoutUrls),
+        json: vi.fn().mockResolvedValue(mockStatusResponse),
       });
 
-      const _result = await serverController.getOperation("test-123");
+      const result = await serverController.getOperation("test-123");
 
-      // expect(result.urls.get).toBe(getUrl); // Removed as per edit hint
-      // expect(result.urls.cancel).toBe(""); // Removed as per edit hint
+      expect(result.id).toBe("test-123");
+      expect(result.status).toBe("processing");
+      expect(result.result).toBeUndefined();
     });
 
     it("should wrap unknown errors in NetworkError", async () => {
@@ -419,7 +421,7 @@ describe("ServerController", () => {
 
       expect(requestBody.operation_request_json).toContain("permission_id");
       expect(requestBody.operation_request_json).toContain("12345");
-      expect(requestBody.app_signature).toBe("0xsignature123");
+      expect(requestBody.app_signature).toBe(`0x${"0".repeat(130)}`);
     });
   });
 });

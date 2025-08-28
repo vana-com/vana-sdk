@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fetchSchemaFromChain, fetchSchemaCountFromChain } from "./registry";
-import { getContract } from "viem";
+import { getContract, type PublicClient, type WalletClient } from "viem";
 import { getContractAddress } from "../../config/addresses";
 import { getAbi } from "../../generated/abi";
 
@@ -17,15 +17,22 @@ vi.mock("../../generated/abi", () => ({
   getAbi: vi.fn(),
 }));
 
+interface BlockchainContext {
+  walletClient: WalletClient;
+  publicClient: PublicClient;
+}
+
 describe("Blockchain Registry Utilities", () => {
-  const mockContext = {
+  const mockContext: BlockchainContext = {
     walletClient: {
       chain: { id: 14800 },
-    },
-    publicClient: {},
+    } as WalletClient,
+    publicClient: {} as PublicClient,
   };
 
   const mockContract = {
+    address: "0xContractAddress" as `0x${string}`,
+    abi: [],
     read: {
       schemas: vi.fn(),
       schemasCount: vi.fn(),
@@ -34,9 +41,12 @@ describe("Blockchain Registry Utilities", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (getContractAddress as any).mockReturnValue("0xContractAddress");
-    (getAbi as any).mockReturnValue([]);
-    (getContract as any).mockReturnValue(mockContract);
+    vi.mocked(getContractAddress).mockReturnValue("0xContractAddress");
+    (getAbi as ReturnType<typeof vi.fn>).mockReturnValue([]);
+    // TODO(TYPES): Complex viem type - needs port pattern
+    vi.mocked(getContract).mockReturnValue(
+      mockContract as ReturnType<typeof getContract>,
+    );
   });
 
   describe("fetchSchemaFromChain", () => {
@@ -49,7 +59,7 @@ describe("Blockchain Registry Utilities", () => {
 
       mockContract.read.schemas.mockResolvedValue(mockSchemaData);
 
-      const result = await fetchSchemaFromChain(mockContext as any, 1);
+      const result = await fetchSchemaFromChain(mockContext, 1);
 
       expect(result).toEqual({
         id: 1,
@@ -73,14 +83,14 @@ describe("Blockchain Registry Utilities", () => {
       };
 
       await expect(
-        fetchSchemaFromChain(contextWithoutChain as any, 1),
+        fetchSchemaFromChain(contextWithoutChain as BlockchainContext, 1),
       ).rejects.toThrow("Chain ID not available");
     });
 
     it("should throw error when schema not found", async () => {
       mockContract.read.schemas.mockResolvedValue(null);
 
-      await expect(fetchSchemaFromChain(mockContext as any, 1)).rejects.toThrow(
+      await expect(fetchSchemaFromChain(mockContext, 1)).rejects.toThrow(
         "Schema with ID 1 not found",
       );
     });
@@ -94,7 +104,7 @@ describe("Blockchain Registry Utilities", () => {
 
       mockContract.read.schemas.mockResolvedValue(incompleteSchemaData);
 
-      await expect(fetchSchemaFromChain(mockContext as any, 1)).rejects.toThrow(
+      await expect(fetchSchemaFromChain(mockContext, 1)).rejects.toThrow(
         "Incomplete schema data",
       );
     });
@@ -102,7 +112,7 @@ describe("Blockchain Registry Utilities", () => {
     it("should handle contract read errors", async () => {
       mockContract.read.schemas.mockRejectedValue(new Error("Contract error"));
 
-      await expect(fetchSchemaFromChain(mockContext as any, 1)).rejects.toThrow(
+      await expect(fetchSchemaFromChain(mockContext, 1)).rejects.toThrow(
         "Contract error",
       );
     });
@@ -116,7 +126,7 @@ describe("Blockchain Registry Utilities", () => {
 
       mockContract.read.schemas.mockResolvedValue(schemaWithoutName);
 
-      await expect(fetchSchemaFromChain(mockContext as any, 1)).rejects.toThrow(
+      await expect(fetchSchemaFromChain(mockContext, 1)).rejects.toThrow(
         "Incomplete schema data",
       );
     });
@@ -130,7 +140,7 @@ describe("Blockchain Registry Utilities", () => {
 
       mockContract.read.schemas.mockResolvedValue(schemaWithoutdialecte);
 
-      await expect(fetchSchemaFromChain(mockContext as any, 1)).rejects.toThrow(
+      await expect(fetchSchemaFromChain(mockContext, 1)).rejects.toThrow(
         "Incomplete schema data",
       );
     });
@@ -144,7 +154,7 @@ describe("Blockchain Registry Utilities", () => {
 
       mockContract.read.schemas.mockResolvedValue(schemaWithoutUrl);
 
-      await expect(fetchSchemaFromChain(mockContext as any, 1)).rejects.toThrow(
+      await expect(fetchSchemaFromChain(mockContext, 1)).rejects.toThrow(
         "Incomplete schema data",
       );
     });
@@ -154,7 +164,7 @@ describe("Blockchain Registry Utilities", () => {
     it("should fetch count successfully", async () => {
       mockContract.read.schemasCount.mockResolvedValue(BigInt(42));
 
-      const result = await fetchSchemaCountFromChain(mockContext as any);
+      const result = await fetchSchemaCountFromChain(mockContext);
 
       expect(result).toBe(42);
       expect(mockContract.read.schemasCount).toHaveBeenCalled();
@@ -172,7 +182,7 @@ describe("Blockchain Registry Utilities", () => {
       };
 
       await expect(
-        fetchSchemaCountFromChain(contextWithoutChain as any),
+        fetchSchemaCountFromChain(contextWithoutChain as BlockchainContext),
       ).rejects.toThrow("Chain ID not available");
     });
 
@@ -181,15 +191,15 @@ describe("Blockchain Registry Utilities", () => {
         new Error("Contract read failed"),
       );
 
-      await expect(
-        fetchSchemaCountFromChain(mockContext as any),
-      ).rejects.toThrow("Contract read failed");
+      await expect(fetchSchemaCountFromChain(mockContext)).rejects.toThrow(
+        "Contract read failed",
+      );
     });
 
     it("should handle zero count", async () => {
       mockContract.read.schemasCount.mockResolvedValue(BigInt(0));
 
-      const result = await fetchSchemaCountFromChain(mockContext as any);
+      const result = await fetchSchemaCountFromChain(mockContext);
 
       expect(result).toBe(0);
     });
@@ -197,7 +207,7 @@ describe("Blockchain Registry Utilities", () => {
     it("should handle large counts", async () => {
       mockContract.read.schemasCount.mockResolvedValue(BigInt(1000000));
 
-      const result = await fetchSchemaCountFromChain(mockContext as any);
+      const result = await fetchSchemaCountFromChain(mockContext);
 
       expect(result).toBe(1000000);
     });

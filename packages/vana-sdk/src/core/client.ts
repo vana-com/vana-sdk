@@ -1,11 +1,8 @@
+import type { Chain, Account, PublicClient, WalletClient } from "viem";
 import {
-  Chain,
   createPublicClient,
   http,
-  Account,
   createWalletClient as viemCreateWalletClient,
-  PublicClient,
-  WalletClient,
 } from "viem";
 import { chains, mokshaTestnet } from "../config/chains";
 
@@ -24,8 +21,8 @@ import { chains, mokshaTestnet } from "../config/chains";
  * @category Blockchain
  */
 export const defaultFromBlocks: Record<number, bigint> = {
-  14800: BigInt(732312), // Moksha Testnet - earliest contract deployment
-  1480: BigInt(758584), // Vana Mainnet - earliest contract deployment
+  14800: 732312n, // Moksha Testnet - earliest contract deployment
+  1480: 758584n, // Vana Mainnet - earliest contract deployment
 };
 
 /**
@@ -36,11 +33,11 @@ export const defaultFromBlocks: Record<number, bigint> = {
  * @category Blockchain
  */
 export function getDefaultFromBlock(chainId: number): bigint {
-  return defaultFromBlocks[chainId] || BigInt(0);
+  return defaultFromBlocks[chainId] || 0n;
 }
 
 // Cache for clients
-let _client: PublicClient & { chain: Chain };
+let cachedClient: PublicClient & { chain: Chain };
 
 /**
  * Creates or retrieves a cached public client for blockchain read operations.
@@ -70,19 +67,19 @@ let _client: PublicClient & { chain: Chain };
 export const createClient = (
   chainId: keyof typeof chains = mokshaTestnet.id,
 ): PublicClient & { chain: Chain } => {
-  if (!_client || _client.chain?.id !== chainId) {
+  if (!cachedClient || cachedClient.chain?.id !== chainId) {
     const chain = chains[chainId];
     if (!chain) {
       throw new Error(`Chain ${chainId} not found`);
     }
 
-    _client = createPublicClient({
+    cachedClient = createPublicClient({
       chain,
       transport: http(),
     });
   }
 
-  return _client;
+  return cachedClient;
 };
 
 /**

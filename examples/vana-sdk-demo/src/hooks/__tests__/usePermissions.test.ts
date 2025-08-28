@@ -5,16 +5,16 @@ import {
   vi,
   beforeEach,
   afterEach,
-  MockedFunction,
+  type MockedFunction,
 } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { useAccount } from "wagmi";
-import { useVana } from "@/providers/VanaProvider";
+import { useVana, type VanaContextValue } from "@/providers/VanaProvider";
 import { usePermissions } from "../usePermissions";
 import {
-  GrantedPermission,
-  PermissionGrantTypedData,
   retrieveGrantFile,
+  type GrantedPermission,
+  type PermissionGrantTypedData,
 } from "@opendatalabs/vana-sdk/browser";
 import { addToast } from "@heroui/react";
 import {
@@ -102,7 +102,7 @@ describe("usePermissions", () => {
     useAccountMock.mockReturnValue(createMockUseAccount());
     useVanaMock.mockReturnValue(
       createMockUseVana({
-        vana: mockVana as any,
+        vana: mockVana as unknown as VanaContextValue["vana"],
       }),
     );
 
@@ -192,7 +192,7 @@ describe("usePermissions", () => {
       const { result } = renderHook(() => usePermissions());
 
       const permissions = await act(async () => {
-        return await result.current.loadUserPermissions();
+        return result.current.loadUserPermissions();
       });
 
       expect(permissions).toEqual(mockPermissions);
@@ -211,7 +211,7 @@ describe("usePermissions", () => {
       const { result } = renderHook(() => usePermissions());
 
       const permissions = await act(async () => {
-        return await result.current.loadUserPermissions();
+        return result.current.loadUserPermissions();
       });
 
       expect(permissions).toEqual([]);

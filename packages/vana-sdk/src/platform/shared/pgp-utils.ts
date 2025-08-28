@@ -29,8 +29,8 @@ export function processPGPKeyOptions(options?: {
   passphrase?: string;
 }) {
   return {
-    name: options?.name || "Vana User",
-    email: options?.email || "user@vana.org",
+    name: options?.name ?? "Vana User",
+    email: options?.email ?? "user@vana.org",
     passphrase: options?.passphrase,
   };
 }

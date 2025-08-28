@@ -90,7 +90,9 @@ describe("Core Generics Coverage", () => {
       observable.subscribe(normalObserver);
 
       // This should not throw, but should log errors
-      expect(() => observable.emit("error test")).not.toThrow();
+      expect(() => {
+        observable.emit("error test");
+      }).not.toThrow();
 
       expect(throwingObserver.notify).toHaveBeenCalledWith("error test");
       expect(normalObserver.notify).toHaveBeenCalledWith("error test");

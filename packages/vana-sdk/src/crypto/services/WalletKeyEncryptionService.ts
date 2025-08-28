@@ -15,9 +15,8 @@ import {
   processWalletPublicKey,
   processWalletPrivateKey,
   parseEncryptedDataBuffer,
-  concatBytes,
 } from "../../utils/crypto-utils";
-import { stringToBytes, bytesToString, toHex, fromHex } from "viem";
+import { stringToBytes, bytesToString, toHex, fromHex, concat } from "viem";
 
 export interface WalletKeyEncryptionServiceConfig {
   /** ECIES provider for encryption/decryption */
@@ -80,12 +79,12 @@ export class WalletKeyEncryptionService {
     );
 
     // Concatenate all components for legacy format compatibility
-    const result = concatBytes(
+    const result = concat([
       encrypted.iv,
       encrypted.ephemPublicKey,
       encrypted.ciphertext,
       encrypted.mac,
-    );
+    ]);
 
     // Return as hex string without 0x prefix for API compatibility
     return toHex(result).slice(2);

@@ -34,10 +34,10 @@ export function FilePreview({
     // Check by file extension if filename is provided
     if (fileName) {
       const ext = fileName.split(".").pop()?.toLowerCase();
-      if (["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(ext || "")) {
+      if (["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(ext ?? "")) {
         return "image";
       }
-      if (["json"].includes(ext || "")) {
+      if (["json"].includes(ext ?? "")) {
         return "json";
       }
     }

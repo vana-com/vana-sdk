@@ -61,7 +61,6 @@ describe("chains - additional functions", () => {
       expect(isVanaChain(ethereumChain)).toBe(false);
     });
 
-
     it("should return false for chain without id", () => {
       const chainWithoutId = {
         name: "Test Chain",
@@ -70,9 +69,9 @@ describe("chains - additional functions", () => {
             http: ["https://test.com"],
           },
         },
-      } as any;
+      } as Partial<Chain>;
 
-      expect(isVanaChain(chainWithoutId)).toBe(false);
+      expect(isVanaChain(chainWithoutId as Chain)).toBe(false);
     });
   });
 });

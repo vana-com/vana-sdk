@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
 /**
  * Token refresh endpoint for Google Drive
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       accessToken: tokenData.access_token,
-      expiresAt: expiresAt,
+      expiresAt,
     });
   } catch (error) {
     console.error("Token refresh error:", error);

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   toBase64,
@@ -48,13 +47,13 @@ describe("Encoding Utils", () => {
     it("detects browser environment when window is available", () => {
       // Mock browser environment
       const originalWindow = global.window;
-      global.window = { document: {} } as any;
+      global.window = { document: {} } as Window & typeof globalThis;
 
       expect(isBrowserEnvironment()).toBe(true);
 
       // Restore
       if (originalWindow === undefined) {
-        delete (global as any).window;
+        Reflect.deleteProperty(global, "window");
       } else {
         global.window = originalWindow;
       }
@@ -63,20 +62,20 @@ describe("Encoding Utils", () => {
 
   describe("Cross-platform consistency", () => {
     // Save original globals
-    let originalBuffer: any;
-    let originalBtoa: any;
-    let originalAtob: any;
+    let originalBuffer: unknown;
+    let originalBtoa: unknown;
+    let originalAtob: unknown;
 
     beforeEach(() => {
-      originalBuffer = (global as any).Buffer;
-      originalBtoa = (global as any).btoa;
-      originalAtob = (global as any).atob;
+      originalBuffer = (global as Record<string, unknown>).Buffer;
+      originalBtoa = (global as Record<string, unknown>).btoa;
+      originalAtob = (global as Record<string, unknown>).atob;
     });
 
     afterEach(() => {
-      (global as any).Buffer = originalBuffer;
-      (global as any).btoa = originalBtoa;
-      (global as any).atob = originalAtob;
+      (global as Record<string, unknown>).Buffer = originalBuffer;
+      (global as Record<string, unknown>).btoa = originalBtoa;
+      (global as Record<string, unknown>).atob = originalAtob;
     });
 
     it("base64 encoding produces same result in Node and browser paths", () => {
@@ -87,9 +86,10 @@ describe("Encoding Utils", () => {
         typeof Buffer !== "undefined" ? toBase64(testData) : null;
 
       // Force browser path
-      const savedBuffer = (global as any).Buffer;
-      (global as any).Buffer = undefined;
-      (global as any).btoa = (str: string) => {
+      const savedBuffer = (global as Record<string, unknown>)
+        .Buffer as typeof Buffer;
+      (global as Record<string, unknown>).Buffer = undefined;
+      (global as Record<string, unknown>).btoa = (str: string) => {
         // Simple btoa implementation for testing
         // Note: using savedBuffer here since we set Buffer to undefined
         return savedBuffer.from(str, "binary").toString("base64");
@@ -98,7 +98,7 @@ describe("Encoding Utils", () => {
       const browserResult = toBase64(testData);
 
       // Restore
-      (global as any).Buffer = savedBuffer;
+      (global as Record<string, unknown>).Buffer = savedBuffer;
 
       if (nodeResult !== null) {
         expect(browserResult).toBe(nodeResult);
@@ -113,9 +113,10 @@ describe("Encoding Utils", () => {
         typeof Buffer !== "undefined" ? fromBase64(testBase64) : null;
 
       // Force browser path
-      const savedBuffer = (global as any).Buffer;
-      (global as any).Buffer = undefined;
-      (global as any).atob = (str: string) => {
+      const savedBuffer = (global as Record<string, unknown>)
+        .Buffer as typeof Buffer;
+      (global as Record<string, unknown>).Buffer = undefined;
+      (global as Record<string, unknown>).atob = (str: string) => {
         // Simple atob implementation for testing
         return savedBuffer.from(str, "base64").toString("binary");
       };
@@ -123,7 +124,7 @@ describe("Encoding Utils", () => {
       const browserResult = fromBase64(testBase64);
 
       // Restore
-      (global as any).Buffer = savedBuffer;
+      (global as Record<string, unknown>).Buffer = savedBuffer;
 
       if (nodeResult !== null) {
         expect(browserResult).toEqual(nodeResult);

@@ -1,13 +1,9 @@
-import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
+import type { Mock } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DataController } from "../controllers/data";
-import { ControllerContext } from "../controllers/permissions";
+import type { ControllerContext } from "../controllers/permissions";
 import type { StorageManager } from "../storage/manager";
-import type {
-  StorageProvider as _StorageProvider,
-  StorageUploadResult as _StorageUploadResult,
-  StorageFile as _StorageFile,
-  StorageListOptions as _StorageListOptions,
-} from "../storage/index";
+
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock ALL external dependencies for pure unit tests
@@ -36,6 +32,13 @@ vi.mock("viem", async () => {
     createPublicClient: vi.fn(() => ({
       readContract: vi.fn(),
       waitForTransactionReceipt: vi.fn(),
+      getTransactionReceipt: vi.fn().mockResolvedValue({
+        transactionHash: "0xTransactionHash",
+        blockNumber: 12345n,
+        gasUsed: 100000n,
+        status: "success" as const,
+        logs: [],
+      }),
     })),
     getContract: vi.fn(() => ({
       read: {
@@ -131,6 +134,7 @@ interface MockWalletClient {
 
 interface MockPublicClient {
   waitForTransactionReceipt: ReturnType<typeof vi.fn>;
+  getTransactionReceipt: ReturnType<typeof vi.fn>;
 }
 
 describe("DataController", () => {
@@ -155,13 +159,20 @@ describe("DataController", () => {
       getAddresses: vi
         .fn()
         .mockResolvedValue(["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"]),
-      signMessage: vi.fn().mockResolvedValue("0xsignature"),
+      signMessage: vi.fn().mockResolvedValue(`0x${"0".repeat(130)}`),
       writeContract: vi.fn().mockResolvedValue("0xtxhash"),
     };
 
     // Create a fully mocked public client
     mockPublicClient = {
       waitForTransactionReceipt: vi.fn().mockResolvedValue({ logs: [] }),
+      getTransactionReceipt: vi.fn().mockResolvedValue({
+        transactionHash: "0xTransactionHash",
+        blockNumber: 12345n,
+        gasUsed: 100000n,
+        status: "success" as const,
+        logs: [],
+      }),
     };
 
     // Base context without relayer (for direct transaction tests)

@@ -278,7 +278,9 @@ export function ServersTab({
                             color="danger"
                             variant="flat"
                             size="sm"
-                            onPress={() => onUntrustServer(server.id)}
+                            onPress={() => {
+                              onUntrustServer(server.id);
+                            }}
                             isLoading={isUntrusting}
                             isDisabled={isUntrusting}
                             startContent={<Trash2 className="h-3 w-3" />}

@@ -26,7 +26,7 @@ export function createPinataProvider(): PinataStorage {
   return new PinataStorage({
     jwt,
     gatewayUrl:
-      process.env.PINATA_GATEWAY_URL || "https://gateway.pinata.cloud",
+      process.env.PINATA_GATEWAY_URL ?? "https://gateway.pinata.cloud",
   });
 }
 

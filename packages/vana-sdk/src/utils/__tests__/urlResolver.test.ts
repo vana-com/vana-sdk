@@ -5,13 +5,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { fetchFromUrl, UrlResolutionError } from "../urlResolver";
 
-// Mock the download module with fetchWithRelayer
+// Mock the download module with universalFetch
 vi.mock("../download", () => ({
-  fetchWithRelayer: vi.fn(),
+  universalFetch: vi.fn(),
 }));
 
-import { fetchWithRelayer } from "../download";
-const mockFetchWithRelayer = vi.mocked(fetchWithRelayer);
+import { universalFetch } from "../download";
+const mockUniversalFetch = vi.mocked(universalFetch);
 
 describe("urlResolver", () => {
   beforeEach(() => {
@@ -55,7 +55,7 @@ describe("urlResolver", () => {
     describe("successful fetches", () => {
       it("should fetch from HTTPS URL", async () => {
         const testData = { message: "success" };
-        mockFetchWithRelayer.mockResolvedValueOnce({
+        mockUniversalFetch.mockResolvedValueOnce({
           ok: true,
           json: () => Promise.resolve(testData),
         } as Response);
@@ -63,7 +63,7 @@ describe("urlResolver", () => {
         const result = await fetchFromUrl("https://example.com/data.json");
 
         expect(result).toEqual(testData);
-        expect(mockFetchWithRelayer).toHaveBeenCalledWith(
+        expect(mockUniversalFetch).toHaveBeenCalledWith(
           "https://example.com/data.json",
           undefined,
         );
@@ -71,7 +71,7 @@ describe("urlResolver", () => {
 
       it("should fetch from HTTP URL", async () => {
         const testData = { message: "success" };
-        mockFetchWithRelayer.mockResolvedValueOnce({
+        mockUniversalFetch.mockResolvedValueOnce({
           ok: true,
           json: () => Promise.resolve(testData),
         } as Response);
@@ -79,7 +79,7 @@ describe("urlResolver", () => {
         const result = await fetchFromUrl("http://example.com/data.json");
 
         expect(result).toEqual(testData);
-        expect(mockFetchWithRelayer).toHaveBeenCalledWith(
+        expect(mockUniversalFetch).toHaveBeenCalledWith(
           "http://example.com/data.json",
           undefined,
         );
@@ -87,7 +87,7 @@ describe("urlResolver", () => {
 
       it("should fetch from IPFS URL", async () => {
         const testData = { message: "ipfs data" };
-        mockFetchWithRelayer.mockResolvedValueOnce({
+        mockUniversalFetch.mockResolvedValueOnce({
           ok: true,
           json: () => Promise.resolve(testData),
         } as Response);
@@ -95,7 +95,7 @@ describe("urlResolver", () => {
         const result = await fetchFromUrl("ipfs://QmXxx123");
 
         expect(result).toEqual(testData);
-        expect(mockFetchWithRelayer).toHaveBeenCalledWith(
+        expect(mockUniversalFetch).toHaveBeenCalledWith(
           "ipfs://QmXxx123",
           undefined,
         );
@@ -103,7 +103,7 @@ describe("urlResolver", () => {
 
       it("should fetch from Arweave URL", async () => {
         const testData = { message: "arweave data" };
-        mockFetchWithRelayer.mockResolvedValueOnce({
+        mockUniversalFetch.mockResolvedValueOnce({
           ok: true,
           json: () => Promise.resolve(testData),
         } as Response);
@@ -111,7 +111,7 @@ describe("urlResolver", () => {
         const result = await fetchFromUrl("ar://abc123def456");
 
         expect(result).toEqual(testData);
-        expect(mockFetchWithRelayer).toHaveBeenCalledWith(
+        expect(mockUniversalFetch).toHaveBeenCalledWith(
           "ar://abc123def456",
           undefined,
         );
@@ -120,7 +120,7 @@ describe("urlResolver", () => {
 
     describe("error handling", () => {
       it("should throw UrlResolutionError for unsupported protocol", async () => {
-        mockFetchWithRelayer.mockRejectedValueOnce(
+        mockUniversalFetch.mockRejectedValueOnce(
           new Error("Unsupported protocol"),
         );
 
@@ -130,7 +130,7 @@ describe("urlResolver", () => {
       });
 
       it("should throw UrlResolutionError for HTTP error responses", async () => {
-        mockFetchWithRelayer.mockResolvedValueOnce({
+        mockUniversalFetch.mockResolvedValueOnce({
           ok: false,
           status: 404,
           statusText: "Not Found",
@@ -148,7 +148,7 @@ describe("urlResolver", () => {
       });
 
       it("should throw UrlResolutionError for JSON parsing errors", async () => {
-        mockFetchWithRelayer.mockResolvedValueOnce({
+        mockUniversalFetch.mockResolvedValueOnce({
           ok: true,
           json: () => Promise.reject(new Error("Invalid JSON")),
         } as Response);
@@ -165,7 +165,7 @@ describe("urlResolver", () => {
       });
 
       it("should throw UrlResolutionError for network errors", async () => {
-        mockFetchWithRelayer.mockRejectedValueOnce(new Error("Network error"));
+        mockUniversalFetch.mockRejectedValueOnce(new Error("Network error"));
 
         try {
           await fetchFromUrl("https://example.com/error");
@@ -181,13 +181,13 @@ describe("urlResolver", () => {
 
     describe("edge cases", () => {
       it("should handle empty URLs", async () => {
-        mockFetchWithRelayer.mockRejectedValueOnce(new Error("Invalid URL"));
+        mockUniversalFetch.mockRejectedValueOnce(new Error("Invalid URL"));
 
         await expect(fetchFromUrl("")).rejects.toThrow(UrlResolutionError);
       });
 
       it("should handle invalid URLs", async () => {
-        mockFetchWithRelayer.mockRejectedValueOnce(new Error("Invalid URL"));
+        mockUniversalFetch.mockRejectedValueOnce(new Error("Invalid URL"));
 
         await expect(fetchFromUrl("not-a-url")).rejects.toThrow(
           UrlResolutionError,
@@ -196,7 +196,7 @@ describe("urlResolver", () => {
 
       it("should handle URLs with query parameters", async () => {
         const testData = { message: "with params" };
-        mockFetchWithRelayer.mockResolvedValueOnce({
+        mockUniversalFetch.mockResolvedValueOnce({
           ok: true,
           json: () => Promise.resolve(testData),
         } as Response);
@@ -206,7 +206,7 @@ describe("urlResolver", () => {
         );
 
         expect(result).toEqual(testData);
-        expect(mockFetchWithRelayer).toHaveBeenCalledWith(
+        expect(mockUniversalFetch).toHaveBeenCalledWith(
           "https://example.com/api?param=value&other=test",
           undefined,
         );
@@ -214,7 +214,7 @@ describe("urlResolver", () => {
 
       it("should handle URLs with fragments", async () => {
         const testData = { message: "with fragment" };
-        mockFetchWithRelayer.mockResolvedValueOnce({
+        mockUniversalFetch.mockResolvedValueOnce({
           ok: true,
           json: () => Promise.resolve(testData),
         } as Response);
@@ -222,7 +222,7 @@ describe("urlResolver", () => {
         const result = await fetchFromUrl("https://example.com/page#section");
 
         expect(result).toEqual(testData);
-        expect(mockFetchWithRelayer).toHaveBeenCalledWith(
+        expect(mockUniversalFetch).toHaveBeenCalledWith(
           "https://example.com/page#section",
           undefined,
         );
@@ -230,13 +230,13 @@ describe("urlResolver", () => {
     });
 
     describe("with download relayer", () => {
-      it("should pass download relayer to fetchWithRelayer", async () => {
+      it("should pass download relayer to universalFetch", async () => {
         const testData = { message: "relayed" };
         const mockRelayer = {
           proxyDownload: vi.fn().mockResolvedValue(new Blob()),
         };
 
-        mockFetchWithRelayer.mockResolvedValueOnce({
+        mockUniversalFetch.mockResolvedValueOnce({
           ok: true,
           json: () => Promise.resolve(testData),
         } as Response);
@@ -247,7 +247,7 @@ describe("urlResolver", () => {
         );
 
         expect(result).toEqual(testData);
-        expect(mockFetchWithRelayer).toHaveBeenCalledWith(
+        expect(mockUniversalFetch).toHaveBeenCalledWith(
           "https://example.com/data.json",
           mockRelayer,
         );

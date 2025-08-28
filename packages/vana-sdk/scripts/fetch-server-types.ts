@@ -32,13 +32,21 @@ async function generateTypes(): Promise<string> {
       // See: https://github.com/vana-com/vana-personal-server/issues/XXX
       pathParamsAsTypes: false,
       // Transform comments to be TypeDoc compatible
-      transform: {
-        schema: {
-          comment: (comment: string) => {
-            // Replace @description with standard JSDoc comment
-            return comment.replace(/@description\s+/g, "");
-          },
-        },
+      transform(schemaObject, _options) {
+        // Add comment transformation if schema has description
+        if (
+          "description" in schemaObject &&
+          typeof schemaObject.description === "string"
+        ) {
+          return {
+            ...schemaObject,
+            description: schemaObject.description.replace(
+              /@description\s+/g,
+              "",
+            ),
+          };
+        }
+        return undefined;
       },
     });
 
@@ -208,4 +216,4 @@ async function main(): Promise<void> {
 }
 
 // Run the script
-main();
+void main();

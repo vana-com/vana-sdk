@@ -20,7 +20,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { AddressDisplay } from "@/components/ui/AddressDisplay";
 import { CopyButton } from "@/components/ui/CopyButton";
 import { FormBuilder } from "@/components/ui/FormBuilder";
-import { Grantee } from "@opendatalabs/vana-sdk/browser";
+import type { Grantee } from "@opendatalabs/vana-sdk/browser";
 
 interface GranteesTabProps {
   // Grantee data
@@ -221,7 +221,9 @@ export function GranteesTab({
                         color="danger"
                         variant="flat"
                         size="sm"
-                        onPress={() => onRemoveGrantee(grantee.id)}
+                        onPress={() => {
+                          onRemoveGrantee(grantee.id);
+                        }}
                         isLoading={isRemoving}
                         isDisabled={isRemoving}
                         startContent={<Trash2 className="h-3 w-3" />}

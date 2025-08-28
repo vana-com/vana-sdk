@@ -1,11 +1,12 @@
-import { Address, Hash, getAddress } from "viem";
-import type { WalletClient, PublicClient } from "viem";
+import type { Address, Hash } from "viem";
+import { getAddress } from "viem";
 import { gasAwareMulticall } from "../utils/multicall";
-import {
+import type {
   GrantPermissionParams,
   RevokePermissionParams,
   PermissionGrantTypedData,
   GenericTypedData,
+  RevokePermissionTypedData,
   OnChainPermissionGrant,
   GetUserPermissionsOptions,
   AddAndTrustServerParams,
@@ -36,23 +37,13 @@ import {
   ServerFilesAndPermissionTypedData,
   Permission,
 } from "../types/index";
-import {
+import type {
   PermissionGrantResult,
   PermissionRevokeResult,
   ServerTrustResult,
-  ServerUntrustResult,
-  ServerUpdateResult,
-  GranteeRegisterResult,
 } from "../types/transactionResults";
-import type {
-  TransactionResult,
-  TransactionWaitOptions,
-} from "../types/operations";
-import { PermissionInfo } from "../types/permissions";
-import type {
-  RelayerCallbacks,
-  DownloadRelayerCallbacks,
-} from "../types/config";
+import type { TransactionResult } from "../types/operations";
+import type { PermissionInfo } from "../types/permissions";
 import {
   RelayerError,
   UserRejectedRequestError,
@@ -71,8 +62,6 @@ import { validateGrant } from "../utils/grantValidation";
 import { withSignatureCache } from "../utils/signatureCache";
 import { formatSignatureForContract } from "../utils/signatureFormatter";
 import { toViemTypedDataDefinition } from "../utils/typedDataConverter";
-import { StorageManager } from "../storage";
-import type { VanaPlatformAdapter } from "../platform/interface";
 import type { GetUserPermissionsQuery } from "../generated/subgraph";
 
 // Wrapper type for GraphQL responses with potential errors
@@ -92,42 +81,9 @@ type SubgraphPermissionsResponse = {
  * and platform adapters for environment-specific functionality.
  * @category Configuration
  */
-export interface ControllerContext {
-  /** Signs transactions and messages using the user's private key. */
-  walletClient: WalletClient;
-  /** Queries blockchain state and smart contracts without signing. */
-  publicClient: PublicClient;
-  /** Signs application-specific operations when different from primary wallet. */
-  applicationClient?: WalletClient;
-  /** Handles gasless transaction submission through relayer services. */
-  relayerCallbacks?: RelayerCallbacks;
-  /** Proxies CORS-restricted downloads through application server. */
-  downloadRelayer?: DownloadRelayerCallbacks;
-  /** Manages file upload and download operations across storage providers. */
-  storageManager?: StorageManager;
-  /** Provides subgraph endpoint for querying indexed blockchain data. */
-  subgraphUrl?: string;
-  /** Adapts SDK functionality to the current runtime environment. */
-  platform: VanaPlatformAdapter;
-  /** Validates that storage is available for storage-dependent operations. */
-  validateStorageRequired?: () => void;
-  /** Checks whether storage is configured without throwing an error. */
-  hasStorage?: () => boolean;
-  /** Default IPFS gateways to use for fetching files. */
-  ipfsGateways?: string[];
-  /** Default personal server base URL for server operations. */
-  defaultPersonalServerUrl?: string;
-  /** Waits for transaction confirmation and parses typed events. */
-  waitForTransactionEvents?: <T = unknown>(
-    hashOrObj: Hash | TransactionResult | { hash: Hash },
-    options?: import("../types/operations").TransactionWaitOptions,
-  ) => Promise<T>;
-  /** Waits for an operation to complete with polling. */
-  waitForOperation?: <T = unknown>(
-    opOrId: import("../types/operations").Operation<T> | string,
-    options?: import("../types/operations").PollingOptions,
-  ) => Promise<import("../types/operations").Operation<T>>;
-}
+// Import the shared ControllerContext from single source of truth
+import type { ControllerContext } from "../types/controller-context";
+export type { ControllerContext };
 
 /**
  * Manages gasless data access permissions and trusted server registry operations.
@@ -212,10 +168,11 @@ export class PermissionsController {
    * await vana.permissions.revoke({ permissionId: result.permissionId });
    * ```
    */
-  async grant(
-    params: GrantPermissionParams,
-  ): Promise<TransactionResult & { eventData?: PermissionGrantResult }> {
-    return await this.submitPermissionGrant(params);
+  async grant(params: GrantPermissionParams): Promise<PermissionGrantResult> {
+    // Submit the transaction and wait for events internally
+    const { typedData, signature } = await this.createAndSign(params);
+    const result = await this.submitSignedGrantWithEvents(typedData, signature);
+    return result;
   }
 
   /**
@@ -245,7 +202,7 @@ export class PermissionsController {
    */
   async submitPermissionGrant(
     params: GrantPermissionParams,
-  ): Promise<TransactionResult & { eventData?: PermissionGrantResult }> {
+  ): Promise<TransactionResult<"DataPortabilityPermissions", "addPermission">> {
     const { typedData, signature } = await this.createAndSign(params);
     return await this.submitSignedGrant(typedData, signature);
   }
@@ -277,9 +234,7 @@ export class PermissionsController {
    */
   async prepareGrant(params: GrantPermissionParams): Promise<{
     preview: GrantFile;
-    confirm: () => Promise<
-      TransactionResult & { eventData?: PermissionGrantResult }
-    >;
+    confirm: () => Promise<PermissionGrantResult>;
   }> {
     try {
       // Step 1: Create grant file in memory (no IPFS upload yet)
@@ -291,11 +246,9 @@ export class PermissionsController {
       // Step 3: Return preview and confirm function
       return {
         preview: grantFile,
-        confirm: async (): Promise<
-          TransactionResult & { eventData?: PermissionGrantResult }
-        > => {
+        confirm: async (): Promise<PermissionGrantResult> => {
           // Phase 2: Now we upload, sign, and submit
-          return await this.confirmGrantInternal(params, grantFile);
+          return await this.confirmGrantInternalWithEvents(params, grantFile);
         },
       };
     } catch (error) {
@@ -340,10 +293,10 @@ export class PermissionsController {
   private async confirmGrantInternal(
     params: GrantPermissionParams,
     grantFile: GrantFile,
-  ): Promise<TransactionResult & { eventData?: PermissionGrantResult }> {
+  ): Promise<TransactionResult<"DataPortabilityPermissions", "addPermission">> {
     try {
       // Step 1: Use provided grantUrl or store grant file in IPFS
-      let grantUrl = params.grantUrl;
+      let { grantUrl } = params;
       console.debug("🔍 Debug - Grant URL from params:", grantUrl);
       if (!grantUrl) {
         // Validate storage is available using the centralized validation method
@@ -467,7 +420,7 @@ export class PermissionsController {
       validateGrant(grantFile);
 
       // Step 2: Use provided grantUrl or store grant file in IPFS
-      let grantUrl = params.grantUrl;
+      let { grantUrl } = params;
       console.debug("🔍 Debug - Grant URL from params:", grantUrl);
       if (!grantUrl) {
         // Validate storage is available using the centralized validation method
@@ -574,32 +527,36 @@ export class PermissionsController {
   async submitSignedGrant(
     typedData: PermissionGrantTypedData,
     signature: Hash,
-  ): Promise<TransactionResult & { eventData?: PermissionGrantResult }> {
+  ): Promise<TransactionResult<"DataPortabilityPermissions", "addPermission">> {
     try {
       console.debug(
         "🔍 Debug - submitSignedGrant called with typed data:",
         JSON.stringify(
           typedData,
-          (key, value) =>
+          (_key, value) =>
             typeof value === "bigint" ? value.toString() : value,
           2,
         ),
       );
 
       // Use relayer callbacks or direct transaction
-      let hash: Hash;
       if (this.context.relayerCallbacks?.submitPermissionGrant) {
-        hash = await this.context.relayerCallbacks.submitPermissionGrant(
+        const hash = await this.context.relayerCallbacks.submitPermissionGrant(
           typedData,
           signature,
         );
+        const account =
+          this.context.walletClient.account ?? (await this.getUserAddress());
+        const { tx } = await import("../utils/transactionHelpers");
+        return tx({
+          hash,
+          from: typeof account === "string" ? account : account.address,
+          contract: "DataPortabilityPermissions",
+          fn: "addPermission",
+        });
       } else {
-        hash = await this.submitDirectTransaction(typedData, signature);
+        return await this.submitDirectTransaction(typedData, signature);
       }
-      return {
-        hash,
-        from: this.context.walletClient.account?.address,
-      };
     } catch (error) {
       // Re-throw known Vana errors directly to preserve error types
       if (
@@ -642,7 +599,9 @@ export class PermissionsController {
   async submitSignedTrustServer(
     typedData: TrustServerTypedData,
     signature: Hash,
-  ): Promise<TransactionResult & { eventData?: ServerTrustResult }> {
+  ): Promise<
+    TransactionResult<"DataPortabilityServers", "trustServerWithSignature">
+  > {
     try {
       const trustServerInput: TrustServerInput = {
         nonce: BigInt(typedData.message.nonce),
@@ -653,10 +612,15 @@ export class PermissionsController {
         trustServerInput,
         signature,
       );
-      return {
+      const account =
+        this.context.walletClient.account ?? (await this.getUserAddress());
+      const { tx } = await import("../utils/transactionHelpers");
+      return tx({
         hash,
-        from: this.context.walletClient.account?.address,
-      };
+        from: typeof account === "string" ? account : account.address,
+        contract: "DataPortabilityServers",
+        fn: "trustServerWithSignature",
+      });
     } catch (error) {
       // Re-throw known Vana errors directly to preserve error types
       if (
@@ -719,7 +683,12 @@ export class PermissionsController {
   async submitSignedAddAndTrustServer(
     typedData: AddAndTrustServerTypedData,
     signature: Hash,
-  ): Promise<TransactionResult & { eventData?: ServerTrustResult }> {
+  ): Promise<
+    TransactionResult<
+      "DataPortabilityServers",
+      "addAndTrustServerWithSignature"
+    >
+  > {
     try {
       const addAndTrustServerInput: AddAndTrustServerInput = {
         nonce: BigInt(typedData.message.nonce),
@@ -732,10 +701,15 @@ export class PermissionsController {
         addAndTrustServerInput,
         signature,
       );
-      return {
+      const account =
+        this.context.walletClient.account ?? (await this.getUserAddress());
+      const { tx } = await import("../utils/transactionHelpers");
+      return tx({
         hash,
-        from: this.context.walletClient.account?.address,
-      };
+        from: typeof account === "string" ? account : account.address,
+        contract: "DataPortabilityServers",
+        fn: "addAndTrustServerWithSignature",
+      });
     } catch (error) {
       // Re-throw known Vana errors directly to preserve error types
       if (
@@ -753,6 +727,96 @@ export class PermissionsController {
         error as Error,
       );
     }
+  }
+
+  /**
+   * Internal method to submit a signed grant and wait for events.
+   *
+   * @internal
+   * @param typedData - The EIP-712 typed data for the permission grant
+   * @param signature - The user's signature authorizing the transaction
+   * @returns Promise resolving to PermissionGrantResult with parsed events
+   */
+  private async submitSignedGrantWithEvents(
+    typedData: PermissionGrantTypedData,
+    signature: Hash,
+  ): Promise<PermissionGrantResult> {
+    const txResult = await this.submitSignedGrant(typedData, signature);
+
+    if (!this.context.waitForTransactionEvents) {
+      throw new BlockchainError("waitForTransactionEvents not configured");
+    }
+
+    // Now TypeScript knows this is a DataPortabilityPermissions.addPermission transaction
+    const result = await this.context.waitForTransactionEvents(txResult);
+
+    // TypeScript knows exactly what events are possible!
+    const event = result.expectedEvents.PermissionAdded;
+    if (!event) {
+      throw new BlockchainError(
+        "PermissionAdded event not found in transaction",
+      );
+    }
+
+    // Need to get receipt for block number and gas used
+    const receipt = await this.context.publicClient.getTransactionReceipt({
+      hash: result.hash,
+    });
+
+    return {
+      transactionHash: result.hash,
+      blockNumber: receipt.blockNumber,
+      gasUsed: receipt.gasUsed,
+      permissionId: event.permissionId,
+      user: event.user,
+      grant: event.grant,
+      fileIds: event.fileIds,
+    };
+  }
+
+  /**
+   * Internal method for confirm grant with events.
+   *
+   * @internal
+   * @param params - The permission grant parameters
+   * @param grantFile - The pre-created grant file object
+   * @returns Promise resolving to PermissionGrantResult with parsed events
+   */
+  private async confirmGrantInternalWithEvents(
+    params: GrantPermissionParams,
+    grantFile: GrantFile,
+  ): Promise<PermissionGrantResult> {
+    const txResult = await this.confirmGrantInternal(params, grantFile);
+
+    if (!this.context.waitForTransactionEvents) {
+      throw new BlockchainError("waitForTransactionEvents not configured");
+    }
+
+    // Wait for transaction events
+    const result = await this.context.waitForTransactionEvents(txResult);
+
+    // Extract the expected event
+    const event = result.expectedEvents.PermissionAdded;
+    if (!event) {
+      throw new BlockchainError(
+        "PermissionAdded event not found in transaction",
+      );
+    }
+
+    // Get receipt for block number and gas used
+    const receipt = await this.context.publicClient.getTransactionReceipt({
+      hash: result.hash,
+    });
+
+    return {
+      transactionHash: result.hash,
+      blockNumber: receipt.blockNumber,
+      gasUsed: receipt.gasUsed,
+      permissionId: event.permissionId,
+      user: event.user,
+      grant: event.grant,
+      fileIds: event.fileIds,
+    };
   }
 
   /**
@@ -779,7 +843,12 @@ export class PermissionsController {
   async submitSignedRevoke(
     typedData: GenericTypedData,
     signature: Hash,
-  ): Promise<TransactionResult & { eventData?: PermissionRevokeResult }> {
+  ): Promise<
+    TransactionResult<
+      "DataPortabilityPermissions",
+      "revokePermissionWithSignature"
+    >
+  > {
     try {
       // Use relayer callbacks or direct transaction
       let hash: Hash;
@@ -789,12 +858,20 @@ export class PermissionsController {
           signature,
         );
       } else {
-        hash = await this.submitDirectRevokeTransaction(typedData, signature);
+        hash = await this.submitDirectRevokeTransaction(
+          typedData as RevokePermissionTypedData,
+          signature,
+        );
       }
-      return {
+      const account =
+        this.context.walletClient.account ?? (await this.getUserAddress());
+      const { tx } = await import("../utils/transactionHelpers");
+      return tx({
         hash,
-        from: this.context.walletClient.account?.address,
-      };
+        from: typeof account === "string" ? account : account.address,
+        contract: "DataPortabilityPermissions",
+        fn: "revokePermissionWithSignature",
+      });
     } catch (error) {
       if (
         error instanceof RelayerError ||
@@ -836,7 +913,9 @@ export class PermissionsController {
   async submitSignedUntrustServer(
     typedData: GenericTypedData,
     signature: Hash,
-  ): Promise<TransactionResult & { eventData?: ServerUntrustResult }> {
+  ): Promise<
+    TransactionResult<"DataPortabilityServers", "untrustServerWithSignature">
+  > {
     try {
       // Use relayer callbacks or direct transaction
       let hash: Hash;
@@ -846,12 +925,20 @@ export class PermissionsController {
           signature,
         );
       } else {
-        hash = await this.submitSignedUntrustTransaction(typedData, signature);
+        hash = await this.submitSignedUntrustTransaction(
+          typedData as UntrustServerTypedData,
+          signature,
+        );
       }
-      return {
+      const account =
+        this.context.walletClient.account ?? (await this.getUserAddress());
+      const { tx } = await import("../utils/transactionHelpers");
+      return tx({
         hash,
-        from: this.context.walletClient.account?.address,
-      };
+        from: typeof account === "string" ? account : account.address,
+        contract: "DataPortabilityServers",
+        fn: "untrustServerWithSignature",
+      });
     } catch (error) {
       if (
         error instanceof RelayerError ||
@@ -884,7 +971,7 @@ export class PermissionsController {
   private async submitDirectTransaction(
     typedData: PermissionGrantTypedData,
     signature: Hash,
-  ): Promise<Hash> {
+  ): Promise<TransactionResult<"DataPortabilityPermissions", "addPermission">> {
     const chainId = await this.context.walletClient.getChainId();
     const DataPortabilityPermissionsAddress = getContractAddress(
       chainId,
@@ -908,24 +995,32 @@ export class PermissionsController {
     console.debug("🔍 Debug - Grant field value:", typedData.message.grant);
     console.debug(
       "🔍 Debug - Grant field length:",
-      typedData.message.grant?.length || 0,
+      typedData.message.grant?.length ?? 0,
     );
 
     // Format signature for contract compatibility
     const formattedSignature = formatSignatureForContract(signature);
 
     // Submit directly to the contract using the provided wallet client
+    const account =
+      this.context.walletClient.account ?? (await this.getUserAddress());
+
     const txHash = await this.context.walletClient.writeContract({
       address: DataPortabilityPermissionsAddress,
       abi: DataPortabilityPermissionsAbi,
       functionName: "addPermission",
       args: [permissionInput, formattedSignature],
-      account:
-        this.context.walletClient.account || (await this.getUserAddress()),
-      chain: this.context.walletClient.chain || null,
+      account,
+      chain: this.context.walletClient.chain ?? null,
     });
 
-    return txHash;
+    const { tx } = await import("../utils/transactionHelpers");
+    return tx({
+      hash: txHash,
+      from: typeof account === "string" ? account : account.address,
+      contract: "DataPortabilityPermissions",
+      fn: "addPermission",
+    });
   }
 
   /**
@@ -954,8 +1049,35 @@ export class PermissionsController {
    */
   async revoke(
     params: RevokePermissionParams,
-  ): Promise<TransactionResult & { eventData?: PermissionRevokeResult }> {
-    return await this.submitPermissionRevoke(params);
+  ): Promise<PermissionRevokeResult> {
+    const txResult = await this.submitPermissionRevoke(params);
+
+    if (!this.context.waitForTransactionEvents) {
+      throw new BlockchainError("waitForTransactionEvents not configured");
+    }
+
+    // Wait for transaction events
+    const result = await this.context.waitForTransactionEvents(txResult);
+
+    // Extract the expected event
+    const event = result.expectedEvents.PermissionRevoked;
+    if (!event) {
+      throw new BlockchainError(
+        "PermissionRevoked event not found in transaction",
+      );
+    }
+
+    // Get receipt for block number and gas used
+    const receipt = await this.context.publicClient.getTransactionReceipt({
+      hash: result.hash,
+    });
+
+    return {
+      transactionHash: result.hash,
+      blockNumber: receipt.blockNumber,
+      gasUsed: receipt.gasUsed,
+      permissionId: event.permissionId,
+    };
   }
 
   /**
@@ -979,7 +1101,9 @@ export class PermissionsController {
    */
   async submitPermissionRevoke(
     params: RevokePermissionParams,
-  ): Promise<TransactionResult & { eventData?: PermissionRevokeResult }> {
+  ): Promise<
+    TransactionResult<"DataPortabilityPermissions", "revokePermission">
+  > {
     try {
       // Check chain ID availability early
       if (!this.context.walletClient.chain?.id) {
@@ -996,20 +1120,25 @@ export class PermissionsController {
       );
 
       // Direct contract call for revocation
+      const account =
+        this.context.walletClient.account ?? (await this.getUserAddress());
+
       const txHash = await this.context.walletClient.writeContract({
         address: DataPortabilityPermissionsAddress,
         abi: DataPortabilityPermissionsAbi,
         functionName: "revokePermission",
         args: [params.permissionId],
-        account:
-          this.context.walletClient.account || (await this.getUserAddress()),
-        chain: this.context.walletClient.chain || null,
+        account,
+        chain: this.context.walletClient.chain ?? null,
       });
 
-      return {
+      const { tx } = await import("../utils/transactionHelpers");
+      return tx({
         hash: txHash,
-        from: this.context.walletClient.account?.address,
-      };
+        from: typeof account === "string" ? account : account.address,
+        contract: "DataPortabilityPermissions",
+        fn: "revokePermission",
+      });
     } catch (error) {
       if (error instanceof Error) {
         // Re-throw known Vana errors directly
@@ -1059,7 +1188,12 @@ export class PermissionsController {
    */
   async submitRevokeWithSignature(
     params: RevokePermissionParams,
-  ): Promise<TransactionResult & { eventData?: PermissionRevokeResult }> {
+  ): Promise<
+    TransactionResult<
+      "DataPortabilityPermissions",
+      "revokePermissionWithSignature"
+    >
+  > {
     try {
       // Check chain ID availability early
       if (!this.context.walletClient.chain?.id) {
@@ -1097,79 +1231,25 @@ export class PermissionsController {
           signature,
         );
       } else {
-        hash = await this.submitDirectRevokeTransaction(typedData, signature);
+        hash = await this.submitDirectRevokeTransaction(
+          typedData as RevokePermissionTypedData,
+          signature,
+        );
       }
 
-      return {
+      const account =
+        this.context.walletClient.account ?? (await this.getUserAddress());
+      const { tx } = await import("../utils/transactionHelpers");
+      return tx({
         hash,
-        from: this.context.walletClient.account?.address,
-      };
+        from: typeof account === "string" ? account : account.address,
+        contract: "DataPortabilityPermissions",
+        fn: "revokePermissionWithSignature",
+      });
     } catch (error) {
       throw new PermissionError(
         `Failed to revoke permission with signature: ${error instanceof Error ? error.message : "Unknown error"}`,
         error as Error,
-      );
-    }
-  }
-
-  /**
-   * @deprecated Use getPermissionsUserNonce() for permission operations or getServersUserNonce() for server operations
-   *
-   * Retrieves the user's current nonce from the DataPortabilityServers contract.
-   * This method is deprecated in favor of more specific nonce methods.
-   *
-   * The nonce is used to prevent replay attacks in signed transactions and must
-   * be incremented with each transaction to maintain security.
-   *
-   * @returns Promise resolving to the user's current nonce value as a bigint
-   * @throws {Error} When wallet account is not available
-   * @throws {Error} When chain ID is not available
-   * @throws {NonceError} When reading nonce from contract fails
-   * @private
-   * @example
-   * ```typescript
-   * // Deprecated - use specific methods instead
-   * const nonce = await this.getUserNonce();
-   *
-   * // Use these instead:
-   * const permissionsNonce = await this.getPermissionsUserNonce();
-   * const serversNonce = await this.getServersUserNonce();
-   * ```
-   */
-  /**
-   * @deprecated Use getPermissionsUserNonce() for permission operations or getServersUserNonce() for server operations
-   *
-   * Retrieves the user's current nonce from the DataPortabilityServers contract.
-   *
-   * @remarks
-   * This method is deprecated in favor of more specific nonce methods that target
-   * the appropriate contract for the operation being performed.
-   *
-   * @returns Promise resolving to the user's current nonce as a bigint
-   * @throws {NonceError} When retrieving the nonce fails
-   */
-  private async getUserNonce(): Promise<bigint> {
-    try {
-      const userAddress = await this.getUserAddress();
-      const chainId = await this.context.walletClient.getChainId();
-
-      const DataPortabilityServersAddress = getContractAddress(
-        chainId,
-        "DataPortabilityServers",
-      );
-      const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
-
-      const nonce = (await this.context.publicClient.readContract({
-        address: DataPortabilityServersAddress,
-        abi: DataPortabilityServersAbi,
-        functionName: "userNonce",
-        args: [userAddress],
-      })) as bigint;
-
-      return nonce;
-    } catch (error) {
-      throw new NonceError(
-        `Failed to retrieve user nonce: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }
@@ -1261,12 +1341,12 @@ export class PermissionsController {
         "DataPortabilityPermissions",
       );
 
-      const nonce = (await this.context.publicClient.readContract({
+      const nonce = await this.context.publicClient.readContract({
         address: DataPortabilityPermissionsAddress,
         abi: DataPortabilityPermissionsAbi,
         functionName: "userNonce",
         args: [userAddress],
-      })) as bigint;
+      });
 
       return nonce;
     } catch (error) {
@@ -1347,7 +1427,7 @@ export class PermissionsController {
       primaryType: "Permission",
       message: {
         nonce: params.nonce,
-        granteeId: granteeId as bigint,
+        granteeId,
         grant: params.grantUrl,
         fileIds: params.files.map((fileId) => BigInt(fileId)),
       },
@@ -1467,7 +1547,7 @@ export class PermissionsController {
     try {
       // Get wallet address for cache key - use account if available, otherwise get from wallet
       const walletAddress =
-        this.context.walletClient.account?.address ||
+        this.context.walletClient.account?.address ??
         (await this.getUserAddress());
 
       // Use signature cache to avoid repeated signing of identical messages
@@ -1479,9 +1559,9 @@ export class PermissionsController {
           const viemCompatibleTypedData = toViemTypedDataDefinition(typedData);
           return await this.context.walletClient.signTypedData({
             ...viemCompatibleTypedData,
-            // Non-null assertion is safe here because getUserAddress() above ensures account exists
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-            account: this.context.walletClient.account!,
+            // Use the account if available, otherwise use the wallet address
+            // This follows the same pattern used throughout this file
+            account: this.context.walletClient.account ?? walletAddress,
           });
         },
       );
@@ -1553,7 +1633,7 @@ export class PermissionsController {
       const userAddress = await this.getUserAddress();
 
       // Use provided subgraph URL or default from context
-      const graphqlEndpoint = subgraphUrl || this.context.subgraphUrl;
+      const graphqlEndpoint = subgraphUrl ?? this.context.subgraphUrl;
 
       if (!graphqlEndpoint) {
         throw new BlockchainError(
@@ -1613,7 +1693,7 @@ export class PermissionsController {
       }
 
       const userData = result.data?.user;
-      if (!userData || !userData.permissions?.length) {
+      if (!userData?.permissions?.length) {
         return [];
       }
 
@@ -1628,9 +1708,9 @@ export class PermissionsController {
             nonce: BigInt(permission.nonce),
             startBlock: BigInt(permission.startBlock),
             addedAtBlock: BigInt(permission.addedAtBlock),
-            addedAtTimestamp: BigInt(permission.addedAtTimestamp || "0"),
-            transactionHash: permission.transactionHash || "",
-            grantor: userAddress as Address,
+            addedAtTimestamp: BigInt(permission.addedAtTimestamp ?? "0"),
+            transactionHash: permission.transactionHash ?? "",
+            grantor: userAddress,
             grantee: permission.grantee,
             active: !permission.endBlock || BigInt(permission.endBlock) === 0n, // Active if no end block or end block is 0
           }),
@@ -1648,34 +1728,6 @@ export class PermissionsController {
       }
       throw new BlockchainError(
         `Failed to fetch user permission grants: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-    }
-  }
-
-  /**
-   * Normalizes grant ID to hex format.
-   * Handles conversion from permission ID (bigint/number/string) to proper hex hash format.
-   *
-   * @param grantId - Permission ID or grant hash in various formats
-   * @returns Normalized hex hash
-   */
-  private normalizeGrantId(grantId: Hash | bigint | number | string): Hash {
-    // If it's already a hex string (Hash), return as-is
-    if (
-      typeof grantId === "string" &&
-      grantId.startsWith("0x") &&
-      grantId.length === 66
-    ) {
-      return grantId as Hash;
-    }
-
-    // Convert permission ID to hex format (same logic as demo was using)
-    try {
-      const bigIntId = BigInt(grantId);
-      return `0x${bigIntId.toString(16).padStart(64, "0")}` as Hash;
-    } catch {
-      throw new Error(
-        `Invalid grant ID format: ${grantId}. Must be a permission ID (number/bigint/string) or a 32-byte hex hash.`,
       );
     }
   }
@@ -1716,7 +1768,7 @@ export class PermissionsController {
    */
   async addAndTrustServer(
     params: AddAndTrustServerParams,
-  ): Promise<TransactionResult & { eventData?: ServerTrustResult }> {
+  ): Promise<ServerTrustResult> {
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
@@ -1726,9 +1778,10 @@ export class PermissionsController {
       const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
 
       // Submit directly to the contract
+      const account =
+        this.context.walletClient.account ?? (await this.getUserAddress());
       const userAddress =
-        this.context.walletClient.account?.address ||
-        (await this.getUserAddress());
+        typeof account === "string" ? account : account.address;
       const normalizedUserAddress = getAddress(userAddress);
       const normalizedServerAddress = getAddress(params.serverAddress);
 
@@ -1744,14 +1797,43 @@ export class PermissionsController {
             publicKey: params.publicKey,
           },
         ],
-        account:
-          this.context.walletClient.account || (await this.getUserAddress()),
-        chain: this.context.walletClient.chain || null,
+        account,
+        chain: this.context.walletClient.chain ?? null,
+      });
+
+      const { tx } = await import("../utils/transactionHelpers");
+      const txResult = tx({
+        hash: txHash,
+        from: userAddress,
+        contract: "DataPortabilityServers",
+        fn: "addAndTrustServerByManager",
+      });
+
+      // Wait for events and extract domain data
+      if (!this.context.waitForTransactionEvents) {
+        throw new BlockchainError("waitForTransactionEvents not configured");
+      }
+
+      const result = await this.context.waitForTransactionEvents(txResult);
+      const event = result.expectedEvents.ServerTrusted;
+      if (!event) {
+        throw new BlockchainError(
+          "ServerTrusted event not found in transaction",
+        );
+      }
+
+      const receipt = await this.context.publicClient.getTransactionReceipt({
+        hash: txHash,
       });
 
       return {
-        hash: txHash,
-        from: this.context.walletClient.account?.address,
+        transactionHash: txHash,
+        blockNumber: receipt.blockNumber,
+        gasUsed: receipt.gasUsed,
+        user: event.user,
+        serverId: event.serverId, // bigint from event
+        serverAddress: normalizedServerAddress, // derived from params
+        serverUrl: params.serverUrl, // provided in params
       };
     } catch (error) {
       if (error instanceof Error && error.message.includes("rejected")) {
@@ -1773,7 +1855,7 @@ export class PermissionsController {
    */
   async submitTrustServer(
     params: TrustServerParams,
-  ): Promise<TransactionResult & { eventData?: ServerTrustResult }> {
+  ): Promise<TransactionResult<"DataPortabilityServers", "trustServer">> {
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
@@ -1783,20 +1865,25 @@ export class PermissionsController {
       const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
 
       // Submit directly to the contract using trustServer method
+      const account =
+        this.context.walletClient.account ?? (await this.getUserAddress());
+
       const txHash = await this.context.walletClient.writeContract({
         address: DataPortabilityServersAddress,
         abi: DataPortabilityServersAbi,
         functionName: "trustServer",
         args: [BigInt(params.serverId)],
-        account:
-          this.context.walletClient.account || (await this.getUserAddress()),
-        chain: this.context.walletClient.chain || null,
+        account,
+        chain: this.context.walletClient.chain ?? null,
       });
 
-      return {
+      const { tx } = await import("../utils/transactionHelpers");
+      return tx({
         hash: txHash,
-        from: this.context.walletClient.account?.address,
-      };
+        from: typeof account === "string" ? account : account.address,
+        contract: "DataPortabilityServers",
+        fn: "trustServer",
+      });
     } catch (error) {
       if (error instanceof Error && error.message.includes("rejected")) {
         throw new UserRejectedRequestError();
@@ -1816,7 +1903,12 @@ export class PermissionsController {
    */
   async submitAddAndTrustServerWithSignature(
     params: AddAndTrustServerParams,
-  ): Promise<TransactionResult & { eventData?: ServerTrustResult }> {
+  ): Promise<
+    TransactionResult<
+      "DataPortabilityServers",
+      "addAndTrustServerWithSignature"
+    >
+  > {
     try {
       const nonce = await this.getServersUserNonce();
 
@@ -1863,10 +1955,15 @@ export class PermissionsController {
         );
       }
 
-      return {
+      const account =
+        this.context.walletClient.account ?? (await this.getUserAddress());
+      const { tx } = await import("../utils/transactionHelpers");
+      return tx({
         hash,
-        from: this.context.walletClient.account?.address,
-      };
+        from: typeof account === "string" ? account : account.address,
+        contract: "DataPortabilityServers",
+        fn: "addAndTrustServerWithSignature",
+      });
     } catch (error) {
       if (error instanceof Error) {
         // Re-throw known Vana errors directly
@@ -1906,7 +2003,9 @@ export class PermissionsController {
    */
   async submitTrustServerWithSignature(
     params: TrustServerParams,
-  ): Promise<TransactionResult & { eventData?: ServerTrustResult }> {
+  ): Promise<
+    TransactionResult<"DataPortabilityServers", "trustServerWithSignature">
+  > {
     try {
       const nonce = await this.getServersUserNonce();
 
@@ -1936,10 +2035,15 @@ export class PermissionsController {
         );
       }
 
-      return {
+      const account =
+        this.context.walletClient.account ?? (await this.getUserAddress());
+      const { tx } = await import("../utils/transactionHelpers");
+      return tx({
         hash,
-        from: this.context.walletClient.account?.address,
-      };
+        from: typeof account === "string" ? account : account.address,
+        contract: "DataPortabilityServers",
+        fn: "trustServerWithSignature",
+      });
     } catch (error) {
       if (error instanceof Error) {
         // Re-throw known Vana errors directly
@@ -1981,7 +2085,7 @@ export class PermissionsController {
    */
   private async submitDirectUntrustTransaction(
     params: UntrustServerInput,
-  ): Promise<TransactionResult & { eventData?: ServerUntrustResult }> {
+  ): Promise<TransactionResult<"DataPortabilityServers", "untrustServer">> {
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
@@ -1991,20 +2095,25 @@ export class PermissionsController {
       const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
 
       // Submit directly to the contract
+      const account =
+        this.context.walletClient.account ?? (await this.getUserAddress());
+
       const txHash = await this.context.walletClient.writeContract({
         address: DataPortabilityServersAddress,
         abi: DataPortabilityServersAbi,
         functionName: "untrustServer",
         args: [BigInt(params.serverId)],
-        account:
-          this.context.walletClient.account || (await this.getUserAddress()),
-        chain: this.context.walletClient.chain || null,
+        account,
+        chain: this.context.walletClient.chain ?? null,
       });
 
-      return {
+      const { tx } = await import("../utils/transactionHelpers");
+      return tx({
         hash: txHash,
-        from: this.context.walletClient.account?.address,
-      };
+        from: typeof account === "string" ? account : account.address,
+        contract: "DataPortabilityServers",
+        fn: "untrustServer",
+      });
     } catch (error) {
       if (error instanceof Error && error.message.includes("rejected")) {
         throw new UserRejectedRequestError();
@@ -2046,7 +2155,7 @@ export class PermissionsController {
    */
   async submitUntrustServer(
     params: UntrustServerParams,
-  ): Promise<TransactionResult & { eventData?: ServerUntrustResult }> {
+  ): Promise<TransactionResult<"DataPortabilityServers", "untrustServer">> {
     // Convert UntrustServerParams to UntrustServerInput by adding nonce
     const nonce = await this.getServersUserNonce();
     const untrustServerInput: UntrustServerInput = {
@@ -2071,7 +2180,9 @@ export class PermissionsController {
    */
   async submitUntrustServerWithSignature(
     params: UntrustServerParams,
-  ): Promise<TransactionResult & { eventData?: ServerUntrustResult }> {
+  ): Promise<
+    TransactionResult<"DataPortabilityServers", "untrustServerWithSignature">
+  > {
     try {
       const nonce = await this.getServersUserNonce();
 
@@ -2099,10 +2210,15 @@ export class PermissionsController {
         hash = await this.submitSignedUntrustTransaction(typedData, signature);
       }
 
-      return {
+      const account =
+        this.context.walletClient.account ?? (await this.getUserAddress());
+      const { tx } = await import("../utils/transactionHelpers");
+      return tx({
         hash,
-        from: this.context.walletClient.account?.address,
-      };
+        from: typeof account === "string" ? account : account.address,
+        contract: "DataPortabilityServers",
+        fn: "untrustServerWithSignature",
+      });
     } catch (error) {
       if (error instanceof Error) {
         // Re-throw known Vana errors directly
@@ -2149,7 +2265,7 @@ export class PermissionsController {
    */
   async getTrustedServers(userAddress?: Address): Promise<number[]> {
     try {
-      const user = userAddress || (await this.getUserAddress());
+      const user = userAddress ?? (await this.getUserAddress());
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
         chainId,
@@ -2182,7 +2298,7 @@ export class PermissionsController {
    */
   async getTrustedServersCount(userAddress?: Address): Promise<number> {
     try {
-      const user = userAddress || (await this.getUserAddress());
+      const user = userAddress ?? (await this.getUserAddress());
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
         chainId,
@@ -2190,12 +2306,12 @@ export class PermissionsController {
       );
       const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
 
-      const count = (await this.context.publicClient.readContract({
+      const count = await this.context.publicClient.readContract({
         address: DataPortabilityServersAddress,
         abi: DataPortabilityServersAbi,
         functionName: "userServerIdsLength",
         args: [user],
-      })) as bigint;
+      });
 
       return Number(count);
     } catch (error) {
@@ -2217,9 +2333,9 @@ export class PermissionsController {
     options: TrustedServerQueryOptions = {},
   ): Promise<PaginatedTrustedServers> {
     try {
-      const user = options.userAddress || (await this.getUserAddress());
-      const limit = options.limit || 50;
-      const offset = options.offset || 0;
+      const user = options.userAddress ?? (await this.getUserAddress());
+      const limit = options.limit ?? 50;
+      const offset = options.offset ?? 0;
 
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
@@ -2229,12 +2345,12 @@ export class PermissionsController {
       const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
 
       // Get total count first
-      const totalCount = (await this.context.publicClient.readContract({
+      const totalCount = await this.context.publicClient.readContract({
         address: DataPortabilityServersAddress,
         abi: DataPortabilityServersAbi,
         functionName: "userServerIdsLength",
         args: [user],
-      })) as bigint;
+      });
 
       const total = Number(totalCount);
 
@@ -2273,7 +2389,7 @@ export class PermissionsController {
 
       // Extract server IDs from results
       const servers = serverIdResults
-        .map((result) => Number(result as bigint))
+        .map((result) => Number(result))
         .filter((id) => id > 0);
 
       return {
@@ -2516,7 +2632,7 @@ export class PermissionsController {
     userAddress?: Address,
   ): Promise<ServerTrustStatus> {
     try {
-      const user = userAddress || (await this.getUserAddress());
+      const user = userAddress ?? (await this.getUserAddress());
       const trustedServers = await this.getTrustedServers(user);
 
       const trustIndex = trustedServers.findIndex(
@@ -2683,8 +2799,8 @@ export class PermissionsController {
         formattedSignature,
       ],
       account:
-        this.context.walletClient.account || (await this.getUserAddress()),
-      chain: this.context.walletClient.chain || null,
+        this.context.walletClient.account ?? (await this.getUserAddress()),
+      chain: this.context.walletClient.chain ?? null,
     });
 
     return txHash;
@@ -2723,8 +2839,8 @@ export class PermissionsController {
         formattedSignature,
       ],
       account:
-        this.context.walletClient.account || (await this.getUserAddress()),
-      chain: this.context.walletClient.chain || null,
+        this.context.walletClient.account ?? (await this.getUserAddress()),
+      chain: this.context.walletClient.chain ?? null,
     });
 
     return txHash;
@@ -2738,7 +2854,7 @@ export class PermissionsController {
    * @returns Promise resolving to the transaction hash
    */
   private async submitDirectRevokeTransaction(
-    typedData: GenericTypedData,
+    typedData: RevokePermissionTypedData,
     signature: Hash,
   ): Promise<Hash> {
     const chainId = await this.context.walletClient.getChainId();
@@ -2755,11 +2871,10 @@ export class PermissionsController {
       address: DataPortabilityPermissionsAddress,
       abi: DataPortabilityPermissionsAbi,
       functionName: "revokePermissionWithSignature",
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      args: [typedData.message as any, formattedSignature] as any,
+      args: [typedData.message, formattedSignature],
       account:
-        this.context.walletClient.account || (await this.getUserAddress()),
-      chain: this.context.walletClient.chain || null,
+        this.context.walletClient.account ?? (await this.getUserAddress()),
+      chain: this.context.walletClient.chain ?? null,
     });
 
     return txHash;
@@ -2773,7 +2888,7 @@ export class PermissionsController {
    * @returns Promise resolving to the transaction hash
    */
   private async submitSignedUntrustTransaction(
-    typedData: GenericTypedData,
+    typedData: UntrustServerTypedData,
     signature: Hash,
   ): Promise<Hash> {
     const chainId = await this.context.walletClient.getChainId();
@@ -2786,16 +2901,21 @@ export class PermissionsController {
     // Format signature for contract compatibility
     const formattedSignature = formatSignatureForContract(signature);
 
+    // Convert serverId to bigint for contract compatibility
+    const contractMessage = {
+      nonce: typedData.message.nonce,
+      serverId: BigInt(typedData.message.serverId),
+    };
+
     // Submit with signature to verify user authorization
     const txHash = await this.context.walletClient.writeContract({
       address: DataPortabilityServersAddress,
       abi: DataPortabilityServersAbi,
       functionName: "untrustServerWithSignature",
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      args: [typedData.message as any, formattedSignature],
+      args: [contractMessage, formattedSignature],
       account:
-        this.context.walletClient.account || (await this.getUserAddress()),
-      chain: this.context.walletClient.chain || null,
+        this.context.walletClient.account ?? (await this.getUserAddress()),
+      chain: this.context.walletClient.chain ?? null,
     });
 
     return txHash;
@@ -2832,7 +2952,7 @@ export class PermissionsController {
    */
   async submitRegisterGrantee(
     params: RegisterGranteeParams,
-  ): Promise<TransactionResult & { eventData?: GranteeRegisterResult }> {
+  ): Promise<TransactionResult<"DataPortabilityGrantees", "registerGrantee">> {
     const chainId = await this.context.walletClient.getChainId();
     const DataPortabilityGranteesAddress = getContractAddress(
       chainId,
@@ -2842,21 +2962,25 @@ export class PermissionsController {
 
     const ownerAddress = getAddress(params.owner);
     const granteeAddress = getAddress(params.granteeAddress);
+    const account =
+      this.context.walletClient.account ?? (await this.getUserAddress());
 
     const txHash = await this.context.walletClient.writeContract({
       address: DataPortabilityGranteesAddress,
       abi: DataPortabilityGranteesAbi,
       functionName: "registerGrantee",
       args: [ownerAddress, granteeAddress, params.publicKey],
-      account:
-        this.context.walletClient.account || (await this.getUserAddress()),
-      chain: this.context.walletClient.chain || null,
+      account,
+      chain: this.context.walletClient.chain ?? null,
     });
 
-    return {
+    const { tx } = await import("../utils/transactionHelpers");
+    return tx({
       hash: txHash,
-      from: this.context.walletClient.account?.address,
-    };
+      from: typeof account === "string" ? account : account.address,
+      contract: "DataPortabilityGrantees",
+      fn: "registerGrantee",
+    });
   }
 
   /**
@@ -2876,7 +3000,7 @@ export class PermissionsController {
    */
   async submitRegisterGranteeWithSignature(
     params: RegisterGranteeParams,
-  ): Promise<TransactionResult & { eventData?: GranteeRegisterResult }> {
+  ): Promise<TransactionResult<"DataPortabilityGrantees", "registerGrantee">> {
     const nonce = await this.getServersUserNonce();
 
     const owner = getAddress(params.owner);
@@ -2899,10 +3023,15 @@ export class PermissionsController {
       typedData,
       signature,
     );
-    return {
+    const account =
+      this.context.walletClient.account ?? (await this.getUserAddress());
+    const { tx } = await import("../utils/transactionHelpers");
+    return tx({
       hash,
-      from: this.context.walletClient.account?.address,
-    };
+      from: typeof account === "string" ? account : account.address,
+      contract: "DataPortabilityGrantees",
+      fn: "registerGrantee",
+    });
   }
 
   /**
@@ -2920,15 +3049,20 @@ export class PermissionsController {
   async submitSignedRegisterGrantee(
     typedData: RegisterGranteeTypedData,
     signature: Hash,
-  ): Promise<TransactionResult & { eventData?: GranteeRegisterResult }> {
+  ): Promise<TransactionResult<"DataPortabilityGrantees", "registerGrantee">> {
     const hash = await this.submitSignedRegisterGranteeTransaction(
       typedData,
       signature,
     );
-    return {
+    const account =
+      this.context.walletClient.account ?? (await this.getUserAddress());
+    const { tx } = await import("../utils/transactionHelpers");
+    return tx({
       hash,
-      from: this.context.walletClient.account?.address,
-    };
+      from: typeof account === "string" ? account : account.address,
+      contract: "DataPortabilityGrantees",
+      fn: "registerGrantee",
+    });
   }
 
   /**
@@ -2974,15 +3108,15 @@ export class PermissionsController {
     const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
 
     // Get total count
-    const totalCount = (await this.context.publicClient.readContract({
+    const totalCount = await this.context.publicClient.readContract({
       address: DataPortabilityGranteesAddress,
       abi: DataPortabilityGranteesAbi,
       functionName: "granteesCount",
-    })) as bigint;
+    });
 
     const total = Number(totalCount);
-    const limit = options.limit || 50;
-    const offset = options.offset || 0;
+    const limit = options.limit ?? 50;
+    const offset = options.offset ?? 0;
 
     const grantees: Grantee[] = [];
 
@@ -3072,12 +3206,12 @@ export class PermissionsController {
       };
 
       // Get the grantee ID
-      const granteeId = (await this.context.publicClient.readContract({
+      const granteeId = await this.context.publicClient.readContract({
         address: DataPortabilityGranteesAddress,
         abi: DataPortabilityGranteesAbi,
         functionName: "granteeAddressToId",
         args: [granteeAddress],
-      })) as bigint;
+      });
 
       return {
         id: Number(granteeId),
@@ -3218,8 +3352,8 @@ export class PermissionsController {
         (typedData.message as RegisterGranteeInput).publicKey,
       ],
       account:
-        this.context.walletClient.account || (await this.getUserAddress()),
-      chain: this.context.walletClient.chain || null,
+        this.context.walletClient.account ?? (await this.getUserAddress()),
+      chain: this.context.walletClient.chain ?? null,
     });
 
     return txHash;
@@ -3237,7 +3371,7 @@ export class PermissionsController {
    */
   async getUserServerIds(userAddress?: Address): Promise<bigint[]> {
     try {
-      const targetAddress = userAddress || (await this.getUserAddress());
+      const targetAddress = userAddress ?? (await this.getUserAddress());
       const chainId = await this.context.publicClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
         chainId,
@@ -3304,7 +3438,7 @@ export class PermissionsController {
    */
   async getUserServerCount(userAddress?: Address): Promise<bigint> {
     try {
-      const targetAddress = userAddress || (await this.getUserAddress());
+      const targetAddress = userAddress ?? (await this.getUserAddress());
       const chainId = await this.context.publicClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
         chainId,
@@ -3338,7 +3472,7 @@ export class PermissionsController {
     userAddress?: Address,
   ): Promise<TrustedServerInfo[]> {
     try {
-      const targetAddress = userAddress || (await this.getUserAddress());
+      const targetAddress = userAddress ?? (await this.getUserAddress());
       const chainId = await this.context.publicClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
         chainId,
@@ -3471,7 +3605,7 @@ export class PermissionsController {
    */
   async getUserPermissionIds(userAddress?: Address): Promise<bigint[]> {
     try {
-      const targetAddress = userAddress || (await this.getUserAddress());
+      const targetAddress = userAddress ?? (await this.getUserAddress());
       const chainId = await this.context.publicClient.getChainId();
       const DataPortabilityPermissionsAddress = getContractAddress(
         chainId,
@@ -3542,7 +3676,7 @@ export class PermissionsController {
    */
   async getUserPermissionCount(userAddress?: Address): Promise<bigint> {
     try {
-      const targetAddress = userAddress || (await this.getUserAddress());
+      const targetAddress = userAddress ?? (await this.getUserAddress());
       const chainId = await this.context.publicClient.getChainId();
       const DataPortabilityPermissionsAddress = getContractAddress(
         chainId,
@@ -4044,7 +4178,7 @@ export class PermissionsController {
   async submitUpdateServer(
     serverId: bigint,
     url: string,
-  ): Promise<TransactionResult & { eventData?: ServerUpdateResult }> {
+  ): Promise<TransactionResult<"DataPortabilityServers", "updateServer">> {
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
@@ -4053,19 +4187,25 @@ export class PermissionsController {
       );
       const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
 
+      const account =
+        this.context.walletClient.account ?? (await this.getUserAddress());
+
       const hash = await this.context.walletClient.writeContract({
         address: DataPortabilityServersAddress,
         abi: DataPortabilityServersAbi,
         functionName: "updateServer",
         args: [serverId, url],
         chain: this.context.walletClient.chain,
-        account: this.context.walletClient.account || null,
+        account,
       });
 
-      return {
+      const { tx } = await import("../utils/transactionHelpers");
+      return tx({
         hash,
-        from: this.context.walletClient.account?.address,
-      };
+        from: typeof account === "string" ? account : account.address,
+        contract: "DataPortabilityServers",
+        fn: "updateServer",
+      });
     } catch (error) {
       throw new BlockchainError(
         `Failed to update server: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -4233,7 +4373,7 @@ export class PermissionsController {
    */
   async submitAddPermission(
     params: ServerFilesAndPermissionParams,
-  ): Promise<TransactionResult & { eventData?: PermissionGrantResult }> {
+  ): Promise<TransactionResult<"DataPortabilityPermissions", "addPermission">> {
     try {
       const nonce = await this.getPermissionsUserNonce();
 
@@ -4290,7 +4430,7 @@ export class PermissionsController {
   async submitSignedAddPermission(
     typedData: GenericTypedData,
     signature: Hash,
-  ): Promise<TransactionResult & { eventData?: PermissionGrantResult }> {
+  ): Promise<TransactionResult<"DataPortabilityPermissions", "addPermission">> {
     try {
       // Use relayer callbacks or direct transaction
       let hash: Hash;
@@ -4306,10 +4446,15 @@ export class PermissionsController {
         );
       }
 
-      return {
+      const account =
+        this.context.walletClient.account ?? (await this.getUserAddress());
+      const { tx } = await import("../utils/transactionHelpers");
+      return tx({
         hash,
-        from: this.context.walletClient.account?.address,
-      };
+        from: typeof account === "string" ? account : account.address,
+        contract: "DataPortabilityPermissions",
+        fn: "addPermission",
+      });
     } catch (error) {
       // Re-throw known Vana errors directly to preserve error types
       if (
@@ -4346,7 +4491,7 @@ export class PermissionsController {
    * @param params.serverAddress - Server wallet address for decryption permissions
    * @param params.serverUrl - Server endpoint URL
    * @param params.serverPublicKey - Server's public key for encryption.
-   *   Obtain via `vana.server.getIdentity(userAddress).public_key`.
+   *   Obtain via `vana.server.getIdentity(userAddress).publicKey`.
    * @param params.filePermissions - Nested array of permissions for each file
    * @returns TransactionResult with immediate hash access and optional event data
    * @throws {Error} When schemaIds array length doesn't match fileUrls array length
@@ -4368,7 +4513,7 @@ export class PermissionsController {
    *   schemaIds: [123], // LinkedIn profile schema ID
    *   serverAddress: "0x742d35Cc6634C0532925a3b844Bc9e7595f0b0Bb",
    *   serverUrl: "https://server.example.com",
-   *   serverPublicKey: serverInfo.public_key,
+   *   serverPublicKey: serverInfo.publicKey,
    *   filePermissions: [[{
    *     account: "0x742d35Cc6634C0532925a3b844Bc9e7595f0b0Bb",
    *     key: encryptedKey
@@ -4380,7 +4525,12 @@ export class PermissionsController {
    */
   async submitAddServerFilesAndPermissions(
     params: ServerFilesAndPermissionParams,
-  ): Promise<TransactionResult & { eventData?: PermissionGrantResult }> {
+  ): Promise<
+    TransactionResult<
+      "DataPortabilityPermissions",
+      "addServerFilesAndPermissions"
+    >
+  > {
     try {
       // Validate that schemaIds array has same length as fileUrls
       if (params.schemaIds.length !== params.fileUrls.length) {
@@ -4468,7 +4618,12 @@ export class PermissionsController {
   async submitSignedAddServerFilesAndPermissions(
     typedData: ServerFilesAndPermissionTypedData,
     signature: Hash,
-  ): Promise<TransactionResult & { eventData?: PermissionGrantResult }> {
+  ): Promise<
+    TransactionResult<
+      "DataPortabilityPermissions",
+      "addServerFilesAndPermissions"
+    >
+  > {
     try {
       // Debug logging to understand relayer callback availability
       console.debug("🔍 submitSignedAddServerFilesAndPermissions Debug Info:", {
@@ -4490,10 +4645,15 @@ export class PermissionsController {
             typedData,
             signature,
           );
-        return {
+        const account =
+          this.context.walletClient.account ?? (await this.getUserAddress());
+        const { tx } = await import("../utils/transactionHelpers");
+        return tx({
           hash,
-          from: this.context.walletClient.account?.address,
-        };
+          from: typeof account === "string" ? account : account.address,
+          contract: "DataPortabilityPermissions",
+          fn: "addServerFilesAndPermissions",
+        });
       } else {
         console.debug(
           "📝 Using direct transaction for submitAddServerFilesAndPermissions",
@@ -4503,10 +4663,15 @@ export class PermissionsController {
             typedData,
             signature,
           );
-        return {
+        const account =
+          this.context.walletClient.account ?? (await this.getUserAddress());
+        const { tx } = await import("../utils/transactionHelpers");
+        return tx({
           hash,
-          from: this.context.walletClient.account?.address,
-        };
+          from: typeof account === "string" ? account : account.address,
+          contract: "DataPortabilityPermissions",
+          fn: "addServerFilesAndPermissions",
+        });
       }
     } catch (error) {
       // Re-throw known Vana errors directly to preserve error types
@@ -4534,7 +4699,9 @@ export class PermissionsController {
    */
   async submitRevokePermission(
     permissionId: bigint,
-  ): Promise<TransactionResult & { eventData?: PermissionRevokeResult }> {
+  ): Promise<
+    TransactionResult<"DataPortabilityPermissions", "revokePermission">
+  > {
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityPermissionsAddress = getContractAddress(
@@ -4545,19 +4712,28 @@ export class PermissionsController {
         "DataPortabilityPermissions",
       );
 
+      const { account } = this.context.walletClient;
+      if (!account) {
+        throw new Error("No wallet account connected");
+      }
+
       const hash = await this.context.walletClient.writeContract({
         address: DataPortabilityPermissionsAddress,
         abi: DataPortabilityPermissionsAbi,
         functionName: "revokePermission",
         args: [permissionId],
         chain: this.context.walletClient.chain,
-        account: this.context.walletClient.account || null,
+        account,
       });
 
-      return {
+      // Return the strongly-typed, self-describing POJO
+      const { tx } = await import("../utils/transactionHelpers");
+      return tx({
         hash,
-        from: this.context.walletClient.account?.address,
-      };
+        from: typeof account === "string" ? account : account.address,
+        contract: "DataPortabilityPermissions",
+        fn: "revokePermission",
+      });
     } catch (error) {
       throw new BlockchainError(
         `Failed to revoke permission: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -4589,7 +4765,7 @@ export class PermissionsController {
       nonce: typedData.message.nonce as bigint,
       granteeId: typedData.message.granteeId as bigint,
       grant: typedData.message.grant as string,
-      fileIds: (typedData.message.fileIds as bigint[]) || [],
+      fileIds: (typedData.message.fileIds as bigint[]) ?? [],
     };
 
     // Format signature for contract compatibility
@@ -4601,8 +4777,8 @@ export class PermissionsController {
       functionName: "addPermission",
       args: [permissionInput, formattedSignature],
       account:
-        this.context.walletClient.account || (await this.getUserAddress()),
-      chain: this.context.walletClient.chain || null,
+        this.context.walletClient.account ?? (await this.getUserAddress()),
+      chain: this.context.walletClient.chain ?? null,
     });
 
     return hash;
@@ -4649,8 +4825,8 @@ export class PermissionsController {
       // @ts-expect-error - Viem's type inference for nested Permission[][] arrays is incompatible with our Permission type
       args: [serverFilesAndPermissionInput, formattedSignature],
       account:
-        this.context.walletClient.account || (await this.getUserAddress()),
-      chain: this.context.walletClient.chain || null,
+        this.context.walletClient.account ?? (await this.getUserAddress()),
+      chain: this.context.walletClient.chain ?? null,
     });
 
     return hash;

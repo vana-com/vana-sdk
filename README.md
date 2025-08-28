@@ -93,6 +93,26 @@ const result = await vana.permissions.grant({
 console.log("Permission granted! Transaction:", result.transactionHash);
 ```
 
+## Running Example Applications
+
+This monorepo includes two example applications demonstrating SDK usage:
+
+```bash
+# Install dependencies (from root directory)
+npm install
+
+# Run the main SDK demo (includes data permissions, file management, and more)
+npm run dev:demo
+
+# Run the Vana Vibes demo (social features demonstration)
+npm run dev:vibes
+```
+
+The demos will start on:
+
+- SDK Demo: http://localhost:3000
+- Vibes Demo: http://localhost:3001
+
 ## Resources
 
 - **[Complete Documentation](https://docs.vana.org/sdk)** - Comprehensive guides and API reference

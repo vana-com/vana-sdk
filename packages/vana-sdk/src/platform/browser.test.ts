@@ -64,12 +64,12 @@ describe("BrowserPlatformAdapter", () => {
     if (originalSessionStorage) {
       global.sessionStorage = originalSessionStorage;
     } else {
-      delete (global as any).sessionStorage;
+      Reflect.deleteProperty(global, "sessionStorage");
     }
     if (originalFetch) {
       global.fetch = originalFetch;
     } else {
-      delete (global as any).fetch;
+      Reflect.deleteProperty(global, "fetch");
     }
   });
 
@@ -90,10 +90,12 @@ describe("BrowserPlatformAdapter", () => {
       });
 
       it("should handle sessionStorage not available", () => {
-        delete (global as any).sessionStorage;
+        Reflect.deleteProperty(global, "sessionStorage");
 
         // Should not throw
-        expect(() => adapter.cache.delete("testKey")).not.toThrow();
+        expect(() => {
+          adapter.cache.delete("testKey");
+        }).not.toThrow();
       });
 
       it("should silently handle sessionStorage errors", () => {
@@ -102,7 +104,9 @@ describe("BrowserPlatformAdapter", () => {
         });
 
         // Should not throw
-        expect(() => adapter.cache.delete("testKey")).not.toThrow();
+        expect(() => {
+          adapter.cache.delete("testKey");
+        }).not.toThrow();
       });
     });
 
@@ -127,12 +131,12 @@ describe("BrowserPlatformAdapter", () => {
 
         // Mock Object.keys for sessionStorage
         const originalObjectKeys = Object.keys;
-        Object.keys = vi.fn((obj: any) => {
+        Object.keys = vi.fn((obj) => {
           if (obj === global.sessionStorage) {
             return Object.keys(mockStorage);
           }
           return originalObjectKeys(obj);
-        });
+        }) as typeof Object.keys;
 
         adapter.cache.clear();
 
@@ -156,10 +160,12 @@ describe("BrowserPlatformAdapter", () => {
       });
 
       it("should handle sessionStorage not available", () => {
-        delete (global as any).sessionStorage;
+        Reflect.deleteProperty(global, "sessionStorage");
 
         // Should not throw
-        expect(() => adapter.cache.clear()).not.toThrow();
+        expect(() => {
+          adapter.cache.clear();
+        }).not.toThrow();
       });
 
       it("should silently handle sessionStorage errors", () => {
@@ -169,7 +175,9 @@ describe("BrowserPlatformAdapter", () => {
         });
 
         // Should not throw
-        expect(() => adapter.cache.clear()).not.toThrow();
+        expect(() => {
+          adapter.cache.clear();
+        }).not.toThrow();
 
         // Restore Object.keys
         Object.keys = originalObjectKeys;
@@ -177,12 +185,12 @@ describe("BrowserPlatformAdapter", () => {
 
       it("should handle empty sessionStorage", () => {
         const originalObjectKeys = Object.keys;
-        Object.keys = vi.fn((obj: any) => {
+        Object.keys = vi.fn((obj) => {
           if (obj === global.sessionStorage) {
             return [];
           }
           return originalObjectKeys(obj);
-        });
+        }) as typeof Object.keys;
 
         adapter.cache.clear();
 
@@ -206,7 +214,7 @@ describe("BrowserPlatformAdapter", () => {
       });
 
       it("should return null when sessionStorage not available", () => {
-        delete (global as any).sessionStorage;
+        Reflect.deleteProperty(global, "sessionStorage");
 
         const result = adapter.cache.get("testKey");
 
@@ -235,10 +243,12 @@ describe("BrowserPlatformAdapter", () => {
       });
 
       it("should handle sessionStorage not available", () => {
-        delete (global as any).sessionStorage;
+        Reflect.deleteProperty(global, "sessionStorage");
 
         // Should not throw
-        expect(() => adapter.cache.set("testKey", "testValue")).not.toThrow();
+        expect(() => {
+          adapter.cache.set("testKey", "testValue");
+        }).not.toThrow();
       });
 
       it("should silently handle sessionStorage errors", () => {
@@ -247,7 +257,9 @@ describe("BrowserPlatformAdapter", () => {
         });
 
         // Should not throw
-        expect(() => adapter.cache.set("testKey", "testValue")).not.toThrow();
+        expect(() => {
+          adapter.cache.set("testKey", "testValue");
+        }).not.toThrow();
       });
     });
   });
@@ -267,7 +279,7 @@ describe("BrowserPlatformAdapter", () => {
     });
 
     it("should throw when fetch is not available", async () => {
-      delete (global as any).fetch;
+      Reflect.deleteProperty(global, "fetch");
 
       await expect(adapter.http.fetch("https://example.com")).rejects.toThrow(
         "fetch is not defined",

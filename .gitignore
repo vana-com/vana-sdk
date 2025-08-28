@@ -17,6 +17,9 @@ dist/
 build/
 docs/
 
+# Downloaded contract sources (use scripts/download-contract-sources.ts)
+contract-sources/
+
 # Logs
 logs
 *.log
@@ -82,3 +85,6 @@ CLAUDE.md
 .devcontainer/
 
 hidden/
+
+
+.pnpm-store/

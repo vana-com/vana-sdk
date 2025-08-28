@@ -2,11 +2,11 @@
 
 import { useState, useCallback, useEffect } from "react";
 import {
-  OnChainPermissionGrant,
-  GrantedPermission,
-  GrantPermissionParams,
   retrieveGrantFile,
-  PermissionGrantTypedData,
+  type OnChainPermissionGrant,
+  type GrantedPermission,
+  type GrantPermissionParams,
+  type PermissionGrantTypedData,
 } from "@opendatalabs/vana-sdk/browser";
 import { useVana } from "@/providers/VanaProvider";
 import { useAccount } from "wagmi";
@@ -116,8 +116,12 @@ export function usePermissions(): UsePermissionsReturn {
   const [lookedUpPermission, setLookedUpPermission] =
     useState<GrantedPermission | null>(null);
 
-  const onOpenGrant = useCallback(() => setShowGrantPreview(true), []);
-  const onCloseGrant = useCallback(() => setShowGrantPreview(false), []);
+  const onOpenGrant = useCallback(() => {
+    setShowGrantPreview(true);
+  }, []);
+  const onCloseGrant = useCallback(() => {
+    setShowGrantPreview(false);
+  }, []);
 
   /**
    * Load fast on-chain permission data
@@ -173,12 +177,13 @@ export function usePermissions(): UsePermissionsReturn {
 
       try {
         // Step 1: Get permission info and file IDs from contract
-        let _permissionInfo, fileIds;
+        let fileIds;
         try {
-          [_permissionInfo, fileIds] = await Promise.all([
+          const results = await Promise.all([
             vana.permissions.getPermissionInfo(BigInt(permissionId)),
             vana.permissions.getPermissionFileIds(BigInt(permissionId)),
           ]);
+          fileIds = results[1];
         } catch (contractError) {
           console.warn(
             `Permission ID ${permissionId} not found in contract (likely stale data):`,
@@ -264,7 +269,7 @@ export function usePermissions(): UsePermissionsReturn {
       selectedFiles: number[],
       promptText: string,
       customParams?: GrantPermissionParams & { expiresAt?: number },
-    ) => {
+    ): Promise<void> => {
       console.debug("🟢 [usePermissions] handleGrantPermission called");
       console.debug("🟢 [usePermissions] selectedFiles:", selectedFiles);
       console.debug("🟢 [usePermissions] promptText:", promptText);
@@ -297,9 +302,9 @@ export function usePermissions(): UsePermissionsReturn {
         // Use custom parameters if provided, otherwise use defaults
         const params: GrantPermissionParams = {
           grantee: applicationAddress as `0x${string}`,
-          operation: customParams?.operation || "llm_inference",
+          operation: customParams?.operation ?? "llm_inference",
           files: selectedFiles,
-          parameters: customParams?.parameters || {
+          parameters: customParams?.parameters ?? {
             prompt: promptText,
           },
         };
@@ -353,7 +358,7 @@ export function usePermissions(): UsePermissionsReturn {
       }
 
       // Use updated params if provided, otherwise use original grant preview params
-      const paramsToUse = updatedParams || grantPreview.params;
+      const paramsToUse = updatedParams ?? grantPreview.params;
       console.debug("🔵 [usePermissions] Using params:", paramsToUse);
 
       setIsGranting(true);
@@ -382,7 +387,7 @@ export function usePermissions(): UsePermissionsReturn {
         // Submit the signed grant
         const txHandle = await vana.permissions.submitSignedGrant(
           typedData,
-          signature as `0x${string}`,
+          signature,
         );
 
         const txHash = txHandle.hash;
@@ -409,7 +414,7 @@ export function usePermissions(): UsePermissionsReturn {
 
         // Refresh permissions list after a short delay
         setTimeout(() => {
-          loadUserPermissions();
+          void loadUserPermissions();
         }, 3000);
       } catch (error) {
         console.error("Failed to confirm grant:", error);
@@ -449,7 +454,7 @@ export function usePermissions(): UsePermissionsReturn {
             permissionId: bigIntId,
           };
 
-          return await vana.permissions.revoke(params);
+          return vana.permissions.revoke(params);
         },
         {
           setLoading: setIsRevoking,
@@ -462,7 +467,7 @@ export function usePermissions(): UsePermissionsReturn {
               newMap.delete(permissionId);
               return newMap;
             });
-            loadUserPermissions();
+            void loadUserPermissions();
           },
         },
       );
@@ -531,11 +536,11 @@ export function usePermissions(): UsePermissionsReturn {
                 id: permission.id,
                 grantUrl: permission.grant,
                 grantSignature: "", // Would need lookup
-                nonce: BigInt(permission.nonce || 0),
+                nonce: BigInt(Number(permission.nonce) || 0),
                 startBlock: BigInt(0), // Would need lookup
-                addedAtBlock: permission.blockNumber || BigInt(0),
-                addedAtTimestamp: BigInt(permission.grantedAt || 0),
-                transactionHash: permission.transactionHash || "",
+                addedAtBlock: BigInt(Number(permission.blockNumber) || 0),
+                addedAtTimestamp: BigInt(Number(permission.grantedAt) || 0),
+                transactionHash: permission.transactionHash ?? "",
                 grantor: permission.grantor,
                 grantee: {
                   id: "", // Would need lookup
@@ -556,7 +561,7 @@ export function usePermissions(): UsePermissionsReturn {
   // Load permissions when Vana is initialized
   useEffect(() => {
     if (vana && address) {
-      loadUserPermissions();
+      void loadUserPermissions();
     }
   }, [vana, address, loadUserPermissions]);
 

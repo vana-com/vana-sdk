@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
 /**
  * OAuth2 callback endpoint for Google Drive
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     const clientId = process.env.GOOGLE_DRIVE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_DRIVE_CLIENT_SECRET;
     const redirectUri =
-      process.env.GOOGLE_DRIVE_REDIRECT_URI ||
+      process.env.GOOGLE_DRIVE_REDIRECT_URI ??
       `${request.nextUrl.origin}/api/auth/google-drive/callback`;
 
     if (!clientId || !clientSecret) {
@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
           const tokens = ${JSON.stringify({
             accessToken: tokenData.access_token,
             refreshToken: tokenData.refresh_token,
-            expiresAt: expiresAt,
+            expiresAt,
             isAuthorized: true,
           })};
           
@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
             const params = new URLSearchParams({
               google_drive_auth: 'success',
               access_token: tokens.accessToken,
-              refresh_token: tokens.refreshToken || '',
+              refresh_token: tokens.refreshToken ?? '',
               expires_at: tokens.expiresAt.toString()
             });
             window.location.href = '?' + params.toString();

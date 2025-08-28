@@ -6,7 +6,10 @@ import type {
 } from "@/hooks/useUserFiles";
 import type { UsePermissionsReturn } from "@/hooks/usePermissions";
 import type { UseTrustedServersReturn } from "@/hooks/useTrustedServers";
-import type { GrantedPermission } from "@opendatalabs/vana-sdk/browser";
+import type {
+  GrantedPermission,
+  VanaInstance,
+} from "@opendatalabs/vana-sdk/browser";
 import type { VanaContextValue } from "@/providers/VanaProvider";
 
 /**
@@ -274,17 +277,29 @@ export function createMockUseVana(
     hasStorage: vi.fn().mockReturnValue(true),
     validateConfig: vi.fn(),
     chainId: 14800,
-    walletClient: {} as any,
-    publicClient: {} as any,
+    walletClient: {
+      account: { address: "0x123" },
+      chain: { id: 14800 },
+      transport: { type: "http" },
+      mode: "rw" as const,
+    },
+    publicClient: {
+      chain: { id: 14800 },
+      transport: { type: "http" },
+      mode: "public" as const,
+    },
     relayerUrl: "https://relayer.example.com",
     subgraphUrl: "https://subgraph.example.com",
     rpcUrl: "https://rpc.example.com",
     encrypt: vi.fn(),
     decrypt: vi.fn(),
-  } as any;
+  };
 
   return {
-    vana: overrides.vana === null ? null : (overrides.vana ?? defaultVana),
+    vana:
+      overrides.vana === null
+        ? null
+        : ((overrides.vana ?? defaultVana) as unknown as VanaInstance),
     isInitialized: overrides.isInitialized ?? true,
     error: overrides.error ?? null,
     applicationAddress: overrides.applicationAddress ?? "0xapp123",
@@ -371,7 +386,7 @@ export function createMockPermissions(
  */
 export function createMockTrustedServers(
   count: number = 2,
-  overrides: Record<string, any> = {},
+  overrides: Record<string, unknown> = {},
 ) {
   return Array.from({ length: count }, (_, index) => ({
     id: `0xserver${index + 1}`,

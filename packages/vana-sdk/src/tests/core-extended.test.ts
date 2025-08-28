@@ -42,6 +42,19 @@ vi.mock("../storage", () => ({
   })),
 }));
 
+// Mock the parseTransactionPojo module
+vi.mock("../utils/parseTransactionPojo", () => ({
+  parseTransaction: vi.fn((txResult, _receipt) => ({
+    hash: txResult.hash,
+    from: txResult.from,
+    contract: txResult.contract,
+    fn: txResult.fn,
+    expectedEvents: {},
+    allEvents: [],
+    hasExpectedEvents: false,
+  })),
+}));
+
 describe("VanaCore Extended Tests", () => {
   const testAccount = privateKeyToAccount(
     "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
@@ -334,6 +347,384 @@ describe("VanaCore Extended Tests", () => {
       expect(
         (VanaCore as unknown as { fromWallet?: unknown }).fromWallet,
       ).toBeUndefined();
+    });
+  });
+
+  describe("POJO-based Transaction and Operation Helpers", () => {
+    let vanaCore: VanaCore;
+    let mockPublicClient: {
+      waitForTransactionReceipt: ReturnType<typeof vi.fn>;
+    };
+    let mockServerController: { waitForOperation: ReturnType<typeof vi.fn> };
+
+    beforeEach(() => {
+      mockPublicClient = {
+        waitForTransactionReceipt: vi.fn(),
+      };
+
+      mockServerController = {
+        waitForOperation: vi.fn(),
+      };
+
+      // Create VanaCore instance
+      vanaCore = new VanaCore(mockPlatformAdapter, {
+        walletClient: validWalletClient,
+      });
+
+      // Mock the internal publicClient and server controller
+
+      (vanaCore as any).publicClient = mockPublicClient;
+
+      (vanaCore as any).server = mockServerController;
+    });
+
+    describe("waitForTransactionReceipt", () => {
+      const mockReceipt = {
+        transactionHash: "0xabc123" as `0x${string}`,
+        blockNumber: 12345n,
+        status: "success" as const,
+        logs: [],
+      };
+
+      it("should accept a TransactionResult object", async () => {
+        mockPublicClient.waitForTransactionReceipt.mockResolvedValue(
+          mockReceipt,
+        );
+
+        const transactionResult = {
+          hash: "0xabc123" as `0x${string}`,
+          from: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        };
+
+        const receipt =
+          await vanaCore.waitForTransactionReceipt(transactionResult);
+
+        expect(mockPublicClient.waitForTransactionReceipt).toHaveBeenCalledWith(
+          {
+            hash: "0xabc123",
+            confirmations: undefined,
+            pollingInterval: undefined,
+            timeout: undefined,
+          },
+        );
+        expect(receipt).toEqual(mockReceipt);
+      });
+
+      it("should accept a plain hash string", async () => {
+        mockPublicClient.waitForTransactionReceipt.mockResolvedValue(
+          mockReceipt,
+        );
+
+        const hash = "0xabc123" as `0x${string}`;
+        const receipt = await vanaCore.waitForTransactionReceipt(hash);
+
+        expect(mockPublicClient.waitForTransactionReceipt).toHaveBeenCalledWith(
+          {
+            hash: "0xabc123",
+            confirmations: undefined,
+            pollingInterval: undefined,
+            timeout: undefined,
+          },
+        );
+        expect(receipt).toEqual(mockReceipt);
+      });
+
+      it("should accept an object with hash property", async () => {
+        mockPublicClient.waitForTransactionReceipt.mockResolvedValue(
+          mockReceipt,
+        );
+
+        const objectWithHash = { hash: "0xabc123" as `0x${string}` };
+        const receipt =
+          await vanaCore.waitForTransactionReceipt(objectWithHash);
+
+        expect(mockPublicClient.waitForTransactionReceipt).toHaveBeenCalledWith(
+          {
+            hash: "0xabc123",
+            confirmations: undefined,
+            pollingInterval: undefined,
+            timeout: undefined,
+          },
+        );
+        expect(receipt).toEqual(mockReceipt);
+      });
+
+      it("should pass through wait options", async () => {
+        mockPublicClient.waitForTransactionReceipt.mockResolvedValue(
+          mockReceipt,
+        );
+
+        const hash = "0xabc123" as `0x${string}`;
+        const options = {
+          confirmations: 3,
+          pollingInterval: 1000,
+          timeout: 60000,
+        };
+
+        await vanaCore.waitForTransactionReceipt(hash, options);
+
+        expect(mockPublicClient.waitForTransactionReceipt).toHaveBeenCalledWith(
+          {
+            hash: "0xabc123",
+            confirmations: 3,
+            pollingInterval: 1000,
+            timeout: 60000,
+          },
+        );
+      });
+    });
+
+    describe("waitForTransactionEvents", () => {
+      const mockReceipt = {
+        transactionHash: "0xabc123" as `0x${string}`,
+        blockNumber: 12345n,
+        status: "success" as const,
+        logs: [],
+      };
+
+      it("should accept a TransactionResult and return typed events", async () => {
+        mockPublicClient.waitForTransactionReceipt.mockResolvedValue(
+          mockReceipt,
+        );
+
+        const transactionResult = {
+          hash: "0xabc123" as `0x${string}`,
+          from: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        };
+
+        const txResult = {
+          ...transactionResult,
+          contract: "DataPortabilityPermissions" as const,
+          fn: "addPermission" as const,
+        };
+
+        const events = await vanaCore.waitForTransactionEvents(txResult);
+
+        expect(mockPublicClient.waitForTransactionReceipt).toHaveBeenCalledWith(
+          {
+            hash: "0xabc123",
+            confirmations: undefined,
+            pollingInterval: undefined,
+            timeout: undefined,
+          },
+        );
+        // The implementation now returns parsed events
+        expect(events).toEqual({
+          hash: "0xabc123",
+          from: "0x1234567890123456789012345678901234567890",
+          contract: "DataPortabilityPermissions",
+          fn: "addPermission",
+          expectedEvents: {},
+          allEvents: [],
+          hasExpectedEvents: false,
+        });
+      });
+
+      it("should accept a plain hash string", async () => {
+        mockPublicClient.waitForTransactionReceipt.mockResolvedValue(
+          mockReceipt,
+        );
+
+        const hash = "0xabc123" as `0x${string}`;
+        const txResult = {
+          hash,
+          from: "0xuser" as `0x${string}`,
+          contract: "DataPortabilityPermissions" as const,
+          fn: "addPermission" as const,
+        };
+        const events = await vanaCore.waitForTransactionEvents(txResult);
+
+        expect(mockPublicClient.waitForTransactionReceipt).toHaveBeenCalledWith(
+          {
+            hash: "0xabc123",
+            confirmations: undefined,
+            pollingInterval: undefined,
+            timeout: undefined,
+          },
+        );
+        expect(events).toEqual({
+          hash: "0xabc123",
+          from: "0xuser",
+          contract: "DataPortabilityPermissions",
+          fn: "addPermission",
+          expectedEvents: {},
+          allEvents: [],
+          hasExpectedEvents: false,
+        });
+      });
+
+      it("should work with type parameter for better type safety", async () => {
+        mockPublicClient.waitForTransactionReceipt.mockResolvedValue(
+          mockReceipt,
+        );
+
+        const transactionResult = {
+          hash: "0xdef456" as `0x${string}`,
+          from: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        };
+
+        const txResult = {
+          ...transactionResult,
+          contract: "DataRegistry" as const,
+          fn: "addFile" as const,
+        };
+        const events = await vanaCore.waitForTransactionEvents(txResult);
+
+        expect(mockPublicClient.waitForTransactionReceipt).toHaveBeenCalled();
+        // Type assertion for testing - in real usage, the parsing would extract actual event data
+        expect(events).toBeDefined();
+      });
+    });
+
+    describe("waitForOperation", () => {
+      const mockOperation = {
+        id: "op_123",
+        status: "succeeded" as const,
+        result: { data: "test" },
+      };
+
+      it("should accept an Operation object", async () => {
+        mockServerController.waitForOperation.mockResolvedValue(mockOperation);
+
+        const operation = {
+          id: "op_123",
+          status: "starting" as const,
+          createdAt: Date.now(),
+        };
+
+        const result = await vanaCore.waitForOperation(operation);
+
+        expect(mockServerController.waitForOperation).toHaveBeenCalledWith(
+          operation,
+          undefined,
+        );
+        expect(result).toEqual(mockOperation);
+      });
+
+      it("should accept a plain operation ID string", async () => {
+        mockServerController.waitForOperation.mockResolvedValue(mockOperation);
+
+        const operationId = "op_123";
+        const result = await vanaCore.waitForOperation(operationId);
+
+        expect(mockServerController.waitForOperation).toHaveBeenCalledWith(
+          operationId,
+          undefined,
+        );
+        expect(result).toEqual(mockOperation);
+      });
+
+      it("should pass through polling options", async () => {
+        mockServerController.waitForOperation.mockResolvedValue(mockOperation);
+
+        const operationId = "op_123";
+        const options = {
+          timeout: 60000,
+          pollingInterval: 1000,
+        };
+
+        await vanaCore.waitForOperation(operationId, options);
+
+        expect(mockServerController.waitForOperation).toHaveBeenCalledWith(
+          operationId,
+          options,
+        );
+      });
+
+      it("should preserve type parameter for operation result", async () => {
+        interface CustomResult {
+          processedData: string;
+          metadata: { count: number };
+        }
+
+        const typedOperation = {
+          id: "op_456",
+          status: "succeeded" as const,
+          result: {
+            processedData: "test data",
+            metadata: { count: 5 },
+          },
+        };
+
+        mockServerController.waitForOperation.mockResolvedValue(typedOperation);
+
+        const operation = {
+          id: "op_456",
+          status: "starting" as const,
+          createdAt: Date.now(),
+        };
+
+        const result = await vanaCore.waitForOperation<CustomResult>(operation);
+
+        expect(result).toEqual(typedOperation);
+      });
+    });
+
+    describe("Integration with POJO results", () => {
+      it("should work seamlessly with permission grant results", async () => {
+        const mockReceipt = {
+          transactionHash: "0xabc123" as `0x${string}`,
+          blockNumber: 12345n,
+          status: "success" as const,
+          logs: [],
+        };
+
+        mockPublicClient.waitForTransactionReceipt.mockResolvedValue(
+          mockReceipt,
+        );
+
+        // Simulate a permission grant that returns a POJO
+        const grantResult = {
+          hash: "0xabc123" as `0x${string}`,
+          from: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        };
+
+        // User can directly pass the result to waitForTransactionEvents
+        const txResult = {
+          hash: grantResult.hash,
+          from: grantResult.from || ("0xuser" as `0x${string}`),
+          contract: "DataPortabilityPermissions" as const,
+          fn: "addPermission" as const,
+        };
+        await vanaCore.waitForTransactionEvents(txResult);
+
+        expect(mockPublicClient.waitForTransactionReceipt).toHaveBeenCalledWith(
+          {
+            hash: grantResult.hash,
+            confirmations: undefined,
+            pollingInterval: undefined,
+            timeout: undefined,
+          },
+        );
+      });
+
+      it("should work with server operation results", async () => {
+        const mockCompletedOp = {
+          id: "op_789",
+          status: "succeeded" as const,
+          result: { fileContent: "encrypted data" },
+        };
+
+        mockServerController.waitForOperation.mockResolvedValue(
+          mockCompletedOp,
+        );
+
+        // Simulate a server operation that returns a POJO
+        const operationResult = {
+          id: "op_789",
+          status: "starting" as const,
+          createdAt: Date.now(),
+        };
+
+        // User can directly pass the result to waitForOperation
+        const completed = await vanaCore.waitForOperation(operationResult);
+
+        expect(mockServerController.waitForOperation).toHaveBeenCalledWith(
+          operationResult,
+          undefined,
+        );
+        expect(completed.status).toBe("succeeded");
+      });
     });
   });
 });

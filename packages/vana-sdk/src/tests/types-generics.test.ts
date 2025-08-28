@@ -675,7 +675,9 @@ describe("Generic Types", () => {
 
         subscribe(observer: Observer<string>) {
           this.observers.push(observer);
-          return () => this.unsubscribe(observer);
+          return () => {
+            this.unsubscribe(observer);
+          };
         }
 
         unsubscribe(observer: Observer<string>) {
@@ -686,7 +688,9 @@ describe("Generic Types", () => {
         }
 
         emit(event: string) {
-          this.observers.forEach((observer) => observer.notify(event));
+          this.observers.forEach((observer) => {
+            void observer.notify(event);
+          });
         }
       }
 

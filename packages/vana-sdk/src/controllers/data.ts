@@ -1,7 +1,8 @@
-import { Address, getContract, Hash } from "viem";
-import { StorageUploadResult } from "../types/storage";
+import type { Address } from "viem";
+import { getContract } from "viem";
+import type { StorageUploadResult } from "../types/storage";
 
-import {
+import type {
   UserFile,
   UploadParams,
   UploadResult,
@@ -16,21 +17,23 @@ import {
   EncryptedUploadParams,
   UnencryptedUploadParams,
 } from "../types/index";
-import { FilePermissionResult } from "../types/transactionResults";
+// import { FilePermissionResult } from "../types/transactionResults";
 import type { TransactionResult } from "../types/operations";
-import { ControllerContext } from "./permissions";
+import type { ControllerContext } from "./permissions";
 import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../generated/abi";
-import {
+import type {
   GetUserFilesQuery,
-  GetUserFilesDocument,
   GetFileProofsQuery,
-  GetFileProofsDocument,
   GetDlpQuery,
-  GetDlpDocument,
   GetUserPermissionsQuery,
-  GetUserPermissionsDocument,
   GetUserTrustedServersQuery,
+} from "../generated/subgraph";
+import {
+  GetUserFilesDocument,
+  GetFileProofsDocument,
+  GetDlpDocument,
+  GetUserPermissionsDocument,
   GetUserTrustedServersDocument,
 } from "../generated/subgraph";
 import { print } from "graphql";
@@ -135,7 +138,7 @@ export class DataController {
    * @param params - Upload parameters including content, filename, schema, and permissions
    * @param params.permissions[].account - The recipient's wallet address that will access the data.
    * @param params.permissions[].publicKey - The recipient's public key for encryption (hex string with 0x prefix).
-   *   Obtain via `vana.server.getIdentity(userAddress).public_key` for personal servers.
+   *   Obtain via `vana.server.getIdentity(userAddress).publicKey` for personal servers.
    * @param params.schemaId - Optional schema ID for data validation. Get available schemas from `vana.schemas.list()`.
    * @param params.owner - Optional owner address if uploading on behalf of another user (requires delegation).
    * @returns Promise resolving to upload results with file ID and transaction hash
@@ -233,6 +236,14 @@ export class DataController {
             } catch {
               parsedContent = content;
             }
+          } else if (content instanceof Blob) {
+            // For Blob content, read it as text for validation
+            const text = await content.text();
+            try {
+              parsedContent = JSON.parse(text);
+            } catch {
+              parsedContent = text;
+            }
           } else {
             parsedContent = content;
           }
@@ -241,9 +252,18 @@ export class DataController {
           validateDataAgainstSchema(parsedContent, schema);
         } catch (error) {
           isValid = false;
-          validationErrors = [
-            error instanceof Error ? error.message : "Schema validation failed",
-          ];
+          // Provide detailed error message
+          if (error instanceof Error) {
+            // Check if it's a SchemaValidationError with details
+            const errorDetails = (error as any).errors;
+            if (errorDetails && Array.isArray(errorDetails)) {
+              validationErrors = errorDetails;
+            } else {
+              validationErrors = [error.message];
+            }
+          } else {
+            validationErrors = ["Schema validation failed"];
+          }
         }
       }
 
@@ -256,7 +276,7 @@ export class DataController {
       );
 
       // Step 3: Register on blockchain
-      const userAddress = owner || (await this.getUserAddress());
+      const userAddress = owner ?? (await this.getUserAddress());
 
       // Prepare encrypted permissions if provided
       let encryptedPermissions: Array<{ account: Address; key: string }> = [];
@@ -291,9 +311,9 @@ export class DataController {
         result = await this.context.relayerCallbacks.submitFileAdditionComplete(
           {
             url: uploadResult.url,
-            userAddress: userAddress,
+            userAddress,
             permissions: encryptedPermissions,
-            schemaId: schemaId || 0,
+            schemaId: schemaId ?? 0,
             ownerAddress: owner,
           },
         );
@@ -314,18 +334,38 @@ export class DataController {
 
         // Fallback: No relay support, use a direct transaction
       } else {
-        result = await this.addFileWithPermissionsAndSchema(
+        // Use the internal method directly since we already have encrypted permissions
+        const txResult = await this._addFileWithPermissionsAndSchemaInternal(
           uploadResult.url,
           userAddress,
           encryptedPermissions,
-          schemaId || 0,
+          schemaId ?? 0,
         );
+
+        // Wait for transaction events to get the actual fileId
+        if (!this.context.waitForTransactionEvents) {
+          throw new Error(
+            "Cannot upload without relay: waitForTransactionEvents not configured",
+          );
+        }
+
+        const eventResult =
+          await this.context.waitForTransactionEvents(txResult);
+        const fileAddedEvent = eventResult.expectedEvents.FileAdded;
+        if (!fileAddedEvent) {
+          throw new Error("FileAdded event not found in transaction");
+        }
+
+        result = {
+          fileId: Number(fileAddedEvent.fileId),
+          transactionHash: txResult.hash,
+        };
       }
 
       return {
         fileId: result.fileId,
         url: uploadResult.url,
-        transactionHash: result.transactionHash as Hash,
+        transactionHash: result.transactionHash,
         size: uploadResult.size,
         isValid,
         validationErrors:
@@ -399,7 +439,7 @@ export class DataController {
       const encryptionKey = await generateEncryptionKey(
         this.context.walletClient,
         this.context.platform,
-        encryptionSeed || DEFAULT_ENCRYPTION_SEED,
+        encryptionSeed ?? DEFAULT_ENCRYPTION_SEED,
       );
 
       // Step 2: Determine the protocol and fetch the encrypted content
@@ -563,7 +603,7 @@ export class DataController {
     const { owner, subgraphUrl } = params;
 
     // Use provided subgraph URL or default from context
-    const endpoint = subgraphUrl || this.context.subgraphUrl;
+    const endpoint = subgraphUrl ?? this.context.subgraphUrl;
 
     if (!endpoint) {
       throw new Error(
@@ -603,7 +643,7 @@ export class DataController {
       }
 
       const user = result.data?.user;
-      if (!user || !user.files?.length) {
+      if (!user?.files?.length) {
         console.warn("No files found for user:", owner);
         return [];
       }
@@ -639,7 +679,7 @@ export class DataController {
 
       // Convert to array and sort by latest timestamp first
       const userFiles: UserFile[] = Array.from(fileMap.values()).sort((a, b) =>
-        Number((b.addedAtTimestamp || 0n) - (a.addedAtTimestamp || 0n)),
+        Number((b.addedAtTimestamp ?? 0n) - (a.addedAtTimestamp ?? 0n)),
       );
 
       // Fetch proofs for all files to get DLP associations
@@ -732,11 +772,12 @@ export class DataController {
           const fileId = parseInt(proof.fileId);
           const dlpId = parseInt(proof.dlp.id);
 
-          if (!proofMap.has(fileId)) {
-            proofMap.set(fileId, []);
+          let dlpIds = proofMap.get(fileId);
+          if (!dlpIds) {
+            dlpIds = [];
+            proofMap.set(fileId, dlpIds);
           }
 
-          const dlpIds = proofMap.get(fileId)!;
           if (!dlpIds.includes(dlpId)) {
             dlpIds.push(dlpId);
           }
@@ -845,7 +886,7 @@ export class DataController {
     address?: Address;
     owner?: Address;
   }> {
-    const subgraphUrl = options.subgraphUrl || this.context.subgraphUrl;
+    const subgraphUrl = options.subgraphUrl ?? this.context.subgraphUrl;
 
     // Try subgraph first if available
     if (subgraphUrl) {
@@ -883,8 +924,8 @@ export class DataController {
 
         return {
           id: parseInt(result.data.dlp.id),
-          name: result.data.dlp.name || "",
-          metadata: result.data.dlp.metadata || undefined,
+          name: result.data.dlp.name ?? "",
+          metadata: result.data.dlp.metadata ?? undefined,
           status: result.data.dlp.status
             ? parseInt(result.data.dlp.status)
             : undefined,
@@ -929,7 +970,7 @@ export class DataController {
         verificationBlockNumber: bigint;
       };
 
-      if (!dlpData || !dlpData.name) {
+      if (!dlpData?.name) {
         throw new Error(`DLP not found: ${dlpId}`);
       }
 
@@ -988,7 +1029,7 @@ export class DataController {
     }>
   > {
     const { limit = 100, offset = 0 } = options;
-    const subgraphUrl = options.subgraphUrl || this.context.subgraphUrl;
+    const subgraphUrl = options.subgraphUrl ?? this.context.subgraphUrl;
 
     // Try subgraph first if available
     if (subgraphUrl) {
@@ -1046,11 +1087,11 @@ export class DataController {
           );
         }
 
-        const dlps = result.data?.dlps || [];
+        const dlps = result.data?.dlps ?? [];
 
         return dlps.map((dlp) => ({
           id: parseInt(dlp.id),
-          name: dlp.name || "",
+          name: dlp.name ?? "",
           metadata: dlp.metadata,
           status: dlp.status ? parseInt(dlp.status) : undefined,
           address: dlp.address as Address | undefined,
@@ -1073,12 +1114,12 @@ export class DataController {
       const dlpRegistryAbi = getAbi("DLPRegistry");
 
       // First get the total count
-      const dlpCount = (await this.context.publicClient.readContract({
+      const dlpCount = await this.context.publicClient.readContract({
         address: dlpRegistryAddress,
         abi: dlpRegistryAbi,
         functionName: "dlpsCount",
         args: [],
-      })) as bigint;
+      });
 
       const totalCount = Number(dlpCount);
       const start = offset;
@@ -1182,7 +1223,7 @@ export class DataController {
     }>
   > {
     const { user, subgraphUrl } = params;
-    const endpoint = subgraphUrl || this.context.subgraphUrl;
+    const endpoint = subgraphUrl ?? this.context.subgraphUrl;
 
     // Try subgraph first if available
     if (endpoint) {
@@ -1260,7 +1301,7 @@ export class DataController {
       }
 
       const userData = result.data?.user;
-      if (!userData || !userData.permissions?.length) {
+      if (!userData?.permissions?.length) {
         return [];
       }
 
@@ -1274,7 +1315,7 @@ export class DataController {
           addedAtBlock: BigInt(permission.addedAtBlock),
           addedAtTimestamp: BigInt(permission.addedAtTimestamp),
           transactionHash: permission.transactionHash as Address,
-          user: user as Address,
+          user,
         }))
         .sort((a, b) => Number(b.addedAtTimestamp - a.addedAtTimestamp)); // Latest first
     } catch (error) {
@@ -1317,12 +1358,12 @@ export class DataController {
       const permissionsAbi = getAbi("DataPortabilityPermissions");
 
       // Get total count of user permission IDs
-      const totalCount = (await this.context.publicClient.readContract({
+      const totalCount = await this.context.publicClient.readContract({
         address: permissionsAddress,
         abi: permissionsAbi,
         functionName: "userPermissionIdsLength",
         args: [user],
-      })) as bigint;
+      });
 
       const total = Number(totalCount);
 
@@ -1466,7 +1507,7 @@ export class DataController {
     params: GetUserTrustedServersParams,
   ): Promise<TrustedServer[]> {
     const { user, limit = 50, offset = 0 } = params;
-    const subgraphUrl = params.subgraphUrl || this.context.subgraphUrl;
+    const subgraphUrl = params.subgraphUrl ?? this.context.subgraphUrl;
 
     // Try subgraph first if available
     if (subgraphUrl) {
@@ -1552,7 +1593,7 @@ export class DataController {
       }
 
       // Map subgraph results to TrustedServer format
-      return (result.data.user.serverTrusts || [])
+      return (result.data.user.serverTrusts ?? [])
         .filter((trust) => !trust.untrustedAtBlock) // Only include trusted servers (not untrusted)
         .map((trust) => ({
           id: trust.server.id,
@@ -1601,12 +1642,12 @@ export class DataController {
       const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
 
       // Get total count first
-      const totalCount = (await this.context.publicClient.readContract({
+      const totalCount = await this.context.publicClient.readContract({
         address: DataPortabilityServersAddress,
         abi: DataPortabilityServersAbi,
         functionName: "userServerIdsLength",
         args: [user],
-      })) as bigint;
+      });
 
       const total = Number(totalCount);
 
@@ -1818,8 +1859,8 @@ export class DataController {
         }
         return {
           id: Number(id),
-          url: url,
-          ownerAddress: ownerAddress,
+          url,
+          ownerAddress,
           addedAtBlock: BigInt(addedAtBlock),
         };
       } else {
@@ -1868,7 +1909,7 @@ export class DataController {
   async registerFileWithSchema(
     url: string,
     schemaId: number,
-  ): Promise<{ fileId: number; transactionHash: Address }> {
+  ): Promise<TransactionResult<"DataRegistry", "addFileWithSchema">> {
     try {
       const chainId = this.context.walletClient.chain?.id;
       if (!chainId) {
@@ -1877,33 +1918,26 @@ export class DataController {
 
       const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
       const dataRegistryAbi = getAbi("DataRegistry");
-      const userAddress = await this.getUserAddress();
+      const account =
+        this.context.walletClient.account ?? (await this.getUserAddress());
+      const from = typeof account === "string" ? account : account.address;
 
-      const txHash = await this.context.walletClient.writeContract({
+      const hash = await this.context.walletClient.writeContract({
         address: dataRegistryAddress,
         abi: dataRegistryAbi,
         functionName: "addFileWithSchema",
         args: [url, BigInt(schemaId)],
-        account: this.context.walletClient.account || userAddress,
-        chain: this.context.walletClient.chain || null,
+        account,
+        chain: this.context.walletClient.chain ?? null,
       });
 
-      // Wait for transaction confirmation and parse events
-      const receipt = await this.context.publicClient.waitForTransactionReceipt(
-        {
-          hash: txHash,
-          confirmations: 1,
-        },
-      );
-
-      // Parse the FileAddedV2 event to get the file ID
-      const { parseFileAddedEvent } = await import("../utils/eventParsing");
-      const eventData = parseFileAddedEvent(receipt);
-
-      return {
-        fileId: Number(eventData.fileId),
-        transactionHash: txHash,
-      };
+      const { tx } = await import("../utils/transactionHelpers");
+      return tx({
+        hash,
+        from,
+        contract: "DataRegistry",
+        fn: "addFileWithSchema",
+      });
     } catch (error) {
       console.error("Failed to register file with schema:", error);
       throw new Error(
@@ -1946,10 +1980,7 @@ export class DataController {
     url: string,
     ownerAddress: Address,
     permissions: Array<{ account: Address; key: string }> = [],
-  ): Promise<{
-    fileId: number;
-    transactionHash: string;
-  }> {
+  ): Promise<TransactionResult<"DataRegistry", "addFileWithPermissions">> {
     try {
       const chainId = this.context.walletClient.chain?.id;
       if (!chainId) {
@@ -1958,33 +1989,26 @@ export class DataController {
 
       const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
       const dataRegistryAbi = getAbi("DataRegistry");
+      const account = this.context.walletClient.account ?? ownerAddress;
+      const from = typeof account === "string" ? account : account.address;
 
       // Execute the transaction using the wallet client
-      const txHash = await this.context.walletClient.writeContract({
+      const hash = await this.context.walletClient.writeContract({
         address: dataRegistryAddress,
         abi: dataRegistryAbi,
         functionName: "addFileWithPermissions",
         args: [url, ownerAddress, permissions],
-        account: this.context.walletClient.account || ownerAddress,
-        chain: this.context.walletClient.chain || null,
+        account,
+        chain: this.context.walletClient.chain ?? null,
       });
 
-      // Wait for transaction confirmation and parse events
-      const receipt = await this.context.publicClient.waitForTransactionReceipt(
-        {
-          hash: txHash,
-          confirmations: 1,
-        },
-      );
-
-      // Parse the FileAddedV2 event to get the file ID
-      const { parseFileAddedEvent } = await import("../utils/eventParsing");
-      const eventData = parseFileAddedEvent(receipt);
-
-      return {
-        fileId: Number(eventData.fileId),
-        transactionHash: txHash,
-      };
+      const { tx } = await import("../utils/transactionHelpers");
+      return tx({
+        hash,
+        from,
+        contract: "DataRegistry",
+        fn: "addFileWithPermissions",
+      });
     } catch (error) {
       console.error("Failed to add file with permissions:", error);
       throw new Error(
@@ -1997,25 +2021,113 @@ export class DataController {
    * Adds a file to the registry with permissions and schema.
    * This combines the functionality of addFileWithPermissions and schema validation.
    *
+   * @remarks
+   * This method automatically encrypts permissions when a publicKey is provided.
+   * It generates the user's encryption key and encrypts it with each recipient's
+   * public key before registering on the blockchain.
+   *
    * @param url - The URL of the file to register
    * @param ownerAddress - The address of the file owner
-   * @param permissions - Array of permissions to grant (account and encrypted key)
+   * @param permissions - Array of permissions to grant
+   * @param permissions[].account - The recipient's wallet address that will access the file
+   * @param permissions[].publicKey - The recipient's public key for encryption (hex string with 0x prefix).
+   *   Obtain via `vana.server.getIdentity(userAddress).publicKey` for personal servers.
    * @param schemaId - The schema ID to associate with the file (0 for no schema)
-   * @returns Promise resolving to object with fileId and transactionHash
-   * @throws {Error} When chain ID is not available
-   * @throws {ContractError} When contract execution fails
-   * @throws {Error} When transaction receipt is not available
-   * @throws {Error} When FileAdded event cannot be parsed
+   * @returns Promise resolving to TransactionResult with fileId and transactionHash
+   * @throws {Error} "Chain ID not available" - When wallet chain is not configured
+   * @throws {Error} "Failed to generate encryption key" - When encryption key generation fails
+   * @throws {Error} "Permission for {account} must include 'publicKey'" - When publicKey is missing
+   * @throws {Error} "Failed to add file with permissions and schema: {error}" - When transaction fails
+   * @example
+   * ```typescript
+   * // Get server's public key
+   * const serverIdentity = await vana.server.getIdentity({
+   *   userAddress: "0x..."
+   * });
+   *
+   * // Add file with permissions and schema
+   * const result = await vana.data.addFileWithPermissionsAndSchema(
+   *   "ipfs://QmXxx...",
+   *   ownerAddress,
+   *   [{
+   *     account: serverIdentity.address,
+   *     publicKey: serverIdentity.publicKey
+   *   }],
+   *   schemaId
+   * );
+   *
+   * console.log(`File ${result.fileId} registered in tx ${result.hash}`);
+   * ```
    */
   async addFileWithPermissionsAndSchema(
     url: string,
     ownerAddress: Address,
+    permissions: Array<{ account: Address; publicKey: string }> = [],
+    schemaId: number = 0,
+  ): Promise<
+    TransactionResult<"DataRegistry", "addFileWithPermissionsAndSchema">
+  > {
+    try {
+      // Process permissions - always encrypt with publicKey
+      let encryptedPermissions: Array<{ account: Address; key: string }> = [];
+
+      if (permissions.length > 0) {
+        // Generate user's encryption key
+        const userEncryptionKey = await generateEncryptionKey(
+          this.context.walletClient,
+          this.context.platform,
+          DEFAULT_ENCRYPTION_SEED,
+        );
+
+        encryptedPermissions = await Promise.all(
+          permissions.map(async (permission) => {
+            if (!permission.publicKey) {
+              throw new Error(
+                `Permission for ${permission.account} must include 'publicKey'`,
+              );
+            }
+
+            const encryptedKey = await encryptWithWalletPublicKey(
+              userEncryptionKey,
+              permission.publicKey,
+              this.context.platform,
+            );
+
+            return {
+              account: permission.account,
+              key: encryptedKey,
+            };
+          }),
+        );
+      }
+
+      // Call the internal method with encrypted permissions
+      return await this._addFileWithPermissionsAndSchemaInternal(
+        url,
+        ownerAddress,
+        encryptedPermissions,
+        schemaId,
+      );
+    } catch (error) {
+      console.error("Failed to add file with permissions and schema:", error);
+      throw new Error(
+        `Failed to add file with permissions and schema: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Internal method to add file with encrypted permissions and schema.
+   * @private
+   */
+  private async _addFileWithPermissionsAndSchemaInternal(
+    url: string,
+    ownerAddress: Address,
     permissions: Array<{ account: Address; key: string }> = [],
     schemaId: number = 0,
-  ): Promise<{
-    fileId: number;
-    transactionHash: string;
-  }> {
+  ): Promise<
+    TransactionResult<"DataRegistry", "addFileWithPermissionsAndSchema">
+  > {
     try {
       const chainId = this.context.walletClient.chain?.id;
       if (!chainId) {
@@ -2024,33 +2136,26 @@ export class DataController {
 
       const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
       const dataRegistryAbi = getAbi("DataRegistry");
+      const account = this.context.walletClient.account ?? ownerAddress;
+      const from = typeof account === "string" ? account : account.address;
 
       // Execute the transaction using the wallet client
-      const txHash = await this.context.walletClient.writeContract({
+      const hash = await this.context.walletClient.writeContract({
         address: dataRegistryAddress,
         abi: dataRegistryAbi,
         functionName: "addFileWithPermissionsAndSchema",
         args: [url, ownerAddress, permissions, BigInt(schemaId)],
-        account: this.context.walletClient.account || ownerAddress,
-        chain: this.context.walletClient.chain || null,
+        account,
+        chain: this.context.walletClient.chain ?? null,
       });
 
-      // Wait for transaction confirmation and parse events
-      const receipt = await this.context.publicClient.waitForTransactionReceipt(
-        {
-          hash: txHash,
-          confirmations: 1,
-        },
-      );
-
-      // Parse the FileAddedV2 event to get the file ID
-      const { parseFileAddedEvent } = await import("../utils/eventParsing");
-      const eventData = parseFileAddedEvent(receipt);
-
-      return {
-        fileId: Number(eventData.fileId),
-        transactionHash: txHash,
-      };
+      const { tx } = await import("../utils/transactionHelpers");
+      return tx({
+        hash,
+        from,
+        contract: "DataRegistry",
+        fn: "addFileWithPermissionsAndSchema",
+      });
     } catch (error) {
       console.error("Failed to add file with permissions and schema:", error);
       throw new Error(
@@ -2099,8 +2204,11 @@ export class DataController {
         "DataRefinerRegistry",
       );
       const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
+      const account =
+        this.context.walletClient.account ?? (await this.getUserAddress());
+      const from = typeof account === "string" ? account : account.address;
 
-      const txHash = await this.context.walletClient.writeContract({
+      const hash = await this.context.walletClient.writeContract({
         address: dataRefinerRegistryAddress,
         abi: dataRefinerRegistryAbi,
         functionName: "addRefinerWithSchemaId",
@@ -2110,26 +2218,33 @@ export class DataController {
           BigInt(params.schemaId),
           params.refinementInstructionUrl,
         ],
-        account:
-          this.context.walletClient.account || (await this.getUserAddress()),
-        chain: this.context.walletClient.chain || null,
+        account,
+        chain: this.context.walletClient.chain ?? null,
       });
 
-      // Wait for transaction confirmation and parse events
-      const receipt = await this.context.publicClient.waitForTransactionReceipt(
-        {
-          hash: txHash,
-          confirmations: 1,
-        },
-      );
+      // Create TransactionResult POJO
+      const { tx } = await import("../utils/transactionHelpers");
+      const txResult = tx({
+        hash,
+        from,
+        contract: "DataRefinerRegistry",
+        fn: "addRefinerWithSchemaId",
+      });
 
-      // Parse the RefinerAdded event to get the refiner ID
-      const { parseRefinerAddedEvent } = await import("../utils/eventParsing");
-      const eventData = parseRefinerAddedEvent(receipt);
+      // Wait for events and extract domain data
+      if (!this.context.waitForTransactionEvents) {
+        throw new Error("waitForTransactionEvents not configured");
+      }
+
+      const result = await this.context.waitForTransactionEvents(txResult);
+      const event = result.expectedEvents.RefinerAdded;
+      if (!event) {
+        throw new Error("RefinerAdded event not found in transaction");
+      }
 
       return {
-        refinerId: Number(eventData.refinerId),
-        transactionHash: txHash,
+        refinerId: Number(event.refinerId),
+        transactionHash: hash,
       };
     } catch (error) {
       console.error("Failed to add refiner:", error);
@@ -2330,24 +2445,24 @@ export class DataController {
         "DataRefinerRegistry",
       );
       const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
+      const account =
+        this.context.walletClient.account ?? (await this.getUserAddress());
 
-      const txHash = await this.context.walletClient.writeContract({
+      const hash = await this.context.walletClient.writeContract({
         address: dataRefinerRegistryAddress,
         abi: dataRefinerRegistryAbi,
         functionName: "updateSchemaId",
         args: [BigInt(params.refinerId), BigInt(params.newSchemaId)],
-        account:
-          this.context.walletClient.account || (await this.getUserAddress()),
-        chain: this.context.walletClient.chain || null,
+        account,
+        chain: this.context.walletClient.chain ?? null,
       });
 
-      await this.context.publicClient.waitForTransactionReceipt({
-        hash: txHash,
-        timeout: 30_000,
-      });
+      // Wait for transaction confirmation
+      await this.context.publicClient.waitForTransactionReceipt({ hash });
 
+      // Return simple domain result
       return {
-        transactionHash: txHash,
+        transactionHash: hash,
       };
     } catch (error) {
       console.error("Failed to update schema ID:", error);
@@ -2413,30 +2528,49 @@ export class DataController {
       );
 
       // 5. Register file with permissions (either via relayer or direct)
-      let result;
       if (this.context.relayerCallbacks?.submitFileAdditionWithPermissions) {
         // Use callback for file addition with permissions
-        result =
+        const result =
           await this.context.relayerCallbacks.submitFileAdditionWithPermissions(
             uploadResult.url,
             userAddress,
             encryptedPermissions,
           );
+        return {
+          fileId: result.fileId,
+          url: uploadResult.url,
+          size: uploadResult.size,
+          transactionHash: result.transactionHash,
+        };
       } else {
-        // Direct transaction
-        result = await this.addFileWithPermissions(
+        // Direct transaction - returns TransactionResult POJO
+        const txResult = await this.addFileWithPermissions(
           uploadResult.url,
           userAddress,
           encryptedPermissions,
         );
-      }
 
-      return {
-        fileId: result.fileId,
-        url: uploadResult.url,
-        size: uploadResult.size,
-        transactionHash: result.transactionHash as `0x${string}`,
-      };
+        // Wait for transaction events to get the actual fileId
+        if (!this.context.waitForTransactionEvents) {
+          throw new Error(
+            "Cannot upload without relay: waitForTransactionEvents not configured",
+          );
+        }
+
+        const eventResult =
+          await this.context.waitForTransactionEvents(txResult);
+        const fileAddedEvent = eventResult.expectedEvents.FileAdded;
+        if (!fileAddedEvent) {
+          throw new Error("FileAdded event not found in transaction");
+        }
+
+        return {
+          fileId: Number(fileAddedEvent.fileId),
+          url: uploadResult.url,
+          size: uploadResult.size,
+          transactionHash: txResult.hash,
+        };
+      }
     } catch (error) {
       console.error("Failed to upload file with permissions:", error);
       throw new Error(
@@ -2516,7 +2650,7 @@ export class DataController {
       }
 
       // Generate default filename if not provided
-      const finalFilename = filename || `upload-${Date.now()}.dat`;
+      const finalFilename = filename ?? `upload-${Date.now()}.dat`;
 
       const uploadResult = await this.context.storageManager.upload(
         finalBlob,
@@ -2562,7 +2696,7 @@ export class DataController {
     fileId: number,
     account: Address,
     publicKey: string,
-  ): Promise<TransactionResult & { eventData?: FilePermissionResult }> {
+  ): Promise<TransactionResult<"DataRegistry", "addFilePermission">> {
     return await this.submitFilePermission(fileId, account, publicKey);
   }
 
@@ -2577,7 +2711,7 @@ export class DataController {
    * @param fileId - The ID of the file to grant permission for
    * @param account - The recipient's wallet address that will access the file
    * @param publicKey - The recipient's public key for encryption.
-   *   Obtain via `vana.server.getIdentity(account).public_key`
+   *   Obtain via `vana.server.getIdentity(account).publicKey`
    * @returns Promise resolving to TransactionResult for tracking the transaction
    * @throws {Error} When chain ID is not available
    * @throws {Error} When encryption key generation fails
@@ -2598,7 +2732,7 @@ export class DataController {
     fileId: number,
     account: Address,
     publicKey: string,
-  ): Promise<TransactionResult & { eventData?: FilePermissionResult }> {
+  ): Promise<TransactionResult<"DataRegistry", "addFilePermission">> {
     try {
       // 1. Generate user's encryption key
       const userEncryptionKey = await generateEncryptionKey(
@@ -2623,20 +2757,28 @@ export class DataController {
       const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
       const dataRegistryAbi = getAbi("DataRegistry");
 
+      const walletAccount =
+        this.context.walletClient.account ?? (await this.getUserAddress());
+
       const txHash = await this.context.walletClient.writeContract({
         address: dataRegistryAddress,
         abi: dataRegistryAbi,
         functionName: "addFilePermission",
         args: [BigInt(fileId), account, encryptedKey],
-        account:
-          this.context.walletClient.account || (await this.getUserAddress()),
-        chain: this.context.walletClient.chain || null,
+        account: walletAccount,
+        chain: this.context.walletClient.chain ?? null,
       });
 
-      return {
+      const { tx } = await import("../utils/transactionHelpers");
+      return tx({
         hash: txHash,
-        from: this.context.walletClient.account?.address,
-      };
+        from:
+          typeof walletAccount === "string"
+            ? walletAccount
+            : walletAccount.address,
+        contract: "DataRegistry",
+        fn: "addFilePermission",
+      });
     } catch (error) {
       console.error("Failed to add permission to file:", error);
       throw new Error(
@@ -2673,7 +2815,7 @@ export class DataController {
         account,
       ]);
 
-      return encryptedKey as string;
+      return encryptedKey;
     } catch (error) {
       console.error("Failed to get file permission:", error);
       throw new Error(
@@ -2702,7 +2844,7 @@ export class DataController {
   ): Promise<Blob> {
     try {
       // Use provided account or get current wallet account
-      const permissionAccount = account || (await this.getUserAddress());
+      const permissionAccount = account ?? (await this.getUserAddress());
 
       // 1. Get the encrypted encryption key from file permissions
       const encryptedKey = await this.getFilePermission(
@@ -2778,11 +2920,8 @@ export class DataController {
    */
   async fetch(url: string): Promise<Blob> {
     try {
-      const { fetchWithRelayer } = await import("../utils/download");
-      const response = await fetchWithRelayer(
-        url,
-        this.context.downloadRelayer,
-      );
+      const { universalFetch } = await import("../utils/download");
+      const response = await universalFetch(url, this.context.downloadRelayer);
 
       if (!response.ok) {
         throw new Error(
@@ -2860,7 +2999,7 @@ export class DataController {
 
     // Use per-call gateways if provided, otherwise use app-wide gateways, otherwise use defaults
     const gateways =
-      options?.gateways || this.context.ipfsGateways || defaultGateways;
+      options?.gateways ?? this.context.ipfsGateways ?? defaultGateways;
 
     // Use ipfs utilities to extract hash
     const { extractIpfsHash } = await import("../utils/ipfs");
@@ -3021,7 +3160,7 @@ export class DataController {
    * ```
    */
   validateDataAgainstSchema(data: unknown, schema: DataSchema): void {
-    return validateDataAgainstSchema(data, schema);
+    validateDataAgainstSchema(data, schema);
   }
 
   /**

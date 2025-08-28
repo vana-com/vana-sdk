@@ -1,9 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { Address } from "viem";
-import {
-  PermissionsController,
-  ControllerContext,
-} from "../controllers/permissions";
+import type { Address } from "viem";
+import { PermissionsController } from "../controllers/permissions";
+import type { ControllerContext } from "../controllers/permissions";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock ALL external dependencies to ensure pure unit tests
@@ -73,10 +71,19 @@ describe("Permissions Schema Validation", () => {
         writeContract: vi.fn().mockResolvedValue("0xTxHash"),
         getAddresses: vi.fn().mockResolvedValue(["0xTestAddress"]),
         getChainId: vi.fn().mockResolvedValue(14800),
-        signTypedData: vi.fn().mockResolvedValue("0xSignature"),
+        signTypedData: vi
+          .fn()
+          .mockResolvedValue(`0x${"0".repeat(130)}` as `0x${string}`),
       } as any,
       publicClient: {
         waitForTransactionReceipt: vi.fn().mockResolvedValue({
+          getTransactionReceipt: vi.fn().mockResolvedValue({
+            transactionHash: "0xTransactionHash",
+            blockNumber: 12345n,
+            gasUsed: 100000n,
+            status: "success" as const,
+            logs: [],
+          }),
           status: "success",
           logs: [],
         }),

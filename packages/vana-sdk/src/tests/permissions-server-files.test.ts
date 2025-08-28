@@ -1,9 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { Address } from "viem";
-import {
-  PermissionsController,
-  ControllerContext,
-} from "../controllers/permissions";
+import type { Address } from "viem";
+import { PermissionsController } from "../controllers/permissions";
+import type { ControllerContext } from "../controllers/permissions";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock external dependencies
@@ -86,7 +84,9 @@ describe("Permissions Server Files and Permissions", () => {
 
     mockWalletClient = {
       writeContract: vi.fn().mockResolvedValue("0xmocktxhash"),
-      signTypedData: vi.fn().mockResolvedValue("0xmocksignature"),
+      signTypedData: vi
+        .fn()
+        .mockResolvedValue(`0x${"0".repeat(130)}` as `0x${string}`),
       account: { address: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" },
       chain: { id: 14800 },
       getChainId: vi.fn().mockResolvedValue(14800),
@@ -147,7 +147,7 @@ describe("Permissions Server Files and Permissions", () => {
       let capturedTypedData: any;
       mockWalletClient.signTypedData.mockImplementation((data) => {
         capturedTypedData = data;
-        return Promise.resolve("0xmocksignature");
+        return Promise.resolve(`0x${"0".repeat(130)}` as `0x${string}`);
       });
 
       await controller.submitAddServerFilesAndPermissions(baseParams);
@@ -208,7 +208,7 @@ describe("Permissions Server Files and Permissions", () => {
       let capturedTypedData: any;
       mockWalletClient.signTypedData.mockImplementation((data) => {
         capturedTypedData = data;
-        return Promise.resolve("0xmocksignature");
+        return Promise.resolve(`0x${"0".repeat(130)}` as `0x${string}`);
       });
 
       await controller.submitAddServerFilesAndPermissions(params);
@@ -231,7 +231,7 @@ describe("Permissions Server Files and Permissions", () => {
       let capturedTypedData: any;
       mockWalletClient.signTypedData.mockImplementation((data) => {
         capturedTypedData = data;
-        return Promise.resolve("0xmocksignature");
+        return Promise.resolve(`0x${"0".repeat(130)}` as `0x${string}`);
       });
 
       await controller.submitAddServerFilesAndPermissions(params);
@@ -245,7 +245,7 @@ describe("Permissions Server Files and Permissions", () => {
       let capturedTypedData: any;
       mockWalletClient.signTypedData.mockImplementation((data) => {
         capturedTypedData = data;
-        return Promise.resolve("0xmocksignature");
+        return Promise.resolve(`0x${"0".repeat(130)}` as `0x${string}`);
       });
 
       await controller.submitAddServerFilesAndPermissions(baseParams);
@@ -326,7 +326,7 @@ describe("Permissions Server Files and Permissions", () => {
       let capturedTypedData: any;
       mockWalletClient.signTypedData.mockImplementation((data) => {
         capturedTypedData = data;
-        return Promise.resolve("0xmocksignature");
+        return Promise.resolve(`0x${"0".repeat(130)}` as `0x${string}`);
       });
 
       await controller.submitAddServerFilesAndPermissions(params);
@@ -350,7 +350,7 @@ describe("Permissions Server Files and Permissions", () => {
       let capturedTypedData: any;
       mockWalletClient.signTypedData.mockImplementation((data) => {
         capturedTypedData = data;
-        return Promise.resolve("0xmocksignature");
+        return Promise.resolve(`0x${"0".repeat(130)}` as `0x${string}`);
       });
 
       await controller.submitAddServerFilesAndPermissions(params);

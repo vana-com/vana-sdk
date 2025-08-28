@@ -6,12 +6,12 @@
  */
 
 import {
-  StorageProvider,
-  StorageUploadResult,
-  StorageFile,
-  StorageListOptions,
-  StorageProviderConfig,
   StorageError,
+  type StorageProvider,
+  type StorageUploadResult,
+  type StorageFile,
+  type StorageListOptions,
+  type StorageProviderConfig,
 } from "../index";
 
 export interface GoogleDriveConfig {
@@ -90,7 +90,7 @@ export class GoogleDriveStorage implements StorageProvider {
 
   async upload(file: Blob, filename?: string): Promise<StorageUploadResult> {
     try {
-      const fileName = filename || `vana-file-${Date.now()}.dat`;
+      const fileName = filename ?? `vana-file-${Date.now()}.dat`;
 
       // Create file metadata
       const metadata = {
@@ -238,7 +238,7 @@ export class GoogleDriveStorage implements StorageProvider {
       const params = new URLSearchParams({
         q: query,
         fields: "files(id,name,size,mimeType,createdTime,webViewLink)",
-        pageSize: (options?.limit || 100).toString(),
+        pageSize: (options?.limit ?? 100).toString(),
       });
 
       if (options?.offset && typeof options.offset === "string") {
@@ -488,7 +488,7 @@ export class GoogleDriveStorage implements StorageProvider {
   async createFolder(name: string, parentId: string = "root"): Promise<string> {
     try {
       const metadata = {
-        name: name,
+        name,
         mimeType: "application/vnd.google-apps.folder",
         parents: [parentId],
       };

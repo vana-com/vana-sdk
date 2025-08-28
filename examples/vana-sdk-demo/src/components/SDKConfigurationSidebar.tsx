@@ -59,7 +59,9 @@ export const SDKConfigurationSidebar: React.FC<
                 label="Relayer URL"
                 placeholder="https://relayer.example.com"
                 value={sdkConfig.relayerUrl}
-                onValueChange={(value) => onConfigChange({ relayerUrl: value })}
+                onValueChange={(value) => {
+                  onConfigChange({ relayerUrl: value });
+                }}
                 description="URL for gasless transaction relayer"
                 size="sm"
               />
@@ -68,9 +70,9 @@ export const SDKConfigurationSidebar: React.FC<
                 label="Subgraph URL"
                 placeholder="https://moksha.vanagraph.io/v7"
                 value={sdkConfig.subgraphUrl}
-                onValueChange={(value) =>
-                  onConfigChange({ subgraphUrl: value })
-                }
+                onValueChange={(value) => {
+                  onConfigChange({ subgraphUrl: value });
+                }}
                 description="Custom subgraph endpoint (optional)"
                 size="sm"
               />
@@ -79,7 +81,9 @@ export const SDKConfigurationSidebar: React.FC<
                 label="RPC URL"
                 placeholder="https://rpc.example.com"
                 value={sdkConfig.rpcUrl}
-                onValueChange={(value) => onConfigChange({ rpcUrl: value })}
+                onValueChange={(value) => {
+                  onConfigChange({ rpcUrl: value });
+                }}
                 description="Custom RPC endpoint (optional)"
                 size="sm"
               />
@@ -95,7 +99,9 @@ export const SDKConfigurationSidebar: React.FC<
                 label="Pinata JWT"
                 placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                 value={sdkConfig.pinataJwt}
-                onValueChange={(value) => onConfigChange({ pinataJwt: value })}
+                onValueChange={(value) => {
+                  onConfigChange({ pinataJwt: value });
+                }}
                 description="JWT for user-managed Pinata IPFS"
                 size="sm"
                 type="password"
@@ -105,9 +111,9 @@ export const SDKConfigurationSidebar: React.FC<
                 label="Pinata Gateway"
                 placeholder="https://gateway.pinata.cloud"
                 value={sdkConfig.pinataGateway}
-                onValueChange={(value) =>
-                  onConfigChange({ pinataGateway: value })
-                }
+                onValueChange={(value) => {
+                  onConfigChange({ pinataGateway: value });
+                }}
                 description="Gateway URL for Pinata IPFS"
                 size="sm"
               />
@@ -209,9 +215,9 @@ export const SDKConfigurationSidebar: React.FC<
                 </div>
                 <Switch
                   isSelected={appConfig.useGaslessTransactions}
-                  onValueChange={(value) =>
-                    onAppConfigChange({ useGaslessTransactions: value })
-                  }
+                  onValueChange={(value) => {
+                    onAppConfigChange({ useGaslessTransactions: value });
+                  }}
                   size="sm"
                 />
               </div>

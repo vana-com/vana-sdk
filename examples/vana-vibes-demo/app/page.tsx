@@ -16,7 +16,7 @@ import { SchemaValidator } from "@opendatalabs/vana-sdk/browser";
 function HomeContent() {
   const { isConnected: walletConnected, address } = useAccount();
   const walletLoading = false; // wagmi doesn't have isLoading
-  const { data: wallet } = useWallet?.() || {};
+  const { data: wallet } = useWallet?.() ?? {};
   const vanaContext = useVana();
   const {
     isConnected: googleDriveConnected,
@@ -68,7 +68,7 @@ function HomeContent() {
     if (id) {
       vanaContext.vana.schemas
         .get(id)
-        .then((schema) => {
+        .then((schema: DataSchema) => {
           setSchema(schema);
           setSchemaId(id);
         })
@@ -78,7 +78,10 @@ function HomeContent() {
 
   // Validate
   useEffect(() => {
-    if (!schema || !userData) return setValidationError("");
+    if (!schema || !userData) {
+      setValidationError("");
+      return;
+    }
     try {
       const parsed = JSON.parse(userData);
       validator.validateDataAgainstSchema(parsed, schema);
@@ -89,7 +92,7 @@ function HomeContent() {
   }, [userData, schema, validator]);
 
   const handleStartFlow = async () => {
-    const walletAddress = wallet?.address || address;
+    const walletAddress = wallet?.address ?? address;
     if (!isVanaInitialized(vanaContext) || !walletAddress) {
       setStatus("Vana not initialized. Please connect your wallet.");
       return;
@@ -155,7 +158,9 @@ function HomeContent() {
             {!googleDriveConnected ? (
               <div className="space-y-4">
                 <Button
-                  onClick={() => connectGoogleDrive()}
+                  onClick={() => {
+                    connectGoogleDrive();
+                  }}
                   disabled={googleDriveConnecting || isProcessing}
                   className="w-full"
                 >
@@ -220,7 +225,9 @@ function HomeContent() {
               <Textarea
                 id="userData"
                 value={userData}
-                onChange={(e) => setUserData(e.target.value)}
+                onChange={(e) => {
+                  setUserData(e.target.value);
+                }}
                 rows={4}
                 className="resize-none"
                 placeholder="Enter your data here..."
@@ -237,7 +244,9 @@ function HomeContent() {
               <Textarea
                 id="aiPrompt"
                 value={aiPrompt}
-                onChange={(e) => setAiPrompt(e.target.value)}
+                onChange={(e) => {
+                  setAiPrompt(e.target.value);
+                }}
                 rows={2}
                 className="resize-none"
                 placeholder="Enter your AI prompt here..."
@@ -253,7 +262,7 @@ function HomeContent() {
           disabled={
             isProcessing ||
             !walletConnected ||
-            !(wallet?.address || address) ||
+            !(wallet?.address ?? address) ||
             !googleDriveConnected ||
             !vanaContext.isInitialized
           }

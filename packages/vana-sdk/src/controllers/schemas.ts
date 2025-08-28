@@ -1,12 +1,13 @@
-import { Address } from "viem";
-import {
+import type { Address } from "viem";
+import type {
   Schema,
   SchemaMetadata,
   CompleteSchema,
   AddSchemaParams,
-  AddSchemaResult,
 } from "../types/index";
-import { ControllerContext } from "./permissions";
+// import type { TransactionResult } from "../types/operations";
+import type { SchemaAddedResult } from "../types/transactionResults";
+import type { ControllerContext } from "./permissions";
 import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../generated/abi";
 import { gasAwareMulticall } from "../utils/multicall";
@@ -56,7 +57,7 @@ export interface CreateSchemaParams {
  */
 export interface CreateSchemaResult {
   /** The schema ID assigned by the contract */
-  schemaId: number;
+  schemaId: bigint;
   /** The IPFS URL where the schema definition is stored */
   definitionUrl: string;
   /** The transaction hash of the schema registration */
@@ -216,33 +217,42 @@ export class SchemaController {
       );
       const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
 
-      const userAddress = await this.getUserAddress();
+      const account =
+        this.context.walletClient.account ?? (await this.getUserAddress());
+      const from = typeof account === "string" ? account : account.address;
 
-      const txHash = await this.context.walletClient.writeContract({
+      const hash = await this.context.walletClient.writeContract({
         address: dataRefinerRegistryAddress,
         abi: dataRefinerRegistryAbi,
         functionName: "addSchema",
         args: [name, dialect, uploadResult.url],
-        account: this.context.walletClient.account || userAddress,
-        chain: this.context.walletClient.chain || null,
+        account,
+        chain: this.context.walletClient.chain ?? null,
       });
 
-      // Wait for transaction confirmation and parse events
-      const receipt = await this.context.publicClient.waitForTransactionReceipt(
-        {
-          hash: txHash,
-          confirmations: 1,
-        },
-      );
+      const { tx } = await import("../utils/transactionHelpers");
+      const txResult = tx({
+        hash,
+        from,
+        contract: "DataRefinerRegistry",
+        fn: "addSchema",
+      });
 
-      // Parse the SchemaAdded event to get the schema ID
-      const { parseSchemaAddedEvent } = await import("../utils/eventParsing");
-      const eventData = parseSchemaAddedEvent(receipt);
+      // Wait for events and extract domain data
+      if (!this.context.waitForTransactionEvents) {
+        throw new Error("waitForTransactionEvents not configured");
+      }
+
+      const result = await this.context.waitForTransactionEvents(txResult);
+      const event = result.expectedEvents.SchemaAdded;
+      if (!event) {
+        throw new Error("SchemaAdded event not found in transaction");
+      }
 
       return {
-        schemaId: Number(eventData.schemaId),
+        schemaId: event.schemaId,
         definitionUrl: uploadResult.url,
-        transactionHash: txHash,
+        transactionHash: hash,
       };
     } catch (error) {
       if (error instanceof SchemaValidationError) {
@@ -278,7 +288,7 @@ export class SchemaController {
     schemaId: number,
     options: { subgraphUrl?: string } = {},
   ): Promise<CompleteSchema> {
-    const subgraphUrl = options.subgraphUrl || this.context.subgraphUrl;
+    const subgraphUrl = options.subgraphUrl ?? this.context.subgraphUrl;
 
     let metadata: SchemaMetadata;
 
@@ -326,13 +336,13 @@ export class SchemaController {
 
     // Verify on-chain and off-chain data match
     if (dataSchema.name !== metadata.name) {
-      throw new Error(
-        `Schema name mismatch: on-chain="${metadata.name}" off-chain="${dataSchema.name}"`,
+      console.warn(
+        `Schema name mismatch for ID ${schemaId}: on-chain="${metadata.name}" off-chain="${dataSchema.name}" (using on-chain value)`,
       );
     }
     if (dataSchema.dialect !== metadata.dialect) {
-      throw new Error(
-        `Schema dialect mismatch: on-chain="${metadata.dialect}" off-chain="${dataSchema.dialect}"`,
+      console.warn(
+        `Schema dialect mismatch for ID ${schemaId}: on-chain="${metadata.dialect}" off-chain="${dataSchema.dialect}" (using on-chain value)`,
       );
     }
 
@@ -364,7 +374,7 @@ export class SchemaController {
    * ```
    */
   async count(options: { subgraphUrl?: string } = {}): Promise<number> {
-    const subgraphUrl = options.subgraphUrl || this.context.subgraphUrl;
+    const subgraphUrl = options.subgraphUrl ?? this.context.subgraphUrl;
 
     // Try subgraph first if available
     if (subgraphUrl) {
@@ -416,7 +426,7 @@ export class SchemaController {
     } = {},
   ): Promise<Schema[]> {
     const { limit = 100, offset = 0, includeDefinitions = false } = options;
-    const subgraphUrl = options.subgraphUrl || this.context.subgraphUrl;
+    const subgraphUrl = options.subgraphUrl ?? this.context.subgraphUrl;
 
     // Try subgraph first if available
     if (subgraphUrl) {
@@ -523,7 +533,7 @@ export class SchemaController {
    * @param params - Schema parameters including pre-generated definition URL
    * @returns Promise resolving to the add schema result
    */
-  async addSchema(params: AddSchemaParams): Promise<AddSchemaResult> {
+  async addSchema(params: AddSchemaParams): Promise<SchemaAddedResult> {
     try {
       const chainId = this.context.walletClient.chain?.id;
       if (!chainId) {
@@ -536,32 +546,51 @@ export class SchemaController {
       );
       const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
 
-      const userAddress = await this.getUserAddress();
+      const account =
+        this.context.walletClient.account ?? (await this.getUserAddress());
+      const from = typeof account === "string" ? account : account.address;
 
-      const txHash = await this.context.walletClient.writeContract({
+      const hash = await this.context.walletClient.writeContract({
         address: dataRefinerRegistryAddress,
         abi: dataRefinerRegistryAbi,
         functionName: "addSchema",
         args: [params.name, params.dialect, params.definitionUrl],
-        account: this.context.walletClient.account || userAddress,
-        chain: this.context.walletClient.chain || null,
+        account,
+        chain: this.context.walletClient.chain ?? null,
       });
 
-      // Wait for transaction confirmation and parse events
-      const receipt = await this.context.publicClient.waitForTransactionReceipt(
-        {
-          hash: txHash,
-          confirmations: 1,
-        },
-      );
+      // Create TransactionResult POJO
+      const { tx } = await import("../utils/transactionHelpers");
+      const txResult = tx({
+        hash,
+        from,
+        contract: "DataRefinerRegistry",
+        fn: "addSchema",
+      });
 
-      // Parse the SchemaAdded event to get the schema ID
-      const { parseSchemaAddedEvent } = await import("../utils/eventParsing");
-      const eventData = parseSchemaAddedEvent(receipt);
+      // Wait for events and extract domain data
+      if (!this.context.waitForTransactionEvents) {
+        throw new Error("waitForTransactionEvents not configured");
+      }
+
+      const result = await this.context.waitForTransactionEvents(txResult);
+      const event = result.expectedEvents.SchemaAdded;
+      if (!event) {
+        throw new Error("SchemaAdded event not found in transaction");
+      }
+
+      const receipt = await this.context.publicClient.getTransactionReceipt({
+        hash,
+      });
 
       return {
-        schemaId: Number(eventData.schemaId),
-        transactionHash: txHash,
+        transactionHash: hash,
+        blockNumber: receipt.blockNumber,
+        gasUsed: receipt.gasUsed,
+        schemaId: event.schemaId,
+        name: event.name,
+        dialect: event.dialect,
+        definitionUrl: event.definitionUrl,
       };
     } catch (error) {
       throw new Error(
@@ -681,8 +710,7 @@ export class SchemaController {
     }));
 
     // Optionally fetch definitions if requested
-    const includeDefinitions = (params as { includeDefinitions?: boolean })
-      .includeDefinitions;
+    const { includeDefinitions } = params as { includeDefinitions?: boolean };
     if (includeDefinitions) {
       await this._fetchDefinitionsForSchemas(schemas);
     }
@@ -729,7 +757,7 @@ export class SchemaController {
       );
     }
 
-    return result.data?.schemas?.length || 0;
+    return result.data?.schemas?.length ?? 0;
   }
 
   /**

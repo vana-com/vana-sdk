@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { getApiVanaInstance } from "../../../lib/api-vana";
 import { handleRelayerRequest } from "@opendatalabs/vana-sdk/node";
 import type { GenericTypedData } from "@opendatalabs/vana-sdk/node";

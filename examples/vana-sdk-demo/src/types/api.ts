@@ -18,7 +18,7 @@ export type TrustedServerAPIResponse = APIResponse<ReplicateAPIResponse>;
 
 /** Response from /api/trusted-server/setup */
 export type TrustedServerIdentityAPIResponse = APIResponse<
-  PersonalServerModel & { base_url: string; name: string }
+  PersonalServerModel & { baseUrl: string; name: string }
 >;
 
 /** Response from /api/trusted-server/poll */
@@ -170,7 +170,7 @@ export function extractReplicateOutput<T>(
     return null;
   }
 
-  const output = apiResponse.data.output;
+  const { output } = apiResponse.data;
   console.debug("🔍 Extract: Output type:", typeof output);
   console.debug("🔍 Extract: Output content:", output);
 

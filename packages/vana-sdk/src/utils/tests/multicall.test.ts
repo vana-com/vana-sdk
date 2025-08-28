@@ -50,8 +50,8 @@ const mockAbi = [
 
 describe("gasAwareMulticall", () => {
   let mockClient: PublicClient;
-  let estimateGasSpy: any;
-  let multicallSpy: any;
+  let estimateGasSpy: ReturnType<typeof vi.fn>;
+  let multicallSpy: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     // Create mock client
@@ -60,10 +60,10 @@ describe("gasAwareMulticall", () => {
       multicall: vi.fn().mockResolvedValue([]),
       estimateGas: vi.fn().mockResolvedValue(100_000n),
       getChainId: vi.fn().mockResolvedValue(1),
-    } as any;
+    } as unknown as PublicClient;
 
-    estimateGasSpy = mockClient.estimateGas;
-    multicallSpy = mockClient.multicall;
+    estimateGasSpy = vi.mocked(mockClient.estimateGas);
+    multicallSpy = vi.mocked(mockClient.multicall);
   });
 
   afterEach(() => {
@@ -144,18 +144,18 @@ describe("gasAwareMulticall", () => {
 
       // Mock multicall results - we don't know exact batch sizes, so be flexible
       let totalProcessed = 0;
-      multicallSpy.mockImplementation(
-        ({ contracts: batch }: { contracts: any }) => {
-          const batchSize = batch.length;
-          totalProcessed += batchSize;
-          return Promise.resolve(Array(batchSize).fill(true));
-        },
-      );
+      multicallSpy.mockImplementation((args: unknown) => {
+        const params = args as { contracts: ContractFunctionConfig[] };
+        const batch = params.contracts;
+        const batchSize = batch.length;
+        totalProcessed += batchSize;
+        return Promise.resolve(Array(batchSize).fill(true));
+      });
 
       const result = await gasAwareMulticall(mockClient, { contracts });
 
       expect(result).toHaveLength(100);
-      expect(result.every((r: any) => r === true)).toBe(true);
+      expect(result.every((r: unknown) => r === true)).toBe(true);
       expect(totalProcessed).toBe(100);
 
       // Should have made at least one gas estimate (at checkpoint)
@@ -443,11 +443,11 @@ describe("gasAwareMulticall", () => {
         .mockResolvedValue(3_000_000n); // Subsequent batches
 
       // Set up multicall to return appropriate results for any batch size
-      multicallSpy.mockImplementation(
-        ({ contracts: batch }: { contracts: any }) => {
-          return Promise.resolve(Array(batch.length).fill(parseEther("1")));
-        },
-      );
+      multicallSpy.mockImplementation((args: unknown) => {
+        const params = args as { contracts: ContractFunctionConfig[] };
+        const batch = params.contracts;
+        return Promise.resolve(Array(batch.length).fill(parseEther("1")));
+      });
 
       const result = await gasAwareMulticall(mockClient, { contracts });
 
@@ -456,7 +456,10 @@ describe("gasAwareMulticall", () => {
 
       // Verify total results
       const totalReturned = multicallSpy.mock.calls.reduce(
-        (sum: number, call: any) => sum + call[0].contracts.length,
+        (sum: number, call: unknown[]) => {
+          const args = call[0] as { contracts: ContractFunctionConfig[] };
+          return sum + args.contracts.length;
+        },
         0,
       );
       expect(totalReturned).toBe(1000);
@@ -499,16 +502,16 @@ describe("gasAwareMulticall", () => {
       const options = { allowFailure: true };
 
       // Should still work, just less optimally
-      multicallSpy.mockImplementation(
-        ({ contracts: batch }: { contracts: any }) => {
-          return Promise.resolve(
-            Array(batch.length).fill({
-              success: true,
-              value: parseEther("1"),
-            }),
-          );
-        },
-      );
+      multicallSpy.mockImplementation((args: unknown) => {
+        const params = args as { contracts: ContractFunctionConfig[] };
+        const batch = params.contracts;
+        return Promise.resolve(
+          Array(batch.length).fill({
+            success: true,
+            value: parseEther("1"),
+          }),
+        );
+      });
 
       const result = await gasAwareMulticall(
         mockClient,
@@ -541,8 +544,8 @@ describe("gasAwareMulticall", () => {
 
       const config = analyzeCallsForOptimalConfig(contracts);
 
-      expect(config.checkpointFrequency!.calls).toBeLessThan(32);
-      expect(config.checkpointFrequency!.bytes).toBeLessThan(8192);
+      expect(config.checkpointFrequency?.calls).toBeLessThan(32);
+      expect(config.checkpointFrequency?.bytes).toBeLessThan(8192);
     });
 
     it("should suggest higher calldata limit for very large datasets", () => {

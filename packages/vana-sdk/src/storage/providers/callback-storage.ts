@@ -1,7 +1,7 @@
-import type { StorageProvider } from "../../types/storage";
 import type { StorageCallbacks } from "../../types/config";
 import {
   StorageError,
+  type StorageProvider,
   type StorageUploadResult,
   type StorageFile,
   type StorageListOptions,
@@ -162,11 +162,11 @@ export class CallbackStorage implements StorageProvider {
       // Convert list result to StorageFile format
       return result.items.map((item, index) => ({
         id: item.identifier,
-        name: item.identifier.split("/").pop() || `file-${index}`,
+        name: item.identifier.split("/").pop() ?? `file-${index}`,
         url: item.identifier,
-        size: item.size || 0,
+        size: item.size ?? 0,
         contentType: "application/octet-stream",
-        createdAt: item.lastModified || new Date(),
+        createdAt: item.lastModified ?? new Date(),
         metadata: item.metadata,
       }));
     } catch (error) {

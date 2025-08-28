@@ -2,20 +2,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   getContractController,
   clearContractCache,
-  __contractCache,
+  contractCacheForTesting,
 } from "../contractController";
-import { VanaContract } from "../../generated/abi";
+import type { VanaContract } from "../../generated/abi";
 import { createClient } from "../../core/client";
 import { vanaMainnet, mokshaTestnet } from "../../config/chains";
-import type { PublicClient, WalletClient as _WalletClient } from "viem";
-
-// Mock client interface for testing
-interface _MockClient {
-  chain?: { id: number } | null | undefined;
-  transport: Record<string, unknown>;
-  readContract: ReturnType<typeof vi.fn>;
-  writeContract: ReturnType<typeof vi.fn>;
-}
+import type { PublicClient } from "viem";
 
 // Mock dependencies
 vi.mock("../../core/client", () => ({
@@ -72,7 +64,7 @@ describe("contractController", () => {
     vi.clearAllMocks();
 
     // Clear the controllers cache to avoid cross-test contamination
-    __contractCache.clear();
+    contractCacheForTesting.clear();
 
     // Mock createClient to return our mock client
     vi.mocked(createClient).mockReturnValue(
@@ -297,12 +289,12 @@ describe("contractController", () => {
       );
       getContractController("TeePool");
 
-      expect(__contractCache.size).toBe(3);
+      expect(contractCacheForTesting.size).toBe(3);
 
       // Clear specific contract and chain
       clearContractCache("DataRegistry", mokshaTestnet.id);
 
-      expect(__contractCache.size).toBe(2);
+      expect(contractCacheForTesting.size).toBe(2);
     });
 
     it("should clear all instances of a contract across chains", async () => {
@@ -321,12 +313,12 @@ describe("contractController", () => {
         vanaClient as unknown as PublicClient,
       );
 
-      expect(__contractCache.size).toBe(3);
+      expect(contractCacheForTesting.size).toBe(3);
 
       // Clear all DataRegistry contracts
       clearContractCache("DataRegistry");
 
-      expect(__contractCache.size).toBe(1); // Only TeePool should remain
+      expect(contractCacheForTesting.size).toBe(1); // Only TeePool should remain
     });
 
     it("should clear entire cache when no parameters provided", async () => {
@@ -334,12 +326,12 @@ describe("contractController", () => {
       getContractController("DataRegistry");
       getContractController("TeePool");
 
-      expect(__contractCache.size).toBe(2);
+      expect(contractCacheForTesting.size).toBe(2);
 
       // Clear entire cache
       clearContractCache();
 
-      expect(__contractCache.size).toBe(0);
+      expect(contractCacheForTesting.size).toBe(0);
     });
   });
 });

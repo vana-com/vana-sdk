@@ -5,12 +5,10 @@ import {
   extractIpfsHash,
   getGatewayUrls,
   convertIpfsUrlWithFallbacks,
+  fetchWithFallbacks,
   DEFAULT_IPFS_GATEWAY,
   IPFS_GATEWAYS,
 } from "../utils/ipfs";
-
-// Import for testing, but we'll mock it for problematic tests
-import { fetchWithFallbacks } from "../utils/ipfs";
 
 // Mock global fetch
 const originalFetch = globalThis.fetch;

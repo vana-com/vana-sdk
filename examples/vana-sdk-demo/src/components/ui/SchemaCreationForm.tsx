@@ -30,7 +30,7 @@ export interface SchemaCreationFormProps {
   onCreateSchema: () => void;
   isCreatingSchema: boolean;
   schemaStatus: string;
-  lastCreatedSchemaId: number | null;
+  lastCreatedSchemaId: bigint | null;
 
   /** Chain ID for explorer links */
   chainId: number;
@@ -137,7 +137,9 @@ export const SchemaCreationForm: React.FC<SchemaCreationFormProps> = ({
               label="Schema Name"
               placeholder="My Data Schema"
               value={schemaName}
-              onChange={(e) => onSchemaNameChange(e.target.value)}
+              onChange={(e) => {
+                onSchemaNameChange(e.target.value);
+              }}
               description="A descriptive name for your schema"
               isRequired
             />
@@ -145,7 +147,9 @@ export const SchemaCreationForm: React.FC<SchemaCreationFormProps> = ({
               label="Schema Type"
               placeholder="user_profile"
               value={schemaType}
-              onChange={(e) => onSchemaTypeChange(e.target.value)}
+              onChange={(e) => {
+                onSchemaTypeChange(e.target.value);
+              }}
               description="The type identifier for this schema"
               isRequired
             />
@@ -184,7 +188,9 @@ export const SchemaCreationForm: React.FC<SchemaCreationFormProps> = ({
   "required": ["name"]
 }`}
               value={schemaDefinition}
-              onChange={(e) => onSchemaDefinitionChange(e.target.value)}
+              onChange={(e) => {
+                onSchemaDefinitionChange(e.target.value);
+              }}
               minRows={10}
               maxRows={20}
               description="JSON Schema definition for your data structure"

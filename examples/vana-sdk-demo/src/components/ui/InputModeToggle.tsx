@@ -45,7 +45,9 @@ export const InputModeToggle: React.FC<InputModeToggleProps> = ({
       <Button
         variant={mode === "text" ? "solid" : "bordered"}
         size={size}
-        onPress={() => onModeChange("text")}
+        onPress={() => {
+          onModeChange("text");
+        }}
         disabled={disabled}
       >
         <FileText className="mr-2 h-4 w-4" />
@@ -54,7 +56,9 @@ export const InputModeToggle: React.FC<InputModeToggleProps> = ({
       <Button
         variant={mode === "file" ? "solid" : "bordered"}
         size={size}
-        onPress={() => onModeChange("file")}
+        onPress={() => {
+          onModeChange("file");
+        }}
         disabled={disabled}
       >
         <Upload className="mr-2 h-4 w-4" />

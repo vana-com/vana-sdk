@@ -108,10 +108,13 @@ export async function storeGrantFile(
     const data = responseData as GrantFileStorageResponse;
 
     if (!data.success) {
-      throw new NetworkError(data.error || "Failed to store grant file");
+      throw new NetworkError(data.error ?? "Failed to store grant file");
     }
 
-    return data.url || ""; // The IPFS URL from the upload response
+    if (!data.url) {
+      throw new NetworkError("Upload succeeded but no URL was returned");
+    }
+    return data.url; // The IPFS URL from the upload response
   } catch (error) {
     if (error instanceof NetworkError) {
       throw error;
@@ -179,8 +182,8 @@ export async function retrieveGrantFile(
     }
 
     // Use the unified download utility
-    const { fetchWithRelayer } = await import("./download");
-    const response = await fetchWithRelayer(grantUrl, downloadRelayer);
+    const { universalFetch } = await import("./download");
+    const response = await universalFetch(grantUrl, downloadRelayer);
 
     if (!response.ok) {
       throw new NetworkError(

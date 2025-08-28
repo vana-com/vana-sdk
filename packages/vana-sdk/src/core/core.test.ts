@@ -1,8 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { VanaCore, VanaCoreFactory } from "../core";
 import type { VanaPlatformAdapter } from "../platform/interface";
-import type { VanaConfig, VanaConfigWithStorage } from "../types";
+import type { VanaConfig, VanaConfigWithStorage, WalletConfig } from "../types";
+import type { VanaChain } from "../types/chains";
 import { createMockPlatformAdapter } from "../tests/mocks/platformAdapter";
+import { createTypedMockWalletClient } from "../tests/factories/mockFactory";
+import { privateKeyToAccount } from "viem/accounts";
+import type { WalletClient } from "viem";
 
 // Mock the platform adapter creation
 vi.mock("../platform/utils", () => ({
@@ -18,16 +22,16 @@ vi.mock("../utils/encryption", () => ({
 // Mock the platform adapter
 const mockPlatformAdapter = createMockPlatformAdapter();
 
-// Mock config
+// Create a test account using viem's privateKeyToAccount
+// This is a well-known test private key from Hardhat/Anvil
+const testAccount = privateKeyToAccount(
+  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+);
+
+// Mock config with proper account
 const mockConfig: VanaConfig = {
   chainId: 14800,
-  account: {
-    address: "0x123" as `0x${string}`,
-    type: "json-rpc",
-    signMessage: vi.fn(),
-    signTransaction: vi.fn(),
-    signTypedData: vi.fn(),
-  } as any,
+  account: testAccount,
 };
 
 describe("VanaCore", () => {
@@ -128,7 +132,7 @@ describe("VanaCore", () => {
               getConfig: vi
                 .fn()
                 .mockReturnValue({ gatewayUrl: "https://ipfs.io" }),
-            } as any,
+            },
           },
         },
       };
@@ -207,13 +211,7 @@ describe("VanaCoreFactory", () => {
     it("should create VanaCore instance with config", () => {
       const config: VanaConfig = {
         chainId: 14800,
-        account: {
-          address: "0x789" as `0x${string}`,
-          type: "json-rpc",
-          signMessage: vi.fn(),
-          signTransaction: vi.fn(),
-          signTypedData: vi.fn(),
-        } as any,
+        account: testAccount,
       };
 
       const vana = VanaCoreFactory.create(mockPlatformAdapter, config);
@@ -223,21 +221,25 @@ describe("VanaCoreFactory", () => {
     });
 
     it("should create VanaCore with wallet client config", () => {
-      const mockWalletClient = {
-        signTypedData: vi.fn(),
+      const mockWalletClient = createTypedMockWalletClient({
         chain: {
-          id: 14800,
+          id: 14800 as const,
           name: "Moksha Testnet",
+          nativeCurrency: {
+            name: "VANA",
+            symbol: "VANA",
+            decimals: 18,
+          },
           rpcUrls: {
             default: {
               http: ["https://rpc.moksha.vana.org"],
             },
           },
-        },
-      };
+        } as VanaChain,
+      });
 
-      const config: VanaConfig = {
-        walletClient: mockWalletClient as any,
+      const config: WalletConfig = {
+        walletClient: mockWalletClient as WalletConfig["walletClient"],
       };
 
       const vana = VanaCoreFactory.create(mockPlatformAdapter, config);
@@ -253,20 +255,16 @@ describe("VanaCoreFactory", () => {
         upload: vi.fn(),
         download: vi.fn(),
         delete: vi.fn(),
+        list: vi.fn(),
+        getConfig: vi.fn(),
       };
 
       const config: VanaConfigWithStorage = {
         chainId: 14800,
-        account: {
-          address: "0x789" as `0x${string}`,
-          type: "json-rpc",
-          signMessage: vi.fn(),
-          signTransaction: vi.fn(),
-          signTypedData: vi.fn(),
-        } as any,
+        account: testAccount,
         storage: {
           providers: {
-            ipfs: mockStorageProvider as any,
+            ipfs: mockStorageProvider,
           },
           defaultProvider: "ipfs",
         },
@@ -287,31 +285,45 @@ describe("VanaCoreFactory", () => {
         upload: vi.fn(),
         download: vi.fn(),
         delete: vi.fn(),
+        list: vi.fn(),
+        getConfig: vi.fn(),
       };
 
       const mockArweaveProvider = {
         upload: vi.fn(),
         download: vi.fn(),
         delete: vi.fn(),
+        list: vi.fn(),
+        getConfig: vi.fn(),
       };
 
       const config: VanaConfigWithStorage = {
-        walletClient: {
+        walletClient: createTypedMockWalletClient({
           signTypedData: vi.fn(),
           chain: {
             id: 14800,
             name: "Moksha Testnet",
+            nativeCurrency: { name: "VANA", symbol: "VANA", decimals: 18 },
             rpcUrls: {
               default: {
                 http: ["https://rpc.moksha.vana.org"],
               },
+              public: {
+                http: ["https://rpc.moksha.vana.org"],
+              },
+            },
+            blockExplorers: {
+              default: {
+                name: "Explorer",
+                url: "https://explorer.moksha.vana.org",
+              },
             },
           },
-        } as any,
+        }) as WalletClient & { chain: VanaChain }, // VanaChain requires specific chain id type
         storage: {
           providers: {
-            ipfs: mockIpfsProvider as any,
-            arweave: mockArweaveProvider as any,
+            ipfs: mockIpfsProvider,
+            arweave: mockArweaveProvider,
           },
           defaultProvider: "arweave",
         },

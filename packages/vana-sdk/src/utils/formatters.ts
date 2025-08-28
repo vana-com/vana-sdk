@@ -61,7 +61,8 @@ export function formatNumber(value: bigint | string | number): number {
  * ```
  */
 export function formatEth(wei: bigint | string | number, decimals = 4): string {
-  return formatEther(BigInt(wei.toString())).slice(0, decimals + 2);
+  const weiValue = typeof wei === "bigint" ? wei : BigInt(wei);
+  return formatEther(weiValue).slice(0, decimals + 2);
 }
 
 /**
@@ -96,7 +97,8 @@ export function formatToken(
   decimals = 18,
   displayDecimals = 4,
 ): string {
-  const value = formatUnits(BigInt(amount.toString()), decimals);
+  const amountValue = typeof amount === "bigint" ? amount : BigInt(amount);
+  const value = formatUnits(amountValue, decimals);
   const parts = value.split(".");
 
   if (parts.length === 1) {

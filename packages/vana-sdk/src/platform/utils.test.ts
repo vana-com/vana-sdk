@@ -66,90 +66,46 @@ vi.mock("./node", () => ({
   })),
 }));
 
+import { PlatformTestHelper } from "../tests/helpers/platformTestHelpers";
+
 describe("platform utils", () => {
-  const originalWindow = global.window;
-  const originalDocument = global.document;
-  const originalProcess = global.process;
-  const _originalCrypto = global.crypto;
-  const _originalFetch = global.fetch;
-  const _originalReadableStream = global.ReadableStream;
+  let platformHelper: PlatformTestHelper;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Reset globals for each test
-    vi.unstubAllGlobals();
+    platformHelper = new PlatformTestHelper();
   });
 
   afterEach(() => {
-    // Restore original values using Object.defineProperty
-    if (originalWindow !== undefined) {
-      Object.defineProperty(global, "window", {
-        value: originalWindow,
-        writable: true,
-        configurable: true,
-      });
-    } else {
-      delete (global as any).window;
-    }
-
-    if (originalDocument !== undefined) {
-      Object.defineProperty(global, "document", {
-        value: originalDocument,
-        writable: true,
-        configurable: true,
-      });
-    } else {
-      delete (global as any).document;
-    }
-
-    if (originalProcess !== undefined) {
-      Object.defineProperty(global, "process", {
-        value: originalProcess,
-        writable: true,
-        configurable: true,
-      });
-    } else {
-      delete (global as any).process;
-    }
-
+    platformHelper.restore();
     vi.unstubAllGlobals();
   });
 
   describe("detectPlatform", () => {
     it("should detect Node.js environment", () => {
-      // Simulate Node environment
-      delete (global as any).window;
-      delete (global as any).document;
-      global.process = {
-        versions: { node: "16.0.0" },
-      } as any;
+      // Use type-safe helper instead of manual global manipulation
+      platformHelper.setupNodeEnvironment("16.0.0");
 
       expect(detectPlatform()).toBe("node");
     });
 
     it("should detect browser environment", () => {
-      // Simulate browser environment
-      global.window = {} as any;
-      global.document = {} as any;
-      delete (global as any).process;
+      // Use type-safe helper instead of manual global manipulation
+      platformHelper.setupBrowserEnvironment();
 
       expect(detectPlatform()).toBe("browser");
     });
 
     it("should default to Node.js when environment cannot be determined", () => {
-      // Simulate ambiguous environment
-      delete (global as any).window;
-      delete (global as any).document;
-      delete (global as any).process;
+      // Use helper to create ambiguous environment
+      platformHelper.setupAmbiguousEnvironment();
 
       expect(detectPlatform()).toBe("node");
     });
 
     it("should detect Node.js even when process exists without versions", () => {
-      // Simulate incomplete process object
-      delete (global as any).window;
-      delete (global as any).document;
-      global.process = {} as any;
+      // Use helper to create process without versions
+      platformHelper.setupNodeWithProcess({ versions: undefined });
 
       expect(detectPlatform()).toBe("node");
     });
@@ -157,11 +113,8 @@ describe("platform utils", () => {
 
   describe("createPlatformAdapter", () => {
     it("should create NodePlatformAdapter in Node environment", async () => {
-      // Simulate Node environment
-      delete (global as any).window;
-      global.process = {
-        versions: { node: "16.0.0" },
-      } as any;
+      // Use helper for Node environment setup
+      platformHelper.setupNodeEnvironment("16.0.0");
 
       const adapter = await createPlatformAdapter();
 
@@ -170,10 +123,8 @@ describe("platform utils", () => {
     });
 
     it("should create BrowserPlatformAdapter in browser environment", async () => {
-      // Simulate browser environment
-      global.window = {} as any;
-      global.document = {} as any;
-      delete (global as any).process;
+      // Use helper for browser environment setup
+      platformHelper.setupBrowserEnvironment();
 
       const adapter = await createPlatformAdapter();
 
@@ -183,10 +134,8 @@ describe("platform utils", () => {
 
     it("should throw error when trying to create NodePlatformAdapter in browser", async () => {
       // Simulate edge case: Node.js detected but window exists
-      global.window = {} as any;
-      global.process = {
-        versions: { node: "16.0.0" },
-      } as any;
+      platformHelper.setupNodeEnvironment("16.0.0");
+      globalThis.window = {} as Window & typeof globalThis;
 
       await expect(createPlatformAdapter()).rejects.toThrow(
         "Failed to create platform adapter for node: NodePlatformAdapter is not available in browser environments. Use BrowserPlatformAdapter instead.",
@@ -194,14 +143,13 @@ describe("platform utils", () => {
     });
 
     it("should handle constructor errors gracefully", async () => {
-      // Simulate browser environment
-      global.window = {} as any;
-      global.document = {} as any;
-      delete (global as any).process;
+      // Use helper for browser environment setup
+      platformHelper.setupBrowserEnvironment();
 
       // Mock BrowserPlatformAdapter to throw during construction
       const { BrowserPlatformAdapter } = await import("./browser");
-      (BrowserPlatformAdapter as any).mockImplementationOnce(() => {
+      const mockAdapter = vi.mocked(BrowserPlatformAdapter);
+      mockAdapter.mockImplementationOnce(() => {
         throw new Error("Constructor failed");
       });
 
@@ -213,11 +161,8 @@ describe("platform utils", () => {
 
   describe("createPlatformAdapterFor", () => {
     it("should create NodePlatformAdapter when specified", async () => {
-      // Simulate Node environment
-      delete (global as any).window;
-      global.process = {
-        versions: { node: "16.0.0" },
-      } as any;
+      // Use helper for Node environment setup
+      platformHelper.setupNodeEnvironment("16.0.0");
 
       const adapter = await createPlatformAdapterFor("node");
 
@@ -234,8 +179,8 @@ describe("platform utils", () => {
     });
 
     it("should throw error when trying to create NodePlatformAdapter in browser", async () => {
-      // Simulate browser environment
-      global.window = {} as any;
+      // Use helper for browser environment setup
+      platformHelper.setupBrowserEnvironment();
 
       await expect(createPlatformAdapterFor("node")).rejects.toThrow(
         "Failed to create platform adapter for node: NodePlatformAdapter is not available in browser environments. Use BrowserPlatformAdapter instead.",
@@ -245,7 +190,8 @@ describe("platform utils", () => {
     it("should handle constructor errors gracefully", async () => {
       // Mock BrowserPlatformAdapter to throw during construction
       const { BrowserPlatformAdapter } = await import("./browser");
-      (BrowserPlatformAdapter as any).mockImplementationOnce(() => {
+      const mockAdapter = vi.mocked(BrowserPlatformAdapter);
+      mockAdapter.mockImplementationOnce(() => {
         throw new Error("Browser constructor failed");
       });
 
@@ -257,7 +203,8 @@ describe("platform utils", () => {
     it("should handle non-Error exceptions in createPlatformAdapterFor", async () => {
       // Mock BrowserPlatformAdapter to throw a non-Error
       const { BrowserPlatformAdapter } = await import("./browser");
-      (BrowserPlatformAdapter as any).mockImplementationOnce(() => {
+      const mockAdapter = vi.mocked(BrowserPlatformAdapter);
+      mockAdapter.mockImplementationOnce(() => {
         throw { message: "Object error" };
       });
 
@@ -269,14 +216,13 @@ describe("platform utils", () => {
 
   describe("createPlatformAdapter error handling", () => {
     it("should handle non-Error exceptions in createPlatformAdapter", async () => {
-      // Simulate browser environment
-      global.window = {} as any;
-      global.document = {} as any;
-      delete (global as any).process;
+      // Use helper for browser environment setup
+      platformHelper.setupBrowserEnvironment();
 
       // Mock BrowserPlatformAdapter to throw a non-Error
       const { BrowserPlatformAdapter } = await import("./browser");
-      (BrowserPlatformAdapter as any).mockImplementationOnce(() => {
+      const mockAdapter = vi.mocked(BrowserPlatformAdapter);
+      mockAdapter.mockImplementationOnce(() => {
         throw "String error";
       });
 
@@ -288,22 +234,16 @@ describe("platform utils", () => {
 
   describe("isPlatformSupported", () => {
     it("should return true when platform matches in Node", () => {
-      // Simulate Node environment
-      delete (global as any).window;
-      delete (global as any).document;
-      global.process = {
-        versions: { node: "16.0.0" },
-      } as any;
+      // Use helper for Node environment setup
+      platformHelper.setupNodeEnvironment("16.0.0");
 
       expect(isPlatformSupported("node")).toBe(true);
       expect(isPlatformSupported("browser")).toBe(false);
     });
 
     it("should return true when platform matches in browser", () => {
-      // Simulate browser environment
-      global.window = {} as any;
-      global.document = {} as any;
-      delete (global as any).process;
+      // Use helper for browser environment setup
+      platformHelper.setupBrowserEnvironment();
 
       expect(isPlatformSupported("browser")).toBe(true);
       expect(isPlatformSupported("node")).toBe(false);
@@ -312,14 +252,10 @@ describe("platform utils", () => {
 
   describe("getPlatformCapabilities", () => {
     it("should return Node.js capabilities", () => {
-      // Simulate Node environment with crypto
-      delete (global as any).window;
-      delete (global as any).document;
-      global.process = {
-        versions: { node: "16.0.0" },
-      } as any;
+      // Use helper for Node environment setup with crypto
+      platformHelper.setupNodeEnvironment("16.0.0");
       vi.stubGlobal("crypto", {
-        subtle: {} as any,
+        subtle: {},
       });
       vi.stubGlobal("fetch", vi.fn());
       vi.stubGlobal("ReadableStream", vi.fn());
@@ -338,12 +274,10 @@ describe("platform utils", () => {
     });
 
     it("should return browser capabilities", () => {
-      // Simulate browser environment
-      global.window = {} as any;
-      global.document = {} as any;
-      delete (global as any).process;
+      // Use helper for browser environment setup
+      platformHelper.setupBrowserEnvironment();
       vi.stubGlobal("crypto", {
-        subtle: {} as any,
+        subtle: {},
       });
       vi.stubGlobal("fetch", vi.fn());
       vi.stubGlobal("ReadableStream", vi.fn());
@@ -362,13 +296,12 @@ describe("platform utils", () => {
     });
 
     it("should handle missing capabilities", () => {
-      // Simulate minimal environment
-      delete (global as any).window;
-      delete (global as any).document;
-      delete (global as any).process;
-      delete (global as any).crypto;
-      delete (global as any).fetch;
-      delete (global as any).ReadableStream;
+      // Use helper for minimal environment setup
+      platformHelper.setupAmbiguousEnvironment();
+      // Remove global capabilities
+      Reflect.deleteProperty(globalThis, "crypto");
+      Reflect.deleteProperty(globalThis, "fetch");
+      Reflect.deleteProperty(globalThis, "ReadableStream");
 
       const capabilities = getPlatformCapabilities();
 
@@ -384,10 +317,8 @@ describe("platform utils", () => {
     });
 
     it("should detect globalThis.fetch when fetch is not directly available", () => {
-      // Simulate environment with globalThis.fetch but not direct fetch
-      delete (global as any).window;
-      delete (global as any).document;
-      delete (global as any).process;
+      // Use helper for minimal environment setup
+      platformHelper.setupAmbiguousEnvironment();
       vi.unstubAllGlobals(); // Clear any previous stubs
       vi.stubGlobal("fetch", undefined); // Remove direct fetch
       Object.defineProperty(globalThis, "fetch", {

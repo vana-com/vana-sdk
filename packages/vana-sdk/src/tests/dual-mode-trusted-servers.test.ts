@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { type Address } from "viem";
 import { vanaMainnet } from "../chains/definitions";
@@ -22,7 +21,7 @@ let gasAwareMulticallCallCount = 0;
 let mockServerInfoFailureIndex: number | null = null;
 
 vi.mock("../utils/multicall", () => ({
-  gasAwareMulticall: vi.fn().mockImplementation(async (client, params) => {
+  gasAwareMulticall: vi.fn().mockImplementation(async (_client, params) => {
     const callIndex = gasAwareMulticallCallCount++;
 
     // First call: server IDs (allowFailure: false, returns bigints directly)
@@ -51,7 +50,7 @@ vi.mock("../utils/multicall", () => ({
               "0x2222222222222222222222222222222222222222",
               "0x3333333333333333333333333333333333333333",
             ][i] || "0x0000000000000000000000000000000000000000",
-          publicKey: "0x" + "0".repeat(64),
+          publicKey: `0x${"0".repeat(64)}`,
           url: `https://server${i + 1}.example.com`,
         },
       };
@@ -81,30 +80,6 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
     "0x2222222222222222222222222222222222222222",
     "0x3333333333333333333333333333333333333333",
   ];
-
-  const _mockSubgraphData = {
-    data: {
-      user: {
-        id: userAddress.toLowerCase(),
-        trustedServers: [
-          {
-            id: "subgraph-server-1",
-            serverAddress: serverAddresses[0],
-            serverUrl: "https://server1.example.com",
-            trustedAt: "1640995200",
-            user: { id: userAddress.toLowerCase() },
-          },
-          {
-            id: "subgraph-server-2",
-            serverAddress: serverAddresses[1],
-            serverUrl: "https://server2.example.com",
-            trustedAt: "1640995300",
-            user: { id: userAddress.toLowerCase() },
-          },
-        ],
-      },
-    },
-  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -223,21 +198,21 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
           id: serverIds[0],
           owner: userAddress,
           serverAddress: serverAddresses[0],
-          publicKey: "0x" + "0".repeat(64),
+          publicKey: `0x${"0".repeat(64)}`,
           url: "https://server1.example.com",
         }) // servers(serverIds[0])
         .mockResolvedValueOnce({
           id: serverIds[1],
           owner: userAddress,
           serverAddress: serverAddresses[1],
-          publicKey: "0x" + "0".repeat(64),
+          publicKey: `0x${"0".repeat(64)}`,
           url: "https://server2.example.com",
         }) // servers(serverIds[1])
         .mockResolvedValueOnce({
           id: serverIds[2],
           owner: userAddress,
           serverAddress: serverAddresses[2],
-          publicKey: "0x" + "0".repeat(64),
+          publicKey: `0x${"0".repeat(64)}`,
           url: "https://server3.example.com",
         }); // servers(serverIds[2])
 
@@ -270,14 +245,14 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
           id: 3n,
           owner: userAddress,
           serverAddress: serverAddresses[2],
-          publicKey: "0x" + "0".repeat(64),
+          publicKey: `0x${"0".repeat(64)}`,
           url: "https://server3.example.com",
         })
         .mockResolvedValueOnce({
           id: 4n,
           owner: userAddress,
           serverAddress: serverAddresses[0],
-          publicKey: "0x" + "0".repeat(64),
+          publicKey: `0x${"0".repeat(64)}`,
           url: "https://server1.example.com",
         });
 
@@ -428,14 +403,14 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
           id: 1n,
           owner: userAddress,
           serverAddress: serverAddresses[0],
-          publicKey: "0x" + "0".repeat(64),
+          publicKey: `0x${"0".repeat(64)}`,
           url: "https://server1.example.com",
         }) // servers(1)
         .mockResolvedValueOnce({
           id: 2n,
           owner: userAddress,
           serverAddress: serverAddresses[1],
-          publicKey: "0x" + "0".repeat(64),
+          publicKey: `0x${"0".repeat(64)}`,
           url: "https://server2.example.com",
         }); // servers(2)
 
@@ -460,7 +435,7 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
           id: 1n,
           owner: userAddress,
           serverAddress: serverAddresses[0],
-          publicKey: "0x" + "0".repeat(64),
+          publicKey: `0x${"0".repeat(64)}`,
           url: "https://server1.example.com",
         }); // servers(1)
 
@@ -522,7 +497,9 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
       (global.fetch as any).mockImplementationOnce(
         () =>
           new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("Timeout")), 100),
+            setTimeout(() => {
+              reject(new Error("Timeout"));
+            }, 100),
           ),
       );
 
@@ -594,12 +571,12 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
                       id: "1",
                       serverAddress: serverAddresses[0],
                       url: "https://server1.example.com",
-                      publicKey: "0x" + "0".repeat(64),
+                      publicKey: `0x${"0".repeat(64)}`,
                     },
                     trustedAt: "1234567890",
                     trustedAtBlock: "100",
                     untrustedAtBlock: null,
-                    transactionHash: "0x" + "0".repeat(64),
+                    transactionHash: `0x${"0".repeat(64)}`,
                   },
                 ],
               },
@@ -631,12 +608,12 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
                       id: "1",
                       serverAddress: serverAddresses[0],
                       url: "https://server1.example.com",
-                      publicKey: "0x" + "0".repeat(64),
+                      publicKey: `0x${"0".repeat(64)}`,
                     },
                     trustedAt: "1234567890",
                     trustedAtBlock: "100",
                     untrustedAtBlock: null,
-                    transactionHash: "0x" + "0".repeat(64),
+                    transactionHash: `0x${"0".repeat(64)}`,
                   },
                   {
                     id: "trust-2",
@@ -644,12 +621,12 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
                       id: "2",
                       serverAddress: serverAddresses[1],
                       url: "https://server2.example.com",
-                      publicKey: "0x" + "0".repeat(64),
+                      publicKey: `0x${"0".repeat(64)}`,
                     },
                     trustedAt: "1234567891",
                     trustedAtBlock: "101",
                     untrustedAtBlock: null,
-                    transactionHash: "0x" + "0".repeat(64),
+                    transactionHash: `0x${"0".repeat(64)}`,
                   },
                   {
                     id: "trust-3",
@@ -657,12 +634,12 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
                       id: "3",
                       serverAddress: serverAddresses[2],
                       url: "https://server3.example.com",
-                      publicKey: "0x" + "0".repeat(64),
+                      publicKey: `0x${"0".repeat(64)}`,
                     },
                     trustedAt: "1234567892",
                     trustedAtBlock: "102",
                     untrustedAtBlock: null,
-                    transactionHash: "0x" + "0".repeat(64),
+                    transactionHash: `0x${"0".repeat(64)}`,
                   },
                 ],
               },

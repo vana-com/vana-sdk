@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { StorageManager } from "../manager";
-import {
+import type {
   StorageProvider,
   StorageUploadResult,
   StorageFile,
-  StorageError,
   StorageProviderConfig,
 } from "../index";
+import { StorageError } from "../index";
 
 // Mock storage provider for testing
 class MockStorageProvider implements StorageProvider {
@@ -139,10 +139,12 @@ describe("StorageManager", () => {
     });
 
     it("should throw error when setting non-existent provider as default", () => {
-      expect(() => storageManager.setDefaultProvider("nonexistent")).toThrow(
-        StorageError,
-      );
-      expect(() => storageManager.setDefaultProvider("nonexistent")).toThrow(
+      expect(() => {
+        storageManager.setDefaultProvider("nonexistent");
+      }).toThrow(StorageError);
+      expect(() => {
+        storageManager.setDefaultProvider("nonexistent");
+      }).toThrow(
         "Cannot set default provider 'nonexistent': provider not registered",
       );
     });
@@ -361,7 +363,9 @@ describe("StorageManager", () => {
     });
 
     it("should handle empty provider names gracefully", () => {
-      expect(() => storageManager.register("", mockProvider1)).not.toThrow();
+      expect(() => {
+        storageManager.register("", mockProvider1);
+      }).not.toThrow();
       expect(storageManager.listProviders()).toContain("");
     });
 

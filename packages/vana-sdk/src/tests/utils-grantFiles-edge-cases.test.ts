@@ -1,10 +1,11 @@
-import { describe, it, expect, vi, beforeEach, afterEach, Mock } from "vitest";
+import type { Mock } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { retrieveGrantFile, validateGrantFile } from "../utils/grantFiles";
 import { NetworkError } from "../errors";
 
 // Mock the download module
 vi.mock("../utils/download", () => ({
-  fetchWithRelayer: vi.fn(),
+  universalFetch: vi.fn(),
 }));
 
 describe("Grant Files Edge Cases Coverage", () => {
@@ -18,13 +19,13 @@ describe("Grant Files Edge Cases Coverage", () => {
 
   describe("retrieveGrantFile edge cases", () => {
     it("should handle non-ipfs URLs", async () => {
-      const { fetchWithRelayer } = await import("../utils/download");
-      const mockFetchWithRelayer = fetchWithRelayer as Mock;
+      const { universalFetch } = await import("../utils/download");
+      const mockUniversalFetch = universalFetch as Mock;
 
       const directUrl = "QmTestHashWithoutPrefix12345678901234567890123456";
 
       // Mock successful response
-      mockFetchWithRelayer.mockResolvedValueOnce({
+      mockUniversalFetch.mockResolvedValueOnce({
         ok: true,
         text: async () =>
           JSON.stringify({
@@ -39,18 +40,18 @@ describe("Grant Files Edge Cases Coverage", () => {
       expect(result).toBeDefined();
       expect(result.grantee).toBe("0x1234567890123456789012345678901234567890");
 
-      // Verify it called fetchWithRelayer with the URL
-      expect(mockFetchWithRelayer).toHaveBeenCalledWith(directUrl, undefined);
+      // Verify it called universalFetch with the URL
+      expect(mockUniversalFetch).toHaveBeenCalledWith(directUrl, undefined);
     });
 
     it("should handle gateway failures gracefully", async () => {
-      const { fetchWithRelayer } = await import("../utils/download");
-      const mockFetchWithRelayer = fetchWithRelayer as Mock;
+      const { universalFetch } = await import("../utils/download");
+      const mockUniversalFetch = universalFetch as Mock;
 
       const grantUrl = "ipfs://QmTestHash";
 
-      // Mock fetchWithRelayer to reject
-      mockFetchWithRelayer.mockRejectedValue(new Error("Gateway failed"));
+      // Mock universalFetch to reject
+      mockUniversalFetch.mockRejectedValue(new Error("Gateway failed"));
 
       await expect(retrieveGrantFile(grantUrl)).rejects.toThrow(NetworkError);
 
@@ -130,12 +131,12 @@ describe("Grant Files Edge Cases Coverage", () => {
 
   describe("IPFS URL processing", () => {
     it("should correctly process URLs that start with ipfs://", async () => {
-      const { fetchWithRelayer } = await import("../utils/download");
-      const mockFetchWithRelayer = fetchWithRelayer as Mock;
+      const { universalFetch } = await import("../utils/download");
+      const mockUniversalFetch = universalFetch as Mock;
 
       const ipfsUrl = "ipfs://QmTestHashWithPrefix";
 
-      mockFetchWithRelayer.mockResolvedValueOnce({
+      mockUniversalFetch.mockResolvedValueOnce({
         ok: true,
         text: async () =>
           JSON.stringify({
@@ -147,17 +148,17 @@ describe("Grant Files Edge Cases Coverage", () => {
 
       await retrieveGrantFile(ipfsUrl);
 
-      // fetchWithRelayer handles the IPFS URL internally
-      expect(mockFetchWithRelayer).toHaveBeenCalledWith(ipfsUrl, undefined);
+      // universalFetch handles the IPFS URL internally
+      expect(mockUniversalFetch).toHaveBeenCalledWith(ipfsUrl, undefined);
     });
 
     it("should correctly process URLs that don't start with ipfs://", async () => {
-      const { fetchWithRelayer } = await import("../utils/download");
-      const mockFetchWithRelayer = fetchWithRelayer as Mock;
+      const { universalFetch } = await import("../utils/download");
+      const mockUniversalFetch = universalFetch as Mock;
 
       const hashOnly = "QmTestHashWithoutPrefix12345678901234567890123456";
 
-      mockFetchWithRelayer.mockResolvedValueOnce({
+      mockUniversalFetch.mockResolvedValueOnce({
         ok: true,
         text: async () =>
           JSON.stringify({
@@ -169,8 +170,8 @@ describe("Grant Files Edge Cases Coverage", () => {
 
       await retrieveGrantFile(hashOnly);
 
-      // fetchWithRelayer handles the URL as-is
-      expect(mockFetchWithRelayer).toHaveBeenCalledWith(hashOnly, undefined);
+      // universalFetch handles the URL as-is
+      expect(mockUniversalFetch).toHaveBeenCalledWith(hashOnly, undefined);
     });
   });
 });

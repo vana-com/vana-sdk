@@ -1,4 +1,4 @@
-import { Address } from "viem";
+import type { Address } from "viem";
 import type { GrantFile, GrantPermissionParams } from "../types/permissions";
 import {
   createGrantFile,
@@ -85,7 +85,7 @@ export async function checkGrantAccess(
   grantUrl: string,
   requestingAddress: Address,
   operation: string,
-  fileIds: number[],
+  _fileIds: number[],
   relayerUrl?: string,
 ): Promise<{ allowed: boolean; reason?: string; grantFile?: GrantFile }> {
   try {

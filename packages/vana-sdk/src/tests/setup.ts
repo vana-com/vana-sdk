@@ -1,15 +1,24 @@
 import { vi, beforeEach, afterEach } from "vitest";
 
-// Mock viem's getAddress to allow tests to use readable mock addresses
+// Mock viem's functions for testing
 vi.mock("viem", async (importOriginal) => {
-  const actual = (await importOriginal()) as any;
+  const actual = await importOriginal();
   return {
-    ...actual,
+    ...(actual as object),
     getAddress: vi.fn((address: string) => {
       // In tests, just return the address as-is
       // This allows tests to use descriptive addresses like "0xOwnerAddress"
       return address;
     }),
+    decodeEventLog: vi.fn(),
+    parseEventLogs: vi.fn(),
+    getContract: vi.fn(() => ({
+      read: {
+        schemas: vi.fn(),
+        schemaCount: vi.fn(),
+      },
+      write: {},
+    })),
   };
 });
 
@@ -60,18 +69,18 @@ afterEach(() => {
 // Export utilities for tests that need to check console calls
 export const consoleMocks = {
   getLogCalls: () =>
-    (console.log as unknown as { mock?: { calls: unknown[] } }).mock?.calls ||
+    (console.log as unknown as { mock?: { calls: unknown[] } }).mock?.calls ??
     [],
   getWarnCalls: () =>
-    (console.warn as unknown as { mock?: { calls: unknown[] } }).mock?.calls ||
+    (console.warn as unknown as { mock?: { calls: unknown[] } }).mock?.calls ??
     [],
   getErrorCalls: () =>
-    (console.error as unknown as { mock?: { calls: unknown[] } }).mock?.calls ||
+    (console.error as unknown as { mock?: { calls: unknown[] } }).mock?.calls ??
     [],
   getDebugCalls: () =>
-    (console.debug as unknown as { mock?: { calls: unknown[] } }).mock?.calls ||
+    (console.debug as unknown as { mock?: { calls: unknown[] } }).mock?.calls ??
     [],
   getInfoCalls: () =>
-    (console.info as unknown as { mock?: { calls: unknown[] } }).mock?.calls ||
+    (console.info as unknown as { mock?: { calls: unknown[] } }).mock?.calls ??
     [],
 };

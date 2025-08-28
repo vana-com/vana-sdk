@@ -188,8 +188,8 @@ describe("typedDataConverter", () => {
       const result = toViemTypedDataDefinition(input);
 
       // The result should be assignable to TypedDataDefinition
-      const _typeCheck: TypedDataDefinition = result;
-      expect(_typeCheck).toBeDefined();
+      const typeCheck: TypedDataDefinition = result;
+      expect(typeCheck).toBeDefined();
     });
 
     it("should handle types with special prototype properties", () => {

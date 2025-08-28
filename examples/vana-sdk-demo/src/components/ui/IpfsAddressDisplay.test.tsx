@@ -1,10 +1,11 @@
-import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
+import { screen } from "@testing-library/react";
+import { renderWithProviders } from "../../tests/test-utils";
 import { IpfsAddressDisplay } from "./IpfsAddressDisplay";
 
 describe("IpfsAddressDisplay", () => {
   it("should render IPFS URL with default label", () => {
-    render(<IpfsAddressDisplay ipfsUrl="ipfs://QmTestHash123" />);
+    renderWithProviders(<IpfsAddressDisplay ipfsUrl="ipfs://QmTestHash123" />);
 
     expect(screen.getByText("IPFS URL:")).toBeInTheDocument();
     // By default, URLs are truncated
@@ -12,7 +13,7 @@ describe("IpfsAddressDisplay", () => {
   });
 
   it("should render with custom label", () => {
-    render(
+    renderWithProviders(
       <IpfsAddressDisplay ipfsUrl="ipfs://QmTestHash123" label="Custom IPFS" />,
     );
 
@@ -20,7 +21,7 @@ describe("IpfsAddressDisplay", () => {
   });
 
   it("should handle non-truncated display", () => {
-    render(
+    renderWithProviders(
       <IpfsAddressDisplay
         ipfsUrl="ipfs://QmTestHash123456789"
         truncate={false}

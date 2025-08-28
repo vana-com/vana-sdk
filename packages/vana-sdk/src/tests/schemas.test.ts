@@ -1,17 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { SchemaController } from "../controllers/schemas";
-import { ControllerContext } from "../controllers/permissions";
+import type { ControllerContext } from "../controllers/permissions";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 import type { StorageManager } from "../storage/manager";
-import { SchemaValidationError } from "../utils/schemaValidation";
-import { validateDataSchemaAgainstMetaSchema } from "../utils/schemaValidation";
+import {
+  SchemaValidationError,
+  validateDataSchemaAgainstMetaSchema,
+  type DataSchema,
+} from "../utils/schemaValidation";
 import {
   fetchSchemaFromChain,
   fetchSchemaCountFromChain,
 } from "../utils/blockchain/registry";
-import { Address } from "viem";
+import { fetchFromUrl } from "../utils/urlResolver";
+import { gasAwareMulticall } from "../utils/multicall";
+import type { Address } from "viem";
+import { parseEventLogs } from "viem";
+import {
+  createTypedMockWalletClient,
+  createTypedMockPublicClient,
+  createMockLog,
+} from "./factories/mockFactory";
 
-// Mock dependencies
+// Apply mocks with factory functions
 vi.mock("../utils/blockchain/registry", () => ({
   fetchSchemaFromChain: vi.fn(),
   fetchSchemaCountFromChain: vi.fn(),
@@ -35,23 +46,19 @@ vi.mock("../utils/schemaValidation", () => ({
   SchemaValidationError: class SchemaValidationError extends Error {
     constructor(
       message: string,
-      public errors: any[] = [],
+      public errors: Array<{
+        instancePath: string;
+        schemaPath: string;
+        keyword: string;
+        params: Record<string, unknown>;
+        message?: string;
+      }> = [],
     ) {
       super(message);
       this.name = "SchemaValidationError";
     }
   },
 }));
-
-vi.mock("viem", async () => {
-  const actual = await vi.importActual("viem");
-  return {
-    ...actual,
-    getAddress: vi.fn((address) => address),
-    decodeEventLog: vi.fn(),
-    parseEventLogs: vi.fn(), // Let each test configure this
-  };
-});
 
 vi.mock("../config/addresses", () => ({
   getContractAddress: vi.fn().mockReturnValue("0xRegistryAddress"),
@@ -61,9 +68,9 @@ vi.mock("../config/addresses", () => ({
 }));
 
 vi.mock("../utils/multicall", () => ({
-  gasAwareMulticall: vi.fn().mockImplementation(async (client, params) => {
+  gasAwareMulticall: vi.fn().mockImplementation(async (_client, params) => {
     // Return array of results based on the contracts passed
-    return params.contracts.map((_: any, i: number) => BigInt(i + 1));
+    return params.contracts.map((_: unknown, i: number) => BigInt(i + 1));
   }),
 }));
 
@@ -76,27 +83,23 @@ describe("SchemaController", () => {
   let mockContext: ControllerContext;
   let mockStorageManager: Partial<StorageManager>;
 
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.clearAllMocks();
 
     // Reset validateDataSchemaAgainstMetaSchema to not throw by default
     vi.mocked(validateDataSchemaAgainstMetaSchema).mockImplementation(
-      (schema) => schema as any,
+      (schema) => schema as DataSchema,
     );
 
     // Set up default parseEventLogs mock that can be overridden
-    const { parseEventLogs } = await import("viem");
     vi.mocked(parseEventLogs).mockReturnValue([
-      {
-        eventName: "SchemaAdded",
-        args: {
-          schemaId: 1n,
-          name: "Test Schema",
-          dialect: "jsonschema",
-          definitionUrl: "https://gateway.pinata.cloud/ipfs/QmTestHash",
-        },
-      },
-    ] as any);
+      createMockLog("SchemaAdded", {
+        schemaId: 1n,
+        name: "Test Schema",
+        dialect: "jsonschema",
+        definitionUrl: "https://gateway.pinata.cloud/ipfs/QmTestHash",
+      }),
+    ] as ReturnType<typeof parseEventLogs>);
 
     // Create mock storage manager
     mockStorageManager = {
@@ -117,25 +120,50 @@ describe("SchemaController", () => {
       getDefaultStorageProvider: vi.fn().mockReturnValue("ipfs"),
     };
 
+    // Create mock clients using factory functions
+    const mockWalletClient = createTypedMockWalletClient();
+    const mockPublicClient = createTypedMockPublicClient();
+
+    // Set up mock responses
+    vi.mocked(mockWalletClient.writeContract).mockResolvedValue(
+      "0xTransactionHash" as any,
+    );
+    vi.mocked(mockPublicClient.waitForTransactionReceipt).mockResolvedValue({
+      transactionHash: "0xTransactionHash",
+      blockNumber: 12345n,
+      gasUsed: 100000n,
+      logs: [{ data: "0x", topics: ["0xSchemaAdded"] }],
+    } as any);
+    vi.mocked(mockPublicClient.getTransactionReceipt).mockResolvedValue({
+      transactionHash: "0xTransactionHash",
+      blockNumber: 12345n,
+      gasUsed: 100000n,
+      status: "success" as const,
+      logs: [{ data: "0x", topics: ["0xSchemaAdded"] }],
+    } as any);
+
     // Create mock context
     mockContext = {
-      walletClient: {
-        account: { address: "0xTestAddress" },
-        chain: { id: 14800, name: "Moksha Testnet" },
-        writeContract: vi.fn().mockResolvedValue("0xTransactionHash"),
-      } as any,
-      publicClient: {
-        waitForTransactionReceipt: vi.fn().mockResolvedValue({
-          transactionHash: "0xTransactionHash",
-          blockNumber: 12345n,
-          gasUsed: 100000n,
-          logs: [{ data: "0x", topics: ["0xSchemaAdded"] }],
-        }),
-        getChainId: vi.fn().mockResolvedValue(14800),
-        multicall: vi.fn().mockResolvedValue([]),
-      } as any,
+      walletClient: mockWalletClient,
+      publicClient: mockPublicClient,
       platform: mockPlatformAdapter,
       storageManager: mockStorageManager as StorageManager,
+      waitForTransactionEvents: vi.fn().mockResolvedValue({
+        hash: "0xTransactionHash",
+        from: "0xTestAddress",
+        contract: "DataRefinerRegistry",
+        fn: "addSchema",
+        expectedEvents: {
+          SchemaAdded: {
+            schemaId: 1n,
+            name: "Test Schema",
+            dialect: "jsonschema",
+            definitionUrl: "https://gateway.pinata.cloud/ipfs/QmTestHash",
+          },
+        },
+        allEvents: [],
+        hasExpectedEvents: true,
+      }),
     };
 
     controller = new SchemaController(mockContext);
@@ -159,7 +187,6 @@ describe("SchemaController", () => {
 
       vi.mocked(fetchSchemaFromChain).mockResolvedValue(mockSchema);
 
-      const { fetchFromUrl } = await import("../utils/urlResolver");
       vi.mocked(fetchFromUrl).mockResolvedValue(mockDataSchema);
 
       const result = await controller.get(1);
@@ -233,7 +260,6 @@ describe("SchemaController", () => {
       vi.spyOn(controller, "count").mockResolvedValue(2);
 
       // Mock gasAwareMulticall to return schema data
-      const { gasAwareMulticall } = await import("../utils/multicall");
       vi.mocked(gasAwareMulticall).mockResolvedValueOnce([
         {
           status: "success",
@@ -270,7 +296,6 @@ describe("SchemaController", () => {
       vi.spyOn(controller, "count").mockResolvedValue(3);
 
       // Mock gasAwareMulticall to return mixed success/failure results
-      const { gasAwareMulticall } = await import("../utils/multicall");
       vi.mocked(gasAwareMulticall).mockResolvedValueOnce([
         {
           status: "failure",
@@ -299,7 +324,6 @@ describe("SchemaController", () => {
       vi.spyOn(controller, "count").mockResolvedValue(10);
 
       // Mock gasAwareMulticall to return paginated results
-      const { gasAwareMulticall } = await import("../utils/multicall");
       vi.mocked(gasAwareMulticall).mockResolvedValueOnce([
         {
           status: "success",
@@ -349,22 +373,34 @@ describe("SchemaController", () => {
 
   describe("create()", () => {
     it("should validate and upload schema to IPFS", async () => {
-      const { validateDataSchemaAgainstMetaSchema } = await import(
-        "../utils/schemaValidation"
-      );
-      const { parseEventLogs } = await import("viem");
-
       vi.mocked(parseEventLogs).mockReturnValueOnce([
-        {
-          eventName: "SchemaAdded",
-          args: {
-            schemaId: BigInt(123),
-            name: "Test Schema",
-            dialect: "jsonschema",
-            definitionUrl: "https://ipfs.io/ipfs/QmTestHash",
+        createMockLog("SchemaAdded", {
+          schemaId: BigInt(123),
+          name: "Test Schema",
+          dialect: "jsonschema",
+          definitionUrl: "https://ipfs.io/ipfs/QmTestHash",
+        }),
+      ] as ReturnType<typeof parseEventLogs>);
+
+      // Override waitForTransactionEvents for this test
+      if (mockContext.waitForTransactionEvents) {
+        vi.mocked(mockContext.waitForTransactionEvents).mockResolvedValueOnce({
+          hash: "0xTransactionHash",
+          from: "0xTestAddress",
+          contract: "DataRefinerRegistry",
+          fn: "addSchema",
+          expectedEvents: {
+            SchemaAdded: {
+              schemaId: 123n,
+              name: "Test Schema",
+              dialect: "jsonschema",
+              definitionUrl: "https://ipfs.io/ipfs/QmTestHash",
+            },
           },
-        },
-      ] as any);
+          allEvents: [],
+          hasExpectedEvents: true,
+        });
+      }
 
       const schemaDefinition = {
         type: "object",
@@ -380,7 +416,7 @@ describe("SchemaController", () => {
       });
 
       expect(result).toEqual({
-        schemaId: 123,
+        schemaId: 123n,
         definitionUrl: "https://ipfs.io/ipfs/QmTestHash",
         transactionHash: "0xTransactionHash",
       });
@@ -409,22 +445,34 @@ describe("SchemaController", () => {
     });
 
     it("should handle JSON string definition", async () => {
-      const { validateDataSchemaAgainstMetaSchema } = await import(
-        "../utils/schemaValidation"
-      );
-      const { parseEventLogs } = await import("viem");
-
       vi.mocked(parseEventLogs).mockReturnValueOnce([
-        {
-          eventName: "SchemaAdded",
-          args: {
-            schemaId: BigInt(123),
-            name: "Test Schema",
-            dialect: "jsonschema",
-            definitionUrl: "https://ipfs.io/ipfs/QmTestHash",
+        createMockLog("SchemaAdded", {
+          schemaId: BigInt(123),
+          name: "Test Schema",
+          dialect: "jsonschema",
+          definitionUrl: "https://ipfs.io/ipfs/QmTestHash",
+        }),
+      ] as ReturnType<typeof parseEventLogs>);
+
+      // Override waitForTransactionEvents for this test
+      if (mockContext.waitForTransactionEvents) {
+        vi.mocked(mockContext.waitForTransactionEvents).mockResolvedValueOnce({
+          hash: "0xTransactionHash",
+          from: "0xTestAddress",
+          contract: "DataRefinerRegistry",
+          fn: "addSchema",
+          expectedEvents: {
+            SchemaAdded: {
+              schemaId: 123n,
+              name: "Test Schema",
+              dialect: "jsonschema",
+              definitionUrl: "https://ipfs.io/ipfs/QmTestHash",
+            },
           },
-        },
-      ] as any);
+          allEvents: [],
+          hasExpectedEvents: true,
+        });
+      }
 
       const schemaDefinition = JSON.stringify({
         type: "object",
@@ -437,7 +485,7 @@ describe("SchemaController", () => {
         schema: schemaDefinition,
       });
 
-      expect(result.schemaId).toBe(123);
+      expect(result.schemaId).toBe(123n);
       expect(validateDataSchemaAgainstMetaSchema).toHaveBeenCalled();
     });
 
@@ -452,9 +500,6 @@ describe("SchemaController", () => {
     });
 
     it("should handle validation errors", async () => {
-      const { validateDataSchemaAgainstMetaSchema } = await import(
-        "../utils/schemaValidation"
-      );
       vi.mocked(validateDataSchemaAgainstMetaSchema).mockImplementationOnce(
         () => {
           throw new SchemaValidationError("Invalid schema", []);
@@ -471,7 +516,10 @@ describe("SchemaController", () => {
     });
 
     it("should handle storage upload errors", async () => {
-      vi.mocked(mockStorageManager.upload!).mockRejectedValue(
+      if (!mockStorageManager.upload) {
+        throw new Error("Storage manager upload method is not defined");
+      }
+      vi.mocked(mockStorageManager.upload).mockRejectedValue(
         new Error("Upload failed"),
       );
 
@@ -524,20 +572,35 @@ describe("SchemaController", () => {
     });
 
     it("should parse SchemaAdded event correctly", async () => {
-      const { parseEventLogs } = await import("viem");
-
       // Mock parseEventLogs to return SchemaAdded event
       vi.mocked(parseEventLogs).mockReturnValueOnce([
-        {
-          eventName: "SchemaAdded",
-          args: {
-            schemaId: BigInt(456),
-            name: "Test Schema",
-            dialect: "jsonschema",
-            definitionUrl: "https://ipfs.io/ipfs/QmTestHash",
+        createMockLog("SchemaAdded", {
+          schemaId: BigInt(456),
+          name: "Test Schema",
+          dialect: "jsonschema",
+          definitionUrl: "https://ipfs.io/ipfs/QmTestHash",
+        }),
+      ] as ReturnType<typeof parseEventLogs>);
+
+      // Override waitForTransactionEvents for this test
+      if (mockContext.waitForTransactionEvents) {
+        vi.mocked(mockContext.waitForTransactionEvents).mockResolvedValueOnce({
+          hash: "0xTransactionHash",
+          from: "0xTestAddress",
+          contract: "DataRefinerRegistry",
+          fn: "addSchema",
+          expectedEvents: {
+            SchemaAdded: {
+              schemaId: 456n,
+              name: "Test Schema",
+              dialect: "jsonschema",
+              definitionUrl: "https://ipfs.io/ipfs/QmTestHash",
+            },
           },
-        },
-      ] as any);
+          allEvents: [],
+          hasExpectedEvents: true,
+        });
+      }
 
       const result = await controller.create({
         name: "Test Schema",
@@ -545,13 +608,25 @@ describe("SchemaController", () => {
         schema: { type: "object" },
       });
 
-      expect(result.schemaId).toBe(456);
-      expect(parseEventLogs).toHaveBeenCalled();
+      expect(result.schemaId).toBe(456n);
+      // parseEventLogs is called internally by waitForTransactionEvents
     });
 
     it("should handle missing SchemaAdded event", async () => {
-      const { parseEventLogs } = await import("viem");
       vi.mocked(parseEventLogs).mockReturnValueOnce([]);
+
+      // Override waitForTransactionEvents to return no SchemaAdded event
+      if (mockContext.waitForTransactionEvents) {
+        vi.mocked(mockContext.waitForTransactionEvents).mockResolvedValueOnce({
+          hash: "0xTransactionHash",
+          from: "0xTestAddress",
+          contract: "DataRefinerRegistry",
+          fn: "addSchema",
+          expectedEvents: {},
+          allEvents: [],
+          hasExpectedEvents: false,
+        });
+      }
 
       await expect(
         controller.create({
@@ -560,13 +635,25 @@ describe("SchemaController", () => {
           schema: { type: "object" },
         }),
       ).rejects.toThrow(
-        'Schema creation failed: Event "SchemaAdded" not found in transaction',
+        "Schema creation failed: SchemaAdded event not found in transaction",
       );
     });
 
     it("should handle empty logs in receipt", async () => {
-      const { parseEventLogs } = await import("viem");
       vi.mocked(parseEventLogs).mockReturnValueOnce([]);
+
+      // Override waitForTransactionEvents to return no SchemaAdded event
+      if (mockContext.waitForTransactionEvents) {
+        vi.mocked(mockContext.waitForTransactionEvents).mockResolvedValueOnce({
+          hash: "0xTransactionHash",
+          from: "0xTestAddress",
+          contract: "DataRefinerRegistry",
+          fn: "addSchema",
+          expectedEvents: {},
+          allEvents: [],
+          hasExpectedEvents: false,
+        });
+      }
 
       await expect(
         controller.create({
@@ -575,14 +662,17 @@ describe("SchemaController", () => {
           schema: { type: "object" },
         }),
       ).rejects.toThrow(
-        'Schema creation failed: Event "SchemaAdded" not found in transaction',
+        "Schema creation failed: SchemaAdded event not found in transaction",
       );
     });
 
     it("should handle transaction timeout", async () => {
-      vi.mocked(
-        mockContext.publicClient.waitForTransactionReceipt,
-      ).mockRejectedValue(new Error("Transaction timeout"));
+      // Override waitForTransactionEvents to reject with timeout error
+      if (mockContext.waitForTransactionEvents) {
+        vi.mocked(mockContext.waitForTransactionEvents).mockRejectedValueOnce(
+          new Error("Transaction timeout"),
+        );
+      }
 
       await expect(
         controller.create({
@@ -594,18 +684,34 @@ describe("SchemaController", () => {
     });
 
     it("should sanitize schema name for filename", async () => {
-      const { parseEventLogs } = await import("viem");
       vi.mocked(parseEventLogs).mockReturnValueOnce([
-        {
-          eventName: "SchemaAdded",
-          args: {
-            schemaId: BigInt(123),
-            name: "Test/Schema:With<>Special|Characters",
-            dialect: "jsonschema",
-            definitionUrl: "https://ipfs.io/ipfs/QmTestHash",
+        createMockLog("SchemaAdded", {
+          schemaId: BigInt(123),
+          name: "Test/Schema:With<>Special|Characters",
+          dialect: "jsonschema",
+          definitionUrl: "https://ipfs.io/ipfs/QmTestHash",
+        }),
+      ] as ReturnType<typeof parseEventLogs>);
+
+      // Override waitForTransactionEvents for this test
+      if (mockContext.waitForTransactionEvents) {
+        vi.mocked(mockContext.waitForTransactionEvents).mockResolvedValueOnce({
+          hash: "0xTransactionHash",
+          from: "0xTestAddress",
+          contract: "DataRefinerRegistry",
+          fn: "addSchema",
+          expectedEvents: {
+            SchemaAdded: {
+              schemaId: 123n,
+              name: "Test/Schema:With<>Special|Characters",
+              dialect: "jsonschema",
+              definitionUrl: "https://ipfs.io/ipfs/QmTestHash",
+            },
           },
-        },
-      ] as any);
+          allEvents: [],
+          hasExpectedEvents: true,
+        });
+      }
 
       await controller.create({
         name: "Test/Schema*With<>Special|Chars",
@@ -629,10 +735,19 @@ describe("SchemaController", () => {
         definitionUrl: "https://example.com/schema.json",
       });
 
-      expect(result).toEqual({
-        schemaId: 1,
+      expect(result).toMatchObject({
+        schemaId: 1n,
         transactionHash: "0xTransactionHash",
       });
+
+      // Verify all fields are present
+      expect(result.name).toBe("Test Schema");
+      expect(result.dialect).toBe("jsonschema");
+      expect(result.definitionUrl).toBe(
+        "https://gateway.pinata.cloud/ipfs/QmTestHash",
+      );
+      expect(result.blockNumber).toBe(12345n);
+      expect(result.gasUsed).toBe(100000n);
 
       expect(mockContext.walletClient.writeContract).toHaveBeenCalledWith({
         address: "0xRegistryAddress",

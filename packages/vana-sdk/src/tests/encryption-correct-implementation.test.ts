@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import * as viem from "viem";
 import type { WalletClient, PublicClient } from "viem";
@@ -12,7 +11,7 @@ import type { StorageProvider } from "../types/storage";
 
 // Mock viem's parseEventLogs function
 vi.mock("viem", async (importOriginal) => {
-  const actual = (await importOriginal()) as typeof import("viem");
+  const actual = await importOriginal<typeof import("viem")>();
   return {
     ...actual,
     parseEventLogs: vi.fn(() => [
@@ -33,6 +32,13 @@ vi.mock("viem", async (importOriginal) => {
           gasUsed: 100000n,
           logs: [],
         }),
+        getTransactionReceipt: vi.fn().mockResolvedValue({
+          transactionHash: "0xTransactionHash",
+          blockNumber: 12345n,
+          gasUsed: 100000n,
+          status: "success" as const,
+          logs: [],
+        }),
         readContract: vi.fn(),
         // Add other methods as needed
       };
@@ -43,8 +49,8 @@ vi.mock("viem", async (importOriginal) => {
     createWalletClient: vi.fn((config) => {
       // Return a mock wallet client
       const mockClient = {
-        account: config?.account || testAccount,
-        chain: config?.chain || mokshaTestnet,
+        account: config?.account ?? testAccount,
+        chain: config?.chain ?? mokshaTestnet,
         signMessage: vi.fn(),
         signTypedData: vi.fn(),
         writeContract: vi.fn(),
@@ -90,6 +96,15 @@ const createMockPublicClient = (): PublicClient => {
   (client as any).waitForTransactionReceipt = vi.fn().mockResolvedValue({
     blockNumber: 12345n,
     gasUsed: 100000n,
+    logs: [],
+  });
+
+  // Add mock for getTransactionReceipt
+  (client as any).getTransactionReceipt = vi.fn().mockResolvedValue({
+    transactionHash: "0xTransactionHash",
+    blockNumber: 12345n,
+    gasUsed: 100000n,
+    status: "success" as const,
     logs: [],
   });
 
@@ -337,15 +352,28 @@ describe("Correct Vana Encryption Implementation", () => {
         applicationClient: mockWalletClient,
         platform: mockPlatformAdapter,
         storageManager: mockStorageManager,
+        waitForTransactionEvents: vi.fn().mockResolvedValue({
+          hash: "0xtxhash",
+          from: "0xfrom",
+          contract: "DataRegistry",
+          fn: "addFile",
+          expectedEvents: {
+            FileAdded: {
+              fileId: 123n,
+            },
+          },
+          allEvents: [],
+          hasExpectedEvents: true,
+        }),
+        relayerCallbacks: {
+          submitFileAdditionWithPermissions: vi.fn().mockResolvedValue({
+            fileId: 123,
+            transactionHash: "0xtxhash",
+          }),
+        },
       };
 
       const controller = new DataController(mockContext);
-
-      // Mock the addFileWithPermissions method since we don't want to hit the blockchain
-      controller.addFileWithPermissions = vi.fn().mockResolvedValue({
-        fileId: 123,
-        transactionHash: "0xtxhash",
-      });
 
       const testData = new Blob(["test file content"], { type: "text/plain" });
       const permissions = [
@@ -366,7 +394,9 @@ describe("Correct Vana Encryption Implementation", () => {
       expect(result.fileId).toBe(123);
       expect(result.url).toBe("https://example.com/file123");
       expect(mockStorageManager.upload).toHaveBeenCalled();
-      expect(controller.addFileWithPermissions).toHaveBeenCalled();
+      expect(
+        mockContext.relayerCallbacks.submitFileAdditionWithPermissions,
+      ).toHaveBeenCalled();
     });
 
     it("should orchestrate permission granting through controller addPermissionToFile", async () => {
@@ -387,6 +417,15 @@ describe("Correct Vana Encryption Implementation", () => {
         publicClient: mockPublicClient,
         applicationClient: mockWalletClient,
         platform: mockPlatformAdapter,
+        waitForTransactionEvents: vi.fn().mockResolvedValue({
+          hash: "0xtxhash",
+          from: "0xfrom",
+          contract: "DataRegistry",
+          fn: "addPermission",
+          expectedEvents: {},
+          allEvents: [],
+          hasExpectedEvents: true,
+        }),
       };
 
       const controller = new DataController(mockContext);
@@ -423,6 +462,15 @@ describe("Correct Vana Encryption Implementation", () => {
         walletClient: mockWalletClient,
         publicClient: mockPublicClient,
         platform: mockPlatformAdapter,
+        waitForTransactionEvents: vi.fn().mockResolvedValue({
+          hash: "0xtxhash",
+          from: "0xfrom",
+          contract: "DataRegistry",
+          fn: "getFile",
+          expectedEvents: {},
+          allEvents: [],
+          hasExpectedEvents: true,
+        }),
       };
 
       const controller = new DataController(mockContext);
@@ -526,15 +574,15 @@ describe("Correct Vana Encryption Implementation", () => {
           },
           defaultProvider: "default",
         },
+        relayerCallbacks: {
+          submitFileAdditionWithPermissions: vi.fn().mockResolvedValue({
+            fileId: 123,
+            transactionHash: "0xtxhash",
+          }),
+        },
       };
 
       const vana = Vana(config);
-
-      // Mock the blockchain interaction
-      vana.data.addFileWithPermissions = vi.fn().mockResolvedValue({
-        fileId: 123,
-        transactionHash: "0xtxhash",
-      });
 
       const testData = new Blob(["test content"], { type: "text/plain" });
       const permissions = [

@@ -1,9 +1,8 @@
-import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Mock } from "vitest";
 import type { Hash, PublicClient, Address } from "viem";
-import {
-  PermissionsController,
-  ControllerContext,
-} from "../controllers/permissions";
+import { PermissionsController } from "../controllers/permissions";
+import type { ControllerContext } from "../controllers/permissions";
 import {
   RelayerError,
   BlockchainError,
@@ -30,6 +29,15 @@ vi.mock("viem", () => ({
   getAddress: vi.fn((addr) => addr),
   keccak256: vi.fn(),
   toHex: vi.fn(),
+  fromHex: vi.fn((hex) => {
+    // Simple mock to convert hex string to bytes
+    const cleanHex = hex.startsWith("0x") ? hex.slice(2) : hex;
+    const bytes = new Uint8Array(cleanHex.length / 2);
+    for (let i = 0; i < bytes.length; i++) {
+      bytes[i] = parseInt(cleanHex.substr(i * 2, 2), 16);
+    }
+    return bytes;
+  }),
   encodePacked: vi.fn(),
   encodeFunctionData: vi.fn(() => "0x"),
   size: vi.fn(() => 100),
@@ -142,6 +150,7 @@ interface MockWalletClient {
 interface MockPublicClient {
   readContract: ReturnType<typeof vi.fn>;
   waitForTransactionReceipt: ReturnType<typeof vi.fn>;
+  getTransactionReceipt: ReturnType<typeof vi.fn>;
   getChainId: ReturnType<typeof vi.fn>;
   multicall: ReturnType<typeof vi.fn>;
 }
@@ -201,6 +210,13 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         return BigInt(0);
       }),
       waitForTransactionReceipt: vi.fn().mockResolvedValue({ logs: [] }),
+      getTransactionReceipt: vi.fn().mockResolvedValue({
+        transactionHash: "0xTransactionHash",
+        blockNumber: 12345n,
+        gasUsed: 100000n,
+        status: "success" as const,
+        logs: [],
+      }),
       getChainId: vi.fn().mockResolvedValue(14800),
       multicall: vi.fn().mockResolvedValue([]),
     };

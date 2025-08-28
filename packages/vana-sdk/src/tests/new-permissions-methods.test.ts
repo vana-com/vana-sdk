@@ -1,9 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { Address } from "viem";
-import {
-  PermissionsController,
-  ControllerContext,
-} from "../controllers/permissions";
+import type { Address } from "viem";
+import { PermissionsController } from "../controllers/permissions";
+import type { ControllerContext } from "../controllers/permissions";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock ALL external dependencies to ensure pure unit tests
@@ -130,9 +128,9 @@ describe("New PermissionsController Methods", () => {
       // Mock methods
       vi.spyOn(
         controllerWithRelayer as unknown as {
-          getUserNonce: () => Promise<bigint>;
+          getPermissionsUserNonce: () => Promise<bigint>;
         },
-        "getUserNonce",
+        "getPermissionsUserNonce",
       ).mockResolvedValue(123n);
       vi.spyOn(
         controllerWithRelayer as unknown as {
@@ -196,8 +194,10 @@ describe("New PermissionsController Methods", () => {
 
       // Mock methods for direct controller
       vi.spyOn(
-        directController as unknown as { getUserNonce: () => Promise<bigint> },
-        "getUserNonce",
+        directController as unknown as {
+          getPermissionsUserNonce: () => Promise<bigint>;
+        },
+        "getPermissionsUserNonce",
       ).mockResolvedValue(123n);
       vi.spyOn(
         directController as unknown as {
@@ -395,8 +395,9 @@ describe("New PermissionsController Methods", () => {
           },
         };
 
-        const signature =
-          "0xsignature123456789012345678901234567890123456789012345678901234567890";
+        const signature = `0x${"0".repeat(130)}` as `0x${string}`;
+        // The formatSignatureForContract function will modify the last byte to 1b (27 in decimal)
+        const formattedSignature = `0x${"0".repeat(128)}1b` as `0x${string}`;
 
         const result = await (
           controller as unknown as {
@@ -415,7 +416,7 @@ describe("New PermissionsController Methods", () => {
           address: "0x1234567890123456789012345678901234567890",
           abi: [],
           functionName: "revokePermissionWithSignature",
-          args: [typedData.message, signature],
+          args: [typedData.message, formattedSignature],
           account: mockWalletClient.account,
           chain: mockWalletClient.chain,
         });
@@ -447,8 +448,7 @@ describe("New PermissionsController Methods", () => {
           },
         };
 
-        const signature =
-          "0xsignature123456789012345678901234567890123456789012345678901234567890";
+        const signature = `0x${"0".repeat(130)}` as `0x${string}`;
 
         await expect(
           (

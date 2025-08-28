@@ -10,6 +10,7 @@ import {
 } from "@heroui/react";
 import { Database, ExternalLink, Info } from "lucide-react";
 import type { Schema, VanaInstance } from "@opendatalabs/vana-sdk/browser";
+import { convertIpfsUrl } from "@opendatalabs/vana-sdk/browser";
 
 interface SchemaSelectorProps {
   /** Vana SDK instance for loading schemas */
@@ -52,8 +53,9 @@ export const SchemaSelector: React.FC<SchemaSelectorProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [selectedSchema, setSelectedSchema] = useState<Schema | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isLoadingFullSchema, setIsLoadingFullSchema] = useState(false);
 
-  // Load available schemas
+  // Load schema metadata when component mounts
   useEffect(() => {
     const loadSchemas = async () => {
       if (!vana) return;
@@ -62,20 +64,12 @@ export const SchemaSelector: React.FC<SchemaSelectorProps> = ({
       setError(null);
 
       try {
-        const count = await vana.schemas.count();
-        const schemaList: Schema[] = [];
-
-        // Load all schemas (or first 50 to prevent performance issues)
-        const maxToLoad = Math.min(count, 50);
-
-        for (let i = 1; i <= maxToLoad; i++) {
-          try {
-            const schema = await vana.schemas.get(i);
-            schemaList.push(schema);
-          } catch (error) {
-            console.warn(`Failed to load schema ${i}:`, error);
-          }
-        }
+        // Use list() to get just metadata without full definitions
+        // This is much faster as it doesn't fetch schema content from IPFS
+        const schemaList = await vana.schemas.list({
+          limit: 50, // Limit to first 50 to prevent performance issues
+          includeDefinitions: false, // Don't fetch full schema definitions
+        });
 
         setSchemas(schemaList);
       } catch (error) {
@@ -88,18 +82,47 @@ export const SchemaSelector: React.FC<SchemaSelectorProps> = ({
       }
     };
 
-    loadSchemas();
+    void loadSchemas();
   }, [vana]);
 
-  // Update selected schema when selectedSchemaId changes
+  // Load full schema details when selected
   useEffect(() => {
-    if (selectedSchemaId === null) {
-      setSelectedSchema(null);
-    } else {
-      const schema = schemas.find((s) => s.id === selectedSchemaId);
-      setSelectedSchema(schema || null);
-    }
-  }, [selectedSchemaId, schemas]);
+    const loadFullSchema = async () => {
+      if (selectedSchemaId === null || !vana) {
+        setSelectedSchema(null);
+        return;
+      }
+
+      // First check if we already have it in our list with full details
+      const existingSchema = schemas.find((s) => s.id === selectedSchemaId);
+      if (existingSchema?.schema) {
+        setSelectedSchema(existingSchema);
+        return;
+      }
+
+      // Load full schema details
+      setIsLoadingFullSchema(true);
+      try {
+        const fullSchema = await vana.schemas.get(selectedSchemaId);
+        setSelectedSchema(fullSchema);
+
+        // Update the schemas list with the full schema data
+        setSchemas((prev) =>
+          prev.map((s) => (s.id === selectedSchemaId ? fullSchema : s)),
+        );
+      } catch (error) {
+        console.error(`Failed to load full schema ${selectedSchemaId}:`, error);
+        // Fall back to metadata-only version if available
+        if (existingSchema) {
+          setSelectedSchema(existingSchema);
+        }
+      } finally {
+        setIsLoadingFullSchema(false);
+      }
+    };
+
+    void loadFullSchema();
+  }, [selectedSchemaId, vana, schemas]);
 
   const handleSelectionChange = (keys: Set<React.Key> | "all") => {
     const keySet = new Set(
@@ -112,7 +135,7 @@ export const SchemaSelector: React.FC<SchemaSelectorProps> = ({
     } else {
       const schemaId = parseInt(selectedKey as string);
       const schema = schemas.find((s) => s.id === schemaId);
-      onSchemaChange(schemaId, schema || null);
+      onSchemaChange(schemaId, schema ?? null);
     }
   };
 
@@ -187,38 +210,52 @@ export const SchemaSelector: React.FC<SchemaSelectorProps> = ({
       {showSchemaInfo && selectedSchema && (
         <Card className="bg-secondary/10">
           <CardBody className="p-4">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <h4 className="font-semibold text-secondary mb-2 flex items-center gap-2">
-                  <Database className="h-4 w-4" />
-                  {selectedSchema.name}
-                </h4>
-                <div className="space-y-1 text-sm">
-                  <div>
-                    <span className="font-medium">Dialect:</span>{" "}
-                    {selectedSchema.dialect}
-                  </div>
-                  <div>
-                    <span className="font-medium">Schema ID:</span>{" "}
-                    {selectedSchema.id}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">Definition:</span>
-                    <Button
-                      as="a"
-                      href={selectedSchema.definitionUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      size="sm"
-                      variant="light"
-                      startContent={<ExternalLink className="h-3 w-3" />}
-                    >
-                      View Schema
-                    </Button>
+            {isLoadingFullSchema ? (
+              <div className="flex items-center gap-2">
+                <Spinner size="sm" />
+                <span className="text-sm text-secondary">
+                  Loading schema details...
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <h4 className="font-semibold text-secondary mb-2 flex items-center gap-2">
+                    <Database className="h-4 w-4" />
+                    {selectedSchema.name}
+                  </h4>
+                  <div className="space-y-1 text-sm">
+                    <div>
+                      <span className="font-medium">Dialect:</span>{" "}
+                      {selectedSchema.dialect}
+                    </div>
+                    <div>
+                      <span className="font-medium">Schema ID:</span>{" "}
+                      {selectedSchema.id}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">Definition:</span>
+                      <Button
+                        as="a"
+                        href={convertIpfsUrl(selectedSchema.definitionUrl)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        size="sm"
+                        variant="light"
+                        startContent={<ExternalLink className="h-3 w-3" />}
+                      >
+                        View Schema
+                      </Button>
+                    </div>
+                    {selectedSchema.schema && (
+                      <div className="mt-2 text-xs text-default-400">
+                        Schema definition loaded
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
-            </div>
+            )}
           </CardBody>
         </Card>
       )}

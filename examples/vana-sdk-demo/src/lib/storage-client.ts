@@ -56,9 +56,9 @@ function createServerProxyCallbacks(): StorageCallbacks {
 
       const data = await response.json();
       return {
-        url: data.url || data.identifier,
+        url: data.url ?? data.identifier,
         size: blob.size,
-        contentType: blob.type || "application/octet-stream",
+        contentType: blob.type ?? "application/octet-stream",
       };
     },
 
@@ -96,7 +96,7 @@ export function createClientStorageManager(
   if (config.pinataJwt) {
     providers["user-ipfs"] = new PinataStorage({
       jwt: config.pinataJwt,
-      gatewayUrl: config.pinataGateway || "https://gateway.pinata.cloud",
+      gatewayUrl: config.pinataGateway ?? "https://gateway.pinata.cloud",
     });
   }
 
@@ -110,7 +110,7 @@ export function createClientStorageManager(
 
   // Register all providers
   Object.entries(providers).forEach(([name, provider]) => {
-    const isDefault = name === (config.defaultProvider || "server-ipfs");
+    const isDefault = name === (config.defaultProvider ?? "server-ipfs");
     storageManager.register(name, provider, isDefault);
   });
 

@@ -12,32 +12,6 @@
 import { fromHex } from "viem";
 
 /**
- * Concatenates multiple Uint8Arrays into a single array.
- *
- * @param arrays - The byte arrays to concatenate in order.
- * @returns A new Uint8Array containing all input arrays concatenated.
- *
- * @example
- * ```typescript
- * const combined = concatBytes(
- *   new Uint8Array([1, 2]),
- *   new Uint8Array([3, 4])
- * );
- * console.log(combined); // Uint8Array([1, 2, 3, 4])
- * ```
- */
-export function concatBytes(...arrays: Uint8Array[]): Uint8Array {
-  const totalLength = arrays.reduce((sum, arr) => sum + arr.length, 0);
-  const result = new Uint8Array(totalLength);
-  let offset = 0;
-  for (const arr of arrays) {
-    result.set(arr, offset);
-    offset += arr.length;
-  }
-  return result;
-}
-
-/**
  * Processes a wallet public key for cryptographic operations.
  *
  * @remarks

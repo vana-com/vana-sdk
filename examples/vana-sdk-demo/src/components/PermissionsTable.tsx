@@ -11,11 +11,11 @@ import {
   Chip,
   Spinner,
   Pagination,
-  SortDescriptor,
+  type SortDescriptor,
 } from "@heroui/react";
 import {
-  GrantedPermission,
   convertIpfsUrl,
+  type GrantedPermission,
 } from "@opendatalabs/vana-sdk/browser";
 import { Shield, ExternalLink, Eye, RefreshCw } from "lucide-react";
 import { PermissionDisplay } from "./ui/PermissionDisplay";
@@ -296,7 +296,9 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
                   color="danger"
                   variant="flat"
                   size="sm"
-                  onPress={() => handleRevoke(permission)}
+                  onPress={() => {
+                    handleRevoke(permission);
+                  }}
                   isLoading={isRevoking}
                   isDisabled={isRevoking}
                 >

@@ -94,7 +94,7 @@ export class SchemaValidator {
     const isValid = this.dataSchemaValidator(schema);
 
     if (!isValid) {
-      const errors = this.dataSchemaValidator.errors || [];
+      const errors = this.dataSchemaValidator.errors ?? [];
       const errorMessage = `Data schema validation failed: ${errors.map((e) => `${e.instancePath} ${e.message}`).join(", ")}`;
       throw new SchemaValidationError(errorMessage, errors);
     }
@@ -166,7 +166,7 @@ export class SchemaValidator {
     const isValid = dataValidator(data);
 
     if (!isValid) {
-      const errors = dataValidator.errors || [];
+      const errors = dataValidator.errors ?? [];
       const errorMessage = `Data validation failed: ${errors.map((e) => `${e.instancePath} ${e.message}`).join(", ")}`;
       throw new SchemaValidationError(errorMessage, errors);
     }
@@ -248,8 +248,8 @@ export class SchemaValidator {
     downloadRelayer?: { proxyDownload: (url: string) => Promise<Blob> },
   ): Promise<DataSchema> {
     try {
-      const { fetchWithRelayer } = await import("./download");
-      const response = await fetchWithRelayer(url, downloadRelayer);
+      const { universalFetch } = await import("./download");
+      const response = await universalFetch(url, downloadRelayer);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
@@ -305,7 +305,7 @@ export function validateDataSchemaAgainstMetaSchema(
   const validator: SchemaValidator = schemaValidator;
   validator.validateDataSchemaAgainstMetaSchema(schema);
   // If we get here, schema is valid and typed as DataSchema
-  return schema as DataSchema;
+  return schema;
 }
 
 /**
@@ -320,7 +320,7 @@ export function validateDataAgainstSchema(
   data: unknown,
   schema: DataSchema | Schema,
 ): void {
-  return schemaValidator.validateDataAgainstSchema(data, schema);
+  schemaValidator.validateDataAgainstSchema(data, schema);
 }
 
 /**

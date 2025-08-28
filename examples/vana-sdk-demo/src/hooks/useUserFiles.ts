@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { UserFile } from "@opendatalabs/vana-sdk/browser";
+import type { UserFile } from "@opendatalabs/vana-sdk/browser";
 import { useVana } from "@/providers/VanaProvider";
 import { useAccount } from "wagmi";
 import { createApiHandler } from "./utils";
@@ -209,7 +209,7 @@ export function useUserFiles(): UseUserFilesReturn {
             throw new Error("Invalid file ID format");
           }
 
-          return await vana.data.getFileById(fileIdNumber);
+          return vana.data.getFileById(fileIdNumber);
         },
         {
           setLoading: setIsLookingUpFile,
@@ -273,7 +273,7 @@ export function useUserFiles(): UseUserFilesReturn {
               : undefined;
 
           // Use the high-level upload method with permissions
-          return await vana.data.upload({
+          return vana.data.upload({
             content: blob,
             filename: file.name,
             permissions,
@@ -294,7 +294,7 @@ export function useUserFiles(): UseUserFilesReturn {
 
             // Refresh the files list to include the new file
             setTimeout(() => {
-              loadUserFiles();
+              void loadUserFiles();
             }, 2000);
           },
         },
@@ -308,7 +308,7 @@ export function useUserFiles(): UseUserFilesReturn {
   // Load user files when Vana is initialized
   useEffect(() => {
     if (vana && address) {
-      loadUserFiles();
+      void loadUserFiles();
     }
   }, [vana, address, loadUserFiles]);
 

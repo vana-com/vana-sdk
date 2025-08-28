@@ -33,9 +33,9 @@ export interface PersonalServerIdentity {
   /** The server's Ethereum address */
   address: string;
   /** The server's public key for encryption */
-  public_key: string;
+  publicKey: string;
   /** The base URL for connecting to this server */
-  base_url: string;
+  baseUrl: string;
   /** Human-readable name for this server */
   name: string;
 }

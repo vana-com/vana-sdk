@@ -5,7 +5,7 @@
  * in a consistent, reliable way.
  */
 
-import { fetchWithRelayer } from "./download";
+import { universalFetch } from "./download";
 
 /**
  * Error thrown when URL resolution fails
@@ -48,7 +48,7 @@ export async function fetchFromUrl(
 ): Promise<unknown> {
   try {
     // Use unified download utility with automatic fallbacks
-    const response = await fetchWithRelayer(url, downloadRelayer);
+    const response = await universalFetch(url, downloadRelayer);
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);

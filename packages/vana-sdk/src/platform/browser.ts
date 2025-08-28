@@ -17,8 +17,7 @@ import { wrapCryptoError } from "./shared/error-utils";
 import { lazyImport } from "../utils/lazy-import";
 import { WalletKeyEncryptionService } from "../crypto/services/WalletKeyEncryptionService";
 import { parseEncryptedDataBuffer } from "../utils/crypto-utils";
-import { toHex, fromHex, stringToBytes, bytesToString } from "viem";
-import { concatBytes } from "../crypto/ecies/utils";
+import { toHex, fromHex, stringToBytes, bytesToString, concat } from "viem";
 import * as secp256k1 from "@noble/secp256k1";
 import { features } from "../config/features";
 
@@ -59,12 +58,12 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
         );
 
         // Concatenate all components and return as hex string
-        const result = concatBytes(
+        const result = concat([
           encrypted.iv,
           encrypted.ephemPublicKey,
           encrypted.ciphertext,
           encrypted.mac,
-        );
+        ]);
 
         return toHex(result).slice(2); // Remove '0x' prefix for backward compatibility
       } else {
@@ -336,7 +335,7 @@ class BrowserPGPAdapter implements VanaPGPAdapter {
 
       return encrypted as string;
     } catch (error) {
-      throw new Error(`PGP encryption failed: ${error}`);
+      throw new Error(`PGP encryption failed: ${String(error)}`);
     }
   }
 
@@ -360,7 +359,7 @@ class BrowserPGPAdapter implements VanaPGPAdapter {
 
       return decrypted as string;
     } catch (error) {
-      throw new Error(`PGP decryption failed: ${error}`);
+      throw new Error(`PGP decryption failed: ${String(error)}`);
     }
   }
 
@@ -445,7 +444,9 @@ class BrowserCacheAdapter implements VanaCacheAdapter {
           keysToRemove.push(key);
         }
       }
-      keysToRemove.forEach((key) => sessionStorage.removeItem(key));
+      keysToRemove.forEach((key) => {
+        sessionStorage.removeItem(key);
+      });
     } catch {
       // Ignore storage errors
     }

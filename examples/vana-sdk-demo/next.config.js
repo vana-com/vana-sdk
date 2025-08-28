@@ -12,15 +12,24 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
 
+  /**
+   * @param {import('webpack').Configuration} config
+   * @returns {import('webpack').Configuration}
+   */
   webpack: (config) => {
     // Add resolve aliases to match tsconfig.json paths
+    config.resolve ??= {};
+    config.resolve.alias ??= {};
     config.resolve.alias = {
       ...config.resolve.alias,
       "@": path.resolve(__dirname, "src"),
     };
 
     // This is needed for certain dependencies that are not fully ESM-compatible.
-    config.externals.push("pino-pretty", "lokijs", "encoding");
+    config.externals ??= [];
+    if (Array.isArray(config.externals)) {
+      config.externals.push("pino-pretty", "lokijs", "encoding");
+    }
 
     return config;
   },

@@ -6,7 +6,7 @@ import { keccak256, toBytes } from "viem";
 import { getContractUrl } from "@/lib/explorer";
 
 interface SchemaIdDisplayProps {
-  schemaId: number | string;
+  schemaId: number | string | bigint | null;
   label?: string;
   chainId?: number;
   showCopy?: boolean;
@@ -23,7 +23,10 @@ const getFunctionHash = (functionSignature: string): string => {
 };
 
 // Block explorer URLs for different chains
-const getBlockExplorerUrl = (chainId: number, _schemaId: number | string) => {
+const getBlockExplorerUrl = (
+  chainId: number,
+  _schemaId: number | string | bigint | null,
+) => {
   try {
     // Get DataRefinerRegistry contract address using SDK
     const contractAddress = getContractAddress(chainId, "DataRefinerRegistry");
@@ -54,6 +57,8 @@ export function SchemaIdDisplay({
   showExternalLink = true,
   className = "",
 }: SchemaIdDisplayProps) {
+  if (!schemaId) return null;
+
   const displaySchemaId = `Schema #${schemaId}`;
   const explorerUrl = showExternalLink
     ? getBlockExplorerUrl(chainId, schemaId)

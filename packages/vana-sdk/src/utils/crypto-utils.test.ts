@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import {
-  concatBytes,
   processWalletPublicKey,
   processWalletPrivateKey,
   parseEncryptedDataBuffer,
@@ -13,29 +12,6 @@ import {
 } from "./crypto-utils";
 
 describe("Crypto Utils", () => {
-  describe("concatBytes", () => {
-    it("concatenates multiple Uint8Arrays", () => {
-      const a = new Uint8Array([1, 2, 3]);
-      const b = new Uint8Array([4, 5]);
-      const c = new Uint8Array([6, 7, 8]);
-      const result = concatBytes(a, b, c);
-      expect(result).toEqual(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]));
-    });
-
-    it("handles empty arrays", () => {
-      const a = new Uint8Array([1, 2]);
-      const b = new Uint8Array([]);
-      const c = new Uint8Array([3]);
-      const result = concatBytes(a, b, c);
-      expect(result).toEqual(new Uint8Array([1, 2, 3]));
-    });
-
-    it("returns empty array when no arguments", () => {
-      const result = concatBytes();
-      expect(result).toEqual(new Uint8Array([]));
-    });
-  });
-
   describe("processWalletPublicKey", () => {
     it("processes hex string public key", () => {
       const result = processWalletPublicKey("0404");
@@ -241,39 +217,43 @@ describe("Crypto Utils", () => {
     it("accepts valid uncompressed key", () => {
       const uncompressed = new Uint8Array(65);
       uncompressed[0] = 0x04;
-      expect(() => assertUncompressedPublicKey(uncompressed)).not.toThrow();
+      expect(() => {
+        assertUncompressedPublicKey(uncompressed);
+      }).not.toThrow();
     });
 
     it("throws for compressed keys", () => {
       const compressed = new Uint8Array(33);
       compressed[0] = 0x02;
-      expect(() => assertUncompressedPublicKey(compressed)).toThrow(
-        "Public key must be uncompressed (65 bytes), got 33 bytes",
-      );
+      expect(() => {
+        assertUncompressedPublicKey(compressed);
+      }).toThrow("Public key must be uncompressed (65 bytes), got 33 bytes");
     });
 
     it("throws for raw coordinates", () => {
       const raw = new Uint8Array(64);
-      expect(() => assertUncompressedPublicKey(raw)).toThrow(
-        "Public key must be uncompressed (65 bytes), got 64 bytes",
-      );
+      expect(() => {
+        assertUncompressedPublicKey(raw);
+      }).toThrow("Public key must be uncompressed (65 bytes), got 64 bytes");
     });
 
     it("throws for invalid prefix", () => {
       const invalidPrefix = new Uint8Array(65);
       invalidPrefix[0] = 0x05;
-      expect(() => assertUncompressedPublicKey(invalidPrefix)).toThrow(
+      expect(() => {
+        assertUncompressedPublicKey(invalidPrefix);
+      }).toThrow(
         "Uncompressed public key must start with 0x04 prefix, got 0x05",
       );
     });
 
     it("throws for invalid lengths", () => {
-      expect(() => assertUncompressedPublicKey(new Uint8Array(32))).toThrow(
-        "Public key must be uncompressed (65 bytes), got 32 bytes",
-      );
-      expect(() => assertUncompressedPublicKey(new Uint8Array(100))).toThrow(
-        "Public key must be uncompressed (65 bytes), got 100 bytes",
-      );
+      expect(() => {
+        assertUncompressedPublicKey(new Uint8Array(32));
+      }).toThrow("Public key must be uncompressed (65 bytes), got 32 bytes");
+      expect(() => {
+        assertUncompressedPublicKey(new Uint8Array(100));
+      }).toThrow("Public key must be uncompressed (65 bytes), got 100 bytes");
     });
   });
 });

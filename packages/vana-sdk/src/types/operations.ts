@@ -1,5 +1,6 @@
 import type { Hash, TransactionReceipt as ViemReceipt, Address } from "viem";
 import type { GetOperationResponse } from "../generated/server/server-exports";
+import type { Contract, Fn } from "../generated/event-types";
 
 /**
  * Server operation result as a plain object.
@@ -23,22 +24,32 @@ export interface Operation<T = unknown> {
 }
 
 /**
- * Transaction submission result as a plain object.
- * Contains immediate transaction details without waiting for confirmation.
+ * Represents a submitted blockchain transaction as a self-describing POJO.
+ *
+ * @remarks
+ * Transaction results MUST include contract and function for proper event parsing.
+ * This is a strongly-typed, heuristic-free design following POJO architecture.
  */
-export interface TransactionResult {
-  /** Transaction hash */
+export interface TransactionResult<
+  C extends Contract = Contract,
+  F extends Fn<C> = Fn<C>,
+> {
+  /** Transaction hash for tracking and confirmation */
   hash: Hash;
-  /** Sender address */
-  from?: Address;
-  /** Recipient address */
-  to?: Address;
-  /** Transaction nonce */
-  nonce?: number;
-  /** Transaction value in wei */
-  value?: bigint;
-  /** Chain ID where transaction was submitted */
+  /** Sender's wallet address */
+  from: Address;
+  /** Contract that was called (required for event parsing) */
+  contract: C;
+  /** Function that was called (required for event parsing) */
+  fn: F;
+  /** Network chain ID where transaction was submitted */
   chainId?: number;
+  /** Transaction value in wei (for payable functions) */
+  value?: bigint;
+  /** Transaction sequence number for the sender */
+  nonce?: number;
+  /** Contract address (if different from standard deployment) */
+  to?: Address;
 }
 
 /**
@@ -98,7 +109,7 @@ export function isTransactionResult(obj: unknown): obj is TransactionResult {
   if (typeof obj !== "object" || obj === null || !("hash" in obj)) {
     return false;
   }
-  const hash = (obj as Record<string, unknown>).hash;
+  const { hash } = obj as Record<string, unknown>;
   return typeof hash === "string" && hash.startsWith("0x");
 }
 
@@ -116,7 +127,7 @@ export function toOperation<T>(response: GetOperationResponse): Operation<T> {
     result:
       response.status === "succeeded" ? (response.result as T) : undefined,
     error:
-      response.status === "failed" ? response.result || undefined : undefined,
+      response.status === "failed" ? (response.result ?? undefined) : undefined,
   };
 }
 

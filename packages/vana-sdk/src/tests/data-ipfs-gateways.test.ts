@@ -17,7 +17,7 @@ describe("DataController - IPFS Gateway Configuration", () => {
 
   const createMockResponse = (success: boolean, content?: string) => ({
     ok: success,
-    blob: async () => new Blob([content || mockBlobContent]),
+    blob: async () => new Blob([content ?? mockBlobContent]),
   });
 
   beforeEach(() => {

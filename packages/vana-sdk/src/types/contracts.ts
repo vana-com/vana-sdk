@@ -1,5 +1,4 @@
-import type { Abi, Address, Hash } from "viem";
-import type { GetContractReturnType } from "viem";
+import type { Abi, Address, Hash, GetContractReturnType } from "viem";
 
 /**
  * Union type of all canonical Vana contract names

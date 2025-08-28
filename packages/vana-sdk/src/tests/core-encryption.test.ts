@@ -155,7 +155,7 @@ describe("VanaCore Encryption Methods", () => {
 
     it("should handle long wallet signature", async () => {
       const testData = "test data";
-      const longSignature = "0x" + "a".repeat(128); // Long signature
+      const longSignature = `0x${"a".repeat(128)}`; // Long signature
       const expectedBlob = new Blob(["encrypted"], {
         type: "application/octet-stream",
       });

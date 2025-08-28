@@ -151,10 +151,11 @@ export function Vana(config: VanaConfig) {
 
 /**
  * The type of a Vana SDK instance in Node.js environments.
+ * Uses InstanceType to properly expose all public methods from the class hierarchy.
  *
  * @see {@link Vana}
  */
-export type VanaInstance = VanaNodeImpl;
+export type VanaInstance = InstanceType<typeof VanaNodeImpl>;
 
 // Export as default export
 export default Vana;

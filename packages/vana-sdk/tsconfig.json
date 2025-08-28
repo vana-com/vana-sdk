@@ -1,21 +1,18 @@
 {
   "compilerOptions": {
-    "target": "es2022",
+    "target": "ES2022",
     "module": "esnext",
     "moduleResolution": "bundler",
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "outDir": "./dist",
+    "strict": true,
+    "noEmit": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
-    "strict": true,
     "noImplicitAny": true,
     "noImplicitReturns": true,
     "noImplicitThis": true,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "exactOptionalPropertyTypes": false,
     "noUncheckedIndexedAccess": false,
     "noImplicitOverride": true,
@@ -24,24 +21,17 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": false,
-    "allowImportingTsExtensions": false,
-    "noEmit": false,
-    "incremental": true,
-    "tsBuildInfoFile": ".tsbuildinfo"
+    "allowImportingTsExtensions": false
   },
-  "include": [
-    "src/**/*.ts",
-    "src/**/*.json",
-    "tsup.config.ts",
-    "tsup-browser.config.ts",
-    "codegen.ts"
-  ],
+  "include": ["src/**/*.ts", "src/**/*.json"],
   "exclude": [
     "node_modules",
     "dist",
     "**/dist",
     "examples/**/*",
     "coverage/**/*",
-    "test-dist"
+    "test-dist",
+    "tsup*.ts",
+    "scripts/**"
   ]
 }

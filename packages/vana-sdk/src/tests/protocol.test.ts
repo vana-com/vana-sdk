@@ -3,7 +3,7 @@ import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { mokshaTestnet } from "../config/chains";
 import { ProtocolController } from "../controllers/protocol";
-import { ControllerContext } from "../controllers/permissions";
+import type { ControllerContext } from "../controllers/permissions";
 import { ContractNotFoundError } from "../errors";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
@@ -59,7 +59,10 @@ describe("ProtocolController", () => {
   let controller: ProtocolController;
   let mockContext: ControllerContext;
   let mockWalletClient: ReturnType<typeof createWalletClient>;
-  let mockPublicClient: { waitForTransactionReceipt: ReturnType<typeof vi.fn> };
+  let mockPublicClient: {
+    waitForTransactionReceipt: ReturnType<typeof vi.fn>;
+    getTransactionReceipt: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -73,6 +76,13 @@ describe("ProtocolController", () => {
     // Create a fully mocked public client
     mockPublicClient = {
       waitForTransactionReceipt: vi.fn().mockResolvedValue({ logs: [] }),
+      getTransactionReceipt: vi.fn().mockResolvedValue({
+        transactionHash: "0xTransactionHash",
+        blockNumber: 12345n,
+        gasUsed: 100000n,
+        status: "success" as const,
+        logs: [],
+      }),
     };
 
     mockContext = {
@@ -397,8 +407,8 @@ describe("ProtocolController", () => {
         );
         if (error.message.includes("Contract address not found")) {
           const fallbackChainId =
-            mockController.context.walletClient.chain?.id || 0;
-          expect(fallbackChainId).toBe(0); // This tests the || 0 fallback
+            mockController.context.walletClient.chain?.id ?? 0;
+          expect(fallbackChainId).toBe(0); // This tests the ?? 0 fallback
         }
       } catch {
         // This tests the fallback logic in the catch block

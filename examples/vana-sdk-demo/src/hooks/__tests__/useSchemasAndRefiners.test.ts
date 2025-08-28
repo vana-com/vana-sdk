@@ -5,18 +5,19 @@ import {
   vi,
   beforeEach,
   afterEach,
-  MockedFunction,
+  type MockedFunction,
 } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
-import { useAccount } from "wagmi";
+import { useAccount, type UseAccountReturnType } from "wagmi";
 import { useVana } from "@/providers/VanaProvider";
 import { useSchemasAndRefiners } from "../useSchemasAndRefiners";
-import {
+import type {
   Schema,
   Refiner,
   CreateSchemaParams,
   AddRefinerParams,
   UpdateSchemaIdParams,
+  VanaInstance,
 } from "@opendatalabs/vana-sdk/browser";
 
 // Mock dependencies
@@ -82,10 +83,19 @@ describe("useSchemasAndRefiners", () => {
     // Default mock implementations
     useAccountMock.mockReturnValue({
       address: "0x123",
-    } as any);
+      addresses: ["0x123" as `0x${string}`],
+      chain: undefined,
+      chainId: 14800,
+      connector: undefined,
+      isConnected: true,
+      isConnecting: false,
+      isDisconnected: false,
+      isReconnecting: false,
+      status: "connected",
+    } as unknown as UseAccountReturnType);
 
     useVanaMock.mockReturnValue({
-      vana: mockVana as any,
+      vana: mockVana as unknown as VanaInstance,
       isInitialized: true,
       error: null,
       applicationAddress: "0xapp123",
@@ -189,7 +199,16 @@ describe("useSchemasAndRefiners", () => {
     it("does not load when address is not available", () => {
       useAccountMock.mockReturnValue({
         address: undefined,
-      } as any);
+        addresses: [],
+        chain: undefined,
+        chainId: undefined,
+        connector: undefined,
+        isConnected: false,
+        isConnecting: false,
+        isDisconnected: true,
+        isReconnecting: false,
+        status: "disconnected",
+      } as unknown as UseAccountReturnType);
 
       renderHook(() => useSchemasAndRefiners());
 
@@ -756,7 +775,16 @@ describe("useSchemasAndRefiners", () => {
       // Simulate wallet disconnection
       useAccountMock.mockReturnValue({
         address: undefined,
-      } as any);
+        addresses: [],
+        chain: undefined,
+        chainId: undefined,
+        connector: undefined,
+        isConnected: false,
+        isConnecting: false,
+        isDisconnected: true,
+        isReconnecting: false,
+        status: "disconnected",
+      } as unknown as UseAccountReturnType);
 
       rerender();
 

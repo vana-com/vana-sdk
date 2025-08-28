@@ -30,7 +30,7 @@ import {
 import { GrantPermissionModal } from "@/components/ui/GrantPermissionModal";
 import { useGrantees } from "@/hooks/useGrantees";
 import { useTrustedServers } from "@/hooks/useTrustedServers";
-import { useUserFiles, ExtendedUserFile } from "@/hooks/useUserFiles";
+import { useUserFiles, type ExtendedUserFile } from "@/hooks/useUserFiles";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useVana } from "@/providers/VanaProvider";
 import { ExplorerLink } from "@/components/ui/ExplorerLink";
@@ -102,9 +102,9 @@ const ServerConfig = ({
           {trustedServers.map((server) => (
             <SelectItem
               key={server.serverAddress}
-              textValue={server.name || server.serverAddress}
+              textValue={server.name ?? server.serverAddress}
             >
-              {server.name || server.serverAddress}
+              {server.name ?? server.serverAddress}
             </SelectItem>
           ))}
         </Select>
@@ -142,12 +142,12 @@ const DataSource = ({
     <CardBody className="space-y-3">
       <RadioGroup
         value={config.dataChoice}
-        onValueChange={(value) =>
+        onValueChange={(value) => {
           setConfig((prev) => ({
             ...prev,
             dataChoice: value as "new" | "existing",
-          }))
-        }
+          }));
+        }}
         orientation="horizontal"
         size="sm"
       >
@@ -160,7 +160,9 @@ const DataSource = ({
             label="Sample Text"
             placeholder="Enter some personal text for the AI to analyze..."
             value={newTextData}
-            onChange={(e) => setNewTextData(e.target.value)}
+            onChange={(e) => {
+              setNewTextData(e.target.value);
+            }}
             minRows={3}
             maxRows={5}
             size="sm"
@@ -189,12 +191,12 @@ const DataSource = ({
                       ? "border-primary bg-primary/5"
                       : "border-default-200 hover:bg-default-50"
                   }`}
-                  onClick={() =>
+                  onClick={() => {
                     handleFileSelection(
                       file.id,
                       !selectedFiles.includes(file.id),
-                    )
-                  }
+                    );
+                  }}
                 >
                   <div className="flex items-center justify-between">
                     <span>File #{file.id}</span>
@@ -306,7 +308,7 @@ const ResultsDisplay = ({
               <ExplorerLink
                 type="tx"
                 hash={grantTxHash}
-                chainId={chainId || 14800}
+                chainId={chainId ?? 14800}
               />
             </span>
           )}
@@ -491,7 +493,7 @@ export default function DemoExperiencePage() {
         }
         const result = await response.json();
         if (result.data?.status === "succeeded") {
-          setLlmResult(result.data.result || "No output received");
+          setLlmResult(result.data.result ?? "No output received");
           addActivity("success", "AI profile generated successfully!");
         } else if (result.data?.status === "failed") {
           addActivity("error", "AI processing failed", result.data?.error);
@@ -499,10 +501,9 @@ export default function DemoExperiencePage() {
           result.data?.status === "starting" ||
           result.data?.status === "processing"
         ) {
-          setTimeout(
-            () => pollOperationStatus(operationId, permissionId),
-            2000,
-          );
+          setTimeout(() => {
+            void pollOperationStatus(operationId, permissionId);
+          }, 2000);
           return;
         } else {
           addActivity("error", "Unknown operation status", result.data?.status);
@@ -571,7 +572,7 @@ export default function DemoExperiencePage() {
 
       await handleUploadText(
         serverIdentity?.address,
-        serverIdentity?.public_key,
+        serverIdentity?.publicKey,
       );
       return;
     }
@@ -647,13 +648,13 @@ export default function DemoExperiencePage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP ${response.status}`);
+        throw new Error(errorData.error ?? `HTTP ${response.status}`);
       }
 
       const result = await response.json();
       if (result.data?.id) {
         addActivity("info", "AI processing started...");
-        pollOperationStatus(result.data.id, permissionId);
+        void pollOperationStatus(result.data.id, permissionId);
       } else {
         throw new Error("Unexpected response format");
       }
@@ -800,7 +801,7 @@ export default function DemoExperiencePage() {
         onConfirm={async (params) => {
           // Create new permission - the modal handles the UI flow
           if (grantPreview) {
-            setGrantPreview({ ...grantPreview, params: params });
+            setGrantPreview({ ...grantPreview, params });
           }
           await handleConfirmGrant(params);
         }}

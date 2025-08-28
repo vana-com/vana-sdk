@@ -3,7 +3,7 @@ import { retrieveGrantFile } from "../utils/grantFiles";
 
 // Mock fetch globally
 global.fetch = vi.fn();
-const mockFetch = global.fetch as any;
+const mockFetch = vi.mocked(global.fetch);
 
 // Mock the IPFS module
 vi.mock("../utils/ipfs", () => ({
@@ -80,7 +80,7 @@ describe("Download Relayer", () => {
       mockFetch.mockResolvedValue({
         ok: true,
         text: async () => JSON.stringify(mockGrantFile),
-      });
+      } as unknown as Response);
 
       const result = await retrieveGrantFile(
         "https://example.com/grant.json",
@@ -105,11 +105,11 @@ describe("Download Relayer", () => {
       };
 
       // Mock fetchWithFallbacks to succeed (simulating IPFS gateway success)
-      const { fetchWithFallbacks } = (await import("../utils/ipfs")) as any;
-      fetchWithFallbacks.mockResolvedValueOnce({
+      const { fetchWithFallbacks } = await import("../utils/ipfs");
+      vi.mocked(fetchWithFallbacks).mockResolvedValueOnce({
         ok: true,
         text: async () => JSON.stringify(mockGrantFile),
-      });
+      } as unknown as Response);
 
       const result = await retrieveGrantFile(
         "https://gateway.pinata.cloud/ipfs/QmTest123",

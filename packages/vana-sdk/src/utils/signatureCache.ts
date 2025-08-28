@@ -1,7 +1,7 @@
-import { Hash, getAddress } from "viem";
+import type { Hash } from "viem";
+import { getAddress, toHex } from "viem";
 import type { VanaCacheAdapter } from "../platform/interface";
 import { sha256 } from "@noble/hashes/sha256";
-import { bytesToHex } from "@noble/hashes/utils";
 
 interface CachedSignature {
   signature: Hash;
@@ -185,7 +185,7 @@ export class SignatureCache {
 
     // Use SHA-256 for cryptographic hashing
     const hashBytes = sha256(new TextEncoder().encode(jsonString));
-    return bytesToHex(hashBytes);
+    return toHex(hashBytes);
   }
 
   /**

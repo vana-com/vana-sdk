@@ -1,4 +1,5 @@
-import { Address, getAddress } from "viem";
+import type { Address } from "viem";
+import { getAddress } from "viem";
 import Ajv, { type ValidateFunction } from "ajv";
 import addFormats from "ajv-formats";
 import type { GrantFile } from "../types/permissions";
@@ -367,7 +368,8 @@ export function validateGrantExpiry(
   currentTime?: number,
 ): void {
   if (grantFile.expires) {
-    const now = currentTime || Math.floor(Date.now() / 1000); // Current Unix timestamp
+    const now =
+      currentTime !== undefined ? currentTime : Math.floor(Date.now() / 1000); // Current Unix timestamp
 
     if (now > grantFile.expires) {
       throw new GrantExpiredError(

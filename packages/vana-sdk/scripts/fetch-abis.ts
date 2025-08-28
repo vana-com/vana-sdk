@@ -194,8 +194,7 @@ async function updateIndexFile(contractNames: string[]): Promise<void> {
     .join("\n");
 
   // Append our exports
-  const updatedContent =
-    existingContent + "\n\n// DLP Reward Contracts\n" + newExports + "\n";
+  const updatedContent = `${existingContent}\n\n// DLP Reward Contracts\n${newExports}\n`;
 
   await writeFile(indexPath, updatedContent);
   console.log(`✅ Updated ${indexPath}`);
@@ -306,4 +305,4 @@ async function main(): Promise<void> {
 }
 
 // Run the script
-main();
+void main();

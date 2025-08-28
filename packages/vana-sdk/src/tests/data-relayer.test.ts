@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DataController } from "../controllers/data";
-import { ControllerContext } from "../controllers/permissions";
-import { Address } from "viem";
+import type { ControllerContext } from "../controllers/permissions";
+import type { Address } from "viem";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock global fetch
@@ -42,7 +42,7 @@ describe("DataController Relayer Integration", () => {
       walletClient: {
         account: { address: "0xTestUser" },
         getAddresses: vi.fn().mockResolvedValue(["0xTestUser"]),
-        signMessage: vi.fn().mockResolvedValue("0xSignature"),
+        signMessage: vi.fn().mockResolvedValue(`0x${"0".repeat(130)}`),
       } as unknown as ControllerContext["walletClient"],
       publicClient: {} as unknown as ControllerContext["publicClient"],
       applicationClient:
@@ -137,10 +137,17 @@ describe("DataController Relayer Integration", () => {
     });
 
     it("should fallback to direct transaction when no relayerCallbacks", async () => {
-      // Remove relayer callbacks from context
+      // Remove relayer callbacks from context but add waitForTransactionEvents
       const contextWithoutRelayer = {
         ...mockContext,
         relayerCallbacks: undefined,
+        waitForTransactionEvents: vi.fn().mockResolvedValue({
+          expectedEvents: {
+            FileAdded: {
+              fileId: BigInt(789),
+            },
+          },
+        }),
       };
       const controller = new DataController(contextWithoutRelayer);
 
@@ -148,8 +155,10 @@ describe("DataController Relayer Integration", () => {
       const addFileWithPermissionsSpy = vi
         .spyOn(controller, "addFileWithPermissions")
         .mockResolvedValue({
-          fileId: 42,
-          transactionHash: "0xDirectTxHash",
+          hash: "0xDirectTxHash" as `0x${string}`,
+          from: "0xuser" as `0x${string}`,
+          contract: "DataRegistry",
+          fn: "addFileWithPermissions",
         });
 
       const testBlob = new Blob(["test data"], { type: "text/plain" });
@@ -175,6 +184,7 @@ describe("DataController Relayer Integration", () => {
       );
 
       expect(result.transactionHash).toBe("0xDirectTxHash");
+      expect(result.fileId).toBe(789);
     });
 
     it("should handle relayer errors gracefully", async () => {

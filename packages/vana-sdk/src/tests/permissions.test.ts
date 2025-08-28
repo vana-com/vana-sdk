@@ -1,9 +1,8 @@
-import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Mock } from "vitest";
 import type { Hash, Address, PublicClient } from "viem";
-import {
-  PermissionsController,
-  ControllerContext,
-} from "../controllers/permissions";
+import { PermissionsController } from "../controllers/permissions";
+import type { ControllerContext } from "../controllers/permissions";
 import {
   RelayerError,
   UserRejectedRequestError,
@@ -24,6 +23,13 @@ vi.mock("viem", async () => {
     createPublicClient: vi.fn(() => ({
       readContract: vi.fn(),
       waitForTransactionReceipt: vi.fn(),
+      getTransactionReceipt: vi.fn().mockResolvedValue({
+        transactionHash: "0xTransactionHash",
+        blockNumber: 12345n,
+        gasUsed: 100000n,
+        status: "success" as const,
+        logs: [],
+      }),
     })),
     getContract: vi.fn(() => ({
       read: {
@@ -107,6 +113,7 @@ interface MockWalletClient {
 interface MockPublicClient {
   readContract: ReturnType<typeof vi.fn>;
   waitForTransactionReceipt: ReturnType<typeof vi.fn>;
+  getTransactionReceipt: ReturnType<typeof vi.fn>;
   getChainId: ReturnType<typeof vi.fn>;
 }
 
@@ -155,7 +162,7 @@ describe("PermissionsController", () => {
         grantee: params.grantee,
         operation: params.operation,
         parameters: params.parameters,
-        expires: params.expiresAt || Math.floor(Date.now() / 1000) + 3600,
+        expires: params.expiresAt ?? Math.floor(Date.now() / 1000) + 3600,
       }),
     );
 
@@ -176,7 +183,7 @@ describe("PermissionsController", () => {
       getAddresses: vi
         .fn()
         .mockResolvedValue(["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"]),
-      signTypedData: vi.fn().mockResolvedValue("0xsignature" as Hash),
+      signTypedData: vi.fn().mockResolvedValue(`0x${"0".repeat(130)}` as Hash),
       writeContract: vi.fn().mockResolvedValue("0xtxhash" as Hash),
     };
 
@@ -186,6 +193,13 @@ describe("PermissionsController", () => {
       waitForTransactionReceipt: vi.fn().mockResolvedValue({
         blockNumber: 12345n,
         gasUsed: 100000n,
+        logs: [],
+      }),
+      getTransactionReceipt: vi.fn().mockResolvedValue({
+        transactionHash: "0xTransactionHash",
+        blockNumber: 12345n,
+        gasUsed: 100000n,
+        status: "success" as const,
         logs: [],
       }),
       getChainId: vi.fn().mockResolvedValue(14800),
@@ -201,6 +215,19 @@ describe("PermissionsController", () => {
         submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
       },
       platform: mockPlatformAdapter,
+      waitForTransactionEvents: vi.fn().mockResolvedValue({
+        hash: "0xtxhash",
+        from: "0xfrom",
+        contract: "DataPortabilityPermissions",
+        fn: "addPermission",
+        expectedEvents: {
+          PermissionAdded: {
+            permissionId: 1n,
+          },
+        },
+        allEvents: [],
+        hasExpectedEvents: true,
+      }),
     };
 
     controller = new PermissionsController(mockContext);
@@ -221,8 +248,8 @@ describe("PermissionsController", () => {
       const result = await controller.grant(mockGrantParams);
 
       expect(result).toMatchObject({
-        hash: "0xtxhash",
-        from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        transactionHash: "0xtxhash",
+        permissionId: 1n,
       });
       expect(mockWalletClient.signTypedData).toHaveBeenCalled();
       // Should use relayerCallbacks pattern
@@ -306,11 +333,28 @@ describe("PermissionsController", () => {
         .fn()
         .mockResolvedValue("0xrevokehash");
 
+      // Mock waitForTransactionEvents to return PermissionRevoked event
+      if (mockContext.waitForTransactionEvents) {
+        vi.mocked(mockContext.waitForTransactionEvents).mockResolvedValueOnce({
+          hash: "0xrevokehash",
+          from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          contract: "DataPortabilityPermissions",
+          fn: "revokePermission",
+          expectedEvents: {
+            PermissionRevoked: {
+              permissionId: BigInt(123),
+            },
+          },
+          allEvents: [],
+          hasExpectedEvents: true,
+        });
+      }
+
       const result = await controller.revoke(mockRevokeParams);
 
       expect(result).toMatchObject({
-        hash: "0xrevokehash",
-        from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        transactionHash: "0xrevokehash",
+        permissionId: BigInt(123),
       });
       expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -395,6 +439,23 @@ describe("PermissionsController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        waitForTransactionEvents: vi.fn().mockResolvedValue({
+          hash: "0xdirecttxhash",
+          from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          contract: "DataPortabilityPermissions",
+          fn: "addPermission",
+          expectedEvents: {
+            PermissionAdded: {
+              permissionId: 1n,
+              user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+              grantee: "0x1234567890123456789012345678901234567890",
+              grant: "https://example.com/grant.json",
+              fileIds: [1, 2, 3],
+            },
+          },
+          allEvents: [],
+          hasExpectedEvents: true,
+        }),
         // No relayerUrl - forces direct transaction path
       });
     });
@@ -436,8 +497,8 @@ describe("PermissionsController", () => {
       const result = await directController.grant(mockParams);
 
       expect(result).toMatchObject({
-        hash: "0xdirecttxhash",
-        from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        transactionHash: "0xdirecttxhash",
+        permissionId: 1n,
       });
       expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -570,8 +631,8 @@ describe("PermissionsController", () => {
         }),
       );
       expect(result).toMatchObject({
-        hash: "0xtxhash",
-        from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        transactionHash: "0xtxhash",
+        permissionId: 1n,
       });
     });
   });
@@ -1002,6 +1063,23 @@ describe("PermissionsController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        waitForTransactionEvents: vi.fn().mockResolvedValue({
+          hash: "0xtxhash",
+          from: undefined,
+          contract: "DataPortabilityPermissions",
+          fn: "submitPermission",
+          expectedEvents: {
+            PermissionAdded: {
+              permissionId: 1n,
+              user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+              grantee: "0x1234567890123456789012345678901234567890",
+              grant: "https://example.com/grant.json",
+              fileIds: [],
+            },
+          },
+          allEvents: [],
+          hasExpectedEvents: true,
+        }),
         // No relayerUrl - forces direct transaction path
       });
 
@@ -1029,8 +1107,8 @@ describe("PermissionsController", () => {
 
       const result = await directController.grant(mockParams);
       expect(result).toMatchObject({
-        hash: "0xtxhash",
-        from: undefined,
+        transactionHash: "0xtxhash",
+        permissionId: 1n,
       });
     });
 
@@ -1190,6 +1268,19 @@ describe("PermissionsController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        waitForTransactionEvents: vi.fn().mockResolvedValue({
+          hash: "0xmockabcdef1234567890abcdef1234567890abcdef1234567890abcdef123456",
+          from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          contract: "DataPortabilityPermissions",
+          fn: "revokePermission",
+          expectedEvents: {
+            PermissionRevoked: {
+              permissionId: 1n,
+            },
+          },
+          allEvents: [],
+          hasExpectedEvents: true,
+        }),
         // No relayer callbacks to force direct transaction path
       });
 
@@ -1206,10 +1297,11 @@ describe("PermissionsController", () => {
 
       const result = await controller.revoke(mockRevokeParams);
 
-      // Should return event data from parsed transaction
+      // Should return revoke result
       expect(result).toMatchObject({
-        hash: "0xmockabcdef1234567890abcdef1234567890abcdef1234567890abcdef123456",
-        from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        transactionHash:
+          "0xmockabcdef1234567890abcdef1234567890abcdef1234567890abcdef123456",
+        permissionId: 1n,
       });
     });
 
@@ -1253,6 +1345,19 @@ describe("PermissionsController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        waitForTransactionEvents: vi.fn().mockResolvedValue({
+          hash: "0xmockdirecttxhash",
+          from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          contract: "DataPortabilityPermissions",
+          fn: "revokePermission",
+          expectedEvents: {
+            PermissionRevoked: {
+              permissionId: 1n,
+            },
+          },
+          allEvents: [],
+          hasExpectedEvents: true,
+        }),
         // No relayer callbacks
       });
 
@@ -1265,10 +1370,10 @@ describe("PermissionsController", () => {
       // Since we're mocking, we need to test this indirectly through revoke
       const result = await controllerWithChain.revoke(mockRevokeParams);
 
-      // Should return event data from parsed transaction
+      // Should return revoke result
       expect(result).toMatchObject({
-        hash: "0xmockdirecttxhash",
-        from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        transactionHash: "0xmockdirecttxhash",
+        permissionId: 1n,
       });
     });
 
@@ -1351,6 +1456,22 @@ describe("PermissionsController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        waitForTransactionEvents: vi.fn().mockResolvedValue({
+          hash: "0xtxhash",
+          from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          contract: "DataPortabilityPermissions",
+          fn: "submitPermission",
+          expectedEvents: {
+            PermissionAdded: {
+              permissionId: 1n,
+              user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+              grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+              grant: "https://ipfs.io/ipfs/QmGrantFile",
+            },
+          },
+          allEvents: [],
+          hasExpectedEvents: true,
+        }),
         relayerCallbacks: {
           submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
           submitPermissionRevoke: vi.fn().mockResolvedValue("0xtxhash"),
@@ -1375,20 +1496,20 @@ describe("PermissionsController", () => {
 
       const result = await controller.grant(mockParams);
       expect(result).toMatchObject({
-        hash: "0xtxhash",
-        from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        permissionId: 1n,
+        transactionHash: "0xtxhash",
       });
     });
   });
 
   describe("submitRevokeWithSignature", () => {
     beforeEach(() => {
-      // Mock getUserNonce for typed data creation
+      // Mock getPermissionsUserNonce for typed data creation
       vi.spyOn(
         controller as unknown as {
-          getUserNonce: () => Promise<bigint>;
+          getPermissionsUserNonce: () => Promise<bigint>;
         },
-        "getUserNonce",
+        "getPermissionsUserNonce",
       ).mockResolvedValue(123n);
 
       // Mock getPermissionDomain
@@ -1410,9 +1531,7 @@ describe("PermissionsController", () => {
           signTypedData: () => Promise<string>;
         },
         "signTypedData",
-      ).mockResolvedValue(
-        "0xsignature123456789012345678901234567890123456789012345678901234567890",
-      );
+      ).mockResolvedValue(`0x${"0".repeat(130)}` as `0x${string}`);
     });
 
     it("should successfully revoke permission with signature via relayer", async () => {
@@ -1422,9 +1541,7 @@ describe("PermissionsController", () => {
           signTypedData: () => Promise<string>;
         },
         "signTypedData",
-      ).mockResolvedValue(
-        "0xsignature123456789012345678901234567890123456789012345678901234567890",
-      );
+      ).mockResolvedValue(`0x${"0".repeat(130)}` as `0x${string}`);
 
       const params = {
         permissionId: 42n,
@@ -1488,7 +1605,7 @@ describe("PermissionsController", () => {
       ).rejects.toThrow(PermissionError);
     });
 
-    it("should handle getUserNonce errors", async () => {
+    it("should handle getPermissionsUserNonce errors", async () => {
       const testContext = {
         ...mockContext,
         walletClient: {
@@ -1547,8 +1664,8 @@ describe("PermissionsController", () => {
     });
   });
 
-  describe("getUserNonce", () => {
-    it("should read nonce from DataPortabilityServers contract", async () => {
+  describe("getPermissionsUserNonce", () => {
+    it("should read nonce from DataPortabilityPermissions contract", async () => {
       const expectedNonce = 5n;
 
       // Import getContractAddress locally to avoid affecting other tests
@@ -1576,15 +1693,15 @@ describe("PermissionsController", () => {
         // Mock readContract to return the nonce
         mockPublicClient.readContract.mockResolvedValueOnce(expectedNonce);
 
-        // Call getUserNonce (private method, so we need to use type assertion)
-        const getUserNonce = (testController as any).getUserNonce.bind(
-          testController,
-        );
-        const nonce = await getUserNonce();
+        // Call getPermissionsUserNonce (private method, so we need to use type assertion)
+        const getPermissionsUserNonce = (
+          testController as any
+        ).getPermissionsUserNonce.bind(testController);
+        const nonce = await getPermissionsUserNonce();
 
         // Verify the correct contract was requested
-        expect(contractRequests).toContain("DataPortabilityServers");
-        expect(contractRequests).not.toContain("DataPermissions");
+        expect(contractRequests).toContain("DataPortabilityPermissions");
+        expect(contractRequests).not.toContain("DataPortabilityServers");
 
         expect(nonce).toBe(expectedNonce);
       } finally {
@@ -1736,8 +1853,9 @@ describe("PermissionsController", () => {
           },
         };
 
-        const signature =
-          "0xsignature123456789012345678901234567890123456789012345678901234567890";
+        const signature = `0x${"0".repeat(130)}` as `0x${string}`;
+        // The formatSignatureForContract function will modify the last byte to 1b (27 in decimal)
+        const formattedSignature = `0x${"0".repeat(128)}1b` as `0x${string}`;
 
         const result = await (
           controller as unknown as {
@@ -1756,7 +1874,7 @@ describe("PermissionsController", () => {
           address: "0x1234567890123456789012345678901234567890",
           abi: expect.any(Array),
           functionName: "revokePermissionWithSignature",
-          args: [typedData.message, signature],
+          args: [typedData.message, formattedSignature],
           account: expect.any(Object),
           chain: mockWalletClient.chain,
         });
@@ -1788,8 +1906,7 @@ describe("PermissionsController", () => {
           },
         };
 
-        const signature =
-          "0xsignature123456789012345678901234567890123456789012345678901234567890";
+        const signature = `0x${"0".repeat(130)}` as `0x${string}`;
 
         await expect(
           (

@@ -16,11 +16,11 @@ import {
   CardBody,
 } from "@heroui/react";
 import { Eye, Shield, AlertCircle, Cloud, Database } from "lucide-react";
-import { validateGrant } from "@opendatalabs/vana-sdk/browser";
-import type {
-  GrantPermissionParams,
-  GrantedPermission,
-  Grantee,
+import {
+  validateGrant,
+  type GrantPermissionParams,
+  type GrantedPermission,
+  type Grantee,
 } from "@opendatalabs/vana-sdk/browser";
 
 export interface GrantPermissionModalProps {
@@ -91,7 +91,7 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
   };
 
   // Validate grant parameters
-  const validateGrantParams = async () => {
+  const validateGrantParams = () => {
     setIsValidating(true);
     setValidationErrors([]);
 
@@ -102,12 +102,12 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
       const selectedGrantee = grantees.find(
         (g) => g.id.toString() === selectedGranteeId,
       );
-      const granteeAddress = selectedGrantee?.address || "";
+      const granteeAddress = selectedGrantee?.address ?? "";
 
       // Create a mock grant file for validation
       const mockGrantFile = {
         grantee: granteeAddress,
-        operation: operation,
+        operation,
         parameters: {
           prompt: promptText,
         },
@@ -117,7 +117,7 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
       // Validate using SDK
       const result = validateGrant(mockGrantFile, {
         throwOnError: false,
-        operation: operation,
+        operation,
         grantee: granteeAddress as `0x${string}`,
       });
 
@@ -173,7 +173,7 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
     }
   };
 
-  const handleConfirm = async () => {
+  const handleConfirm = () => {
     console.debug("🔴 [GrantPermissionModal] handleConfirm called");
     console.debug("🔴 [GrantPermissionModal] selectedFiles:", selectedFiles);
     console.debug(
@@ -184,7 +184,7 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
     console.debug("🔴 [GrantPermissionModal] operation:", operation);
     console.debug("🔴 [GrantPermissionModal] promptText:", promptText);
 
-    const isValid = await validateGrantParams();
+    const isValid = validateGrantParams();
     console.debug("🔴 [GrantPermissionModal] validation result:", isValid);
 
     if (!isValid) {
@@ -201,7 +201,7 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
       selectedGrantee,
     );
 
-    const granteeAddress = selectedGrantee?.address || "";
+    const granteeAddress = selectedGrantee?.address ?? "";
     console.debug("🔴 [GrantPermissionModal] granteeAddress:", granteeAddress);
 
     const expiresAt = getExpirationTimestamp();
@@ -220,12 +220,9 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
     console.debug("🔴 [GrantPermissionModal] final params:", params);
     console.debug("🔴 [GrantPermissionModal] calling onConfirm with params");
 
-    try {
-      onConfirm(params);
-      console.debug("🔴 [GrantPermissionModal] onConfirm called successfully");
-    } catch (error) {
-      console.error("🔴 [GrantPermissionModal] onConfirm failed:", error);
-    }
+    // Call onConfirm function
+    onConfirm(params);
+    console.debug("🔴 [GrantPermissionModal] onConfirm called successfully");
   };
 
   const handleClose = () => {
@@ -310,7 +307,9 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
               <Input
                 label="Operation"
                 value={operation}
-                onChange={(e) => setOperation(e.target.value)}
+                onChange={(e) => {
+                  setOperation(e.target.value);
+                }}
                 placeholder="llm_inference"
                 description="The operation that will be performed on your data"
               />
@@ -319,7 +318,9 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
               <Textarea
                 label="LLM Prompt"
                 value={promptText}
-                onChange={(e) => setPromptText(e.target.value)}
+                onChange={(e) => {
+                  setPromptText(e.target.value);
+                }}
                 placeholder="Enter your custom prompt for the LLM"
                 description="Customize the prompt that will be used by the LLM when processing your data. Use {{data}} as a placeholder for your file contents."
                 minRows={4}
@@ -332,9 +333,9 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
                 <Select
                   label="Expiration"
                   selectedKeys={[expirationOption]}
-                  onSelectionChange={(keys) =>
-                    setExpirationOption(Array.from(keys)[0] as string)
-                  }
+                  onSelectionChange={(keys) => {
+                    setExpirationOption(Array.from(keys)[0] as string);
+                  }}
                   description="How long this permission should remain valid"
                 >
                   <SelectItem key="never" textValue="Never (no expiration)">
@@ -359,7 +360,9 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
                     label="Custom Expiration (Hours)"
                     type="number"
                     value={customExpiration}
-                    onChange={(e) => setCustomExpiration(e.target.value)}
+                    onChange={(e) => {
+                      setCustomExpiration(e.target.value);
+                    }}
                     placeholder="24"
                     description="Number of hours from now"
                     min="1"
@@ -379,7 +382,7 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
               selectedKeys={selectedGranteeId ? [selectedGranteeId] : []}
               onSelectionChange={(keys) => {
                 const selectedKey = Array.from(keys)[0] as string;
-                setSelectedGranteeId(selectedKey || "");
+                setSelectedGranteeId(selectedKey);
               }}
               description={
                 grantees.length === 0

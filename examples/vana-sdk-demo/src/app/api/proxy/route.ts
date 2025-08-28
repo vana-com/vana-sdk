@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { promises as dns } from "dns";
 import { isIPv4 } from "net";
 
 export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams;
+  const { searchParams } = request.nextUrl;
   const url = searchParams.get("url");
 
   if (!url) {
@@ -113,7 +113,7 @@ async function handleProxy(
     return new NextResponse(data, {
       headers: {
         "Content-Type":
-          response.headers.get("Content-Type") || "application/octet-stream",
+          response.headers.get("Content-Type") ?? "application/octet-stream",
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET, POST",
         "Access-Control-Allow-Headers": "Content-Type",
@@ -129,7 +129,7 @@ async function handleProxy(
 }
 
 // Handle CORS preflight
-export async function OPTIONS() {
+export function OPTIONS() {
   return new NextResponse(null, {
     status: 200,
     headers: {

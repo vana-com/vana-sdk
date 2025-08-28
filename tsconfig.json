@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
-    "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "es6"],
+    "target": "ES2024",
+    "lib": ["dom", "dom.iterable", "ES2024"],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -19,7 +19,7 @@
       "vana-sdk/*": ["./packages/vana-sdk/src/*"]
     }
   },
-  "include": [],
+  "include": ["eslint.config.js"],
   "exclude": ["node_modules"],
   "references": [
     {

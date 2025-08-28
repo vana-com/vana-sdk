@@ -3,7 +3,7 @@ import { createWalletClient, createPublicClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { mokshaTestnet } from "../config/chains";
 import { ProtocolController } from "../controllers/protocol";
-import { ControllerContext } from "../controllers/permissions";
+import type { ControllerContext } from "../controllers/permissions";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock the config and ABI modules

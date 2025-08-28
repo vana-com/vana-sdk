@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
+import type { Mock } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   createValidatedGrant,
   createAndStoreGrant,
@@ -8,7 +9,7 @@ import {
   getGrantTimeRemaining,
   summarizeGrant,
 } from "../utils/grants";
-import { GrantValidationError } from "../utils/grantValidation";
+import { validateGrant, GrantValidationError } from "../utils/grantValidation";
 
 // Mock the dependencies
 vi.mock("../utils/grantFiles", () => ({
@@ -36,7 +37,6 @@ import {
   storeGrantFile,
   retrieveGrantFile,
 } from "../utils/grantFiles";
-import { validateGrant } from "../utils/grantValidation";
 
 describe("Grant Utilities", () => {
   const mockGrantFile = {

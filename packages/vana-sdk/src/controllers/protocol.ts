@@ -1,13 +1,12 @@
 import type { ContractInfo, VanaChainId } from "../types/index";
-import type { VanaContract } from "../generated/abi";
+import type { VanaContract, ContractAbis } from "../generated/abi";
 import { ContractNotFoundError } from "../errors";
 import {
   getContractController,
   getContractInfo,
   ContractFactory,
 } from "../contracts/contractController";
-import { ContractAbis } from "../generated/abi";
-import { ControllerContext } from "./permissions";
+import type { ControllerContext } from "./permissions";
 import type { GetContractReturnType } from "viem";
 
 /**
@@ -104,7 +103,7 @@ export class ProtocolController {
         if (error.message.includes("Contract address not found")) {
           let chainId = 0;
           try {
-            chainId = this.context.walletClient.chain?.id || 0;
+            chainId = this.context.walletClient.chain?.id ?? 0;
           } catch {
             // Use 0 as fallback if chain ID access fails
             chainId = 0;
@@ -149,7 +148,7 @@ export class ProtocolController {
     } catch (error) {
       if (error instanceof Error) {
         if (error.message.includes("Contract address not found")) {
-          const chainId = this.context.walletClient.chain?.id || 0;
+          const chainId = this.context.walletClient.chain?.id ?? 0;
           throw new ContractNotFoundError(contractName, chainId);
         }
         throw error;

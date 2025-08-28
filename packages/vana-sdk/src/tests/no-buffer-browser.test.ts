@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
+// Type for global with Buffer property
+interface GlobalWithBuffer {
+  Buffer?: typeof Buffer;
+}
+
 describe.skip("Browser Bundle - No Buffer Dependency", () => {
   // SKIP REASON: This test causes hanging issues when run with other tests
   // because it deletes global Buffer and uses dynamic imports.
@@ -8,22 +13,22 @@ describe.skip("Browser Bundle - No Buffer Dependency", () => {
 
   beforeEach(() => {
     // Save original Buffer if it exists
-    originalBuffer = (globalThis as any).Buffer;
+    originalBuffer = (globalThis as GlobalWithBuffer).Buffer;
     // Remove Buffer from global scope
-    delete (globalThis as any).Buffer;
+    delete (globalThis as GlobalWithBuffer).Buffer;
   });
 
   afterEach(() => {
     // Restore original Buffer if it existed
     if (originalBuffer !== undefined) {
-      (globalThis as any).Buffer = originalBuffer;
+      (globalThis as GlobalWithBuffer).Buffer = originalBuffer;
     }
   });
 
   it("should work without Buffer being available", async () => {
     // Verify Buffer is not available
     expect(typeof Buffer).toBe("undefined");
-    expect((globalThis as any).Buffer).toBeUndefined();
+    expect((globalThis as GlobalWithBuffer).Buffer).toBeUndefined();
 
     // Import browser modules - these should work without Buffer
     const { BrowserPlatformAdapter } = await import("../platform/browser");
@@ -48,11 +53,15 @@ describe.skip("Browser Bundle - No Buffer Dependency", () => {
     privateKey[0] = privateKey[0] & 0x7f;
 
     // Create public key
-    const publicKey = await ecies["createPublicKey"](privateKey, false);
+    const publicKey = ecies["createPublicKey"](privateKey, false);
     expect(publicKey).toBeDefined();
 
+    if (!publicKey) {
+      throw new Error("Public key should be defined");
+    }
+
     // Test encryption/decryption
-    const encrypted = await ecies.encrypt(publicKey!, testData);
+    const encrypted = await ecies.encrypt(publicKey, testData);
     expect(encrypted).toBeDefined();
     expect(encrypted.iv).toBeInstanceOf(Uint8Array);
     expect(encrypted.ephemPublicKey).toBeInstanceOf(Uint8Array);

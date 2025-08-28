@@ -1,9 +1,9 @@
-import {
+import type {
   CreateOperationParams,
   InitPersonalServerParams,
   PersonalServerIdentity,
 } from "../types";
-import {
+import type {
   CreateOperationResponse,
   GetOperationResponse,
   IdentityResponseModel,
@@ -14,7 +14,7 @@ import {
   SignatureError,
   PersonalServerError,
 } from "../errors";
-import { ControllerContext } from "./permissions";
+import type { ControllerContext } from "./permissions";
 import type { Operation, PollingOptions } from "../types/operations";
 
 // Server types are now auto-imported from the generated exports
@@ -97,12 +97,12 @@ export class ServerController {
    *
    * console.log(`Server: ${identity.name}`);
    * console.log(`Address: ${identity.address}`);
-   * console.log(`Public Key: ${identity.public_key}`);
+   * console.log(`Public Key: ${identity.publicKey}`);
    *
    * // Use the public key for encrypting data to share with this server
    * const encryptedData = await encryptWithWalletPublicKey(
    *   userData,
-   *   identity.public_key
+   *   identity.publicKey
    * );
    * ```
    */
@@ -133,8 +133,8 @@ export class ServerController {
       return {
         kind: serverResponse.personal_server.kind,
         address: serverResponse.personal_server.address,
-        public_key: serverResponse.personal_server.public_key,
-        base_url: this.personalServerBaseUrl,
+        publicKey: serverResponse.personal_server.public_key,
+        baseUrl: this.personalServerBaseUrl,
         name: "Hosted Vana Server",
       };
     } catch (error) {
@@ -279,7 +279,8 @@ export class ServerController {
         createdAt: Date.now(),
         updatedAt: Date.now(),
         result: data.status === "succeeded" ? (data.result as T) : undefined,
-        error: data.status === "failed" ? data.result || undefined : undefined,
+        error:
+          data.status === "failed" ? (data.result ?? undefined) : undefined,
       };
     } catch (error) {
       if (error instanceof NetworkError) {
@@ -337,7 +338,7 @@ export class ServerController {
 
       if (operation.status === "failed") {
         throw new PersonalServerError(
-          `Operation ${operation.status}: ${operation.error || "Unknown error"}`,
+          `Operation ${operation.status}: ${operation.error ?? "Unknown error"}`,
         );
       }
 
@@ -488,10 +489,10 @@ export class ServerController {
 
       // Use applicationClient if available, fallback to walletClient
       const client =
-        this.context.applicationClient || this.context.walletClient;
+        this.context.applicationClient ?? this.context.walletClient;
 
       // Get the account from the wallet client
-      const account = client.account;
+      const { account } = client;
       if (!account) {
         throw new SignatureError("No account available for signing");
       }

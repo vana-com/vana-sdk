@@ -5,13 +5,13 @@ import {
   vi,
   beforeEach,
   afterEach,
-  MockedFunction,
+  type MockedFunction,
 } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
-import { useAccount } from "wagmi";
+import { useAccount, type UseAccountReturnType } from "wagmi";
 import { useVana } from "@/providers/VanaProvider";
-import { useUserFiles, ExtendedUserFile } from "../useUserFiles";
-import { UserFile } from "@opendatalabs/vana-sdk/browser";
+import { useUserFiles, type ExtendedUserFile } from "../useUserFiles";
+import type { UserFile, VanaInstance } from "@opendatalabs/vana-sdk/browser";
 import {
   createMockUseAccount,
   createMockUseVana,
@@ -21,13 +21,6 @@ import {
 // Mock dependencies
 vi.mock("wagmi");
 vi.mock("@/providers/VanaProvider");
-
-// Mock DOM APIs only when needed for specific tests
-const _mockElement = {
-  href: "",
-  download: "",
-  click: vi.fn(),
-};
 
 const useAccountMock = useAccount as MockedFunction<typeof useAccount>;
 const useVanaMock = useVana as MockedFunction<typeof useVana>;
@@ -53,7 +46,7 @@ describe("useUserFiles", () => {
     useAccountMock.mockReturnValue(createMockUseAccount());
     useVanaMock.mockReturnValue(
       createMockUseVana({
-        vana: mockVana as any,
+        vana: mockVana as unknown as VanaInstance,
       }),
     );
 
@@ -125,7 +118,16 @@ describe("useUserFiles", () => {
     it("does not load files when address is not available", () => {
       useAccountMock.mockReturnValue({
         address: undefined,
-      } as any);
+        addresses: [],
+        chain: undefined,
+        chainId: undefined,
+        connector: undefined,
+        isConnected: false,
+        isConnecting: false,
+        isDisconnected: true,
+        isReconnecting: false,
+        status: "disconnected",
+      } as unknown as UseAccountReturnType);
 
       renderHook(() => useUserFiles());
 
@@ -172,8 +174,8 @@ describe("useUserFiles", () => {
     });
 
     it("sets loading state correctly during file loading", async () => {
-      let resolvePromise: (value: any) => void;
-      const promise = new Promise((resolve) => {
+      let resolvePromise: (value: UserFile[]) => void;
+      const promise = new Promise<UserFile[]>((resolve) => {
         resolvePromise = resolve;
       });
       mockVana.data.getUserFiles.mockReturnValue(promise);
@@ -181,13 +183,15 @@ describe("useUserFiles", () => {
       const { result } = renderHook(() => useUserFiles());
 
       act(() => {
-        result.current.loadUserFiles();
+        void result.current.loadUserFiles();
       });
 
       expect(result.current.isLoadingFiles).toBe(true);
 
       await act(async () => {
-        resolvePromise!(mockUserFiles);
+        if (resolvePromise) {
+          resolvePromise(mockUserFiles);
+        }
         await promise;
       });
 
@@ -330,22 +334,26 @@ describe("useUserFiles", () => {
     });
 
     it("sets decrypting state correctly during decryption", async () => {
-      let resolvePromise: (value: any) => void;
-      const promise = new Promise((resolve) => {
-        resolvePromise = resolve;
-      });
+      let resolvePromise: (value: { text: () => Promise<string> }) => void;
+      const promise = new Promise<{ text: () => Promise<string> }>(
+        (resolve) => {
+          resolvePromise = resolve;
+        },
+      );
       mockVana.data.decryptFile.mockReturnValue(promise);
 
       const { result } = renderHook(() => useUserFiles());
 
       act(() => {
-        result.current.handleDecryptFile(mockFile);
+        void result.current.handleDecryptFile(mockFile);
       });
 
       expect(result.current.decryptingFiles.has(1)).toBe(true);
 
       await act(async () => {
-        resolvePromise!({ text: () => Promise.resolve("content") });
+        if (resolvePromise) {
+          resolvePromise({ text: () => Promise.resolve("content") });
+        }
         await promise;
       });
 
@@ -369,13 +377,6 @@ describe("useUserFiles", () => {
   });
 
   describe("handleDownloadDecryptedFile", () => {
-    const _mockFile: UserFile = {
-      id: 1,
-      url: "ipfs://file1",
-      ownerAddress: "0x123" as `0x${string}`,
-      addedAtBlock: BigInt(1000),
-    };
-
     it.skip("downloads decrypted file when content is available", async () => {
       // Skipping DOM-related test for now
     });
@@ -523,8 +524,8 @@ describe("useUserFiles", () => {
     });
 
     it("sets looking up state correctly during lookup", async () => {
-      let resolvePromise: (value: any) => void;
-      const promise = new Promise((resolve) => {
+      let resolvePromise: (value: UserFile) => void;
+      const promise = new Promise<UserFile>((resolve) => {
         resolvePromise = resolve;
       });
       mockVana.data.getFileById.mockReturnValue(promise);
@@ -532,14 +533,16 @@ describe("useUserFiles", () => {
       const { result } = renderHook(() => useUserFiles());
 
       act(() => {
-        result.current.handleLookupFile("3");
+        void result.current.handleLookupFile("3");
       });
 
       expect(result.current.isLookingUpFile).toBe(true);
       expect(result.current.fileLookupStatus).toBe("Looking up file...");
 
       await act(async () => {
-        resolvePromise!(mockLookedUpFile);
+        if (resolvePromise) {
+          resolvePromise(mockLookedUpFile);
+        }
         await promise;
       });
 
@@ -631,10 +634,15 @@ describe("useUserFiles", () => {
     });
 
     it("sets uploading state correctly during upload", async () => {
-      let resolvePromise: (value: any) => void;
-      const promise = new Promise((resolve) => {
-        resolvePromise = resolve;
-      });
+      let resolvePromise: (value: {
+        fileId: number;
+        transactionHash: string;
+      }) => void;
+      const promise = new Promise<{ fileId: number; transactionHash: string }>(
+        (resolve) => {
+          resolvePromise = resolve;
+        },
+      );
       mockVana.data.upload.mockReturnValue(promise);
 
       const { result } = renderHook(() => useUserFiles());
@@ -644,13 +652,15 @@ describe("useUserFiles", () => {
       });
 
       act(() => {
-        result.current.handleUploadText();
+        void result.current.handleUploadText();
       });
 
       expect(result.current.isUploadingText).toBe(true);
 
       await act(async () => {
-        resolvePromise!({ fileId: 4, transactionHash: "0xtx" });
+        if (resolvePromise) {
+          resolvePromise({ fileId: 4, transactionHash: "0xtx" });
+        }
         await promise;
       });
 
@@ -672,7 +682,16 @@ describe("useUserFiles", () => {
       // Simulate wallet disconnection
       useAccountMock.mockReturnValue({
         address: undefined,
-      } as any);
+        addresses: [],
+        chain: undefined,
+        chainId: undefined,
+        connector: undefined,
+        isConnected: false,
+        isConnecting: false,
+        isDisconnected: true,
+        isReconnecting: false,
+        status: "disconnected",
+      } as unknown as UseAccountReturnType);
 
       rerender();
 

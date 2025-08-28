@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import {
+import type {
   Schema,
   Refiner,
   CreateSchemaParams,
@@ -33,7 +33,7 @@ export interface UseSchemasAndRefinersReturn {
   schemaDefinition: string;
   isCreatingSchema: boolean;
   schemaStatus: string;
-  lastCreatedSchemaId: number | null;
+  lastCreatedSchemaId: bigint | null;
 
   // Refiners state
   refiners: ExtendedRefiner[];
@@ -89,7 +89,7 @@ export function useSchemasAndRefiners(): UseSchemasAndRefinersReturn {
   const [schemaDefinition, setSchemaDefinition] = useState<string>("");
   const [isCreatingSchema, setIsCreatingSchema] = useState(false);
   const [schemaStatus, setSchemaStatus] = useState<string>("");
-  const [lastCreatedSchemaId, setLastCreatedSchemaId] = useState<number | null>(
+  const [lastCreatedSchemaId, setLastCreatedSchemaId] = useState<bigint | null>(
     null,
   );
 
@@ -201,7 +201,7 @@ export function useSchemasAndRefiners(): UseSchemasAndRefinersReturn {
           schema: definitionObject,
         };
 
-        return await vana.schemas.create(params);
+        return vana.schemas.create(params);
       },
       {
         setLoading: setIsCreatingSchema,
@@ -218,7 +218,7 @@ export function useSchemasAndRefiners(): UseSchemasAndRefinersReturn {
           setSchemaDefinition("");
           // Refresh counts
           setTimeout(() => {
-            loadSchemas();
+            void loadSchemas();
           }, 2000);
         },
       },
@@ -251,12 +251,12 @@ export function useSchemasAndRefiners(): UseSchemasAndRefinersReturn {
       async () => {
         const params: AddRefinerParams = {
           name: refinerName,
-          dlpId: dlpId,
+          dlpId,
           schemaId: schemaIdNum,
           refinementInstructionUrl: refinerInstructionUrl,
         };
 
-        return await vana.data.addRefiner(params);
+        return vana.data.addRefiner(params);
       },
       {
         setLoading: setIsCreatingRefiner,
@@ -274,7 +274,7 @@ export function useSchemasAndRefiners(): UseSchemasAndRefinersReturn {
           setRefinerInstructionUrl("");
           // Refresh counts
           setTimeout(() => {
-            loadRefiners();
+            void loadRefiners();
           }, 2000);
         },
       },
@@ -313,7 +313,7 @@ export function useSchemasAndRefiners(): UseSchemasAndRefinersReturn {
           newSchemaId,
         };
 
-        return await vana.data.updateSchemaId(params);
+        return vana.data.updateSchemaId(params);
       },
       {
         setLoading: setIsUpdatingSchema,
@@ -327,7 +327,7 @@ export function useSchemasAndRefiners(): UseSchemasAndRefinersReturn {
           setUpdateSchemaId("");
           // Refresh refiners list
           setTimeout(() => {
-            loadRefiners();
+            void loadRefiners();
           }, 2000);
         },
       },
@@ -339,8 +339,8 @@ export function useSchemasAndRefiners(): UseSchemasAndRefinersReturn {
   // Load schemas and refiners when Vana is initialized
   useEffect(() => {
     if (vana && address) {
-      loadSchemas();
-      loadRefiners();
+      void loadSchemas();
+      void loadRefiners();
     }
   }, [vana, address, loadSchemas, loadRefiners]);
 

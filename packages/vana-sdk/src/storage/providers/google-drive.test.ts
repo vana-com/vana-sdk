@@ -1,5 +1,7 @@
-import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
-import { GoogleDriveStorage, GoogleDriveConfig } from "./google-drive";
+import type { Mock } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { GoogleDriveConfig } from "./google-drive";
+import { GoogleDriveStorage } from "./google-drive";
 
 // Mock fetch globally
 global.fetch = vi.fn();

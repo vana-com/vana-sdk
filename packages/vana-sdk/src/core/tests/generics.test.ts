@@ -20,7 +20,7 @@ import type {
 
 // Mock setTimeout for tests
 const originalSetTimeout = global.setTimeout;
-const mockSetTimeout = vi.fn().mockImplementation((callback, _delay) => {
+const mockSetTimeout = vi.fn().mockImplementation((callback) => {
   return originalSetTimeout(callback, 0); // Execute immediately for tests
 });
 
@@ -47,7 +47,7 @@ describe("BaseController", () => {
       params: unknown,
       validator?: (params: unknown) => params is T,
     ) {
-      return this.validateParams(params, validator);
+      this.validateParams(params, validator);
     }
   }
 
@@ -183,19 +183,21 @@ describe("BaseController", () => {
       };
 
       const validParams = { id: 123 };
-      expect(() =>
-        controller.testValidateParams(validParams, validator),
-      ).not.toThrow();
+      expect(() => {
+        controller.testValidateParams(validParams, validator);
+      }).not.toThrow();
 
       const invalidParams = { name: "test" };
-      expect(() =>
-        controller.testValidateParams(invalidParams, validator),
-      ).toThrow("Invalid parameters");
+      expect(() => {
+        controller.testValidateParams(invalidParams, validator);
+      }).toThrow("Invalid parameters");
     });
 
     it("should pass validation without custom validator", () => {
       const params = { anything: "goes" };
-      expect(() => controller.testValidateParams(params)).not.toThrow();
+      expect(() => {
+        controller.testValidateParams(params);
+      }).not.toThrow();
     });
   });
 });
@@ -356,13 +358,13 @@ describe("RateLimiter", () => {
     it("should return correct remaining count", () => {
       expect(rateLimiter.getRemainingRequests()).toBe(3);
 
-      rateLimiter.checkLimit();
+      void rateLimiter.checkLimit();
       expect(rateLimiter.getRemainingRequests()).toBe(2);
 
-      rateLimiter.checkLimit();
+      void rateLimiter.checkLimit();
       expect(rateLimiter.getRemainingRequests()).toBe(1);
 
-      rateLimiter.checkLimit();
+      void rateLimiter.checkLimit();
       expect(rateLimiter.getRemainingRequests()).toBe(0);
     });
   });
@@ -373,7 +375,7 @@ describe("RateLimiter", () => {
     });
 
     it("should return correct reset time", () => {
-      rateLimiter.checkLimit();
+      void rateLimiter.checkLimit();
       expect(rateLimiter.getResetTime()).toBe(10000);
     });
   });
@@ -389,7 +391,7 @@ describe("RateLimiter", () => {
 
       // Advance time to clear window
       setTimeout(() => {
-        (Date.now as ReturnType<typeof vi.fn>).mockReturnValue(1000000 + 15000);
+        vi.mocked(Date.now).mockReturnValue(1000000 + 15000);
       }, 0);
 
       await waitPromise;
@@ -427,7 +429,7 @@ describe("MemoryCache", () => {
       expect(await cache.get("key1")).toBe("value1");
 
       // Advance time past TTL
-      (Date.now as ReturnType<typeof vi.fn>).mockReturnValue(1000000 + 6000);
+      vi.mocked(Date.now).mockReturnValue(1000000 + 6000);
       expect(await cache.get("key1")).toBeUndefined();
     });
   });
@@ -470,7 +472,7 @@ describe("MemoryCache", () => {
       await cache.set("key1", "value1", 5000);
       expect(await cache.has("key1")).toBe(true);
 
-      (Date.now as ReturnType<typeof vi.fn>).mockReturnValue(1000000 + 6000);
+      vi.mocked(Date.now).mockReturnValue(1000000 + 6000);
       expect(await cache.has("key1")).toBe(false);
     });
   });
@@ -797,9 +799,9 @@ describe("AsyncQueue", () => {
       const slowOperation = () =>
         new Promise((resolve) => setTimeout(resolve, 100));
 
-      queue.add(slowOperation);
-      queue.add(slowOperation);
-      queue.add(slowOperation); // This should be queued
+      void queue.add(slowOperation);
+      void queue.add(slowOperation);
+      void queue.add(slowOperation); // This should be queued
 
       expect(queue.pending).toBeGreaterThan(0);
     });
@@ -809,7 +811,7 @@ describe("AsyncQueue", () => {
 
       const slowOperation = () =>
         new Promise((resolve) => setTimeout(resolve, 100));
-      queue.add(slowOperation);
+      void queue.add(slowOperation);
 
       // Active count should increase immediately
       expect(queue.active).toBeGreaterThan(0);
@@ -820,9 +822,9 @@ describe("AsyncQueue", () => {
 
       const slowOperation = () =>
         new Promise((resolve) => setTimeout(resolve, 100));
-      queue.add(slowOperation);
-      queue.add(slowOperation);
-      queue.add(slowOperation);
+      void queue.add(slowOperation);
+      void queue.add(slowOperation);
+      void queue.add(slowOperation);
 
       expect(queue.size).toBeGreaterThan(0);
     });
@@ -831,9 +833,9 @@ describe("AsyncQueue", () => {
       const operation = () =>
         new Promise((resolve) => setTimeout(resolve, 100));
 
-      queue.add(operation);
-      queue.add(operation);
-      queue.add(operation);
+      void queue.add(operation);
+      void queue.add(operation);
+      void queue.add(operation);
 
       queue.clear();
 

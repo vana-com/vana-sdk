@@ -142,8 +142,8 @@ export function useTrustedServers(): UseTrustedServersReturn {
     try {
       await vana.permissions.addAndTrustServer({
         serverAddress: serverAddress as `0x${string}`,
-        serverUrl: serverUrl,
-        publicKey: publicKey,
+        serverUrl,
+        publicKey,
       });
 
       // Success - form shows success via trustServerError being cleared
@@ -176,9 +176,9 @@ export function useTrustedServers(): UseTrustedServersReturn {
       if (!vana || !address) return;
 
       // Use override values if provided, otherwise use form state
-      const actualServerAddress = overrideServerAddress || serverAddress;
-      const actualServerUrl = overrideServerUrl || serverUrl;
-      const actualPublicKey = overridePublicKey || publicKey;
+      const actualServerAddress = overrideServerAddress ?? serverAddress;
+      const actualServerUrl = overrideServerUrl ?? serverUrl;
+      const actualPublicKey = overridePublicKey ?? publicKey;
 
       // Validate inputs
       if (
@@ -301,7 +301,7 @@ export function useTrustedServers(): UseTrustedServersReturn {
 
       console.info("🔍 Server identity response:", identity);
 
-      if (!identity.base_url) {
+      if (!identity.baseUrl) {
         throw new Error(
           "Personal server URL is not configured. Please configure personalServerUrl in SDK settings.",
         );
@@ -309,9 +309,9 @@ export function useTrustedServers(): UseTrustedServersReturn {
 
       const discoveredServerInfo = {
         serverAddress: identity.address,
-        serverUrl: identity.base_url,
-        name: identity.name || "Personal Server",
-        publicKey: identity.public_key,
+        serverUrl: identity.baseUrl,
+        name: identity.name ?? "Personal Server",
+        publicKey: identity.publicKey,
       };
 
       console.info("✅ Server discovered:", discoveredServerInfo);
@@ -337,7 +337,7 @@ export function useTrustedServers(): UseTrustedServersReturn {
   // Load trusted servers when Vana is initialized
   useEffect(() => {
     if (vana && address) {
-      loadUserTrustedServers();
+      void loadUserTrustedServers();
     }
   }, [vana, address, loadUserTrustedServers]);
 

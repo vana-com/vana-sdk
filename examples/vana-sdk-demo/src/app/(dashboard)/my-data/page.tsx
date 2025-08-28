@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState, useCallback, useEffect } from "react";
 import { useChainId } from "wagmi";
-import { Card, CardBody, Tabs, Tab, SortDescriptor } from "@heroui/react";
+import { Card, CardBody, Tabs, Tab, type SortDescriptor } from "@heroui/react";
 import { Shield, Users, FileText, Key } from "lucide-react";
 import type {
   Schema,
@@ -33,7 +33,7 @@ export default function MyDataPage() {
   const { vana, applicationAddress: contextApplicationAddress } = useVana();
 
   // Local state for prompt text
-  const [promptText, _setPromptText] = useState<string>(
+  const [promptText] = useState<string>(
     "Create a comprehensive Digital DNA profile from this data that captures the essence of this person's digital footprint: {{data}}",
   );
 
@@ -148,7 +148,7 @@ export default function MyDataPage() {
         url: server.serverUrl,
         serverAddress: server.serverAddress,
         publicKey: "", // TODO: Fetch from server info
-        name: server.name || server.serverAddress,
+        name: server.name ?? server.serverAddress,
       })),
     [rawTrustedServers],
   );
@@ -156,7 +156,7 @@ export default function MyDataPage() {
   // Wrapper to convert number serverId to string for handleUntrustServer
   const onUntrustServer = useCallback(
     (serverId: number) => {
-      handleUntrustServer(serverId.toString());
+      void handleUntrustServer(serverId.toString());
     },
     [handleUntrustServer],
   );
@@ -169,48 +169,43 @@ export default function MyDataPage() {
     isValid?: boolean;
     validationErrors?: string[];
   }) => {
+    if (!vana) {
+      setUploadError("Vana SDK not initialized");
+      return;
+    }
+
     setIsUploadingData(true);
     setUploadError(null);
     setUploadResult(null);
 
     try {
-      // Create form data for upload
+      // Create blob from content
       const blob = new Blob([data.content], { type: "text/plain" });
-      const file = new File([blob], data.filename || "uploaded-data.txt", {
-        type: "text/plain",
+
+      // Use the SDK's upload method - it handles encryption, storage, and blockchain registration
+      const result = await vana.data.upload({
+        content: blob,
+        filename: data.filename ?? "uploaded-data.txt",
+        schemaId: data.schemaId,
+        encrypt: true, // Always encrypt user data
       });
 
-      const formData = new FormData();
-      formData.append("file", file);
+      console.log("🟡 [MyDataPage] Upload result:", result);
 
-      // Upload via IPFS endpoint
-      const response = await fetch("/api/ipfs/upload", {
-        method: "POST",
-        body: formData,
+      // Set the real result from blockchain
+      setUploadResult({
+        fileId: result.fileId,
+        transactionHash: result.transactionHash,
+        isValid: result.isValid,
+        validationErrors: result.validationErrors,
       });
 
-      if (!response.ok) {
-        throw new Error(`Upload failed: ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      if (!result.success) {
-        throw new Error(result.error || "Upload failed");
-      }
-
-      // Simulate file registration (this would normally be done via the SDK)
-      const fileResult = {
-        fileId: Math.floor(Math.random() * 10000), // Mock file ID
-        transactionHash: "0x" + Math.random().toString(16).substring(2), // Mock hash
-        isValid: data.isValid,
-        validationErrors: data.validationErrors,
-      };
-
-      setUploadResult(fileResult);
-
-      // Refresh files list
-      onRefreshFiles();
+      // Refresh files list to show the new file
+      setTimeout(() => {
+        void onRefreshFiles();
+      }, 2000); // Wait a bit for blockchain to propagate
     } catch (error) {
+      console.error("Upload failed:", error);
       setUploadError(error instanceof Error ? error.message : "Upload failed");
     } finally {
       setIsUploadingData(false);
@@ -219,26 +214,26 @@ export default function MyDataPage() {
 
   // Create wrapper functions
   const onLookupFile = useCallback(() => {
-    handleLookupFile(fileLookupId);
+    void handleLookupFile(fileLookupId);
   }, [handleLookupFile, fileLookupId]);
 
   const onLookupPermission = useCallback(() => {
-    handleLookupPermission();
+    void handleLookupPermission();
   }, [handleLookupPermission]);
 
   const onGrantPermission = useCallback(
     (customParams?: GrantPermissionParams & { expiresAt?: number }) => {
-      handleGrantPermission(selectedFiles, promptText, customParams);
+      void handleGrantPermission(selectedFiles, promptText, customParams);
     },
     [handleGrantPermission, selectedFiles, promptText],
   );
 
   const onTrustServer = useCallback(() => {
-    handleTrustServerGasless(false, serverAddress, serverUrl, publicKey);
+    void handleTrustServerGasless(false, serverAddress, serverUrl, publicKey);
   }, [handleTrustServerGasless, serverAddress, serverUrl, publicKey]);
 
   const onRefreshServers = useCallback(() => {
-    loadUserTrustedServers();
+    void loadUserTrustedServers();
   }, [loadUserTrustedServers]);
 
   // Files table state
@@ -294,7 +289,7 @@ export default function MyDataPage() {
     };
 
     if (userFiles.length > 0 && vana) {
-      fetchSchemas();
+      void fetchSchemas();
     }
   }, [userFiles, vana, fileSchemas]);
 
@@ -414,7 +409,9 @@ export default function MyDataPage() {
       <Tabs
         aria-label="Data management tabs"
         selectedKey={activeTab}
-        onSelectionChange={(key) => setActiveTab(key as string)}
+        onSelectionChange={(key) => {
+          setActiveTab(key as string);
+        }}
         className="w-full"
       >
         <Tab key="files" title="Data Files">
@@ -522,7 +519,9 @@ export default function MyDataPage() {
       {/* Grant Permission Modal */}
       <GrantPermissionModal
         isOpen={isGrantModalOpen}
-        onClose={() => setIsGrantModalOpen(false)}
+        onClose={() => {
+          setIsGrantModalOpen(false);
+        }}
         onConfirm={(params) => {
           console.debug(
             "🟡 [MyDataPage] GrantPermissionModal onConfirm called with params:",

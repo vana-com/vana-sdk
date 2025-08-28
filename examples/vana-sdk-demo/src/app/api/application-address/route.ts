@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { privateKeyToAccount } from "viem/accounts";
 
-export async function GET() {
+export function GET() {
   try {
     // Get private key from server-side environment variable
     const applicationPrivateKey = process.env.APPLICATION_PRIVATE_KEY;

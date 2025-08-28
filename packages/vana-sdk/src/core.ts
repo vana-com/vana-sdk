@@ -16,16 +16,32 @@ import type {
   DownloadRelayerCallbacks,
 } from "./types/config";
 import { InvalidConfigurationError } from "./errors";
-import {
-  PermissionsController,
-  ControllerContext,
-} from "./controllers/permissions";
+import type { ControllerContext } from "./controllers/permissions";
+import { PermissionsController } from "./controllers/permissions";
 import { DataController } from "./controllers/data";
 import { SchemaController } from "./controllers/schemas";
 import { ServerController } from "./controllers/server";
 import { ProtocolController } from "./controllers/protocol";
-import { StorageManager, StorageProvider } from "./storage";
+import { StorageManager } from "./storage";
 import { createWalletClient, createPublicClient, http } from "viem";
+import type {
+  PublicClient,
+  WalletClient,
+  Address,
+  Hash,
+  TransactionReceipt,
+} from "viem";
+import type {
+  Operation,
+  PollingOptions,
+  TransactionResult,
+  TransactionWaitOptions,
+} from "./types/operations";
+import type {
+  Contract,
+  Fn,
+  TypedTransactionResult,
+} from "./generated/event-types";
 import { chains } from "./config/chains";
 import { getChainConfig } from "./chains";
 import type { VanaPlatformAdapter } from "./platform/interface";
@@ -154,8 +170,8 @@ export class VanaCore {
   private readonly hasRequiredStorage: boolean;
   private readonly ipfsGateways?: string[];
   private readonly defaultPersonalServerUrl?: string;
-  private readonly publicClient: import("viem").PublicClient;
-  private readonly walletClient: import("viem").WalletClient;
+  private readonly publicClient: PublicClient;
+  private readonly walletClient: WalletClient;
 
   /**
    * Initializes a new VanaCore client instance with the provided configuration.
@@ -207,11 +223,7 @@ export class VanaCore {
       // Register all provided storage providers
       for (const [name, provider] of Object.entries(config.storage.providers)) {
         const isDefault = name === config.storage.defaultProvider;
-        this.storageManager.register(
-          name,
-          provider as StorageProvider,
-          isDefault,
-        );
+        this.storageManager.register(name, provider, isDefault);
       }
 
       // If no default was explicitly set but providers exist, use the first one
@@ -247,7 +259,7 @@ export class VanaCore {
 
       walletClient = createWalletClient({
         chain,
-        transport: http(config.rpcUrl || chain.rpcUrls.default.http[0]),
+        transport: http(config.rpcUrl ?? chain.rpcUrls.default.http[0]),
         account: config.account,
       });
     } else {
@@ -261,14 +273,14 @@ export class VanaCore {
       chain: walletClient.chain,
       transport: http(),
     });
-    
+
     // Store the clients for later use
     this.publicClient = publicClient;
     this.walletClient = walletClient;
 
     // Get default subgraph URL if not provided in config
     const chainConfig = getChainConfig(walletClient.chain.id);
-    const subgraphUrl = config.subgraphUrl || chainConfig?.subgraphUrl;
+    const subgraphUrl = config.subgraphUrl ?? chainConfig?.subgraphUrl;
 
     // Create shared context for all controllers, now including the platform adapter
     const sharedContext: ControllerContext = {
@@ -432,14 +444,14 @@ export class VanaCore {
       // Validate that the chain is supported
       if (!isVanaChainId(config.walletClient.chain.id)) {
         throw new InvalidConfigurationError(
-          `Unsupported chain ID: ${config.walletClient.chain.id}. Supported chains: 14800 (Moksha testnet), 1480 (Vana mainnet)`,
+          `Unsupported chain ID: ${String(config.walletClient.chain.id)}. Supported chains: 14800 (Moksha testnet), 1480 (Vana mainnet)`,
         );
       }
     } else if (isChainConfig(config)) {
       // Validate ChainConfig
       if (!isVanaChainId(config.chainId)) {
         throw new InvalidConfigurationError(
-          `Unsupported chain ID: ${config.chainId}. Supported chains: 14800 (Moksha testnet), 1480 (Vana mainnet)`,
+          `Unsupported chain ID: ${String(config.chainId)}. Supported chains: 14800 (Moksha testnet), 1480 (Vana mainnet)`,
         );
       }
 
@@ -514,16 +526,16 @@ export class VanaCore {
    * console.log(`User address: ${address}`); // e.g., "User address: 0x742d35..."
    * ```
    */
-  async getUserAddress(): Promise<import("viem").Address> {
+  async getUserAddress(): Promise<Address> {
     if (!this.walletClient.account) {
       throw new Error("No wallet account connected");
     }
 
-    const account = this.walletClient.account;
+    const { account } = this.walletClient;
 
     // Return the account address directly if available
     if (typeof account === "string") {
-      return account as import("viem").Address;
+      return account as Address;
     }
 
     // If account is an object, get the address property
@@ -550,7 +562,7 @@ export class VanaCore {
       chainId: this.chainId as VanaChainId,
       chainName: this.chainName,
       relayerCallbacks: this.relayerCallbacks,
-      storageProviders: this.storageManager?.getStorageProviders() || [],
+      storageProviders: this.storageManager?.getStorageProviders() ?? [],
       defaultStorageProvider: this.storageManager?.getDefaultStorageProvider(),
     };
   }
@@ -722,9 +734,9 @@ export class VanaCore {
    * ```
    */
   public async waitForOperation<T = unknown>(
-    opOrId: import("./types/operations").Operation<T> | string,
-    options?: import("./types/operations").PollingOptions,
-  ): Promise<import("./types/operations").Operation<T>> {
+    opOrId: Operation<T> | string,
+    options?: PollingOptions,
+  ): Promise<Operation<T>> {
     return this.server.waitForOperation(opOrId, options);
   }
 
@@ -756,11 +768,11 @@ export class VanaCore {
    * ```
    */
   public async waitForTransactionReceipt(
-    hashOrObj: import("./types/operations").TransactionResult | { hash: import("viem").Hash } | import("viem").Hash,
-    options?: import("./types/operations").TransactionWaitOptions,
-  ): Promise<import("viem").TransactionReceipt> {
+    hashOrObj: TransactionResult | { hash: Hash } | Hash,
+    options?: TransactionWaitOptions,
+  ): Promise<TransactionReceipt> {
     const hash = typeof hashOrObj === "string" ? hashOrObj : hashOrObj.hash;
-    
+
     return this.publicClient.waitForTransactionReceipt({
       hash,
       confirmations: options?.confirmations,
@@ -770,36 +782,51 @@ export class VanaCore {
   }
 
   /**
-   * Waits for transaction confirmation and parses events.
+   * Waits for transaction confirmation and extracts blockchain event data.
    *
    * @remarks
-   * This method waits for a transaction to be confirmed and then
-   * parses the logs to extract typed event data. The specific event
-   * type depends on the transaction operation.
+   * This method leverages the context-carrying POJO architecture. When passed a
+   * `TransactionResult` with an `operation` field, it automatically parses the
+   * correct events from the transaction logs. For legacy compatibility, it accepts
+   * raw hashes but will not parse events without operation context.
    *
-   * @param hashOrObj - Either a TransactionResult object or hash string
-   * @param options - Optional wait configuration
-   * @returns The parsed event data from the transaction
+   * @param transaction - Transaction result with operation context
+   * @param options - Optional confirmation and timeout settings
+   * @returns Parsed event data specific to the transaction's operation type
+   * @throws {NetworkError} When transaction confirmation times out
+   * @throws {BlockchainError} When expected events are not found in the transaction
+   *
    * @example
    * ```typescript
-   * // Wait for permission grant events
-   * const tx = await vana.permissions.grant(params);
-   * const events = await vana.waitForTransactionEvents(tx);
+   * // Recommended: Pass the transaction result for automatic event parsing
+   * const tx = await vana.permissions.submitAddServerFilesAndPermissions(params);
+   * const events = await vana.waitForTransactionEvents<{ permissionId: bigint }>(tx);
    * console.log(`Permission ID: ${events.permissionId}`);
    *
-   * // Using just the hash
-   * const events = await vana.waitForTransactionEvents("0x123...");
+   * // Legacy: Raw hash without event parsing (returns receipt)
+   * const receipt = await vana.waitForTransactionEvents("0x123...");
    * ```
+   *
+   * @see For understanding transaction flows, visit https://docs.vana.org/docs/transactions
    */
-  public async waitForTransactionEvents<T = unknown>(
-    hashOrObj: import("./types/operations").TransactionResult | { hash: import("viem").Hash } | import("viem").Hash,
-    options?: import("./types/operations").TransactionWaitOptions,
-  ): Promise<T> {
-    const receipt = await this.waitForTransactionReceipt(hashOrObj, options);
-    
-    // Parse events from the receipt
-    // This is a simplified implementation - in reality, you'd need to
-    // parse the logs based on the contract ABI and event signatures
-    return receipt as unknown as T;
+  public async waitForTransactionEvents<C extends Contract, F extends Fn<C>>(
+    transaction: TransactionResult<C, F>,
+    options?: TransactionWaitOptions,
+  ): Promise<TypedTransactionResult<C, F>> {
+    // Import the POJO-based parser
+    const { parseTransaction } = await import("./utils/parseTransactionPojo");
+
+    // Wait for the transaction to be mined
+    const receipt = await this.waitForTransactionReceipt(
+      transaction.hash,
+      options,
+    );
+
+    // Parse events using our heuristic-free POJO system
+    const result = parseTransaction(transaction, receipt);
+
+    // Return the strongly-typed result
+    // TypeScript knows exactly what events are possible!
+    return result;
   }
 }

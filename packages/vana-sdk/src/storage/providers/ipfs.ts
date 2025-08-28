@@ -1,10 +1,10 @@
 import {
-  StorageProvider,
-  StorageUploadResult,
-  StorageFile,
-  StorageListOptions,
-  StorageProviderConfig,
   StorageError,
+  type StorageProvider,
+  type StorageUploadResult,
+  type StorageFile,
+  type StorageListOptions,
+  type StorageProviderConfig,
 } from "../index";
 import { toBase64 } from "../../utils/encoding";
 
@@ -62,7 +62,7 @@ export class IpfsStorage implements StorageProvider {
       );
     }
 
-    this.gatewayUrl = config.gatewayUrl || "https://gateway.pinata.cloud/ipfs";
+    this.gatewayUrl = config.gatewayUrl ?? "https://gateway.pinata.cloud/ipfs";
     this.hasAuth = !!(config.headers && Object.keys(config.headers).length > 0);
   }
 
@@ -132,7 +132,7 @@ export class IpfsStorage implements StorageProvider {
    * ```
    */
   static forLocalNode(options?: { url?: string }): IpfsStorage {
-    const baseUrl = options?.url || "http://localhost:5001";
+    const baseUrl = options?.url ?? "http://localhost:5001";
     return new IpfsStorage({
       apiEndpoint: `${baseUrl}/api/v0/add`,
       gatewayUrl: `${baseUrl.replace(":5001", ":8080")}/ipfs`,
@@ -161,7 +161,7 @@ export class IpfsStorage implements StorageProvider {
    */
   async upload(file: Blob, filename?: string): Promise<StorageUploadResult> {
     try {
-      const fileName = filename || `ipfs-file-${Date.now()}.dat`;
+      const fileName = filename ?? `ipfs-file-${Date.now()}.dat`;
 
       // Create FormData for IPFS upload
       const formData = new FormData();
@@ -169,7 +169,7 @@ export class IpfsStorage implements StorageProvider {
 
       const response = await fetch(this.config.apiEndpoint, {
         method: "POST",
-        headers: this.config.headers || {},
+        headers: this.config.headers ?? {},
         body: formData,
       });
 
@@ -196,7 +196,7 @@ export class IpfsStorage implements StorageProvider {
       return {
         url: `ipfs://${hash}`,
         size: file.size,
-        contentType: file.type || "application/octet-stream",
+        contentType: file.type ?? "application/octet-stream",
       };
     } catch (error) {
       if (error instanceof StorageError) {

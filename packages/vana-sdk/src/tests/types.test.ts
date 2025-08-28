@@ -1,6 +1,15 @@
 import { describe, it, expect, vi } from "vitest";
-import { Vana } from "../index.node";
-import { VanaNodeImpl } from "../index.node";
+import {
+  Vana,
+  VanaNodeImpl,
+  getContractInfo,
+  ContractFactory,
+  RetryUtility,
+  RateLimiter,
+  MemoryCache,
+  EventEmitter,
+  ApiClient,
+} from "../index.node";
 import type { VanaConfig, WalletConfig, ChainConfig } from "../types/config";
 import type { UserFile, UploadEncryptedFileResult } from "../types/data";
 import type {
@@ -31,15 +40,6 @@ import type {
   Nominal,
 } from "../types/generics";
 import type { VanaContract } from "../generated/abi";
-import {
-  getContractInfo,
-  ContractFactory,
-  RetryUtility,
-  RateLimiter,
-  MemoryCache,
-  EventEmitter,
-  ApiClient,
-} from "../index.node";
 import { isVanaChainId, isVanaChain } from "../types/chains";
 import { isWalletConfig, isChainConfig } from "../types/config";
 import { createWalletClient, http } from "viem";

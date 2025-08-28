@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { createPinataProvider } from "@/lib/storage-server";
 
 export async function POST(request: NextRequest) {
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
       success: true,
       identifier: ipfsHash,
       url: result.url,
-      ipfsHash: ipfsHash,
+      ipfsHash,
       size: result.size,
     });
   } catch (error) {

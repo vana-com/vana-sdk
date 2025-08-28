@@ -54,8 +54,8 @@ describe("Shared Platform Utilities", () => {
 
       expect(result).toBeInstanceOf(Uint8Array);
       expect(result.length).toBe(32); // Private key should be 32 bytes
-      const { bytesToHex } = await import("../crypto/ecies/utils");
-      expect(bytesToHex(result)).toBe(
+      const { toHex } = await import("viem");
+      expect(toHex(result).slice(2)).toBe(
         "85271071a553feafb93839045545c233d0518e0b0fc583f88038f8b0e32e9f18",
       );
     });
@@ -69,8 +69,8 @@ describe("Shared Platform Utilities", () => {
 
       expect(result).toBeInstanceOf(Uint8Array);
       expect(result.length).toBe(32); // Private key should be 32 bytes
-      const { bytesToHex } = await import("../crypto/ecies/utils");
-      expect(bytesToHex(result)).toBe(
+      const { toHex } = await import("viem");
+      expect(toHex(result).slice(2)).toBe(
         "85271071a553feafb93839045545c233d0518e0b0fc583f88038f8b0e32e9f18",
       );
     });
@@ -93,36 +93,6 @@ describe("Shared Platform Utilities", () => {
       expect(result.ephemPublicKey).toEqual(ephemPublicKey);
       expect(result.ciphertext).toEqual(ciphertext);
       expect(result.mac).toEqual(mac);
-    });
-
-    it("should convert hex string to Uint8Array", async () => {
-      const { hexToBytes } = await import("../crypto/ecies/utils");
-
-      const hex = "deadbeef";
-      const result = hexToBytes(hex);
-
-      expect(result).toBeInstanceOf(Uint8Array);
-      expect(result.length).toBe(4);
-      expect(Array.from(result)).toEqual([0xde, 0xad, 0xbe, 0xef]);
-    });
-
-    it("should convert Uint8Array to hex string", async () => {
-      const { bytesToHex } = await import("../crypto/ecies/utils");
-
-      const array = new Uint8Array([0xde, 0xad, 0xbe, 0xef]);
-      const result = bytesToHex(array);
-
-      expect(result).toBe("deadbeef");
-    });
-
-    it("should round-trip hex conversions", async () => {
-      const { hexToBytes, bytesToHex } = await import("../crypto/ecies/utils");
-
-      const originalHex = "1234567890abcdef";
-      const array = hexToBytes(originalHex);
-      const backToHex = bytesToHex(array);
-
-      expect(backToHex).toBe(originalHex);
     });
   });
 
@@ -259,7 +229,9 @@ describe("Shared Platform Utilities", () => {
         ephemeralPublicKey: [7, 8, 9],
       };
 
-      expect(() => validateEncryptedDataStructure(validData)).not.toThrow();
+      expect(() => {
+        validateEncryptedDataStructure(validData);
+      }).not.toThrow();
     });
 
     it("should throw for invalid encrypted data structure", async () => {
@@ -269,9 +241,9 @@ describe("Shared Platform Utilities", () => {
 
       const invalidData = { encrypted: [1, 2, 3] }; // Missing iv and ephemeralPublicKey
 
-      expect(() => validateEncryptedDataStructure(invalidData)).toThrow(
-        "Invalid encrypted data format",
-      );
+      expect(() => {
+        validateEncryptedDataStructure(invalidData);
+      }).toThrow("Invalid encrypted data format");
     });
 
     it("should throw for null or non-object data", async () => {
@@ -279,15 +251,15 @@ describe("Shared Platform Utilities", () => {
         "../platform/shared/error-utils"
       );
 
-      expect(() => validateEncryptedDataStructure(null)).toThrow(
-        "Invalid encrypted data format",
-      );
-      expect(() => validateEncryptedDataStructure("string")).toThrow(
-        "Invalid encrypted data format",
-      );
-      expect(() => validateEncryptedDataStructure(123)).toThrow(
-        "Invalid encrypted data format",
-      );
+      expect(() => {
+        validateEncryptedDataStructure(null);
+      }).toThrow("Invalid encrypted data format");
+      expect(() => {
+        validateEncryptedDataStructure("string");
+      }).toThrow("Invalid encrypted data format");
+      expect(() => {
+        validateEncryptedDataStructure(123);
+      }).toThrow("Invalid encrypted data format");
     });
   });
 

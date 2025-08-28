@@ -4,6 +4,7 @@ import type { ControllerContext } from "../controllers/permissions";
 import { mokshaTestnet } from "../config/chains";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 import type { DataSchema } from "../utils/schemaValidation";
+import type { Address } from "viem";
 
 // Mock external dependencies
 vi.mock("../utils/encryption", () => ({
@@ -64,6 +65,7 @@ describe("DataController Edge Cases Coverage", () => {
       readContract: vi.fn(),
     } as unknown as ControllerContext["publicClient"],
     platform: mockPlatformAdapter,
+    userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
   };
 
   describe("Schema validation wrapper methods", () => {

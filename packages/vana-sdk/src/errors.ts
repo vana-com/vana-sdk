@@ -414,3 +414,55 @@ export class PermissionError extends VanaError {
     super(message, "PERMISSION_ERROR");
   }
 }
+
+/**
+ * Thrown when attempting to perform write operations without a wallet client.
+ *
+ * @remarks
+ * This error occurs when trying to execute operations that require wallet
+ * interaction (signing, encrypting, or submitting transactions) while the SDK
+ * is initialized in read-only mode without a wallet client. To perform write
+ * operations, the SDK must be initialized with a wallet client.
+ *
+ * Common operations that require a wallet:
+ * - Signing transactions or typed data
+ * - Encrypting or decrypting files
+ * - Granting or revoking permissions
+ * - Uploading data to IPFS
+ * - Submitting blockchain transactions
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   // This will throw if no wallet client is provided
+ *   await vana.data.decryptFile({ fileId: 'abc123' });
+ * } catch (error) {
+ *   if (error instanceof ReadOnlyError) {
+ *     console.error(`Cannot ${error.operation}: ${error.message}`);
+ *     // Initialize with wallet client to enable write operations
+ *     const vanaWithWallet = Vana({
+ *       walletClient: createWalletClient(...)
+ *     });
+ *   }
+ * }
+ * ```
+ * @category Error Handling
+ */
+export class ReadOnlyError extends VanaError {
+  constructor(
+    operation: string,
+    suggestion: string = "Initialize the SDK with a walletClient to perform this operation",
+  ) {
+    super(
+      `Operation '${operation}' requires a wallet client. ${suggestion}`,
+      "READ_ONLY_ERROR",
+    );
+    this.operation = operation;
+    this.suggestion = suggestion;
+  }
+
+  /** The operation that was attempted */
+  public readonly operation: string;
+  /** Suggested solution for fixing the error */
+  public readonly suggestion: string;
+}

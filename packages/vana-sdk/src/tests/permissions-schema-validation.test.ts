@@ -92,6 +92,7 @@ describe("Permissions Schema Validation", () => {
       storageManager: undefined,
       subgraphUrl: undefined,
       platform: mockPlatformAdapter,
+      userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
     };
 
     controller = new PermissionsController(mockContext);

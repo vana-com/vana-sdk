@@ -83,6 +83,7 @@ type SubgraphPermissionsResponse = {
  */
 // Import the shared ControllerContext from single source of truth
 import type { ControllerContext } from "../types/controller-context";
+import { BaseController } from "./base";
 export type { ControllerContext };
 
 /**
@@ -131,8 +132,10 @@ export type { ControllerContext };
  * @category Permissions
  * @see {@link https://docs.vana.com/developer/permissions | Vana Permissions System} for conceptual overview
  */
-export class PermissionsController {
-  constructor(private readonly context: ControllerContext) {}
+export class PermissionsController extends BaseController {
+  constructor(context: ControllerContext) {
+    super(context);
+  }
 
   /**
    * Grants permission for an application to access user data with gasless transactions.
@@ -169,6 +172,7 @@ export class PermissionsController {
    * ```
    */
   async grant(params: GrantPermissionParams): Promise<PermissionGrantResult> {
+    this.assertWallet();
     // Submit the transaction and wait for events internally
     const { typedData, signature } = await this.createAndSign(params);
     const result = await this.submitSignedGrantWithEvents(typedData, signature);
@@ -203,6 +207,7 @@ export class PermissionsController {
   async submitPermissionGrant(
     params: GrantPermissionParams,
   ): Promise<TransactionResult<"DataPortabilityPermissions", "addPermission">> {
+    this.assertWallet();
     const { typedData, signature } = await this.createAndSign(params);
     return await this.submitSignedGrant(typedData, signature);
   }
@@ -236,6 +241,7 @@ export class PermissionsController {
     preview: GrantFile;
     confirm: () => Promise<PermissionGrantResult>;
   }> {
+    this.assertWallet();
     try {
       // Step 1: Create grant file in memory (no IPFS upload yet)
       const grantFile = createGrantFile(params);
@@ -412,6 +418,7 @@ export class PermissionsController {
     typedData: PermissionGrantTypedData;
     signature: Hash;
   }> {
+    this.assertWallet();
     try {
       // Step 1: Create grant file with all the real data
       const grantFile = createGrantFile(params);
@@ -1050,6 +1057,7 @@ export class PermissionsController {
   async revoke(
     params: RevokePermissionParams,
   ): Promise<PermissionRevokeResult> {
+    this.assertWallet();
     const txResult = await this.submitPermissionRevoke(params);
 
     if (!this.context.waitForTransactionEvents) {
@@ -1104,6 +1112,7 @@ export class PermissionsController {
   ): Promise<
     TransactionResult<"DataPortabilityPermissions", "revokePermission">
   > {
+    this.assertWallet();
     try {
       // Check chain ID availability early
       if (!this.context.walletClient.chain?.id) {
@@ -1194,6 +1203,7 @@ export class PermissionsController {
       "revokePermissionWithSignature"
     >
   > {
+    this.assertWallet();
     try {
       // Check chain ID availability early
       if (!this.context.walletClient.chain?.id) {
@@ -1768,6 +1778,7 @@ export class PermissionsController {
   async addAndTrustServer(
     params: AddAndTrustServerParams,
   ): Promise<ServerTrustResult> {
+    this.assertWallet();
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
@@ -1855,6 +1866,7 @@ export class PermissionsController {
   async submitTrustServer(
     params: TrustServerParams,
   ): Promise<TransactionResult<"DataPortabilityServers", "trustServer">> {
+    this.assertWallet();
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
@@ -1908,6 +1920,7 @@ export class PermissionsController {
       "addAndTrustServerWithSignature"
     >
   > {
+    this.assertWallet();
     try {
       const nonce = await this.getServersUserNonce();
 
@@ -2005,6 +2018,7 @@ export class PermissionsController {
   ): Promise<
     TransactionResult<"DataPortabilityServers", "trustServerWithSignature">
   > {
+    this.assertWallet();
     try {
       const nonce = await this.getServersUserNonce();
 
@@ -2155,6 +2169,7 @@ export class PermissionsController {
   async submitUntrustServer(
     params: UntrustServerParams,
   ): Promise<TransactionResult<"DataPortabilityServers", "untrustServer">> {
+    this.assertWallet();
     // Convert UntrustServerParams to UntrustServerInput by adding nonce
     const nonce = await this.getServersUserNonce();
     const untrustServerInput: UntrustServerInput = {
@@ -2182,6 +2197,7 @@ export class PermissionsController {
   ): Promise<
     TransactionResult<"DataPortabilityServers", "untrustServerWithSignature">
   > {
+    this.assertWallet();
     try {
       const nonce = await this.getServersUserNonce();
 
@@ -2952,6 +2968,7 @@ export class PermissionsController {
   async submitRegisterGrantee(
     params: RegisterGranteeParams,
   ): Promise<TransactionResult<"DataPortabilityGrantees", "registerGrantee">> {
+    this.assertWallet();
     const chainId = await this.context.walletClient.getChainId();
     const DataPortabilityGranteesAddress = getContractAddress(
       chainId,
@@ -3000,6 +3017,7 @@ export class PermissionsController {
   async submitRegisterGranteeWithSignature(
     params: RegisterGranteeParams,
   ): Promise<TransactionResult<"DataPortabilityGrantees", "registerGrantee">> {
+    this.assertWallet();
     const nonce = await this.getServersUserNonce();
 
     const owner = getAddress(params.owner);
@@ -4178,6 +4196,7 @@ export class PermissionsController {
     serverId: bigint,
     url: string,
   ): Promise<TransactionResult<"DataPortabilityServers", "updateServer">> {
+    this.assertWallet();
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
@@ -4373,6 +4392,7 @@ export class PermissionsController {
   async submitAddPermission(
     params: ServerFilesAndPermissionParams,
   ): Promise<TransactionResult<"DataPortabilityPermissions", "addPermission">> {
+    this.assertWallet();
     try {
       const nonce = await this.getPermissionsUserNonce();
 
@@ -4430,6 +4450,7 @@ export class PermissionsController {
     typedData: GenericTypedData,
     signature: Hash,
   ): Promise<TransactionResult<"DataPortabilityPermissions", "addPermission">> {
+    this.assertWallet();
     try {
       // Use relayer callbacks or direct transaction
       let hash: Hash;
@@ -4530,6 +4551,7 @@ export class PermissionsController {
       "addServerFilesAndPermissions"
     >
   > {
+    this.assertWallet();
     try {
       // Validate that schemaIds array has same length as fileUrls
       if (params.schemaIds.length !== params.fileUrls.length) {
@@ -4623,6 +4645,7 @@ export class PermissionsController {
       "addServerFilesAndPermissions"
     >
   > {
+    this.assertWallet();
     try {
       // Debug logging to understand relayer callback availability
       console.debug("🔍 submitSignedAddServerFilesAndPermissions Debug Info:", {
@@ -4701,6 +4724,7 @@ export class PermissionsController {
   ): Promise<
     TransactionResult<"DataPortabilityPermissions", "revokePermission">
   > {
+    this.assertWallet();
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityPermissionsAddress = getContractAddress(

@@ -106,6 +106,7 @@ describe("Permissions Server Files and Permissions", () => {
       publicClient:
         mockPublicClient as unknown as ControllerContext["publicClient"],
       platform: mockPlatformAdapter,
+      userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
     };
 
     controller = new PermissionsController(mockContext);

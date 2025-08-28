@@ -42,9 +42,11 @@ describe("DataController - addFileWithPermissionsAndSchema", () => {
     mockWriteContract = vi.fn().mockResolvedValue("0xtxhash");
 
     mockContext = {
-      publicClient: {},
+      publicClient: {
+        chain: { id: 1, name: "Mainnet" },
+      },
       walletClient: {
-        chain: { id: 1 },
+        chain: { id: 1, name: "Mainnet" },
         account: "0xUserAddress" as Address,
         writeContract: mockWriteContract,
       },

@@ -6,7 +6,7 @@
  * Single source of truth following Rich Hickey's principles.
  */
 
-import type { WalletClient, PublicClient } from "viem";
+import type { WalletClient, PublicClient, Address } from "viem";
 import type { VanaPlatformAdapter } from "../platform/interface";
 import type { StorageManager } from "../storage";
 import type { RelayerCallbacks, DownloadRelayerCallbacks } from "./config";
@@ -50,10 +50,12 @@ export type WaitForOperationFn = <T = unknown>(
  * Changing this interface is a breaking change.
  */
 export interface ControllerContext {
-  /** Signs transactions and messages using the user's private key. */
-  walletClient: WalletClient;
+  /** Signs transactions and messages using the user's private key. Optional to support read-only mode. */
+  walletClient?: WalletClient;
   /** Queries blockchain state and smart contracts without signing. */
   publicClient: PublicClient;
+  /** Address of the user for operations requiring user identification in read-only mode. */
+  userAddress: Address;
   /** Signs application-specific operations when different from primary wallet. */
   applicationClient?: WalletClient;
   /** Handles gasless transaction submission through relayer services. */

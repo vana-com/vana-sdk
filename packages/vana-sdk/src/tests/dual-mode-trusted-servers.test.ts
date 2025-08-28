@@ -88,6 +88,10 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
 
     // Create mock clients
     mockPublicClient = {
+      chain: {
+        id: vanaMainnet.id,
+        name: vanaMainnet.name,
+      },
       readContract: vi.fn(),
       getChainId: vi.fn().mockResolvedValue(vanaMainnet.id),
     };
@@ -103,6 +107,7 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
       publicClient: mockPublicClient as any,
       platform: createMockPlatformAdapter(),
       subgraphUrl: "https://subgraph.example.com",
+      userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
     };
 
     dataController = new DataController(context);
@@ -124,6 +129,7 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
       const result = await dataController.getUserTrustedServers({
         user: userAddress,
         subgraphUrl: "https://subgraph.example.com",
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       });
 
       expect(result).toHaveLength(2);
@@ -135,6 +141,7 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
       const contextWithoutSubgraph = {
         ...context,
         subgraphUrl: undefined,
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       };
       const dataControllerNoSubgraph = new DataController(
         contextWithoutSubgraph,
@@ -162,6 +169,7 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
       const result = await dataController.getUserTrustedServers({
         user: userAddress,
         subgraphUrl: "https://subgraph.example.com",
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       });
 
       expect(result).toHaveLength(0);
@@ -178,6 +186,7 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
       const result = await dataController.getUserTrustedServers({
         user: userAddress,
         subgraphUrl: "https://subgraph.example.com",
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       });
 
       expect(result).toHaveLength(0);
@@ -280,6 +289,7 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
 
       const result = await dataControllerRpc.getUserTrustedServers({
         user: userAddress,
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       });
 
       expect(result).toHaveLength(0);
@@ -297,6 +307,7 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
 
       const result = await dataControllerRpc.getUserTrustedServers({
         user: userAddress,
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       });
 
       expect(result).toHaveLength(2);
@@ -323,6 +334,7 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
       const result = await dataController.getUserTrustedServers({
         user: userAddress,
         subgraphUrl: "https://subgraph.example.com",
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       });
 
       expect(result).toHaveLength(2);
@@ -344,6 +356,7 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
       const result = await dataController.getUserTrustedServers({
         user: userAddress,
         subgraphUrl: "https://subgraph.example.com",
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       });
 
       expect(result).toHaveLength(2);
@@ -361,6 +374,7 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
       const contextWithoutSubgraph = {
         ...context,
         subgraphUrl: undefined,
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       };
       const dataControllerNoSubgraph = new DataController(
         contextWithoutSubgraph,
@@ -387,6 +401,7 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
         dataController.getUserTrustedServers({
           user: userAddress,
           subgraphUrl: "https://subgraph.example.com",
+          userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
         }),
       ).rejects.toThrow("RPC query failed: RPC error");
     });
@@ -512,6 +527,7 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
       const result = await dataController.getUserTrustedServers({
         user: userAddress,
         subgraphUrl: "https://slow-subgraph.example.com",
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       });
 
       expect(result).toHaveLength(1);
@@ -550,6 +566,7 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
 
       const result = await dataControllerRpc.getUserTrustedServers({
         user: userAddress,
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       });
 
       expect(result).toHaveLength(1);
@@ -587,6 +604,7 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
       const result = await dataController.getUserTrustedServers({
         user: userAddress,
         subgraphUrl: "https://subgraph.example.com",
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       });
 
       expect(result).toHaveLength(1);

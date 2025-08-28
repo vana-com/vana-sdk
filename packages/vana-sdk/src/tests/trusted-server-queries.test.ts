@@ -134,6 +134,7 @@ describe("Enhanced Trusted Server Queries", () => {
     context = {
       walletClient: mockWalletClient as any,
       publicClient: mockPublicClient as any,
+      userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       platform: createMockPlatformAdapter(),
     };
 

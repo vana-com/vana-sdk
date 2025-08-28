@@ -27,6 +27,7 @@ vi.mock("viem", async (importOriginal) => {
     createPublicClient: vi.fn(() => {
       // Return a mock client
       return {
+        chain: mokshaTestnet,
         waitForTransactionReceipt: vi.fn().mockResolvedValue({
           blockNumber: 12345n,
           gasUsed: 100000n,
@@ -385,11 +386,11 @@ describe("Correct Vana Encryption Implementation", () => {
       ];
 
       // This should orchestrate: generateEncryptionKey -> encryptBlobWithSignedKey -> encryptWithWalletPublicKey -> addFileWithPermissions
-      const result = await controller.uploadFileWithPermissions(
-        testData,
+      const result = await controller.uploadFileWithPermissions({
+        data: testData,
         permissions,
-        "test.txt",
-      );
+        filename: "test.txt",
+      });
 
       expect(result.fileId).toBe(123);
       expect(result.url).toBe("https://example.com/file123");
@@ -434,11 +435,11 @@ describe("Correct Vana Encryption Implementation", () => {
         "04c68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";
 
       // This should orchestrate: generateEncryptionKey -> encryptWithWalletPublicKey -> writeContract
-      const result = await controller.addPermissionToFile(
-        123,
-        "0xvalidator" as any,
-        validatorPublicKey,
-      );
+      const result = await controller.addPermissionToFile({
+        fileId: 123,
+        account: "0xvalidator" as any,
+        publicKey: validatorPublicKey,
+      });
 
       expect(result.hash).toBe("0xtxhash");
       expect(mockWalletClient.signMessage).toHaveBeenCalledWith({
@@ -594,11 +595,11 @@ describe("Correct Vana Encryption Implementation", () => {
       ];
 
       // This should be a one-liner that handles: generateKey -> encrypt -> upload -> grantPermissions
-      const result = await vana.data.uploadFileWithPermissions(
-        testData,
+      const result = await vana.data.uploadFileWithPermissions({
+        data: testData,
         permissions,
-        "test.txt",
-      );
+        filename: "test.txt",
+      });
 
       expect(result.fileId).toBe(123);
       expect(result.url).toBe("https://example.com/file123");
@@ -634,11 +635,11 @@ describe("Correct Vana Encryption Implementation", () => {
           "04c68d2d599561327448dab8066c3a93491fb1eecc89dd386ca2504a6deb9c266a7c844e506172b4e6077b57b067fb78aba8a532166ec8a287077cad00e599eaf1";
 
         // This should be a one-liner that handles: generateKey -> encryptWithPublicKey -> addPermission
-        const result = await vana.data.addPermissionToFile(
-          123,
-          "0xvalidator" as any,
-          validatorPublicKey,
-        );
+        const result = await vana.data.addPermissionToFile({
+          fileId: 123,
+          account: "0xvalidator" as any,
+          publicKey: validatorPublicKey,
+        });
 
         expect(result.hash).toBe("0xtxhash");
         expect(mockWalletClient.signMessage).toHaveBeenCalledWith({

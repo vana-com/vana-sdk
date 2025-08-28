@@ -3,6 +3,7 @@ import { DataController } from "../controllers/data";
 import type { ControllerContext } from "../controllers/permissions";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 import type { StorageManager } from "../storage/manager";
+import type { Address } from "viem";
 
 // Mock dependencies
 vi.mock("../config/addresses", () => ({
@@ -93,6 +94,7 @@ describe("DataController - getUserPermissions dual-mode functionality", () => {
         getAddresses: vi.fn().mockResolvedValue(["0xTestAddress"]),
       } as any,
       publicClient: {
+        chain: { id: 14800, name: "Moksha Testnet" },
         readContract: vi.fn().mockImplementation(async ({ functionName }) => {
           if (functionName === "userPermissionIdsLength") {
             return BigInt(3);
@@ -165,6 +167,10 @@ describe("DataController - getUserPermissions dual-mode functionality", () => {
         ...mockContext,
         walletClient: {
           ...mockContext.walletClient,
+          chain: undefined,
+        },
+        publicClient: {
+          ...mockContext.publicClient,
           chain: undefined,
         },
       };
@@ -342,6 +348,7 @@ describe("DataController - getUserPermissions dual-mode functionality", () => {
       const permissions = await controller.getUserPermissions({
         user: "0x1234567890123456789012345678901234567890",
         subgraphUrl: "https://custom.subgraph.com/graphql",
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       });
 
       expect(permissions).toHaveLength(1);

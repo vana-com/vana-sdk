@@ -696,6 +696,7 @@ describe("PermissionsController", () => {
 
       const result = await controller.getUserPermissionGrantsOnChain({
         subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       });
 
       expect(result).toHaveLength(2);
@@ -736,6 +737,7 @@ describe("PermissionsController", () => {
 
       const result = await controller.getUserPermissionGrantsOnChain({
         subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       });
 
       expect(result).toEqual([]);
@@ -814,6 +816,7 @@ describe("PermissionsController", () => {
       const result = await controller.getUserPermissionGrantsOnChain({
         limit: 2,
         subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       });
 
       expect(result).toHaveLength(2);
@@ -857,6 +860,7 @@ describe("PermissionsController", () => {
       await expect(
         controller.getUserPermissionGrantsOnChain({
           subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+          userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
         }),
       ).rejects.toThrow(BlockchainError);
     });
@@ -898,6 +902,7 @@ describe("PermissionsController", () => {
 
       const result = await controller.getUserPermissionGrantsOnChain({
         subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       });
 
       // Should still return the one permission even with grant file retrieval error

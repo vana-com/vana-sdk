@@ -415,10 +415,19 @@ export function createMockControllerContext(
     return result;
   });
 
+  // Extract userAddress from the walletClient account
+  const userAddress =
+    overrides?.userAddress ??
+    (typeof walletClient.account === "string"
+      ? (walletClient.account as Address)
+      : walletClient.account?.address) ??
+    ("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address);
+
   // Build the context with guaranteed waitForTransactionEvents
   const context = {
     walletClient,
     publicClient,
+    userAddress,
     applicationClient: walletClient,
     platform: overrides?.platform ?? mockPlatformAdapter,
     storageManager:

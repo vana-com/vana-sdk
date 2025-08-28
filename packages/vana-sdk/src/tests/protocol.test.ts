@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Address } from "viem";
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { mokshaTestnet } from "../config/chains";
 import { ProtocolController } from "../controllers/protocol";
-import type { ControllerContext } from "../controllers/permissions";
+import type { ControllerContext } from "../types/controller-context";
 import { ContractNotFoundError } from "../errors";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
@@ -97,6 +98,7 @@ describe("ProtocolController", () => {
         }),
       },
       platform: mockPlatformAdapter,
+      userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
     };
 
     controller = new ProtocolController(mockContext);
@@ -261,7 +263,7 @@ describe("ProtocolController", () => {
   });
 
   describe("getChainId", () => {
-    it("should return chain ID from wallet client", () => {
+    it("should return chain ID from client", () => {
       const chainId = controller.getChainId();
       expect(chainId).toBe(14800);
     });
@@ -285,12 +287,12 @@ describe("ProtocolController", () => {
 
       expect(() => {
         noChainController.getChainId();
-      }).toThrow("Chain ID not available from wallet client");
+      }).toThrow("Chain ID not available from client");
     });
   });
 
   describe("getChainName", () => {
-    it("should return chain name from wallet client", () => {
+    it("should return chain name from client", () => {
       const chainName = controller.getChainName();
       expect(chainName).toBe("Moksha Testnet");
     });
@@ -314,7 +316,7 @@ describe("ProtocolController", () => {
 
       expect(() => {
         noChainController.getChainName();
-      }).toThrow("Chain name not available from wallet client");
+      }).toThrow("Chain name not available from client");
     });
   });
 
@@ -437,6 +439,7 @@ describe("ProtocolController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       });
 
       // Mock getContractAddress to throw an error that contains "Contract address not found"
@@ -476,6 +479,7 @@ describe("ProtocolController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       });
 
       // Should throw the error from the id getter
@@ -509,6 +513,7 @@ describe("ProtocolController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       });
 
       // Mock getContractAddress to throw "Contract address not found" error
@@ -529,6 +534,22 @@ describe("ProtocolController", () => {
           "on chain 0",
         );
       }
+    });
+  });
+
+  describe("createContract", () => {
+    it("should require wallet client for createContract", () => {
+      // Create controller without wallet client
+      const readOnlyController = new ProtocolController({
+        walletClient: undefined,
+        publicClient: mockContext.publicClient,
+        userAddress: mockContext.userAddress,
+        platform: mockContext.platform,
+      });
+
+      expect(() => {
+        readOnlyController.createContract("DataRegistry");
+      }).toThrow("Operation 'createContract' requires a wallet client");
     });
   });
 });

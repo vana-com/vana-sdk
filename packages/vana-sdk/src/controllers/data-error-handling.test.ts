@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Address } from "viem";
 import { DataController } from "./data";
 import type { ControllerContext } from "./permissions";
 import { mokshaTestnet } from "../config/chains";
@@ -66,6 +67,7 @@ describe("DataController Error Handling", () => {
         getAddresses: vi.fn().mockResolvedValue(["0x123"]),
       } as unknown as ControllerContext["walletClient"],
       publicClient: {} as ControllerContext["publicClient"],
+      userAddress: "0x123" as Address,
       platform: mockPlatformAdapter,
     };
 

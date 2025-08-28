@@ -8,6 +8,12 @@ export type {
   ChainConfigWithStorage,
   VanaConfig,
   VanaConfigWithStorage,
+  VanaConfigWithWallet,
+  VanaConfigReadOnly,
+  VanaConfigAddressOnly,
+  VanaConfigWithWalletWithStorage,
+  VanaConfigReadOnlyWithStorage,
+  VanaConfigAddressOnlyWithStorage,
   RuntimeConfig,
   StorageConfig,
   ConfigValidationOptions,
@@ -17,7 +23,13 @@ export type {
   StorageRequiredMarker,
 } from "./config";
 
-export { isWalletConfig, isChainConfig, hasStorageConfig } from "./config";
+export {
+  isWalletConfig,
+  isChainConfig,
+  isReadOnlyConfig,
+  isAddressOnlyConfig,
+  hasStorageConfig,
+} from "./config";
 
 // Chain types
 export type { VanaChainId, VanaChain } from "./chains";
@@ -65,6 +77,12 @@ export type {
   EncryptionInfo,
   GetUserFilesParams,
   GetFileParams,
+  EncryptFileOptions,
+  EncryptFileResult,
+  DecryptFileOptions,
+  UploadFileWithPermissionsParams,
+  AddFilePermissionParams,
+  DecryptFileWithPermissionOptions,
   DownloadFileParams,
   DownloadFileResult,
   DeleteFileParams,

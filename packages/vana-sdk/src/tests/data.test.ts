@@ -5,6 +5,7 @@ import type { ControllerContext } from "../controllers/permissions";
 import type { StorageManager } from "../storage/manager";
 
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
+import type { Address } from "viem";
 
 // Mock ALL external dependencies for pure unit tests
 vi.mock("../utils/encryption", () => ({
@@ -165,6 +166,10 @@ describe("DataController", () => {
 
     // Create a fully mocked public client
     mockPublicClient = {
+      chain: {
+        id: 14800,
+        name: "Moksha Testnet",
+      },
       waitForTransactionReceipt: vi.fn().mockResolvedValue({ logs: [] }),
       getTransactionReceipt: vi.fn().mockResolvedValue({
         transactionHash: "0xTransactionHash",
@@ -183,6 +188,7 @@ describe("DataController", () => {
         mockPublicClient as unknown as ControllerContext["publicClient"],
       subgraphUrl: "https://moksha.vanagraph.io/v7",
       platform: mockPlatformAdapter,
+      userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
     };
 
     controller = new DataController(mockContext);
@@ -197,6 +203,7 @@ describe("DataController", () => {
       const contextWithoutSubgraph = {
         ...mockContext,
         subgraphUrl: undefined,
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       };
       const controllerWithoutSubgraph = new DataController(
         contextWithoutSubgraph,
@@ -244,6 +251,7 @@ describe("DataController", () => {
       const result = await controller.getUserFiles({
         owner: testAddress as `0x${string}`,
         subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       });
 
       expect(result).toHaveLength(1);
@@ -267,6 +275,7 @@ describe("DataController", () => {
         controller.getUserFiles({
           owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
           subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+          userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
         }),
       ).rejects.toThrow(
         "Failed to fetch user files from subgraph: Network error",
@@ -278,6 +287,10 @@ describe("DataController", () => {
     it("should return file count from contract", async () => {
       const { createPublicClient } = await import("viem");
       const mockPublicClient = {
+        chain: {
+          id: 14800,
+          name: "Moksha Testnet",
+        },
         readContract: vi.fn().mockResolvedValue(BigInt(42)),
       };
       vi.mocked(createPublicClient).mockReturnValueOnce(
@@ -338,6 +351,7 @@ describe("DataController", () => {
       const contextWithStorage = {
         ...mockContext,
         storageManager: mockStorageManager,
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       };
 
       const controllerWithStorage = new DataController(contextWithStorage);
@@ -380,6 +394,7 @@ describe("DataController", () => {
       const contextWithStorage = {
         ...mockContext,
         storageManager: mockStorageManager,
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       };
 
       const controllerWithStorage = new DataController(contextWithStorage);
@@ -419,6 +434,7 @@ describe("DataController", () => {
       const contextWithStorage = {
         ...mockContext,
         storageManager: mockStorageManager,
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       };
 
       const controllerWithStorage = new DataController(contextWithStorage);
@@ -448,6 +464,7 @@ describe("DataController", () => {
       const contextWithoutStorage = {
         ...mockContext,
         storageManager: undefined,
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       };
 
       const controllerWithoutStorage = new DataController(
@@ -472,6 +489,7 @@ describe("DataController", () => {
       const contextWithStorage = {
         ...mockContext,
         storageManager: mockStorageManager,
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       };
 
       const controllerWithStorage = new DataController(contextWithStorage);
@@ -516,6 +534,7 @@ describe("DataController", () => {
       const contextWithStorage = {
         ...mockContext,
         storageManager: mockStorageManager,
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       };
 
       const controllerWithStorage = new DataController(contextWithStorage);
@@ -562,6 +581,7 @@ describe("DataController", () => {
       const contextWithStorage = {
         ...mockContext,
         storageManager: mockStorageManager,
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       };
 
       const controllerWithStorage = new DataController(contextWithStorage);
@@ -604,6 +624,7 @@ describe("DataController", () => {
       const contextWithStorage = {
         ...mockContext,
         storageManager: mockStorageManager,
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       };
 
       const controllerWithStorage = new DataController(contextWithStorage);
@@ -627,6 +648,7 @@ describe("DataController", () => {
       const contextWithStorage = {
         ...mockContext,
         storageManager: mockStorageManager,
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       };
 
       const controllerWithStorage = new DataController(contextWithStorage);
@@ -683,6 +705,7 @@ describe("DataController", () => {
       const contextWithStorage = {
         ...mockContext,
         storageManager: mockStorageManager,
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       };
 
       const controllerWithStorage = new DataController(contextWithStorage);
@@ -726,6 +749,7 @@ describe("DataController", () => {
       const contextWithStorage = {
         ...mockContext,
         storageManager: mockStorageManager,
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       };
 
       const controllerWithStorage = new DataController(contextWithStorage);

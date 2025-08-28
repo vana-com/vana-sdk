@@ -8,6 +8,7 @@ import type {
 // import type { TransactionResult } from "../types/operations";
 import type { SchemaAddedResult } from "../types/transactionResults";
 import type { ControllerContext } from "./permissions";
+import { BaseController } from "./base";
 import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../generated/abi";
 import { gasAwareMulticall } from "../utils/multicall";
@@ -111,8 +112,10 @@ export interface CreateSchemaResult {
  * ```
  * @category Schema Management
  */
-export class SchemaController {
-  constructor(private readonly context: ControllerContext) {}
+export class SchemaController extends BaseController {
+  constructor(context: ControllerContext) {
+    super(context);
+  }
 
   /**
    * Creates a new schema with automatic validation and IPFS upload.
@@ -152,6 +155,7 @@ export class SchemaController {
    * ```
    */
   async create(params: CreateSchemaParams): Promise<CreateSchemaResult> {
+    this.assertWallet();
     const { name, dialect, schema } = params;
 
     try {
@@ -534,6 +538,7 @@ export class SchemaController {
    * @returns Promise resolving to the add schema result
    */
   async addSchema(params: AddSchemaParams): Promise<SchemaAddedResult> {
+    this.assertWallet();
     try {
       const chainId = this.context.walletClient.chain?.id;
       if (!chainId) {

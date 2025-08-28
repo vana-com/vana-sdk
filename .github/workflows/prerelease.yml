@@ -25,20 +25,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build SDK
-        run: |
-          cd packages/vana-sdk
-          NODE_OPTIONS="--max-old-space-size=4096" npm run build
-
       - name: Set pre-release version
         run: |
           cd packages/vana-sdk
           SHORT_SHA=$(git rev-parse --short HEAD)
           npm version 0.1.0-alpha.${SHORT_SHA} --no-git-tag-version
 
-      - name: Publish alpha pre-release to npm
+      - name: Build and Publish alpha pre-release
         run: |
           cd packages/vana-sdk
-          npm publish --tag alpha
+          NODE_OPTIONS="--max-old-space-size=4096" npm run build && npm publish --tag alpha
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN_TIM }}

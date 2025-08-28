@@ -6,12 +6,36 @@
  * for testing. These factories eliminate the need for `as any` assertions in tests
  * by providing complete implementations with sensible defaults.
  *
+ * ## Usage Patterns
+ *
+ * ### Basic Usage
+ * ```typescript
+ * const context = createMockControllerContext();
+ * const controller = new MyController(context);
+ * ```
+ *
+ * ### Direct Transaction Testing (No Relayer/Storage)
+ * ```typescript
+ * const context = createMockControllerContextForDirectTransaction();
+ * ```
+ *
+ * ### With Relayer Callbacks
+ * ```typescript
+ * const context = createMockControllerContextWithRelayer();
+ * ```
+ *
+ * ### Accessing Mock Methods
+ * When you need to access mock methods like `mockImplementation`, wrap with `vi.mocked()`:
+ * ```typescript
+ * vi.mocked(context.walletClient.signTypedData).mockImplementation(...);
+ * ```
+ *
  * @category Testing
  * @module mockFactory
  * @internal
  */
 
-import { vi } from "vitest";
+import { vi, type Mock } from "vitest";
 import type {
   WalletClient,
   PublicClient,
@@ -40,6 +64,18 @@ export type DeepPartial<T> = {
 };
 
 /**
+ * Type for a properly mocked Account with vitest mock functions
+ */
+type MockedAccount = Omit<
+  Account,
+  "signMessage" | "signTypedData" | "signTransaction"
+> & {
+  signMessage: Mock;
+  signTypedData: Mock;
+  signTransaction: Mock;
+};
+
+/**
  * Creates a mock Viem account for testing.
  *
  * @param overrides - Optional account properties to override the defaults
@@ -53,14 +89,16 @@ export type DeepPartial<T> = {
  * ```
  */
 export function createMockAccount(overrides?: Partial<Account>): Account {
-  return {
-    address: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
-    type: "local",
+  const mockAccount: MockedAccount = {
+    address:
+      overrides?.address ??
+      ("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address),
+    type: overrides?.type ?? "local",
     signMessage: vi.fn().mockResolvedValue(`0x${"0".repeat(130)}`),
     signTypedData: vi.fn().mockResolvedValue(`0x${"0".repeat(130)}`),
     signTransaction: vi.fn(),
-    ...overrides,
-  } as Account;
+  };
+  return mockAccount as Account;
 }
 
 /**
@@ -122,41 +160,48 @@ export function createTypedMockWalletClient(
   const account = overrides?.account ?? createMockAccount();
   const chain = overrides?.chain ?? createMockChain();
 
-  return {
+  const mockWalletClient = {
     account,
     chain,
-    mode: "wallet",
+    mode: "wallet" as const,
     transport: {} as PublicClient["transport"], // Transport is complex and rarely used in tests
-    key: "wallet",
+    key: "wallet" as const,
     name: "Mock Wallet Client",
     pollingInterval: 4000,
     request: vi.fn(),
-    type: "walletClient",
+    type: "walletClient" as const,
     uid: "mock-wallet-uid",
     batch: undefined,
     cacheTime: 0,
     ccipRead: undefined,
-    getAddresses: vi.fn().mockResolvedValue([account.address]),
-    getChainId: vi.fn().mockResolvedValue(chain.id),
-    signMessage: vi.fn().mockResolvedValue(`0x${"0".repeat(130)}`),
-    signTypedData: vi.fn().mockResolvedValue(`0x${"0".repeat(130)}`),
-    signTransaction: vi.fn(),
-    writeContract: vi.fn().mockResolvedValue("0xtxhash" as Hash),
-    deployContract: vi.fn(),
-    sendRawTransaction: vi.fn(),
-    sendTransaction: vi.fn(),
-    prepareTransactionRequest: vi.fn(),
-    switchChain: vi.fn(),
-    watchAsset: vi.fn(),
-    addChain: vi.fn(),
-    getPermissions: vi.fn(),
-    requestAddresses: vi.fn(),
-    requestPermissions: vi.fn(),
+    getAddresses:
+      overrides?.getAddresses ?? vi.fn().mockResolvedValue([account.address]),
+    getChainId: overrides?.getChainId ?? vi.fn().mockResolvedValue(chain.id),
+    signMessage:
+      overrides?.signMessage ??
+      vi.fn().mockResolvedValue(`0x${"0".repeat(130)}`),
+    signTypedData:
+      overrides?.signTypedData ??
+      vi.fn().mockResolvedValue(`0x${"0".repeat(130)}`),
+    signTransaction: overrides?.signTransaction ?? vi.fn(),
+    writeContract:
+      overrides?.writeContract ?? vi.fn().mockResolvedValue("0xtxhash" as Hash),
+    deployContract: overrides?.deployContract ?? vi.fn(),
+    sendRawTransaction: overrides?.sendRawTransaction ?? vi.fn(),
+    sendTransaction: overrides?.sendTransaction ?? vi.fn(),
+    prepareTransactionRequest: overrides?.prepareTransactionRequest ?? vi.fn(),
+    switchChain: overrides?.switchChain ?? vi.fn(),
+    watchAsset: overrides?.watchAsset ?? vi.fn(),
+    addChain: overrides?.addChain ?? vi.fn(),
+    getPermissions: overrides?.getPermissions ?? vi.fn(),
+    requestAddresses: overrides?.requestAddresses ?? vi.fn(),
+    requestPermissions: overrides?.requestPermissions ?? vi.fn(),
     watchEvent: vi.fn(),
     watchContractEvent: vi.fn(),
-    extend: vi.fn(),
-    ...overrides,
-  } as unknown as WalletClient;
+    extend: overrides?.extend ?? vi.fn(),
+  };
+
+  return mockWalletClient as unknown as WalletClient;
 }
 
 /**
@@ -192,61 +237,70 @@ export function createTypedMockPublicClient(
     gasUsed: 50000n,
     logs: [],
     logsBloom: "0x0" as `0x${string}`,
-    status: "success",
-    type: "eip1559",
+    status: "success" as const,
+    type: "eip1559" as const,
     contractAddress: undefined,
     effectiveGasPrice: 1000000000n,
   } as TransactionReceipt;
 
-  return {
+  const mockPublicClient = {
     chain,
-    mode: "publicClient",
+    mode: "publicClient" as const,
     transport: {} as WalletClient["transport"],
-    key: "public",
+    key: "public" as const,
     name: "Mock Public Client",
     pollingInterval: 4000,
     request: vi.fn(),
-    type: "publicClient",
+    type: "publicClient" as const,
     uid: "mock-public-uid",
     batch: undefined,
     cacheTime: 0,
     ccipRead: undefined,
-    getChainId: vi.fn().mockResolvedValue(chain.id),
-    readContract: vi.fn().mockResolvedValue(undefined),
-    multicall: vi.fn().mockResolvedValue([]),
-    getBalance: vi.fn(),
-    getBlock: vi.fn(),
-    getBlockNumber: vi.fn(),
-    getTransaction: vi.fn(),
-    getTransactionReceipt: vi.fn().mockResolvedValue(defaultReceipt),
-    waitForTransactionReceipt: vi.fn().mockResolvedValue(defaultReceipt),
-    estimateGas: vi.fn(),
-    estimateContractGas: vi.fn(),
-    estimateFeesPerGas: vi.fn(),
-    estimateMaxPriorityFeePerGas: vi.fn(),
-    getCode: vi.fn(),
-    getContractEvents: vi.fn(),
-    getFeeHistory: vi.fn(),
-    getFilterChanges: vi.fn(),
-    getFilterLogs: vi.fn(),
-    getLogs: vi.fn(),
-    getProof: vi.fn(),
-    getStorageAt: vi.fn(),
-    getTransactionConfirmations: vi.fn(),
-    getTransactionCount: vi.fn(),
-    uninstallFilter: vi.fn(),
-    watchBlockNumber: vi.fn(),
-    watchBlocks: vi.fn(),
-    watchContractEvent: vi.fn(),
-    watchEvent: vi.fn(),
-    createEventFilter: vi.fn(),
-    createBlockFilter: vi.fn(),
-    createContractEventFilter: vi.fn(),
-    createPendingTransactionFilter: vi.fn(),
-    call: vi.fn(),
-    extend: vi.fn(),
-    ...overrides,
-  } as unknown as PublicClient;
+    getChainId: overrides?.getChainId ?? vi.fn().mockResolvedValue(chain.id),
+    readContract:
+      overrides?.readContract ?? vi.fn().mockResolvedValue(BigInt(0)), // Default to BigInt(0) for nonce/ID reads
+    multicall: overrides?.multicall ?? vi.fn().mockResolvedValue([]),
+    getBalance: overrides?.getBalance ?? vi.fn(),
+    getBlock: overrides?.getBlock ?? vi.fn(),
+    getBlockNumber: overrides?.getBlockNumber ?? vi.fn(),
+    getTransaction: overrides?.getTransaction ?? vi.fn(),
+    getTransactionReceipt:
+      overrides?.getTransactionReceipt ??
+      vi.fn().mockResolvedValue(defaultReceipt),
+    waitForTransactionReceipt:
+      overrides?.waitForTransactionReceipt ??
+      vi.fn().mockResolvedValue(defaultReceipt),
+    estimateGas: overrides?.estimateGas ?? vi.fn(),
+    estimateContractGas: overrides?.estimateContractGas ?? vi.fn(),
+    estimateFeesPerGas: overrides?.estimateFeesPerGas ?? vi.fn(),
+    estimateMaxPriorityFeePerGas:
+      overrides?.estimateMaxPriorityFeePerGas ?? vi.fn(),
+    getCode: overrides?.getCode ?? vi.fn(),
+    getContractEvents: overrides?.getContractEvents ?? vi.fn(),
+    getFeeHistory: overrides?.getFeeHistory ?? vi.fn(),
+    getFilterChanges: overrides?.getFilterChanges ?? vi.fn(),
+    getFilterLogs: overrides?.getFilterLogs ?? vi.fn(),
+    getLogs: overrides?.getLogs ?? vi.fn(),
+    getProof: overrides?.getProof ?? vi.fn(),
+    getStorageAt: overrides?.getStorageAt ?? vi.fn(),
+    getTransactionConfirmations:
+      overrides?.getTransactionConfirmations ?? vi.fn(),
+    getTransactionCount: overrides?.getTransactionCount ?? vi.fn(),
+    uninstallFilter: overrides?.uninstallFilter ?? vi.fn(),
+    watchBlockNumber: overrides?.watchBlockNumber ?? vi.fn(),
+    watchBlocks: overrides?.watchBlocks ?? vi.fn(),
+    watchContractEvent: overrides?.watchContractEvent ?? vi.fn(),
+    watchEvent: overrides?.watchEvent ?? vi.fn(),
+    createEventFilter: overrides?.createEventFilter ?? vi.fn(),
+    createBlockFilter: overrides?.createBlockFilter ?? vi.fn(),
+    createContractEventFilter: overrides?.createContractEventFilter ?? vi.fn(),
+    createPendingTransactionFilter:
+      overrides?.createPendingTransactionFilter ?? vi.fn(),
+    call: overrides?.call ?? vi.fn(),
+    extend: overrides?.extend ?? vi.fn(),
+  };
+
+  return mockPublicClient as unknown as PublicClient;
 }
 
 /**
@@ -313,13 +367,19 @@ export function createMockControllerContext(
   // Create a fake instance for waitForTransactionEvents
   const fakeWaitForTransactionEvents = new FakeWaitForTransactionEvents();
 
-  // Set default response
+  // Set default response with commonly expected event structure
   fakeWaitForTransactionEvents.setDefaultResponse({
     hash: "0xtxhash" as Hash,
     from: "0xfrom" as Address,
-    contract: "DataRegistry",
-    fn: "addFile",
-    expectedEvents: {},
+    contract: "DataPortabilityPermissions",
+    fn: "addPermission",
+    expectedEvents: {
+      PermissionAdded: {
+        permissionId: 1n,
+        user: "0xfrom" as Address,
+        grant: "grant-data",
+      },
+    },
     allEvents: [],
     hasExpectedEvents: true,
   });
@@ -522,4 +582,90 @@ export function createMockLog(
  */
 export function createPartialMock<T>(partial: Partial<T>): T {
   return partial as T;
+}
+
+/**
+ * Creates a mock ControllerContext specifically configured for direct transaction testing.
+ *
+ * @param overrides - Optional nested properties to override the defaults
+ * @returns A ControllerContext with no relayer callbacks or storage manager
+ *
+ * @remarks
+ * This factory variant is optimized for testing direct blockchain transactions
+ * without gasless relayer support. It sets both `relayerCallbacks` and
+ * `storageManager` to `undefined`, forcing the controller to use direct transactions.
+ *
+ * @example
+ * ```typescript
+ * const context = createMockControllerContextForDirectTransaction();
+ * const controller = new PermissionsController(context);
+ * // Test will throw "No storage available" error as expected
+ * await expect(controller.grant(params)).rejects.toThrow("No storage available");
+ * ```
+ */
+export function createMockControllerContextForDirectTransaction(
+  overrides?: DeepPartial<ControllerContext>,
+): ControllerContext &
+  Required<Pick<ControllerContext, "waitForTransactionEvents">> {
+  return createMockControllerContext({
+    relayerCallbacks: undefined,
+    storageManager: undefined,
+    ...overrides,
+  });
+}
+
+/**
+ * Creates a mock ControllerContext with relayer callbacks configured.
+ *
+ * @param overrides - Optional nested properties to override the defaults
+ * @returns A ControllerContext with default relayer callbacks for gasless transactions
+ *
+ * @remarks
+ * This factory variant provides sensible defaults for testing gasless transactions
+ * with relayer support. It includes mock implementations for `storeGrantFile` and
+ * `submitPermissionGrant` that return successful responses.
+ *
+ * @example
+ * ```typescript
+ * const context = createMockControllerContextWithRelayer();
+ * const controller = new PermissionsController(context);
+ * const result = await controller.grant(params);
+ * expect(context.relayerCallbacks?.storeGrantFile).toHaveBeenCalled();
+ * ```
+ */
+export function createMockControllerContextWithRelayer(
+  overrides?: DeepPartial<ControllerContext>,
+): ControllerContext &
+  Required<Pick<ControllerContext, "waitForTransactionEvents">> {
+  return createMockControllerContext({
+    relayerCallbacks: {
+      storeGrantFile: vi.fn().mockResolvedValue("https://mock-grant-url.com"),
+      submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
+      ...overrides?.relayerCallbacks,
+    },
+    ...overrides,
+  });
+}
+
+/**
+ * Helper to properly type a mocked client for TypeScript.
+ *
+ * @param client - The client to type as mocked
+ * @returns The client typed with vitest mock methods
+ *
+ * @remarks
+ * Use this when you need TypeScript to recognize mock methods on factory-created clients.
+ * This is a convenience wrapper around `vi.mocked()`.
+ *
+ * @example
+ * ```typescript
+ * const context = createMockControllerContext();
+ * const mockedWallet = asMocked(context.walletClient);
+ * mockedWallet.signTypedData.mockImplementation((data) => {
+ *   // Custom implementation
+ * });
+ * ```
+ */
+export function asMocked<T>(client: T): ReturnType<typeof vi.mocked<T>> {
+  return vi.mocked(client);
 }

@@ -572,7 +572,7 @@ export default function DemoExperiencePage() {
 
       await handleUploadText(
         serverIdentity?.address,
-        serverIdentity?.public_key,
+        serverIdentity?.publicKey,
       );
       return;
     }

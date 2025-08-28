@@ -1,8 +1,8 @@
-import type { Mock } from "vitest";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Mock } from "vitest";
 import type { Hash, PublicClient, Address } from "viem";
-import type { ControllerContext } from "../controllers/permissions";
 import { PermissionsController } from "../controllers/permissions";
+import type { ControllerContext } from "../controllers/permissions";
 import {
   RelayerError,
   BlockchainError,
@@ -62,13 +62,13 @@ vi.mock("../utils/multicall", () => ({
       // This is a getServerInfoBatch call - return server info with status wrapper
       if (mockServerInfoFailure) {
         // Return failure status for server info
-        return params.contracts.map((_: unknown) => ({
+        return params.contracts.map((_: any) => ({
           status: "failure",
           error: new Error("Server info failed"),
         }));
       }
 
-      return params.contracts.map((_contract: unknown, i: number) => ({
+      return params.contracts.map((_contract: any, i: number) => ({
         status: "success",
         result: {
           id: BigInt(i + 1),
@@ -82,7 +82,7 @@ vi.mock("../utils/multicall", () => ({
 
     // For getTrustedServersPaginated, it calls gasAwareMulticall to get server IDs
     // Return array of results based on the contracts passed
-    return params.contracts.map((_: unknown, i: number) => BigInt(i + 1));
+    return params.contracts.map((_: any, i: number) => BigInt(i + 1));
   }),
 }));
 
@@ -182,7 +182,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       getAddresses: vi
         .fn()
         .mockResolvedValue(["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"]),
-      signTypedData: vi.fn().mockResolvedValue(`0x${"0".repeat(130)}`),
+      signTypedData: vi.fn().mockResolvedValue("0xsignature" as Hash),
       writeContract: vi.fn().mockResolvedValue("0xtxhash" as Hash),
     };
 
@@ -295,14 +295,14 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       const result = await controller.submitTrustServerWithSignature(params);
 
       expect(result.hash).toBe("0xtxhash");
-      expect(mockWalletClient.writeContract).toHaveBeenCalled();
-      const callArgs = (mockWalletClient.writeContract as any).mock.calls[0][0];
-      expect(callArgs.address).toBe(
-        "0x1234567890123456789012345678901234567890",
-      );
-      expect(callArgs.functionName).toBe("trustServerWithSignature");
-      expect(Array.isArray(callArgs.abi)).toBe(true);
-      expect(Array.isArray(callArgs.args)).toBe(true);
+      expect(mockWalletClient.writeContract).toHaveBeenCalledWith({
+        address: "0x1234567890123456789012345678901234567890",
+        abi: expect.any(Array),
+        functionName: "trustServerWithSignature",
+        args: expect.arrayContaining([expect.any(Object), "0xsignature"]),
+        account: mockWalletClient.account,
+        chain: mockWalletClient.chain,
+      });
     });
 
     it("should handle getUserNonce errors in submitTrustServerWithSignature", async () => {
@@ -427,14 +427,14 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       const result = await controller.submitUntrustServerWithSignature(params);
 
       expect(result.hash).toBe("0xtxhash");
-      expect(mockWalletClient.writeContract).toHaveBeenCalled();
-      const callArgs = (mockWalletClient.writeContract as any).mock.calls[0][0];
-      expect(callArgs.address).toBe(
-        "0x1234567890123456789012345678901234567890",
-      );
-      expect(callArgs.functionName).toBe("untrustServerWithSignature");
-      expect(Array.isArray(callArgs.abi)).toBe(true);
-      expect(Array.isArray(callArgs.args)).toBe(true);
+      expect(mockWalletClient.writeContract).toHaveBeenCalledWith({
+        address: "0x1234567890123456789012345678901234567890",
+        abi: expect.any(Array),
+        functionName: "untrustServerWithSignature",
+        args: expect.arrayContaining([expect.any(Object), "0xsignature"]),
+        account: mockWalletClient.account,
+        chain: mockWalletClient.chain,
+      });
     });
 
     it("should handle getUserNonce errors in submitUntrustServerWithSignature", async () => {

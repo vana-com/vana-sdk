@@ -41,6 +41,7 @@ export default [
       "**/tsup*.config.ts",
       "packages/vana-sdk/test-pnpm-app/**",
       "temp-test/**",
+      "packages/vana-sdk/codegen.ts",
     ],
   },
 

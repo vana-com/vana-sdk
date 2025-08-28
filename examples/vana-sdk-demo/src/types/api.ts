@@ -18,7 +18,7 @@ export type TrustedServerAPIResponse = APIResponse<ReplicateAPIResponse>;
 
 /** Response from /api/trusted-server/setup */
 export type TrustedServerIdentityAPIResponse = APIResponse<
-  PersonalServerModel & { base_url: string; name: string }
+  PersonalServerModel & { baseUrl: string; name: string }
 >;
 
 /** Response from /api/trusted-server/poll */

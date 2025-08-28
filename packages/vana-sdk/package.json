@@ -79,16 +79,19 @@
     "LICENSE"
   ],
   "scripts": {
-    "clean": "rimraf dist",
-    "prebuild": "npm run generate:types:check",
-    "build:types": "tsup 'src/**/*.ts' 'src/**/*.json' '!src/**/*.test.ts' '!src/**/*.spec.ts' '!src/tests/**' --dts-only --out-dir dist --no-clean",
-    "build:node": "tsup 'src/**/*.ts' 'src/**/*.json' '!src/**/*.test.ts' '!src/**/*.spec.ts' '!src/tests/**' --platform node --format esm,cjs --target node18 --out-dir dist --no-clean --no-dts",
+    "clean": "rimraf dist .tsbuildinfo",
+    "validate:platform": "tsx scripts/validate-platform-separation.ts",
+    "validate:entries": "tsx scripts/validate-entry-points.ts",
+    "prebuild": "npm run generate:types:check && npm run validate:platform && npm run validate:entries && npm run validate:types",
+    "build:types": "tsc -p tsconfig.build.json --listEmittedFiles",
+    "build:node": "tsup --config tsup.config.ts",
     "build:browser": "tsup --config tsup-browser.config.ts",
     "build": "npm run clean && npm run build:types && npm run build:node && npm run build:browser",
     "dev": "npm run build -- --watch",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -p tsconfig.json",
+    "validate:types": "rimraf test-dist && tsc -p tsconfig.build.json --outDir test-dist && test -f test-dist/index.node.d.ts && test -f test-dist/index.browser.d.ts && echo '✅ Type declarations can be generated' && rimraf test-dist || (echo '❌ Failed to generate type declarations' && rimraf test-dist && exit 1)",
     "test": "vitest",
     "test:verbose": "vitest --reporter=verbose",
     "test:coverage": "vitest run --coverage",
@@ -154,7 +157,7 @@
     "secp256k1": "^5.0.1"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "repository": {
     "type": "git",

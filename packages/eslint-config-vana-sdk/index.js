@@ -43,6 +43,19 @@ export const sdkConfigObject = {
 
     // ===== VOID EXPRESSION CLARITY =====
     "@typescript-eslint/no-confusing-void-expression": "error",
+
+    // ===== TYPE ASSERTION SAFETY (from TYPES_GUIDE.md) =====
+    // Prevent unnecessary type assertions that TypeScript can infer
+    "@typescript-eslint/no-unnecessary-type-assertion": "error",
+
+    // Enforce consistent use of type assertions
+    "@typescript-eslint/consistent-type-assertions": [
+      "error",
+      {
+        assertionStyle: "as",
+        objectLiteralTypeAssertions: "never",
+      },
+    ],
   },
 };
 

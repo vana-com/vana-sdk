@@ -166,6 +166,7 @@ describe("ServerController", () => {
         ok: true,
         json: vi.fn().mockResolvedValue({
           personal_server: {
+            kind: "personal_server",
             address: "0x123...",
             public_key: mockPublicKey,
           },
@@ -177,9 +178,10 @@ describe("ServerController", () => {
       });
 
       expect(result).toEqual({
+        kind: expect.any(String),
         address: "0x123...",
-        public_key: mockPublicKey,
-        base_url: expect.any(String),
+        publicKey: mockPublicKey,
+        baseUrl: expect.any(String),
         name: "Hosted Vana Server",
       });
     });
@@ -257,6 +259,7 @@ describe("ServerController", () => {
         ok: true,
         json: vi.fn().mockResolvedValue({
           personal_server: {
+            kind: "personal_server",
             address: "0x123...",
             public_key: mockPublicKey,
           },
@@ -268,9 +271,10 @@ describe("ServerController", () => {
       });
 
       expect(result).toEqual({
+        kind: expect.any(String),
         address: "0x123...",
-        public_key: mockPublicKey,
-        base_url: expect.any(String),
+        publicKey: mockPublicKey,
+        baseUrl: expect.any(String),
         name: "Hosted Vana Server",
       });
     });

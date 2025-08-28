@@ -1,6 +1,8 @@
 # **Vana SDK TypeScript Types Guide**
 
-**Objective:** To establish clear, consistent TypeScript patterns that prioritize simplicity, explicitness, and maintainability while avoiding the accumulation of type workarounds that become technical debt.
+**Purpose:** This guide complements our ESLint configuration by providing patterns, best practices, and architectural solutions for TypeScript type challenges. While ESLint enforces the rules, this guide explains the _why_ and _how_ behind our type safety approach.
+
+**Note:** Basic type safety rules (no `any`, no unsafe operations, etc.) are automatically enforced by our ESLint configuration. This guide focuses on patterns and practices that can't be enforced through linting alone.
 
 ## 1. Core Philosophy: Simple Data, Explicit Boundaries
 
@@ -95,13 +97,9 @@ const mockTransport = {} as Transport; // TODO: Create proper transport mock
 const result = (data as any).property as SomeType; // ❌ Double assertion
 ```
 
-### ☠️ **Level 6: As Any/Never** (Forbidden)
+### ☠️ **Level 6: As Any/Never** (Auto-prevented by ESLint)
 
-```typescript
-// FORBIDDEN: These bypass all type checking
-someFunction(data as any); // ❌ Complete type erasure
-mockFunction.mockResolvedValue(result as never); // ❌ Nonsensical type
-```
+Using `as any` or unnecessary type assertions will be caught by our ESLint rules.
 
 ## 3. Patterns for Common Scenarios
 
@@ -575,43 +573,18 @@ function process<T extends DataItem>(data: T): ProcessResult<T> {}
 
 ## 9. Enforcement Through Tooling
 
-### ESLint Rules
+Most of these patterns are automatically enforced through our ESLint configuration. See:
 
-```json
-{
-  "@typescript-eslint/no-explicit-any": "error",
-  "@typescript-eslint/no-unsafe-assignment": "error",
-  "@typescript-eslint/no-unsafe-member-access": "error",
-  "@typescript-eslint/no-unsafe-call": "error",
-  "@typescript-eslint/no-unsafe-return": "error",
-  "@typescript-eslint/no-unnecessary-type-assertion": "error",
-  "@typescript-eslint/consistent-type-assertions": [
-    "error",
-    {
-      "assertionStyle": "as",
-      "objectLiteralTypeAssertions": "never"
-    }
-  ]
-}
-```
+- `packages/eslint-config-vana-base` - Base type safety rules
+- `packages/eslint-config-vana-sdk` - SDK-specific strict rules
 
-### TypeScript Config
+The key rules that enforce this guide include:
 
-```json
-{
-  "compilerOptions": {
-    "strict": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "strictFunctionTypes": true,
-    "strictBindCallApply": true,
-    "strictPropertyInitialization": true,
-    "noImplicitThis": true,
-    "useUnknownInCatchVariables": true,
-    "noUncheckedIndexedAccess": true
-  }
-}
-```
+- `@typescript-eslint/no-explicit-any` - Prevents `any` types
+- `@typescript-eslint/no-unsafe-*` - Prevents unsafe operations
+- `@typescript-eslint/no-unnecessary-type-assertion` - Prevents redundant assertions
+- `@typescript-eslint/consistent-type-assertions` - Enforces assertion style
+- `@typescript-eslint/no-non-null-assertion` - Prevents `!` assertions in public APIs
 
 ## 10. Decision Framework
 

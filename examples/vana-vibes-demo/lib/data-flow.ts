@@ -1,5 +1,5 @@
+import type { VanaInstance } from "@opendatalabs/vana-sdk/browser";
 import {
-  VanaInstance,
   generateEncryptionKey,
   encryptBlobWithSignedKey,
   encryptWithWalletPublicKey,
@@ -185,7 +185,7 @@ export class DataPortabilityFlow {
 
       const encryptedKey = await encryptWithWalletPublicKey(
         this.encryptionKey,
-        serverInfo.public_key,
+        serverInfo.publicKey,
         this.platformAdapter,
       );
 
@@ -210,8 +210,8 @@ export class DataPortabilityFlow {
       //   fileUrls: [fileUrl],
       //   schemaIds: [finalSchemaId],
       //   serverAddress: serverInfo.address as `0x${string}`,
-      //   serverUrl: serverInfo.base_url,
-      //   serverPublicKey: serverInfo.public_key,
+      //   serverUrl: serverInfo.baseUrl,
+      //   serverPublicKey: serverInfo.publicKey,
       //   filePermissions: [
       //     [
       //       {
@@ -229,8 +229,8 @@ export class DataPortabilityFlow {
           fileUrls: [fileUrl],
           schemaIds: [finalSchemaId],
           serverAddress: serverInfo.address as `0x${string}`,
-          serverUrl: serverInfo.base_url,
-          serverPublicKey: serverInfo.public_key,
+          serverUrl: serverInfo.baseUrl,
+          serverPublicKey: serverInfo.publicKey,
           filePermissions: [
             [
               {
@@ -298,11 +298,11 @@ export class DataPortabilityFlow {
       const result = await response.json();
 
       if (!result.success) {
-        throw new Error(result.error || "API request failed");
+        throw new Error(result.error ?? "API request failed");
       }
 
       this.callbacks.onStatusUpdate("AI inference completed!");
-      const inferenceResult = result.data?.result || result.data;
+      const inferenceResult = result.data?.result ?? result.data;
       this.callbacks.onResultUpdate(JSON.stringify(inferenceResult, null, 2));
       return inferenceResult;
     } catch (error) {

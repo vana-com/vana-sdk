@@ -1,19 +1,32 @@
 import { defineConfig } from "tsup";
 
-// This configuration object is a template for platform-specific builds.
-// We will call tsup from the command line with specific entry points.
-export default defineConfig((options) => ({
+// Node.js build configuration
+// Entry points are defined in scripts/entry-points.ts
+export default defineConfig({
+  entry: [
+    "src/**/*.ts",
+    "src/**/*.json",
+    "!src/**/*.test.ts",
+    "!src/**/*.spec.ts",
+    "!src/tests/**",
+    "!src/**/*.browser.ts", // Exclude browser files from Node build
+  ],
+
+  format: ["esm", "cjs"],
+  platform: "node",
+  target: "node22",
+
+  bundle: false, // Unbundled for tree-shaking
+  dts: false, // We'll generate types separately with tsc
+
   splitting: false,
   sourcemap: true,
   clean: false,
-  dts: true,
-  bundle: false,
+  outDir: "dist",
+
   loader: {
     ".json": "copy",
   },
-  external: [
-    // Node-specific dependencies that should not be bundled
-    // secp256k1 is a native module that should be externalized for Node builds
-    ...(options.platform === "node" ? ["secp256k1"] : []),
-  ],
-}));
+
+  external: ["secp256k1"],
+});

@@ -301,7 +301,7 @@ export function useTrustedServers(): UseTrustedServersReturn {
 
       console.info("🔍 Server identity response:", identity);
 
-      if (!identity.base_url) {
+      if (!identity.baseUrl) {
         throw new Error(
           "Personal server URL is not configured. Please configure personalServerUrl in SDK settings.",
         );
@@ -309,9 +309,9 @@ export function useTrustedServers(): UseTrustedServersReturn {
 
       const discoveredServerInfo = {
         serverAddress: identity.address,
-        serverUrl: identity.base_url,
+        serverUrl: identity.baseUrl,
         name: identity.name ?? "Personal Server",
-        publicKey: identity.public_key,
+        publicKey: identity.publicKey,
       };
 
       console.info("✅ Server discovered:", discoveredServerInfo);

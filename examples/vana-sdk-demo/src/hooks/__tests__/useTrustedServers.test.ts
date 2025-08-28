@@ -564,8 +564,8 @@ describe("useTrustedServers", () => {
     it("successfully discovers server", async () => {
       mockVana.server.getIdentity.mockResolvedValue({
         address: "0xdiscovered",
-        public_key: "0xpubkey",
-        base_url: "http://localhost:3001",
+        publicKey: "0xpubkey",
+        baseUrl: "http://localhost:3001",
         name: "Personal Server",
         kind: "hosted",
       });
@@ -623,8 +623,8 @@ describe("useTrustedServers", () => {
 
       mockVana.server.getIdentity.mockResolvedValue({
         address: "0xdiscovered",
-        public_key: "0xpubkey",
-        base_url: "",
+        publicKey: "0xpubkey",
+        baseUrl: "",
         name: "Personal Server",
         kind: "hosted",
       });
@@ -653,8 +653,8 @@ describe("useTrustedServers", () => {
 
       mockVana.server.getIdentity.mockResolvedValue({
         address: "", // Empty address
-        public_key: "0xpubkey",
-        base_url: "http://localhost:3001",
+        publicKey: "0xpubkey",
+        baseUrl: "http://localhost:3001",
         name: "Personal Server",
         kind: "hosted",
       });

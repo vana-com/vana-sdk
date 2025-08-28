@@ -1,12 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Address, WalletClient, PublicClient } from "viem";
-import type { ControllerContext } from "../controllers/permissions";
+import type { Address } from "viem";
 import { PermissionsController } from "../controllers/permissions";
+import type { ControllerContext } from "../controllers/permissions";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
-import {
-  createTypedMockWalletClient,
-  createTypedMockPublicClient,
-} from "./factories/mockFactory";
 
 // Mock ALL external dependencies to ensure pure unit tests
 vi.mock("viem", async () => {
@@ -42,32 +38,51 @@ vi.mock("../generated/abi", () => ({
 describe("New PermissionsController Methods", () => {
   let controller: PermissionsController;
   let mockContext: ControllerContext;
-  let mockWalletClient: WalletClient;
-  let mockPublicClient: PublicClient;
-  // No need to store mock references - use vi.mocked() when needed
+  let mockWalletClient: {
+    writeContract: ReturnType<typeof vi.fn>;
+    signTypedData: ReturnType<typeof vi.fn>;
+    account: { address: string };
+    chain: { id: number };
+    getChainId: ReturnType<typeof vi.fn>;
+    getAddresses: ReturnType<typeof vi.fn>;
+  };
+  let mockPublicClient: {
+    readContract: ReturnType<typeof vi.fn>;
+    getChainId: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
-    // Use the factory functions to create properly typed mocks
-    mockWalletClient = createTypedMockWalletClient();
-    mockPublicClient = createTypedMockPublicClient();
+    mockWalletClient = {
+      writeContract: vi.fn(),
+      signTypedData: vi.fn(),
+      account: { address: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" },
+      chain: { id: 14800 },
+      getChainId: vi.fn().mockResolvedValue(14800),
+      getAddresses: vi
+        .fn()
+        .mockResolvedValue(["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"]),
+    };
 
-    // Mock functions can be accessed via vi.mocked() when needed
+    mockPublicClient = {
+      readContract: vi.fn(),
+      getChainId: vi.fn().mockResolvedValue(14800),
+    };
 
     mockContext = {
-      walletClient: mockWalletClient,
-      publicClient: mockPublicClient,
+      walletClient:
+        mockWalletClient as unknown as ControllerContext["walletClient"],
+      publicClient:
+        mockPublicClient as unknown as ControllerContext["publicClient"],
       platform: mockPlatformAdapter,
     };
 
     controller = new PermissionsController(mockContext);
   });
 
-  describe.skip("submitRevokeWithSignature", () => {
-    // These tests are skipped because they rely on spying on private methods
-    // which is not possible and bad practice.
+  describe("submitRevokeWithSignature", () => {
     beforeEach(() => {
       // Mock publicClient.readContract for userNonce call
-      vi.mocked(mockPublicClient.readContract).mockResolvedValueOnce(123n); // userNonce call for getPermissionsUserNonce
+      mockPublicClient.readContract.mockResolvedValueOnce(123n); // userNonce call for getPermissionsUserNonce
 
       // Mock getPermissionDomain
       vi.spyOn(
@@ -86,7 +101,9 @@ describe("New PermissionsController Methods", () => {
       vi.spyOn(
         controller as unknown as { signTypedData: () => Promise<string> },
         "signTypedData",
-      ).mockResolvedValue(`0x${"1234567890abcdef".repeat(8)}12`);
+      ).mockResolvedValue(
+        "0xsignature123456789012345678901234567890123456789012345678901234567890",
+      );
     });
 
     it("should successfully revoke permission with signature via relayer", async () => {
@@ -111,9 +128,9 @@ describe("New PermissionsController Methods", () => {
       // Mock methods
       vi.spyOn(
         controllerWithRelayer as unknown as {
-          getUserNonce: () => Promise<bigint>;
+          getPermissionsUserNonce: () => Promise<bigint>;
         },
-        "getUserNonce",
+        "getPermissionsUserNonce",
       ).mockResolvedValue(123n);
       vi.spyOn(
         controllerWithRelayer as unknown as {
@@ -131,7 +148,9 @@ describe("New PermissionsController Methods", () => {
           signTypedData: () => Promise<string>;
         },
         "signTypedData",
-      ).mockResolvedValue(`0x${"1234567890abcdef".repeat(8)}12`);
+      ).mockResolvedValue(
+        "0xsignature123456789012345678901234567890123456789012345678901234567890",
+      );
 
       const params = {
         permissionId: 42n,
@@ -165,7 +184,7 @@ describe("New PermissionsController Methods", () => {
             permissionId: 42n,
           },
         }),
-        `0x${"1234567890abcdef".repeat(8)}12`,
+        "0xsignature123456789012345678901234567890123456789012345678901234567890",
       );
     });
 
@@ -175,8 +194,10 @@ describe("New PermissionsController Methods", () => {
 
       // Mock methods for direct controller
       vi.spyOn(
-        directController as unknown as { getUserNonce: () => Promise<bigint> },
-        "getUserNonce",
+        directController as unknown as {
+          getPermissionsUserNonce: () => Promise<bigint>;
+        },
+        "getPermissionsUserNonce",
       ).mockResolvedValue(123n);
       vi.spyOn(
         directController as unknown as {
@@ -192,7 +213,9 @@ describe("New PermissionsController Methods", () => {
       vi.spyOn(
         directController as unknown as { signTypedData: () => Promise<string> },
         "signTypedData",
-      ).mockResolvedValue(`0x${"1234567890abcdef".repeat(8)}12`);
+      ).mockResolvedValue(
+        "0xsignature123456789012345678901234567890123456789012345678901234567890",
+      );
 
       // Mock submitDirectRevokeTransaction
       vi.spyOn(
@@ -241,15 +264,13 @@ describe("New PermissionsController Methods", () => {
   describe("Permission Query Methods", () => {
     beforeEach(() => {
       // Reset mock
-      vi.mocked(mockPublicClient.readContract).mockReset();
+      mockPublicClient.readContract.mockReset();
     });
 
     describe("getFilePermissionIds", () => {
       it("should successfully get permission IDs for a file", async () => {
         const mockPermissionIds = [1n, 2n, 3n];
-        vi.mocked(mockPublicClient.readContract).mockResolvedValue(
-          mockPermissionIds,
-        );
+        mockPublicClient.readContract.mockResolvedValue(mockPermissionIds);
 
         const result = await controller.getFilePermissionIds(123n);
 
@@ -263,7 +284,7 @@ describe("New PermissionsController Methods", () => {
       });
 
       it("should handle contract read errors", async () => {
-        vi.mocked(mockPublicClient.readContract).mockRejectedValue(
+        mockPublicClient.readContract.mockRejectedValue(
           new Error("Contract read failed"),
         );
 
@@ -276,7 +297,7 @@ describe("New PermissionsController Methods", () => {
     describe("getPermissionFileIds", () => {
       it("should successfully get file IDs for a permission", async () => {
         const mockFileIds = [10n, 20n, 30n];
-        vi.mocked(mockPublicClient.readContract).mockResolvedValue(mockFileIds);
+        mockPublicClient.readContract.mockResolvedValue(mockFileIds);
 
         const result = await controller.getPermissionFileIds(456n);
 
@@ -290,7 +311,7 @@ describe("New PermissionsController Methods", () => {
       });
 
       it("should handle contract read errors", async () => {
-        vi.mocked(mockPublicClient.readContract).mockRejectedValue(
+        mockPublicClient.readContract.mockRejectedValue(
           new Error("Contract read failed"),
         );
 
@@ -312,9 +333,7 @@ describe("New PermissionsController Methods", () => {
           fileIds: [1n, 2n, 3n],
         };
 
-        vi.mocked(mockPublicClient.readContract).mockResolvedValue(
-          mockPermissionInfo,
-        );
+        mockPublicClient.readContract.mockResolvedValue(mockPermissionInfo);
 
         const result = await controller.getPermissionInfo(111n);
 
@@ -328,7 +347,7 @@ describe("New PermissionsController Methods", () => {
       });
 
       it("should handle contract read errors", async () => {
-        vi.mocked(mockPublicClient.readContract).mockRejectedValue(
+        mockPublicClient.readContract.mockRejectedValue(
           new Error("Contract read failed"),
         );
 
@@ -342,7 +361,7 @@ describe("New PermissionsController Methods", () => {
   describe("Direct Transaction Methods", () => {
     beforeEach(() => {
       // Mock writeContract
-      vi.mocked(mockWalletClient.writeContract).mockResolvedValue(
+      mockWalletClient.writeContract.mockResolvedValue(
         "0xhash123456789012345678901234567890123456789012345678901234567890",
       );
 
@@ -376,7 +395,9 @@ describe("New PermissionsController Methods", () => {
           },
         };
 
-        const signature = `0x${"1234567890abcdef".repeat(8)}12`;
+        const signature = `0x${"0".repeat(130)}` as `0x${string}`;
+        // The formatSignatureForContract function will modify the last byte to 1b (27 in decimal)
+        const formattedSignature = `0x${"0".repeat(128)}1b` as `0x${string}`;
 
         const result = await (
           controller as unknown as {
@@ -391,20 +412,18 @@ describe("New PermissionsController Methods", () => {
           "0xhash123456789012345678901234567890123456789012345678901234567890",
         );
 
-        // The signature is modified by formatSignatureForContract - v value is adjusted
-        const expectedSignature = `0x${"1234567890abcdef".repeat(8)}2d`;
         expect(mockWalletClient.writeContract).toHaveBeenCalledWith({
           address: "0x1234567890123456789012345678901234567890",
           abi: [],
           functionName: "revokePermissionWithSignature",
-          args: [typedData.message, expectedSignature],
+          args: [typedData.message, formattedSignature],
           account: mockWalletClient.account,
           chain: mockWalletClient.chain,
         });
       });
 
       it("should handle blockchain errors", async () => {
-        vi.mocked(mockWalletClient.writeContract).mockRejectedValue(
+        mockWalletClient.writeContract.mockRejectedValue(
           new Error("Transaction failed"),
         );
 
@@ -429,7 +448,7 @@ describe("New PermissionsController Methods", () => {
           },
         };
 
-        const signature = `0x${"1234567890abcdef".repeat(8)}12`;
+        const signature = `0x${"0".repeat(130)}` as `0x${string}`;
 
         await expect(
           (

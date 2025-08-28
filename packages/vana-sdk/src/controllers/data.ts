@@ -138,7 +138,7 @@ export class DataController {
    * @param params - Upload parameters including content, filename, schema, and permissions
    * @param params.permissions[].account - The recipient's wallet address that will access the data.
    * @param params.permissions[].publicKey - The recipient's public key for encryption (hex string with 0x prefix).
-   *   Obtain via `vana.server.getIdentity(userAddress).public_key` for personal servers.
+   *   Obtain via `vana.server.getIdentity(userAddress).publicKey` for personal servers.
    * @param params.schemaId - Optional schema ID for data validation. Get available schemas from `vana.schemas.list()`.
    * @param params.owner - Optional owner address if uploading on behalf of another user (requires delegation).
    * @returns Promise resolving to upload results with file ID and transaction hash
@@ -334,7 +334,8 @@ export class DataController {
 
         // Fallback: No relay support, use a direct transaction
       } else {
-        const txResult = await this.addFileWithPermissionsAndSchema(
+        // Use the internal method directly since we already have encrypted permissions
+        const txResult = await this._addFileWithPermissionsAndSchemaInternal(
           uploadResult.url,
           userAddress,
           encryptedPermissions,
@@ -2020,17 +2021,106 @@ export class DataController {
    * Adds a file to the registry with permissions and schema.
    * This combines the functionality of addFileWithPermissions and schema validation.
    *
+   * @remarks
+   * This method automatically encrypts permissions when a publicKey is provided.
+   * It generates the user's encryption key and encrypts it with each recipient's
+   * public key before registering on the blockchain.
+   *
    * @param url - The URL of the file to register
    * @param ownerAddress - The address of the file owner
-   * @param permissions - Array of permissions to grant (account and encrypted key)
+   * @param permissions - Array of permissions to grant
+   * @param permissions[].account - The recipient's wallet address that will access the file
+   * @param permissions[].publicKey - The recipient's public key for encryption (hex string with 0x prefix).
+   *   Obtain via `vana.server.getIdentity(userAddress).publicKey` for personal servers.
    * @param schemaId - The schema ID to associate with the file (0 for no schema)
-   * @returns Promise resolving to object with fileId and transactionHash
-   * @throws {Error} When chain ID is not available
-   * @throws {ContractError} When contract execution fails
-   * @throws {Error} When transaction receipt is not available
-   * @throws {Error} When FileAdded event cannot be parsed
+   * @returns Promise resolving to TransactionResult with fileId and transactionHash
+   * @throws {Error} "Chain ID not available" - When wallet chain is not configured
+   * @throws {Error} "Failed to generate encryption key" - When encryption key generation fails
+   * @throws {Error} "Permission for {account} must include 'publicKey'" - When publicKey is missing
+   * @throws {Error} "Failed to add file with permissions and schema: {error}" - When transaction fails
+   * @example
+   * ```typescript
+   * // Get server's public key
+   * const serverIdentity = await vana.server.getIdentity({
+   *   userAddress: "0x..."
+   * });
+   *
+   * // Add file with permissions and schema
+   * const result = await vana.data.addFileWithPermissionsAndSchema(
+   *   "ipfs://QmXxx...",
+   *   ownerAddress,
+   *   [{
+   *     account: serverIdentity.address,
+   *     publicKey: serverIdentity.publicKey
+   *   }],
+   *   schemaId
+   * );
+   *
+   * console.log(`File ${result.fileId} registered in tx ${result.hash}`);
+   * ```
    */
   async addFileWithPermissionsAndSchema(
+    url: string,
+    ownerAddress: Address,
+    permissions: Array<{ account: Address; publicKey: string }> = [],
+    schemaId: number = 0,
+  ): Promise<
+    TransactionResult<"DataRegistry", "addFileWithPermissionsAndSchema">
+  > {
+    try {
+      // Process permissions - always encrypt with publicKey
+      let encryptedPermissions: Array<{ account: Address; key: string }> = [];
+
+      if (permissions.length > 0) {
+        // Generate user's encryption key
+        const userEncryptionKey = await generateEncryptionKey(
+          this.context.walletClient,
+          this.context.platform,
+          DEFAULT_ENCRYPTION_SEED,
+        );
+
+        encryptedPermissions = await Promise.all(
+          permissions.map(async (permission) => {
+            if (!permission.publicKey) {
+              throw new Error(
+                `Permission for ${permission.account} must include 'publicKey'`,
+              );
+            }
+
+            const encryptedKey = await encryptWithWalletPublicKey(
+              userEncryptionKey,
+              permission.publicKey,
+              this.context.platform,
+            );
+
+            return {
+              account: permission.account,
+              key: encryptedKey,
+            };
+          }),
+        );
+      }
+
+      // Call the internal method with encrypted permissions
+      return await this._addFileWithPermissionsAndSchemaInternal(
+        url,
+        ownerAddress,
+        encryptedPermissions,
+        schemaId,
+      );
+    } catch (error) {
+      console.error("Failed to add file with permissions and schema:", error);
+      throw new Error(
+        `Failed to add file with permissions and schema: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Internal method to add file with encrypted permissions and schema.
+   * @private
+   */
+  private async _addFileWithPermissionsAndSchemaInternal(
     url: string,
     ownerAddress: Address,
     permissions: Array<{ account: Address; key: string }> = [],
@@ -2621,7 +2711,7 @@ export class DataController {
    * @param fileId - The ID of the file to grant permission for
    * @param account - The recipient's wallet address that will access the file
    * @param publicKey - The recipient's public key for encryption.
-   *   Obtain via `vana.server.getIdentity(account).public_key`
+   *   Obtain via `vana.server.getIdentity(account).publicKey`
    * @returns Promise resolving to TransactionResult for tracking the transaction
    * @throws {Error} When chain ID is not available
    * @throws {Error} When encryption key generation fails

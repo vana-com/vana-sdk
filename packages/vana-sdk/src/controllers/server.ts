@@ -97,12 +97,12 @@ export class ServerController {
    *
    * console.log(`Server: ${identity.name}`);
    * console.log(`Address: ${identity.address}`);
-   * console.log(`Public Key: ${identity.public_key}`);
+   * console.log(`Public Key: ${identity.publicKey}`);
    *
    * // Use the public key for encrypting data to share with this server
    * const encryptedData = await encryptWithWalletPublicKey(
    *   userData,
-   *   identity.public_key
+   *   identity.publicKey
    * );
    * ```
    */
@@ -133,8 +133,8 @@ export class ServerController {
       return {
         kind: serverResponse.personal_server.kind,
         address: serverResponse.personal_server.address,
-        public_key: serverResponse.personal_server.public_key,
-        base_url: this.personalServerBaseUrl,
+        publicKey: serverResponse.personal_server.public_key,
+        baseUrl: this.personalServerBaseUrl,
         name: "Hosted Vana Server",
       };
     } catch (error) {

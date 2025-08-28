@@ -4491,7 +4491,7 @@ export class PermissionsController {
    * @param params.serverAddress - Server wallet address for decryption permissions
    * @param params.serverUrl - Server endpoint URL
    * @param params.serverPublicKey - Server's public key for encryption.
-   *   Obtain via `vana.server.getIdentity(userAddress).public_key`.
+   *   Obtain via `vana.server.getIdentity(userAddress).publicKey`.
    * @param params.filePermissions - Nested array of permissions for each file
    * @returns TransactionResult with immediate hash access and optional event data
    * @throws {Error} When schemaIds array length doesn't match fileUrls array length
@@ -4513,7 +4513,7 @@ export class PermissionsController {
    *   schemaIds: [123], // LinkedIn profile schema ID
    *   serverAddress: "0x742d35Cc6634C0532925a3b844Bc9e7595f0b0Bb",
    *   serverUrl: "https://server.example.com",
-   *   serverPublicKey: serverInfo.public_key,
+   *   serverPublicKey: serverInfo.publicKey,
    *   filePermissions: [[{
    *     account: "0x742d35Cc6634C0532925a3b844Bc9e7595f0b0Bb",
    *     key: encryptedKey

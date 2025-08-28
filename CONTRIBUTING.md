@@ -51,6 +51,7 @@ npm run validate  # Runs lint, typecheck, and tests
 - Strict mode enabled
 - Export all public types
 - Follow TSDoc conventions per [DOCS_GUIDE.md](./DOCS_GUIDE.md)
+- Follow type definition patterns per [TYPES_GUIDE.md](./TYPES_GUIDE.md)
 - No `any` types without justification
 
 ### Testing

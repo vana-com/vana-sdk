@@ -61,7 +61,8 @@
       "persistent": true
     },
     "test:coverage": {
-      "outputs": []
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"]
     },
     "fetch-abis": {
       "outputs": ["src/abi/**"]

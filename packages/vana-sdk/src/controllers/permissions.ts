@@ -1740,7 +1740,6 @@ export class PermissionsController {
    * Trusted servers can handle data export and portability requests from the user.
    *
    * @param params - Parameters for adding and trusting the server
-   * @param params.owner - Ethereum address that will own this server registration
    * @param params.serverAddress - Ethereum address of the server
    * @param params.serverUrl - HTTPS URL where the server can be reached
    * @param params.publicKey - Server's public key for encryption (hex string)

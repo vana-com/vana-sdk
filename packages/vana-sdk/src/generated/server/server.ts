@@ -1,7 +1,7 @@
 // Vana Personal Server API Types
 // Generated automatically from OpenAPI specification - do not edit manually
 // Source: https://raw.githubusercontent.com/vana-com/vana-personal-server/main/openapi.yaml
-// Generated on: 2025-07-20T17:57:38.735Z
+// Generated on: 2025-08-28T03:43:46.312Z
 
 export interface paths {
   "/operations": {
@@ -15,8 +15,38 @@ export interface paths {
     put?: never;
     /**
      * Start an operation (asynchronous)
-     *
      * @description Creates a new operation with the provided request data and signature.
+     *
+     *     **How it works:**
+     *     1. The `permission_id` in the request references a blockchain permission
+     *     2. The permission contains a link to a grant file (stored on IPFS)
+     *     3. The grant file defines the operation type and parameters
+     *     4. The grant file is cryptographically signed by the grantee
+     *
+     *     **Grant File Examples:**
+     *
+     *     *LLM Inference with JSON mode:*
+     *     ```json
+     *     {
+     *       "grantee": "0x123...",
+     *       "operation": "llm_inference",
+     *       "parameters": {
+     *         "prompt": "Analyze this data: {{data}}",
+     *         "response_format": {"type": "json_object"}
+     *       }
+     *     }
+     *     ```
+     *
+     *     *LLM Inference with text mode (default):*
+     *     ```json
+     *     {
+     *       "grantee": "0x123...",
+     *       "operation": "llm_inference",
+     *       "parameters": {
+     *         "prompt": "Summarize this content: {{data}}"
+     *       }
+     *     }
+     *     ```
      *
      *     **Possible Errors:**
      *     - `400 VALIDATION_ERROR`: Invalid request format or missing required fields
@@ -31,6 +61,7 @@ export interface paths {
      *     - `500 COMPUTE_ERROR`: Compute operation failed
      *     - `500 OPERATION_ERROR`: General operation processing error
      *     - `500 INTERNAL_SERVER_ERROR`: Unexpected server error
+     *
      */
     post: {
       parameters: {
@@ -118,13 +149,13 @@ export interface paths {
     };
     /**
      * Poll operation status / result
-     *
      * @description Retrieves the current status and result of an operation.
      *
      *     **Possible Errors:**
      *     - `404 NOT_FOUND_ERROR`: Operation not found
      *     - `500 COMPUTE_ERROR`: Failed to get prediction status
      *     - `500 INTERNAL_SERVER_ERROR`: Unexpected server error
+     *
      */
     get: {
       parameters: {
@@ -177,40 +208,39 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/operations/cancel": {
+  "/operations/{operation_id}/cancel": {
     parameters: {
       query?: never;
       header?: never;
-      path?: never;
+      path: {
+        /** @description The operation ID */
+        operation_id: components["parameters"]["OpId"];
+      };
       cookie?: never;
     };
     get?: never;
     put?: never;
     /**
-     * Cancel a running operation (alternative endpoint)
-     *
+     * Cancel a running operation
      * @description Cancels a running operation.
      *
      *     **Possible Errors:**
      *     - `404 NOT_FOUND_ERROR`: Operation not found
      *     - `500 COMPUTE_ERROR`: Failed to cancel prediction
      *     - `500 INTERNAL_SERVER_ERROR`: Unexpected server error
+     *
      */
     post: {
       parameters: {
         query?: never;
         header?: never;
-        path?: never;
+        path: {
+          /** @description The operation ID */
+          operation_id: components["parameters"]["OpId"];
+        };
         cookie?: never;
       };
-      requestBody: {
-        content: {
-          "application/json": {
-            /** @description The operation ID to cancel */
-            operation_id: string;
-          };
-        };
-      };
+      requestBody?: never;
       responses: {
         /** @description Operation cancelled or already finished */
         204: {
@@ -256,13 +286,13 @@ export interface paths {
     };
     /**
      * Derive deterministic server identity for a user
-     *
      * @description Derives a deterministic server identity (address and public key) for a user based on their Ethereum address.
      *
      *     **Possible Errors:**
      *     - `400 VALIDATION_ERROR_USER_ADDRESS`: Invalid user address format
      *     - `500 OPERATION_ERROR`: Address derivation failed
      *     - `500 INTERNAL_SERVER_ERROR`: Unexpected server error
+     *
      */
     get: {
       parameters: {
@@ -336,7 +366,10 @@ export interface components {
        */
       app_signature: string;
       /**
-       * @description The request JSON which contains permission_id
+       * @description The request JSON which contains permission_id.
+       *     The operation type and parameters are defined in the grant file
+       *     referenced by the blockchain permission.
+       *
        * @example {"permission_id": 1024}
        */
       operation_request_json: string;
@@ -355,7 +388,6 @@ export interface components {
       id: string;
       /**
        * Format: date-time
-       *
        * @description The timestamp when the operation was created
        * @example 2024-01-01T00:00:00Z
        */
@@ -380,14 +412,12 @@ export interface components {
       status: "pending" | "running" | "succeeded" | "failed" | "cancelled";
       /**
        * Format: date-time
-       *
        * @description Optional timestamp when the operation started
        * @example 2024-01-01T00:00:00Z
        */
       started_at?: string | null;
       /**
        * Format: date-time
-       *
        * @description Optional timestamp when the operation finished
        * @example 2024-01-01T00:00:00Z
        */
@@ -438,87 +468,95 @@ export interface components {
        */
       field?: string | null;
     };
-    ValidationErrorResponse: components["schemas"]["ErrorResponse"] & {
+    /** @description Response format specification for LLM operations */
+    ResponseFormat: {
       /**
-       * @example VALIDATION_ERROR_PERMISSION_ID
+       * @description The response format type
+       * @example json_object
        * @enum {string}
        */
-      error_code?:
-        | "VALIDATION_ERROR"
-        | "VALIDATION_ERROR_PERMISSION_ID"
-        | "VALIDATION_ERROR_USER_ADDRESS"
-        | "VALIDATION_ERROR_OPERATION_REQUEST_JSON";
+      type: "text" | "json_object";
     };
-    AuthenticationErrorResponse: components["schemas"]["ErrorResponse"] & {
+    BaseGrantFile: {
+      grantee: components["schemas"]["EthereumAddress"];
+      /** @description The type of operation to perform */
+      operation: string;
+      /** @description Operation-specific parameters */
+      parameters: Record<string, never>;
       /**
-       * @example AUTHENTICATION_ERROR
+       * @description Optional Unix timestamp when grant expires
+       * @example 1736467579
+       */
+      expires?: number;
+    };
+    LLMInferenceGrantFile: Omit<
+      components["schemas"]["BaseGrantFile"],
+      "operation"
+    > & {
+      /**
+       * @example llm_inference
        * @enum {string}
        */
-      error_code?: "AUTHENTICATION_ERROR";
-    };
-    AuthorizationErrorResponse: components["schemas"]["ErrorResponse"] & {
+      operation?: "llm_inference";
+      /** @description LLM inference parameters */
+      parameters?: {
+        /**
+         * @description The prompt template with {{data}} placeholder
+         * @example Analyze this data: {{data}}
+         */
+        prompt: string;
+        response_format?: components["schemas"]["ResponseFormat"];
+      } & {
+        [key: string]: unknown;
+      };
+    } & {
       /**
-       * @example AUTHORIZATION_ERROR
+       * @description discriminator enum property added by openapi-typescript
        * @enum {string}
        */
-      error_code?: "AUTHORIZATION_ERROR";
-    };
-    NotFoundErrorResponse: components["schemas"]["ErrorResponse"] & {
+      operation: "LLMInferenceGrantFile";
+    } & {
       /**
-       * @example NOT_FOUND_ERROR
+       * @description discriminator enum property added by openapi-typescript
        * @enum {string}
        */
-      error_code?: "NOT_FOUND_ERROR";
+      operation: "llm_inference";
     };
-    BlockchainErrorResponse: components["schemas"]["ErrorResponse"] & {
-      /**
-       * @example BLOCKCHAIN_ERROR
-       * @enum {string}
-       */
-      error_code?: "BLOCKCHAIN_ERROR";
-    };
-    FileAccessErrorResponse: components["schemas"]["ErrorResponse"] & {
-      /**
-       * @example FILE_ACCESS_ERROR
-       * @enum {string}
-       */
-      error_code?: "FILE_ACCESS_ERROR";
-    };
-    ComputeErrorResponse: components["schemas"]["ErrorResponse"] & {
-      /**
-       * @example COMPUTE_ERROR
-       * @enum {string}
-       */
-      error_code?: "COMPUTE_ERROR";
-    };
-    DecryptionErrorResponse: components["schemas"]["ErrorResponse"] & {
-      /**
-       * @example DECRYPTION_ERROR
-       * @enum {string}
-       */
-      error_code?: "DECRYPTION_ERROR";
-    };
-    GrantValidationErrorResponse: components["schemas"]["ErrorResponse"] & {
-      /**
-       * @example GRANT_VALIDATION_ERROR
-       * @enum {string}
-       */
-      error_code?: "GRANT_VALIDATION_ERROR";
-    };
-    OperationErrorResponse: components["schemas"]["ErrorResponse"] & {
-      /**
-       * @example OPERATION_ERROR
-       * @enum {string}
-       */
-      error_code?: "OPERATION_ERROR";
-    };
-    InternalServerErrorResponse: components["schemas"]["ErrorResponse"] & {
-      /**
-       * @example INTERNAL_SERVER_ERROR
-       * @enum {string}
-       */
-      error_code?: "INTERNAL_SERVER_ERROR";
-    };
+    /** @description Grant file structure that defines the operation and its parameters.
+     *     The grant file is cryptographically signed and contains the user's intent.
+     *
+     *     **Currently Supported Operations:**
+     *     - `llm_inference`: Large Language Model inference with optional JSON mode
+     *
+     *     **Future Operations:**
+     *     Additional operation types will be added as the platform expands.
+     *
+     *     **JSON Mode (LLM only):**
+     *     When `response_format.type` is `json_object`, the LLM will output valid JSON.
+     *      */
+    GrantFile: components["schemas"]["LLMInferenceGrantFile"];
+    ValidationErrorResponse: components["schemas"]["ErrorResponse"] &
+      Record<string, never>;
+    AuthenticationErrorResponse: components["schemas"]["ErrorResponse"] &
+      Record<string, never>;
+    AuthorizationErrorResponse: components["schemas"]["ErrorResponse"] &
+      Record<string, never>;
+    NotFoundErrorResponse: components["schemas"]["ErrorResponse"] &
+      Record<string, never>;
+    BlockchainErrorResponse: components["schemas"]["ErrorResponse"] &
+      Record<string, never>;
+    FileAccessErrorResponse: components["schemas"]["ErrorResponse"] &
+      Record<string, never>;
+    ComputeErrorResponse: components["schemas"]["ErrorResponse"] &
+      Record<string, never>;
+    DecryptionErrorResponse: components["schemas"]["ErrorResponse"] &
+      Record<string, never>;
+    GrantValidationErrorResponse: components["schemas"]["ErrorResponse"] &
+      Record<string, never>;
+    OperationErrorResponse: components["schemas"]["ErrorResponse"] &
+      Record<string, never>;
+    InternalServerErrorResponse: components["schemas"]["ErrorResponse"] &
+      Record<string, never>;
   };
   responses: never;
   parameters: {

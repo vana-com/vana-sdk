@@ -1,3 +1,8 @@
+/**
+ * @module Node
+ * Node.js-specific implementation of the Vana SDK
+ */
+
 import { NodePlatformAdapter } from "./platform/node";
 import { VanaCore } from "./core";
 import type {

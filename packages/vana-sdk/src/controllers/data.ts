@@ -136,9 +136,7 @@ export class DataController {
    * - Operation permissions: What operations can be performed on the data (handled separately)
    *
    * @param params - Upload parameters including content, filename, schema, and permissions
-   * @param params.permissions[].account - The recipient's wallet address that will access the data.
-   * @param params.permissions[].publicKey - The recipient's public key for encryption (hex string with 0x prefix).
-   *   Obtain via `vana.server.getIdentity(userAddress).publicKey` for personal servers.
+   * @param params.permissions - Optional array of file permissions for granting decryption access
    * @param params.schemaId - Optional schema ID for data validation. Get available schemas from `vana.schemas.list()`.
    * @param params.owner - Optional owner address if uploading on behalf of another user (requires delegation).
    * @returns Promise resolving to upload results with file ID and transaction hash
@@ -2028,10 +2026,7 @@ export class DataController {
    *
    * @param url - The URL of the file to register
    * @param ownerAddress - The address of the file owner
-   * @param permissions - Array of permissions to grant
-   * @param permissions[].account - The recipient's wallet address that will access the file
-   * @param permissions[].publicKey - The recipient's public key for encryption (hex string with 0x prefix).
-   *   Obtain via `vana.server.getIdentity(userAddress).publicKey` for personal servers.
+   * @param permissions - Array of permissions to grant, each with account and publicKey properties
    * @param schemaId - The schema ID to associate with the file (0 for no schema)
    * @returns Promise resolving to TransactionResult with fileId and transactionHash
    * @throws {Error} "Chain ID not available" - When wallet chain is not configured

@@ -31,23 +31,6 @@ async function generateTypes(): Promise<string> {
       // the conflicting /operations/cancel vs /operations/{id} paths
       // See: https://github.com/vana-com/vana-personal-server/issues/XXX
       pathParamsAsTypes: false,
-      // Transform comments to be TypeDoc compatible
-      transform(schemaObject, _options) {
-        // Add comment transformation if schema has description
-        if (
-          "description" in schemaObject &&
-          typeof schemaObject.description === "string"
-        ) {
-          return {
-            ...schemaObject,
-            description: schemaObject.description.replace(
-              /@description\s+/g,
-              "",
-            ),
-          };
-        }
-        return undefined;
-      },
     });
 
     // Convert AST to string
@@ -75,6 +58,8 @@ function generateTypesFile(types: string): string {
 
 `;
 
+  // Note: We intentionally preserve @description tags from openapi-typescript
+  // to maintain OpenAPI fidelity. TypeDoc is configured to accept them.
   return header + types;
 }
 

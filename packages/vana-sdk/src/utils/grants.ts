@@ -77,7 +77,7 @@ export async function retrieveAndValidateGrant(
  * @param grantUrl - The IPFS URL of the grant file to check
  * @param requestingAddress - The address making the access request
  * @param operation - The operation being requested
- * @param fileIds - Array of file IDs being accessed (currently unused but part of interface)
+ * @param _fileIds - Array of file IDs being accessed (currently unused but part of interface)
  * @param relayerUrl - Optional URL of the relayer service
  * @returns Promise resolving to access result with allowed status, reason, and grant file
  */

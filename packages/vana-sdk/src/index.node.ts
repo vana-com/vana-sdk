@@ -212,6 +212,13 @@ export * from "./storage";
 // Configuration
 export { getContractAddress } from "./config/addresses";
 export { chains } from "./config/chains";
+export {
+  type ServiceEndpoints,
+  mainnetServices,
+  mokshaServices,
+  getServiceEndpoints,
+  getDefaultPersonalServerUrl,
+} from "./config/default-services";
 
 // Chain configurations with subgraph URLs - explicit exports for better DX
 export {

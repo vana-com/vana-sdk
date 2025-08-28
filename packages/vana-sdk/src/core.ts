@@ -169,7 +169,6 @@ export class VanaCore {
   private readonly storageManager?: StorageManager;
   private readonly hasRequiredStorage: boolean;
   private readonly ipfsGateways?: string[];
-  private readonly defaultPersonalServerUrl?: string;
   private readonly publicClient: PublicClient;
   private readonly walletClient: WalletClient;
 
@@ -209,9 +208,6 @@ export class VanaCore {
 
     // Store IPFS gateways if provided
     this.ipfsGateways = config.ipfsGateways;
-
-    // Store default personal server URL if provided
-    this.defaultPersonalServerUrl = config.defaultPersonalServerUrl;
 
     // Check if storage is properly configured
     this.hasRequiredStorage = hasStorageConfig(config);
@@ -278,9 +274,11 @@ export class VanaCore {
     this.publicClient = publicClient;
     this.walletClient = walletClient;
 
-    // Get default subgraph URL if not provided in config
+    // Get default service URLs from chain config if not provided
     const chainConfig = getChainConfig(walletClient.chain.id);
     const subgraphUrl = config.subgraphUrl ?? chainConfig?.subgraphUrl;
+    const personalServerUrl =
+      config.defaultPersonalServerUrl ?? chainConfig?.personalServerUrl;
 
     // Create shared context for all controllers, now including the platform adapter
     const sharedContext: ControllerContext = {
@@ -295,7 +293,7 @@ export class VanaCore {
       validateStorageRequired: this.validateStorageRequired.bind(this),
       hasStorage: this.hasStorage.bind(this),
       ipfsGateways: this.ipfsGateways,
-      defaultPersonalServerUrl: this.defaultPersonalServerUrl,
+      defaultPersonalServerUrl: personalServerUrl,
       waitForTransactionEvents: this.waitForTransactionEvents.bind(this),
       waitForOperation: this.waitForOperation.bind(this),
     };

@@ -79,10 +79,12 @@ describe("Chain Definitions", () => {
         expect(chain).toHaveProperty("rpcUrls");
         expect(chain).toHaveProperty("blockExplorers");
         expect(chain).toHaveProperty("subgraphUrl");
+        expect(chain).toHaveProperty("personalServerUrl");
 
         expect(typeof chain.id).toBe("number");
         expect(typeof chain.name).toBe("string");
         expect(typeof chain.subgraphUrl).toBe("string");
+        expect(typeof chain.personalServerUrl).toBe("string");
       });
     });
 
@@ -112,6 +114,7 @@ describe("Chain Definitions", () => {
       expect(Array.isArray(vanaMainnet.rpcUrls.default.http)).toBe(true);
       expect(vanaMainnet.rpcUrls.default.http.length).toBeGreaterThan(0);
       expect(vanaMainnet.subgraphUrl).toContain("vanagraph.io");
+      expect(vanaMainnet.personalServerUrl).toBe("https://server.vana.com");
     });
 
     it("should have valid moksha configuration", () => {
@@ -123,6 +126,7 @@ describe("Chain Definitions", () => {
       expect(Array.isArray(moksha.rpcUrls.default.http)).toBe(true);
       expect(moksha.rpcUrls.default.http.length).toBeGreaterThan(0);
       expect(moksha.subgraphUrl).toContain("moksha.vanagraph.io");
+      expect(moksha.personalServerUrl).toBe("https://test.server.vana.com");
     });
 
     it("should have different chain IDs", () => {

@@ -589,7 +589,7 @@ export class VanaCore {
    * ```
    */
   async getUserAddress(): Promise<Address> {
-    if (!this.walletClient.account) {
+    if (!this.walletClient?.account) {
       throw new Error("No wallet account connected");
     }
 

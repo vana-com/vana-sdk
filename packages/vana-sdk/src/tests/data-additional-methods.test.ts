@@ -15,6 +15,7 @@ describe("DataController Additional Methods", () => {
     publicClient: {
       readContract: vi.fn(),
     } as unknown as ControllerContext["publicClient"],
+    userAddress: "0x123" as `0x${string}`,
   };
 
   const dataController = new DataController(mockContext);

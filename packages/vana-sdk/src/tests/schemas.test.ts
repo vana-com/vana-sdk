@@ -560,6 +560,10 @@ describe("SchemaController", () => {
           ...mockContext.walletClient,
           chain: undefined,
         },
+        publicClient: {
+          ...mockContext.publicClient,
+          chain: undefined,
+        },
       };
       const controllerWithoutChain = new SchemaController(contextWithoutChain);
 
@@ -765,6 +769,10 @@ describe("SchemaController", () => {
         ...mockContext,
         walletClient: {
           ...mockContext.walletClient,
+          chain: undefined,
+        },
+        publicClient: {
+          ...mockContext.publicClient,
           chain: undefined,
         },
       };

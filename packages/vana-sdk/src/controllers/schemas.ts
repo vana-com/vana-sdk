@@ -210,7 +210,9 @@ export class SchemaController extends BaseController {
       );
 
       // Step 4: Register on blockchain
-      const chainId = this.context.walletClient.chain?.id;
+      const chainId =
+        this.context.walletClient?.chain?.id ??
+        this.context.publicClient.chain?.id;
       if (!chainId) {
         throw new Error("Chain ID not available");
       }
@@ -222,7 +224,7 @@ export class SchemaController extends BaseController {
       const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
 
       const account =
-        this.context.walletClient.account ?? (await this.getUserAddress());
+        this.context.walletClient?.account ?? (await this.getUserAddress());
       const from = typeof account === "string" ? account : account.address;
 
       const hash = await this.context.walletClient.writeContract({
@@ -456,7 +458,9 @@ export class SchemaController extends BaseController {
       }
 
       // Get contract address and ABI
-      const chainId = this.context.walletClient.chain?.id;
+      const chainId =
+        this.context.walletClient?.chain?.id ??
+        this.context.publicClient.chain?.id;
       if (!chainId) {
         throw new Error("Chain ID not available");
       }
@@ -540,7 +544,9 @@ export class SchemaController extends BaseController {
   async addSchema(params: AddSchemaParams): Promise<SchemaAddedResult> {
     this.assertWallet();
     try {
-      const chainId = this.context.walletClient.chain?.id;
+      const chainId =
+        this.context.walletClient?.chain?.id ??
+        this.context.publicClient.chain?.id;
       if (!chainId) {
         throw new Error("Chain ID not available");
       }
@@ -552,7 +558,7 @@ export class SchemaController extends BaseController {
       const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
 
       const account =
-        this.context.walletClient.account ?? (await this.getUserAddress());
+        this.context.walletClient?.account ?? (await this.getUserAddress());
       const from = typeof account === "string" ? account : account.address;
 
       const hash = await this.context.walletClient.writeContract({
@@ -772,21 +778,21 @@ export class SchemaController extends BaseController {
    * @returns Promise resolving to the user's address
    */
   private async getUserAddress(): Promise<Address> {
-    if (!this.context.walletClient.account) {
+    if (!this.context.walletClient?.account) {
       throw new Error("No wallet account connected");
     }
 
     // Return the account address directly if available
-    if (typeof this.context.walletClient.account === "string") {
-      return this.context.walletClient.account as Address;
+    if (typeof this.context.walletClient?.account === "string") {
+      return this.context.walletClient?.account as Address;
     }
 
     // If account is an object, get the address property
     if (
-      typeof this.context.walletClient.account === "object" &&
-      this.context.walletClient.account.address
+      typeof this.context.walletClient?.account === "object" &&
+      this.context.walletClient?.account.address
     ) {
-      return this.context.walletClient.account.address;
+      return this.context.walletClient?.account.address;
     }
 
     throw new Error("Unable to determine wallet address");

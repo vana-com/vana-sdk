@@ -9,7 +9,7 @@ import type { SchemaMetadata } from "../../types/index";
  * Only includes the minimal required fields to avoid coupling.
  */
 interface BlockchainContext {
-  walletClient: WalletClient;
+  walletClient?: WalletClient;
   publicClient: PublicClient;
 }
 
@@ -38,7 +38,8 @@ export async function fetchSchemaFromChain(
   context: BlockchainContext,
   schemaId: number,
 ): Promise<SchemaMetadata> {
-  const chainId = context.walletClient.chain?.id;
+  const chainId =
+    context.walletClient?.chain?.id ?? context.publicClient.chain?.id;
   if (!chainId) {
     throw new Error("Chain ID not available");
   }
@@ -90,7 +91,8 @@ export async function fetchSchemaFromChain(
 export async function fetchSchemaCountFromChain(
   context: BlockchainContext,
 ): Promise<number> {
-  const chainId = context.walletClient.chain?.id;
+  const chainId =
+    context.walletClient?.chain?.id ?? context.publicClient.chain?.id;
   if (!chainId) {
     throw new Error("Chain ID not available");
   }

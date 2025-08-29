@@ -222,7 +222,8 @@ export class SchemaController extends BaseController {
       );
       const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
 
-      const account = this.context.walletClient.account;
+      const account =
+        this.context.walletClient.account ?? this.context.userAddress;
       const from = typeof account === "string" ? account : account?.address;
 
       const hash = await this.context.walletClient.writeContract({
@@ -230,7 +231,7 @@ export class SchemaController extends BaseController {
         abi: dataRefinerRegistryAbi,
         functionName: "addSchema",
         args: [name, dialect, uploadResult.url],
-        account: account ?? null,
+        account,
         chain: this.context.walletClient.chain ?? null,
       });
 
@@ -555,7 +556,8 @@ export class SchemaController extends BaseController {
       );
       const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
 
-      const account = this.context.walletClient.account;
+      const account =
+        this.context.walletClient.account ?? this.context.userAddress;
       const from = typeof account === "string" ? account : account?.address;
 
       const hash = await this.context.walletClient.writeContract({
@@ -563,7 +565,7 @@ export class SchemaController extends BaseController {
         abi: dataRefinerRegistryAbi,
         functionName: "addSchema",
         args: [params.name, params.dialect, params.definitionUrl],
-        account: account ?? null,
+        account,
         chain: this.context.walletClient.chain ?? null,
       });
 

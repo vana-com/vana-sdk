@@ -63,38 +63,7 @@ program
     }
   });
 
-// Status command
-program
-  .command('status')
-  .description('Show current project status and next steps')
-  .action(() => {
-    console.log(chalk.bold.cyan('🏁 Vana SDK Load Test Status\n'));
-    
-    console.log(chalk.green('✅ Completed:'));
-    console.log('  - Core infrastructure (VanaLoadTestClient, LoadTestApiServer)');
-    console.log('  - Configuration system with environment loading');
-    console.log('  - DataPortabilityFlow integration');
-    console.log('  - Milestone 1: Core Components (100% pass rate)');
-    
-    console.log(chalk.yellow('\n🚧 In Progress:'));
-    console.log('  - CLI infrastructure and entry points');
-    console.log('  - Milestone 2: Single E2E flow testing');
-    
-    console.log(chalk.red('\n❌ Missing:'));
-    console.log('  - CLI scripts (prepare-wallets.ts, run-test.ts, monitor.ts)');
-    console.log('  - Artillery configuration files');
-    console.log('  - TestWalletManager implementation');
-    console.log('  - Synthetic data generator');
-    
-    console.log(chalk.blue('\n🎯 Next Steps:'));
-    console.log('  1. Run: npm run build');
-    console.log('  2. Test: npx tsx milestones/ms-01/test-milestone1.ts');
-    console.log('  3. Start server: npm run dev');
-    console.log('  4. Implement Milestone 2 testing');
-    
-    console.log(chalk.cyan('\n📊 Progress: ~40% complete'));
-    console.log(chalk.cyan('🎯 Focus: CLI implementation and E2E testing'));
-  });
+
 
 // Test command
 program

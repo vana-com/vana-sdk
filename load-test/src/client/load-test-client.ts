@@ -54,91 +54,15 @@ async function createStorageProviders(config: LoadTestConfig): Promise<Record<st
     });
   }
 
-  // Fallback to mock storage if no real providers configured
+  // Require real storage providers for load testing
   if (Object.keys(providers).length === 0) {
-    if (process.env.NODE_ENV === 'production' || process.env.FORCE_REAL_SYSTEMS === 'true') {
-      throw new Error('❌ REAL SYSTEMS REQUIRED: Configure GOOGLE_CLOUD_SERVICE_ACCOUNT_JSON and GOOGLE_CLOUD_STORAGE_BUCKET for load testing');
-    }
-    
-    if (config.enableDebugLogs) {
-      console.warn('[Storage] No real storage providers configured, using mock storage');
-      console.warn('[Storage] For real storage, configure GOOGLE_CLOUD_SERVICE_ACCOUNT_JSON and GOOGLE_CLOUD_STORAGE_BUCKET');
-    }
-    providers['mock'] = new MockStorageProvider();
+    throw new Error('❌ REAL SYSTEMS REQUIRED: Configure GOOGLE_CLOUD_SERVICE_ACCOUNT_JSON and GOOGLE_CLOUD_STORAGE_BUCKET for load testing');
   }
 
   return providers;
 }
 
-/**
- * Mock storage provider for load testing fallback
- * Only used when no real storage providers are configured
- */
-class MockStorageProvider implements StorageProvider {
-  private mockFiles = new Map<string, { blob: Blob; filename: string; uploadTime: number }>();
 
-  async upload(file: Blob, filename?: string): Promise<StorageUploadResult> {
-    // Simulate upload delay (disabled for load testing)
-    // await new Promise(resolve => setTimeout(resolve, 100 + Math.random() * 200));
-    
-    const mockUrl = `mock://storage/${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const finalFilename = filename || `file-${Date.now()}.dat`;
-    
-    // Store file data for potential download
-    this.mockFiles.set(mockUrl, {
-      blob: file,
-      filename: finalFilename,
-      uploadTime: Date.now(),
-    });
-    
-    return {
-      url: mockUrl,
-      size: file.size,
-      contentType: file.type || 'application/octet-stream',
-    };
-  }
-
-  async download(url: string): Promise<Blob> {
-    await new Promise(resolve => setTimeout(resolve, 50 + Math.random() * 100));
-    const fileData = this.mockFiles.get(url);
-    if (!fileData) {
-      throw new Error(`File not found: ${url}`);
-    }
-    return fileData.blob;
-  }
-
-  async list(options?: StorageListOptions): Promise<StorageFile[]> {
-    const files: StorageFile[] = [];
-    for (const [url, data] of this.mockFiles.entries()) {
-      files.push({
-        id: url.split('/').pop() || url,
-        name: data.filename,
-        url,
-        size: data.blob.size,
-        contentType: data.blob.type || 'application/octet-stream',
-        createdAt: new Date(data.uploadTime),
-        metadata: { uploadTime: data.uploadTime, mock: true },
-      });
-    }
-    const limit = options?.limit || files.length;
-    const offset = typeof options?.offset === 'number' ? options.offset : 0;
-    return files.slice(offset, offset + limit);
-  }
-
-  async delete(url: string): Promise<boolean> {
-    await new Promise(resolve => setTimeout(resolve, 50));
-    return this.mockFiles.delete(url);
-  }
-
-  getConfig(): StorageProviderConfig {
-    return {
-      name: 'mock-storage',
-      type: 'mock',
-      requiresAuth: false,
-      features: { upload: true, download: true, list: true, delete: true },
-    };
-  }
-}
 
 /**
  * VanaLoadTestClient - Executes end-to-end data portability flows for load testing

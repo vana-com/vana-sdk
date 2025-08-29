@@ -112,9 +112,15 @@ export function patchWalletClientForPremiumGas(
           console.log(`[GAS] Overriding SDK gas: ${Number(args.maxFeePerGas) / 1e9} gwei → ${Number(gasParams.maxFeePerGas) / 1e9} gwei`);
         }
         
-        if (config.enableDebugLogs || !args.maxFeePerGas) {
-          console.log(`[GAS] Premium gas applied: ${Number(enhancedArgs.maxFeePerGas) / 1e9} gwei (max), ${Number(enhancedArgs.maxPriorityFeePerGas) / 1e9} gwei (priority)`);
-        }
+              // Always log gas application for debugging
+      console.log(`[GAS] writeContract called:
+        Function: ${args.functionName}
+        Original gas: ${args.maxFeePerGas ? Number(args.maxFeePerGas) / 1e9 : 'none'} gwei
+        Applied gas: ${Number(enhancedArgs.maxFeePerGas) / 1e9} gwei (max), ${Number(enhancedArgs.maxPriorityFeePerGas) / 1e9} gwei (priority)`);
+      
+      if (args.functionName === 'addServerFilesAndPermissions') {
+        console.log(`[GAS] ✅ Premium gas applied to addServerFilesAndPermissions transaction!`);
+      }
         
         return originalWriteContract(enhancedArgs);
       } catch (error) {

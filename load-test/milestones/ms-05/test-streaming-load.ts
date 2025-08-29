@@ -22,20 +22,19 @@ import * as path from 'path';
  * Improvements:
  * - Multi-relayer parallel funding (10x faster)
  * - Pre-funding strategy (fund before test starts)
- * - Artillery-style ramp patterns
- * - Better buffer management
- * - Master wallet protection
  * - Premium gas monkey-patching for timeout prevention
+ * - Complete console logging to file
+ * - Dead code removal and cleaner architecture
  * 
  * Usage:
- * # Standard test (may timeout during congestion)
+ * # Standard test
  * npx tsx milestones/ms-05/test-streaming-load.ts
  * 
  * # High gas configuration (recommended for timeout issues)
  * PREMIUM_GAS_MULTIPLIER=50 npx tsx milestones/ms-05/test-streaming-load.ts
  * 
  * # Custom parameters
- * npx tsx milestones/ms-05/test-streaming-load.ts --users 100 --rate 2.0 --concurrency 20
+ * npx tsx milestones/ms-05/test-streaming-load.ts --users 100 --rate 2.0 --concurrency 20 --child-relayers 10
  */
 
 interface StreamingConfigV2 {
@@ -48,9 +47,6 @@ interface StreamingConfigV2 {
   childRelayers: number;
   preFundBuffer: number; // Fund this many wallets before starting test
   fundingAmountPerChild: string; // e.g., "100" VANA
-  
-  // Wallet Strategy
-  // Note: Using fresh wallets only for stable nonce management
   
   // Ramp Patterns (Artillery-style)
   rampUpDurationSeconds: number;
@@ -235,10 +231,9 @@ class OptimizedWalletPool {
     // Fresh wallets only strategy - generate exactly as many wallets as needed
     const totalWalletsNeeded = streamingConfig.totalUsers + streamingConfig.preFundBuffer;
     
-    console.log(chalk.blue(`📝 Generating ${totalWalletsNeeded} fresh wallets (no reuse):`));
+    console.log(chalk.blue(`📝 Generating ${totalWalletsNeeded} fresh wallets:`));
     console.log(chalk.gray(`   • Test users: ${streamingConfig.totalUsers}`));
     console.log(chalk.gray(`   • Buffer: ${streamingConfig.preFundBuffer}`));
-    console.log(chalk.gray(`   • Strategy: Fresh wallets only (stable nonce management)`));
     
     const wallets = this.generateWallets(totalWalletsNeeded);
     this.unfunded.push(...wallets);
@@ -251,7 +246,7 @@ class OptimizedWalletPool {
 
   private async preFundAllWallets(): Promise<void> {
     const message = `💰 Pre-funding ${this.unfunded.length} wallets using persistent child relayers...`;
-    console.log(chalk.yellow(message)); // Log to file
+    console.log(chalk.yellow(message));
     const spinner = ora(message).start();
     const startTime = Date.now();
     
@@ -262,7 +257,7 @@ class OptimizedWalletPool {
       const successful = results.filter(r => r.success).length;
       const failed = results.filter(r => !r.success).length;
       
-      // Move successfully funded wallets to funded pool and track failed ones
+      // Move successfully funded wallets to funded pool
       const stillUnfunded: WalletInfo[] = [];
       
       for (let i = 0; i < this.unfunded.length; i++) {
@@ -291,13 +286,6 @@ class OptimizedWalletPool {
         }
       } else {
         spinner.fail(chalk.red(`❌ Failed to pre-fund any wallets`));
-        console.log(chalk.red(`🔍 Debug: Results length: ${results.length}, Expected: ${addresses.length}`));
-        
-        // Log first few errors for debugging
-        const errors = results.filter(r => !r.success).slice(0, 3);
-        errors.forEach((result, i) => {
-          console.log(chalk.red(`   Error ${i+1}: ${result.error}`));
-        });
       }
       
     } catch (error) {
@@ -375,32 +363,23 @@ export class StreamingLoadTestV2 {
   private isPaused = false;
   private shouldStop = false;
   private logFile: string;
-  private errorLogFile: string;
-  private completeLogFile: string;
   private logStream?: fs.WriteStream;
-  private errorLogStream?: fs.WriteStream;
-  private completeLogStream?: fs.WriteStream;
   
-  // Original console methods
+  // Original console methods for dual logging
   private originalConsole = {
     log: console.log,
     error: console.error,
     warn: console.warn,
     info: console.info,
   };
-  
-  // Wallet deduplication tracking
-  private usedWalletAddresses: Map<string, string[]> = new Map(); // address -> [userIds]
 
   constructor(config: any, streamingConfig: StreamingConfigV2) {
     this.config = config;
     this.maxConcurrentUsers = streamingConfig.maxConcurrentUsers;
     
-    // Setup logging
+    // Setup logging - complete log file with all console output
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    this.logFile = path.join(process.cwd(), `load-test-${timestamp}.log`);
-    this.errorLogFile = path.join(process.cwd(), `load-test-errors-${timestamp}.log`);
-    this.completeLogFile = path.join(process.cwd(), `load-test-complete-${timestamp}.log`);
+    this.logFile = path.join(process.cwd(), `load-test-complete-${timestamp}.log`);
     this.setupGracefulShutdown();
     this.setupDualLogging();
     
@@ -431,12 +410,18 @@ export class StreamingLoadTestV2 {
     this.userStream = new ArtilleryStyleUserStream(streamingConfig);
   }
 
-  private setupDualLogging(): void {
-    // Setup complete log stream
-    this.completeLogStream = fs.createWriteStream(this.completeLogFile, { flags: 'a' });
+  private log(message: string): void {
+    const timestamp = new Date().toISOString();
+    const logEntry = `[${timestamp}] ${message}\n`;
     
+    if (this.logStream && !this.logStream.destroyed) {
+      this.logStream.write(logEntry);
+    }
+  }
+  
+  private setupDualLogging(): void {
     // Override console methods to write to both console and file
-    const logToFile = (level: string, args: any[]) => {
+    const writeToFile = (level: string, ...args: any[]) => {
       const timestamp = new Date().toISOString();
       const message = args.map(arg => 
         typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
@@ -445,44 +430,41 @@ export class StreamingLoadTestV2 {
       // Strip ANSI color codes for file output
       const cleanMessage = message.replace(/\x1b\[[0-9;]*m/g, '');
       
-      if (this.completeLogStream && !this.completeLogStream.destroyed) {
-        this.completeLogStream.write(`[${timestamp}] [${level}] ${cleanMessage}\n`);
+      if (this.logStream && !this.logStream.destroyed) {
+        this.logStream.write(`[${timestamp}] [${level}] ${cleanMessage}\n`);
       }
     };
     
     // Override console methods
     console.log = (...args: any[]) => {
       this.originalConsole.log(...args);
-      logToFile('LOG', args);
+      writeToFile('LOG', ...args);
     };
     
     console.error = (...args: any[]) => {
       this.originalConsole.error(...args);
-      logToFile('ERROR', args);
+      writeToFile('ERROR', ...args);
     };
     
     console.warn = (...args: any[]) => {
       this.originalConsole.warn(...args);
-      logToFile('WARN', args);
+      writeToFile('WARN', ...args);
     };
     
     console.info = (...args: any[]) => {
       this.originalConsole.info(...args);
-      logToFile('INFO', args);
+      writeToFile('INFO', ...args);
     };
   }
   
   private setupGracefulShutdown(): void {
-    // Setup log streams
+    // Setup log stream
     this.logStream = fs.createWriteStream(this.logFile, { flags: 'a' });
-    this.errorLogStream = fs.createWriteStream(this.errorLogFile, { flags: 'a' });
     
-    this.log(`🚀 Load test started at ${new Date().toISOString()}`);
-    this.logError(`🚀 Error logging started at ${new Date().toISOString()}`);
+    this.log('🚀 Load test started');
     
-    console.log(chalk.blue(`📝 Summary logs: ${this.logFile}`));
-    console.log(chalk.red(`🚨 Error logs: ${this.errorLogFile}`));
-    console.log(chalk.green(`📋 Complete logs: ${this.completeLogFile}`));
+    console.log(chalk.blue(`📝 Complete log file: ${this.logFile}`));
+    console.log(chalk.yellow(`💡 All console output will be saved to the log file`));
     console.log(chalk.yellow(`💡 Press Ctrl+C to gracefully stop and save results`));
     
     // Graceful shutdown handlers
@@ -520,44 +502,17 @@ export class StreamingLoadTestV2 {
       console.warn = this.originalConsole.warn;
       console.info = this.originalConsole.info;
       
-      // Close log streams
+      // Close log stream
       if (this.logStream) {
         this.logStream.end();
       }
-      if (this.errorLogStream) {
-        this.errorLogStream.end();
-      }
-      if (this.completeLogStream) {
-        this.completeLogStream.end();
-      }
       
-      console.log(chalk.green(`✅ Graceful shutdown complete. Logs saved to:`));
-      console.log(chalk.blue(`   📝 Summary: ${this.logFile}`));
-      console.log(chalk.red(`   🚨 Errors: ${this.errorLogFile}`));
-      console.log(chalk.green(`   📋 Complete: ${this.completeLogFile}`));
+      console.log(chalk.green(`✅ Graceful shutdown complete. Complete log saved to: ${this.logFile}`));
       process.exit(0);
     };
     
     process.on('SIGINT', () => gracefulShutdown('SIGINT'));
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-  }
-  
-  private log(message: string): void {
-    const timestamp = new Date().toISOString();
-    const logEntry = `[${timestamp}] ${message}\n`;
-    
-    if (this.logStream) {
-      this.logStream.write(logEntry);
-    }
-  }
-  
-  private logError(message: string): void {
-    const timestamp = new Date().toISOString();
-    const logEntry = `[${timestamp}] ${message}\n`;
-    
-    if (this.errorLogStream) {
-      this.errorLogStream.write(logEntry);
-    }
   }
 
   async run(streamingConfig: StreamingConfigV2): Promise<void> {
@@ -567,7 +522,7 @@ export class StreamingLoadTestV2 {
       
       console.log(chalk.cyan(`\n🌊 Starting Milestone 5 V2: Optimized Streaming Load Test`));
       console.log(chalk.blue(`📊 ${streamingConfig.totalUsers} users with ${streamingConfig.childRelayers} parallel funding relayers`));
-      console.log(chalk.green(`📋 ALL output will be saved to: ${this.completeLogFile}\n`));
+      console.log(chalk.green(`📋 Complete log (console + file): ${this.logFile}\n`));
 
       await this.startApiServer();
       await this.initializeComponents(streamingConfig);
@@ -655,7 +610,6 @@ export class StreamingLoadTestV2 {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(chalk.red(`❌ [${user.userId}] PROMISE_REJECTION: ${errorMessage}`));
       this.log(`PROMISE_REJECTION - User ${user.userId}: ${errorMessage}`);
-      this.logError(`PROMISE_REJECTION - ${user.userId}: ${errorMessage}`);
       
       // Track error from promise rejection
       globalErrorTracker.trackError(
@@ -707,14 +661,6 @@ export class StreamingLoadTestV2 {
     try {
       // Get pre-funded wallet from pool (should be instant)
       wallet = await this.walletPool!.getWallet();
-      
-      // Check for wallet address reuse (debugging nonce issues)
-      if (this.usedWalletAddresses.has(wallet.address)) {
-        const previousUsers = this.usedWalletAddresses.get(wallet.address)!;
-        console.error(chalk.red(`🚨 WALLET REUSE DETECTED! Address ${wallet.address} was previously used by: ${previousUsers.join(', ')}`));
-        this.logError(`WALLET_REUSE - ${userId}: Address ${wallet.address} previously used by ${previousUsers.join(', ')}`);
-      }
-      this.usedWalletAddresses.set(wallet.address, [...(this.usedWalletAddresses.get(wallet.address) || []), userId]);
       
       // Check wallet balance BEFORE transaction
       const { createPublicClient, http } = await import('viem');
@@ -793,7 +739,6 @@ export class StreamingLoadTestV2 {
       
       console.error(chalk.red(logEntry)); // Immediate console output
       this.log(`ERROR - User ${userId}: ${errorMessage}${walletInfo}`); // General log
-      this.logError(`USER_FLOW_ERROR - ${userId}: ${errorMessage}${walletInfo}`); // Dedicated error log
       
       // Track error with comprehensive context
       globalErrorTracker.trackError(
@@ -1055,7 +1000,7 @@ export class StreamingLoadTestV2 {
     
     if (overallPass) {
       console.log(chalk.green(`\n🎉 Milestone 5 V2 PASSED! Optimized streaming successful.`));
-      console.log(chalk.green(`🚀 Ready for production-scale load testing with Artillery!`));
+      console.log(chalk.green(`🚀 Ready for production-scale load testing!`));
     } else {
       console.log(chalk.red(`\n❌ Milestone 5 V2 needs optimization.`));
       console.log(chalk.yellow(`🔧 Recommendations:`));
@@ -1069,25 +1014,10 @@ export class StreamingLoadTestV2 {
     if (this.metrics.failedUsers > 0) {
       globalErrorTracker.displayReport(this.metrics.totalUsers);
     }
-    
-    // Display wallet reuse analysis
-    const reusedWallets = Array.from(this.usedWalletAddresses.entries()).filter(([_, users]) => users.length > 1);
-    if (reusedWallets.length > 0) {
-      console.log(chalk.red('\n🚨 Wallet Reuse Analysis\n'));
-      console.log(chalk.gray('═'.repeat(60)));
-      console.log(`Total unique wallets used: ${this.usedWalletAddresses.size}`);
-      console.log(`Wallets reused: ${reusedWallets.length}`);
-      console.log('\nReused wallet details:');
-      reusedWallets.forEach(([address, users]) => {
-        console.log(`  ${address}: used by ${users.length} users (${users.slice(0, 5).join(', ')}${users.length > 5 ? '...' : ''})`);
-      });
-    } else {
-      console.log(chalk.green('\n✅ No wallet reuse detected - all wallets were unique'));
-    }
   }
 
   private async cleanup(): Promise<void> {
-    console.log(chalk.gray(`\n🧹 Cleaning up optimized test environment...`));
+    console.log(chalk.gray(`\n🧹 Cleaning up test environment...`));
     
     this.userStream?.stop();
     
@@ -1140,12 +1070,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         preFundBuffer: 5, // Extra wallets beyond totalUsers
         fundingAmountPerChild: "50", // VANA per child relayer
         
-        // Fresh wallets only strategy
-        
-        // Artillery-style phases (shorter ramp-down)
+        // Artillery-style phases
         rampUpDurationSeconds: 30,
         sustainDurationSeconds: 60,
-        rampDownDurationSeconds: 10, // Reduced from 30s
+        rampDownDurationSeconds: 10,
       };
       
       for (let i = 0; i < args.length; i += 2) {
@@ -1174,7 +1102,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       }
       
       if (args.length > 0) {
-        console.log(chalk.cyan('🎛️  Custom optimized configuration:'));
+        console.log(chalk.cyan('🎛️  Custom configuration:'));
         console.log(`  Users: ${streamingConfig.totalUsers}`);
         console.log(`  Arrival Rate: ${streamingConfig.arrivalRateUsersPerSecond}/sec`);
         console.log(`  Max Concurrent: ${streamingConfig.maxConcurrentUsers}`);

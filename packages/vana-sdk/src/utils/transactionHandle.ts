@@ -1,6 +1,7 @@
 import type { Hash, TransactionReceipt } from "viem";
 import type { ControllerContext } from "../controllers/permissions";
 import type { TransactionOperation } from "../config/eventMappings";
+import type { TransactionOptions } from "../types/utils";
 import { parseTransactionResult } from "./transactionParsing";
 
 /**
@@ -44,13 +45,12 @@ export class TransactionHandle<TEventData = unknown> {
    * Waits for transaction confirmation and returns the receipt.
    * Results are memoized - multiple calls return the same promise.
    *
-   * @param options Optional timeout configuration
-   * @param options.timeout Timeout in milliseconds (default: 30000)
+   * @param options Optional transaction configuration (timeout, gas, etc.)
    * @returns Transaction receipt with gas usage, logs, and status
    */
-  async waitForReceipt(options?: {
-    timeout?: number;
-  }): Promise<TransactionReceipt> {
+  async waitForReceipt(
+    options?: TransactionOptions,
+  ): Promise<TransactionReceipt> {
     if (this._receipt) {
       return this._receipt;
     }
@@ -74,10 +74,11 @@ export class TransactionHandle<TEventData = unknown> {
    * Waits for transaction confirmation and parses emitted events.
    * Results are memoized - multiple calls return the same promise.
    *
+   * @param options Optional transaction configuration (timeout, gas, etc.)
    * @returns Parsed event data with transaction metadata
    * @throws {Error} If no operation was specified for event parsing
    */
-  async waitForEvents(): Promise<TEventData> {
+  async waitForEvents(options?: TransactionOptions): Promise<TEventData> {
     if (this._eventData) {
       return this._eventData;
     }
@@ -94,6 +95,7 @@ export class TransactionHandle<TEventData = unknown> {
         this.context,
         this.hash,
         this.operation,
+        options,
       ).then((eventData) => {
         this._eventData = eventData as TEventData;
         return eventData as TEventData;

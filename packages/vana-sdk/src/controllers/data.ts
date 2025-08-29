@@ -15,6 +15,7 @@ import {
   GetUserTrustedServersParams,
   EncryptedUploadParams,
   UnencryptedUploadParams,
+  TransactionOptions,
 } from "../types/index";
 import {
   FilePermissionResult,
@@ -25,6 +26,7 @@ import { TransactionHandle } from "../utils/transactionHandle";
 import { ControllerContext } from "./permissions";
 import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../generated/abi";
+import { extractViemGasOptions } from "../utils/transactionOptions";
 import {
   generateEncryptionKey,
   decryptBlobWithSignedKey,
@@ -1885,6 +1887,7 @@ export class DataController {
    * @param params - Update parameters
    * @param params.refinerId - The refiner ID to update
    * @param params.newSchemaId - The new schema ID to set
+   * @param options - Transaction options (gas, timeout). NOTE: Only applies to direct transactions, not relayer callbacks.
    * @returns Promise resolving to the transaction hash
    * @throws {Error} When chain ID is not available - "Chain ID not available"
    * @throws {Error} When transaction fails - "Failed to update schema ID: {error}"
@@ -1899,6 +1902,7 @@ export class DataController {
    */
   async updateSchemaId(
     params: UpdateSchemaIdParams,
+    options?: TransactionOptions,
   ): Promise<UpdateSchemaIdResult> {
     try {
       const chainId = this.context.walletClient.chain?.id;
@@ -1912,6 +1916,9 @@ export class DataController {
       );
       const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
 
+      // Extract gas options that are compatible with this function
+      const gasOptions = extractViemGasOptions(options, false);
+
       const txHash = await this.context.walletClient.writeContract({
         address: dataRefinerRegistryAddress,
         abi: dataRefinerRegistryAbi,
@@ -1920,11 +1927,12 @@ export class DataController {
         account:
           this.context.walletClient.account || (await this.getUserAddress()),
         chain: this.context.walletClient.chain || null,
+        ...gasOptions,
       });
 
       await this.context.publicClient.waitForTransactionReceipt({
         hash: txHash,
-        timeout: 30_000,
+        timeout: options?.timeout ?? 30_000,
       });
 
       return {

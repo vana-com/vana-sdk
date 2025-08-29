@@ -35,6 +35,7 @@ import {
   ServerFilesAndPermissionParams,
   ServerFilesAndPermissionTypedData,
   Permission,
+  TransactionOptions,
 } from "../types/index";
 import {
   PermissionGrantResult,
@@ -67,6 +68,7 @@ import { formatSignatureForContract } from "../utils/signatureFormatter";
 import { toViemTypedDataDefinition } from "../utils/typedDataConverter";
 import { StorageManager } from "../storage";
 import type { VanaPlatformAdapter } from "../platform/interface";
+import { extractViemGasOptions } from "../utils/transactionOptions";
 
 interface SubgraphPermissionsResponse {
   data?: {
@@ -4281,6 +4283,7 @@ export class PermissionsController {
    *
    * @param typedData - The EIP-712 typed data for AddPermission
    * @param signature - The user's signature
+   * @param options - Transaction options (gas, timeout). NOTE: Only applies to direct transactions, not relayer callbacks.
    * @returns Promise resolving to TransactionHandle with PermissionGrantResult event data
    * @throws {RelayerError} When gasless transaction submission fails
    * @throws {BlockchainError} When permission addition fails
@@ -4289,6 +4292,7 @@ export class PermissionsController {
   async submitSignedAddPermission(
     typedData: GenericTypedData,
     signature: Hash,
+    options?: TransactionOptions,
   ): Promise<TransactionHandle<PermissionGrantResult>> {
     try {
       // Use relayer callbacks or direct transaction
@@ -4302,14 +4306,19 @@ export class PermissionsController {
         hash = await this.submitDirectAddPermissionTransaction(
           typedData,
           signature,
+          options,
         );
       }
 
-      return new TransactionHandle<PermissionGrantResult>(
+      const txHandle = new TransactionHandle<PermissionGrantResult>(
         this.context,
         hash,
         "addServerFilesAndPermissions",
       );
+
+      // If timeout options were provided, they can be used when calling waitForEvents()
+      // Example: await txHandle.waitForEvents({ timeout: options?.timeout });
+      return txHandle;
     } catch (error) {
       // Re-throw known Vana errors directly to preserve error types
       if (
@@ -4348,6 +4357,7 @@ export class PermissionsController {
    * @param params.serverPublicKey - Server's public key for encryption.
    *   Obtain via `vana.server.getIdentity(userAddress).public_key`.
    * @param params.filePermissions - Nested array of permissions for each file
+   * @param options - Transaction options (gas, timeout). NOTE: Only applies to direct transactions, not relayer callbacks.
    * @returns TransactionHandle with immediate hash access and event parsing capability
    * @throws {Error} When schemaIds array length doesn't match fileUrls array length
    * @throws {SchemaValidationError} When file data doesn't match the specified schema.
@@ -4380,6 +4390,7 @@ export class PermissionsController {
    */
   async submitAddServerFilesAndPermissions(
     params: ServerFilesAndPermissionParams,
+    options?: TransactionOptions,
   ): Promise<TransactionHandle<PermissionGrantResult>> {
     try {
       // Validate that schemaIds array has same length as fileUrls
@@ -4418,6 +4429,7 @@ export class PermissionsController {
       return await this.submitSignedAddServerFilesAndPermissions(
         typedData,
         signature,
+        options,
       );
     } catch (error) {
       // Re-throw known Vana errors directly
@@ -4448,6 +4460,7 @@ export class PermissionsController {
    *
    * @param typedData - The EIP-712 typed data for AddServerFilesAndPermissions
    * @param signature - The user's signature
+   * @param options - Transaction options (gas, timeout). NOTE: Only applies to direct transactions, not relayer callbacks.
    * @returns TransactionHandle with immediate hash access and optional event parsing
    * @throws {RelayerError} When gasless transaction submission fails
    * @throws {BlockchainError} When server files and permissions addition fails
@@ -4469,6 +4482,7 @@ export class PermissionsController {
   async submitSignedAddServerFilesAndPermissions(
     typedData: ServerFilesAndPermissionTypedData,
     signature: Hash,
+    options?: TransactionOptions,
   ): Promise<TransactionHandle<PermissionGrantResult>> {
     try {
       // Debug logging to understand relayer callback availability
@@ -4486,6 +4500,8 @@ export class PermissionsController {
         console.debug(
           "🚀 Using relayer for submitAddServerFilesAndPermissions",
         );
+        // Note: Transaction options (gas, timeout) are not supported for relayer callbacks
+        // The relayer service controls its own gas settings and timeout behavior
         const hash =
           await this.context.relayerCallbacks.submitAddServerFilesAndPermissions(
             typedData,
@@ -4504,6 +4520,7 @@ export class PermissionsController {
           await this.submitDirectAddServerFilesAndPermissionsTransaction(
             typedData,
             signature,
+            options,
           );
         return new TransactionHandle<PermissionGrantResult>(
           this.context,
@@ -4575,11 +4592,13 @@ export class PermissionsController {
    *
    * @param typedData - The typed data structure for the permission addition
    * @param signature - The cryptographic signature authorizing the transaction
+   * @param options - Transaction options (gas, timeout)
    * @returns Promise resolving to the transaction hash
    */
   private async submitDirectAddPermissionTransaction(
     typedData: GenericTypedData,
     signature: Hash,
+    options?: TransactionOptions,
   ): Promise<Hash> {
     const chainId = await this.context.walletClient.getChainId();
     const DataPortabilityPermissionsAddress = getContractAddress(
@@ -4599,6 +4618,9 @@ export class PermissionsController {
     // Format signature for contract compatibility
     const formattedSignature = formatSignatureForContract(signature);
 
+    // Extract gas options that are compatible with this function (EIP-1559 only)
+    const gasOptions = extractViemGasOptions(options, false);
+
     const hash = await this.context.walletClient.writeContract({
       address: DataPortabilityPermissionsAddress,
       abi: DataPortabilityPermissionsAbi,
@@ -4607,6 +4629,7 @@ export class PermissionsController {
       account:
         this.context.walletClient.account || (await this.getUserAddress()),
       chain: this.context.walletClient.chain || null,
+      ...gasOptions,
     });
 
     return hash;
@@ -4617,11 +4640,13 @@ export class PermissionsController {
    *
    * @param typedData - The typed data structure for the server files and permissions addition
    * @param signature - The cryptographic signature authorizing the transaction
+   * @param options - Transaction options (gas, timeout)
    * @returns Promise resolving to the transaction hash
    */
   private async submitDirectAddServerFilesAndPermissionsTransaction(
     typedData: ServerFilesAndPermissionTypedData,
     signature: Hash,
+    options?: TransactionOptions,
   ): Promise<Hash> {
     const chainId = await this.context.walletClient.getChainId();
     const DataPortabilityPermissionsAddress = getContractAddress(
@@ -4646,6 +4671,9 @@ export class PermissionsController {
     // Format signature for contract compatibility
     const formattedSignature = formatSignatureForContract(signature);
 
+    // Extract gas options that are compatible with this function (EIP-1559 only)
+    const gasOptions = extractViemGasOptions(options, false);
+
     const hash = await this.context.walletClient.writeContract({
       address: DataPortabilityPermissionsAddress,
       abi: DataPortabilityPermissionsAbi,
@@ -4655,6 +4683,7 @@ export class PermissionsController {
       account:
         this.context.walletClient.account || (await this.getUserAddress()),
       chain: this.context.walletClient.chain || null,
+      ...gasOptions,
     });
 
     return hash;

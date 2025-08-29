@@ -296,7 +296,12 @@ export interface BlockRange {
  * ```
  * @category Reference
  */
-export interface TransactionOptions {
+/**
+ * Gas-related transaction options.
+ *
+ * @category Reference
+ */
+export interface GasOptions {
   /** Gas limit */
   gasLimit?: bigint;
   /** Gas price */
@@ -310,6 +315,34 @@ export interface TransactionOptions {
   /** Value to send with transaction */
   value?: bigint;
 }
+
+/**
+ * Transaction timeout and confirmation options.
+ *
+ * @category Reference
+ */
+export interface TransactionTimeoutOptions {
+  /**
+   * Timeout in milliseconds for waiting for transaction confirmation.
+   *
+   * @remarks
+   * Controls how long to wait for a transaction receipt after submission.
+   * Longer timeouts are recommended during network congestion or when
+   * using lower gas prices. Default is typically 30 seconds.
+   *
+   * @default 30000 (30 seconds)
+   */
+  timeout?: number;
+}
+
+/**
+ * Complete transaction options combining gas and timeout settings.
+ *
+ * @category Reference
+ */
+export interface TransactionOptions
+  extends GasOptions,
+    TransactionTimeoutOptions {}
 
 /**
  * Transaction receipt with additional metadata for tracking transaction results.

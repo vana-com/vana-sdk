@@ -8,6 +8,7 @@ import { getAbi } from "../generated/abi";
 import type { ControllerContext } from "../controllers/permissions";
 import { BlockchainError, NetworkError } from "../errors";
 import type { TransactionResultMap } from "../types/transactionResults";
+import type { TransactionOptions } from "../types/utils";
 
 /**
  * Base interface for all transaction results.
@@ -29,6 +30,7 @@ export interface BaseTransactionResult {
  * @param context - Controller context containing blockchain clients
  * @param hash - Transaction hash to parse
  * @param operation - SDK operation name (maps to contract/event via EVENT_MAPPINGS)
+ * @param options - Optional transaction configuration including timeout
  * @returns Promise resolving to event args plus transaction metadata
  * @throws {NetworkError} When transaction receipt cannot be fetched
  * @throws {BlockchainError} When expected event is not found in transaction
@@ -39,8 +41,10 @@ export interface BaseTransactionResult {
  * const result = await parseTransactionResult(context, txHash, 'grant');
  * console.log(`Permission ${result.permissionId} granted to ${result.user}`);
  *
- * // Parse a file addition transaction
- * const result = await parseTransactionResult(context, txHash, 'addFile');
+ * // Parse a file addition transaction with custom timeout
+ * const result = await parseTransactionResult(context, txHash, 'addFile', {
+ *   timeout: 180000 // 3 minutes for load testing
+ * });
  * console.log(`File ${result.fileId} added at ${result.url}`);
  * ```
  */
@@ -48,6 +52,7 @@ export async function parseTransactionResult<K extends TransactionOperation>(
   context: ControllerContext,
   hash: Hash,
   operation: K,
+  options?: TransactionOptions,
 ): Promise<TransactionResultMap[K]> {
   const mapping = EVENT_MAPPINGS[operation];
 
@@ -57,7 +62,7 @@ export async function parseTransactionResult<K extends TransactionOperation>(
 
     const receipt = await context.publicClient.waitForTransactionReceipt({
       hash,
-      timeout: 30_000, // 30 second timeout
+      timeout: options?.timeout ?? 30_000, // Use provided timeout or default to 30 seconds
     });
 
     console.debug(`✅ Transaction confirmed in block ${receipt.blockNumber}`);

@@ -209,6 +209,8 @@ export type {
   PaginationParams,
   PaginationResult,
   BlockRange,
+  GasOptions,
+  TransactionTimeoutOptions,
   TransactionOptions,
   TransactionReceipt,
   ApiResponse,

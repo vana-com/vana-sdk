@@ -107,8 +107,22 @@ export function VanaProvider({
 
         await setupGoogleDriveStorage(storageProviders, googleTokens);
 
-        // Use unified relayer pattern - just pass the URL
-        const relayer = useGaslessTransactions ? "/api/relay" : undefined;
+        // Use unified relayer callback pattern
+        const relayer = useGaslessTransactions
+          ? async (request) => {
+              const response = await fetch("/api/relay", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(request),
+              });
+              if (!response.ok) {
+                throw new Error(
+                  `Relayer request failed: ${response.statusText}`,
+                );
+              }
+              return response.json();
+            }
+          : undefined;
 
         const defaultProvider = storageProviders["google-drive"]
           ? "google-drive"

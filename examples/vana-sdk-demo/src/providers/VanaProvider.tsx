@@ -238,10 +238,22 @@ export function VanaProvider({
         await setupGoogleDriveStorage(config, storageProviders);
         const actualDefaultProvider = getDefaultProvider(config);
 
-        // Create unified relayer - just point to the single server endpoint!
+        // Create unified relayer callback - demonstrates the proper pattern
         const baseUrl = config.relayerUrl ?? window.location.origin;
         const relayer: RelayerConfig | undefined = useGaslessTransactions
-          ? `${baseUrl}/api/relay` // That's it! The server handles everything
+          ? async (request) => {
+              const response = await fetch(`${baseUrl}/api/relay`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(request),
+              });
+              if (!response.ok) {
+                throw new Error(
+                  `Relayer request failed: ${response.statusText}`,
+                );
+              }
+              return response.json();
+            }
           : undefined;
 
         // Create download relayer for CORS bypass

@@ -9,7 +9,8 @@
 import type { WalletClient, PublicClient, Address } from "viem";
 import type { VanaPlatformAdapter } from "../platform/interface";
 import type { StorageManager } from "../storage";
-import type { RelayerCallbacks, DownloadRelayerCallbacks } from "./config";
+import type { DownloadRelayerCallbacks } from "./config";
+import type { UnifiedRelayerRequest, UnifiedRelayerResponse } from "./relayer";
 import type {
   TransactionResult,
   TransactionWaitOptions,
@@ -59,7 +60,7 @@ export interface ControllerContext {
   /** Signs application-specific operations when different from primary wallet. */
   applicationClient?: WalletClient;
   /** Handles gasless transaction submission through relayer services. */
-  relayerCallbacks?: RelayerCallbacks;
+  relayer?: (request: UnifiedRelayerRequest) => Promise<UnifiedRelayerResponse>;
   /** Proxies CORS-restricted downloads through application server. */
   downloadRelayer?: DownloadRelayerCallbacks;
   /** Manages file upload and download operations across storage providers. */

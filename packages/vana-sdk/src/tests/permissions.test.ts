@@ -89,7 +89,7 @@ global.fetch = vi.fn();
 // Mock grant file utilities - no real IPFS operations
 vi.mock("../utils/grantFiles", () => ({
   createGrantFile: vi.fn(),
-  storeGrantFile: vi.fn().mockResolvedValue("https://ipfs.io/ipfs/Qm..."),
+  submit: vi.fn().mockResolvedValue("https://ipfs.io/ipfs/Qm..."),
   getGrantFileHash: vi.fn().mockReturnValue("0xgrantfilehash"),
 }));
 
@@ -210,10 +210,22 @@ describe("PermissionsController", () => {
         mockWalletClient as unknown as ControllerContext["walletClient"],
       publicClient:
         mockPublicClient as unknown as ControllerContext["publicClient"],
-      relayerCallbacks: {
-        storeGrantFile: vi.fn().mockResolvedValue("https://mock-grant-url.com"),
-        submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
-      },
+      relayer: vi.fn().mockImplementation(async (request) => {
+        // Handle different request types
+        if (
+          request.type === "direct" &&
+          request.operation === "storeGrantFile"
+        ) {
+          return {
+            type: "direct",
+            result: { url: "https://mock-grant-url.com" },
+          };
+        }
+        if (request.type === "signed") {
+          return { type: "signed", hash: "0xtxhash" };
+        }
+        return { type: "error", error: "Unknown request" };
+      }),
       platform: mockPlatformAdapter,
       userAddress:
         "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
@@ -254,11 +266,19 @@ describe("PermissionsController", () => {
         permissionId: 1n,
       });
       expect(mockWalletClient.signTypedData).toHaveBeenCalled();
-      // Should use relayerCallbacks pattern
-      expect(mockContext.relayerCallbacks?.storeGrantFile).toHaveBeenCalled();
-      expect(
-        mockContext.relayerCallbacks?.submitPermissionGrant,
-      ).toHaveBeenCalled();
+      // Should use relayer pattern - check it was called with correct requests
+      expect(mockContext.relayer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "direct",
+          operation: "storeGrantFile",
+        }),
+      );
+      expect(mockContext.relayer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "signed",
+          operation: "submitAddPermission",
+        }),
+      );
     });
 
     it("should handle user rejection gracefully", async () => {
@@ -282,12 +302,7 @@ describe("PermissionsController", () => {
       // Mock relayer callbacks to fail
       const failingContext = {
         ...mockContext,
-        relayerCallbacks: {
-          ...mockContext.relayerCallbacks,
-          submitPermissionGrant: vi
-            .fn()
-            .mockRejectedValue(new RelayerError("Relayer failed")),
-        },
+        relayer: vi.fn().mockRejectedValue(new RelayerError("Relayer failed")),
       };
 
       const failingController = new PermissionsController(failingContext);
@@ -301,12 +316,7 @@ describe("PermissionsController", () => {
       // Mock relayer callbacks to fail with network error
       const failingContext = {
         ...mockContext,
-        relayerCallbacks: {
-          ...mockContext.relayerCallbacks,
-          submitPermissionGrant: vi
-            .fn()
-            .mockRejectedValue(new NetworkError("Network error")),
-        },
+        relayer: vi.fn().mockRejectedValue(new NetworkError("Network error")),
       };
 
       const failingController = new PermissionsController(failingContext);
@@ -475,7 +485,7 @@ describe("PermissionsController", () => {
       };
 
       await expect(directController.grant(mockParams)).rejects.toThrow(
-        "No storage available. Provide a grantUrl, configure relayerCallbacks.storeGrantFile, or storageManager.",
+        "No storage available. Provide a grantUrl, configure relayer, or storageManager.",
       );
     });
 
@@ -606,16 +616,34 @@ describe("PermissionsController", () => {
         parameters: { prompt: "Test prompt", maxTokens: 100 },
       };
 
-      // Create controller with relayerCallbacks.storeGrantFile configured
-      const mockStoreGrantFile = vi
+      // Create controller with unified relayer configured
+      const mockRelayer = vi
         .fn()
-        .mockResolvedValue("https://ipfs.io/ipfs/QmGrantFile");
+        .mockResolvedValueOnce({
+          // First call: store grant file
+          type: "direct",
+          result: { url: "https://ipfs.io/ipfs/QmGrantFile" },
+        })
+        .mockResolvedValueOnce({
+          // Second call: submit signed transaction
+          type: "signed",
+          hash: "0xtxhash" as Hash,
+        });
       const contextWithStorage = {
         ...mockContext,
-        relayerCallbacks: {
-          ...mockContext.relayerCallbacks,
-          storeGrantFile: mockStoreGrantFile,
-        },
+        relayer: mockRelayer,
+        userAddress: "0xuser" as `0x${string}`,
+        waitForTransactionEvents: vi.fn().mockResolvedValue({
+          hash: "0xtxhash" as Hash,
+          expectedEvents: {
+            PermissionAdded: {
+              permissionId: 1n,
+              user: "0xuser",
+              grant: "https://ipfs.io/ipfs/QmGrantFile",
+              fileIds: [1n, 2n, 3n],
+            },
+          },
+        }),
       };
       const controllerWithStorage = new PermissionsController(
         contextWithStorage,
@@ -625,20 +653,33 @@ describe("PermissionsController", () => {
       const { createPublicClient } = await import("viem");
       vi.mocked(createPublicClient).mockReturnValueOnce({
         readContract: vi.fn().mockResolvedValue(BigInt(0)),
+        getTransactionReceipt: vi.fn().mockResolvedValue({
+          blockNumber: 12345n,
+          gasUsed: 100000n,
+        }),
       } as unknown as PublicClient);
+
+      // Mock walletClient signTypedData
+      mockWalletClient.signTypedData.mockResolvedValue("0xsignature" as Hash);
 
       const result = await controllerWithStorage.grant(mockParams);
 
-      expect(mockStoreGrantFile).toHaveBeenCalledWith(
-        expect.objectContaining({
+      // Check that relayer was called to store grant file
+      expect(mockRelayer).toHaveBeenCalledWith({
+        type: "direct",
+        operation: "storeGrantFile",
+        params: expect.objectContaining({
           grantee: mockParams.grantee,
           operation: mockParams.operation,
           parameters: mockParams.parameters,
         }),
-      );
+      });
+
+      // Check the result
       expect(result).toMatchObject({
         transactionHash: "0xtxhash",
         permissionId: 1n,
+        grant: "https://ipfs.io/ipfs/QmGrantFile",
       });
     });
   });
@@ -834,10 +875,9 @@ describe("PermissionsController", () => {
         platform: mockPlatformAdapter,
         userAddress:
           "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
-        relayerCallbacks: {
-          submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
-          submitPermissionRevoke: vi.fn().mockResolvedValue("0xtxhash"),
-        },
+        relayer: vi
+          .fn()
+          .mockResolvedValue({ type: "signed", hash: "0xtxhash" }),
         // No subgraphUrl provided
       });
 
@@ -923,7 +963,7 @@ describe("PermissionsController", () => {
 
   describe("Additional Error Handling", () => {
     it("should handle relayer callback errors", async () => {
-      // Create controller with failing relayerCallbacks
+      // Create controller with failing relayer
       const failingController = new PermissionsController({
         walletClient:
           mockWalletClient as unknown as ControllerContext["walletClient"],
@@ -932,14 +972,7 @@ describe("PermissionsController", () => {
         platform: mockPlatformAdapter,
         userAddress:
           "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
-        relayerCallbacks: {
-          submitPermissionGrant: vi
-            .fn()
-            .mockRejectedValue(new NetworkError("Network timeout")),
-          storeGrantFile: vi
-            .fn()
-            .mockResolvedValue("https://ipfs.io/ipfs/QmGrantFile"),
-        },
+        relayer: vi.fn().mockRejectedValue(new NetworkError("Network timeout")),
       });
 
       // Mock nonce retrieval
@@ -961,7 +994,11 @@ describe("PermissionsController", () => {
     });
 
     it("should handle relayer callback generic errors", async () => {
-      // Create controller with failing relayerCallbacks
+      // Create controller with failing relayer
+      const failingRelayer = vi.fn().mockResolvedValue({
+        type: "error",
+        error: "Generic relayer error",
+      });
       const failingController = new PermissionsController({
         walletClient:
           mockWalletClient as unknown as ControllerContext["walletClient"],
@@ -970,14 +1007,7 @@ describe("PermissionsController", () => {
         platform: mockPlatformAdapter,
         userAddress:
           "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
-        relayerCallbacks: {
-          submitPermissionGrant: vi
-            .fn()
-            .mockRejectedValue(new Error("Generic relayer error")),
-          storeGrantFile: vi
-            .fn()
-            .mockResolvedValue("https://ipfs.io/ipfs/QmGrantFile"),
-        },
+        relayer: failingRelayer,
       });
 
       // Mock nonce retrieval
@@ -994,7 +1024,7 @@ describe("PermissionsController", () => {
       };
 
       await expect(failingController.grant(mockParams)).rejects.toThrow(
-        "Permission submission failed",
+        "Permission grant preparation failed",
       );
     });
 
@@ -1129,10 +1159,9 @@ describe("PermissionsController", () => {
         platform: mockPlatformAdapter,
         userAddress:
           "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
-        relayerCallbacks: {
-          submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
-          submitPermissionRevoke: vi.fn().mockResolvedValue("0xtxhash"),
-        },
+        relayer: vi
+          .fn()
+          .mockResolvedValue({ type: "signed", hash: "0xtxhash" }),
       });
 
       const mockRevokeParams = {
@@ -1145,7 +1174,7 @@ describe("PermissionsController", () => {
     });
 
     it("should handle submitToRelayer network errors", async () => {
-      // Create controller with failing relayerCallbacks to test network error
+      // Create controller with failing relayer to test network error
       const failingController = new PermissionsController({
         walletClient:
           mockWalletClient as unknown as ControllerContext["walletClient"],
@@ -1154,14 +1183,7 @@ describe("PermissionsController", () => {
         platform: mockPlatformAdapter,
         userAddress:
           "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
-        relayerCallbacks: {
-          submitPermissionGrant: vi
-            .fn()
-            .mockRejectedValue(new NetworkError("Network timeout")),
-          storeGrantFile: vi
-            .fn()
-            .mockResolvedValue("https://ipfs.io/ipfs/QmGrantFile"),
-        },
+        relayer: vi.fn().mockRejectedValue(new NetworkError("Network timeout")),
       });
 
       const mockParams = {
@@ -1192,10 +1214,12 @@ describe("PermissionsController", () => {
         userAddress:
           "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
         subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
-        relayerCallbacks: {
-          submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
-          submitPermissionRevoke: vi.fn().mockResolvedValue("0xtxhash"),
-        },
+        relayer: vi.fn().mockImplementation(async (request) => {
+          if (request.type === "signed") {
+            return { type: "signed", hash: "0xtxhash" as `0x${string}` };
+          }
+          return { type: "error", error: "Unknown request" };
+        }),
       });
 
       // Mock fetch to throw non-Error object (string)
@@ -1217,12 +1241,18 @@ describe("PermissionsController", () => {
         platform: mockPlatformAdapter,
         userAddress:
           "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
-        relayerCallbacks: {
-          submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
-          storeGrantFile: vi
-            .fn()
-            .mockResolvedValue("https://ipfs.io/ipfs/QmGrantFile"),
-        },
+        relayer: vi.fn().mockImplementation(async (request) => {
+          if (
+            request.type === "direct" &&
+            request.operation === "storeGrantFile"
+          ) {
+            return {
+              type: "direct",
+              result: { url: "https://ipfs.io/ipfs/QmGrantFile" },
+            };
+          }
+          return { type: "signed", hash: "0xtxhash" };
+        }),
       });
 
       // Mock publicClient.readContract to throw non-Error object during nonce retrieval
@@ -1259,10 +1289,12 @@ describe("PermissionsController", () => {
         platform: mockPlatformAdapter,
         userAddress:
           "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
-        relayerCallbacks: {
-          submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
-          submitPermissionRevoke: vi.fn().mockResolvedValue("0xtxhash"),
-        },
+        relayer: vi.fn().mockImplementation(async (request) => {
+          if (request.type === "signed") {
+            return { type: "signed", hash: "0xtxhash" as `0x${string}` };
+          }
+          return { type: "error", error: "Unknown request" };
+        }),
       });
 
       const mockRevokeParams = {
@@ -1341,7 +1373,7 @@ describe("PermissionsController", () => {
       };
 
       await expect(controller.grant(mockParams)).rejects.toThrow(
-        "No storage available. Provide a grantUrl, configure relayerCallbacks.storeGrantFile, or storageManager.",
+        "No storage available. Provide a grantUrl, configure relayer, or storageManager.",
       );
     });
 
@@ -1399,12 +1431,9 @@ describe("PermissionsController", () => {
     it("should handle failed relayer response in submitToRelayer", async () => {
       const failingContext = {
         ...mockContext,
-        relayerCallbacks: {
-          ...mockContext.relayerCallbacks,
-          submitPermissionRevoke: vi
-            .fn()
-            .mockRejectedValue(new RelayerError("Relayer internal error")),
-        },
+        relayer: vi
+          .fn()
+          .mockRejectedValue(new RelayerError("Relayer internal error")),
       };
 
       const failingController = new PermissionsController(failingContext);
@@ -1421,12 +1450,7 @@ describe("PermissionsController", () => {
     it("should handle network errors in submitToRelayer", async () => {
       const failingContext = {
         ...mockContext,
-        relayerCallbacks: {
-          ...mockContext.relayerCallbacks,
-          submitPermissionRevoke: vi
-            .fn()
-            .mockRejectedValue(new NetworkError("Failed to fetch")),
-        },
+        relayer: vi.fn().mockRejectedValue(new NetworkError("Failed to fetch")),
       };
 
       const failingController = new PermissionsController(failingContext);
@@ -1466,7 +1490,7 @@ describe("PermissionsController", () => {
 
       // This should trigger direct transaction path
       await expect(controller.grant(mockParams)).rejects.toThrow(
-        "No storage available. Provide a grantUrl, configure relayerCallbacks.storeGrantFile, or storageManager.",
+        "No storage available. Provide a grantUrl, configure relayer, or storageManager.",
       );
     });
 
@@ -1496,13 +1520,21 @@ describe("PermissionsController", () => {
           allEvents: [],
           hasExpectedEvents: true,
         }),
-        relayerCallbacks: {
-          submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
-          submitPermissionRevoke: vi.fn().mockResolvedValue("0xtxhash"),
-          storeGrantFile: vi
-            .fn()
-            .mockResolvedValue("https://ipfs.io/ipfs/QmGrantFile"),
-        },
+        relayer: vi.fn().mockImplementation(async (request) => {
+          if (
+            request.type === "direct" &&
+            request.operation === "storeGrantFile"
+          ) {
+            return {
+              type: "direct",
+              result: { url: "https://ipfs.io/ipfs/QmGrantFile" },
+            };
+          }
+          if (request.type === "signed") {
+            return { type: "signed", hash: "0xtxhash" as `0x${string}` };
+          }
+          return { type: "error", error: "Unknown request" };
+        }),
       });
 
       // Mock nonce retrieval
@@ -1580,7 +1612,7 @@ describe("PermissionsController", () => {
     it("should successfully revoke permission with signature via direct transaction", async () => {
       const testContext = {
         ...mockContext,
-        relayerCallbacks: undefined, // No relayer
+        relayer: undefined, // No relayer
         walletClient: {
           ...mockWalletClient,
           chain: { id: 14800 },

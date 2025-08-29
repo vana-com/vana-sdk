@@ -1,25 +1,18 @@
 "use client";
 
-import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  ReactNode,
-} from "react";
-import {
-  Vana,
+import type { ReactNode } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { Vana, GoogleDriveStorage } from "@opendatalabs/vana-sdk/browser";
+import type {
+  VanaChain,
   VanaInstance,
   StorageProvider,
-  GoogleDriveStorage,
   WalletClient,
-  Hash,
-  ServerFilesAndPermissionTypedData,
-  PermissionGrantTypedData,
+  UnifiedRelayerRequest,
 } from "@opendatalabs/vana-sdk/browser";
-import type { VanaChain } from "@opendatalabs/vana-sdk/browser";
 import { useWalletClient, useAccount as useWagmiAccount } from "wagmi";
-import { useGoogleDriveOAuth, GoogleDriveTokens } from "./google-drive-oauth";
+import type { GoogleDriveTokens } from "./google-drive-oauth";
+import { useGoogleDriveOAuth } from "./google-drive-oauth";
 
 export interface VanaContextValue {
   vana: VanaInstance | null;
@@ -50,14 +43,6 @@ interface VanaProviderProps {
   useGaslessTransactions?: boolean;
 }
 
-// Helper to serialize bigint values for JSON
-const serializeBigInt = (data: unknown) =>
-  JSON.parse(
-    JSON.stringify(data, (_key, value) =>
-      typeof value === "bigint" ? value.toString() : value,
-    ),
-  );
-
 // Helper to setup Google Drive storage with tokens from context
 const setupGoogleDriveStorage = async (
   providers: Record<string, StorageProvider>,
@@ -84,50 +69,6 @@ const setupGoogleDriveStorage = async (
     providers["google-drive"] = baseStorage;
   }
 };
-
-// Helper for add server files and permissions specific callback
-const createAddServerFilesAndPermissionsCallback =
-  (endpoint: string, address: string | undefined) =>
-  async (typedData: ServerFilesAndPermissionTypedData, signature: Hash) => {
-    const baseUrl = window.location.origin;
-    const response = await fetch(`${baseUrl}${endpoint}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        typedData: serializeBigInt(typedData),
-        signature,
-        expectedUserAddress: address,
-      }),
-    });
-    const result = await response.json();
-    if (!result.success) {
-      throw new Error(result.error || "Failed to submit to relayer");
-    }
-
-    return result.transactionHash as `0x${string}`;
-  };
-
-// Helper for permission grant callback
-const createPermissionGrantCallback =
-  (endpoint: string, address: string | undefined) =>
-  async (typedData: PermissionGrantTypedData, signature: Hash) => {
-    const baseUrl = window.location.origin;
-    const response = await fetch(`${baseUrl}${endpoint}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        typedData: serializeBigInt(typedData),
-        signature,
-        expectedUserAddress: address,
-      }),
-    });
-    const result = await response.json();
-    if (!result.success) {
-      throw new Error(result.error || "Failed to submit to relayer");
-    }
-
-    return result.transactionHash as `0x${string}`;
-  };
 
 // Note: File permission relaying is not yet implemented on the server side
 // The submitFilePermission method will handle signing and submission directly
@@ -167,20 +108,20 @@ export function VanaProvider({
 
         await setupGoogleDriveStorage(storageProviders, googleTokens);
 
-        const relayerCallbacks = useGaslessTransactions
-          ? {
-              submitAddServerFilesAndPermissions:
-                createAddServerFilesAndPermissionsCallback(
-                  "/api/relay",
-                  address,
-                ),
-              submitPermissionGrant: createPermissionGrantCallback(
-                "/api/relay",
-                address,
-              ),
-              // Note: submitFilePermission is not configured here as it requires
-              // client-side encryption key generation. The SDK will fall back to
-              // direct transaction submission for now.
+        // Use unified relayer callback pattern
+        const relayer = useGaslessTransactions
+          ? async (request: UnifiedRelayerRequest) => {
+              const response = await fetch("/api/relay", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(request),
+              });
+              if (!response.ok) {
+                throw new Error(
+                  `Relayer request failed: ${response.statusText}`,
+                );
+              }
+              return response.json();
             }
           : undefined;
 
@@ -190,7 +131,7 @@ export function VanaProvider({
 
         const vanaInstance = Vana({
           walletClient: walletClient as WalletClient & { chain: VanaChain },
-          relayerCallbacks,
+          relayer,
           defaultPersonalServerUrl:
             process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL,
           storage: {

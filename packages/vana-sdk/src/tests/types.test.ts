@@ -65,7 +65,7 @@ describe("TypeScript Types", () => {
       };
 
       expect(config.walletClient).toBeDefined();
-      expect(config.relayerCallbacks).toBeUndefined();
+      expect(config.relayer).toBeUndefined();
       expect(config.storage).toBeUndefined();
     });
 
@@ -79,16 +79,14 @@ describe("TypeScript Types", () => {
 
       const config: VanaConfig = {
         walletClient,
-        relayerCallbacks: {
-          submitPermissionGrant: vi.fn(),
-        },
+        relayer: vi.fn(),
         storage: {
           providers: {},
           defaultProvider: "ipfs",
         },
       };
 
-      expect(config.relayerCallbacks).toBeDefined();
+      expect(config.relayer).toBeDefined();
       expect(config.storage?.defaultProvider).toBe("ipfs");
     });
   });
@@ -499,7 +497,7 @@ describe("TypeScript Types", () => {
         };
 
         expect(config.walletClient).toBeDefined();
-        expect(config.relayerCallbacks).toBeUndefined();
+        expect(config.relayer).toBeUndefined();
         expect(config.storage).toBeUndefined();
       });
 
@@ -513,9 +511,7 @@ describe("TypeScript Types", () => {
 
         const config: WalletConfig = {
           walletClient,
-          relayerCallbacks: {
-            submitPermissionGrant: vi.fn(),
-          },
+          relayer: vi.fn(),
           storage: {
             providers: {
               ipfs: {
@@ -544,7 +540,7 @@ describe("TypeScript Types", () => {
         };
 
         expect(config.walletClient).toBeDefined();
-        expect(config.relayerCallbacks).toBeDefined();
+        expect(config.relayer).toBeDefined();
         expect(config.storage?.defaultProvider).toBe("ipfs");
       });
     });
@@ -556,16 +552,14 @@ describe("TypeScript Types", () => {
         };
 
         expect(config.chainId).toBe(14800);
-        expect(config.relayerCallbacks).toBeUndefined();
+        expect(config.relayer).toBeUndefined();
         expect(config.storage).toBeUndefined();
       });
 
       it("should accept optional properties", () => {
         const config: ChainConfig = {
           chainId: 1480,
-          relayerCallbacks: {
-            submitPermissionGrant: vi.fn(),
-          },
+          relayer: vi.fn(),
           storage: {
             providers: {
               ipfs: {
@@ -594,7 +588,7 @@ describe("TypeScript Types", () => {
         };
 
         expect(config.chainId).toBe(1480);
-        expect(config.relayerCallbacks).toBeDefined();
+        expect(config.relayer).toBeDefined();
         expect(config.storage?.defaultProvider).toBe("ipfs");
       });
     });

@@ -91,12 +91,13 @@ describe("ProtocolController", () => {
         mockWalletClient as unknown as ControllerContext["walletClient"],
       publicClient:
         mockPublicClient as unknown as ControllerContext["publicClient"],
-      relayerCallbacks: {
-        submitFileAddition: vi.fn().mockResolvedValue({
+      relayer: vi.fn().mockResolvedValue({
+        type: "direct",
+        result: {
           fileId: 123,
           transactionHash: "0x123456789abcdef",
-        }),
-      },
+        },
+      }),
       platform: mockPlatformAdapter,
       userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
     };
@@ -152,9 +153,7 @@ describe("ProtocolController", () => {
         platform: mockPlatformAdapter,
         userAddress:
           "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
-        relayerCallbacks: {
-          submitFileAddition: vi.fn(),
-        },
+        relayer: vi.fn(),
       });
 
       expect(() => {
@@ -284,9 +283,7 @@ describe("ProtocolController", () => {
         platform: mockPlatformAdapter,
         userAddress:
           "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
-        relayerCallbacks: {
-          submitFileAddition: vi.fn(),
-        },
+        relayer: vi.fn(),
       });
 
       expect(() => {
@@ -315,9 +312,7 @@ describe("ProtocolController", () => {
         platform: mockPlatformAdapter,
         userAddress:
           "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
-        relayerCallbacks: {
-          submitFileAddition: vi.fn(),
-        },
+        relayer: vi.fn(),
       });
 
       expect(() => {

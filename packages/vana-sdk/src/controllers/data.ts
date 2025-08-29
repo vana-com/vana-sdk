@@ -25,6 +25,7 @@ import type {
 } from "../types/index";
 // import { FilePermissionResult } from "../types/transactionResults";
 import type { TransactionResult } from "../types/operations";
+import type { UnifiedRelayerRequest } from "../types/relayer";
 import type { ControllerContext } from "./permissions";
 import { BaseController } from "./base";
 import { getContractAddress } from "../config/addresses";
@@ -264,9 +265,13 @@ export class DataController extends BaseController {
           // Provide detailed error message
           if (error instanceof Error) {
             // Check if it's a SchemaValidationError with details
-            const errorDetails = (error as any).errors;
-            if (errorDetails && Array.isArray(errorDetails)) {
-              validationErrors = errorDetails;
+            // Using type guard to safely check for errors property
+            if (
+              typeof error === "object" &&
+              "errors" in error &&
+              Array.isArray(error.errors)
+            ) {
+              validationErrors = error.errors;
             } else {
               validationErrors = [error.message];
             }
@@ -316,31 +321,27 @@ export class DataController extends BaseController {
       // Determine which registration method to use
       let result;
 
-      // Preferred: Use the new comprehensive relay callback if it exists
-      if (this.context.relayerCallbacks?.submitFileAdditionComplete) {
-        result = await this.context.relayerCallbacks.submitFileAdditionComplete(
-          {
+      // Use unified relayer callback if it exists
+      if (this.context.relayer) {
+        const request: UnifiedRelayerRequest = {
+          type: "direct",
+          operation: "submitFileAdditionComplete",
+          params: {
             url: uploadResult.url,
             userAddress,
             permissions: encryptedPermissions,
             schemaId: schemaId ?? 0,
             ownerAddress: owner,
           },
-        );
-
-        // Legacy: Use the old relay callback if it exists
-      } else if (this.context.relayerCallbacks?.submitFileAddition) {
-        const needsComplexRegistration =
-          schemaId !== undefined || encryptedPermissions.length > 0;
-        if (needsComplexRegistration) {
-          throw new Error(
-            "The configured relay callback does not support schemas or permissions. Please update your relay server implementation to provide the `submitFileAdditionComplete` callback.",
-          );
+        };
+        const response = await this.context.relayer(request);
+        if (response.type === "error") {
+          throw new Error(response.error);
         }
-        result = await this.context.relayerCallbacks.submitFileAddition(
-          uploadResult.url,
-          userAddress,
-        );
+        if (response.type !== "direct" || !("fileId" in response.result)) {
+          throw new Error("Invalid response from relayer");
+        }
+        result = response.result as { fileId: number; transactionHash: Hash };
 
         // Fallback: No relay support, use a direct transaction
       } else {
@@ -2675,14 +2676,28 @@ export class DataController extends BaseController {
       );
 
       // 5. Register file with permissions (either via relayer or direct)
-      if (this.context.relayerCallbacks?.submitFileAdditionWithPermissions) {
-        // Use callback for file addition with permissions
-        const result =
-          await this.context.relayerCallbacks.submitFileAdditionWithPermissions(
-            uploadResult.url,
+      if (this.context.relayer) {
+        // Use unified relayer callback for file addition with permissions
+        const request: UnifiedRelayerRequest = {
+          type: "direct",
+          operation: "submitFileAdditionWithPermissions",
+          params: {
+            url: uploadResult.url,
             userAddress,
-            encryptedPermissions,
-          );
+            permissions: encryptedPermissions,
+          },
+        };
+        const response = await this.context.relayer(request);
+        if (response.type === "error") {
+          throw new Error(response.error);
+        }
+        if (response.type !== "direct" || !("fileId" in response.result)) {
+          throw new Error("Invalid response from relayer");
+        }
+        const result = response.result as {
+          fileId: number;
+          transactionHash: Hash;
+        };
         return {
           fileId: result.fileId,
           url: uploadResult.url,

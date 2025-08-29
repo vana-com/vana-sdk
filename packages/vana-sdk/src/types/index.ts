@@ -18,7 +18,6 @@ export type {
   StorageConfig,
   ConfigValidationOptions,
   ConfigValidationResult,
-  RelayerCallbacks,
   DownloadRelayerCallbacks,
   StorageRequiredMarker,
 } from "./config";
@@ -212,6 +211,10 @@ export type {
   RelayerSubmitParams,
   RelayerStatus,
   RelayerConfig,
+  UnifiedRelayerRequest,
+  UnifiedRelayerResponse,
+  SignedRelayerRequest,
+  DirectRelayerRequest,
   RelayerRequestOptions,
   RelayerErrorResponse,
   RelayerQueueInfo,

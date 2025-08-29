@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { PermissionsController } from "../controllers/permissions";
 import type { ControllerContext } from "../controllers/permissions";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
+import type { Hash } from "viem";
 
 // Mock ALL external dependencies to ensure pure unit tests
 vi.mock("viem", async () => {
@@ -109,18 +110,15 @@ describe("New PermissionsController Methods", () => {
     });
 
     it("should successfully revoke permission with signature via relayer", async () => {
-      // Mock relayerCallbacks for the controller
-      const mockSubmitPermissionRevoke = vi
-        .fn()
-        .mockResolvedValue(
-          "0xhash123456789012345678901234567890123456789012345678901234567890",
-        );
+      // Mock relayer for the controller
+      const mockRelayer = vi.fn().mockResolvedValue({
+        type: "signed",
+        hash: "0xhash123456789012345678901234567890123456789012345678901234567890" as Hash,
+      });
 
       const contextWithRelayerCallbacks = {
         ...mockContext,
-        relayerCallbacks: {
-          submitPermissionRevoke: mockSubmitPermissionRevoke,
-        },
+        relayer: mockRelayer,
       };
 
       const controllerWithRelayer = new PermissionsController(
@@ -166,9 +164,11 @@ describe("New PermissionsController Methods", () => {
         "0xhash123456789012345678901234567890123456789012345678901234567890",
       );
 
-      // Verify that relayerCallbacks.submitPermissionRevoke was called
-      expect(mockSubmitPermissionRevoke).toHaveBeenCalledWith(
-        expect.objectContaining({
+      // Verify that relayer was called with correct request
+      expect(mockRelayer).toHaveBeenCalledWith({
+        type: "signed",
+        operation: "submitPermissionRevoke",
+        typedData: expect.objectContaining({
           domain: {
             name: "DataPermissions",
             version: "1",
@@ -188,12 +188,14 @@ describe("New PermissionsController Methods", () => {
             permissionId: 42n,
           },
         }),
-        "0xsignature123456789012345678901234567890123456789012345678901234567890",
-      );
+        signature:
+          "0xsignature123456789012345678901234567890123456789012345678901234567890",
+        expectedUserAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      });
     });
 
     it("should successfully revoke permission with signature via direct transaction", async () => {
-      // Use context without relayerCallbacks to trigger direct transaction path
+      // Use context without relayer to trigger direct transaction path
       const directController = new PermissionsController(mockContext);
 
       // Mock methods for direct controller

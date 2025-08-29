@@ -1,26 +1,12 @@
-import type {
-  WalletClient,
-  PublicClient,
-  Account,
-  Hash,
-  Address,
-  Chain,
-} from "viem";
+import type { WalletClient, PublicClient, Account, Address, Chain } from "viem";
 import type { VanaChainId, VanaChain } from "./chains";
 import type {
   StorageProvider,
   StorageUploadResult,
   StorageListOptions,
 } from "./storage";
-import type {
-  PermissionGrantTypedData,
-  TrustServerTypedData,
-  UntrustServerTypedData,
-  AddAndTrustServerTypedData,
-  GenericTypedData,
-  GrantFile,
-  ServerFilesAndPermissionTypedData,
-} from "./permissions";
+
+import type { RelayerConfig } from "./relayer";
 
 /**
  * Marker interface to indicate that a Vana instance has storage configured.
@@ -149,207 +135,6 @@ export interface DownloadRelayerCallbacks {
    * @returns Promise resolving to the downloaded content as a Blob
    */
   proxyDownload: (url: string) => Promise<Blob>;
-}
-
-/**
- * Relayer callback functions for handling gasless transactions.
- *
- * Instead of hardcoding HTTP/REST API calls, users can provide custom callback
- * functions to handle transaction relay in any way they choose (HTTP, WebSocket,
- * direct blockchain submission, etc.).
- *
- * @category Configuration
- * @example
- * ```typescript
- * const relayerCallbacks: RelayerCallbacks = {
- *   async submitPermissionGrant(typedData, signature) {
- *     // Custom implementation - could be HTTP, WebSocket, etc.
- *     const response = await fetch('https://my-relayer.com/api/grant', {
- *       method: 'POST',
- *       headers: { 'Content-Type': 'application/json' },
- *       body: JSON.stringify({ typedData, signature })
- *     });
- *     const result = await response.json();
- *     return result.transactionHash;
- *   },
- *
- *   async submitFileAddition(url, userAddress) {
- *     // Custom relay implementation
- *     return await myCustomRelayer.addFile(url, userAddress);
- *   }
- * };
- * ```
- */
-export interface RelayerCallbacks {
-  /**
-   * Submit a signed permission grant transaction for relay
-   *
-   * @param typedData - The EIP-712 typed data that was signed
-   * @param signature - The user's signature
-   * @returns Promise resolving to the transaction hash
-   */
-  submitPermissionGrant?: (
-    typedData: PermissionGrantTypedData,
-    signature: Hash,
-  ) => Promise<Hash>;
-
-  /**
-   * Submit a signed permission revocation transaction for relay
-   *
-   * @param typedData - The EIP-712 typed data that was signed
-   * @param signature - The user's signature
-   * @returns Promise resolving to the transaction hash
-   */
-  submitPermissionRevoke?: (
-    typedData: GenericTypedData,
-    signature: Hash,
-  ) => Promise<Hash>;
-
-  /**
-   * Submit a signed trust server transaction for relay
-   *
-   * @param typedData - The EIP-712 typed data that was signed
-   * @param signature - The user's signature
-   * @returns Promise resolving to the transaction hash
-   */
-  submitTrustServer?: (
-    typedData: TrustServerTypedData,
-    signature: Hash,
-  ) => Promise<Hash>;
-
-  /**
-   * Submit a signed untrust server transaction for relay
-   *
-   * @param typedData - The EIP-712 typed data that was signed
-   * @param signature - The user's signature
-   * @returns Promise resolving to the transaction hash
-   */
-  submitUntrustServer?: (
-    typedData: UntrustServerTypedData,
-    signature: Hash,
-  ) => Promise<Hash>;
-
-  /**
-   * Submit a signed add and trust server transaction for relay
-   *
-   * @param typedData - The EIP-712 typed data that was signed
-   * @param signature - The user's signature
-   * @returns Promise resolving to the transaction hash
-   */
-  submitAddAndTrustServer?: (
-    typedData: AddAndTrustServerTypedData,
-    signature: Hash,
-  ) => Promise<Hash>;
-
-  /**
-   * Submit a signed permission addition transaction for relay
-   *
-   * @param typedData - The EIP-712 typed data that was signed
-   * @param signature - The user's signature
-   * @returns Promise resolving to the transaction hash
-   */
-  submitAddPermission?: (
-    typedData: GenericTypedData,
-    signature: Hash,
-  ) => Promise<Hash>;
-
-  /**
-   * Submit a signed server files and permissions transaction for relay
-   *
-   * @param typedData - The EIP-712 typed data that was signed
-   * @param signature - The user's signature
-   * @returns Promise resolving to the transaction hash
-   */
-  submitAddServerFilesAndPermissions?: (
-    typedData: ServerFilesAndPermissionTypedData,
-    signature: Hash,
-  ) => Promise<Hash>;
-
-  /**
-   * Submit a file addition for relay
-   *
-   * @deprecated Since v2.0.0 - Use submitFileAdditionComplete() instead for full support.
-   * Will be removed in v3.0.0.
-   *
-   * Migration guide:
-   * ```typescript
-   * // Old:
-   * await submitFileAddition(url, userAddress);
-   *
-   * // New:
-   * await submitFileAdditionComplete({
-   *   url,
-   *   userAddress,
-   *   permissions: [] // Optional
-   * });
-   * ```
-   * @param url - The file URL to register
-   * @param userAddress - The user's address
-   * @returns Promise resolving to object with fileId and transactionHash
-   */
-  submitFileAddition?: (
-    url: string,
-    userAddress: string,
-  ) => Promise<{ fileId: number; transactionHash: Hash }>;
-
-  /**
-   * Submit a file addition with permissions for relay
-   *
-   * @deprecated Since v2.0.0 - Use submitFileAdditionComplete() instead for full support.
-   * Will be removed in v3.0.0.
-   *
-   * Migration guide:
-   * ```typescript
-   * // Old:
-   * await submitFileAdditionWithPermissions(url, userAddress, permissions);
-   *
-   * // New:
-   * await submitFileAdditionComplete({
-   *   url,
-   *   userAddress,
-   *   permissions
-   * });
-   * ```
-   * @param url - The file URL to register
-   * @param userAddress - The user's address
-   * @param permissions - Array of encrypted permissions
-   * @returns Promise resolving to object with fileId and transactionHash
-   */
-  submitFileAdditionWithPermissions?: (
-    url: string,
-    userAddress: string,
-    permissions: Array<{ account: string; key: string }>,
-  ) => Promise<{ fileId: number; transactionHash: Hash }>;
-
-  /**
-   * Submit a comprehensive file addition with optional schema and permissions for relay
-   *
-   * This is the preferred callback that supports all file addition scenarios.
-   * It can handle files with schemas, permissions, or both.
-   *
-   * @param params - Complete parameters for file addition
-   * @param params.url - The file URL to register
-   * @param params.userAddress - The user's address (defaults to connected wallet if not specified)
-   * @param params.permissions - Array of encrypted permissions (empty array if none)
-   * @param params.schemaId - Schema ID for validation (0 if none)
-   * @param params.ownerAddress - Optional owner address (defaults to userAddress if not specified)
-   * @returns Promise resolving to object with fileId and transactionHash
-   */
-  submitFileAdditionComplete?: (params: {
-    url: string;
-    userAddress: Address;
-    permissions: Array<{ account: Address; key: string }>;
-    schemaId: number;
-    ownerAddress?: Address;
-  }) => Promise<{ fileId: number; transactionHash: Hash }>;
-
-  /**
-   * Store a grant file for relay (e.g., upload to IPFS)
-   *
-   * @param grantData - The grant file data
-   * @returns Promise resolving to the storage URL
-   */
-  storeGrantFile?: (grantData: GrantFile) => Promise<string>;
 }
 
 /**
@@ -488,10 +273,25 @@ export interface StorageListResult {
  */
 export interface BaseConfig {
   /**
-   * Optional relayer callback functions for handling gasless transactions.
-   * Provides flexible relay mechanism - can use HTTP, WebSocket, or any custom implementation.
+   * Optional relayer configuration for handling gasless transactions.
+   * Can be a URL string for convenience, or a callback for full control.
+   *
+   * @example
+   * ```typescript
+   * // Simple URL (SDK handles transport)
+   * relayer: '/api/relay'
+   *
+   * // Full control with callback
+   * relayer: async (request) => {
+   *   const response = await fetch('/api/relay', {
+   *     method: 'POST',
+   *     body: JSON.stringify(request)
+   *   });
+   *   return response.json();
+   * }
+   * ```
    */
-  relayerCallbacks?: RelayerCallbacks;
+  relayer?: RelayerConfig;
 
   /**
    * Optional download relayer for proxying CORS-restricted downloads.
@@ -537,10 +337,25 @@ export interface BaseConfig {
  */
 export interface BaseConfigWithStorage {
   /**
-   * Optional relayer callback functions for handling gasless transactions.
-   * Provides flexible relay mechanism - can use HTTP, WebSocket, or any custom implementation.
+   * Optional relayer configuration for handling gasless transactions.
+   * Can be a URL string for convenience, or a callback for full control.
+   *
+   * @example
+   * ```typescript
+   * // Simple URL (SDK handles transport)
+   * relayer: '/api/relay'
+   *
+   * // Full control with callback
+   * relayer: async (request) => {
+   *   const response = await fetch('/api/relay', {
+   *     method: 'POST',
+   *     body: JSON.stringify(request)
+   *   });
+   *   return response.json();
+   * }
+   * ```
    */
-  relayerCallbacks?: RelayerCallbacks;
+  relayer?: RelayerConfig;
 
   /**
    * Optional download relayer for proxying CORS-restricted downloads.
@@ -819,8 +634,8 @@ export interface RuntimeConfig {
   storageProviders: string[];
   /** Default storage provider */
   defaultStorageProvider?: string;
-  /** Current relayer callbacks configuration */
-  relayerCallbacks?: RelayerCallbacks;
+  /** Current relayer configuration */
+  relayerConfig?: RelayerConfig;
 }
 
 /**

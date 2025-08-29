@@ -9,13 +9,9 @@ import React, {
 } from "react";
 import { useAccount, useWalletClient } from "wagmi";
 import {
-  type PermissionGrantTypedData,
-  type GenericTypedData,
-  type TrustServerTypedData,
-  type UntrustServerTypedData,
-  type AddAndTrustServerTypedData,
-  type ServerFilesAndPermissionTypedData,
   type DownloadRelayerCallbacks,
+  type RelayerConfig,
+  type UnifiedRelayerRequest,
   Vana,
   CallbackStorage,
   PinataStorage,
@@ -25,9 +21,7 @@ import {
   type StorageProvider,
   type StorageCallbacks,
   type WalletClient,
-  type Hash,
   type Address,
-  type GrantFile,
 } from "@opendatalabs/vana-sdk/browser";
 
 interface VanaConfig {
@@ -61,38 +55,6 @@ interface VanaProviderProps {
   enableReadOnlyMode?: boolean;
   readOnlyAddress?: string;
 }
-
-// Helper to serialize bigint values for JSON
-const serializeBigInt = (data: unknown) =>
-  JSON.parse(
-    JSON.stringify(data, (_key, value) =>
-      typeof value === "bigint" ? value.toString() : value,
-    ),
-  );
-
-// Helper to make relayer requests
-const submitToRelayer = async (
-  endpoint: string,
-  payload: Record<string, unknown>,
-  baseUrl: string,
-): Promise<{
-  success: boolean;
-  error?: string;
-  fileId?: string;
-  transactionHash?: string;
-  [key: string]: unknown;
-}> => {
-  const response = await fetch(`${baseUrl}${endpoint}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  const result = await response.json();
-  if (!result.success) {
-    throw new Error(result.error ?? "Failed to submit to relayer");
-  }
-  return result;
-};
 
 // Helper to create storage providers
 const createStorageProviders = (
@@ -184,102 +146,6 @@ const getDefaultProvider = (config: VanaConfig): string => {
     return "app-ipfs";
   return requested;
 };
-
-// Helper to create typed data submission callback
-const createSubmitCallback =
-  (endpoint: string, baseUrl: string, address: string | undefined) =>
-  async (typedData: GenericTypedData, signature: Hash) => {
-    const result = await submitToRelayer(
-      endpoint,
-      {
-        typedData: serializeBigInt(typedData),
-        signature,
-        expectedUserAddress: address,
-      },
-      baseUrl,
-    );
-    return result.transactionHash as Hash;
-  };
-
-// Helper for permission grant specific callback
-const createPermissionGrantCallback =
-  (endpoint: string, baseUrl: string, address: string | undefined) =>
-  async (typedData: PermissionGrantTypedData, signature: Hash) => {
-    const result = await submitToRelayer(
-      endpoint,
-      {
-        typedData: serializeBigInt(typedData),
-        signature,
-        expectedUserAddress: address,
-      },
-      baseUrl,
-    );
-    return result.transactionHash as Hash;
-  };
-
-// Helper for trust server specific callback
-const createTrustServerCallback =
-  (endpoint: string, baseUrl: string, address: string | undefined) =>
-  async (typedData: TrustServerTypedData, signature: Hash) => {
-    const result = await submitToRelayer(
-      endpoint,
-      {
-        typedData: serializeBigInt(typedData),
-        signature,
-        expectedUserAddress: address,
-      },
-      baseUrl,
-    );
-    return result.transactionHash as Hash;
-  };
-
-// Helper for add and trust server specific callback
-const createAddAndTrustServerCallback =
-  (endpoint: string, baseUrl: string, address: string | undefined) =>
-  async (typedData: AddAndTrustServerTypedData, signature: Hash) => {
-    const result = await submitToRelayer(
-      endpoint,
-      {
-        typedData: serializeBigInt(typedData),
-        signature,
-        expectedUserAddress: address,
-      },
-      baseUrl,
-    );
-    return result.transactionHash as Hash;
-  };
-
-// Helper for untrust server specific callback
-const createUntrustServerCallback =
-  (endpoint: string, baseUrl: string, address: string | undefined) =>
-  async (typedData: UntrustServerTypedData, signature: Hash) => {
-    const result = await submitToRelayer(
-      endpoint,
-      {
-        typedData: serializeBigInt(typedData),
-        signature,
-        expectedUserAddress: address,
-      },
-      baseUrl,
-    );
-    return result.transactionHash as Hash;
-  };
-
-// Helper for add server files and permissions specific callback
-const createAddServerFilesAndPermissionsCallback =
-  (endpoint: string, baseUrl: string, address: string | undefined) =>
-  async (typedData: ServerFilesAndPermissionTypedData, signature: Hash) => {
-    const result = await submitToRelayer(
-      endpoint,
-      {
-        typedData: serializeBigInt(typedData),
-        signature,
-        expectedUserAddress: address,
-      },
-      baseUrl,
-    );
-    return result.transactionHash as Hash;
-  };
 
 // Helper to fetch application address
 const fetchApplicationAddress = async (): Promise<string | null> => {
@@ -373,121 +239,21 @@ export function VanaProvider({
         await setupGoogleDriveStorage(config, storageProviders);
         const actualDefaultProvider = getDefaultProvider(config);
 
-        // Create relayer callbacks if using gasless transactions
+        // Create unified relayer callback - demonstrates the proper pattern
         const baseUrl = config.relayerUrl ?? window.location.origin;
-        const relayerCallbacks = useGaslessTransactions
-          ? {
-              submitPermissionGrant: createPermissionGrantCallback(
-                "/api/relay",
-                baseUrl,
-                address,
-              ),
-              submitPermissionRevoke: createSubmitCallback(
-                "/api/relay",
-                baseUrl,
-                address,
-              ),
-              submitTrustServer: createTrustServerCallback(
-                "/api/relay",
-                baseUrl,
-                address,
-              ),
-              submitAddAndTrustServer: createAddAndTrustServerCallback(
-                "/api/relay",
-                baseUrl,
-                address,
-              ),
-              submitUntrustServer: createUntrustServerCallback(
-                "/api/relay",
-                baseUrl,
-                address,
-              ),
-              submitAddServerFilesAndPermissions:
-                createAddServerFilesAndPermissionsCallback(
-                  "/api/relay",
-                  baseUrl,
-                  address,
-                ),
-
-              async submitFileAddition(url: string, userAddress: string) {
-                const result = await submitToRelayer(
-                  "/api/relay/addFile",
-                  { url, userAddress },
-                  baseUrl,
+        const relayer: RelayerConfig | undefined = useGaslessTransactions
+          ? async (request: UnifiedRelayerRequest) => {
+              const response = await fetch(`${baseUrl}/api/relay`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(request),
+              });
+              if (!response.ok) {
+                throw new Error(
+                  `Relayer request failed: ${response.statusText}`,
                 );
-                return {
-                  fileId: Number(result.fileId) ?? 0,
-                  transactionHash: result.transactionHash as Hash,
-                };
-              },
-
-              async submitFileAdditionWithPermissions(
-                url: string,
-                userAddress: string,
-                permissions: Array<{ account: string; key: string }>,
-              ) {
-                const result = await submitToRelayer(
-                  "/api/relay/addFileWithPermissions",
-                  { url, userAddress, permissions },
-                  baseUrl,
-                );
-                return {
-                  fileId: Number(result.fileId) ?? 0,
-                  transactionHash: result.transactionHash as Hash,
-                };
-              },
-
-              async submitFileAdditionComplete(params: {
-                url: string;
-                userAddress: Address;
-                permissions: Array<{ account: Address; key: string }>;
-                schemaId: number;
-              }) {
-                const result = await submitToRelayer(
-                  "/api/relay/addFileComplete",
-                  params,
-                  baseUrl,
-                );
-                return {
-                  fileId: Number(result.fileId) ?? 0,
-                  transactionHash: result.transactionHash as Hash,
-                };
-              },
-
-              async storeGrantFile(grantData: GrantFile) {
-                try {
-                  const formData = new FormData();
-                  formData.append(
-                    "file",
-                    new Blob([JSON.stringify(grantData, null, 2)], {
-                      type: "application/json",
-                    }),
-                    "grant-file.json",
-                  );
-
-                  const response = await fetch(`${baseUrl}/api/ipfs/upload`, {
-                    method: "POST",
-                    body: formData,
-                  });
-
-                  if (!response.ok)
-                    throw new Error(
-                      `IPFS upload failed: ${response.statusText}`,
-                    );
-
-                  const result = await response.json();
-                  if (!result.success)
-                    throw new Error(result.error ?? "IPFS upload failed");
-                  if (!result.url)
-                    throw new Error("IPFS upload did not return a URL");
-
-                  return result.url;
-                } catch (error) {
-                  throw new Error(
-                    `Failed to store grant file: ${error instanceof Error ? error.message : "Unknown error"}`,
-                  );
-                }
-              },
+              }
+              return response.json();
             }
           : undefined;
 
@@ -511,7 +277,7 @@ export function VanaProvider({
         // Initialize Vana SDK in full mode
         const vanaInstance = Vana({
           walletClient: walletClient as WalletClient & { chain: VanaChain },
-          relayerCallbacks,
+          relayer,
           downloadRelayer,
           ...(config.subgraphUrl && { subgraphUrl: config.subgraphUrl }),
           defaultPersonalServerUrl: config.defaultPersonalServerUrl,

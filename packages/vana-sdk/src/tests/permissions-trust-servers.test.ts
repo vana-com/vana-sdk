@@ -4,7 +4,6 @@ import type { Hash, PublicClient } from "viem";
 import { PermissionsController } from "../controllers/permissions";
 import type { ControllerContext } from "../controllers/permissions";
 import {
-  RelayerError,
   BlockchainError,
   NonceError,
   UserRejectedRequestError,
@@ -273,9 +272,10 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
 
   describe("submitTrustServerWithSignature", () => {
     it("should successfully trust server with signature via relayer", async () => {
-      mockContext.relayerCallbacks = {
-        submitTrustServer: vi.fn().mockResolvedValue("0xrelayerhash" as Hash),
-      };
+      mockContext.relayer = vi.fn().mockResolvedValue({
+        type: "signed",
+        hash: "0xrelayerhash" as Hash,
+      });
 
       const params = {
         serverId: 1,
@@ -285,7 +285,13 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       const result = await controller.submitTrustServerWithSignature(params);
 
       expect(result.hash).toBe("0xrelayerhash");
-      expect(mockContext.relayerCallbacks.submitTrustServer).toHaveBeenCalled();
+      expect(mockContext.relayer).toHaveBeenCalledWith({
+        type: "signed",
+        operation: "submitTrustServer",
+        typedData: expect.any(Object),
+        signature: "0xsignature",
+        expectedUserAddress: undefined,
+      });
     });
 
     it("should successfully trust server with signature via direct transaction", async () => {
@@ -339,11 +345,10 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
     });
 
     it("should handle relayer errors in submitTrustServerWithSignature", async () => {
-      mockContext.relayerCallbacks = {
-        submitTrustServer: vi
-          .fn()
-          .mockRejectedValue(new RelayerError("Relayer failed")),
-      };
+      mockContext.relayer = vi.fn().mockResolvedValue({
+        type: "error",
+        error: "Relayer failed",
+      });
 
       const params = {
         serverId: 1,
@@ -352,7 +357,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
 
       await expect(
         controller.submitTrustServerWithSignature(params),
-      ).rejects.toThrow(RelayerError);
+      ).rejects.toThrow("Relayer failed");
     });
 
     it("should handle non-Error exceptions in submitTrustServerWithSignature", async () => {
@@ -405,9 +410,10 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
 
   describe("submitUntrustServerWithSignature", () => {
     it("should successfully untrust server with signature via relayer", async () => {
-      mockContext.relayerCallbacks = {
-        submitUntrustServer: vi.fn().mockResolvedValue("0xrelayerhash" as Hash),
-      };
+      mockContext.relayer = vi.fn().mockResolvedValue({
+        type: "signed",
+        hash: "0xrelayerhash" as Hash,
+      });
 
       const params = {
         serverId: 1,
@@ -416,9 +422,13 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       const result = await controller.submitUntrustServerWithSignature(params);
 
       expect(result.hash).toBe("0xrelayerhash");
-      expect(
-        mockContext.relayerCallbacks.submitUntrustServer,
-      ).toHaveBeenCalled();
+      expect(mockContext.relayer).toHaveBeenCalledWith({
+        type: "signed",
+        operation: "submitUntrustServer",
+        typedData: expect.any(Object),
+        signature: "0xsignature",
+        expectedUserAddress: undefined,
+      });
     });
 
     it("should successfully untrust server with signature via direct transaction", async () => {
@@ -469,11 +479,10 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
     });
 
     it("should handle relayer errors in submitUntrustServerWithSignature", async () => {
-      mockContext.relayerCallbacks = {
-        submitUntrustServer: vi
-          .fn()
-          .mockRejectedValue(new RelayerError("Relayer failed")),
-      };
+      mockContext.relayer = vi.fn().mockResolvedValue({
+        type: "error",
+        error: "Relayer failed",
+      });
 
       const params = {
         serverId: 1,
@@ -481,7 +490,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
 
       await expect(
         controller.submitUntrustServerWithSignature(params),
-      ).rejects.toThrow(RelayerError);
+      ).rejects.toThrow("Relayer failed");
     });
 
     it("should handle non-Error exceptions in submitUntrustServerWithSignature", async () => {
@@ -784,9 +793,10 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
 
   describe("submitSignedUntrustServer", () => {
     it("should successfully submit signed untrust server via relayer", async () => {
-      mockContext.relayerCallbacks = {
-        submitUntrustServer: vi.fn().mockResolvedValue("0xrelayerhash" as Hash),
-      };
+      mockContext.relayer = vi.fn().mockResolvedValue({
+        type: "signed",
+        hash: "0xrelayerhash" as Hash,
+      });
 
       const typedData = {
         domain: {

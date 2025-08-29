@@ -277,15 +277,13 @@ describe("VanaCore Extended Tests", () => {
           },
           defaultProvider: "test",
         },
-        relayerCallbacks: {
-          submitPermissionGrant: vi.fn(),
-        },
+        relayer: vi.fn(),
       });
 
       const config = vana.getConfig();
       expect(config.chainId).toBe(14800);
       expect(config.chainName).toBe("VANA - Moksha");
-      expect(config.relayerCallbacks).toBeDefined();
+      expect(config.relayerConfig).toBeDefined();
       expect(config.storageProviders).toEqual(["test-provider"]);
       expect(config.defaultStorageProvider).toBe("test-provider");
     });

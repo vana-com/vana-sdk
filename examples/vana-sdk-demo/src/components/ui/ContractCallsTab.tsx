@@ -298,12 +298,11 @@ export const ContractCallsTab: React.FC<ContractCallsTabProps> = ({
     try {
       setGranteeStatus("Signing transaction...");
 
-      const transactionHash =
-        await vana.permissions.submitRegisterGranteeWithSignature({
-          owner: granteeOwnerAddress as Address,
-          granteeAddress: granteeAddress as Address,
-          publicKey: granteePublicKey,
-        });
+      const transactionHash = await vana.permissions.submitRegisterGrantee({
+        owner: granteeOwnerAddress as Address,
+        granteeAddress: granteeAddress as Address,
+        publicKey: granteePublicKey,
+      });
 
       setGranteeStatus("✅ Grantee registered successfully!");
 

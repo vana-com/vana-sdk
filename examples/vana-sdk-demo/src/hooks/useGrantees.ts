@@ -150,7 +150,7 @@ export function useGrantees(): UseGranteesReturn {
       setAddGranteeError("");
 
       try {
-        await vana.permissions.submitRegisterGranteeWithSignature(actualParams);
+        await vana.permissions.submitRegisterGrantee(actualParams);
 
         console.info(
           "✅ Register grantee with signature completed successfully!",

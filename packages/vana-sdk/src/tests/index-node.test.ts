@@ -93,15 +93,12 @@ describe("Node.js Index Entry Point", () => {
     it("should create instance with full configuration", async () => {
       const vana = Vana({
         walletClient: validWalletClient as WalletConfig["walletClient"],
-        relayerCallbacks: {
-          submitPermissionGrant: async (_typedData, _signature) => "0xtxhash",
-          submitPermissionRevoke: async (_typedData, _signature) => "0xtxhash",
-        },
+        relayer: async () => ({ type: "signed", hash: "0xtxhash" }),
       });
 
       expect(vana).toBeInstanceOf(VanaNodeImpl);
       expect(vana).toBeDefined();
-      expect(vana.getConfig().relayerCallbacks).toBeDefined();
+      expect(vana.getConfig().relayerConfig).toBeDefined();
     });
 
     it("should reject with error for invalid configuration", async () => {

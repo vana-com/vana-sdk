@@ -62,10 +62,10 @@ describe("VanaCore", () => {
     it("should initialize successfully with valid config", () => {
       const vana = new VanaCore(mockPlatformAdapter, {
         walletClient: validWalletClient,
-        relayerCallbacks: {
-          submitPermissionGrant: async (_typedData, _signature) => "0xtxhash",
-          submitPermissionRevoke: async (_typedData, _signature) => "0xtxhash",
-        },
+        relayer: async (_request) => ({
+          type: "signed" as const,
+          hash: "0xtxhash" as `0x${string}`,
+        }),
       });
 
       expect(vana).toBeDefined();
@@ -79,7 +79,7 @@ describe("VanaCore", () => {
         walletClient: validWalletClient,
       });
 
-      expect(vana.getConfig().relayerCallbacks).toBeUndefined();
+      expect(vana.getConfig().relayerConfig).toBeUndefined();
     });
 
     it("should throw InvalidConfigurationError when config is missing", () => {
@@ -102,35 +102,32 @@ describe("VanaCore", () => {
       }).toThrow(InvalidConfigurationError);
     });
 
-    it("should throw InvalidConfigurationError when relayerCallbacks is invalid", () => {
+    it("should throw InvalidConfigurationError when relayer is invalid", () => {
       expect(() => {
         new VanaCore(mockPlatformAdapter, {
           walletClient: validWalletClient,
-          relayerCallbacks: "not-an-object" as unknown as Record<
-            string,
-            unknown
-          >,
+          relayer: 123 as unknown as string,
         });
       }).toThrow(InvalidConfigurationError);
     });
 
-    it("should work with partial relayerCallbacks", () => {
+    it("should work with relayer URL string", () => {
       expect(() => {
         new VanaCore(mockPlatformAdapter, {
           walletClient: validWalletClient,
-          relayerCallbacks: {
-            submitPermissionGrant: async (_typedData, _signature) => "0xtxhash",
-            // Only one callback provided - should still work
-          },
+          relayer: "/api/relay",
         });
       }).not.toThrow();
     });
 
-    it("should work with empty relayerCallbacks object", () => {
+    it("should work with relayer callback", () => {
       expect(() => {
         new VanaCore(mockPlatformAdapter, {
           walletClient: validWalletClient,
-          relayerCallbacks: {},
+          relayer: async () => ({
+            type: "error" as const,
+            error: "Not implemented",
+          }),
         });
       }).not.toThrow();
     });
@@ -176,10 +173,10 @@ describe("VanaCore", () => {
     beforeEach(() => {
       vana = new VanaCore(mockPlatformAdapter, {
         walletClient: validWalletClient,
-        relayerCallbacks: {
-          submitPermissionGrant: async (_typedData, _signature) => "0xtxhash",
-          submitPermissionRevoke: async (_typedData, _signature) => "0xtxhash",
-        },
+        relayer: async (_request) => ({
+          type: "signed" as const,
+          hash: "0xtxhash" as `0x${string}`,
+        }),
       });
     });
 
@@ -204,10 +201,10 @@ describe("VanaCore", () => {
     beforeEach(() => {
       vana = new VanaCore(mockPlatformAdapter, {
         walletClient: validWalletClient,
-        relayerCallbacks: {
-          submitPermissionGrant: async (_typedData, _signature) => "0xtxhash",
-          submitPermissionRevoke: async (_typedData, _signature) => "0xtxhash",
-        },
+        relayer: async (_request) => ({
+          type: "signed" as const,
+          hash: "0xtxhash" as `0x${string}`,
+        }),
       });
     });
 
@@ -217,10 +214,7 @@ describe("VanaCore", () => {
       expect(config).toEqual({
         chainId: 14800,
         chainName: "VANA - Moksha",
-        relayerCallbacks: {
-          submitPermissionGrant: expect.any(Function),
-          submitPermissionRevoke: expect.any(Function),
-        },
+        relayerConfig: expect.any(Function),
         defaultStorageProvider: undefined,
         storageProviders: [],
       });
@@ -236,10 +230,10 @@ describe("VanaCore", () => {
     it("should pass shared context to all controllers", () => {
       const vana = new VanaCore(mockPlatformAdapter, {
         walletClient: validWalletClient,
-        relayerCallbacks: {
-          submitPermissionGrant: async (_typedData, _signature) => "0xtxhash",
-          submitPermissionRevoke: async (_typedData, _signature) => "0xtxhash",
-        },
+        relayer: async (_request) => ({
+          type: "signed" as const,
+          hash: "0xtxhash" as `0x${string}`,
+        }),
       });
 
       // Verify that controllers are initialized with the correct context
@@ -250,9 +244,7 @@ describe("VanaCore", () => {
       // Test that the controllers have access to the shared context
       // by verifying they can access the configuration
       const config = vana.getConfig();
-      expect(config.relayerCallbacks).toBeDefined();
-      expect(config.relayerCallbacks?.submitPermissionGrant).toBeDefined();
-      expect(config.relayerCallbacks?.submitPermissionRevoke).toBeDefined();
+      expect(config.relayerConfig).toBeDefined();
       expect(config.chainId).toBe(14800);
       expect(config.chainName).toBe("VANA - Moksha");
     });

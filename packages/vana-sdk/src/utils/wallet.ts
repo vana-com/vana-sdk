@@ -67,7 +67,8 @@ export function hasAddress(account: unknown): account is Account | Address {
   }
 
   if (typeof account === "object" && "address" in account) {
-    const addr = (account as any).address;
+    const accountWithAddress = account as { address: unknown };
+    const addr = accountWithAddress.address;
     return typeof addr === "string" && /^0x[a-fA-F0-9]{40}$/.test(addr);
   }
 

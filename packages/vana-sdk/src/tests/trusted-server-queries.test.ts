@@ -46,20 +46,26 @@ vi.mock("../utils/multicall", () => ({
 
         const serverInfos = [
           {
-            owner: "0x1111111111111111111111111111111111111111",
-            serverAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            owner:
+              "0x1111111111111111111111111111111111111111" as `0x${string}`,
+            serverAddress:
+              "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as `0x${string}`,
             publicKey: "0xpubkey1",
             url: "https://server1.example.com",
           },
           {
-            owner: "0x2222222222222222222222222222222222222222",
-            serverAddress: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            owner:
+              "0x2222222222222222222222222222222222222222" as `0x${string}`,
+            serverAddress:
+              "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" as `0x${string}`,
             publicKey: "0xpubkey2",
             url: "https://server2.example.com",
           },
           {
-            owner: "0x3333333333333333333333333333333333333333",
-            serverAddress: "0xcccccccccccccccccccccccccccccccccccccccc",
+            owner:
+              "0x3333333333333333333333333333333333333333" as `0x${string}`,
+            serverAddress:
+              "0xcccccccccccccccccccccccccccccccccccccccc" as `0x${string}`,
             publicKey: "0xpubkey3",
             url: "https://server3.example.com",
           },
@@ -110,7 +116,7 @@ describe("Enhanced Trusted Server Queries", () => {
   };
   let context: ControllerContext;
 
-  const userAddress: Address = "0x1234567890123456789012345678901234567890";
+  const userAddress: Address = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
   const serverIds: number[] = [1, 2, 3, 4, 5];
 
   beforeEach(() => {
@@ -134,7 +140,7 @@ describe("Enhanced Trusted Server Queries", () => {
     context = {
       walletClient: mockWalletClient as any,
       publicClient: mockPublicClient as any,
-      userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+      userAddress: userAddress,
       platform: createMockPlatformAdapter(),
     };
 
@@ -293,20 +299,23 @@ describe("Enhanced Trusted Server Queries", () => {
     it("should return trusted servers with their info", async () => {
       const serverInfos = [
         {
-          owner: "0x1111111111111111111111111111111111111111",
-          serverAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          owner: "0x1111111111111111111111111111111111111111" as `0x${string}`,
+          serverAddress:
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as `0x${string}`,
           publicKey: "0xpubkey1",
           url: "https://server1.example.com",
         },
         {
-          owner: "0x2222222222222222222222222222222222222222",
-          serverAddress: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          owner: "0x2222222222222222222222222222222222222222" as `0x${string}`,
+          serverAddress:
+            "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" as `0x${string}`,
           publicKey: "0xpubkey2",
           url: "https://server2.example.com",
         },
         {
-          owner: "0x3333333333333333333333333333333333333333",
-          serverAddress: "0xcccccccccccccccccccccccccccccccccccccccc",
+          owner: "0x3333333333333333333333333333333333333333" as `0x${string}`,
+          serverAddress:
+            "0xcccccccccccccccccccccccccccccccccccccccc" as `0x${string}`,
           publicKey: "0xpubkey3",
           url: "https://server3.example.com",
         },
@@ -366,14 +375,16 @@ describe("Enhanced Trusted Server Queries", () => {
     it("should respect limit parameter", async () => {
       const serverInfos = [
         {
-          owner: "0x1111111111111111111111111111111111111111",
-          serverAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          owner: "0x1111111111111111111111111111111111111111" as `0x${string}`,
+          serverAddress:
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as `0x${string}`,
           publicKey: "0xpubkey1",
           url: "https://server1.example.com",
         },
         {
-          owner: "0x2222222222222222222222222222222222222222",
-          serverAddress: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          owner: "0x2222222222222222222222222222222222222222" as `0x${string}`,
+          serverAddress:
+            "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" as `0x${string}`,
           publicKey: "0xpubkey2",
           url: "https://server2.example.com",
         },
@@ -413,8 +424,9 @@ describe("Enhanced Trusted Server Queries", () => {
       mockServerInfoFailureIndices = [1];
 
       const goodServerInfo = {
-        owner: "0x1111111111111111111111111111111111111111",
-        serverAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        owner: "0x1111111111111111111111111111111111111111" as `0x${string}`,
+        serverAddress:
+          "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as `0x${string}`,
         publicKey: "0xpubkey1",
         url: "https://server1.example.com",
       };
@@ -453,8 +465,9 @@ describe("Enhanced Trusted Server Queries", () => {
         },
         {
           id: 2n,
-          owner: "0x0000000000000000000000000000000000000000",
-          serverAddress: "0x0000000000000000000000000000000000000000",
+          owner: "0x0000000000000000000000000000000000000000" as `0x${string}`,
+          serverAddress:
+            "0x0000000000000000000000000000000000000000" as `0x${string}`,
           publicKey: "",
           url: "",
           startBlock: 0n,
@@ -469,22 +482,25 @@ describe("Enhanced Trusted Server Queries", () => {
       const serverInfos = [
         {
           id: 1n,
-          owner: "0x1111111111111111111111111111111111111111",
-          serverAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          owner: "0x1111111111111111111111111111111111111111" as `0x${string}`,
+          serverAddress:
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as `0x${string}`,
           publicKey: "0xpubkey1",
           url: "https://server1.example.com",
         },
         {
           id: 2n,
-          owner: "0x2222222222222222222222222222222222222222",
-          serverAddress: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          owner: "0x2222222222222222222222222222222222222222" as `0x${string}`,
+          serverAddress:
+            "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" as `0x${string}`,
           publicKey: "0xpubkey2",
           url: "https://server2.example.com",
         },
         {
           id: 3n,
-          owner: "0x3333333333333333333333333333333333333333",
-          serverAddress: "0xcccccccccccccccccccccccccccccccccccccccc",
+          owner: "0x3333333333333333333333333333333333333333" as `0x${string}`,
+          serverAddress:
+            "0xcccccccccccccccccccccccccccccccccccccccc" as `0x${string}`,
           publicKey: "0xpubkey3",
           url: "https://server3.example.com",
         },
@@ -539,15 +555,17 @@ describe("Enhanced Trusted Server Queries", () => {
       const goodServerInfos = [
         {
           id: 1n,
-          owner: "0x1111111111111111111111111111111111111111",
-          serverAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          owner: "0x1111111111111111111111111111111111111111" as `0x${string}`,
+          serverAddress:
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as `0x${string}`,
           publicKey: "0xpubkey1",
           url: "https://server1.example.com",
         },
         {
           id: 3n,
-          owner: "0x3333333333333333333333333333333333333333",
-          serverAddress: "0xcccccccccccccccccccccccccccccccccccccccc",
+          owner: "0x3333333333333333333333333333333333333333" as `0x${string}`,
+          serverAddress:
+            "0xcccccccccccccccccccccccccccccccccccccccc" as `0x${string}`,
           publicKey: "0xpubkey3",
           url: "https://server3.example.com",
         },
@@ -685,7 +703,7 @@ describe("Enhanced Trusted Server Queries", () => {
     });
 
     it("should handle invalid user addresses", async () => {
-      const invalidAddress = "0xinvalid" as Address;
+      const invalidAddress = "0xinvalid";
       mockPublicClient.readContract.mockRejectedValue(
         new Error("Invalid address"),
       );
@@ -697,7 +715,7 @@ describe("Enhanced Trusted Server Queries", () => {
 
     it("should handle chain ID unavailability", async () => {
       mockWalletClient.chain = undefined;
-      mockWalletClient.getChainId = vi
+      mockPublicClient.getChainId = vi
         .fn()
         .mockRejectedValue(new Error("Chain not connected"));
 

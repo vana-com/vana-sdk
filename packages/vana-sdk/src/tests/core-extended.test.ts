@@ -307,7 +307,7 @@ describe("VanaCore Extended Tests", () => {
         walletClient: validWalletClient,
       });
 
-      const address = await vana.getUserAddress();
+      const address = vana.userAddress;
       expect(address).toBe("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
     });
   });

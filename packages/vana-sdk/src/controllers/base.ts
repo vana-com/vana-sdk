@@ -53,27 +53,29 @@ export abstract class BaseController {
   constructor(protected readonly context: ControllerContext) {}
 
   /**
-   * Asserts that a wallet client is available for operations requiring signing.
+   * Asserts that a wallet client with an account is available for operations requiring signing.
    *
    * @remarks
    * This method uses TypeScript assertion signatures to narrow the type of
-   * `this.context` to guarantee that `walletClient` is available after the
-   * call succeeds. This provides compile-time safety for wallet operations
+   * `this.context` to guarantee that `walletClient` with an account is available
+   * after the call succeeds. This provides compile-time safety for wallet operations
    * while enabling clear error messages for read-only scenarios.
    *
    * The assertion signature ensures that after calling this method,
-   * TypeScript knows that `this.context.walletClient` is definitely available.
+   * TypeScript knows that `this.context.walletClient` is definitely available
+   * with a configured account.
    *
    * @throws {ReadOnlyError} When no wallet client is configured
+   * @throws {Error} When wallet client exists but no account is configured
    *
    * @example
    * ```typescript
    * async performWalletOperation() {
    *   this.assertWallet(); // Type assertion + runtime check
    *
-   *   // TypeScript now knows walletClient is available
-   *   const accounts = await this.context.walletClient.getAddresses();
-   *   return accounts[0];
+   *   // TypeScript now knows walletClient and account are available
+   *   const account = this.context.walletClient.account;
+   *   const address = typeof account === 'string' ? account : account.address;
    * }
    * ```
    */
@@ -89,6 +91,17 @@ export abstract class BaseController {
       throw new ReadOnlyError(
         callingMethod,
         "Initialize the SDK with a walletClient to perform this operation",
+      );
+    }
+
+    if (!this.context.walletClient.account) {
+      // Get the calling method name from the stack trace for better error messages
+      const stack = new Error().stack;
+      const callingMethod =
+        stack?.split("\n")[2]?.match(/at \w+\.(\w+)/)?.[1] ?? "this operation";
+
+      throw new Error(
+        `No wallet account connected. Cannot perform ${callingMethod} without an account.`,
       );
     }
   }

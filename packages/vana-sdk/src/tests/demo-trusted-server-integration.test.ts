@@ -1,5 +1,4 @@
 import { describe, it, expect } from "vitest";
-import type { Address } from "viem";
 
 /**
  * Demo integration test showing how to use the enhanced trusted server query features.
@@ -180,14 +179,14 @@ describe("Enhanced Trusted Server Query Demo", () => {
     // TypeScript interfaces ensure compile-time safety
     const typeExamples = {
       TrustedServerInfo: {
-        serverId: "0x1234..." as Address,
+        serverId: "0x1234...",
         url: "https://server.example.com",
         isTrusted: true,
         trustIndex: 0,
       },
 
       PaginatedTrustedServers: {
-        servers: ["0x1111...", "0x2222..."] as Address[],
+        servers: ["0x1111...", "0x2222..."],
         total: 100,
         offset: 0,
         limit: 50,
@@ -195,10 +194,8 @@ describe("Enhanced Trusted Server Query Demo", () => {
       },
 
       BatchServerInfoResult: {
-        servers: new Map([
-          ["0x1111..." as Address, { url: "https://server1.com" }],
-        ]),
-        failed: ["0x2222..." as Address],
+        servers: new Map([["0x1111...", { url: "https://server1.com" }]]),
+        failed: ["0x2222..."],
       },
     };
 

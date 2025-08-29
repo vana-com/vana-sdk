@@ -8,11 +8,7 @@ import * as encryptionUtils from "../utils/encryption";
 
 // Mock controllers to avoid initialization issues
 vi.mock("../controllers/permissions", () => ({
-  PermissionsController: vi.fn().mockImplementation(() => ({
-    getUserAddress: vi
-      .fn()
-      .mockResolvedValue("0x1234567890123456789012345678901234567890"),
-  })),
+  PermissionsController: vi.fn().mockImplementation(() => ({})),
 }));
 
 vi.mock("../controllers/data", () => ({

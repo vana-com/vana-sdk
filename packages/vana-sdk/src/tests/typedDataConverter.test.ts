@@ -11,7 +11,8 @@ describe("typedDataConverter", () => {
           name: "TestApp",
           version: "1",
           chainId: 1,
-          verifyingContract: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
+          verifyingContract:
+            "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6" as `0x${string}`,
         },
         types: {
           Person: [
@@ -33,7 +34,8 @@ describe("typedDataConverter", () => {
           name: "TestApp",
           version: "1",
           chainId: 1,
-          verifyingContract: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
+          verifyingContract:
+            "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6" as `0x${string}`,
         },
         types: {
           Person: [
@@ -55,7 +57,8 @@ describe("typedDataConverter", () => {
           name: "ComplexApp",
           version: "2",
           chainId: 137,
-          verifyingContract: "0x1234567890123456789012345678901234567890",
+          verifyingContract:
+            "0x1234567890123456789012345678901234567890" as `0x${string}`,
         },
         types: {
           Permission: [
@@ -91,7 +94,8 @@ describe("typedDataConverter", () => {
           name: "EmptyApp",
           version: "1",
           chainId: 1,
-          verifyingContract: "0x0000000000000000000000000000000000000000",
+          verifyingContract:
+            "0x0000000000000000000000000000000000000000" as `0x${string}`,
         },
         types: {},
         primaryType: "Empty",
@@ -110,7 +114,8 @@ describe("typedDataConverter", () => {
           name: "NestedApp",
           version: "1",
           chainId: 1,
-          verifyingContract: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
+          verifyingContract:
+            "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6" as `0x${string}`,
         },
         types: {
           Data: [
@@ -141,7 +146,8 @@ describe("typedDataConverter", () => {
           name: "DataPortabilityPermissions",
           version: "1",
           chainId: 14800,
-          verifyingContract: "0x5678000000000000000000000000000000000000",
+          verifyingContract:
+            "0x5678000000000000000000000000000000000000" as `0x${string}`,
         },
         types: {
           Permission: [
@@ -176,7 +182,8 @@ describe("typedDataConverter", () => {
           name: "Test",
           version: "1",
           chainId: 1,
-          verifyingContract: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
+          verifyingContract:
+            "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6" as `0x${string}`,
         },
         types: {
           Test: [{ name: "value", type: "string" }],
@@ -198,7 +205,8 @@ describe("typedDataConverter", () => {
           name: "SpecialApp",
           version: "1",
           chainId: 1,
-          verifyingContract: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
+          verifyingContract:
+            "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6" as `0x${string}`,
         },
         types: {
           constructor: [{ name: "value", type: "string" }],

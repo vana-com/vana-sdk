@@ -128,7 +128,7 @@ describe("SchemaController - Edge Cases", () => {
       expect(contextWithoutStorage.validateStorageRequired).toHaveBeenCalled();
     });
 
-    it("should handle getUserAddress when account is missing", async () => {
+    it("should handle missing wallet account", async () => {
       const contextWithoutAccount = {
         ...mockContext,
         walletClient: {

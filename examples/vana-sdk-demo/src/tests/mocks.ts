@@ -303,6 +303,7 @@ export function createMockUseVana(
     isInitialized: overrides.isInitialized ?? true,
     error: overrides.error ?? null,
     applicationAddress: overrides.applicationAddress ?? "0xapp123",
+    isReadOnly: overrides.isReadOnly ?? false,
   };
 }
 

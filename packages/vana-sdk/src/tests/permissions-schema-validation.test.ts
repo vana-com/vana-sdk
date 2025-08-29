@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Address } from "viem";
+
 import { PermissionsController } from "../controllers/permissions";
 import type { ControllerContext } from "../controllers/permissions";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
@@ -88,11 +88,12 @@ describe("Permissions Schema Validation", () => {
           logs: [],
         }),
         readContract: vi.fn().mockResolvedValue(1n), // Mock nonce
+        getChainId: vi.fn().mockResolvedValue(14800),
       } as any,
       storageManager: undefined,
       subgraphUrl: undefined,
       platform: mockPlatformAdapter,
-      userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+      userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
     };
 
     controller = new PermissionsController(mockContext);
@@ -104,13 +105,15 @@ describe("Permissions Schema Validation", () => {
       grant: "https://grant.example.com/grant.json",
       fileUrls: ["https://storage.example.com/file1.json"],
       schemaIds: [0], // Default: no schema
-      serverAddress: "0x1234567890123456789012345678901234567890" as Address,
+      serverAddress:
+        "0x1234567890123456789012345678901234567890" as `0x${string}`,
       serverUrl: "https://server.example.com",
       serverPublicKey: "serverPublicKey123",
       filePermissions: [
         [
           {
-            account: "0x1234567890123456789012345678901234567890" as Address,
+            account:
+              "0x1234567890123456789012345678901234567890" as `0x${string}`,
             key: "encryptedKey123",
           },
         ],
@@ -119,7 +122,7 @@ describe("Permissions Schema Validation", () => {
 
     beforeEach(() => {
       // Setup wallet client mocks
-      mockContext.walletClient.writeContract = vi
+      mockContext.walletClient!.writeContract = vi
         .fn()
         .mockResolvedValue("0xTxHash");
 

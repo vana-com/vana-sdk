@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Mock } from "vitest";
-import type { Hash, Address, PublicClient } from "viem";
+import type { Hash, PublicClient } from "viem";
 import { PermissionsController } from "../controllers/permissions";
 import type { ControllerContext } from "../controllers/permissions";
 import {
@@ -136,7 +136,7 @@ describe("PermissionsController", () => {
             eventName: "PermissionAdded",
             args: {
               permissionId: 75n,
-              user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+              user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
               grant: "https://mock-grant-url.com",
               fileIds: [],
             },
@@ -215,6 +215,8 @@ describe("PermissionsController", () => {
         submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
       },
       platform: mockPlatformAdapter,
+      userAddress:
+        "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
       waitForTransactionEvents: vi.fn().mockResolvedValue({
         hash: "0xtxhash",
         from: "0xfrom",
@@ -439,6 +441,8 @@ describe("PermissionsController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
         waitForTransactionEvents: vi.fn().mockResolvedValue({
           hash: "0xdirecttxhash",
           from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
@@ -448,7 +452,8 @@ describe("PermissionsController", () => {
             PermissionAdded: {
               permissionId: 1n,
               user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-              grantee: "0x1234567890123456789012345678901234567890",
+              grantee:
+                "0x1234567890123456789012345678901234567890" as `0x${string}`,
               grant: "https://example.com/grant.json",
               fileIds: [1, 2, 3],
             },
@@ -538,9 +543,11 @@ describe("PermissionsController", () => {
       await expect(controller.grant(params)).rejects.toThrow(NonceError);
     });
 
-    it("should handle wallet address retrieval errors", async () => {
-      // Mock wallet client with no addresses
-      mockWalletClient.getAddresses.mockResolvedValue([]);
+    it("should handle blockchain errors during grant", async () => {
+      // Mock publicClient.readContract to fail during nonce retrieval
+      mockPublicClient.readContract.mockRejectedValueOnce(
+        new Error("Blockchain connection failed"),
+      );
 
       const mockParams = {
         grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
@@ -550,7 +557,6 @@ describe("PermissionsController", () => {
       };
 
       await expect(controller.grant(mockParams)).rejects.toThrow(NonceError);
-      expect(mockWalletClient.getAddresses).toHaveBeenCalled();
     });
 
     it("should handle signature errors with specific messages", async () => {
@@ -696,7 +702,6 @@ describe("PermissionsController", () => {
 
       const result = await controller.getUserPermissionGrantsOnChain({
         subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
-        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       });
 
       expect(result).toHaveLength(2);
@@ -737,7 +742,6 @@ describe("PermissionsController", () => {
 
       const result = await controller.getUserPermissionGrantsOnChain({
         subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
-        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       });
 
       expect(result).toEqual([]);
@@ -816,7 +820,6 @@ describe("PermissionsController", () => {
       const result = await controller.getUserPermissionGrantsOnChain({
         limit: 2,
         subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
-        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       });
 
       expect(result).toHaveLength(2);
@@ -829,6 +832,8 @@ describe("PermissionsController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
         relayerCallbacks: {
           submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
           submitPermissionRevoke: vi.fn().mockResolvedValue("0xtxhash"),
@@ -860,7 +865,6 @@ describe("PermissionsController", () => {
       await expect(
         controller.getUserPermissionGrantsOnChain({
           subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
-          userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
         }),
       ).rejects.toThrow(BlockchainError);
     });
@@ -902,7 +906,6 @@ describe("PermissionsController", () => {
 
       const result = await controller.getUserPermissionGrantsOnChain({
         subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
-        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       });
 
       // Should still return the one permission even with grant file retrieval error
@@ -927,6 +930,8 @@ describe("PermissionsController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
         relayerCallbacks: {
           submitPermissionGrant: vi
             .fn()
@@ -963,6 +968,8 @@ describe("PermissionsController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
         relayerCallbacks: {
           submitPermissionGrant: vi
             .fn()
@@ -998,6 +1005,8 @@ describe("PermissionsController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
         // No relayerUrl - forces direct transaction path
       });
 
@@ -1026,9 +1035,8 @@ describe("PermissionsController", () => {
     });
 
     it("should handle missing chain ID in direct transaction", async () => {
-      const noChainWallet = {
-        ...mockWalletClient,
-        chain: null,
+      const noChainPublicClient = {
+        ...mockPublicClient,
         getChainId: vi
           .fn()
           .mockRejectedValue(new Error("Chain ID not available")),
@@ -1036,9 +1044,11 @@ describe("PermissionsController", () => {
 
       const directController = new PermissionsController({
         walletClient:
-          noChainWallet as unknown as ControllerContext["walletClient"],
+          mockWalletClient as unknown as ControllerContext["walletClient"],
         publicClient:
-          mockPublicClient as unknown as ControllerContext["publicClient"],
+          noChainPublicClient as unknown as ControllerContext["publicClient"],
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
         platform: mockPlatformAdapter,
         // No relayerUrl - forces direct transaction path
       });
@@ -1061,12 +1071,13 @@ describe("PermissionsController", () => {
         ...mockWalletClient,
         account: undefined,
       };
-
       const directController = new PermissionsController({
         walletClient:
           noAccountWallet as unknown as ControllerContext["walletClient"],
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
         platform: mockPlatformAdapter,
         waitForTransactionEvents: vi.fn().mockResolvedValue({
           hash: "0xtxhash",
@@ -1077,7 +1088,8 @@ describe("PermissionsController", () => {
             PermissionAdded: {
               permissionId: 1n,
               user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-              grantee: "0x1234567890123456789012345678901234567890",
+              grantee:
+                "0x1234567890123456789012345678901234567890" as `0x${string}`,
               grant: "https://example.com/grant.json",
               fileIds: [],
             },
@@ -1096,25 +1108,11 @@ describe("PermissionsController", () => {
         grantUrl: "https://example.com/grant.json",
       };
 
-      // Mock nonce retrieval
-      const { createPublicClient } = await import("viem");
-      vi.mocked(createPublicClient).mockReturnValueOnce({
-        readContract: vi.fn().mockResolvedValue(BigInt(5)),
-      } as unknown as PublicClient);
-
-      // Mock getUserAddress to return an address
-      noAccountWallet.getAddresses = vi
-        .fn()
-        .mockResolvedValue(["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"]);
-
-      // Mock direct transaction failure due to missing account
-      noAccountWallet.writeContract = vi.fn().mockResolvedValue("0xtxhash");
-
-      const result = await directController.grant(mockParams);
-      expect(result).toMatchObject({
-        transactionHash: "0xtxhash",
-        permissionId: 1n,
-      });
+      // With our enhanced assertWallet, this should throw an error
+      // because the wallet doesn't have an account
+      await expect(directController.grant(mockParams)).rejects.toThrow(
+        "No wallet account connected",
+      );
     });
 
     it("should handle revoke with missing chain ID", async () => {
@@ -1129,6 +1127,8 @@ describe("PermissionsController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
         relayerCallbacks: {
           submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
           submitPermissionRevoke: vi.fn().mockResolvedValue("0xtxhash"),
@@ -1152,6 +1152,8 @@ describe("PermissionsController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
         relayerCallbacks: {
           submitPermissionGrant: vi
             .fn()
@@ -1163,7 +1165,7 @@ describe("PermissionsController", () => {
       });
 
       const mockParams = {
-        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
         operation: "read",
         files: [],
         parameters: { someKey: "someValue" },
@@ -1187,14 +1189,18 @@ describe("PermissionsController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
         relayerCallbacks: {
           submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
           submitPermissionRevoke: vi.fn().mockResolvedValue("0xtxhash"),
         },
       });
 
-      // Mock getAddresses to throw non-Error object
-      mockWalletClient.getAddresses.mockRejectedValue(null);
+      // Mock fetch to throw non-Error object (string)
+      const mockFetch = fetch as Mock;
+      mockFetch.mockRejectedValueOnce("Network error string");
 
       await expect(controller.getUserPermissionGrantsOnChain()).rejects.toThrow(
         "Failed to fetch user permission grants: Unknown error",
@@ -1202,18 +1208,15 @@ describe("PermissionsController", () => {
     });
 
     it("should handle grant with non-Error exceptions", async () => {
-      // Create controller with storage but failing nonce retrieval
-      const failingWalletClient = {
-        ...mockWalletClient,
-        getAddresses: vi.fn().mockRejectedValue("string error"),
-      };
-
+      // Create controller with storage
       const controller = new PermissionsController({
         walletClient:
-          failingWalletClient as unknown as ControllerContext["walletClient"],
+          mockWalletClient as unknown as ControllerContext["walletClient"],
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
         relayerCallbacks: {
           submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
           storeGrantFile: vi
@@ -1222,8 +1225,11 @@ describe("PermissionsController", () => {
         },
       });
 
+      // Mock publicClient.readContract to throw non-Error object during nonce retrieval
+      mockPublicClient.readContract.mockRejectedValueOnce("string error");
+
       const mockParams = {
-        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
         operation: "read",
         files: [],
         parameters: { someKey: "someValue" },
@@ -1251,6 +1257,8 @@ describe("PermissionsController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
         relayerCallbacks: {
           submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
           submitPermissionRevoke: vi.fn().mockResolvedValue("0xtxhash"),
@@ -1273,6 +1281,8 @@ describe("PermissionsController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
         waitForTransactionEvents: vi.fn().mockResolvedValue({
           hash: "0xmockabcdef1234567890abcdef1234567890abcdef1234567890abcdef123456",
           from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
@@ -1317,11 +1327,13 @@ describe("PermissionsController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
         // No relayer callbacks
       });
 
       const mockParams = {
-        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
         operation: "read",
         files: [1, 2, 3],
         parameters: { someKey: "someValue" },
@@ -1350,6 +1362,8 @@ describe("PermissionsController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
         waitForTransactionEvents: vi.fn().mockResolvedValue({
           hash: "0xmockdirecttxhash",
           from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
@@ -1438,11 +1452,13 @@ describe("PermissionsController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
         // No relayer callbacks
       });
 
       const mockParams = {
-        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
         operation: "read",
         files: [1, 2, 3],
         parameters: { someKey: "someValue" },
@@ -1461,6 +1477,8 @@ describe("PermissionsController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
         waitForTransactionEvents: vi.fn().mockResolvedValue({
           hash: "0xtxhash",
           from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
@@ -1470,7 +1488,8 @@ describe("PermissionsController", () => {
             PermissionAdded: {
               permissionId: 1n,
               user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-              grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+              grantee:
+                "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
               grant: "https://ipfs.io/ipfs/QmGrantFile",
             },
           },
@@ -1493,7 +1512,7 @@ describe("PermissionsController", () => {
       } as unknown as PublicClient);
 
       const mockParams = {
-        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
         operation: "read",
         files: [1, 2, 3],
         parameters: { someKey: "someValue" },
@@ -1527,7 +1546,8 @@ describe("PermissionsController", () => {
         name: "VanaDataPortabilityPermissions",
         version: "1",
         chainId: 14800,
-        verifyingContract: "0x1234567890123456789012345678901234567890",
+        verifyingContract:
+          "0x1234567890123456789012345678901234567890" as `0x${string}`,
       });
 
       // Mock signTypedData
@@ -1782,7 +1802,7 @@ describe("PermissionsController", () => {
       it("should successfully get permission info", async () => {
         const mockPermissionInfo = {
           id: 111n,
-          grantor: "0xabcdef1234567890123456789012345678901234" as Address,
+          grantor: "0xabcdef1234567890123456789012345678901234",
           nonce: 55n,
           grant: "ipfs://Qm...",
           signature: "0xsig123" as `0x${string}`,
@@ -1826,13 +1846,9 @@ describe("PermissionsController", () => {
           "0xhash123456789012345678901234567890123456789012345678901234567890",
         );
 
-      // Mock getUserAddress
-      vi.spyOn(
-        controller as unknown as {
-          getUserAddress: () => Promise<string>;
-        },
-        "getUserAddress",
-      ).mockResolvedValue("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
+      // Set userAddress in context
+      (controller as any).context.userAddress =
+        "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
     });
 
     describe("submitDirectRevokeTransaction", () => {
@@ -1842,8 +1858,7 @@ describe("PermissionsController", () => {
             name: "VanaDataPortabilityPermissions",
             version: "1",
             chainId: 14800,
-            verifyingContract:
-              "0x1234567890123456789012345678901234567890" as Address,
+            verifyingContract: "0x1234567890123456789012345678901234567890",
           },
           types: {
             RevokePermission: [
@@ -1895,8 +1910,7 @@ describe("PermissionsController", () => {
             name: "VanaDataPortabilityPermissions",
             version: "1",
             chainId: 14800,
-            verifyingContract:
-              "0x1234567890123456789012345678901234567890" as Address,
+            verifyingContract: "0x1234567890123456789012345678901234567890",
           },
           types: {
             RevokePermission: [

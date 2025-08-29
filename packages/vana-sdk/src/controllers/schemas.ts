@@ -1,4 +1,3 @@
-import type { Address } from "viem";
 import type {
   Schema,
   SchemaMetadata,
@@ -223,23 +222,22 @@ export class SchemaController extends BaseController {
       );
       const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
 
-      const account =
-        this.context.walletClient?.account ?? (await this.getUserAddress());
-      const from = typeof account === "string" ? account : account.address;
+      const account = this.context.walletClient.account;
+      const from = typeof account === "string" ? account : account?.address;
 
       const hash = await this.context.walletClient.writeContract({
         address: dataRefinerRegistryAddress,
         abi: dataRefinerRegistryAbi,
         functionName: "addSchema",
         args: [name, dialect, uploadResult.url],
-        account,
+        account: account ?? null,
         chain: this.context.walletClient.chain ?? null,
       });
 
       const { tx } = await import("../utils/transactionHelpers");
       const txResult = tx({
         hash,
-        from,
+        from: from!,
         contract: "DataRefinerRegistry",
         fn: "addSchema",
       });
@@ -557,16 +555,15 @@ export class SchemaController extends BaseController {
       );
       const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
 
-      const account =
-        this.context.walletClient?.account ?? (await this.getUserAddress());
-      const from = typeof account === "string" ? account : account.address;
+      const account = this.context.walletClient.account;
+      const from = typeof account === "string" ? account : account?.address;
 
       const hash = await this.context.walletClient.writeContract({
         address: dataRefinerRegistryAddress,
         abi: dataRefinerRegistryAbi,
         functionName: "addSchema",
         args: [params.name, params.dialect, params.definitionUrl],
-        account,
+        account: account ?? null,
         chain: this.context.walletClient.chain ?? null,
       });
 
@@ -574,7 +571,7 @@ export class SchemaController extends BaseController {
       const { tx } = await import("../utils/transactionHelpers");
       const txResult = tx({
         hash,
-        from,
+        from: from!,
         contract: "DataRefinerRegistry",
         fn: "addSchema",
       });
@@ -777,26 +774,6 @@ export class SchemaController extends BaseController {
    * @private
    * @returns Promise resolving to the user's address
    */
-  private async getUserAddress(): Promise<Address> {
-    if (!this.context.walletClient?.account) {
-      throw new Error("No wallet account connected");
-    }
-
-    // Return the account address directly if available
-    if (typeof this.context.walletClient?.account === "string") {
-      return this.context.walletClient?.account as Address;
-    }
-
-    // If account is an object, get the address property
-    if (
-      typeof this.context.walletClient?.account === "object" &&
-      this.context.walletClient?.account.address
-    ) {
-      return this.context.walletClient?.account.address;
-    }
-
-    throw new Error("Unable to determine wallet address");
-  }
 
   /**
    * Fetches and attaches definitions to an array of schemas.

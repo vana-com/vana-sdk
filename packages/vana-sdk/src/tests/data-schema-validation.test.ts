@@ -54,7 +54,7 @@ describe("DataController Schema Validation", () => {
     // Create mock wallet client
     mockWalletClient = {
       chain: moksha as VanaChain,
-      account: "0xuser",
+      account: "0xuser" as `0x${string}`,
       writeContract: vi.fn(),
       getAddresses: vi.fn().mockResolvedValue(["0xuser"]),
     } as unknown as WalletClient;
@@ -73,6 +73,8 @@ describe("DataController Schema Validation", () => {
       storageManager: undefined,
       subgraphUrl: undefined,
       platform: mockPlatformAdapter,
+      userAddress:
+        "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
     };
 
     // Create controller instance

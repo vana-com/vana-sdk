@@ -3,7 +3,6 @@ import { DataController } from "../controllers/data";
 import type { ControllerContext } from "../controllers/permissions";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 import type { StorageManager } from "../storage/manager";
-import type { Address } from "viem";
 
 // Mock dependencies
 vi.mock("../config/addresses", () => ({
@@ -107,6 +106,7 @@ describe("DataController - getUserPermissions dual-mode functionality", () => {
       platform: mockPlatformAdapter,
       storageManager: mockStorageManager as StorageManager,
       subgraphUrl: undefined, // This will force RPC mode
+      userAddress: "0xTestAddress" as `0x${string}`,
     };
 
     controller = new DataController(mockContext);
@@ -174,7 +174,9 @@ describe("DataController - getUserPermissions dual-mode functionality", () => {
           chain: undefined,
         },
       };
-      const controllerWithoutChain = new DataController(contextWithoutChain);
+      const controllerWithoutChain = new DataController(
+        contextWithoutChain as ControllerContext,
+      );
 
       await expect(
         controllerWithoutChain.getUserPermissions({
@@ -348,7 +350,6 @@ describe("DataController - getUserPermissions dual-mode functionality", () => {
       const permissions = await controller.getUserPermissions({
         user: "0x1234567890123456789012345678901234567890",
         subgraphUrl: "https://custom.subgraph.com/graphql",
-        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       });
 
       expect(permissions).toHaveLength(1);

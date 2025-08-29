@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
+import type { Hash } from "viem";
 import { FakeWaitForTransactionEvents } from "./FakeWaitForTransactionEvents";
-import type { Hash, Address } from "viem";
 
 describe("FakeWaitForTransactionEvents", () => {
   it("should return default response when no specific response is set", async () => {
@@ -17,7 +17,7 @@ describe("FakeWaitForTransactionEvents", () => {
 
     fake.setResponse("0xspecifichash", {
       hash: "0xspecifichash" as Hash,
-      from: "0xspecificfrom" as Address,
+      from: "0xspecificfrom",
       contract: "SpecificContract",
       fn: "specificFunction",
       expectedEvents: { TestEvent: { value: 123n } },
@@ -37,7 +37,7 @@ describe("FakeWaitForTransactionEvents", () => {
 
     fake.setResponse("0xTransactionHash", {
       hash: "0xTransactionHash" as Hash,
-      from: "0xTestAddress" as Address,
+      from: "0xTestAddress",
       contract: "DataRefinerRegistry",
       fn: "addSchema",
       expectedEvents: {
@@ -76,7 +76,7 @@ describe("FakeWaitForTransactionEvents", () => {
     const attachedFake = (mockFn as unknown as MockWithFake).__fake;
     attachedFake.setResponse("0xtest", {
       hash: "0xtest" as Hash,
-      from: "0xfrom" as Address,
+      from: "0xfrom",
       contract: "TestContract",
       fn: "testFn",
       expectedEvents: { TestEvent: { id: 456n } },

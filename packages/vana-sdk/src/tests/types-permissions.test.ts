@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { Address, Hash } from "viem";
+import type { Hash } from "viem";
 
 // Test-specific interfaces
 interface ComplexParameters {
@@ -63,8 +63,8 @@ describe("Permission Types", () => {
         },
         nonce: 42,
         grantedAt: 1640995200,
-        grantor: "0x1234567890123456789012345678901234567890" as Address,
-        grantee: "0x9876543210987654321098765432109876543210" as Address,
+        grantor: "0x1234567890123456789012345678901234567890",
+        grantee: "0x9876543210987654321098765432109876543210",
         active: true,
         expiresAt: 1672531200,
         dataStatus: "complete",
@@ -91,8 +91,8 @@ describe("Permission Types", () => {
         operation: "[DATA_UNAVAILABLE]",
         parameters: {},
         grant: "ipfs://QmMinimalGrant",
-        grantor: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as Address,
-        grantee: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" as Address,
+        grantor: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        grantee: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
         active: false,
         dataStatus: "minimal",
       };
@@ -109,7 +109,7 @@ describe("Permission Types", () => {
   describe("GrantPermissionParams", () => {
     it("should structure grant parameters correctly", () => {
       const params: GrantPermissionParams = {
-        grantee: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6" as Address,
+        grantee: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
         operation: "llm_inference",
         files: [1, 2, 3],
         parameters: {
@@ -133,7 +133,7 @@ describe("Permission Types", () => {
 
     it("should handle minimal grant parameters", () => {
       const minimalParams: GrantPermissionParams = {
-        grantee: "0xcccccccccccccccccccccccccccccccccccccccc" as Address,
+        grantee: "0xcccccccccccccccccccccccccccccccccccccccc",
         operation: "data_analysis",
         files: [10],
         parameters: {
@@ -160,14 +160,14 @@ describe("Permission Types", () => {
   describe("CheckPermissionParams", () => {
     it("should structure check parameters correctly", () => {
       const params: CheckPermissionParams = {
-        application: "0xdddddddddddddddddddddddddddddddddddddddd" as Address,
+        application: "0xdddddddddddddddddddddddddddddddddddddddd",
         operation: "model_training",
         files: [5, 6, 7],
         parameters: {
           epochs: 10,
           learningRate: 0.001,
         },
-        user: "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" as Address,
+        user: "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
       };
 
       expect(params.application).toBe(
@@ -181,7 +181,7 @@ describe("Permission Types", () => {
 
     it("should handle check parameters without user", () => {
       const params: CheckPermissionParams = {
-        application: "0xffffffffffffffffffffffffffffffffffffff" as Address,
+        application: "0xffffffffffffffffffffffffffffffffffffff",
         operation: "data_sharing",
         files: [8],
         parameters: {
@@ -201,8 +201,8 @@ describe("Permission Types", () => {
           id: 111n,
           files: [1, 2],
           grant: "ipfs://QmValidGrant",
-          grantor: "0x1111111111111111111111111111111111111111" as Address,
-          grantee: "0x2222222222222222222222222222222222222222" as Address,
+          grantor: "0x1111111111111111111111111111111111111111",
+          grantee: "0x2222222222222222222222222222222222222222",
           active: true,
           operation: "llm_inference",
           parameters: { model: "gpt-4" },
@@ -233,8 +233,7 @@ describe("Permission Types", () => {
         name: "DataPermissions",
         version: "1",
         chainId: 14800,
-        verifyingContract:
-          "0x3333333333333333333333333333333333333333" as Address,
+        verifyingContract: "0x3333333333333333333333333333333333333333",
       };
 
       expect(domain.name).toBe("DataPermissions");
@@ -247,7 +246,7 @@ describe("Permission Types", () => {
 
     it("should structure permission grant message correctly", () => {
       const message: PermissionGrantMessage = {
-        application: "0x4444444444444444444444444444444444444444" as Address,
+        application: "0x4444444444444444444444444444444444444444",
         files: [1, 2, 3],
         operation: "llm_inference",
         grant: "ipfs://QmGrantMessage",
@@ -280,7 +279,7 @@ describe("Permission Types", () => {
 
     it("should structure simplified permission message correctly", () => {
       const message: SimplifiedPermissionMessage = {
-        application: "0x5555555555555555555555555555555555555555" as Address,
+        application: "0x5555555555555555555555555555555555555555",
         grant: "ipfs://QmSimplified",
         nonce: 777n,
       };
@@ -320,7 +319,7 @@ describe("Permission Types", () => {
     it("should structure permission info correctly", () => {
       const info: PermissionInfo = {
         id: 54321n,
-        grantor: "0x6666666666666666666666666666666666666666" as Address,
+        grantor: "0x6666666666666666666666666666666666666666",
         nonce: 111n,
         granteeId: 1n,
         grant: "ipfs://QmPermissionInfo",
@@ -345,7 +344,7 @@ describe("Permission Types", () => {
   describe("GrantFile", () => {
     it("should structure grant file correctly", () => {
       const grantFile: GrantFile = {
-        grantee: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6" as Address,
+        grantee: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
         operation: "llm_inference",
         parameters: {
           prompt: "Analyze this data: {{data}}",
@@ -367,7 +366,7 @@ describe("Permission Types", () => {
 
     it("should handle grant file without expiration", () => {
       const permanentGrant: GrantFile = {
-        grantee: "0x7777777777777777777777777777777777777777" as Address,
+        grantee: "0x7777777777777777777777777777777777777777",
         operation: "data_analysis",
         parameters: {
           analysisType: "statistical",
@@ -385,8 +384,7 @@ describe("Permission Types", () => {
           name: "DataPermissions",
           version: "1",
           chainId: 14800,
-          verifyingContract:
-            "0x8888888888888888888888888888888888888888" as Address,
+          verifyingContract: "0x8888888888888888888888888888888888888888",
         },
         types: {
           Permission: [
@@ -418,8 +416,7 @@ describe("Permission Types", () => {
           name: "GenericContract",
           version: "2",
           chainId: 1,
-          verifyingContract:
-            "0x9999999999999999999999999999999999999999" as Address,
+          verifyingContract: "0x9999999999999999999999999999999999999999",
         },
         types: {
           CustomType: [
@@ -478,8 +475,8 @@ describe("Permission Types", () => {
   describe("Query Types", () => {
     it("should structure query permissions parameters correctly", () => {
       const params: QueryPermissionsParams = {
-        grantor: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as Address,
-        grantee: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" as Address,
+        grantor: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        grantee: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
         operation: "llm_inference",
         files: [1, 2, 3],
         status: "active",
@@ -507,8 +504,8 @@ describe("Permission Types", () => {
             id: 1n,
             files: [1],
             grant: "ipfs://QmResult1",
-            grantor: "0x1111111111111111111111111111111111111111" as Address,
-            grantee: "0x2222222222222222222222222222222222222222" as Address,
+            grantor: "0x1111111111111111111111111111111111111111",
+            grantee: "0x2222222222222222222222222222222222222222",
             active: true,
             operation: "data_analysis",
             parameters: { analysisType: "statistical" },
@@ -518,8 +515,8 @@ describe("Permission Types", () => {
             id: 2n,
             files: [2],
             grant: "ipfs://QmResult2",
-            grantor: "0x3333333333333333333333333333333333333333" as Address,
-            grantee: "0x4444444444444444444444444444444444444444" as Address,
+            grantor: "0x3333333333333333333333333333333333333333",
+            grantee: "0x4444444444444444444444444444444444444444",
             active: false,
             operation: "model_training",
             parameters: { epochs: 100 },
@@ -552,13 +549,11 @@ describe("Permission Types", () => {
         ],
         topApplications: [
           {
-            application:
-              "0x1111111111111111111111111111111111111111" as Address,
+            application: "0x1111111111111111111111111111111111111111",
             count: 50,
           },
           {
-            application:
-              "0x2222222222222222222222222222222222222222" as Address,
+            application: "0x2222222222222222222222222222222222222222",
             count: 30,
           },
         ],
@@ -579,9 +574,10 @@ describe("Permission Types", () => {
     it("should structure server correctly", () => {
       const server: Server = {
         id: 1,
-        owner: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as Address,
+        owner: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as `0x${string}`,
         url: "https://trusted-server.example.com",
-        serverAddress: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" as Address,
+        serverAddress:
+          "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" as `0x${string}`,
         publicKey: "0x04...",
       };
 
@@ -631,8 +627,7 @@ describe("Permission Types", () => {
           name: "DataPermissions",
           version: "1",
           chainId: 14800,
-          verifyingContract:
-            "0x1010101010101010101010101010101010101010" as Address,
+          verifyingContract: "0x1010101010101010101010101010101010101010",
         },
         types: {
           TrustServer: [
@@ -659,8 +654,7 @@ describe("Permission Types", () => {
           name: "DataPermissions",
           version: "1",
           chainId: 14800,
-          verifyingContract:
-            "0x3030303030303030303030303030303030303030" as Address,
+          verifyingContract: "0x3030303030303030303030303030303030303030",
         },
         types: {
           UntrustServer: [
@@ -690,8 +684,8 @@ describe("Permission Types", () => {
           id: 999n,
           files: [10, 20],
           grant: "ipfs://QmEventGrant",
-          grantor: "0x5050505050505050505050505050505050505050" as Address,
-          grantee: "0x6060606060606060606060606060606060606060" as Address,
+          grantor: "0x5050505050505050505050505050505050505050",
+          grantee: "0x6060606060606060606060606060606060606060",
           active: true,
           operation: "compute_task",
           parameters: { taskType: "training" },
@@ -729,8 +723,8 @@ describe("Permission Types", () => {
         id: BigInt("18446744073709551615"), // max uint64
         files: [],
         grant: "test",
-        grantor: "0x7070707070707070707070707070707070707070" as Address,
-        grantee: "0x8080808080808080808080808080808080808080" as Address,
+        grantor: "0x7070707070707070707070707070707070707070",
+        grantee: "0x8080808080808080808080808080808080808080",
         active: true,
         operation: "[DATA_UNAVAILABLE]",
         parameters: {},
@@ -743,7 +737,7 @@ describe("Permission Types", () => {
 
     it("should handle complex nested parameter structures", () => {
       const complexParams: GrantPermissionParams = {
-        grantee: "0x9090909090909090909090909090909090909090" as Address,
+        grantee: "0x9090909090909090909090909090909090909090",
         operation: "complex_computation",
         files: [1, 2, 3],
         parameters: {
@@ -789,8 +783,8 @@ describe("Permission Types", () => {
         id: 1n,
         files: [],
         grant: "test",
-        grantor: "0xb0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0" as Address,
-        grantee: "0xc0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0" as Address,
+        grantor: "0xb0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0",
+        grantee: "0xc0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0",
         active: true,
         operation: "[DATA_UNAVAILABLE]",
         parameters: {},

@@ -34,6 +34,7 @@ import type {
   TransactionReceipt,
   Chain,
 } from "viem";
+import { extractAddress } from "./utils/wallet";
 import type {
   Operation,
   PollingOptions,
@@ -174,6 +175,7 @@ export class VanaCore {
   private readonly ipfsGateways?: string[];
   private readonly publicClient: PublicClient;
   private readonly walletClient?: WalletClient;
+  private readonly _staticUserAddress?: Address; // For read-only mode
 
   /**
    * Initializes a new VanaCore client instance with the provided configuration.
@@ -238,7 +240,7 @@ export class VanaCore {
     // Initialize clients based on configuration type
     let walletClient: WalletClient | undefined;
     let publicClient: PublicClient;
-    let userAddress: Address;
+    let staticUserAddress: Address | undefined; // Only for read-only mode
     let chainToUse: Chain;
 
     if (isWalletConfig(config)) {
@@ -246,15 +248,8 @@ export class VanaCore {
       walletClient = config.walletClient;
       chainToUse = (walletClient.chain as Chain) ?? vanaMainnet;
 
-      // Extract user address from wallet
-      const { account } = walletClient;
-      if (typeof account === "string") {
-        userAddress = account as Address;
-      } else if (typeof account === "object" && account.address) {
-        userAddress = account.address;
-      } else {
-        throw new Error("Unable to determine wallet address");
-      }
+      // In wallet mode, address is dynamic (not stored)
+      staticUserAddress = undefined;
 
       // Use provided publicClient or create one
       if ("publicClient" in config && config.publicClient) {
@@ -269,12 +264,12 @@ export class VanaCore {
       // Read-only mode with public client and address
       walletClient = undefined;
       publicClient = config.publicClient;
-      userAddress = config.address;
+      staticUserAddress = config.address;
       chainToUse = config.publicClient.chain ?? vanaMainnet;
     } else if (isAddressOnlyConfig(config)) {
       // Read-only mode with just address (create public client)
       walletClient = undefined;
-      userAddress = config.address;
+      staticUserAddress = config.address;
       chainToUse = config.chain ?? vanaMainnet;
 
       publicClient = createPublicClient({
@@ -302,7 +297,8 @@ export class VanaCore {
         transport: http(config.rpcUrl ?? chain.rpcUrls.default.http[0]),
         account: config.account,
       });
-      userAddress = config.account.address;
+      // In wallet mode, address is dynamic (not stored)
+      staticUserAddress = undefined;
       publicClient = createPublicClient({
         chain,
         transport: http(),
@@ -313,9 +309,10 @@ export class VanaCore {
       );
     }
 
-    // Store the clients for later use
+    // Store the clients and static address for later use
     this.publicClient = publicClient;
     this.walletClient = walletClient;
+    this._staticUserAddress = staticUserAddress;
 
     // Get default service URLs from chain config if not provided
     const chainConfig = getChainConfig(chainToUse.id);
@@ -323,11 +320,15 @@ export class VanaCore {
     const personalServerUrl =
       config.defaultPersonalServerUrl ?? chainConfig?.personalServerUrl;
 
-    // Create shared context for all controllers, now including the platform adapter
+    // Create shared context for all controllers with dynamic userAddress getter
+    const self = this; // Capture VanaCore instance for getter delegation
     const sharedContext: ControllerContext = {
       walletClient,
       publicClient,
-      userAddress,
+      get userAddress() {
+        // Delegate to VanaCore's getter for dynamic resolution
+        return self.userAddress;
+      },
       applicationClient: walletClient, // Using same wallet for now
       relayerCallbacks: this.relayerCallbacks,
       downloadRelayer: this.downloadRelayer,
@@ -579,33 +580,28 @@ export class VanaCore {
   }
 
   /**
-   * Retrieves the user's wallet address from the connected client.
+   * The user's wallet address.
+   * In wallet mode, this always returns the current wallet account address.
+   * In read-only mode, this returns the static address provided during initialization.
    *
-   * @returns A Promise that resolves to the user's Ethereum address
    * @example
    * ```typescript
-   * const address = await vana.getUserAddress();
+   * const address = vana.userAddress;
    * console.log(`User address: ${address}`); // e.g., "User address: 0x742d35..."
    * ```
    */
-  async getUserAddress(): Promise<Address> {
-    if (!this.walletClient?.account) {
-      throw new Error("No wallet account connected");
+  get userAddress(): Address {
+    // In wallet mode: dynamically read from wallet
+    if (this.walletClient?.account) {
+      return extractAddress(this.walletClient.account);
     }
 
-    const { account } = this.walletClient;
-
-    // Return the account address directly if available
-    if (typeof account === "string") {
-      return account as Address;
+    // In read-only mode: use static address
+    if (this._staticUserAddress) {
+      return this._staticUserAddress;
     }
 
-    // If account is an object, get the address property
-    if (typeof account === "object" && account.address) {
-      return account.address;
-    }
-
-    throw new Error("Unable to determine wallet address");
+    throw new Error("No user address available");
   }
 
   /**

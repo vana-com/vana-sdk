@@ -51,7 +51,7 @@ export class FakeWaitForTransactionEvents {
   private errors = new Map<string, Error>();
   private defaultResponse: TransactionEventResult = {
     hash: "0xdefaulthash" as Hash,
-    from: "0xdefaultfrom" as Address,
+    from: "0xdefaultfrom",
     contract: "DefaultContract",
     fn: "defaultFunction",
     expectedEvents: {},
@@ -70,7 +70,7 @@ export class FakeWaitForTransactionEvents {
    * const fake = new FakeWaitForTransactionEvents();
    * fake.setResponse("0xabc123", {
    *   hash: "0xabc123" as Hash,
-   *   from: "0xuser" as Address,
+   *   from: "0xuser",
    *   contract: "DataRegistry",
    *   fn: "addFile",
    *   expectedEvents: { FileAdded: { fileId: 1n } },
@@ -109,7 +109,7 @@ export class FakeWaitForTransactionEvents {
    * const fake = new FakeWaitForTransactionEvents();
    * fake.setDefaultResponse({
    *   hash: "0xdefault" as Hash,
-   *   from: "0xdefault" as Address,
+   *   from: "0xdefault",
    *   contract: "TestContract",
    *   fn: "testFunction",
    *   expectedEvents: {},
@@ -215,7 +215,7 @@ export class FakeWaitForTransactionEvents {
   ): TransactionEventResult {
     return {
       hash,
-      from: "0xTestAddress" as Address,
+      from: "0xTestAddress",
       contract: "DataRefinerRegistry",
       fn: "addSchema",
       expectedEvents: {
@@ -248,7 +248,7 @@ export class FakeWaitForTransactionEvents {
   ): TransactionEventResult {
     return {
       hash,
-      from: "0xTestAddress" as Address,
+      from: "0xTestAddress",
       contract: "DataRefinerRegistry",
       fn: "addSchema",
       expectedEvents: {},

@@ -12,7 +12,7 @@ describe("Upload Types with Type Safety", () => {
   describe("FilePermissionParams", () => {
     it("should require both account and publicKey", () => {
       const permission: FilePermissionParams = {
-        account: "0x1234567890123456789012345678901234567890" as Address,
+        account: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         publicKey: "0x04abcdef...",
       };
 
@@ -24,7 +24,7 @@ describe("Upload Types with Type Safety", () => {
 
     it("should be minimal with no operation fields", () => {
       const permission: FilePermissionParams = {
-        account: "0x1234567890123456789012345678901234567890" as Address,
+        account: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         publicKey: "0x04abcdef...",
       };
 
@@ -37,7 +37,7 @@ describe("Upload Types with Type Safety", () => {
   describe("LegacyPermissionParams", () => {
     it("should maintain the old interface for migration reference", () => {
       const permission: LegacyPermissionParams = {
-        grantee: "0x1234567890123456789012345678901234567890" as Address,
+        grantee: "0x1234567890123456789012345678901234567890",
         operation: "llm_inference",
         parameters: { model: "gpt-4" },
         publicKey: "0x04abcdef...",
@@ -56,7 +56,7 @@ describe("Upload Types with Type Safety", () => {
       // Old way (deprecated):
       /*
       const permission: EncryptedPermissionParams = {
-        grantee: "0x1234567890123456789012345678901234567890" as Address,
+        grantee: "0x1234567890123456789012345678901234567890",
         operation: "llm_inference",
         parameters: { model: "gpt-4" },
         // Missing publicKey would cause TypeScript error
@@ -83,7 +83,8 @@ describe("Upload Types with Type Safety", () => {
         filename: "test.txt",
         permissions: [
           {
-            account: "0x1234567890123456789012345678901234567890" as Address,
+            account:
+              "0x1234567890123456789012345678901234567890" as `0x${string}`,
             publicKey: "0x04abcdef...",
           },
         ],
@@ -104,7 +105,8 @@ describe("Upload Types with Type Safety", () => {
         encrypt: true,
         permissions: [
           {
-            account: "0x1234567890123456789012345678901234567890" as Address,
+            account:
+              "0x1234567890123456789012345678901234567890" as `0x${string}`,
             publicKey: "0x04abcdef...",
           },
         ],
@@ -126,7 +128,8 @@ describe("Upload Types with Type Safety", () => {
         encrypt: true,
         permissions: [
           {
-            account: "0x1234567890123456789012345678901234567890" as Address,
+            account:
+              "0x1234567890123456789012345678901234567890" as `0x${string}`,
             publicKey: "0x04abcdef...",
             // No operation or parameters fields - those belong in vana.permissions.grant()
           },
@@ -146,7 +149,8 @@ describe("Upload Types with Type Safety", () => {
         encrypt: false,
         permissions: [
           {
-            account: "0x1234567890123456789012345678901234567890" as Address,
+            account:
+              "0x1234567890123456789012345678901234567890" as `0x${string}`,
             publicKey: "0x04abcdef...", // Still required by interface
           },
         ],
@@ -175,7 +179,8 @@ describe("Upload Types with Type Safety", () => {
         encrypt: true,
         permissions: [
           {
-            account: "0x1234567890123456789012345678901234567890" as Address,
+            account:
+              "0x1234567890123456789012345678901234567890" as `0x${string}`,
             publicKey: "0x04abcdef...",
           },
         ],
@@ -212,7 +217,8 @@ describe("Upload Types with Type Safety", () => {
         encrypt: true,
         permissions: [
           {
-            account: "0x1234567890123456789012345678901234567890" as Address, // Server address
+            account:
+              "0x1234567890123456789012345678901234567890" as `0x${string}`, // Server address
             publicKey: "0x04abcdef123456789...", // Server's public key
           },
         ],
@@ -247,7 +253,7 @@ describe("Upload Types with Type Safety", () => {
         encrypt: true,
         permissions: [
           {
-            account: "0xAIServerAddress..." as Address,
+            account: "0xAIServerAddress..." as `0x${string}`,
             publicKey: "0x04ServerPublicKey...",
           },
         ],
@@ -263,7 +269,7 @@ describe("Upload Types with Type Safety", () => {
       }
 
       const step2GrantParams: GrantParams = {
-        grantee: "0xAIServerAddress..." as Address,
+        grantee: "0xAIServerAddress...",
         fileIds: [123n], // fileId from upload result
         operation: "medical_analysis",
         parameters: {

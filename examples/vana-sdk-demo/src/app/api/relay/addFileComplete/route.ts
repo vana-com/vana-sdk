@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     console.log("[addFileComplete] Submitting transaction...");
     const startTime = Date.now();
 
-    const txResult = await vana.data.addFileWithPermissionsAndSchema(
+    const txResult = await vana.data.addFileWithEncryptedPermissionsAndSchema(
       url,
       ownerAddress ?? userAddress, // Use ownerAddress if provided, otherwise fallback to userAddress
       permissions,

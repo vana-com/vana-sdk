@@ -14,7 +14,6 @@ import {
 } from "../utils/blockchain/registry";
 import { fetchFromUrl } from "../utils/urlResolver";
 import { gasAwareMulticall } from "../utils/multicall";
-import type { Address } from "viem";
 import { parseEventLogs } from "viem";
 import {
   createTypedMockWalletClient,
@@ -148,6 +147,7 @@ describe("SchemaController", () => {
       publicClient: mockPublicClient,
       platform: mockPlatformAdapter,
       storageManager: mockStorageManager as StorageManager,
+      userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
       waitForTransactionEvents: vi.fn().mockResolvedValue({
         hash: "0xTransactionHash",
         from: "0xTestAddress",
@@ -434,12 +434,12 @@ describe("SchemaController", () => {
         "ipfs",
       );
 
-      expect(mockContext.walletClient.writeContract).toHaveBeenCalledWith({
+      expect(mockContext.walletClient?.writeContract).toHaveBeenCalledWith({
         address: "0xRegistryAddress",
         abi: [],
         functionName: "addSchema",
         args: ["Test Schema", "json", "https://ipfs.io/ipfs/QmTestHash"],
-        account: expect.any(Object),
+        account: expect.anything(),
         chain: expect.any(Object),
       });
     });
@@ -536,7 +536,6 @@ describe("SchemaController", () => {
       const contextWithoutStorage = {
         ...mockContext,
         storageManager: undefined,
-        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
       };
       const controllerWithoutStorage = new SchemaController(
         contextWithoutStorage,
@@ -557,14 +556,14 @@ describe("SchemaController", () => {
       const contextWithoutChain = {
         ...mockContext,
         walletClient: {
-          ...mockContext.walletClient,
+          ...mockContext.walletClient!,
           chain: undefined,
         },
         publicClient: {
           ...mockContext.publicClient,
           chain: undefined,
         },
-      };
+      } as ControllerContext;
       const controllerWithoutChain = new SchemaController(contextWithoutChain);
 
       await expect(
@@ -754,12 +753,12 @@ describe("SchemaController", () => {
       expect(result.blockNumber).toBe(12345n);
       expect(result.gasUsed).toBe(100000n);
 
-      expect(mockContext.walletClient.writeContract).toHaveBeenCalledWith({
+      expect(mockContext.walletClient?.writeContract).toHaveBeenCalledWith({
         address: "0xRegistryAddress",
         abi: [],
         functionName: "addSchema",
         args: ["Test Schema", "json", "https://example.com/schema.json"],
-        account: expect.any(Object),
+        account: expect.anything(),
         chain: expect.any(Object),
       });
     });
@@ -768,14 +767,14 @@ describe("SchemaController", () => {
       const contextWithoutChain = {
         ...mockContext,
         walletClient: {
-          ...mockContext.walletClient,
+          ...mockContext.walletClient!,
           chain: undefined,
         },
         publicClient: {
           ...mockContext.publicClient,
           chain: undefined,
         },
-      };
+      } as ControllerContext;
       const controllerWithoutChain = new SchemaController(contextWithoutChain);
 
       await expect(
@@ -788,7 +787,7 @@ describe("SchemaController", () => {
     });
 
     it("should handle transaction errors", async () => {
-      vi.mocked(mockContext.walletClient.writeContract).mockRejectedValue(
+      vi.mocked(mockContext.walletClient!.writeContract).mockRejectedValue(
         new Error("Transaction failed"),
       );
 
@@ -802,15 +801,15 @@ describe("SchemaController", () => {
     });
   });
 
-  describe("getUserAddress", () => {
-    it("should handle wallet without account", async () => {
+  describe("wallet account handling", () => {
+    it("should throw error when wallet account is missing", async () => {
       const contextWithoutAccount = {
         ...mockContext,
         walletClient: {
-          ...mockContext.walletClient,
+          ...mockContext.walletClient!,
           account: undefined,
         },
-      };
+      } as ControllerContext;
       const controllerWithoutAccount = new SchemaController(
         contextWithoutAccount,
       );
@@ -829,7 +828,7 @@ describe("SchemaController", () => {
         ...mockContext,
         walletClient: {
           ...mockContext.walletClient,
-          account: "0xStringAddress" as Address,
+          account: "0xStringAddress" as `0x${string}`,
         },
       } as unknown as ControllerContext;
       const controllerWithStringAccount = new SchemaController(
@@ -842,9 +841,9 @@ describe("SchemaController", () => {
         definitionUrl: "https://example.com",
       });
 
-      expect(mockContext.walletClient.writeContract).toHaveBeenCalledWith(
+      expect(mockContext.walletClient?.writeContract).toHaveBeenCalledWith(
         expect.objectContaining({
-          account: "0xStringAddress",
+          account: "0xStringAddress" as `0x${string}`,
         }),
       );
     });

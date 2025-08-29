@@ -48,7 +48,7 @@ describe("ServerController", () => {
     // Create mock account
     mockAccount = {
       type: "local",
-      address: mockUserAddress as Address,
+      address: mockUserAddress,
       signMessage: vi.fn().mockResolvedValue(`0x${"0".repeat(130)}`),
     };
 
@@ -73,7 +73,7 @@ describe("ServerController", () => {
       publicClient: {} as unknown as ControllerContext["publicClient"],
       platform: mockPlatformAdapter,
       defaultPersonalServerUrl: "https://test-personal-server.com",
-      userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+      userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
     };
 
     serverController = new ServerController(mockContext);
@@ -190,14 +190,14 @@ describe("ServerController", () => {
     it("should throw error for invalid user address", async () => {
       await expect(
         serverController.getIdentity({
-          userAddress: "invalid-address" as Address,
+          userAddress: "invalid-address",
         }),
       ).rejects.toThrow("Failed to get personal server identity");
     });
 
     it("should throw error for empty user address", async () => {
       await expect(
-        serverController.getIdentity({ userAddress: "" as Address }),
+        serverController.getIdentity({ userAddress: "" }),
       ).rejects.toThrow("Failed to get personal server identity");
     });
 

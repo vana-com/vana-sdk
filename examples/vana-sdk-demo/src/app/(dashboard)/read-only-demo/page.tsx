@@ -44,7 +44,9 @@ export default function ReadOnlyDemoPage() {
       description: "Fetch user's file metadata from blockchain",
       operation: async () => {
         if (!vana) throw new Error("SDK not initialized");
-        const files = await vana.data.getUserFiles();
+        const files = await vana.data.getUserFiles({
+          owner: "0x0000000000000000000000000000000000000000" as Address,
+        });
         return { count: files.length, files: files.slice(0, 3) };
       },
     },
@@ -89,7 +91,12 @@ export default function ReadOnlyDemoPage() {
       operation: async () => {
         if (!vana) throw new Error("SDK not initialized");
         // This will throw ReadOnlyError in read-only mode
-        await vana.data.decryptFile("sample-file-id");
+        await vana.data.decryptFile({
+          id: 1,
+          url: "sample-url",
+          ownerAddress: "0x0000000000000000000000000000000000000000" as Address,
+          addedAtBlock: 0n,
+        });
         return { success: true };
       },
     },
@@ -194,7 +201,7 @@ export default function ReadOnlyDemoPage() {
                   id="address"
                   type="text"
                   value={selectedAddress}
-                  onChange={(e) => {
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                     setSelectedAddress(e.target.value);
                   }}
                   placeholder="0x..."
@@ -206,7 +213,6 @@ export default function ReadOnlyDemoPage() {
                   <Button
                     key={example.address}
                     variant="outline"
-                    size="sm"
                     onClick={() => {
                       setSelectedAddress(example.address);
                     }}
@@ -250,7 +256,6 @@ export default function ReadOnlyDemoPage() {
                 </p>
                 <Button
                   onClick={() => runOperation(op.name, op.operation)}
-                  size="sm"
                   className="w-full"
                 >
                   Run
@@ -308,7 +313,6 @@ export default function ReadOnlyDemoPage() {
                 </p>
                 <Button
                   onClick={() => runOperation(op.name, op.operation)}
-                  size="sm"
                   className="w-full"
                   variant={isReadOnly ? "secondary" : "default"}
                 >

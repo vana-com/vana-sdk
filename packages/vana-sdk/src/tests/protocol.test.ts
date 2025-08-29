@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Address } from "viem";
+
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { mokshaTestnet } from "../config/chains";
@@ -98,7 +98,7 @@ describe("ProtocolController", () => {
         }),
       },
       platform: mockPlatformAdapter,
-      userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+      userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
     };
 
     controller = new ProtocolController(mockContext);
@@ -150,6 +150,8 @@ describe("ProtocolController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
         relayerCallbacks: {
           submitFileAddition: vi.fn(),
         },
@@ -280,6 +282,8 @@ describe("ProtocolController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
         relayerCallbacks: {
           submitFileAddition: vi.fn(),
         },
@@ -309,6 +313,8 @@ describe("ProtocolController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
         relayerCallbacks: {
           submitFileAddition: vi.fn(),
         },
@@ -439,7 +445,7 @@ describe("ProtocolController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
-        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
       });
 
       // Mock getContractAddress to throw an error that contains "Contract address not found"
@@ -479,7 +485,7 @@ describe("ProtocolController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
-        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
       });
 
       // Should throw the error from the id getter
@@ -513,7 +519,7 @@ describe("ProtocolController", () => {
         publicClient:
           mockPublicClient as unknown as ControllerContext["publicClient"],
         platform: mockPlatformAdapter,
-        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+        userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
       });
 
       // Mock getContractAddress to throw "Contract address not found" error

@@ -226,13 +226,8 @@ describe("VanaCore", () => {
       });
     });
 
-    it("should get user address", async () => {
-      // Mock the private method call
-      const mockGetUserAddress = vi.fn().mockResolvedValue(testAccount.address);
-      (vana.permissions as unknown as Record<string, unknown>).getUserAddress =
-        mockGetUserAddress;
-
-      const address = await vana.getUserAddress();
+    it("should get user address", () => {
+      const address = vana.userAddress;
       expect(address).toBe(testAccount.address);
     });
   });

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Address } from "viem";
+
 import { PermissionsController } from "../controllers/permissions";
 import type { ControllerContext } from "../controllers/permissions";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
@@ -74,7 +74,7 @@ describe("New PermissionsController Methods", () => {
       publicClient:
         mockPublicClient as unknown as ControllerContext["publicClient"],
       platform: mockPlatformAdapter,
-      userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+      userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
     };
 
     controller = new PermissionsController(mockContext);
@@ -95,7 +95,8 @@ describe("New PermissionsController Methods", () => {
         name: "DataPermissions",
         version: "1",
         chainId: 14800,
-        verifyingContract: "0x1234567890123456789012345678901234567890",
+        verifyingContract:
+          "0x1234567890123456789012345678901234567890" as `0x${string}`,
       });
 
       // Mock signTypedData
@@ -142,7 +143,8 @@ describe("New PermissionsController Methods", () => {
         name: "DataPermissions",
         version: "1",
         chainId: 14800,
-        verifyingContract: "0x1234567890123456789012345678901234567890",
+        verifyingContract:
+          "0x1234567890123456789012345678901234567890" as `0x${string}`,
       });
       vi.spyOn(
         controllerWithRelayer as unknown as {
@@ -171,7 +173,8 @@ describe("New PermissionsController Methods", () => {
             name: "DataPermissions",
             version: "1",
             chainId: 14800,
-            verifyingContract: "0x1234567890123456789012345678901234567890",
+            verifyingContract:
+              "0x1234567890123456789012345678901234567890" as `0x${string}`,
           },
           types: {
             RevokePermission: [
@@ -209,7 +212,8 @@ describe("New PermissionsController Methods", () => {
         name: "DataPermissions",
         version: "1",
         chainId: 14800,
-        verifyingContract: "0x1234567890123456789012345678901234567890",
+        verifyingContract:
+          "0x1234567890123456789012345678901234567890" as `0x${string}`,
       });
       vi.spyOn(
         directController as unknown as { signTypedData: () => Promise<string> },
@@ -326,7 +330,7 @@ describe("New PermissionsController Methods", () => {
       it("should successfully get permission info", async () => {
         const mockPermissionInfo = {
           id: 111n,
-          grantor: "0xabcdef1234567890123456789012345678901234" as Address,
+          grantor: "0xabcdef1234567890123456789012345678901234",
           nonce: 55n,
           grant: "ipfs://Qm...",
           signature: "0xsig123" as `0x${string}`,
@@ -366,11 +370,9 @@ describe("New PermissionsController Methods", () => {
         "0xhash123456789012345678901234567890123456789012345678901234567890",
       );
 
-      // Mock getUserAddress
-      vi.spyOn(
-        controller as unknown as { getUserAddress: () => Promise<string> },
-        "getUserAddress",
-      ).mockResolvedValue("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
+      // Set userAddress in context
+      (controller as any).context.userAddress =
+        "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
     });
 
     describe("submitDirectRevokeTransaction", () => {
@@ -380,8 +382,7 @@ describe("New PermissionsController Methods", () => {
             name: "DataPermissions",
             version: "1",
             chainId: 14800,
-            verifyingContract:
-              "0x1234567890123456789012345678901234567890" as Address,
+            verifyingContract: "0x1234567890123456789012345678901234567890",
           },
           types: {
             RevokePermission: [
@@ -433,8 +434,7 @@ describe("New PermissionsController Methods", () => {
             name: "DataPermissions",
             version: "1",
             chainId: 14800,
-            verifyingContract:
-              "0x1234567890123456789012345678901234567890" as Address,
+            verifyingContract: "0x1234567890123456789012345678901234567890",
           },
           types: {
             RevokePermission: [

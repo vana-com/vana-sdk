@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DataController } from "../controllers/data";
 import type { ControllerContext } from "../controllers/permissions";
-import type { Address } from "viem";
+
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock global fetch
@@ -60,7 +60,7 @@ describe("DataController Relayer Integration", () => {
       storageManager:
         mockStorageManager as unknown as ControllerContext["storageManager"],
       platform: mockPlatformAdapter,
-      userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+      userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
     };
 
     dataController = new DataController(mockContext);
@@ -71,7 +71,7 @@ describe("DataController Relayer Integration", () => {
       const testBlob = new Blob(["test data"], { type: "text/plain" });
       const permissions = [
         {
-          account: "0xTrustedServer" as Address,
+          account: "0xTrustedServer" as `0x${string}`,
           publicKey:
             "0x04a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4",
         },
@@ -91,7 +91,7 @@ describe("DataController Relayer Integration", () => {
         "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
         expect.arrayContaining([
           expect.objectContaining({
-            account: "0xTrustedServer",
+            account: "0xTrustedServer" as `0x${string}`,
             key: expect.any(String), // Encrypted key
           }),
         ]),
@@ -110,7 +110,7 @@ describe("DataController Relayer Integration", () => {
       const testBlob = new Blob(["test data"], { type: "text/plain" });
       const permissions = [
         {
-          account: "0xTrustedServer" as Address,
+          account: "0xTrustedServer" as `0x${string}`,
           publicKey:
             "0x04a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4",
         },
@@ -130,7 +130,7 @@ describe("DataController Relayer Integration", () => {
         "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
         expect.arrayContaining([
           expect.objectContaining({
-            account: "0xTrustedServer",
+            account: "0xTrustedServer" as `0x${string}`,
             key: expect.any(String), // Encrypted key
           }),
         ]),
@@ -153,7 +153,9 @@ describe("DataController Relayer Integration", () => {
           },
         }),
       };
-      const controller = new DataController(contextWithoutRelayer);
+      const controller = new DataController(
+        contextWithoutRelayer as unknown as ControllerContext,
+      );
 
       // Spy on the addFileWithPermissions method without mocking its implementation
       const addFileWithPermissionsSpy = vi.spyOn(
@@ -162,14 +164,14 @@ describe("DataController Relayer Integration", () => {
       );
 
       // Mock the writeContract on wallet client to return a transaction hash
-      (contextWithoutRelayer.walletClient.writeContract as any) = vi
+      (contextWithoutRelayer.walletClient!.writeContract as any) = vi
         .fn()
         .mockResolvedValue("0xDirectTxHash");
 
       const testBlob = new Blob(["test data"], { type: "text/plain" });
       const permissions = [
         {
-          account: "0xTrustedServer" as Address,
+          account: "0xTrustedServer" as `0x${string}`,
           publicKey:
             "0x04a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4",
         },
@@ -206,7 +208,7 @@ describe("DataController Relayer Integration", () => {
       const testBlob = new Blob(["test data"], { type: "text/plain" });
       const permissions = [
         {
-          account: "0xTrustedServer" as Address,
+          account: "0xTrustedServer" as `0x${string}`,
           publicKey:
             "0x04a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4",
         },

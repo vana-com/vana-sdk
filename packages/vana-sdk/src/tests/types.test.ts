@@ -235,7 +235,8 @@ describe("TypeScript Types", () => {
         name: "DataPortabilityPermissions",
         version: "1",
         chainId: 14800,
-        verifyingContract: "0x1234567890123456789012345678901234567890",
+        verifyingContract:
+          "0x1234567890123456789012345678901234567890" as `0x${string}`,
       };
 
       expect(domain.name).toBe("DataPortabilityPermissions");
@@ -318,7 +319,8 @@ describe("TypeScript Types", () => {
           name: "DataPortabilityPermissions",
           version: "1",
           chainId: 14800,
-          verifyingContract: "0x1234567890123456789012345678901234567890",
+          verifyingContract:
+            "0x1234567890123456789012345678901234567890" as `0x${string}`,
         },
         types: {
           Permission: [
@@ -350,7 +352,8 @@ describe("TypeScript Types", () => {
           name: "DataPortabilityPermissions",
           version: "1",
           chainId: 14800,
-          verifyingContract: "0x1234567890123456789012345678901234567890",
+          verifyingContract:
+            "0x1234567890123456789012345678901234567890" as `0x${string}`,
         },
         types: {
           CustomType: [

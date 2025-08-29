@@ -1,4 +1,4 @@
-import type { Address } from "viem";
+import type { Address, Hash } from "viem";
 import { getContract } from "viem";
 import type { StorageUploadResult } from "../types/storage";
 
@@ -285,7 +285,7 @@ export class DataController extends BaseController {
       );
 
       // Step 3: Register on blockchain
-      const userAddress = owner ?? (await this.getUserAddress());
+      const userAddress = owner ?? this.context.userAddress;
 
       // Prepare encrypted permissions if provided
       let encryptedPermissions: Array<{ account: Address; key: string }> = [];
@@ -344,8 +344,8 @@ export class DataController extends BaseController {
 
         // Fallback: No relay support, use a direct transaction
       } else {
-        // Use the internal method directly since we already have encrypted permissions
-        const txResult = await this._addFileWithPermissionsAndSchemaInternal(
+        // Use the method directly since we already have encrypted permissions
+        const txResult = await this.addFileWithEncryptedPermissionsAndSchema(
           uploadResult.url,
           userAddress,
           encryptedPermissions,
@@ -767,7 +767,7 @@ export class DataController extends BaseController {
           addedAtBlock: BigInt(file.addedAtBlock),
           schemaId: parseInt(file.schemaId),
           addedAtTimestamp: BigInt(file.addedAtTimestamp),
-          transactionHash: file.transactionHash as Address,
+          transactionHash: file.transactionHash as Hash,
         };
 
         // Keep the file with the latest timestamp for each ID
@@ -1034,8 +1034,12 @@ export class DataController extends BaseController {
           status: result.data.dlp.status
             ? parseInt(result.data.dlp.status)
             : undefined,
-          address: result.data.dlp.address as Address | undefined,
-          owner: result.data.dlp.owner as Address | undefined,
+          address: result.data.dlp.address
+            ? (result.data.dlp.address as Address)
+            : undefined,
+          owner: result.data.dlp.owner
+            ? (result.data.dlp.owner as Address)
+            : undefined,
         };
       } catch (error) {
         console.debug("Subgraph query failed, falling back to chain:", error);
@@ -1199,8 +1203,8 @@ export class DataController extends BaseController {
           name: dlp.name ?? "",
           metadata: dlp.metadata,
           status: dlp.status ? parseInt(dlp.status) : undefined,
-          address: dlp.address as Address | undefined,
-          owner: dlp.owner as Address | undefined,
+          address: dlp.address ? (dlp.address as Address) : undefined,
+          owner: dlp.owner ? (dlp.owner as Address) : undefined,
         }));
       } catch (error) {
         console.debug("Subgraph query failed, falling back to chain:", error);
@@ -1419,7 +1423,7 @@ export class DataController extends BaseController {
           signature: permission.signature,
           addedAtBlock: BigInt(permission.addedAtBlock),
           addedAtTimestamp: BigInt(permission.addedAtTimestamp),
-          transactionHash: permission.transactionHash as Address,
+          transactionHash: permission.transactionHash as Hash,
           user,
         }))
         .sort((a, b) => Number(b.addedAtTimestamp - a.addedAtTimestamp)); // Latest first
@@ -1544,7 +1548,7 @@ export class DataController extends BaseController {
               addedAtBlock: permissionInfo.startBlock,
               addedAtTimestamp: BigInt(0), // Not available from RPC
               transactionHash:
-                "0x0000000000000000000000000000000000000000" as Address, // Not available from RPC
+                "0x0000000000000000000000000000000000000000" as `0x${string}`, // Not available from RPC
               user,
             };
           } else {
@@ -1557,7 +1561,7 @@ export class DataController extends BaseController {
               addedAtBlock: BigInt(0),
               addedAtTimestamp: BigInt(0),
               transactionHash:
-                "0x0000000000000000000000000000000000000000" as Address,
+                "0x0000000000000000000000000000000000000000" as `0x${string}`,
               user,
             };
           }
@@ -2027,7 +2031,7 @@ export class DataController extends BaseController {
       const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
       const dataRegistryAbi = getAbi("DataRegistry");
       const account =
-        this.context.walletClient.account ?? (await this.getUserAddress());
+        this.context.walletClient.account ?? this.context.userAddress;
       const from = typeof account === "string" ? account : account.address;
 
       const hash = await this.context.walletClient.writeContract({
@@ -2060,9 +2064,6 @@ export class DataController extends BaseController {
    * @returns Promise resolving to the user's wallet address
    * @throws {Error} When no addresses are available in wallet client
    */
-  private async getUserAddress(): Promise<Address> {
-    return this.context.userAddress;
-  }
 
   /**
    * Adds a file with permissions to the DataRegistry contract.
@@ -2208,8 +2209,8 @@ export class DataController extends BaseController {
         );
       }
 
-      // Call the internal method with encrypted permissions
-      return await this._addFileWithPermissionsAndSchemaInternal(
+      // Call the method with encrypted permissions
+      return await this.addFileWithEncryptedPermissionsAndSchema(
         url,
         ownerAddress,
         encryptedPermissions,
@@ -2224,10 +2225,44 @@ export class DataController extends BaseController {
   }
 
   /**
-   * Internal method to add file with encrypted permissions and schema.
-   * @private
+   * Adds a file with pre-encrypted permissions and schema to the DataRegistry.
+   *
+   * @remarks
+   * This method is designed for relay services and advanced use cases where permissions
+   * have already been encrypted client-side. Unlike `addFileWithPermissionsAndSchema()`,
+   * this method expects permissions in the encrypted format with a 'key' field instead
+   * of 'publicKey'.
+   *
+   * This is typically used by relay endpoints that receive pre-encrypted data from
+   * the client SDK's `upload()` method, avoiding double encryption.
+   *
+   * @param url - The storage URL of the file (e.g., IPFS URL)
+   * @param ownerAddress - The address that will own this file
+   * @param permissions - Array of pre-encrypted permissions with 'account' and 'key' fields
+   * @param schemaId - Optional schema ID for data validation (defaults to 0)
+   * @returns Promise resolving to transaction result with hash and contract details
+   * @throws {Error} When chain ID is not available
+   * @throws {Error} When wallet is not connected
+   * @throws {Error} When transaction fails
+   * @example
+   * ```typescript
+   * // In a relay endpoint that receives pre-encrypted permissions
+   * const result = await vana.data.addFileWithEncryptedPermissionsAndSchema(
+   *   "ipfs://QmXxx...",
+   *   ownerAddress,
+   *   [
+   *     {
+   *       account: "0xServerAddress...",
+   *       key: "encrypted_key_string" // Already encrypted by client
+   *     }
+   *   ],
+   *   schemaId
+   * );
+   *
+   * console.log(`File registered in tx ${result.hash}`);
+   * ```
    */
-  private async _addFileWithPermissionsAndSchemaInternal(
+  async addFileWithEncryptedPermissionsAndSchema(
     url: string,
     ownerAddress: Address,
     permissions: Array<{ account: Address; key: string }> = [],
@@ -2316,7 +2351,7 @@ export class DataController extends BaseController {
       const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
       this.assertWallet();
       const account =
-        this.context.walletClient.account ?? (await this.getUserAddress());
+        this.context.walletClient.account ?? this.context.userAddress;
       const from = typeof account === "string" ? account : account.address;
 
       const hash = await this.context.walletClient.writeContract({
@@ -2560,7 +2595,7 @@ export class DataController extends BaseController {
       const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
       this.assertWallet();
       const account =
-        this.context.walletClient.account ?? (await this.getUserAddress());
+        this.context.walletClient.account ?? this.context.userAddress;
 
       const hash = await this.context.walletClient.writeContract({
         address: dataRefinerRegistryAddress,
@@ -2615,7 +2650,7 @@ export class DataController extends BaseController {
       );
 
       // 2. Get user address
-      const userAddress = await this.getUserAddress();
+      const userAddress = this.context.userAddress;
 
       // 3. Generate user's encryption key (same as used in uploadToStorage)
       const userEncryptionKey = await generateEncryptionKey(
@@ -2882,7 +2917,7 @@ export class DataController extends BaseController {
 
       this.assertWallet();
       const walletAccount =
-        this.context.walletClient.account ?? (await this.getUserAddress());
+        this.context.walletClient.account ?? this.context.userAddress;
 
       const txHash = await this.context.walletClient.writeContract({
         address: dataRegistryAddress,
@@ -2969,8 +3004,7 @@ export class DataController extends BaseController {
   ): Promise<Blob> {
     try {
       // Use provided account or get current wallet account
-      const permissionAccount =
-        options?.account ?? (await this.getUserAddress());
+      const permissionAccount = options?.account ?? this.context.userAddress;
 
       // 1. Get the encrypted encryption key from file permissions
       const encryptedKey = await this.getFilePermission(

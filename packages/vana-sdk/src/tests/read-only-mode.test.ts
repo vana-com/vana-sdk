@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { createPublicClient, http, type Address } from "viem";
+import { createPublicClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { moksha } from "../chains";
 import { VanaCore } from "../core";
@@ -28,7 +28,7 @@ vi.mock("viem", async () => {
 });
 
 describe("Read-Only Mode", () => {
-  const testAddress = "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEd1" as Address;
+  const testAddress = "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEd1";
   const platform = new BrowserPlatformAdapter();
 
   describe("Initialization Modes", () => {
@@ -111,7 +111,9 @@ describe("Read-Only Mode", () => {
       // Mock the implementation
       vi.spyOn(vana.data, "getUserFiles").mockResolvedValue([]);
 
-      const files = await vana.data.getUserFiles();
+      const files = await vana.data.getUserFiles({
+        owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+      });
       expect(files).toEqual([]);
     });
 
@@ -132,7 +134,7 @@ describe("Read-Only Mode", () => {
       const dlpInfo = { address: "0x123", name: "Test DLP" };
       vi.spyOn(vana.data, "getDLP").mockResolvedValue(dlpInfo as any);
 
-      const result = await vana.data.getDLP("0x123");
+      const result = await vana.data.getDLP(123);
       expect(result).toEqual(dlpInfo);
     });
 
@@ -145,7 +147,7 @@ describe("Read-Only Mode", () => {
       vi.spyOn(vana.schemas, "count").mockResolvedValue(10);
       vi.spyOn(vana.schemas, "list").mockResolvedValue([]);
 
-      const schema = await vana.schemas.get(BigInt(1));
+      const schema = await vana.schemas.get(1);
       expect(schema).toBeDefined();
 
       const count = await vana.schemas.count();
@@ -170,7 +172,7 @@ describe("Read-Only Mode", () => {
       // Mock the implementation
       vi.spyOn(vana.protocol, "getAvailableContracts").mockReturnValue([
         "DataRegistry",
-        "SchemaRegistry",
+        "DataRefinerRegistry",
       ]);
       vi.spyOn(vana.protocol, "isContractAvailable").mockReturnValue(true);
 
@@ -194,9 +196,14 @@ describe("Read-Only Mode", () => {
     });
 
     it("should throw ReadOnlyError when calling decryptFile", async () => {
-      await expect(vana.data.decryptFile("fileId")).rejects.toThrow(
-        ReadOnlyError,
-      );
+      await expect(
+        vana.data.decryptFile({
+          id: 1,
+          url: "test",
+          ownerAddress: "0x0" as `0x${string}`,
+          addedAtBlock: 0n,
+        } as any),
+      ).rejects.toThrow(ReadOnlyError);
     });
 
     it("should throw error when calling uploadToStorage with encryption", async () => {
@@ -272,13 +279,20 @@ describe("Read-Only Mode", () => {
 
       // Read operations should work
       vi.spyOn(vana.data, "getUserFiles").mockResolvedValue([]);
-      const files = await vana.data.getUserFiles();
+      const files = await vana.data.getUserFiles({
+        owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+      });
       expect(files).toEqual([]);
 
       // Write operations should throw
-      await expect(vana.data.decryptFile("fileId")).rejects.toThrow(
-        ReadOnlyError,
-      );
+      await expect(
+        vana.data.decryptFile({
+          id: 1,
+          url: "test",
+          ownerAddress: "0x0" as `0x${string}`,
+          addedAtBlock: 0n,
+        } as any),
+      ).rejects.toThrow(ReadOnlyError);
     });
   });
 
@@ -295,7 +309,12 @@ describe("Read-Only Mode", () => {
 
     it("should provide helpful error message for decryptFile", async () => {
       try {
-        await vana.data.decryptFile("fileId");
+        await vana.data.decryptFile({
+          id: 1,
+          url: "test",
+          ownerAddress: "0x0" as `0x${string}`,
+          addedAtBlock: 0n,
+        } as any);
         expect.fail("Should have thrown ReadOnlyError");
       } catch (error) {
         expect(error).toBeInstanceOf(ReadOnlyError);

@@ -108,6 +108,7 @@ describe("useUserFiles", () => {
         isInitialized: false,
         error: null,
         applicationAddress: "",
+        isReadOnly: false,
       });
 
       renderHook(() => useUserFiles());
@@ -278,6 +279,7 @@ describe("useUserFiles", () => {
         isInitialized: false,
         error: null,
         applicationAddress: "",
+        isReadOnly: false,
       });
 
       const { result } = renderHook(() => useUserFiles());
@@ -394,6 +396,7 @@ describe("useUserFiles", () => {
         isInitialized: false,
         error: null,
         applicationAddress: "",
+        isReadOnly: false,
       });
 
       const { result } = renderHook(() => useUserFiles());
@@ -512,6 +515,7 @@ describe("useUserFiles", () => {
         isInitialized: false,
         error: null,
         applicationAddress: "",
+        isReadOnly: false,
       });
 
       const { result } = renderHook(() => useUserFiles());
@@ -593,6 +597,7 @@ describe("useUserFiles", () => {
         isInitialized: false,
         error: null,
         applicationAddress: "",
+        isReadOnly: false,
       });
 
       const { result } = renderHook(() => useUserFiles());

@@ -99,6 +99,7 @@ describe("useTrustedServers", () => {
       isInitialized: true,
       error: null,
       applicationAddress: "0xapp123",
+      isReadOnly: false,
     });
 
     mockVana.data.getUserTrustedServers.mockResolvedValue(mockTrustedServers);
@@ -156,6 +157,7 @@ describe("useTrustedServers", () => {
         isInitialized: false,
         error: null,
         applicationAddress: "",
+        isReadOnly: false,
       });
 
       renderHook(() => useTrustedServers());
@@ -261,6 +263,7 @@ describe("useTrustedServers", () => {
         isInitialized: false,
         error: null,
         applicationAddress: "",
+        isReadOnly: false,
       });
 
       const { result } = renderHook(() => useTrustedServers());
@@ -362,6 +365,7 @@ describe("useTrustedServers", () => {
         isInitialized: false,
         error: null,
         applicationAddress: "",
+        isReadOnly: false,
       });
 
       const { result } = renderHook(() => useTrustedServers());
@@ -546,6 +550,7 @@ describe("useTrustedServers", () => {
         isInitialized: false,
         error: null,
         applicationAddress: "",
+        isReadOnly: false,
       });
 
       const { result } = renderHook(() => useTrustedServers());

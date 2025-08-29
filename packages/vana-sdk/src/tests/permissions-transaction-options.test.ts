@@ -99,8 +99,10 @@ describe("PermissionsController - TransactionOptions Integration", () => {
         method: "submitRegisterGrantee",
         params: [
           {
-            owner: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
-            granteeAddress: "0xApp1234567890123456789012345678901234567890",
+            owner:
+              "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36" as `0x${string}`,
+            granteeAddress:
+              "0xApp1234567890123456789012345678901234567890" as `0x${string}`,
             publicKey: "0x1234567890abcdef",
           },
         ],
@@ -138,8 +140,8 @@ describe("PermissionsController - TransactionOptions Integration", () => {
             }),
           );
 
-          const writeContractCall =
-            mockWalletClient.writeContract.mock.calls[0][0];
+          const writeContractCall = (mockWalletClient.writeContract as any).mock
+            .calls[0][0];
           expect(writeContractCall).not.toHaveProperty("gasPrice");
         });
 
@@ -161,8 +163,8 @@ describe("PermissionsController - TransactionOptions Integration", () => {
             }),
           );
 
-          const writeContractCall =
-            mockWalletClient.writeContract.mock.calls[0][0];
+          const writeContractCall = (mockWalletClient.writeContract as any).mock
+            .calls[0][0];
           expect(writeContractCall).not.toHaveProperty("maxFeePerGas");
           expect(writeContractCall).not.toHaveProperty("maxPriorityFeePerGas");
         });
@@ -176,8 +178,8 @@ describe("PermissionsController - TransactionOptions Integration", () => {
 
           await (controller as any)[method](...params, options);
 
-          const writeContractCall =
-            mockWalletClient.writeContract.mock.calls[0][0];
+          const writeContractCall = (mockWalletClient.writeContract as any).mock
+            .calls[0][0];
           expect(writeContractCall).toHaveProperty(
             "maxFeePerGas",
             150n * 10n ** 9n,
@@ -192,8 +194,8 @@ describe("PermissionsController - TransactionOptions Integration", () => {
         it("should work without any options", async () => {
           await (controller as any)[method](...params);
 
-          const writeContractCall =
-            mockWalletClient.writeContract.mock.calls[0][0];
+          const writeContractCall = (mockWalletClient.writeContract as any).mock
+            .calls[0][0];
           expect(writeContractCall).toHaveProperty(
             "functionName",
             expectedFunction,
@@ -213,7 +215,8 @@ describe("PermissionsController - TransactionOptions Integration", () => {
 
       await controller.submitPermissionRevoke({ permissionId: 123n }, options);
 
-      const writeContractCall = mockWalletClient.writeContract.mock.calls[0][0];
+      const writeContractCall = (mockWalletClient.writeContract as any).mock
+        .calls[0][0];
       expect(writeContractCall).toHaveProperty("gas", 500000n);
       expect(writeContractCall).not.toHaveProperty("gasPrice");
       expect(writeContractCall).not.toHaveProperty("maxFeePerGas");
@@ -224,7 +227,8 @@ describe("PermissionsController - TransactionOptions Integration", () => {
 
       await controller.submitPermissionRevoke({ permissionId: 123n }, options);
 
-      const writeContractCall = mockWalletClient.writeContract.mock.calls[0][0];
+      const writeContractCall = (mockWalletClient.writeContract as any).mock
+        .calls[0][0];
       expect(writeContractCall).toHaveProperty(
         "maxFeePerGas",
         100n * 10n ** 9n,
@@ -238,7 +242,8 @@ describe("PermissionsController - TransactionOptions Integration", () => {
 
       await controller.submitPermissionRevoke({ permissionId: 123n }, options);
 
-      const writeContractCall = mockWalletClient.writeContract.mock.calls[0][0];
+      const writeContractCall = (mockWalletClient.writeContract as any).mock
+        .calls[0][0];
       expect(writeContractCall).toHaveProperty(
         "maxPriorityFeePerGas",
         5n * 10n ** 9n,
@@ -252,7 +257,8 @@ describe("PermissionsController - TransactionOptions Integration", () => {
 
       await controller.submitPermissionRevoke({ permissionId: 123n }, options);
 
-      const writeContractCall = mockWalletClient.writeContract.mock.calls[0][0];
+      const writeContractCall = (mockWalletClient.writeContract as any).mock
+        .calls[0][0];
       expect(writeContractCall).toHaveProperty("nonce", 999);
     });
   });
@@ -322,12 +328,14 @@ describe("PermissionsController - TransactionOptions Integration", () => {
       expect(mockWalletClient.writeContract).toHaveBeenCalledTimes(3);
 
       // Verify all calls used the same gas configuration
-      mockWalletClient.writeContract.mock.calls.forEach((call) => {
-        expect(call[0]).toMatchObject({
-          gas: 300000n,
-          gasPrice: 20n * 10n ** 9n,
-        });
-      });
+      (mockWalletClient.writeContract as any).mock.calls.forEach(
+        (call: any) => {
+          expect(call[0]).toMatchObject({
+            gas: 300000n,
+            gasPrice: 20n * 10n ** 9n,
+          });
+        },
+      );
     });
   });
 
@@ -343,7 +351,8 @@ describe("PermissionsController - TransactionOptions Integration", () => {
       await controller.submitPermissionRevoke({ permissionId: 123n }, options);
 
       // Timeout is not passed to writeContract, only gas parameters are
-      const writeContractCall = mockWalletClient.writeContract.mock.calls[0][0];
+      const writeContractCall = (mockWalletClient.writeContract as any).mock
+        .calls[0][0];
       expect(writeContractCall).toHaveProperty(
         "maxFeePerGas",
         100n * 10n ** 9n,

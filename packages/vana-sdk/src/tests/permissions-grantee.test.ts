@@ -1044,8 +1044,9 @@ describe("PermissionsController - Grantee Methods", () => {
     describe("submitRegisterGrantee with TransactionOptions", () => {
       it("should pass EIP-1559 gas parameters to writeContract", async () => {
         const params = {
-          owner: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
-          granteeAddress: "0xApp1234567890123456789012345678901234567890",
+          owner: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36" as `0x${string}`,
+          granteeAddress:
+            "0xApp1234567890123456789012345678901234567890" as `0x${string}`,
           publicKey: "0x1234567890abcdef",
         };
         const options = {
@@ -1074,8 +1075,9 @@ describe("PermissionsController - Grantee Methods", () => {
 
       it("should pass legacy gas parameters to writeContract", async () => {
         const params = {
-          owner: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
-          granteeAddress: "0xApp1234567890123456789012345678901234567890",
+          owner: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36" as `0x${string}`,
+          granteeAddress:
+            "0xApp1234567890123456789012345678901234567890" as `0x${string}`,
           publicKey: "0x1234567890abcdef",
         };
         const options = {
@@ -1127,8 +1129,8 @@ describe("PermissionsController - Grantee Methods", () => {
           }),
         );
 
-        const writeContractCall =
-          mockWalletClient.writeContract.mock.calls[0][0];
+        const writeContractCall = (mockWalletClient.writeContract as any).mock
+          .calls[0][0];
         expect(writeContractCall).not.toHaveProperty("maxPriorityFeePerGas");
         expect(writeContractCall).not.toHaveProperty("gasPrice");
       });

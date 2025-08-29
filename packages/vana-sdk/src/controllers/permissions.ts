@@ -4937,7 +4937,7 @@ export class PermissionsController extends BaseController {
       functionName: "addServerFilesAndPermissions",
       // @ts-expect-error - Viem's type inference for nested Permission[][] arrays is incompatible with our Permission type
       args: [serverFilesAndPermissionInput, formattedSignature],
-      account: this.context.userAddress,
+      account: this.context.walletClient?.account ?? this.context.userAddress,
       chain: this.context.walletClient?.chain ?? null,
       ...(options?.gasLimit && { gas: options.gasLimit }),
       ...(options?.nonce && { nonce: options.nonce }),

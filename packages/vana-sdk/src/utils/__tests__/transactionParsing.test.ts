@@ -195,12 +195,62 @@ describe("parseTransactionResult", () => {
           fileIds: [2n],
         },
       },
-    ] as any);
+    ] as unknown as any);
 
     const result = await parseTransactionResult(mockContext, hash, "grant");
 
     // Should use the first event
     expect(result.permissionId).toBe(75n);
     expect(result.grant).toBe("https://first-event.json");
+  });
+
+  it("should use custom timeout when provided", async () => {
+    const hash =
+      "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" as Hash;
+    const customTimeout = 180000; // 3 minutes
+
+    await parseTransactionResult(mockContext, hash, "grant", {
+      timeout: customTimeout,
+    });
+
+    expect(
+      mockContext.publicClient.waitForTransactionReceipt,
+    ).toHaveBeenCalledWith({
+      hash,
+      timeout: customTimeout,
+    });
+  });
+
+  it("should use default timeout when no options provided", async () => {
+    const hash =
+      "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" as Hash;
+
+    await parseTransactionResult(mockContext, hash, "grant");
+
+    expect(
+      mockContext.publicClient.waitForTransactionReceipt,
+    ).toHaveBeenCalledWith({
+      hash,
+      timeout: 30_000, // Default 30 seconds
+    });
+  });
+
+  it("should ignore gas options in parseTransactionResult", async () => {
+    const hash =
+      "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" as Hash;
+
+    // parseTransactionResult should only use timeout, ignore gas options
+    await parseTransactionResult(mockContext, hash, "grant", {
+      timeout: 120000,
+      gasLimit: 500000n,
+      maxFeePerGas: 50000000000n,
+    });
+
+    expect(
+      mockContext.publicClient.waitForTransactionReceipt,
+    ).toHaveBeenCalledWith({
+      hash,
+      timeout: 120000,
+    });
   });
 });

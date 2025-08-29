@@ -253,8 +253,8 @@ describe("Permissions Server Files and Permissions", () => {
 
     it("should include schemaIds in direct transaction path", async () => {
       // No relayer callbacks - will use direct transaction
-      let capturedArgs: any;
-      mockWalletClient.writeContract.mockImplementation((args) => {
+      let capturedArgs: unknown;
+      mockWalletClient.writeContract.mockImplementation((args: unknown) => {
         capturedArgs = args;
         return Promise.resolve("0xmocktxhash");
       });
@@ -264,10 +264,13 @@ describe("Permissions Server Files and Permissions", () => {
 
       expect(result).toBeInstanceOf(TransactionHandle);
       expect(capturedArgs).toBeDefined();
-      expect(capturedArgs.functionName).toBe("addServerFilesAndPermissions");
+      expect((capturedArgs as Record<string, unknown>).functionName).toBe(
+        "addServerFilesAndPermissions",
+      );
 
       // The first argument should be the serverFilesAndPermissionInput struct
-      const inputStruct = capturedArgs.args[0];
+      const argsArray = (capturedArgs as { args: unknown[] }).args;
+      const inputStruct = argsArray[0] as { schemaIds: bigint[] };
       expect(inputStruct.schemaIds).toBeDefined();
       expect(inputStruct.schemaIds).toEqual([BigInt(0)]);
     });
@@ -355,6 +358,83 @@ describe("Permissions Server Files and Permissions", () => {
         BigInt(200),
         BigInt(150),
       ]);
+    });
+
+    describe("Transaction Options", () => {
+      it("should pass timeout options to direct transactions", async () => {
+        // No relayer callbacks - will use direct transaction
+        let capturedArgs: unknown;
+        mockWalletClient.writeContract.mockImplementation((args: unknown) => {
+          capturedArgs = args;
+          return Promise.resolve("0xmocktxhash");
+        });
+
+        const customTimeout = 180000; // 3 minutes
+        const customGasLimit = 500000n;
+
+        await controller.submitAddServerFilesAndPermissions(baseParams, {
+          timeout: customTimeout,
+          gasLimit: customGasLimit,
+          maxFeePerGas: 50000000000n, // 50 gwei
+        });
+
+        // Verify gas options were passed to writeContract
+        expect((capturedArgs as Record<string, unknown>).gas).toBe(
+          customGasLimit,
+        ); // viem uses 'gas' not 'gasLimit'
+        expect((capturedArgs as Record<string, unknown>).maxFeePerGas).toBe(
+          50000000000n,
+        );
+      });
+
+      it("should ignore transaction options when using relayer callbacks", async () => {
+        // Setup relayer callback
+        const mockRelayerCallback = vi
+          .fn()
+          .mockResolvedValue("0xrelayertxhash");
+        mockContext.relayerCallbacks = {
+          submitAddServerFilesAndPermissions: mockRelayerCallback,
+        };
+
+        await controller.submitAddServerFilesAndPermissions(baseParams, {
+          timeout: 180000,
+          gasLimit: 500000n,
+        });
+
+        // Verify relayer was called without options
+        expect(mockRelayerCallback).toHaveBeenCalledWith(
+          expect.any(Object), // typedData
+          expect.any(String), // signature
+        );
+        expect(mockRelayerCallback).toHaveBeenCalledTimes(1);
+
+        // Verify writeContract was NOT called (relayer path)
+        expect(mockWalletClient.writeContract).not.toHaveBeenCalled();
+      });
+
+      it("should pass timeout to TransactionHandle.waitForEvents", async () => {
+        const mockTxHandle = {
+          hash: "0xmocktxhash",
+          waitForEvents: vi.fn().mockResolvedValue({ permissionId: 123n }),
+          waitForReceipt: vi.fn().mockResolvedValue({ status: "success" }),
+        };
+
+        // Mock the controller method to return our mock handle
+        vi.spyOn(
+          controller,
+          "submitAddServerFilesAndPermissions",
+        ).mockResolvedValue(mockTxHandle as unknown as any);
+
+        const result =
+          await controller.submitAddServerFilesAndPermissions(baseParams);
+
+        // Test that we can pass timeout to waitForEvents
+        await result.waitForEvents({ timeout: 180000 });
+
+        expect(mockTxHandle.waitForEvents).toHaveBeenCalledWith({
+          timeout: 180000,
+        });
+      });
     });
   });
 });

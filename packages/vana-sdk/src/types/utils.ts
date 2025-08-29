@@ -280,12 +280,14 @@ export interface BlockRange {
  * await vana.permissions.grant(params, {
  *   maxFeePerGas: 100n * 10n ** 9n, // 100 gwei
  *   maxPriorityFeePerGas: 2n * 10n ** 9n, // 2 gwei tip
+ *   timeout: 180000, // 3 minutes
  * });
  *
  * // Legacy transaction with specific gas limit
  * await vana.data.registerFile(params, {
  *   gasLimit: 500000n,
- *   gasPrice: 50n * 10n ** 9n // 50 gwei
+ *   gasPrice: 50n * 10n ** 9n, // 50 gwei
+ *   timeout: 600000, // 10 minutes
  * });
  *
  * // Send ETH with the transaction
@@ -309,6 +311,8 @@ export interface TransactionOptions {
   nonce?: number;
   /** Value to send with transaction */
   value?: bigint;
+  /** Transaction timeout in milliseconds for receipt waiting (default: 30000) */
+  timeout?: number;
 }
 
 /**

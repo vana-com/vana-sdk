@@ -11,6 +11,16 @@ vi.mock("../server/handler", () => ({
   }),
 }));
 
+// Mock viem for signature recovery (not testing actual crypto here)
+vi.mock("viem", async () => {
+  const actual = await vi.importActual("viem");
+  return {
+    ...actual,
+    recoverTypedDataAddress: vi.fn().mockResolvedValue("0xRecoveredAddress"),
+    getAddress: (addr: string) => addr, // Simple passthrough for tests
+  };
+});
+
 function createMockSdk(): VanaInstance {
   const baseMock = {
     data: {
@@ -22,6 +32,26 @@ function createMockSdk(): VanaInstance {
       }),
       upload: vi.fn().mockResolvedValue({
         url: "ipfs://mockhash",
+      }),
+    },
+    permissions: {
+      submitSignedGrant: vi.fn().mockResolvedValue({
+        hash: "0xsignedhash" as `0x${string}`,
+      }),
+      submitSignedRevoke: vi.fn().mockResolvedValue({
+        hash: "0xsignedhash" as `0x${string}`,
+      }),
+      submitSignedTrustServer: vi.fn().mockResolvedValue({
+        hash: "0xsignedhash" as `0x${string}`,
+      }),
+      submitSignedAddAndTrustServer: vi.fn().mockResolvedValue({
+        hash: "0xsignedhash" as `0x${string}`,
+      }),
+      submitSignedUntrustServer: vi.fn().mockResolvedValue({
+        hash: "0xsignedhash" as `0x${string}`,
+      }),
+      submitSignedAddServerFilesAndPermissions: vi.fn().mockResolvedValue({
+        hash: "0xsignedhash" as `0x${string}`,
       }),
     },
     waitForTransactionEvents: vi.fn().mockResolvedValue({
@@ -78,8 +108,12 @@ describe("Server Relayer Handler", () => {
       });
     });
 
-    it("should pass expectedUserAddress for signed operations", async () => {
-      const { handleRelayerRequest } = await import("../server/handler");
+    it("should verify expectedUserAddress for signed operations", async () => {
+      const { recoverTypedDataAddress } = await import("viem");
+      // Mock recovery to return a different address than expected
+      vi.mocked(recoverTypedDataAddress).mockResolvedValueOnce(
+        "0xDifferentAddress" as Address,
+      );
 
       const request: UnifiedRelayerRequest = {
         type: "signed",
@@ -93,25 +127,21 @@ describe("Server Relayer Handler", () => {
               "0x1234567890123456789012345678901234567890" as `0x${string}`,
           },
           types: {
-            Permission: [
+            RevokePermission: [
               { name: "nonce", type: "uint256" },
               { name: "granteeId", type: "uint256" },
             ],
           },
-          primaryType: "Permission",
+          primaryType: "RevokePermission",
           message: {},
         },
         signature: "0xsignature" as `0x${string}`,
-        expectedUserAddress: "0xuser" as Address,
+        expectedUserAddress: "0xExpectedAddress" as Address,
       };
 
-      await handleRelayerOperation(mockSdk, request);
-
-      expect(handleRelayerRequest).toHaveBeenCalledWith(mockSdk, {
-        typedData: request.typedData,
-        signature: request.signature,
-        expectedUserAddress: request.expectedUserAddress,
-      });
+      await expect(handleRelayerOperation(mockSdk, request)).rejects.toThrow(
+        "Security verification failed",
+      );
     });
 
     it("should handle all signed operation types", async () => {
@@ -353,9 +383,10 @@ describe("Server Relayer Handler", () => {
 
   describe("Error Handling", () => {
     it("should handle errors from signed operations", async () => {
-      const { handleRelayerRequest } = await import("../server/handler");
-      vi.mocked(handleRelayerRequest).mockRejectedValue(
-        new Error("Signature verification failed"),
+      // Mock recoverTypedDataAddress to throw an error for this test
+      const { recoverTypedDataAddress } = await import("viem");
+      vi.mocked(recoverTypedDataAddress).mockRejectedValueOnce(
+        new Error("Invalid signature"),
       );
 
       const request: UnifiedRelayerRequest = {

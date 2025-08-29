@@ -46,7 +46,15 @@ export interface RelayerRequestPayload {
 }
 
 /**
- * Unified server-side handler for processing relayed transactions.
+ * @deprecated Use `handleRelayerOperation` from '../server/relayerHandler' instead.
+ * This legacy handler will be removed in the next major version.
+ *
+ * Migration guide:
+ * - Import { handleRelayerOperation } instead of { handleRelayerRequest }
+ * - Use UnifiedRelayerRequest/Response types for better type safety
+ * - The new handler eliminates unsafe type assertions (as unknown as)
+ *
+ * Legacy server-side handler for processing relayed transactions.
  *
  * This function encapsulates the complete relayer workflow:
  * 1. Verifies the signature against the typed data

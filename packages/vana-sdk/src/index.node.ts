@@ -248,13 +248,16 @@ export {
 } from "./core/generics";
 
 // Server-side utilities
-export { handleRelayerRequest } from "./server/handler";
-export type { RelayerRequestPayload } from "./server/handler";
+// Primary export - unified handler with full type safety
 export { handleRelayerOperation } from "./server/relayerHandler";
 export type {
   UnifiedRelayerRequest,
   UnifiedRelayerResponse,
 } from "./types/relayer";
+
+// Legacy exports - DEPRECATED (will be removed in next major version)
+export { handleRelayerRequest } from "./server/handler";
+export type { RelayerRequestPayload } from "./server/handler";
 // TransactionHandle removed - using POJOs instead
 export type {
   Operation,

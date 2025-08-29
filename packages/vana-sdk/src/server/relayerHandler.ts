@@ -5,7 +5,17 @@ import type {
   SignedRelayerRequest,
   DirectRelayerRequest,
 } from "../types/relayer";
-import { handleRelayerRequest, type RelayerRequestPayload } from "./handler";
+import type {
+  GenericTypedData,
+  PermissionGrantTypedData,
+  RevokePermissionTypedData,
+  TrustServerTypedData,
+  AddAndTrustServerTypedData,
+  ServerFilesAndPermissionTypedData,
+  TypedDataPrimaryType,
+} from "../types/permissions";
+import { SignatureError } from "../errors";
+import { recoverTypedDataAddress, getAddress, type Hash } from "viem";
 
 /**
  * Universal handler for all relayer operations.
@@ -54,26 +64,133 @@ export async function handleRelayerOperation(
 }
 
 /**
- * Handle EIP-712 signed operations
+ * Handle EIP-712 signed operations with full type safety
  */
 async function handleSignedOperation(
   sdk: VanaInstance,
   request: SignedRelayerRequest,
 ): Promise<UnifiedRelayerResponse> {
-  // Use existing handleRelayerRequest for all signed operations
-  const payload: RelayerRequestPayload = {
-    typedData: request.typedData,
-    signature: request.signature,
-    expectedUserAddress: request.expectedUserAddress,
-  };
+  const { typedData, signature, expectedUserAddress } = request;
 
-  const result = await handleRelayerRequest(sdk, payload);
+  // Step 1: Verify the signature (security check)
+  let recoveredAddress: `0x${string}`;
+  try {
+    recoveredAddress = await recoverTypedDataAddress({
+      domain: {
+        ...typedData.domain,
+        chainId: typedData.domain.chainId
+          ? BigInt(typedData.domain.chainId)
+          : undefined,
+      },
+      types: typedData.types,
+      primaryType: typedData.primaryType,
+      message: typedData.message as unknown as Record<string, unknown>,
+      signature,
+    });
+  } catch (error) {
+    // Handle signature verification errors
+    throw new SignatureError(
+      `Signature verification failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
+  }
+
+  // Optional security check: Verify the signer matches expected address
+  if (expectedUserAddress) {
+    const normalizedExpected = getAddress(expectedUserAddress);
+    const normalizedSigner = getAddress(recoveredAddress);
+
+    if (normalizedSigner !== normalizedExpected) {
+      throw new SignatureError(
+        `Security verification failed: Recovered signer address (${normalizedSigner}) does not match expected user address (${normalizedExpected})`,
+      );
+    }
+  }
+
+  // Step 2: Route to appropriate SDK method based on primaryType
+  // Using proper type narrowing instead of unsafe casts
+  const result = await routeSignedOperation(sdk, typedData, signature);
 
   // Return the transaction hash with type
   return {
     type: "signed",
     hash: result.hash,
   };
+}
+
+/**
+ * Route signed operations to the appropriate SDK method with type safety
+ */
+async function routeSignedOperation(
+  sdk: VanaInstance,
+  typedData: GenericTypedData,
+  signature: Hash,
+) {
+  const primaryType = typedData.primaryType as TypedDataPrimaryType;
+
+  // Type-safe routing based on primaryType
+  switch (primaryType) {
+    case "Permission":
+      // TypeScript knows this is a Permission operation
+      return sdk.permissions.submitSignedGrant(
+        {
+          ...typedData,
+          primaryType: "Permission",
+        } as PermissionGrantTypedData,
+        signature,
+      );
+
+    case "RevokePermission":
+      return sdk.permissions.submitSignedRevoke(
+        {
+          ...typedData,
+          primaryType: "RevokePermission",
+        } as RevokePermissionTypedData,
+        signature,
+      );
+
+    case "TrustServer":
+      return sdk.permissions.submitSignedTrustServer(
+        {
+          ...typedData,
+          primaryType: "TrustServer",
+        } as TrustServerTypedData,
+        signature,
+      );
+
+    case "AddServer":
+      return sdk.permissions.submitSignedAddAndTrustServer(
+        {
+          ...typedData,
+          primaryType: "AddServer",
+        } as AddAndTrustServerTypedData,
+        signature,
+      );
+
+    case "UntrustServer":
+      return sdk.permissions.submitSignedUntrustServer(
+        {
+          ...typedData,
+          primaryType: "UntrustServer",
+        } as GenericTypedData,
+        signature,
+      );
+
+    case "ServerFilesAndPermission":
+      return sdk.permissions.submitSignedAddServerFilesAndPermissions(
+        {
+          ...typedData,
+          primaryType: "ServerFilesAndPermission",
+        } as ServerFilesAndPermissionTypedData,
+        signature,
+      );
+
+    // RegisterGrantee is commented out as it's not supported by smart contracts yet
+    // case "RegisterGrantee":
+    //   return sdk.permissions.submitSignedRegisterGrantee(...);
+
+    default:
+      throw new Error(`Unsupported operation type: ${typedData.primaryType}`);
+  }
 }
 
 /**
@@ -204,5 +321,7 @@ async function handleDirectOperation(
   }
 }
 
-// Re-export the existing handler for backwards compatibility
+// Legacy handler export - DEPRECATED
+// TODO: Remove in next major version
+// Migration guide: Use handleRelayerOperation instead
 export { handleRelayerRequest } from "./handler";

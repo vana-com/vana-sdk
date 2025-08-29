@@ -44,14 +44,26 @@ export function loadConfigFromEnv(): LoadTestConfig {
   if (process.env.LOAD_TEST_MAX_WALLETS) {
     envConfig.maxWallets = parseInt(process.env.LOAD_TEST_MAX_WALLETS, 10);
   }
-  if (process.env.LOAD_TEST_RPC_ENDPOINT) {
-    envConfig.rpcEndpoint = process.env.LOAD_TEST_RPC_ENDPOINT;
-  }
+  
+  // RPC Endpoints - MUST use plural for load distribution
   if (process.env.LOAD_TEST_RPC_ENDPOINTS) {
     envConfig.rpcEndpoints = process.env.LOAD_TEST_RPC_ENDPOINTS.split(',').map(url => url.trim());
+  } else {
+    throw new Error('LOAD_TEST_RPC_ENDPOINTS environment variable is required (comma-separated list of RPC URLs)');
   }
   if (process.env.LOAD_TEST_WALLET_FUNDING_AMOUNT) {
     envConfig.walletFundingAmount = process.env.LOAD_TEST_WALLET_FUNDING_AMOUNT;
+  }
+
+  // Gas Configuration
+  if (process.env.LOAD_TEST_PREMIUM_GAS_MULTIPLIER) {
+    envConfig.premiumGasMultiplier = parseFloat(process.env.LOAD_TEST_PREMIUM_GAS_MULTIPLIER);
+  }
+  if (process.env.LOAD_TEST_MAX_GAS_PRICE) {
+    envConfig.maxGasPrice = process.env.LOAD_TEST_MAX_GAS_PRICE;
+  }
+  if (process.env.LOAD_TEST_GAS_LIMIT) {
+    envConfig.gasLimit = parseInt(process.env.LOAD_TEST_GAS_LIMIT, 10);
   }
 
   // Debugging Parameters
@@ -144,11 +156,17 @@ export function validateConfig(config: LoadTestConfig): void {
     errors.push(`Total time (${totalTime}min) must equal testDurationMinutes (${config.testDurationMinutes}min)`);
   }
 
-  // Validate RPC endpoint
-  try {
-    new URL(config.rpcEndpoint);
-  } catch {
-    errors.push('rpcEndpoint must be a valid URL');
+  // Validate RPC endpoints
+  if (!config.rpcEndpoints || config.rpcEndpoints.length === 0) {
+    errors.push('rpcEndpoints must contain at least one URL');
+  } else {
+    config.rpcEndpoints.forEach((endpoint, index) => {
+      try {
+        new URL(endpoint);
+      } catch {
+        errors.push(`rpcEndpoints[${index}] must be a valid URL: ${endpoint}`);
+      }
+    });
   }
 
   if (errors.length > 0) {
@@ -170,7 +188,6 @@ export function createConfigFromArgs(args: Record<string, any>): Partial<LoadTes
   if (args.rampDown) config.rampDownMinutes = parseInt(args.rampDown, 10);
   if (args.debug !== undefined) config.enableDebugLogs = args.debug;
   if (args.failFast !== undefined) config.failFast = args.failFast;
-  if (args.rpc) config.rpcEndpoint = args.rpc;
 
   return config;
 }

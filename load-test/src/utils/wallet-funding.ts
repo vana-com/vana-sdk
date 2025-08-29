@@ -9,6 +9,7 @@ import { createPublicClient, createWalletClient, http, parseEther, formatEther }
 import { privateKeyToAccount } from 'viem/accounts';
 import { mokshaTestnet } from '@opendatalabs/vana-sdk/chains';
 import type { LoadTestConfig } from '../config/types.js';
+import { getRpcEndpoint } from '../utils/rpc-distribution.js';
 
 export interface FundingResult {
   success: boolean;
@@ -20,8 +21,88 @@ export interface FundingResult {
 }
 
 /**
- * Estimates gas cost for addServerFilesAndPermissions transaction
- * Based on observed transaction data from load testing
+ * Dynamic gas configuration for load testing
+ * Supports premium gas pricing for faster confirmation under load
+ */
+export class GasConfiguration {
+  private config: LoadTestConfig;
+  
+  constructor(config: LoadTestConfig) {
+    this.config = config;
+  }
+  
+  /**
+   * Get current network gas price with premium multiplier
+   */
+  async getPremiumGasPrice(publicClient: any): Promise<bigint> {
+    try {
+      // Get current network gas price
+      const baseGasPrice = await publicClient.getGasPrice();
+      
+      // Apply premium multiplier for load testing
+      const premiumGasPrice = BigInt(Math.floor(Number(baseGasPrice) * this.config.premiumGasMultiplier));
+      
+      // Cap at maximum gas price (convert gwei string to wei)
+      const maxGasPriceWei = BigInt(this.config.maxGasPrice) * 1_000_000_000n; // Convert gwei to wei
+      
+      // For funding calculations, we need to use the HIGHER of premium or max gas
+      // because the gas monkey-patch will use up to maxGasPrice for transactions
+      // This ensures we fund enough even when network gas is extremely low
+      return premiumGasPrice > maxGasPriceWei ? premiumGasPrice : maxGasPriceWei;
+    } catch (error) {
+      console.warn(`Failed to get network gas price, using default: ${error}`);
+      // Fallback to default premium gas price
+      return BigInt(Math.floor(20000000000 * this.config.premiumGasMultiplier)); // 20 gwei * multiplier
+    }
+  }
+  
+  /**
+   * Get gas limit for transactions
+   */
+  getGasLimit(): bigint {
+    return BigInt(this.config.gasLimit);
+  }
+  
+  /**
+   * Calculate funding amount based on premium gas costs
+   * SIMPLIFIED: Just use maxGasPrice * gasLimit * 3 (for safety)
+   */
+  async getFundingAmount(publicClient: any): Promise<bigint> {
+    // Simple calculation: maxGasPrice * gasLimit * 3 transactions
+    // This ensures we always have enough, even if slightly overpaying
+    const maxGasPriceWei = BigInt(this.config.maxGasPrice) * 1_000_000_000n;
+    const gasLimit = this.getGasLimit();
+    
+    // Fund for 3 transactions worth (funding tx + main tx + buffer)
+    const fundingAmount = maxGasPriceWei * gasLimit * 3n;
+    
+    // Minimum 0.2 VANA for safety
+    const minAmount = parseEther('0.2');
+    const finalAmount = fundingAmount > minAmount ? fundingAmount : minAmount;
+    
+    if (this.config.enableDebugLogs) {
+      console.log(`[GasConfig] Simple funding calculation:
+        Max Gas Price: ${this.config.maxGasPrice} gwei
+        Gas Limit: ${gasLimit}
+        Funding for 3 txs: ${formatEther(fundingAmount)} VANA
+        Final Amount: ${formatEther(finalAmount)} VANA`);
+    }
+    
+    return finalAmount;
+  }
+  
+  /**
+   * Get minimum balance threshold (50% of funding amount)
+   */
+  async getMinBalanceThreshold(publicClient: any): Promise<bigint> {
+    const fundingAmount = await this.getFundingAmount(publicClient);
+    return fundingAmount / 2n;
+  }
+}
+
+/**
+ * Legacy gas costs for backward compatibility
+ * @deprecated Use GasConfiguration class instead
  */
 export const ESTIMATED_GAS_COSTS = {
   // Gas limit for addServerFilesAndPermissions (observed ~500k gas)
@@ -33,9 +114,9 @@ export const ESTIMATED_GAS_COSTS = {
     return this.GAS_LIMIT * this.GAS_PRICE;
   },
   // Funding amount per wallet (enough for multiple transactions)
-  FUNDING_AMOUNT: parseEther('0.1'), // 0.1 VANA per wallet
+  FUNDING_AMOUNT: parseEther('0.2'), // Increased to 0.2 VANA per wallet
   // Minimum balance threshold to trigger funding
-  MIN_BALANCE_THRESHOLD: parseEther('0.05'), // 0.05 VANA
+  MIN_BALANCE_THRESHOLD: parseEther('0.1'), // Increased to 0.1 VANA
 };
 
 /**
@@ -45,9 +126,11 @@ export class WalletFunder {
   private relayerClient: any;
   private publicClient: any;
   private config: LoadTestConfig;
+  private gasConfig: GasConfiguration;
 
   constructor(config: LoadTestConfig) {
     this.config = config;
+    this.gasConfig = new GasConfiguration(config);
     
     if (!config.relayerPrivateKey) {
       throw new Error('RELAYER_PRIVATE_KEY is required for wallet funding');
@@ -66,17 +149,24 @@ export class WalletFunder {
     }
 
     const relayerAccount = privateKeyToAccount(formattedPrivateKey);
+    
+    // Use a random RPC endpoint for the relayer
+    const rpcEndpoint = getRpcEndpoint(config);
 
     this.publicClient = createPublicClient({
       chain: mokshaTestnet,
-      transport: http(config.rpcEndpoint),
+      transport: http(rpcEndpoint),
     });
 
     this.relayerClient = createWalletClient({
       chain: mokshaTestnet,
-      transport: http(config.rpcEndpoint),
+      transport: http(rpcEndpoint),
       account: relayerAccount,
     });
+    
+    if (config.enableDebugLogs) {
+      console.log(`[WalletFunder] Using RPC: ${rpcEndpoint}`);
+    }
 
     if (config.enableDebugLogs) {
       console.log(`[WalletFunder] Initialized with relayer: ${relayerAccount.address}`);
@@ -100,11 +190,12 @@ export class WalletFunder {
   }
 
   /**
-   * Check if wallet needs funding
+   * Check if wallet needs funding using dynamic gas configuration
    */
   async needsFunding(address: string): Promise<boolean> {
     const balance = await this.getBalance(address);
-    return balance < ESTIMATED_GAS_COSTS.MIN_BALANCE_THRESHOLD;
+    const threshold = await this.gasConfig.getMinBalanceThreshold(this.publicClient);
+    return balance < threshold;
   }
 
   /**
@@ -114,8 +205,12 @@ export class WalletFunder {
     try {
       const balanceBefore = await this.getBalance(targetAddress);
       
+      // Get dynamic funding amounts based on current gas prices
+      const fundingAmount = await this.gasConfig.getFundingAmount(this.publicClient);
+      const minThreshold = await this.gasConfig.getMinBalanceThreshold(this.publicClient);
+      
       // Check if funding is needed
-      if (balanceBefore >= ESTIMATED_GAS_COSTS.MIN_BALANCE_THRESHOLD) {
+      if (balanceBefore >= minThreshold) {
         if (this.config.enableDebugLogs) {
           console.log(`[WalletFunder] Wallet ${targetAddress} has sufficient balance: ${formatEther(balanceBefore)} VANA`);
         }
@@ -129,20 +224,26 @@ export class WalletFunder {
 
       // Check relayer balance
       const relayerBalance = await this.getRelayerBalance();
-      if (relayerBalance < ESTIMATED_GAS_COSTS.FUNDING_AMOUNT * 2n) {
-        throw new Error(`Relayer has insufficient balance: ${formatEther(relayerBalance)} VANA. Need at least ${formatEther(ESTIMATED_GAS_COSTS.FUNDING_AMOUNT * 2n)} VANA`);
+      if (relayerBalance < fundingAmount * 2n) {
+        throw new Error(`Relayer has insufficient balance: ${formatEther(relayerBalance)} VANA. Need at least ${formatEther(fundingAmount * 2n)} VANA`);
       }
+
+      // Get premium gas price for funding transaction
+      const gasPrice = await this.gasConfig.getPremiumGasPrice(this.publicClient);
 
       if (this.config.enableDebugLogs) {
-        console.log(`[WalletFunder] Funding ${targetAddress} with ${formatEther(ESTIMATED_GAS_COSTS.FUNDING_AMOUNT)} VANA`);
+        console.log(`[WalletFunder] Funding ${targetAddress} with ${formatEther(fundingAmount)} VANA`);
         console.log(`[WalletFunder] Current balance: ${formatEther(balanceBefore)} VANA`);
         console.log(`[WalletFunder] Relayer balance: ${formatEther(relayerBalance)} VANA`);
+        console.log(`[WalletFunder] Using premium gas price: ${formatEther(gasPrice)} VANA (${Number(gasPrice) / 1e9} gwei)`);
       }
 
-      // Send funding transaction
+      // Send funding transaction with premium gas
       const txHash = await this.relayerClient.sendTransaction({
         to: targetAddress as `0x${string}`,
-        value: ESTIMATED_GAS_COSTS.FUNDING_AMOUNT,
+        value: fundingAmount,
+        gasPrice: gasPrice,
+        gas: 21000n, // Standard ETH transfer gas limit
       });
 
       // Wait for confirmation
@@ -161,7 +262,7 @@ export class WalletFunder {
         txHash,
         balanceBefore,
         balanceAfter,
-        amountSent: ESTIMATED_GAS_COSTS.FUNDING_AMOUNT,
+        amountSent: fundingAmount,
       };
 
     } catch (error) {

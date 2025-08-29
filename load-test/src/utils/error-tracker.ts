@@ -464,7 +464,8 @@ export class ErrorTracker {
         if (error.sampleMessages.length > 0) {
           console.log(`   Sample Messages:`);
           error.sampleMessages.forEach(msg => {
-            const truncated = msg.length > 100 ? msg.substring(0, 100) + '...' : msg;
+            // Don't truncate transaction hashes and wallet addresses for debugging
+            const truncated = msg.length > 200 ? msg.substring(0, 200) + '...' : msg;
             console.log(`     • ${chalk.gray(truncated)}`);
           });
         }

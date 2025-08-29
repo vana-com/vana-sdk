@@ -10,6 +10,8 @@ import {
   type DataSchema,
 } from "@opendatalabs/vana-sdk/browser";
 import type { WalletClient } from "viem";
+import { GasConfiguration } from '../utils/wallet-funding.js';
+import type { LoadTestConfig } from '../config/types.js';
 
 interface FlowStepCallbacks {
   onStatusUpdate: (status: string) => void;
@@ -34,6 +36,7 @@ export class DataPortabilityFlow {
   private platformAdapter: BrowserPlatformAdapter;
   private encryptionKey?: string;
   private testId: string;
+  private gasConfig?: GasConfiguration;
   private config?: DataPortabilityConfig;
 
   constructor(
@@ -41,7 +44,8 @@ export class DataPortabilityFlow {
     walletClient: WalletClient,
     callbacks: FlowStepCallbacks,
     testId: string = 'load-test',
-    config?: DataPortabilityConfig
+    config?: DataPortabilityConfig,
+    loadTestConfig?: LoadTestConfig
   ) {
     this.vana = vana;
     this.walletClient = walletClient;
@@ -49,6 +53,11 @@ export class DataPortabilityFlow {
     this.platformAdapter = new BrowserPlatformAdapter();
     this.testId = testId;
     this.config = config;
+    
+    // Initialize gas configuration for premium pricing
+    if (loadTestConfig) {
+      this.gasConfig = new GasConfiguration(loadTestConfig);
+    }
   }
 
   /**
@@ -250,6 +259,14 @@ export class DataPortabilityFlow {
       console.log(`  GranteeId: ${granteeId}`);
       console.log(`  Grant URL: ${grantUrl}`);
       
+      // Debug gas prices
+      try {
+        // Note: getGasPrice needs to be called on vana instance or public client, not wallet client
+        console.log(`  ⚠️  SDK will use automatic gas estimation (not premium gas configured in load test)`);
+      } catch (e) {
+        console.log(`  Could not fetch gas prices: ${e}`);
+      }
+      
       // Debug: Check if this wallet has any existing nonce in the contract
       try {
         // This is a hack to access the internal nonce method - for debugging only
@@ -269,6 +286,8 @@ export class DataPortabilityFlow {
           ? parseInt(process.env.NEXT_PUBLIC_VIBES_SCHEMA_ID, 10)
           : 0);
 
+      // Note: SDK doesn't support custom gas prices in submitAddServerFilesAndPermissions
+      // This is likely why transactions get stuck at scale
       const txHandle =
         await this.vana.permissions.submitAddServerFilesAndPermissions({
           granteeId: BigInt(granteeId),
@@ -288,32 +307,49 @@ export class DataPortabilityFlow {
           ],
         });
 
-      this.callbacks.onStatusUpdate(`[${this.testId}] Transaction submitted: ${txHandle.hash}`);
+      const txHash = txHandle.hash;
+      const walletAddress = this.walletClient.account?.address || 'unknown';
+      
+      this.callbacks.onStatusUpdate(`[${this.testId}] Transaction submitted: ${txHash}`);
+      
+      // Log wallet address and transaction hash for debugging nonce issues
+      console.log(`[${this.testId}] Wallet: ${walletAddress} | TxHash: ${txHash}`);
 
       // Wait for transaction confirmation and extract permission ID from events
       this.callbacks.onStatusUpdate(
         `[${this.testId}] Waiting for transaction confirmation and permission ID...`,
       );
 
-      const events = await txHandle.waitForEvents();
-      const permissionId = events.permissionId;
+      try {
+        const events = await txHandle.waitForEvents();
+        const permissionId = events.permissionId;
 
-      if (!permissionId) {
+        if (!permissionId) {
+          throw new Error(
+            `Permission ID not found in transaction events for wallet ${walletAddress}, tx ${txHash}. Cannot proceed with inference request.`,
+          );
+        }
+
+        // Convert bigint to string for API compatibility
+        const permissionIdStr = permissionId.toString();
+
+        this.callbacks.onStatusUpdate(
+          `[${this.testId}] Permission ID received: ${permissionIdStr}`,
+        );
+        return permissionIdStr;
+      } catch (waitError) {
+        // Include wallet address and transaction hash in error for debugging
         throw new Error(
-          "Permission ID not found in transaction events. Cannot proceed with inference request.",
+          `Transaction ${txHash} failed for wallet ${walletAddress}: ${
+            waitError instanceof Error ? waitError.message : "Unknown error"
+          }`,
         );
       }
-
-      // Convert bigint to string for API compatibility
-      const permissionIdStr = permissionId.toString();
-
-      this.callbacks.onStatusUpdate(
-        `[${this.testId}] Permission ID received: ${permissionIdStr}`,
-      );
-      return permissionIdStr;
     } catch (error) {
+      // This catches errors from submitAddServerFilesAndPermissions
+      const walletAddress = this.walletClient.account?.address || 'unknown';
       throw new Error(
-        `Transaction failed: ${
+        `Transaction submission failed for wallet ${walletAddress}: ${
           error instanceof Error ? error.message : "Unknown error"
         }`,
       );

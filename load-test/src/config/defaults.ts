@@ -11,8 +11,11 @@ export const DEFAULT_CONFIG: LoadTestConfig = {
   testDurationMinutes: 180,
   
   // Blockchain Configuration
-  transactionTimeoutMs: 60000, // 60 seconds (double the SDK default)
+  transactionTimeoutMs: 180000, // 3 minutes (mainly for RPC delays)
   maxRetries: 3,
+  premiumGasMultiplier: 30.0,   // 30x to ensure mempool propagation (underpriced fix)
+  maxGasPrice: "50",            // Lower max but higher multiplier = better propagation
+  gasLimit: 600000,             // Gas limit for addServerFilesAndPermissions
   
   // Load Pattern Parameters
   rampUpMinutes: 30,
@@ -21,7 +24,7 @@ export const DEFAULT_CONFIG: LoadTestConfig = {
   
   // System Parameters
   maxWallets: 15000, // Buffer for concurrent users
-  rpcEndpoint: "https://rpc.moksha.vana.org",
+  rpcEndpoints: ["https://rpc.moksha.vana.org"], // Multiple endpoints for load distribution
   walletFundingAmount: "0.1",
   
   // Debugging Parameters

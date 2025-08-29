@@ -9,6 +9,8 @@ import { DataPortabilityFlow } from './data-portability-flow.js';
 import { GoogleCloudStorage } from '../storage/google-cloud-storage.js';
 import { WalletFunder, ESTIMATED_GAS_COSTS } from '../utils/wallet-funding.js';
 import { globalErrorTracker } from '../utils/error-tracker.js';
+import { patchWalletClientForPremiumGas, logNetworkGasInfo } from '../utils/gas-monkey-patch.js';
+import { getRpcEndpointForWallet } from '../utils/rpc-distribution.js';
 import chalk from 'chalk';
 
 
@@ -161,17 +163,36 @@ export class VanaLoadTestClient {
     this.config = config;
     this.account = privateKeyToAccount(privateKey as `0x${string}`);
     
+    // Get RPC endpoint for this wallet (deterministic distribution)
+    const rpcEndpoint = getRpcEndpointForWallet(config, this.account.address);
+    
     // Create viem clients
     this.publicClient = createPublicClient({
       chain: mokshaTestnet,
-      transport: http(config.rpcEndpoint),
+      transport: http(rpcEndpoint),
     });
 
-    this.walletClient = createWalletClient({
+    // Create wallet client with standard configuration
+    const baseWalletClient = createWalletClient({
       chain: mokshaTestnet,
-      transport: http(config.rpcEndpoint),
+      transport: http(rpcEndpoint),
       account: this.account,
     });
+    
+    if (config.enableDebugLogs) {
+      console.log(chalk.gray(`[${this.account.address}] Using RPC: ${rpcEndpoint}`));
+    }
+    
+    // Apply premium gas monkey-patch for load testing (unless disabled)
+    if (process.env.DISABLE_GAS_PATCH === 'true') {
+      this.walletClient = baseWalletClient;
+      console.log(chalk.yellow(`[${this.account.address}] Gas monkey-patch DISABLED - using default gas estimation`));
+    } else {
+      this.walletClient = patchWalletClientForPremiumGas(baseWalletClient, config);
+      if (config.enableDebugLogs) {
+        console.log(chalk.yellow(`[${this.account.address}] Wallet client patched for ${config.premiumGasMultiplier}x gas premium`));
+      }
+    }
     
     // Determine the default provider (prefer real storage over mock)
     const defaultProvider = storageProviders['google-cloud-storage'] ? 'google-cloud-storage' 
@@ -236,6 +257,8 @@ export class VanaLoadTestClient {
     try {
       if (this.config.enableDebugLogs) {
         console.log(`[${testId}] Starting E2E flow for wallet: ${walletAddress}`);
+        // Log current network gas info
+        await logNetworkGasInfo(this.walletClient);
       }
 
       // Check wallet balance and fund if needed (unless skipped for pre-funded wallets)
@@ -280,7 +303,8 @@ export class VanaLoadTestClient {
         {
           dataWalletAppAddress: this.config.dataWalletAppAddress,
           defaultGranteeId: this.config.defaultGranteeId,
-        }
+        },
+        this.config // Pass load test config for premium gas configuration
       );
 
       // Execute the complete flow with granular error handling

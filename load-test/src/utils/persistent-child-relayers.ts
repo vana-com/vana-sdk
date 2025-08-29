@@ -3,6 +3,8 @@
 import { createWalletClient, createPublicClient, http, parseEther, formatEther } from 'viem';
 import { privateKeyToAccount, generatePrivateKey } from 'viem/accounts';
 import { moksha } from '@opendatalabs/vana-sdk/chains';
+import { GasConfiguration } from './wallet-funding.js';
+import { getRpcEndpoint } from './rpc-distribution.js';
 import chalk from 'chalk';
 import { writeFileSync, readFileSync, existsSync } from 'fs';
 import { join } from 'path';
@@ -47,15 +49,18 @@ export class PersistentChildRelayerManager {
     this.config = config;
     this.masterAccount = privateKeyToAccount(masterRelayerKey as `0x${string}`);
     
+    // Get RPC endpoint from config
+    const rpcEndpoint = getRpcEndpoint(config);
+    
     this.masterWalletClient = createWalletClient({
       account: this.masterAccount,
       chain: moksha,
-      transport: http(),
+      transport: http(rpcEndpoint),
     });
 
     this.publicClient = createPublicClient({
       chain: moksha,
-      transport: http(),
+      transport: http(rpcEndpoint),
     });
 
     // Store pool file in load-test directory
@@ -255,11 +260,11 @@ export class PersistentChildRelayerManager {
    * Get wallet clients for child relayers
    */
   getChildWalletClients(): any[] {
-    return this.pool.children.map(child => 
+    return this.pool.children.map((child, index) => 
       createWalletClient({
         account: privateKeyToAccount(child.privateKey as `0x${string}`),
         chain: moksha,
-        transport: http(),
+        transport: http(getRpcEndpoint(this.config, index)),
       })
     );
   }
@@ -288,7 +293,7 @@ export class PersistentChildRelayerManager {
         const childWalletClient = createWalletClient({
           account: privateKeyToAccount(child.privateKey as `0x${string}`),
           chain: moksha,
-          transport: http(),
+          transport: http(getRpcEndpoint(this.config, i)),
         });
 
         fundingPromises.push(
@@ -311,13 +316,35 @@ export class PersistentChildRelayerManager {
     childIndex: number
   ): Promise<any[]> {
     const results: any[] = [];
-    const fundingAmount = parseEther('0.2');
+    
+    // Use dynamic gas configuration instead of fixed amount
+    const gasConfig = new GasConfiguration(this.config);
+    const publicClient = createPublicClient({
+      chain: moksha,
+      transport: http(getRpcEndpoint(this.config)),
+    });
+    
+    // Get dynamic funding amount based on current gas prices
+    let fundingAmount: bigint;
+    try {
+      fundingAmount = await gasConfig.getFundingAmount(publicClient);
+      if (this.config.enableDebugLogs) {
+        console.log(chalk.blue(`[Child-${childIndex}] Using dynamic funding amount: ${formatEther(fundingAmount)} VANA`));
+      }
+    } catch (error) {
+      // Fallback to fixed amount if dynamic calculation fails
+      fundingAmount = parseEther('0.2');
+      console.warn(chalk.yellow(`[Child-${childIndex}] Failed to calculate dynamic funding, using fixed 0.2 VANA`));
+    }
 
-    for (let i = 0; i < walletAddresses.length; i++) {
+        for (let i = 0; i < walletAddresses.length; i++) {
       const address = walletAddresses[i];
       const startTime = Date.now();
 
       try {
+        // Log the funding amount being sent
+        console.log(chalk.blue(`[Child-${childIndex}] Funding ${address} with ${formatEther(fundingAmount)} VANA`));
+        
         const hash = await childWalletClient.sendTransaction({
           to: address,
           value: fundingAmount,
@@ -329,10 +356,8 @@ export class PersistentChildRelayerManager {
           transactionHash: hash,
           duration,
         });
-
-        if (this.config.enableDebugLogs) {
-          console.log(chalk.green(`[Child-${childIndex}] ✅ Funded ${address} in ${duration}ms`));
-        }
+        
+        console.log(chalk.green(`[Child-${childIndex}] ✅ Funded ${address} with ${formatEther(fundingAmount)} VANA in ${duration}ms`));
 
         // Small delay to prevent nonce collisions within child
         if (i < walletAddresses.length - 1) {
@@ -412,7 +437,7 @@ export class PersistentChildRelayerManager {
           const childWalletClient = createWalletClient({
             account: privateKeyToAccount(child.privateKey as `0x${string}`),
             chain: moksha,
-            transport: http(),
+            transport: http(getRpcEndpoint(this.config, i)),
           });
           
           console.log(chalk.blue(`[${i + 1}/${this.pool.children.length}] Returning ${formatEther(toReturn)} VANA from ${child.address}...`));
@@ -470,7 +495,13 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const command = process.argv[2];
     const poolName = process.argv[3] || 'default';
     
-    const manager = new PersistentChildRelayerManager(masterKey, { enableDebugLogs: true }, poolName);
+    // Create a minimal config with RPC endpoints
+    const minimalConfig = {
+      enableDebugLogs: true,
+      rpcEndpoints: process.env.LOAD_TEST_RPC_ENDPOINTS?.split(',').map(url => url.trim()) || ['https://rpc.moksha.vana.org']
+    };
+    
+    const manager = new PersistentChildRelayerManager(masterKey, minimalConfig, poolName);
     
     try {
       switch (command) {

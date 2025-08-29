@@ -8,7 +8,8 @@ import { PersistentChildRelayerManager } from '../../src/utils/persistent-child-
 import { globalErrorTracker } from '../../src/utils/error-tracker.js';
 import { faker } from '@faker-js/faker';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
-import { parseEther } from 'viem';
+import { parseEther, formatEther } from 'viem';
+import { moksha } from '@opendatalabs/vana-sdk/chains';
 import chalk from 'chalk';
 import ora from 'ora';
 import { EventEmitter } from 'events';
@@ -24,6 +25,17 @@ import * as path from 'path';
  * - Artillery-style ramp patterns
  * - Better buffer management
  * - Master wallet protection
+ * - Premium gas monkey-patching for timeout prevention
+ * 
+ * Usage:
+ * # Standard test (may timeout during congestion)
+ * npx tsx milestones/ms-05/test-streaming-load.ts
+ * 
+ * # High gas configuration (recommended for timeout issues)
+ * PREMIUM_GAS_MULTIPLIER=50 npx tsx milestones/ms-05/test-streaming-load.ts
+ * 
+ * # Custom parameters
+ * npx tsx milestones/ms-05/test-streaming-load.ts --users 100 --rate 2.0 --concurrency 20
  */
 
 interface StreamingConfigV2 {
@@ -36,6 +48,9 @@ interface StreamingConfigV2 {
   childRelayers: number;
   preFundBuffer: number; // Fund this many wallets before starting test
   fundingAmountPerChild: string; // e.g., "100" VANA
+  
+  // Wallet Strategy
+  // Note: Using fresh wallets only for stable nonce management
   
   // Ramp Patterns (Artillery-style)
   rampUpDurationSeconds: number;
@@ -135,7 +150,8 @@ class ArtilleryStyleUserStream extends EventEmitter {
     const elapsed = (Date.now() - this.phaseStartTime) / 1000;
     const totalUsers = this.config.totalUsers;
     const rampUpUsers = Math.floor(totalUsers * 0.3); // 30% ramp-up
-    const sustainUsers = Math.floor(totalUsers * 0.4); // 40% sustain
+    const sustainUsers = Math.floor(totalUsers * 0.6); // 60% sustain (increased)
+    const rampDownUsers = Math.floor(totalUsers * 0.1); // 10% ramp-down (reduced)
     
     if (this.currentPhase === 'ramp-up' && this.usersSpawned >= rampUpUsers) {
       this.currentPhase = 'sustain';
@@ -165,9 +181,9 @@ class ArtilleryStyleUserStream extends EventEmitter {
         currentRate = this.config.arrivalRateUsersPerSecond;
         break;
       case 'ramp-down':
-        // Gradually decrease from 1.0x to 0.2x target rate
+        // Faster ramp-down: decrease from 1.0x to 0.3x target rate (less dramatic)
         const downProgress = (Date.now() - this.phaseStartTime) / (this.config.rampDownDurationSeconds * 1000);
-        currentRate = this.config.arrivalRateUsersPerSecond * (1.0 - 0.8 * Math.min(downProgress, 1));
+        currentRate = this.config.arrivalRateUsersPerSecond * (1.0 - 0.7 * Math.min(downProgress, 1));
         break;
     }
 
@@ -188,6 +204,7 @@ class ArtilleryStyleUserStream extends EventEmitter {
 class OptimizedWalletPool {
   private funded: WalletInfo[] = [];
   private unfunded: WalletInfo[] = [];
+  private usedWallets: Set<string> = new Set(); // Track used wallets (for stats only)
   private fundingManager?: PersistentChildRelayerManager;
   private config: any;
 
@@ -215,9 +232,13 @@ class OptimizedWalletPool {
       this.fundingManager.displayStats();
     }
 
-    // Pre-generate wallets for the entire test + buffer
+    // Fresh wallets only strategy - generate exactly as many wallets as needed
     const totalWalletsNeeded = streamingConfig.totalUsers + streamingConfig.preFundBuffer;
-    console.log(chalk.blue(`📝 Generating ${totalWalletsNeeded} test wallets...`));
+    
+    console.log(chalk.blue(`📝 Generating ${totalWalletsNeeded} fresh wallets (no reuse):`));
+    console.log(chalk.gray(`   • Test users: ${streamingConfig.totalUsers}`));
+    console.log(chalk.gray(`   • Buffer: ${streamingConfig.preFundBuffer}`));
+    console.log(chalk.gray(`   • Strategy: Fresh wallets only (stable nonce management)`));
     
     const wallets = this.generateWallets(totalWalletsNeeded);
     this.unfunded.push(...wallets);
@@ -229,7 +250,9 @@ class OptimizedWalletPool {
   }
 
   private async preFundAllWallets(): Promise<void> {
-    const spinner = ora(`💰 Pre-funding ${this.unfunded.length} wallets using persistent child relayers...`).start();
+    const message = `💰 Pre-funding ${this.unfunded.length} wallets using persistent child relayers...`;
+    console.log(chalk.yellow(message)); // Log to file
+    const spinner = ora(message).start();
     const startTime = Date.now();
     
     try {
@@ -288,7 +311,27 @@ class OptimizedWalletPool {
       throw new Error('No funded wallets available - pre-funding may have failed');
     }
     
-    return this.funded.shift()!;
+    // Always use fresh wallets (no reuse) for stable nonce management
+    const wallet = this.funded.shift()!;
+    this.usedWallets.add(wallet.address);
+    
+    // Alert if wallet pool is getting low
+    if (this.funded.length < 10) {
+      console.log(chalk.yellow(`⚠️  Wallet pool running low: ${this.funded.length} funded wallets remaining`));
+    } else if (this.funded.length % 100 === 0) {
+      console.log(chalk.gray(`🏦 Wallet pool: ${this.funded.length} fresh wallets remaining`));
+    }
+    
+    return wallet;
+  }
+
+  /**
+   * Track used wallet (no longer returns to pool with fresh-only strategy)
+   */
+  returnWallet(wallet: WalletInfo): void {
+    // With fresh-only strategy, we don't return wallets to the pool
+    // Just track that it was used
+    this.usedWallets.add(wallet.address);
   }
 
   private generateWallets(count: number): WalletInfo[] {
@@ -311,7 +354,9 @@ class OptimizedWalletPool {
     return {
       funded: this.funded.length,
       unfunded: this.unfunded.length,
-      total: this.funded.length + this.unfunded.length,
+      total: this.funded.length + this.unfunded.length + this.usedWallets.size,
+      used: this.usedWallets.size,
+      remaining: this.funded.length,
     };
   }
 }
@@ -331,8 +376,21 @@ export class StreamingLoadTestV2 {
   private shouldStop = false;
   private logFile: string;
   private errorLogFile: string;
+  private completeLogFile: string;
   private logStream?: fs.WriteStream;
   private errorLogStream?: fs.WriteStream;
+  private completeLogStream?: fs.WriteStream;
+  
+  // Original console methods
+  private originalConsole = {
+    log: console.log,
+    error: console.error,
+    warn: console.warn,
+    info: console.info,
+  };
+  
+  // Wallet deduplication tracking
+  private usedWalletAddresses: Map<string, string[]> = new Map(); // address -> [userIds]
 
   constructor(config: any, streamingConfig: StreamingConfigV2) {
     this.config = config;
@@ -342,7 +400,9 @@ export class StreamingLoadTestV2 {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     this.logFile = path.join(process.cwd(), `load-test-${timestamp}.log`);
     this.errorLogFile = path.join(process.cwd(), `load-test-errors-${timestamp}.log`);
+    this.completeLogFile = path.join(process.cwd(), `load-test-complete-${timestamp}.log`);
     this.setupGracefulShutdown();
+    this.setupDualLogging();
     
     this.metrics = {
       totalUsers: streamingConfig.totalUsers,
@@ -371,6 +431,47 @@ export class StreamingLoadTestV2 {
     this.userStream = new ArtilleryStyleUserStream(streamingConfig);
   }
 
+  private setupDualLogging(): void {
+    // Setup complete log stream
+    this.completeLogStream = fs.createWriteStream(this.completeLogFile, { flags: 'a' });
+    
+    // Override console methods to write to both console and file
+    const logToFile = (level: string, args: any[]) => {
+      const timestamp = new Date().toISOString();
+      const message = args.map(arg => 
+        typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+      ).join(' ');
+      
+      // Strip ANSI color codes for file output
+      const cleanMessage = message.replace(/\x1b\[[0-9;]*m/g, '');
+      
+      if (this.completeLogStream && !this.completeLogStream.destroyed) {
+        this.completeLogStream.write(`[${timestamp}] [${level}] ${cleanMessage}\n`);
+      }
+    };
+    
+    // Override console methods
+    console.log = (...args: any[]) => {
+      this.originalConsole.log(...args);
+      logToFile('LOG', args);
+    };
+    
+    console.error = (...args: any[]) => {
+      this.originalConsole.error(...args);
+      logToFile('ERROR', args);
+    };
+    
+    console.warn = (...args: any[]) => {
+      this.originalConsole.warn(...args);
+      logToFile('WARN', args);
+    };
+    
+    console.info = (...args: any[]) => {
+      this.originalConsole.info(...args);
+      logToFile('INFO', args);
+    };
+  }
+  
   private setupGracefulShutdown(): void {
     // Setup log streams
     this.logStream = fs.createWriteStream(this.logFile, { flags: 'a' });
@@ -379,8 +480,9 @@ export class StreamingLoadTestV2 {
     this.log(`🚀 Load test started at ${new Date().toISOString()}`);
     this.logError(`🚀 Error logging started at ${new Date().toISOString()}`);
     
-    console.log(chalk.blue(`📝 Logs being written to: ${this.logFile}`));
-    console.log(chalk.red(`🚨 Errors being written to: ${this.errorLogFile}`));
+    console.log(chalk.blue(`📝 Summary logs: ${this.logFile}`));
+    console.log(chalk.red(`🚨 Error logs: ${this.errorLogFile}`));
+    console.log(chalk.green(`📋 Complete logs: ${this.completeLogFile}`));
     console.log(chalk.yellow(`💡 Press Ctrl+C to gracefully stop and save results`));
     
     // Graceful shutdown handlers
@@ -412,6 +514,12 @@ export class StreamingLoadTestV2 {
       // Display final results
       this.displayFinalResults();
       
+      // Restore original console methods before final output
+      console.log = this.originalConsole.log;
+      console.error = this.originalConsole.error;
+      console.warn = this.originalConsole.warn;
+      console.info = this.originalConsole.info;
+      
       // Close log streams
       if (this.logStream) {
         this.logStream.end();
@@ -419,10 +527,14 @@ export class StreamingLoadTestV2 {
       if (this.errorLogStream) {
         this.errorLogStream.end();
       }
+      if (this.completeLogStream) {
+        this.completeLogStream.end();
+      }
       
       console.log(chalk.green(`✅ Graceful shutdown complete. Logs saved to:`));
-      console.log(chalk.blue(`   📝 General: ${this.logFile}`));
+      console.log(chalk.blue(`   📝 Summary: ${this.logFile}`));
       console.log(chalk.red(`   🚨 Errors: ${this.errorLogFile}`));
+      console.log(chalk.green(`   📋 Complete: ${this.completeLogFile}`));
       process.exit(0);
     };
     
@@ -454,7 +566,8 @@ export class StreamingLoadTestV2 {
       this.log(`Starting load test: ${streamingConfig.totalUsers} users, ${streamingConfig.childRelayers} child relayers`);
       
       console.log(chalk.cyan(`\n🌊 Starting Milestone 5 V2: Optimized Streaming Load Test`));
-      console.log(chalk.blue(`📊 ${streamingConfig.totalUsers} users with ${streamingConfig.childRelayers} parallel funding relayers\n`));
+      console.log(chalk.blue(`📊 ${streamingConfig.totalUsers} users with ${streamingConfig.childRelayers} parallel funding relayers`));
+      console.log(chalk.green(`📋 ALL output will be saved to: ${this.completeLogFile}\n`));
 
       await this.startApiServer();
       await this.initializeComponents(streamingConfig);
@@ -477,6 +590,7 @@ export class StreamingLoadTestV2 {
   }
 
   private async startApiServer(): Promise<void> {
+    console.log(chalk.yellow('Starting API server...')); // Log to file
     const spinner = ora('Starting API server...').start();
     
     try {
@@ -594,6 +708,23 @@ export class StreamingLoadTestV2 {
       // Get pre-funded wallet from pool (should be instant)
       wallet = await this.walletPool!.getWallet();
       
+      // Check for wallet address reuse (debugging nonce issues)
+      if (this.usedWalletAddresses.has(wallet.address)) {
+        const previousUsers = this.usedWalletAddresses.get(wallet.address)!;
+        console.error(chalk.red(`🚨 WALLET REUSE DETECTED! Address ${wallet.address} was previously used by: ${previousUsers.join(', ')}`));
+        this.logError(`WALLET_REUSE - ${userId}: Address ${wallet.address} previously used by ${previousUsers.join(', ')}`);
+      }
+      this.usedWalletAddresses.set(wallet.address, [...(this.usedWalletAddresses.get(wallet.address) || []), userId]);
+      
+      // Check wallet balance BEFORE transaction
+      const { createPublicClient, http } = await import('viem');
+      const publicClient = createPublicClient({
+        chain: moksha,
+        transport: http(this.config.rpcEndpoints[0]),
+      });
+      const balanceBefore = await publicClient.getBalance({ address: wallet.address });
+      console.log(chalk.yellow(`[${userId}] Starting with balance: ${formatEther(balanceBefore)} VANA for wallet ${wallet.address}`));
+      
       // Create client with funding check disabled (wallet is pre-funded)
       const configWithSkipFunding = { ...this.config, skipFundingCheck: true };
       const client = await VanaLoadTestClient.create(wallet.privateKey, configWithSkipFunding);
@@ -609,6 +740,30 @@ export class StreamingLoadTestV2 {
 
       const endTime = Date.now();
       const duration = endTime - startTime;
+
+      // Check wallet balance after transaction for debugging
+      let finalBalance = '0';
+      try {
+        const balance = await publicClient.getBalance({ address: wallet.address });
+        finalBalance = formatEther(balance);
+      } catch (e) {
+        // Ignore
+      }
+      
+      // Log transaction details for clarity
+      if (result.transactionHash) {
+        console.log(chalk.green(`✅ [${userId}] TX: ${result.transactionHash} | Duration: ${(duration/1000).toFixed(1)}s | Balance left: ${finalBalance} VANA`));
+      } else if (result.error) {
+        // Extract specific error info for clarity
+        const errorType = result.error.includes('underpriced') ? 'UNDERPRICED' : 
+                         result.error.includes('timeout') ? 'TIMEOUT' :
+                         result.error.includes('insufficient funds') ? 'INSUFFICIENT_FUNDS' :
+                         result.error.includes('pending') ? 'STUCK_PENDING' : 'OTHER';
+        console.log(chalk.red(`❌ [${userId}] ${errorType}: ${result.error.substring(0, 100)}... | Balance: ${finalBalance} VANA`));
+      }
+
+      // Return wallet to pool for reuse
+      this.walletPool!.returnWallet(wallet);
 
       return {
         success: result.success,
@@ -626,13 +781,19 @@ export class StreamingLoadTestV2 {
       const endTime = Date.now();
       const duration = endTime - startTime;
       
+      // Return wallet to pool even on error (if we got one)
+      if (wallet) {
+        this.walletPool!.returnWallet(wallet);
+      }
+      
       // Log error details IMMEDIATELY to both console and file
       const errorMessage = error instanceof Error ? error.message : String(error);
-      const logEntry = `❌ [${userId}] ${errorMessage}`;
+      const walletInfo = wallet ? ` | Wallet: ${wallet.address}` : '';
+      const logEntry = `❌ [${userId}] ${errorMessage}${walletInfo}`;
       
       console.error(chalk.red(logEntry)); // Immediate console output
-      this.log(`ERROR - User ${userId}: ${errorMessage}`); // General log
-      this.logError(`USER_FLOW_ERROR - ${userId}: ${errorMessage}`); // Dedicated error log
+      this.log(`ERROR - User ${userId}: ${errorMessage}${walletInfo}`); // General log
+      this.logError(`USER_FLOW_ERROR - ${userId}: ${errorMessage}${walletInfo}`); // Dedicated error log
       
       // Track error with comprehensive context
       globalErrorTracker.trackError(
@@ -762,17 +923,17 @@ export class StreamingLoadTestV2 {
   }
 
   private startMetricsDashboard() {
-    const updateInterval = setInterval(() => {
+    const updateInterval = setInterval(async () => {
       if (this.metrics.endTime) {
         clearInterval(updateInterval);
         return;
       }
       
-      this.displayLiveMetrics();
+      await this.displayLiveMetrics();
     }, 3000);
   }
 
-  private displayLiveMetrics() {
+  private async displayLiveMetrics() {
     const progress = this.userStream!.getProgress();
     const successRate = this.metrics.completedUsers > 0 
       ? (this.metrics.successfulUsers / this.metrics.completedUsers) * 100 
@@ -780,14 +941,29 @@ export class StreamingLoadTestV2 {
     
     const walletStats = this.walletPool!.getStats();
     
-    // Clear screen and display dashboard
-    console.clear();
-    console.log(chalk.cyan('🌊 Optimized Streaming Load Test - Live Dashboard'));
+    // Get real-time gas price from network
+    let currentGasPrice = 'unknown';
+    try {
+      const { createPublicClient, http } = await import('viem');
+      const publicClient = createPublicClient({
+        chain: moksha,
+        transport: http(this.config.rpcEndpoints[0]),
+      });
+      const gasPrice = await publicClient.getGasPrice();
+      currentGasPrice = `${(Number(gasPrice) / 1e9).toFixed(3)} gwei`;
+    } catch (e) {
+      // Ignore errors
+    }
+    
+    // Don't clear screen when logging to file, just add separator
+    console.log('\n' + chalk.gray('─'.repeat(60)));
+    console.log(chalk.cyan('🌊 Optimized Streaming Load Test - Live Update'));
     console.log(chalk.gray('═'.repeat(60)));
     
     console.log(`📈 Phase: ${chalk.yellow(progress.phase.toUpperCase())} (${progress.spawned}/${progress.total} spawned)`);
     console.log(`✅ Success Rate: ${chalk.green(successRate.toFixed(1))}% (${this.metrics.successfulUsers}/${this.metrics.completedUsers})`);
     console.log(`🔄 Active Users: ${chalk.magenta(this.metrics.activeUsers)} (Peak: ${this.metrics.peakActiveUsers})`);
+    console.log(`⛽ Network Gas: ${chalk.yellow(currentGasPrice)} | Config Max: ${chalk.yellow(this.config.maxGasPrice + ' gwei')}`);
     
     console.log(chalk.gray('─'.repeat(60)));
     console.log(`💰 Pre-funded Wallets: ${chalk.cyan(walletStats.funded)} available`);
@@ -893,6 +1069,21 @@ export class StreamingLoadTestV2 {
     if (this.metrics.failedUsers > 0) {
       globalErrorTracker.displayReport(this.metrics.totalUsers);
     }
+    
+    // Display wallet reuse analysis
+    const reusedWallets = Array.from(this.usedWalletAddresses.entries()).filter(([_, users]) => users.length > 1);
+    if (reusedWallets.length > 0) {
+      console.log(chalk.red('\n🚨 Wallet Reuse Analysis\n'));
+      console.log(chalk.gray('═'.repeat(60)));
+      console.log(`Total unique wallets used: ${this.usedWalletAddresses.size}`);
+      console.log(`Wallets reused: ${reusedWallets.length}`);
+      console.log('\nReused wallet details:');
+      reusedWallets.forEach(([address, users]) => {
+        console.log(`  ${address}: used by ${users.length} users (${users.slice(0, 5).join(', ')}${users.length > 5 ? '...' : ''})`);
+      });
+    } else {
+      console.log(chalk.green('\n✅ No wallet reuse detected - all wallets were unique'));
+    }
   }
 
   private async cleanup(): Promise<void> {
@@ -902,6 +1093,14 @@ export class StreamingLoadTestV2 {
     
     if (this.apiServer) {
       await this.apiServer.stop();
+    }
+    
+    // Restore original console methods if not already done
+    if (console.log !== this.originalConsole.log) {
+      console.log = this.originalConsole.log;
+      console.error = this.originalConsole.error;
+      console.warn = this.originalConsole.warn;
+      console.info = this.originalConsole.info;
     }
   }
 }
@@ -913,8 +1112,18 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       const config = await loadConfig();
       config.enableDebugLogs = false;
       
+      // Override gas configuration from environment if provided
+      if (process.env.PREMIUM_GAS_MULTIPLIER) {
+        config.premiumGasMultiplier = parseFloat(process.env.PREMIUM_GAS_MULTIPLIER);
+        console.log(chalk.yellow(`⛽ Using premium gas multiplier from env: ${config.premiumGasMultiplier}x`));
+      }
+      if (process.env.MAX_GAS_PRICE) {
+        config.maxGasPrice = process.env.MAX_GAS_PRICE;
+        console.log(chalk.yellow(`⛽ Using max gas price from env: ${config.maxGasPrice} gwei`));
+      }
+      
       console.log(chalk.cyan('📋 Loading optimized configuration...'));
-      console.log(`  RPC Endpoint: ${config.rpcEndpoint}`);
+      console.log(`  RPC Endpoints: ${config.rpcEndpoints.length} configured (${config.rpcEndpoints[0]}${config.rpcEndpoints.length > 1 ? ', ...' : ''})`);
       console.log(`  Master Relayer: ${config.relayerPrivateKey ? 'Configured ✅' : 'Missing ❌'}`);
       console.log(`  GCS Storage: ${config.googleCloudServiceAccountJson ? 'Configured ✅' : 'Missing ❌'}`);
       
@@ -931,10 +1140,12 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         preFundBuffer: 5, // Extra wallets beyond totalUsers
         fundingAmountPerChild: "50", // VANA per child relayer
         
-        // Artillery-style phases
+        // Fresh wallets only strategy
+        
+        // Artillery-style phases (shorter ramp-down)
         rampUpDurationSeconds: 30,
         sustainDurationSeconds: 60,
-        rampDownDurationSeconds: 30,
+        rampDownDurationSeconds: 10, // Reduced from 30s
       };
       
       for (let i = 0; i < args.length; i += 2) {
@@ -971,8 +1182,30 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         console.log(`  Pre-fund Buffer: ${streamingConfig.preFundBuffer}`);
       }
       
+      // Show gas configuration
+      console.log(chalk.yellow('\n⛽ Gas Configuration:'));
+      console.log(`  Premium Multiplier: ${config.premiumGasMultiplier}x`);
+      console.log(`  Max Gas Price: ${config.maxGasPrice} gwei`);
+      console.log(`  Gas Limit: ${config.gasLimit}`);
+      console.log(`  Transaction Timeout: ${config.transactionTimeoutMs / 1000}s`);
+      
+      // Calculate and show funding amount
+      const fundingPerWallet = (BigInt(config.maxGasPrice) * 1_000_000_000n * BigInt(config.gasLimit) * 3n) / BigInt(1e18);
+      const fundingPerWalletDecimal = Number(fundingPerWallet) + Number((BigInt(config.maxGasPrice) * 1_000_000_000n * BigInt(config.gasLimit) * 3n) % BigInt(1e18)) / 1e18;
+      const finalFunding = fundingPerWalletDecimal < 0.2 ? 0.2 : fundingPerWalletDecimal;
+      console.log(chalk.green(`  Funding per wallet: ${finalFunding} VANA`));
+      console.log(chalk.gray(`  (Calculation: ${config.maxGasPrice} gwei × ${config.gasLimit} gas × 3 txs = ${fundingPerWalletDecimal.toFixed(3)} VANA)`));
+      
+      if (config.premiumGasMultiplier < 20) {
+        console.log(chalk.red('⚠️  Warning: Low gas multiplier may cause timeouts during network congestion'));
+        console.log(chalk.yellow('   Consider using --high-gas flag or setting premiumGasMultiplier >= 20'));
+      }
+      
       const test = new StreamingLoadTestV2(config, streamingConfig);
       await test.run(streamingConfig);
+      
+      // Final log reminder
+      console.log(chalk.cyan('\n📋 Test complete! Check the log files for full details.'));
       
     } catch (error) {
       console.error(chalk.red('Failed to run optimized streaming test:'), error);

@@ -11,6 +11,9 @@ export interface LoadTestConfig {
   // Blockchain Configuration
   transactionTimeoutMs: number; // Transaction confirmation timeout (default: 60000)
   maxRetries: number;           // Max retries for failed transactions (default: 3)
+  premiumGasMultiplier: number; // Gas price multiplier for load testing (default: 2.0)
+  maxGasPrice: string;          // Maximum gas price in gwei (default: "100")
+  gasLimit: number;             // Gas limit for transactions (default: 600000)
   
   // Load Pattern Parameters
   rampUpMinutes: number;        // Ramp up duration (default: 30)
@@ -19,8 +22,7 @@ export interface LoadTestConfig {
   
   // System Parameters
   maxWallets: number;           // Pre-generated wallets (default: 15000)
-  rpcEndpoint: string;          // Moksha RPC URL
-  rpcEndpoints?: string[];      // Multiple RPC endpoints for load distribution
+  rpcEndpoints: string[];       // Multiple RPC endpoints for load distribution
   walletFundingAmount: string;  // ETH amount per wallet (default: "0.1")
   
   // Debugging Parameters

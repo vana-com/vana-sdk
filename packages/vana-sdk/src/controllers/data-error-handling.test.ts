@@ -66,6 +66,7 @@ describe("DataController Error Handling", () => {
         getAddresses: vi.fn().mockResolvedValue(["0x123"]),
       } as unknown as ControllerContext["walletClient"],
       publicClient: {} as ControllerContext["publicClient"],
+      userAddress: "0x123",
       platform: mockPlatformAdapter,
     };
 
@@ -90,13 +91,8 @@ describe("DataController Error Handling", () => {
     };
 
     it("should throw error when no file permission found (lines 1982-1986)", async () => {
-      // Mock getUserAddress to return a valid address
-      vi.spyOn(
-        dataController as DataController & {
-          getUserAddress: () => Promise<string>;
-        },
-        "getUserAddress",
-      ).mockResolvedValue("0x123");
+      // Set user address in context
+      (dataController as any).context.userAddress = "0x123";
       vi.spyOn(dataController, "getFilePermission").mockResolvedValue("");
 
       await expect(
@@ -105,12 +101,8 @@ describe("DataController Error Handling", () => {
     });
 
     it("should handle HTTP fetch errors during file download (lines 1997-1999)", async () => {
-      vi.spyOn(
-        dataController as DataController & {
-          getUserAddress: () => Promise<string>;
-        },
-        "getUserAddress",
-      ).mockResolvedValue("0x123");
+      // Set user address in context
+      (dataController as any).context.userAddress = "0x123";
       vi.spyOn(dataController, "getFilePermission").mockResolvedValue(
         "encryptedKey",
       );
@@ -127,12 +119,8 @@ describe("DataController Error Handling", () => {
     });
 
     it("should handle decryption errors in catch block (lines 2005-2009)", async () => {
-      vi.spyOn(
-        dataController as DataController & {
-          getUserAddress: () => Promise<string>;
-        },
-        "getUserAddress",
-      ).mockResolvedValue("0x123");
+      // Set user address in context
+      (dataController as any).context.userAddress = "0x123";
       vi.spyOn(dataController, "getFilePermission").mockResolvedValue(
         "encryptedKey",
       );
@@ -158,12 +146,8 @@ describe("DataController Error Handling", () => {
 
     it("should successfully decrypt file with permission (success path lines 1977-2009)", async () => {
       // Mock all dependencies to return successful results
-      vi.spyOn(
-        dataController as DataController & {
-          getUserAddress: () => Promise<string>;
-        },
-        "getUserAddress",
-      ).mockResolvedValue("0x123");
+      // Set user address in context
+      (dataController as any).context.userAddress = "0x123";
       vi.spyOn(dataController, "getFilePermission").mockResolvedValue(
         "encryptedKey",
       );

@@ -6,8 +6,9 @@ import {
   getContractInfo,
   ContractFactory,
 } from "../contracts/contractController";
-import type { ControllerContext } from "./permissions";
+import type { ControllerContext } from "../types/controller-context";
 import type { GetContractReturnType } from "viem";
+import { BaseController } from "./base";
 
 /**
  * Provides direct, low-level access to all Vana protocol smart contracts.
@@ -55,11 +56,14 @@ import type { GetContractReturnType } from "viem";
  * @category Advanced
  * @see {@link https://docs.vana.com/developer/protocol/contracts | Vana Protocol Contracts} for contract specifications
  */
-export class ProtocolController {
+export class ProtocolController extends BaseController {
   private readonly contractFactory: ContractFactory;
 
-  constructor(private readonly context: ControllerContext) {
-    this.contractFactory = new ContractFactory(context.walletClient);
+  constructor(context: ControllerContext) {
+    super(context);
+    this.contractFactory = new ContractFactory(
+      context.walletClient ?? context.publicClient,
+    );
   }
 
   /**
@@ -88,7 +92,9 @@ export class ProtocolController {
     contractName: T,
   ): ContractInfo<ContractAbis[T]> {
     try {
-      const chainId = this.context.walletClient.chain?.id;
+      const chainId =
+        this.context.walletClient?.chain?.id ??
+        this.context.publicClient.chain?.id;
 
       if (!chainId) {
         throw new ContractNotFoundError(contractName, 0);
@@ -103,7 +109,10 @@ export class ProtocolController {
         if (error.message.includes("Contract address not found")) {
           let chainId = 0;
           try {
-            chainId = this.context.walletClient.chain?.id ?? 0;
+            chainId =
+              this.context.walletClient?.chain?.id ??
+              this.context.publicClient.chain?.id ??
+              0;
           } catch {
             // Use 0 as fallback if chain ID access fails
             chainId = 0;
@@ -143,6 +152,7 @@ export class ProtocolController {
   createContract<T extends VanaContract>(
     contractName: T,
   ): GetContractReturnType<ContractAbis[T]> {
+    this.assertWallet();
     try {
       return getContractController(contractName, this.context.walletClient);
     } catch (error) {
@@ -197,9 +207,11 @@ export class ProtocolController {
    * @throws {Error} When chain ID is not available from wallet client
    */
   getChainId(): number {
-    const chainId = this.context.walletClient.chain?.id;
+    const chainId =
+      this.context.walletClient?.chain?.id ??
+      this.context.publicClient.chain?.id;
     if (!chainId) {
-      throw new Error("Chain ID not available from wallet client");
+      throw new Error("Chain ID not available from client");
     }
     return chainId;
   }
@@ -211,9 +223,11 @@ export class ProtocolController {
    * @throws {Error} When chain name is not available from wallet client
    */
   getChainName(): string {
-    const chainName = this.context.walletClient.chain?.name;
+    const chainName =
+      this.context.walletClient?.chain?.name ??
+      this.context.publicClient.chain?.name;
     if (!chainName) {
-      throw new Error("Chain name not available from wallet client");
+      throw new Error("Chain name not available from client");
     }
     return chainName;
   }

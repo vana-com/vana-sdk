@@ -52,7 +52,7 @@ describe("Contract Types", () => {
   describe("ContractInfo", () => {
     it("should properly structure contract info", () => {
       const contractInfo: ContractInfo = {
-        address: "0x1234567890123456789012345678901234567890" as Address,
+        address: "0x1234567890123456789012345678901234567890",
         abi: [],
       };
 
@@ -74,7 +74,7 @@ describe("Contract Types", () => {
       ] as const;
 
       const contractInfo: ContractInfo<typeof typedAbi> = {
-        address: "0x1234567890123456789012345678901234567890" as Address,
+        address: "0x1234567890123456789012345678901234567890",
         abi: typedAbi,
       };
 
@@ -86,7 +86,7 @@ describe("Contract Types", () => {
   describe("ContractDeployment", () => {
     it("should properly structure deployment info", () => {
       const deployment: ContractDeployment = {
-        address: "0x1234567890123456789012345678901234567890" as Address,
+        address: "0x1234567890123456789012345678901234567890",
         blockNumber: 12345n,
         transactionHash:
           "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890" as Hash,
@@ -107,12 +107,12 @@ describe("Contract Types", () => {
       const addresses: ContractAddresses = {
         14800: {
           DataPortabilityPermissions:
-            "0x1234567890123456789012345678901234567890" as Address,
-          DataRegistry: "0x2345678901234567890123456789012345678901" as Address,
+            "0x1234567890123456789012345678901234567890",
+          DataRegistry: "0x2345678901234567890123456789012345678901",
         },
         1: {
           DataPortabilityPermissions:
-            "0x3456789012345678901234567890123456789012" as Address,
+            "0x3456789012345678901234567890123456789012",
         },
       };
 
@@ -131,7 +131,7 @@ describe("Contract Types", () => {
       const addresses: ContractAddresses = {
         14800: {
           DataPortabilityPermissions:
-            "0x1234567890123456789012345678901234567890" as Address,
+            "0x1234567890123456789012345678901234567890",
           // Other contracts are optional
         },
       };
@@ -145,8 +145,7 @@ describe("Contract Types", () => {
 
   describe("Type Safety", () => {
     it("should enforce address format", () => {
-      const address: Address =
-        "0x1234567890123456789012345678901234567890" as Address;
+      const address: Address = "0x1234567890123456789012345678901234567890";
       expect(address).toMatch(/^0x[a-fA-F0-9]{40}$/);
     });
 
@@ -159,7 +158,7 @@ describe("Contract Types", () => {
     it("should work with bigint values", () => {
       const blockNumber = 12345n;
       const deployment: ContractDeployment = {
-        address: "0x1234567890123456789012345678901234567890" as Address,
+        address: "0x1234567890123456789012345678901234567890",
         blockNumber,
         transactionHash:
           "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890" as Hash,

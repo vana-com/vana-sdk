@@ -51,7 +51,7 @@ describe("handleRelayerRequest", () => {
         name: "TestDomain",
         version: "1",
         chainId: 1,
-        verifyingContract: "0xcontract",
+        verifyingContract: "0xcontract" as `0x${string}`,
       },
       types: {
         TestType: [{ name: "test", type: "string" }],

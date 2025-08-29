@@ -16,6 +16,7 @@ import {
 } from "../errors";
 import type { ControllerContext } from "./permissions";
 import type { Operation, PollingOptions } from "../types/operations";
+import { BaseController } from "./base";
 
 // Server types are now auto-imported from the generated exports
 
@@ -60,8 +61,10 @@ import type { Operation, PollingOptions } from "../types/operations";
  * @category Server Management
  * @see {@link https://docs.vana.com/developer/personal-servers | Vana Personal Servers} for conceptual overview
  */
-export class ServerController {
-  constructor(private readonly context: ControllerContext) {}
+export class ServerController extends BaseController {
+  constructor(context: ControllerContext) {
+    super(context);
+  }
 
   private get personalServerBaseUrl(): string {
     if (!this.context.defaultPersonalServerUrl) {
@@ -179,6 +182,8 @@ export class ServerController {
   async createOperation<T = unknown>(
     params: CreateOperationParams,
   ): Promise<Operation<T>> {
+    this.assertWallet();
+
     try {
       const requestData = {
         permission_id: params.permissionId,
@@ -490,6 +495,10 @@ export class ServerController {
       // Use applicationClient if available, fallback to walletClient
       const client =
         this.context.applicationClient ?? this.context.walletClient;
+
+      if (!client) {
+        throw new SignatureError("No client available for signing");
+      }
 
       // Get the account from the wallet client
       const { account } = client;

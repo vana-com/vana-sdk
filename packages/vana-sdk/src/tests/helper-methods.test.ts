@@ -1,6 +1,6 @@
 import type { Mock } from "vitest";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Hash, Address } from "viem";
+import type { Hash } from "viem";
 import type { ControllerContext } from "../controllers/permissions";
 import { PermissionsController } from "../controllers/permissions";
 import { BlockchainError } from "../errors";
@@ -106,6 +106,7 @@ describe("PermissionsController - Helper Methods", () => {
       publicClient:
         mockPublicClient as unknown as ControllerContext["publicClient"],
       platform: mockPlatformAdapter,
+      userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
     };
 
     controller = new PermissionsController(mockContext);
@@ -144,7 +145,7 @@ describe("PermissionsController - Helper Methods", () => {
         mockPublicClient.readContract.mockResolvedValue(BigInt(123));
 
         const result = await controller.getUserServerIdAt(
-          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
           BigInt(0),
         );
 
@@ -179,8 +180,8 @@ describe("PermissionsController - Helper Methods", () => {
         const mockServers = [
           {
             id: BigInt(1),
-            owner: "0xowner1" as Address,
-            serverAddress: "0xserver1" as Address,
+            owner: "0xowner1" as `0x${string}`,
+            serverAddress: "0xserver1" as `0x${string}`,
             publicKey: "0xpubkey1",
             url: "https://server1.com",
             startBlock: BigInt(100),
@@ -205,8 +206,8 @@ describe("PermissionsController - Helper Methods", () => {
       it("should successfully get specific trusted server", async () => {
         const mockServer = {
           id: BigInt(1),
-          owner: "0xowner1" as Address,
-          serverAddress: "0xserver1" as Address,
+          owner: "0xowner1" as `0x${string}`,
+          serverAddress: "0xserver1" as `0x${string}`,
           publicKey: "0xpubkey1",
           url: "https://server1.com",
           startBlock: BigInt(100),
@@ -215,7 +216,7 @@ describe("PermissionsController - Helper Methods", () => {
         mockPublicClient.readContract.mockResolvedValue(mockServer);
 
         const result = await controller.getUserTrustedServer(
-          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
           BigInt(1),
         );
 
@@ -233,8 +234,8 @@ describe("PermissionsController - Helper Methods", () => {
       it("should successfully get server info", async () => {
         const mockServerInfo = {
           id: BigInt(1),
-          owner: "0xowner1" as Address,
-          serverAddress: "0xserver1" as Address,
+          owner: "0xowner1" as `0x${string}`,
+          serverAddress: "0xserver1" as `0x${string}`,
           publicKey: "0xpubkey1",
           url: "https://server1.com",
         };
@@ -256,16 +257,14 @@ describe("PermissionsController - Helper Methods", () => {
       it("should successfully get server info by address", async () => {
         const mockServerInfo = {
           id: BigInt(1),
-          owner: "0xowner1" as Address,
-          serverAddress: "0xserver1" as Address,
+          owner: "0xowner1" as `0x${string}`,
+          serverAddress: "0xserver1" as `0x${string}`,
           publicKey: "0xpubkey1",
           url: "https://server1.com",
         };
         mockPublicClient.readContract.mockResolvedValue(mockServerInfo);
 
-        const result = await controller.getServerInfoByAddress(
-          "0xserver1" as Address,
-        );
+        const result = await controller.getServerInfoByAddress("0xserver1");
 
         expect(result).toEqual(mockServerInfo);
         expect(mockPublicClient.readContract).toHaveBeenCalledWith({
@@ -301,7 +300,7 @@ describe("PermissionsController - Helper Methods", () => {
         mockPublicClient.readContract.mockResolvedValue(BigInt(456));
 
         const result = await controller.getUserPermissionIdAt(
-          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address,
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
           BigInt(1),
         );
 
@@ -335,7 +334,7 @@ describe("PermissionsController - Helper Methods", () => {
       it("should successfully get permission info", async () => {
         const mockPermissionInfo = {
           id: BigInt(123),
-          grantor: "0xgrantor" as Address,
+          grantor: "0xgrantor",
           nonce: BigInt(1),
           granteeId: BigInt(456),
           grant: "https://ipfs.example/grant",
@@ -414,8 +413,8 @@ describe("PermissionsController - Helper Methods", () => {
     describe("getGranteeInfo", () => {
       it("should successfully get grantee info", async () => {
         const mockGranteeInfo = {
-          owner: "0xowner" as Address,
-          granteeAddress: "0xgrantee" as Address,
+          owner: "0xowner" as `0x${string}`,
+          granteeAddress: "0xgrantee" as `0x${string}`,
           publicKey: "0xpubkey",
           permissionIds: [BigInt(1), BigInt(2)],
         };
@@ -436,16 +435,14 @@ describe("PermissionsController - Helper Methods", () => {
     describe("getGranteeInfoByAddress", () => {
       it("should successfully get grantee info by address", async () => {
         const mockGranteeInfo = {
-          owner: "0xowner" as Address,
-          granteeAddress: "0xgrantee" as Address,
+          owner: "0xowner" as `0x${string}`,
+          granteeAddress: "0xgrantee" as `0x${string}`,
           publicKey: "0xpubkey",
           permissionIds: [BigInt(1), BigInt(2)],
         };
         mockPublicClient.readContract.mockResolvedValue(mockGranteeInfo);
 
-        const result = await controller.getGranteeInfoByAddress(
-          "0xgrantee" as Address,
-        );
+        const result = await controller.getGranteeInfoByAddress("0xgrantee");
 
         expect(result).toEqual(mockGranteeInfo);
         expect(mockPublicClient.readContract).toHaveBeenCalledWith({

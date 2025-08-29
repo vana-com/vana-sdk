@@ -1,4 +1,4 @@
-import type { Address } from "viem";
+import type { Address, Hash } from "viem";
 import { getContract } from "viem";
 import type { StorageUploadResult } from "../types/storage";
 
@@ -16,10 +16,17 @@ import type {
   GetUserTrustedServersParams,
   EncryptedUploadParams,
   UnencryptedUploadParams,
+  EncryptFileOptions,
+  EncryptFileResult,
+  DecryptFileOptions,
+  UploadFileWithPermissionsParams,
+  AddFilePermissionParams,
+  DecryptFileWithPermissionOptions,
 } from "../types/index";
 // import { FilePermissionResult } from "../types/transactionResults";
 import type { TransactionResult } from "../types/operations";
 import type { ControllerContext } from "./permissions";
+import { BaseController } from "./base";
 import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../generated/abi";
 import type {
@@ -104,8 +111,10 @@ type SubgraphResponse<T> = {
  * @category Data Management
  * @see {@link https://docs.vana.com/developer/data-registry | Vana Data Registry Documentation} for conceptual overview
  */
-export class DataController {
-  constructor(private readonly context: ControllerContext) {}
+export class DataController extends BaseController {
+  constructor(context: ControllerContext) {
+    super(context);
+  }
 
   /**
    * Uploads user data with automatic encryption and blockchain registration.
@@ -204,6 +213,8 @@ export class DataController {
   async upload(params: UnencryptedUploadParams): Promise<UploadResult>;
   async upload(params: UploadParams): Promise<UploadResult>;
   async upload(params: UploadParams): Promise<UploadResult> {
+    this.assertWallet();
+
     const {
       content,
       filename,
@@ -274,11 +285,12 @@ export class DataController {
       );
 
       // Step 3: Register on blockchain
-      const userAddress = owner ?? (await this.getUserAddress());
+      const userAddress = owner ?? this.context.userAddress;
 
       // Prepare encrypted permissions if provided
       let encryptedPermissions: Array<{ account: Address; key: string }> = [];
       if (permissions.length > 0 && encrypt) {
+        this.assertWallet();
         const userEncryptionKey = await generateEncryptionKey(
           this.context.walletClient,
           this.context.platform,
@@ -332,8 +344,8 @@ export class DataController {
 
         // Fallback: No relay support, use a direct transaction
       } else {
-        // Use the internal method directly since we already have encrypted permissions
-        const txResult = await this._addFileWithPermissionsAndSchemaInternal(
+        // Use the method directly since we already have encrypted permissions
+        const txResult = await this.addFileWithEncryptedPermissionsAndSchema(
           uploadResult.url,
           userAddress,
           encryptedPermissions,
@@ -372,6 +384,95 @@ export class DataController {
     } catch (error) {
       throw new Error(
         `Upload failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Encrypts data using wallet-derived encryption.
+   *
+   * @remarks
+   * This method provides secure, wallet-based encryption for data before uploading
+   * to the Vana network. It's the counterpart to decryptFile for preparing data
+   * for secure storage.
+   *
+   * The method automatically:
+   * - Generates an encryption key from the user's wallet signature
+   * - Converts the input data to a Blob if necessary
+   * - Encrypts the data using the generated key
+   * - Returns both the encrypted data and the encryption key
+   *
+   * The encryption key returned can be stored and later used for decryption,
+   * or shared with others to grant them decryption access.
+   *
+   * @param data - The data to encrypt (Blob, string, or object)
+   * @param options - Optional encryption configuration
+   * @returns Promise resolving to encrypted data and the encryption key used
+   * @throws {Error} When wallet is not connected or encryption fails
+   * @example
+   * ```typescript
+   * // Encrypt a string
+   * const { encryptedData, encryptionKey } = await vana.data.encryptFile(
+   *   "My secret data"
+   * );
+   *
+   * // Encrypt JSON with custom MIME type
+   * const { encryptedData, encryptionKey } = await vana.data.encryptFile(
+   *   { name: "Alice", age: 30 },
+   *   { mimeType: "application/json" }
+   * );
+   *
+   * // With custom encryption seed
+   * const { encryptedData, encryptionKey } = await vana.data.encryptFile(
+   *   "Secret message",
+   *   { seed: "My custom encryption seed" }
+   * );
+   *
+   * // Upload the encrypted data
+   * const result = await vana.data.uploadToStorage(encryptedData);
+   * ```
+   */
+  async encryptFile(
+    data: Blob | string | object,
+    options?: EncryptFileOptions,
+  ): Promise<EncryptFileResult> {
+    this.assertWallet();
+
+    try {
+      // Generate encryption key from wallet
+      const encryptionKey = await generateEncryptionKey(
+        this.context.walletClient,
+        this.context.platform,
+        options?.seed ?? DEFAULT_ENCRYPTION_SEED,
+      );
+
+      // Convert data to Blob if necessary
+      let blob: Blob;
+      if (data instanceof Blob) {
+        blob = data;
+      } else if (typeof data === "string") {
+        blob = new Blob([data], { type: options?.mimeType ?? "text/plain" });
+      } else {
+        // Handle objects by JSON stringifying them
+        blob = new Blob([JSON.stringify(data)], {
+          type: options?.mimeType ?? "application/json",
+        });
+      }
+
+      // Encrypt the blob
+      const encryptedData = await encryptBlobWithSignedKey(
+        blob,
+        encryptionKey,
+        this.context.platform,
+      );
+
+      return {
+        encryptedData,
+        encryptionKey,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to encrypt file: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }
@@ -431,13 +532,19 @@ export class DataController {
    * fs.writeFileSync('decrypted-file.txt', Buffer.from(buffer));
    * ```
    */
-  async decryptFile(file: UserFile, encryptionSeed?: string): Promise<Blob> {
+  async decryptFile(
+    file: UserFile,
+    options?: DecryptFileOptions,
+  ): Promise<Blob> {
+    this.assertWallet();
+
     try {
+      this.assertWallet();
       // Step 1: Generate the decryption key from wallet signature
       const encryptionKey = await generateEncryptionKey(
         this.context.walletClient,
         this.context.platform,
-        encryptionSeed ?? DEFAULT_ENCRYPTION_SEED,
+        options?.seed ?? DEFAULT_ENCRYPTION_SEED,
       );
 
       // Step 2: Determine the protocol and fetch the encrypted content
@@ -660,7 +767,7 @@ export class DataController {
           addedAtBlock: BigInt(file.addedAtBlock),
           schemaId: parseInt(file.schemaId),
           addedAtTimestamp: BigInt(file.addedAtTimestamp),
-          transactionHash: file.transactionHash as Address,
+          transactionHash: file.transactionHash as Hash,
         };
 
         // Keep the file with the latest timestamp for each ID
@@ -797,7 +904,7 @@ export class DataController {
   private async _fetchProofsFromChain(
     fileIds: number[],
   ): Promise<Map<number, number[]>> {
-    const chainId = this.context.walletClient.chain?.id;
+    const chainId = this.context.publicClient.chain?.id;
     if (!chainId) {
       throw new Error("Chain ID not available");
     }
@@ -927,8 +1034,12 @@ export class DataController {
           status: result.data.dlp.status
             ? parseInt(result.data.dlp.status)
             : undefined,
-          address: result.data.dlp.address as Address | undefined,
-          owner: result.data.dlp.owner as Address | undefined,
+          address: result.data.dlp.address
+            ? (result.data.dlp.address as Address)
+            : undefined,
+          owner: result.data.dlp.owner
+            ? (result.data.dlp.owner as Address)
+            : undefined,
         };
       } catch (error) {
         console.debug("Subgraph query failed, falling back to chain:", error);
@@ -938,7 +1049,7 @@ export class DataController {
 
     // Chain fallback - read from DLP Registry contract
     try {
-      const chainId = this.context.walletClient.chain?.id;
+      const chainId = this.context.publicClient.chain?.id;
       if (!chainId) {
         throw new Error("Chain ID not available");
       }
@@ -1092,8 +1203,8 @@ export class DataController {
           name: dlp.name ?? "",
           metadata: dlp.metadata,
           status: dlp.status ? parseInt(dlp.status) : undefined,
-          address: dlp.address as Address | undefined,
-          owner: dlp.owner as Address | undefined,
+          address: dlp.address ? (dlp.address as Address) : undefined,
+          owner: dlp.owner ? (dlp.owner as Address) : undefined,
         }));
       } catch (error) {
         console.debug("Subgraph query failed, falling back to chain:", error);
@@ -1103,7 +1214,7 @@ export class DataController {
 
     // Chain fallback - use multicall to batch read DLPs
     try {
-      const chainId = this.context.walletClient.chain?.id;
+      const chainId = this.context.publicClient.chain?.id;
       if (!chainId) {
         throw new Error("Chain ID not available");
       }
@@ -1312,7 +1423,7 @@ export class DataController {
           signature: permission.signature,
           addedAtBlock: BigInt(permission.addedAtBlock),
           addedAtTimestamp: BigInt(permission.addedAtTimestamp),
-          transactionHash: permission.transactionHash as Address,
+          transactionHash: permission.transactionHash as Hash,
           user,
         }))
         .sort((a, b) => Number(b.addedAtTimestamp - a.addedAtTimestamp)); // Latest first
@@ -1344,7 +1455,7 @@ export class DataController {
     const { user } = params;
 
     try {
-      const chainId = this.context.walletClient.chain?.id;
+      const chainId = this.context.publicClient.chain?.id;
       if (!chainId) {
         throw new Error("Chain ID not available");
       }
@@ -1437,7 +1548,7 @@ export class DataController {
               addedAtBlock: permissionInfo.startBlock,
               addedAtTimestamp: BigInt(0), // Not available from RPC
               transactionHash:
-                "0x0000000000000000000000000000000000000000" as Address, // Not available from RPC
+                "0x0000000000000000000000000000000000000000" as `0x${string}`, // Not available from RPC
               user,
             };
           } else {
@@ -1450,7 +1561,7 @@ export class DataController {
               addedAtBlock: BigInt(0),
               addedAtTimestamp: BigInt(0),
               transactionHash:
-                "0x0000000000000000000000000000000000000000" as Address,
+                "0x0000000000000000000000000000000000000000" as `0x${string}`,
               user,
             };
           }
@@ -1628,7 +1739,7 @@ export class DataController {
     const { user, limit, offset } = params;
 
     try {
-      const chainId = this.context.walletClient.chain?.id;
+      const chainId = this.context.publicClient.chain?.id;
       if (!chainId) {
         throw new Error("Chain ID not available");
       }
@@ -1767,7 +1878,7 @@ export class DataController {
    */
   async getTotalFilesCount(): Promise<number> {
     try {
-      const chainId = this.context.walletClient.chain?.id;
+      const chainId = this.context.publicClient.chain?.id;
       if (!chainId) {
         throw new Error("Chain ID not available");
       }
@@ -1778,7 +1889,7 @@ export class DataController {
       const dataRegistry = getContract({
         address: dataRegistryAddress,
         abi: dataRegistryAbi,
-        client: this.context.walletClient,
+        client: this.context.publicClient,
       });
 
       const count = await dataRegistry.read.filesCount();
@@ -1828,7 +1939,7 @@ export class DataController {
    */
   async getFileById(fileId: number): Promise<UserFile> {
     try {
-      const chainId = this.context.walletClient.chain?.id;
+      const chainId = this.context.publicClient.chain?.id;
       if (!chainId) {
         throw new Error("Chain ID not available");
       }
@@ -1839,7 +1950,7 @@ export class DataController {
       const dataRegistry = getContract({
         address: dataRegistryAddress,
         abi: dataRegistryAbi,
-        client: this.context.walletClient,
+        client: this.context.publicClient,
       });
 
       const fileDetails = await dataRegistry.read.files([BigInt(fileId)]);
@@ -1908,16 +2019,19 @@ export class DataController {
     url: string,
     schemaId: number,
   ): Promise<TransactionResult<"DataRegistry", "addFileWithSchema">> {
+    this.assertWallet();
+
     try {
-      const chainId = this.context.walletClient.chain?.id;
+      const chainId = this.context.publicClient.chain?.id;
       if (!chainId) {
         throw new Error("Chain ID not available");
       }
 
+      this.assertWallet();
       const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
       const dataRegistryAbi = getAbi("DataRegistry");
       const account =
-        this.context.walletClient.account ?? (await this.getUserAddress());
+        this.context.walletClient.account ?? this.context.userAddress;
       const from = typeof account === "string" ? account : account.address;
 
       const hash = await this.context.walletClient.writeContract({
@@ -1950,13 +2064,6 @@ export class DataController {
    * @returns Promise resolving to the user's wallet address
    * @throws {Error} When no addresses are available in wallet client
    */
-  private async getUserAddress(): Promise<Address> {
-    const addresses = await this.context.walletClient.getAddresses();
-    if (addresses.length === 0) {
-      throw new Error("No addresses available in wallet client");
-    }
-    return addresses[0];
-  }
 
   /**
    * Adds a file with permissions to the DataRegistry contract.
@@ -1979,12 +2086,15 @@ export class DataController {
     ownerAddress: Address,
     permissions: Array<{ account: Address; key: string }> = [],
   ): Promise<TransactionResult<"DataRegistry", "addFileWithPermissions">> {
+    this.assertWallet();
+
     try {
-      const chainId = this.context.walletClient.chain?.id;
+      const chainId = this.context.publicClient.chain?.id;
       if (!chainId) {
         throw new Error("Chain ID not available");
       }
 
+      this.assertWallet();
       const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
       const dataRegistryAbi = getAbi("DataRegistry");
       const account = this.context.walletClient.account ?? ownerAddress;
@@ -2062,11 +2172,14 @@ export class DataController {
   ): Promise<
     TransactionResult<"DataRegistry", "addFileWithPermissionsAndSchema">
   > {
+    this.assertWallet();
+
     try {
       // Process permissions - always encrypt with publicKey
       let encryptedPermissions: Array<{ account: Address; key: string }> = [];
 
       if (permissions.length > 0) {
+        this.assertWallet();
         // Generate user's encryption key
         const userEncryptionKey = await generateEncryptionKey(
           this.context.walletClient,
@@ -2096,8 +2209,8 @@ export class DataController {
         );
       }
 
-      // Call the internal method with encrypted permissions
-      return await this._addFileWithPermissionsAndSchemaInternal(
+      // Call the method with encrypted permissions
+      return await this.addFileWithEncryptedPermissionsAndSchema(
         url,
         ownerAddress,
         encryptedPermissions,
@@ -2112,10 +2225,44 @@ export class DataController {
   }
 
   /**
-   * Internal method to add file with encrypted permissions and schema.
-   * @private
+   * Adds a file with pre-encrypted permissions and schema to the DataRegistry.
+   *
+   * @remarks
+   * This method is designed for relay services and advanced use cases where permissions
+   * have already been encrypted client-side. Unlike `addFileWithPermissionsAndSchema()`,
+   * this method expects permissions in the encrypted format with a 'key' field instead
+   * of 'publicKey'.
+   *
+   * This is typically used by relay endpoints that receive pre-encrypted data from
+   * the client SDK's `upload()` method, avoiding double encryption.
+   *
+   * @param url - The storage URL of the file (e.g., IPFS URL)
+   * @param ownerAddress - The address that will own this file
+   * @param permissions - Array of pre-encrypted permissions with 'account' and 'key' fields
+   * @param schemaId - Optional schema ID for data validation (defaults to 0)
+   * @returns Promise resolving to transaction result with hash and contract details
+   * @throws {Error} When chain ID is not available
+   * @throws {Error} When wallet is not connected
+   * @throws {Error} When transaction fails
+   * @example
+   * ```typescript
+   * // In a relay endpoint that receives pre-encrypted permissions
+   * const result = await vana.data.addFileWithEncryptedPermissionsAndSchema(
+   *   "ipfs://QmXxx...",
+   *   ownerAddress,
+   *   [
+   *     {
+   *       account: "0xServerAddress...",
+   *       key: "encrypted_key_string" // Already encrypted by client
+   *     }
+   *   ],
+   *   schemaId
+   * );
+   *
+   * console.log(`File registered in tx ${result.hash}`);
+   * ```
    */
-  private async _addFileWithPermissionsAndSchemaInternal(
+  async addFileWithEncryptedPermissionsAndSchema(
     url: string,
     ownerAddress: Address,
     permissions: Array<{ account: Address; key: string }> = [],
@@ -2124,11 +2271,12 @@ export class DataController {
     TransactionResult<"DataRegistry", "addFileWithPermissionsAndSchema">
   > {
     try {
-      const chainId = this.context.walletClient.chain?.id;
+      const chainId = this.context.publicClient.chain?.id;
       if (!chainId) {
         throw new Error("Chain ID not available");
       }
 
+      this.assertWallet();
       const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
       const dataRegistryAbi = getAbi("DataRegistry");
       const account = this.context.walletClient.account ?? ownerAddress;
@@ -2188,8 +2336,10 @@ export class DataController {
    * ```
    */
   async addRefiner(params: AddRefinerParams): Promise<AddRefinerResult> {
+    this.assertWallet();
+
     try {
-      const chainId = this.context.walletClient.chain?.id;
+      const chainId = this.context.publicClient.chain?.id;
       if (!chainId) {
         throw new Error("Chain ID not available");
       }
@@ -2199,8 +2349,9 @@ export class DataController {
         "DataRefinerRegistry",
       );
       const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
+      this.assertWallet();
       const account =
-        this.context.walletClient.account ?? (await this.getUserAddress());
+        this.context.walletClient.account ?? this.context.userAddress;
       const from = typeof account === "string" ? account : account.address;
 
       const hash = await this.context.walletClient.writeContract({
@@ -2274,7 +2425,7 @@ export class DataController {
    */
   async getRefiner(refinerId: number): Promise<Refiner> {
     try {
-      const chainId = this.context.walletClient.chain?.id;
+      const chainId = this.context.publicClient.chain?.id;
       if (!chainId) {
         throw new Error("Chain ID not available");
       }
@@ -2288,7 +2439,7 @@ export class DataController {
       const dataRefinerRegistry = getContract({
         address: dataRefinerRegistryAddress,
         abi: dataRefinerRegistryAbi,
-        client: this.context.walletClient,
+        client: this.context.publicClient,
       });
 
       const refinerData = await dataRefinerRegistry.read.refiners([
@@ -2336,7 +2487,7 @@ export class DataController {
    */
   async isValidSchemaId(schemaId: number): Promise<boolean> {
     try {
-      const chainId = this.context.walletClient.chain?.id;
+      const chainId = this.context.publicClient.chain?.id;
       if (!chainId) {
         throw new Error("Chain ID not available");
       }
@@ -2350,7 +2501,7 @@ export class DataController {
       const dataRefinerRegistry = getContract({
         address: dataRefinerRegistryAddress,
         abi: dataRefinerRegistryAbi,
-        client: this.context.walletClient,
+        client: this.context.publicClient,
       });
 
       const isValid = await dataRefinerRegistry.read.isValidSchemaId([
@@ -2379,7 +2530,7 @@ export class DataController {
    */
   async getRefinersCount(): Promise<number> {
     try {
-      const chainId = this.context.walletClient.chain?.id;
+      const chainId = this.context.publicClient.chain?.id;
       if (!chainId) {
         throw new Error("Chain ID not available");
       }
@@ -2393,7 +2544,7 @@ export class DataController {
       const dataRefinerRegistry = getContract({
         address: dataRefinerRegistryAddress,
         abi: dataRefinerRegistryAbi,
-        client: this.context.walletClient,
+        client: this.context.publicClient,
       });
 
       const count = await dataRefinerRegistry.read.refinersCount();
@@ -2429,8 +2580,10 @@ export class DataController {
   async updateSchemaId(
     params: UpdateSchemaIdParams,
   ): Promise<UpdateSchemaIdResult> {
+    this.assertWallet();
+
     try {
-      const chainId = this.context.walletClient.chain?.id;
+      const chainId = this.context.publicClient.chain?.id;
       if (!chainId) {
         throw new Error("Chain ID not available");
       }
@@ -2440,8 +2593,9 @@ export class DataController {
         "DataRefinerRegistry",
       );
       const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
+      this.assertWallet();
       const account =
-        this.context.walletClient.account ?? (await this.getUserAddress());
+        this.context.walletClient.account ?? this.context.userAddress;
 
       const hash = await this.context.walletClient.writeContract({
         address: dataRefinerRegistryAddress,
@@ -2476,18 +2630,16 @@ export class DataController {
    * 3. Encrypts the user's encryption key with the provided public key
    * 4. Registers the file with permissions
    *
-   * @param data - The file data to encrypt and upload
-   * @param permissions - Array of permissions to grant, each with account address and public key
-   * @param filename - Optional filename for the upload
-   * @param providerName - Optional storage provider to use
+   * @param params - Upload parameters including data, permissions, and options
    * @returns Promise resolving to upload result with file ID and storage URL
    */
   async uploadFileWithPermissions(
-    data: Blob,
-    permissions: Array<{ account: Address; publicKey: string }>,
-    filename?: string,
-    providerName?: string,
+    params: UploadFileWithPermissionsParams,
   ): Promise<UploadEncryptedFileResult> {
+    this.assertWallet();
+
+    const { data, permissions, filename, providerName } = params;
+
     try {
       // 1. Upload the file with encryption using the centralized method
       const uploadResult = await this.uploadToStorage(
@@ -2498,7 +2650,7 @@ export class DataController {
       );
 
       // 2. Get user address
-      const userAddress = await this.getUserAddress();
+      const userAddress = this.context.userAddress;
 
       // 3. Generate user's encryption key (same as used in uploadToStorage)
       const userEncryptionKey = await generateEncryptionKey(
@@ -2614,6 +2766,8 @@ export class DataController {
       // Step 3: Handle encryption
       let finalBlob = blob;
       if (encrypt) {
+        this.assertWallet();
+
         // Generate encryption key
         const encryptionKey = await generateEncryptionKey(
           this.context.walletClient,
@@ -2673,25 +2827,32 @@ export class DataController {
    * For advanced users who need more control over transaction timing,
    * use `submitFilePermission()` instead.
    *
-   * @param fileId - The ID of the file to add permissions for
-   * @param account - The address of the account to grant permission to
-   * @param publicKey - The public key to encrypt the user's encryption key with (hex string with 0x prefix)
+   * @param params - Parameters for adding file permission
+   * @param params.fileId - The ID of the file to grant permission for
+   * @param params.account - The recipient's wallet address that will access the file
+   * @param params.publicKey - The recipient's public key for encryption.
+   *   Obtain via `vana.server.getIdentity(account).publicKey`
    * @returns Promise resolving to permission data from PermissionGranted event
    * @throws {Error} "No addresses available in wallet client" - When wallet is not connected
    * @throws {Error} "Chain ID not available" - When wallet chain is not configured
    * @throws {Error} "Failed to add permission to file: {error}" - When transaction fails or user doesn't own file
    * @example
    * ```typescript
-   * const result = await vana.data.addPermissionToFile(fileId, account, publicKey);
+   * const result = await vana.data.addPermissionToFile({
+   *   fileId: 123,
+   *   account: "0xRecipientAddress...",
+   *   publicKey: "0xRecipientPublicKey..."
+   * });
    * console.log(`Permission granted to ${result.account} for file ${result.fileId}`);
    * console.log(`Transaction: ${result.transactionHash}`);
    * ```
    */
   async addPermissionToFile(
-    fileId: number,
-    account: Address,
-    publicKey: string,
+    params: AddFilePermissionParams,
   ): Promise<TransactionResult<"DataRegistry", "addFilePermission">> {
+    this.assertWallet();
+
+    const { fileId, account, publicKey } = params;
     return await this.submitFilePermission(fileId, account, publicKey);
   }
 
@@ -2728,6 +2889,8 @@ export class DataController {
     account: Address,
     publicKey: string,
   ): Promise<TransactionResult<"DataRegistry", "addFilePermission">> {
+    this.assertWallet();
+
     try {
       // 1. Generate user's encryption key
       const userEncryptionKey = await generateEncryptionKey(
@@ -2744,7 +2907,7 @@ export class DataController {
       );
 
       // 3. Submit directly to the blockchain
-      const chainId = this.context.walletClient.chain?.id;
+      const chainId = this.context.publicClient.chain?.id;
       if (!chainId) {
         throw new Error("Chain ID not available");
       }
@@ -2752,8 +2915,9 @@ export class DataController {
       const dataRegistryAddress = getContractAddress(chainId, "DataRegistry");
       const dataRegistryAbi = getAbi("DataRegistry");
 
+      this.assertWallet();
       const walletAccount =
-        this.context.walletClient.account ?? (await this.getUserAddress());
+        this.context.walletClient.account ?? this.context.userAddress;
 
       const txHash = await this.context.walletClient.writeContract({
         address: dataRegistryAddress,
@@ -2791,7 +2955,7 @@ export class DataController {
    */
   async getFilePermission(fileId: number, account: Address): Promise<string> {
     try {
-      const chainId = this.context.walletClient.chain?.id;
+      const chainId = this.context.publicClient.chain?.id;
       if (!chainId) {
         throw new Error("Chain ID not available");
       }
@@ -2802,7 +2966,7 @@ export class DataController {
       const dataRegistry = getContract({
         address: dataRegistryAddress,
         abi: dataRegistryAbi,
-        client: this.context.walletClient,
+        client: this.context.publicClient,
       });
 
       const encryptedKey = await dataRegistry.read.filePermissions([
@@ -2829,17 +2993,18 @@ export class DataController {
    *
    * @param file - The file to decrypt
    * @param privateKey - The private key to decrypt the user's encryption key
-   * @param account - The account address that has permission (defaults to current wallet account)
+   * @param options - Optional decryption configuration
+   * @param options.account - The account address that has permission (defaults to current wallet account)
    * @returns Promise resolving to the decrypted file data
    */
   async decryptFileWithPermission(
     file: UserFile,
     privateKey: string,
-    account?: Address,
+    options?: DecryptFileWithPermissionOptions,
   ): Promise<Blob> {
     try {
       // Use provided account or get current wallet account
-      const permissionAccount = account ?? (await this.getUserAddress());
+      const permissionAccount = options?.account ?? this.context.userAddress;
 
       // 1. Get the encrypted encryption key from file permissions
       const encryptedKey = await this.getFilePermission(

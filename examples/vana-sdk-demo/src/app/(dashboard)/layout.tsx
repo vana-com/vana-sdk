@@ -126,7 +126,9 @@ export default function DashboardLayout({
       <div className="min-h-screen bg-background">
         <Navbar isBordered>
           <NavbarBrand>
-            <h1 className="text-xl font-bold text-foreground">Vana SDK Demo</h1>
+            <h1 className="text-xl font-bold text-foreground">
+              Vana SDK Demo {isConnected ? "(✅ Full Mode)" : "(🔒 Read-Only)"}
+            </h1>
           </NavbarBrand>
           <NavbarContent justify="end">
             <NavbarItem>
@@ -158,7 +160,9 @@ export default function DashboardLayout({
       <div className="min-h-screen bg-background">
         <Navbar isBordered>
           <NavbarBrand>
-            <h1 className="text-xl font-bold text-foreground">Vana SDK Demo</h1>
+            <h1 className="text-xl font-bold text-foreground">
+              Vana SDK Demo {isConnected ? "(✅ Full Mode)" : "(🔒 Read-Only)"}
+            </h1>
           </NavbarBrand>
           <NavbarContent justify="end">
             <NavbarItem>

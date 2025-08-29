@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Address } from "viem";
+
 import { PermissionsController } from "../controllers/permissions";
 import type { ControllerContext } from "../controllers/permissions";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
@@ -106,6 +106,7 @@ describe("Permissions Server Files and Permissions", () => {
       publicClient:
         mockPublicClient as unknown as ControllerContext["publicClient"],
       platform: mockPlatformAdapter,
+      userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
     };
 
     controller = new PermissionsController(mockContext);
@@ -120,7 +121,8 @@ describe("Permissions Server Files and Permissions", () => {
       name: "VanaDataPortabilityPermissions",
       version: "1",
       chainId: 14800,
-      verifyingContract: "0x1234567890123456789012345678901234567890",
+      verifyingContract:
+        "0x1234567890123456789012345678901234567890" as `0x${string}`,
     });
   });
 
@@ -130,13 +132,15 @@ describe("Permissions Server Files and Permissions", () => {
       grant: "ipfs://QmTestGrant123",
       fileUrls: ["https://storage.example.com/file1.json"],
       schemaIds: [0],
-      serverAddress: "0x1234567890123456789012345678901234567890" as Address,
+      serverAddress:
+        "0x1234567890123456789012345678901234567890" as `0x${string}`,
       serverUrl: "https://server.example.com",
       serverPublicKey: "server-public-key",
       filePermissions: [
         [
           {
-            account: "0x1234567890123456789012345678901234567890" as Address,
+            account:
+              "0x1234567890123456789012345678901234567890" as `0x${string}`,
             key: "encrypted-key",
           },
         ],
@@ -186,19 +190,22 @@ describe("Permissions Server Files and Permissions", () => {
         filePermissions: [
           [
             {
-              account: "0x1234567890123456789012345678901234567890" as Address,
+              account:
+                "0x1234567890123456789012345678901234567890" as `0x${string}`,
               key: "key1",
             },
           ],
           [
             {
-              account: "0x1234567890123456789012345678901234567890" as Address,
+              account:
+                "0x1234567890123456789012345678901234567890" as `0x${string}`,
               key: "key2",
             },
           ],
           [
             {
-              account: "0x1234567890123456789012345678901234567890" as Address,
+              account:
+                "0x1234567890123456789012345678901234567890" as `0x${string}`,
               key: "key3",
             },
           ],
@@ -300,7 +307,8 @@ describe("Permissions Server Files and Permissions", () => {
         name: "VanaDataPortabilityPermissions",
         version: "1",
         chainId: 14800,
-        verifyingContract: "0x1234567890123456789012345678901234567890",
+        verifyingContract:
+          "0x1234567890123456789012345678901234567890" as `0x${string}`,
       });
 
       const result =

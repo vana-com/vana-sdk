@@ -8,6 +8,8 @@ import type {
 import {
   isWalletConfig,
   isChainConfig,
+  isReadOnlyConfig,
+  isAddressOnlyConfig,
   isVanaChainId,
   hasStorageConfig,
 } from "./types";
@@ -30,7 +32,9 @@ import type {
   Address,
   Hash,
   TransactionReceipt,
+  Chain,
 } from "viem";
+import { extractAddress } from "./utils/wallet";
 import type {
   Operation,
   PollingOptions,
@@ -43,7 +47,7 @@ import type {
   TypedTransactionResult,
 } from "./generated/event-types";
 import { chains } from "./config/chains";
-import { getChainConfig } from "./chains";
+import { getChainConfig, vanaMainnet } from "./chains";
 import type { VanaPlatformAdapter } from "./platform/interface";
 import {
   encryptBlobWithSignedKey,
@@ -169,9 +173,9 @@ export class VanaCore {
   private readonly storageManager?: StorageManager;
   private readonly hasRequiredStorage: boolean;
   private readonly ipfsGateways?: string[];
-  private readonly defaultPersonalServerUrl?: string;
   private readonly publicClient: PublicClient;
-  private readonly walletClient: WalletClient;
+  private readonly walletClient?: WalletClient;
+  private readonly _staticUserAddress?: Address; // For read-only mode
 
   /**
    * Initializes a new VanaCore client instance with the provided configuration.
@@ -210,9 +214,6 @@ export class VanaCore {
     // Store IPFS gateways if provided
     this.ipfsGateways = config.ipfsGateways;
 
-    // Store default personal server URL if provided
-    this.defaultPersonalServerUrl = config.defaultPersonalServerUrl;
-
     // Check if storage is properly configured
     this.hasRequiredStorage = hasStorageConfig(config);
 
@@ -236,14 +237,47 @@ export class VanaCore {
       }
     }
 
-    // Create wallet client based on configuration type
-    let walletClient;
+    // Initialize clients based on configuration type
+    let walletClient: WalletClient | undefined;
+    let publicClient: PublicClient;
+    let staticUserAddress: Address | undefined; // Only for read-only mode
+    let chainToUse: Chain;
 
     if (isWalletConfig(config)) {
-      // Direct wallet client configuration
+      // Full mode with wallet client
       walletClient = config.walletClient;
+      chainToUse = (walletClient.chain as Chain) ?? vanaMainnet;
+
+      // In wallet mode, address is dynamic (not stored)
+      staticUserAddress = undefined;
+
+      // Use provided publicClient or create one
+      if ("publicClient" in config && config.publicClient) {
+        publicClient = config.publicClient;
+      } else {
+        publicClient = createPublicClient({
+          chain: chainToUse,
+          transport: http(),
+        });
+      }
+    } else if (isReadOnlyConfig(config)) {
+      // Read-only mode with public client and address
+      walletClient = undefined;
+      publicClient = config.publicClient;
+      staticUserAddress = config.address;
+      chainToUse = config.publicClient.chain ?? vanaMainnet;
+    } else if (isAddressOnlyConfig(config)) {
+      // Read-only mode with just address (create public client)
+      walletClient = undefined;
+      staticUserAddress = config.address;
+      chainToUse = config.chain ?? vanaMainnet;
+
+      publicClient = createPublicClient({
+        chain: chainToUse,
+        transport: http(),
+      });
     } else if (isChainConfig(config)) {
-      // Chain configuration - create wallet client
+      // Legacy chain configuration - create wallet client
       if (!config.account) {
         throw new InvalidConfigurationError(
           "Account is required when using ChainConfig",
@@ -257,35 +291,44 @@ export class VanaCore {
         );
       }
 
+      chainToUse = chain;
       walletClient = createWalletClient({
         chain,
         transport: http(config.rpcUrl ?? chain.rpcUrls.default.http[0]),
         account: config.account,
       });
+      // In wallet mode, address is dynamic (not stored)
+      staticUserAddress = undefined;
+      publicClient = createPublicClient({
+        chain,
+        transport: http(),
+      });
     } else {
       throw new InvalidConfigurationError(
-        "Invalid configuration: must be either WalletConfig or ChainConfig",
+        "Invalid configuration: must provide either walletClient, publicClient + address, or address alone",
       );
     }
 
-    // Create public client for reading contracts
-    const publicClient = createPublicClient({
-      chain: walletClient.chain,
-      transport: http(),
-    });
-
-    // Store the clients for later use
+    // Store the clients and static address for later use
     this.publicClient = publicClient;
     this.walletClient = walletClient;
+    this._staticUserAddress = staticUserAddress;
 
-    // Get default subgraph URL if not provided in config
-    const chainConfig = getChainConfig(walletClient.chain.id);
+    // Get default service URLs from chain config if not provided
+    const chainConfig = getChainConfig(chainToUse.id);
     const subgraphUrl = config.subgraphUrl ?? chainConfig?.subgraphUrl;
+    const personalServerUrl =
+      config.defaultPersonalServerUrl ?? chainConfig?.personalServerUrl;
 
-    // Create shared context for all controllers, now including the platform adapter
+    // Create shared context for all controllers with dynamic userAddress getter
+    const self = this; // Capture VanaCore instance for getter delegation
     const sharedContext: ControllerContext = {
       walletClient,
       publicClient,
+      get userAddress() {
+        // Delegate to VanaCore's getter for dynamic resolution
+        return self.userAddress;
+      },
       applicationClient: walletClient, // Using same wallet for now
       relayerCallbacks: this.relayerCallbacks,
       downloadRelayer: this.downloadRelayer,
@@ -295,7 +338,7 @@ export class VanaCore {
       validateStorageRequired: this.validateStorageRequired.bind(this),
       hasStorage: this.hasStorage.bind(this),
       ipfsGateways: this.ipfsGateways,
-      defaultPersonalServerUrl: this.defaultPersonalServerUrl,
+      defaultPersonalServerUrl: personalServerUrl,
       waitForTransactionEvents: this.waitForTransactionEvents.bind(this),
       waitForOperation: this.waitForOperation.bind(this),
     };
@@ -481,9 +524,29 @@ export class VanaCore {
           );
         }
       }
+    } else if (isReadOnlyConfig(config)) {
+      // Validate read-only config with publicClient and address
+      if (!config.publicClient) {
+        throw new InvalidConfigurationError(
+          "publicClient is required for read-only configuration",
+        );
+      }
+      if (!config.address) {
+        throw new InvalidConfigurationError(
+          "address is required for read-only configuration",
+        );
+      }
+    } else if (isAddressOnlyConfig(config)) {
+      // Validate address-only config
+      if (!config.address) {
+        throw new InvalidConfigurationError(
+          "address is required for address-only configuration",
+        );
+      }
+      // chain is optional, will use default
     } else {
       throw new InvalidConfigurationError(
-        "Configuration must be either WalletConfig or ChainConfig",
+        "Invalid configuration: must provide either walletClient, publicClient + address, or address alone",
       );
     }
   }
@@ -517,33 +580,28 @@ export class VanaCore {
   }
 
   /**
-   * Retrieves the user's wallet address from the connected client.
+   * The user's wallet address.
+   * In wallet mode, this always returns the current wallet account address.
+   * In read-only mode, this returns the static address provided during initialization.
    *
-   * @returns A Promise that resolves to the user's Ethereum address
    * @example
    * ```typescript
-   * const address = await vana.getUserAddress();
+   * const address = vana.userAddress;
    * console.log(`User address: ${address}`); // e.g., "User address: 0x742d35..."
    * ```
    */
-  async getUserAddress(): Promise<Address> {
-    if (!this.walletClient.account) {
-      throw new Error("No wallet account connected");
+  get userAddress(): Address {
+    // In wallet mode: dynamically read from wallet
+    if (this.walletClient?.account) {
+      return extractAddress(this.walletClient.account);
     }
 
-    const { account } = this.walletClient;
-
-    // Return the account address directly if available
-    if (typeof account === "string") {
-      return account as Address;
+    // In read-only mode: use static address
+    if (this._staticUserAddress) {
+      return this._staticUserAddress;
     }
 
-    // If account is an object, get the address property
-    if (typeof account === "object" && account.address) {
-      return account.address;
-    }
-
-    throw new Error("Unable to determine wallet address");
+    throw new Error("No user address available");
   }
 
   /**

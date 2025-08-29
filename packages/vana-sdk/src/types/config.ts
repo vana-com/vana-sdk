@@ -1,4 +1,11 @@
-import type { WalletClient, Account, Hash, Address } from "viem";
+import type {
+  WalletClient,
+  PublicClient,
+  Account,
+  Hash,
+  Address,
+  Chain,
+} from "viem";
 import type { VanaChainId, VanaChain } from "./chains";
 import type {
   StorageProvider,
@@ -631,56 +638,137 @@ export interface ChainConfigWithStorage extends BaseConfigWithStorage {
 }
 
 /**
+ * Configuration with wallet client and optional public client
+ *
+ * @category Configuration
+ */
+export interface VanaConfigWithWallet extends BaseConfig {
+  /** The viem WalletClient instance used for signing transactions */
+  walletClient: WalletClient;
+  /** Optional PublicClient for read operations (derived from wallet if not provided) */
+  publicClient?: PublicClient;
+}
+
+/**
+ * Configuration for read-only operations with public client and address
+ *
+ * @category Configuration
+ */
+export interface VanaConfigReadOnly extends BaseConfig {
+  /** The viem PublicClient instance for read operations */
+  publicClient: PublicClient;
+  /** The user's address for read operations */
+  address: Address;
+}
+
+/**
+ * Configuration for minimal read-only operations with just an address
+ *
+ * @category Configuration
+ */
+export interface VanaConfigAddressOnly extends BaseConfig {
+  /** The user's address for read operations */
+  address: Address;
+  /** Optional chain configuration (will use default if not provided) */
+  chain?: Chain;
+}
+
+/**
+ * Configuration with wallet client and optional public client that requires storage
+ *
+ * @category Configuration
+ */
+export interface VanaConfigWithWalletWithStorage extends BaseConfigWithStorage {
+  /** The viem WalletClient instance used for signing transactions */
+  walletClient: WalletClient;
+  /** Optional PublicClient for read operations (derived from wallet if not provided) */
+  publicClient?: PublicClient;
+}
+
+/**
+ * Configuration for read-only operations with public client and address that requires storage
+ *
+ * @category Configuration
+ */
+export interface VanaConfigReadOnlyWithStorage extends BaseConfigWithStorage {
+  /** The viem PublicClient instance for read operations */
+  publicClient: PublicClient;
+  /** The user's address for read operations */
+  address: Address;
+}
+
+/**
+ * Configuration for minimal read-only operations with just an address that requires storage
+ *
+ * @category Configuration
+ */
+export interface VanaConfigAddressOnlyWithStorage
+  extends BaseConfigWithStorage {
+  /** The user's address for read operations */
+  address: Address;
+  /** Optional chain configuration (will use default if not provided) */
+  chain?: Chain;
+}
+
+/**
  * Main configuration interface for initializing the Vana SDK.
  *
- * You can configure the SDK using either a pre-configured wallet client
- * (WalletConfig) or by providing chain and account details (ChainConfig).
- * Both approaches support optional storage providers and relayer configuration.
+ * The SDK supports three initialization modes:
+ * 1. Full mode with wallet client for signing transactions
+ * 2. Read-only mode with public client and address for read operations
+ * 3. Minimal mode with just an address and optional chain
  *
  * @category Configuration
  * @example
  * ```typescript
- * // Using WalletConfig with pre-configured client
- * const config: VanaConfig = {
+ * // Mode 1: Full configuration with wallet client
+ * const configWithWallet: VanaConfig = {
  *   walletClient: createWalletClient({
  *     account: privateKeyToAccount('0x...'),
  *     chain: moksha,
  *     transport: http()
  *   }),
- *   relayerCallbacks: {
- *     submitPermissionGrant: async (typedData, signature) => {
- *       // Custom relay implementation
- *       return await myRelayer.submit(typedData, signature);
- *     }
- *   }
+ *   publicClient: createPublicClient({
+ *     chain: moksha,
+ *     transport: http()
+ *   })
  * };
  *
- * // Using ChainConfig with chain ID and account
- * const config: VanaConfig = {
- *   chainId: 14800,
- *   account: privateKeyToAccount('0x...'),
- *   relayerCallbacks: {
- *     submitPermissionGrant: async (typedData, signature) => {
- *       // Custom relay implementation
- *       return await myRelayer.submit(typedData, signature);
- *     }
- *   }
+ * // Mode 2: Read-only with public client and address
+ * const configReadOnly: VanaConfig = {
+ *   publicClient: createPublicClient({
+ *     chain: moksha,
+ *     transport: http()
+ *   }),
+ *   address: '0x1234...'
+ * };
+ *
+ * // Mode 3: Minimal with just address
+ * const configMinimal: VanaConfig = {
+ *   address: '0x1234...',
+ *   chain: moksha // optional
  * };
  * ```
  */
-export type VanaConfig = WalletConfig | ChainConfig;
+export type VanaConfig =
+  | VanaConfigWithWallet
+  | VanaConfigReadOnly
+  | VanaConfigAddressOnly
+  | WalletConfig
+  | ChainConfig;
 
 /**
  * Configuration interface for Vana SDK that requires storage providers.
  *
  * Use this type when you need to ensure storage is configured for operations
  * like file uploads, permission grants without pre-stored URLs, or schema creation.
+ * Supports all three initialization modes with required storage.
  *
  * @category Configuration
  * @example
  * ```typescript
- * // Configuration that guarantees storage availability
- * const config: VanaConfigWithStorage = {
+ * // Full configuration with wallet client and storage
+ * const configWithWallet: VanaConfigWithStorage = {
  *   walletClient: createWalletClient({
  *     account: privateKeyToAccount('0x...'),
  *     chain: moksha,
@@ -693,9 +781,27 @@ export type VanaConfig = WalletConfig | ChainConfig;
  *     defaultProvider: 'ipfs'
  *   }
  * };
+ *
+ * // Read-only configuration with storage
+ * const configReadOnly: VanaConfigWithStorage = {
+ *   publicClient: createPublicClient({
+ *     chain: moksha,
+ *     transport: http()
+ *   }),
+ *   address: '0x1234...',
+ *   storage: {
+ *     providers: {
+ *       ipfs: new IPFSStorage({ gateway: 'https://gateway.pinata.cloud' })
+ *     },
+ *     defaultProvider: 'ipfs'
+ *   }
+ * };
  * ```
  */
 export type VanaConfigWithStorage =
+  | VanaConfigWithWalletWithStorage
+  | VanaConfigReadOnlyWithStorage
+  | VanaConfigAddressOnlyWithStorage
   | WalletConfigWithStorage
   | ChainConfigWithStorage;
 
@@ -718,21 +824,68 @@ export interface RuntimeConfig {
 }
 
 /**
- * Validates whether a configuration object is a WalletConfig.
+ * Validates whether a configuration object has a wallet client (any wallet-based config).
  *
  * @param config - The configuration object to check
- * @returns True if the config is a WalletConfig (contains walletClient)
+ * @returns True if the config contains a walletClient
  * @example
  * ```typescript
  * if (isWalletConfig(config)) {
  *   console.log('Using wallet client:', config.walletClient.account?.address);
  * } else {
- *   console.log('Using chain config with chain ID:', config.chainId);
+ *   console.log('Read-only or chain config');
  * }
  * ```
  */
-export function isWalletConfig(config: VanaConfig): config is WalletConfig {
+export function isWalletConfig(
+  config: VanaConfig,
+): config is VanaConfigWithWallet | WalletConfig {
   return "walletClient" in config;
+}
+
+/**
+ * Validates whether a configuration object is a read-only config with public client.
+ *
+ * @param config - The configuration object to check
+ * @returns True if the config has publicClient and address but no walletClient
+ * @example
+ * ```typescript
+ * if (isReadOnlyConfig(config)) {
+ *   console.log('Read-only mode with address:', config.address);
+ * }
+ * ```
+ */
+export function isReadOnlyConfig(
+  config: VanaConfig,
+): config is VanaConfigReadOnly {
+  return (
+    "publicClient" in config &&
+    "address" in config &&
+    !("walletClient" in config)
+  );
+}
+
+/**
+ * Validates whether a configuration object is an address-only config.
+ *
+ * @param config - The configuration object to check
+ * @returns True if the config has only address (and optionally chain) but no clients
+ * @example
+ * ```typescript
+ * if (isAddressOnlyConfig(config)) {
+ *   console.log('Address-only mode:', config.address);
+ * }
+ * ```
+ */
+export function isAddressOnlyConfig(
+  config: VanaConfig,
+): config is VanaConfigAddressOnly {
+  return (
+    "address" in config &&
+    !("publicClient" in config) &&
+    !("walletClient" in config) &&
+    !("chainId" in config)
+  );
 }
 
 /**

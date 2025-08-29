@@ -439,6 +439,80 @@ export interface DeleteFileResult {
 }
 
 /**
+ * Options for encrypting a file
+ *
+ * @category Data Management
+ */
+export interface EncryptFileOptions {
+  /** Encryption seed for key derivation. Defaults to DEFAULT_ENCRYPTION_SEED */
+  seed?: string;
+  /** MIME type for the encrypted blob if input is not already a Blob */
+  mimeType?: string;
+}
+
+/**
+ * Result of encrypting a file
+ *
+ * @category Data Management
+ */
+export interface EncryptFileResult {
+  /** The encrypted data as a Blob */
+  encryptedData: Blob;
+  /** The encryption key used (derived from wallet) */
+  encryptionKey: string;
+}
+
+/**
+ * Options for decrypting a file
+ *
+ * @category Data Management
+ */
+export interface DecryptFileOptions {
+  /** Encryption seed for key derivation. Defaults to DEFAULT_ENCRYPTION_SEED */
+  seed?: string;
+}
+
+/**
+ * Parameters for uploading a file with permissions
+ *
+ * @category Data Management
+ */
+export interface UploadFileWithPermissionsParams {
+  /** The file data to encrypt and upload */
+  data: Blob;
+  /** Array of permissions to grant, each with account address and public key */
+  permissions: Array<{ account: Address; publicKey: string }>;
+  /** Optional filename for the upload */
+  filename?: string;
+  /** Optional storage provider to use */
+  providerName?: string;
+}
+
+/**
+ * Parameters for adding permission to a file
+ *
+ * @category Data Management
+ */
+export interface AddFilePermissionParams {
+  /** The file ID to grant permission for */
+  fileId: number;
+  /** The account to grant permission to */
+  account: Address;
+  /** The public key of the account for encryption */
+  publicKey: string;
+}
+
+/**
+ * Options for decrypting a file with permission
+ *
+ * @category Data Management
+ */
+export interface DecryptFileWithPermissionOptions {
+  /** Optional account address to verify permission against */
+  account?: Address;
+}
+
+/**
  * File access permissions
  *
  * @category Data Management

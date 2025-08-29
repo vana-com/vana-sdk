@@ -48,6 +48,8 @@ export interface VanaContextValue {
   isInitialized: boolean;
   error: Error | null;
   applicationAddress: string;
+  isReadOnly: boolean;
+  readOnlyAddress?: string;
 }
 
 const VanaContext = createContext<VanaContextValue | undefined>(undefined);
@@ -56,6 +58,8 @@ interface VanaProviderProps {
   children: ReactNode;
   config: VanaConfig;
   useGaslessTransactions?: boolean;
+  enableReadOnlyMode?: boolean;
+  readOnlyAddress?: string;
 }
 
 // Helper to serialize bigint values for JSON
@@ -301,6 +305,8 @@ export function VanaProvider({
   children,
   config,
   useGaslessTransactions = true,
+  enableReadOnlyMode = false,
+  readOnlyAddress,
 }: VanaProviderProps) {
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
@@ -308,12 +314,55 @@ export function VanaProvider({
   const [isInitialized, setIsInitialized] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [applicationAddress, setApplicationAddress] = useState<string>("");
+  const [isReadOnly, setIsReadOnly] = useState(false);
 
-  // Initialize Vana SDK when wallet is connected
+  // Initialize Vana SDK when wallet is connected OR in read-only mode
   useEffect(() => {
+    // Handle read-only mode
+    if (enableReadOnlyMode && readOnlyAddress) {
+      const initializeReadOnlyVana = async () => {
+        try {
+          console.info("📖 Initializing Vana SDK in read-only mode");
+
+          // Initialize with just an address for read-only operations
+          const vanaInstance = Vana({
+            address: readOnlyAddress as Address,
+            chain: walletClient?.chain, // Use chain from wallet if available, otherwise defaults to mainnet
+            ...(config.subgraphUrl && { subgraphUrl: config.subgraphUrl }),
+            defaultPersonalServerUrl: config.defaultPersonalServerUrl,
+          });
+
+          setVana(vanaInstance);
+          setIsInitialized(true);
+          setIsReadOnly(true);
+          console.info("✅ Vana SDK initialized in read-only mode");
+
+          // Fetch application address for display purposes
+          const appAddress = await fetchApplicationAddress();
+          if (appAddress) setApplicationAddress(appAddress);
+        } catch (err) {
+          console.error(
+            "Failed to initialize Vana SDK in read-only mode:",
+            err,
+          );
+          setError(
+            err instanceof Error
+              ? err
+              : new Error("Failed to initialize Vana SDK in read-only mode"),
+          );
+          setIsInitialized(false);
+        }
+      };
+
+      void initializeReadOnlyVana();
+      return;
+    }
+
+    // Handle full mode (requires wallet)
     if (!isConnected || !walletClient?.account) {
       setVana(null);
       setIsInitialized(false);
+      setIsReadOnly(false);
       return;
     }
 
@@ -459,7 +508,7 @@ export function VanaProvider({
           },
         };
 
-        // Initialize Vana SDK
+        // Initialize Vana SDK in full mode
         const vanaInstance = Vana({
           walletClient: walletClient as WalletClient & { chain: VanaChain },
           relayerCallbacks,
@@ -474,7 +523,11 @@ export function VanaProvider({
 
         setVana(vanaInstance);
         setIsInitialized(true);
-        console.info("✅ Vana SDK initialized:", vanaInstance.getConfig());
+        setIsReadOnly(false);
+        console.info(
+          "✅ Vana SDK initialized in full mode:",
+          vanaInstance.getConfig(),
+        );
 
         // Fetch application address for permission granting
         const appAddress = await fetchApplicationAddress();
@@ -499,13 +552,22 @@ export function VanaProvider({
     config.subgraphUrl,
     config.defaultStorageProvider,
     useGaslessTransactions,
+    enableReadOnlyMode,
+    readOnlyAddress,
     // Note: Other config changes (Pinata, Google Drive) don't require full re-init
     // They can be handled by the storage provider setup
   ]);
 
   return (
     <VanaContext.Provider
-      value={{ vana, isInitialized, error, applicationAddress }}
+      value={{
+        vana,
+        isInitialized,
+        error,
+        applicationAddress,
+        isReadOnly,
+        readOnlyAddress,
+      }}
     >
       {children}
     </VanaContext.Provider>

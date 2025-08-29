@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ControllerContext } from "../controllers/permissions";
 import { PermissionsController } from "../controllers/permissions";
 import { getContractAddress } from "../config/addresses";
-import type { Address, Hash } from "viem";
+import type { Hash } from "viem";
 import { UserRejectedRequestError } from "../errors";
 import {
   createTypedMockWalletClient,
@@ -41,7 +41,7 @@ describe("PermissionsController - Grantee Methods", () => {
     mockPublicClient = createTypedMockPublicClient();
     mockWalletClient = createTypedMockWalletClient({
       account: createMockAccount({
-        address: "0xUserAddress" as Address,
+        address: "0xUserAddress",
       }),
     });
 
@@ -50,6 +50,7 @@ describe("PermissionsController - Grantee Methods", () => {
       walletClient: mockWalletClient,
       applicationClient: createTypedMockWalletClient(),
       platform: mockPlatformAdapter,
+      userAddress: "0xUserAddress",
       waitForTransactionEvents: vi.fn().mockResolvedValue({
         hash: "0xtxhash",
         from: "0xfrom",
@@ -64,19 +65,16 @@ describe("PermissionsController - Grantee Methods", () => {
     controller = new PermissionsController(mockContext);
 
     // Mock contract address
-    vi.mocked(getContractAddress).mockReturnValue(
-      "0xGranteeContract" as Address,
-    );
+    vi.mocked(getContractAddress).mockReturnValue("0xGranteeContract");
   });
 
   describe("getGranteeByAddress", () => {
     it("should return grantee information for a valid address", async () => {
-      const granteeAddress =
-        "0x1234567890123456789012345678901234567890" as Address;
+      const granteeAddress = "0x1234567890123456789012345678901234567890";
 
       // Mock the first contract call (granteeByAddress)
       vi.mocked(mockPublicClient.readContract).mockResolvedValueOnce({
-        owner: "0xOwnerAddress" as Address,
+        owner: "0xOwnerAddress" as `0x${string}`,
         granteeAddress,
         publicKey: "0xPublicKey123",
         permissionIds: [1n, 2n, 3n],
@@ -89,7 +87,7 @@ describe("PermissionsController - Grantee Methods", () => {
 
       expect(result).toEqual({
         id: 42,
-        owner: "0xOwnerAddress" as Address,
+        owner: "0xOwnerAddress" as `0x${string}`,
         address: granteeAddress,
         publicKey: "0xPublicKey123",
         permissionIds: [1, 2, 3],
@@ -112,8 +110,7 @@ describe("PermissionsController - Grantee Methods", () => {
     });
 
     it("should return null when contract call fails", async () => {
-      const granteeAddress =
-        "0x1234567890123456789012345678901234567890" as Address;
+      const granteeAddress = "0x1234567890123456789012345678901234567890";
 
       // Mock contract call to throw error
       vi.mocked(mockPublicClient.readContract).mockRejectedValue(
@@ -143,8 +140,9 @@ describe("PermissionsController - Grantee Methods", () => {
 
       // Mock the contract call
       vi.mocked(mockPublicClient.readContract).mockResolvedValueOnce({
-        owner: "0xOwnerAddress" as Address,
-        granteeAddress: "0x1234567890123456789012345678901234567890" as Address,
+        owner: "0xOwnerAddress" as `0x${string}`,
+        granteeAddress:
+          "0x1234567890123456789012345678901234567890" as `0x${string}`,
         publicKey: "0xPublicKey123",
         permissionIds: [10n, 20n, 30n],
       });
@@ -153,7 +151,7 @@ describe("PermissionsController - Grantee Methods", () => {
 
       expect(result).toEqual({
         id: 42,
-        owner: "0xOwnerAddress" as Address,
+        owner: "0xOwnerAddress" as `0x${string}`,
         address: "0x1234567890123456789012345678901234567890",
         publicKey: "0xPublicKey123",
         permissionIds: [10, 20, 30],
@@ -194,8 +192,8 @@ describe("PermissionsController - Grantee Methods", () => {
   describe("submitRegisterGrantee", () => {
     it("should submit a transaction to register a grantee", async () => {
       const params = {
-        owner: "0xOwnerAddress" as Address,
-        granteeAddress: "0xGranteeAddress" as Address,
+        owner: "0xOwnerAddress" as `0x${string}`,
+        granteeAddress: "0xGranteeAddress" as `0x${string}`,
         publicKey: "0xPublicKey123",
       };
 
@@ -218,10 +216,10 @@ describe("PermissionsController - Grantee Methods", () => {
       );
     });
 
-    it("should get user address when wallet account is not set", async () => {
+    it("should throw error when wallet account is not set", async () => {
       const params = {
-        owner: "0xOwnerAddress" as Address,
-        granteeAddress: "0xGranteeAddress" as Address,
+        owner: "0xOwnerAddress" as `0x${string}`,
+        granteeAddress: "0xGranteeAddress" as `0x${string}`,
         publicKey: "0xPublicKey123",
       };
 
@@ -231,40 +229,17 @@ describe("PermissionsController - Grantee Methods", () => {
         account: undefined,
       };
       mockContext.walletClient = walletClientWithoutAccount;
+      mockContext.userAddress = "0xUserAddress";
 
-      // Mock getUserAddress private method
-      const getUserAddressSpy = vi
-        .spyOn(
-          controller as unknown as { getUserAddress: () => Promise<string> },
-          "getUserAddress",
-        )
-        .mockResolvedValueOnce("0xUserAddress" as Address);
-
-      const expectedTxHash = "0xTransactionHash123" as Hash;
-      vi.mocked(walletClientWithoutAccount.writeContract).mockResolvedValueOnce(
-        expectedTxHash,
+      await expect(controller.submitRegisterGrantee(params)).rejects.toThrow(
+        "No wallet account connected",
       );
-
-      const result = await controller.submitRegisterGrantee(params);
-
-      expect(result.hash).toBe(expectedTxHash);
-      expect(getUserAddressSpy).toHaveBeenCalled();
-      expect(walletClientWithoutAccount.writeContract).toHaveBeenCalledWith(
-        expect.objectContaining({
-          functionName: "registerGrantee",
-          args: [params.owner, params.granteeAddress, params.publicKey],
-          account: "0xUserAddress",
-          chain: walletClientWithoutAccount.chain,
-        }),
-      );
-
-      getUserAddressSpy.mockRestore();
     });
 
     it("should handle transaction errors", async () => {
       const params = {
-        owner: "0xOwnerAddress" as Address,
-        granteeAddress: "0xGranteeAddress" as Address,
+        owner: "0xOwnerAddress" as `0x${string}`,
+        granteeAddress: "0xGranteeAddress" as `0x${string}`,
         publicKey: "0xPublicKey123",
       };
 
@@ -293,20 +268,20 @@ describe("PermissionsController - Grantee Methods", () => {
       // Mock individual grantee fetches
       vi.mocked(mockPublicClient.readContract)
         .mockResolvedValueOnce({
-          owner: "0xOwner1" as Address,
-          granteeAddress: "0xGrantee1" as Address,
+          owner: "0xOwner1" as `0x${string}`,
+          granteeAddress: "0xGrantee1" as `0x${string}`,
           publicKey: "0xKey1",
           permissionIds: [1n, 2n],
         })
         .mockResolvedValueOnce({
-          owner: "0xOwner2" as Address,
-          granteeAddress: "0xGrantee2" as Address,
+          owner: "0xOwner2" as `0x${string}`,
+          granteeAddress: "0xGrantee2" as `0x${string}`,
           publicKey: "0xKey2",
           permissionIds: [3n],
         })
         .mockResolvedValueOnce({
-          owner: "0xOwner3" as Address,
-          granteeAddress: "0xGrantee3" as Address,
+          owner: "0xOwner3" as `0x${string}`,
+          granteeAddress: "0xGrantee3" as `0x${string}`,
           publicKey: "0xKey3",
           permissionIds: [],
         });
@@ -317,21 +292,21 @@ describe("PermissionsController - Grantee Methods", () => {
         grantees: [
           {
             id: 1,
-            owner: "0xOwner1",
+            owner: "0xOwner1" as `0x${string}`,
             address: "0xGrantee1",
             publicKey: "0xKey1",
             permissionIds: [1, 2],
           },
           {
             id: 2,
-            owner: "0xOwner2",
+            owner: "0xOwner2" as `0x${string}`,
             address: "0xGrantee2",
             publicKey: "0xKey2",
             permissionIds: [3],
           },
           {
             id: 3,
-            owner: "0xOwner3",
+            owner: "0xOwner3" as `0x${string}`,
             address: "0xGrantee3",
             publicKey: "0xKey3",
             permissionIds: [],
@@ -351,15 +326,15 @@ describe("PermissionsController - Grantee Methods", () => {
       // Mock individual grantee fetches - second one fails
       vi.mocked(mockPublicClient.readContract)
         .mockResolvedValueOnce({
-          owner: "0xOwner2" as Address,
-          granteeAddress: "0xGrantee2" as Address,
+          owner: "0xOwner2" as `0x${string}`,
+          granteeAddress: "0xGrantee2" as `0x${string}`,
           publicKey: "0xKey2",
           permissionIds: [],
         })
         .mockRejectedValueOnce(new Error("Grantee not found")) // This one fails
         .mockResolvedValueOnce({
-          owner: "0xOwner4" as Address,
-          granteeAddress: "0xGrantee4" as Address,
+          owner: "0xOwner4" as `0x${string}`,
+          granteeAddress: "0xGrantee4" as `0x${string}`,
           publicKey: "0xKey4",
           permissionIds: [10n],
         });
@@ -389,14 +364,6 @@ describe("PermissionsController - Grantee Methods", () => {
 
   describe("getTrustedServers", () => {
     it("should return trusted servers for current user when no address provided", async () => {
-      // Mock getUserAddress to return a user address
-      const getUserAddressSpy = vi
-        .spyOn(
-          controller as unknown as { getUserAddress: () => Promise<string> },
-          "getUserAddress",
-        )
-        .mockResolvedValueOnce("0xUserAddress" as Address);
-
       // Mock contract call
       vi.mocked(mockPublicClient.readContract).mockResolvedValueOnce([
         10n,
@@ -407,19 +374,16 @@ describe("PermissionsController - Grantee Methods", () => {
       const result = await controller.getTrustedServers();
 
       expect(result).toEqual([10, 20, 30]);
-      expect(getUserAddressSpy).toHaveBeenCalled();
       expect(mockPublicClient.readContract).toHaveBeenCalledWith(
         expect.objectContaining({
           functionName: "userServerIdsValues",
           args: ["0xUserAddress"],
         }),
       );
-
-      getUserAddressSpy.mockRestore();
     });
 
     it("should return trusted servers for specified user address", async () => {
-      const userAddress = "0xSpecificUser" as Address;
+      const userAddress = "0xSpecificUser";
 
       // Mock contract call
       vi.mocked(mockPublicClient.readContract).mockResolvedValueOnce([5n, 15n]);
@@ -436,7 +400,7 @@ describe("PermissionsController - Grantee Methods", () => {
     });
 
     it("should throw BlockchainError on contract call failure", async () => {
-      const userAddress = "0xFailUser" as Address;
+      const userAddress = "0xFailUser";
 
       // Mock contract call to throw error
       vi.mocked(mockPublicClient.readContract).mockRejectedValueOnce(
@@ -451,33 +415,22 @@ describe("PermissionsController - Grantee Methods", () => {
 
   describe("getTrustedServersCount", () => {
     it("should return count for current user when no address provided", async () => {
-      // Mock getUserAddress to return a user address
-      const getUserAddressSpy = vi
-        .spyOn(
-          controller as unknown as { getUserAddress: () => Promise<string> },
-          "getUserAddress",
-        )
-        .mockResolvedValueOnce("0xUserAddress" as Address);
-
       // Mock contract call
       vi.mocked(mockPublicClient.readContract).mockResolvedValueOnce(5n);
 
       const result = await controller.getTrustedServersCount();
 
       expect(result).toBe(5);
-      expect(getUserAddressSpy).toHaveBeenCalled();
       expect(mockPublicClient.readContract).toHaveBeenCalledWith(
         expect.objectContaining({
           functionName: "userServerIdsLength",
           args: ["0xUserAddress"],
         }),
       );
-
-      getUserAddressSpy.mockRestore();
     });
 
     it("should return count for specified user address", async () => {
-      const userAddress = "0xSpecificUser" as Address;
+      const userAddress = "0xSpecificUser";
 
       // Mock contract call
       vi.mocked(mockPublicClient.readContract).mockResolvedValueOnce(10n);
@@ -496,17 +449,9 @@ describe("PermissionsController - Grantee Methods", () => {
 
   describe("getUserPermissionIds", () => {
     it("should return permission IDs for current user when no address provided", async () => {
-      // Mock getUserAddress to return a user address
-      const getUserAddressSpy = vi
-        .spyOn(
-          controller as unknown as { getUserAddress: () => Promise<string> },
-          "getUserAddress",
-        )
-        .mockResolvedValueOnce("0xUserAddress" as Address);
-
       // Mock getContractAddress to return DataPortabilityPermissions address
       vi.mocked(getContractAddress).mockReturnValueOnce(
-        "0xPermissionsContract" as Address,
+        "0xPermissionsContract",
       );
 
       // Mock contract call
@@ -519,23 +464,20 @@ describe("PermissionsController - Grantee Methods", () => {
       const result = await controller.getUserPermissionIds();
 
       expect(result).toEqual([100n, 200n, 300n]);
-      expect(getUserAddressSpy).toHaveBeenCalled();
       expect(mockPublicClient.readContract).toHaveBeenCalledWith(
         expect.objectContaining({
           functionName: "userPermissionIdsValues",
           args: ["0xUserAddress"],
         }),
       );
-
-      getUserAddressSpy.mockRestore();
     });
 
     it("should return permission IDs for specified user address", async () => {
-      const userAddress = "0xSpecificUser" as Address;
+      const userAddress = "0xSpecificUser";
 
       // Mock getContractAddress to return DataPortabilityPermissions address
       vi.mocked(getContractAddress).mockReturnValueOnce(
-        "0xPermissionsContract" as Address,
+        "0xPermissionsContract",
       );
 
       // Mock contract call
@@ -556,11 +498,11 @@ describe("PermissionsController - Grantee Methods", () => {
     });
 
     it("should throw BlockchainError on contract call failure", async () => {
-      const userAddress = "0xFailUser" as Address;
+      const userAddress = "0xFailUser";
 
       // Mock getContractAddress to return DataPortabilityPermissions address
       vi.mocked(getContractAddress).mockReturnValueOnce(
-        "0xPermissionsContract" as Address,
+        "0xPermissionsContract",
       );
 
       // Mock contract call to throw error
@@ -580,7 +522,7 @@ describe("PermissionsController - Grantee Methods", () => {
       const mockServerInfo = {
         id: serverId,
         url: "https://server.example.com",
-        owner: "0xServerOwner" as Address,
+        owner: "0xServerOwner" as `0x${string}`,
         active: true,
       };
 
@@ -616,17 +558,9 @@ describe("PermissionsController - Grantee Methods", () => {
 
   describe("getUserPermissionCount", () => {
     it("should return permission count for current user when no address provided", async () => {
-      // Mock getUserAddress to return a user address
-      const getUserAddressSpy = vi
-        .spyOn(
-          controller as unknown as { getUserAddress: () => Promise<string> },
-          "getUserAddress",
-        )
-        .mockResolvedValueOnce("0xUserAddress" as Address);
-
       // Mock getContractAddress to return DataPortabilityPermissions address
       vi.mocked(getContractAddress).mockReturnValueOnce(
-        "0xPermissionsContract" as Address,
+        "0xPermissionsContract",
       );
 
       // Mock contract call
@@ -635,23 +569,20 @@ describe("PermissionsController - Grantee Methods", () => {
       const result = await controller.getUserPermissionCount();
 
       expect(result).toBe(10n);
-      expect(getUserAddressSpy).toHaveBeenCalled();
       expect(mockPublicClient.readContract).toHaveBeenCalledWith(
         expect.objectContaining({
           functionName: "userPermissionIdsLength",
           args: ["0xUserAddress"],
         }),
       );
-
-      getUserAddressSpy.mockRestore();
     });
 
     it("should return permission count for specified user address", async () => {
-      const userAddress = "0xSpecificUser" as Address;
+      const userAddress = "0xSpecificUser";
 
       // Mock getContractAddress to return DataPortabilityPermissions address
       vi.mocked(getContractAddress).mockReturnValueOnce(
-        "0xPermissionsContract" as Address,
+        "0xPermissionsContract",
       );
 
       // Mock contract call
@@ -674,8 +605,8 @@ describe("PermissionsController - Grantee Methods", () => {
       const permissionId = 456n;
       const mockPermissionInfo = {
         id: permissionId,
-        grantor: "0xGrantor" as Address,
-        grantee: "0xGrantee" as Address,
+        grantor: "0xGrantor",
+        grantee: "0xGrantee",
         grantUrl: "https://permission.example.com",
         signature: `0x${"0".repeat(130)}`,
         active: true,
@@ -683,7 +614,7 @@ describe("PermissionsController - Grantee Methods", () => {
 
       // Mock getContractAddress to return DataPortabilityPermissions address
       vi.mocked(getContractAddress).mockReturnValueOnce(
-        "0xPermissionsContract" as Address,
+        "0xPermissionsContract",
       );
 
       // Mock contract call
@@ -707,7 +638,7 @@ describe("PermissionsController - Grantee Methods", () => {
 
       // Mock getContractAddress to return DataPortabilityPermissions address
       vi.mocked(getContractAddress).mockReturnValueOnce(
-        "0xPermissionsContract" as Address,
+        "0xPermissionsContract",
       );
 
       // Mock contract call to throw error
@@ -726,9 +657,9 @@ describe("PermissionsController - Grantee Methods", () => {
       const granteeId = 789n;
       const mockGranteeInfo = {
         id: granteeId,
-        address: "0xGranteeAddress" as Address,
+        address: "0xGranteeAddress",
         publicKey: "0xPublicKey789",
-        owner: "0xOwnerAddress" as Address,
+        owner: "0xOwnerAddress" as `0x${string}`,
       };
 
       // Mock contract call
@@ -767,7 +698,7 @@ describe("PermissionsController - Grantee Methods", () => {
 
       // Mock getContractAddress to return DataPortabilityPermissions address
       vi.mocked(getContractAddress).mockReturnValueOnce(
-        "0xPermissionsContract" as Address,
+        "0xPermissionsContract",
       );
 
       // Mock contract call
@@ -793,7 +724,7 @@ describe("PermissionsController - Grantee Methods", () => {
 
       // Mock getContractAddress to return DataPortabilityPermissions address
       vi.mocked(getContractAddress).mockReturnValueOnce(
-        "0xPermissionsContract" as Address,
+        "0xPermissionsContract",
       );
 
       // Mock contract call to throw error
@@ -858,10 +789,9 @@ describe("PermissionsController - Grantee Methods", () => {
       ).rejects.toThrow("Failed to update server: Unknown error");
     });
 
-    it("should handle null account correctly", async () => {
+    it("should throw error when account is null", async () => {
       const serverId = 300n;
       const newUrl = "https://server-no-account.example.com";
-      const expectedTxHash = "0xNullAccountHash" as Hash;
 
       // Create wallet client without account
       const walletClientNoAccount = {
@@ -871,21 +801,9 @@ describe("PermissionsController - Grantee Methods", () => {
       };
       mockContext.walletClient = walletClientNoAccount;
 
-      vi.mocked(walletClientNoAccount.writeContract).mockResolvedValueOnce(
-        expectedTxHash,
-      );
-
-      const result = await controller.submitUpdateServer(serverId, newUrl);
-
-      expect(result.hash).toBe(expectedTxHash);
-      expect(walletClientNoAccount.writeContract).toHaveBeenCalledWith(
-        expect.objectContaining({
-          functionName: "updateServer",
-          args: [serverId, newUrl],
-          account: "0xUserAddress", // getUserAddress() is called when account is null
-          chain: walletClientNoAccount.chain,
-        }),
-      );
+      await expect(
+        controller.submitUpdateServer(serverId, newUrl),
+      ).rejects.toThrow("No wallet account connected");
     });
   });
 
@@ -911,7 +829,7 @@ describe("PermissionsController - Grantee Methods", () => {
       );
     });
 
-    it("should get user address when wallet account is not set", async () => {
+    it("should throw error when wallet account is not set", async () => {
       const params = { serverId: 456 };
 
       // Remove account from wallet client
@@ -920,33 +838,11 @@ describe("PermissionsController - Grantee Methods", () => {
         account: undefined,
       };
       mockContext.walletClient = walletClientWithoutAccount;
+      mockContext.userAddress = "0xUserAddress";
 
-      // Mock getUserAddress private method
-      const getUserAddressSpy = vi
-        .spyOn(
-          controller as unknown as { getUserAddress: () => Promise<string> },
-          "getUserAddress",
-        )
-        .mockResolvedValueOnce("0xUserAddress" as Address);
-
-      const expectedTxHash = "0xTrustHash456" as Hash;
-      vi.mocked(walletClientWithoutAccount.writeContract).mockResolvedValueOnce(
-        expectedTxHash,
+      await expect(controller.submitTrustServer(params)).rejects.toThrow(
+        "No wallet account connected",
       );
-
-      const result = await controller.submitTrustServer(params);
-
-      expect(result.hash).toBe(expectedTxHash);
-      expect(getUserAddressSpy).toHaveBeenCalled();
-      expect(walletClientWithoutAccount.writeContract).toHaveBeenCalledWith(
-        expect.objectContaining({
-          functionName: "trustServer",
-          args: [456n],
-          account: "0xUserAddress",
-        }),
-      );
-
-      getUserAddressSpy.mockRestore();
     });
 
     it("should throw UserRejectedRequestError when user rejects transaction", async () => {
@@ -1029,7 +925,7 @@ describe("PermissionsController - Grantee Methods", () => {
 
       // Mock getContractAddress to return DataPortabilityPermissions address
       vi.mocked(getContractAddress).mockReturnValueOnce(
-        "0xPermissionsContract" as Address,
+        "0xPermissionsContract",
       );
 
       // Mock contract call
@@ -1055,7 +951,7 @@ describe("PermissionsController - Grantee Methods", () => {
 
       // Mock getContractAddress to return DataPortabilityPermissions address
       vi.mocked(getContractAddress).mockReturnValueOnce(
-        "0xPermissionsContract" as Address,
+        "0xPermissionsContract",
       );
 
       // Mock contract call to throw error
@@ -1073,33 +969,22 @@ describe("PermissionsController - Grantee Methods", () => {
 
   describe("getUserServerCount", () => {
     it("should return server count for current user when no address provided", async () => {
-      // Mock getUserAddress to return a user address
-      const getUserAddressSpy = vi
-        .spyOn(
-          controller as unknown as { getUserAddress: () => Promise<string> },
-          "getUserAddress",
-        )
-        .mockResolvedValueOnce("0xUserAddress" as Address);
-
       // Mock contract call
       vi.mocked(mockPublicClient.readContract).mockResolvedValueOnce(5n);
 
       const result = await controller.getUserServerCount();
 
       expect(result).toBe(5n);
-      expect(getUserAddressSpy).toHaveBeenCalled();
       expect(mockPublicClient.readContract).toHaveBeenCalledWith(
         expect.objectContaining({
           functionName: "userServerIdsLength",
           args: ["0xUserAddress"],
         }),
       );
-
-      getUserAddressSpy.mockRestore();
     });
 
     it("should return server count for specified user address", async () => {
-      const userAddress = "0xSpecificUser" as Address;
+      const userAddress = "0xSpecificUser";
 
       // Mock contract call
       vi.mocked(mockPublicClient.readContract).mockResolvedValueOnce(10n);

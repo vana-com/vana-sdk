@@ -33,12 +33,12 @@ describe("Data Types", () => {
       const userFile: UserFile = {
         id: 123,
         url: "ipfs://QmTestHash",
-        ownerAddress: "0x1234567890123456789012345678901234567890" as Address,
+        ownerAddress: "0x1234567890123456789012345678901234567890",
         addedAtBlock: 12345n,
         schemaId: 5,
         addedAtTimestamp: 1640995200n,
         transactionHash:
-          "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890" as Address,
+          "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
         metadata: {
           name: "test-file.json",
           size: 1024,
@@ -61,7 +61,7 @@ describe("Data Types", () => {
       const minimalUserFile: UserFile = {
         id: 456,
         url: "ipfs://QmMinimalHash",
-        ownerAddress: "0x9876543210987654321098765432109876543210" as Address,
+        ownerAddress: "0x9876543210987654321098765432109876543210",
         addedAtBlock: 54321n,
       };
 
@@ -221,7 +221,7 @@ describe("Data Types", () => {
   describe("GetUserFilesParams", () => {
     it("should structure file query parameters correctly", () => {
       const params: GetUserFilesParams = {
-        owner: "0xabcdefabcdefabcdefabcdefabcdefabcdefabcdef" as Address,
+        owner: "0xabcdefabcdefabcdefabcdefabcdefabcdefabcdef" as `0x${string}`,
         fromBlock: 1000n,
         toBlock: 2000n,
         limit: 50,
@@ -360,8 +360,8 @@ describe("Data Types", () => {
     it("should structure sharing configuration correctly", () => {
       const config: FileSharingConfig = {
         allowedAddresses: [
-          "0x1111111111111111111111111111111111111111" as Address,
-          "0x2222222222222222222222222222222222222222" as Address,
+          "0x1111111111111111111111111111111111111111",
+          "0x2222222222222222222222222222222222222222",
         ],
         expiresAt: new Date("2024-12-31T23:59:59Z"),
         permissions: {
@@ -466,7 +466,7 @@ describe("Data Types", () => {
       const refiner: Refiner = {
         id: 10,
         dlpId: 5,
-        owner: "0x3333333333333333333333333333333333333333" as Address,
+        owner: "0x3333333333333333333333333333333333333333" as `0x${string}`,
         name: "Data Processor",
         schemaId: 42,
         refinementInstructionUrl: "ipfs://QmRefinementInstructions",
@@ -566,8 +566,7 @@ describe("Data Types", () => {
 
   describe("Type Safety and Integration", () => {
     it("should ensure Address and Hash types are properly typed", () => {
-      const address: Address =
-        "0x1234567890123456789012345678901234567890" as Address;
+      const address: Address = "0x1234567890123456789012345678901234567890";
       const hash: Hash =
         "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890" as Hash;
 
@@ -579,7 +578,7 @@ describe("Data Types", () => {
       const userFile: UserFile = {
         id: 1,
         url: "test-url",
-        ownerAddress: "0x1234567890123456789012345678901234567890" as Address,
+        ownerAddress: "0x1234567890123456789012345678901234567890",
         addedAtBlock: BigInt("12345"),
         addedAtTimestamp: BigInt("1640995200"),
       };

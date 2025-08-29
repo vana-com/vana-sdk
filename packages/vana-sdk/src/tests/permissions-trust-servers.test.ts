@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Mock } from "vitest";
-import type { Hash, PublicClient, Address } from "viem";
+import type { Hash, PublicClient } from "viem";
 import { PermissionsController } from "../controllers/permissions";
 import type { ControllerContext } from "../controllers/permissions";
 import {
@@ -72,8 +72,9 @@ vi.mock("../utils/multicall", () => ({
         status: "success",
         result: {
           id: BigInt(i + 1),
-          owner: "0x1234567890123456789012345678901234567890",
-          serverAddress: "0xabcdef1234567890123456789012345678901234",
+          owner: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+          serverAddress:
+            "0xabcdef1234567890123456789012345678901234" as `0x${string}`,
           publicKey: "0xpublickey",
           url: "https://server1.com",
         },
@@ -201,8 +202,10 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         if (args.functionName === "servers") {
           return {
             id: args.args[0], // Use the serverId that was passed in
-            owner: "0x1234567890123456789012345678901234567890",
-            serverAddress: "0xabcdef1234567890123456789012345678901234",
+            owner:
+              "0x1234567890123456789012345678901234567890" as `0x${string}`,
+            serverAddress:
+              "0xabcdef1234567890123456789012345678901234" as `0x${string}`,
             publicKey: "0xpublickey",
             url: "https://server1.com",
           };
@@ -612,8 +615,10 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         if (args.functionName === "servers") {
           return {
             id: args.args[0], // Use the serverId that was passed in
-            owner: "0x1234567890123456789012345678901234567890",
-            serverAddress: "0xabcdef1234567890123456789012345678901234",
+            owner:
+              "0x1234567890123456789012345678901234567890" as `0x${string}`,
+            serverAddress:
+              "0xabcdef1234567890123456789012345678901234" as `0x${string}`,
             publicKey: "0xpublickey",
             url: "https://server1.com",
           };
@@ -630,8 +635,9 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       expect(result).toEqual([
         {
           id: 1n,
-          owner: "0x1234567890123456789012345678901234567890",
-          serverAddress: "0xabcdef1234567890123456789012345678901234",
+          owner: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+          serverAddress:
+            "0xabcdef1234567890123456789012345678901234" as `0x${string}`,
           publicKey: "0xpublickey",
           url: "https://server1.com",
           startBlock: 0n,
@@ -673,8 +679,9 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
       expect(result).toEqual([
         {
           id: 1n,
-          owner: "0x0000000000000000000000000000000000000000",
-          serverAddress: "0x0000000000000000000000000000000000000000",
+          owner: "0x0000000000000000000000000000000000000000" as `0x${string}`,
+          serverAddress:
+            "0x0000000000000000000000000000000000000000" as `0x${string}`,
           publicKey: "",
           url: "",
           startBlock: 0n,
@@ -702,7 +709,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
           version: "1",
           chainId: 14800,
           verifyingContract:
-            "0x1234567890123456789012345678901234567890" as Address,
+            "0x1234567890123456789012345678901234567890" as `0x${string}`,
         },
         types: { TrustServer: [] },
         primaryType: "TrustServer" as const,
@@ -728,7 +735,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
           version: "1",
           chainId: 14800,
           verifyingContract:
-            "0x1234567890123456789012345678901234567890" as Address,
+            "0x1234567890123456789012345678901234567890" as `0x${string}`,
         },
         types: { TrustServer: [] },
         primaryType: "TrustServer" as const,
@@ -758,7 +765,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
           version: "1",
           chainId: 14800,
           verifyingContract:
-            "0x1234567890123456789012345678901234567890" as Address,
+            "0x1234567890123456789012345678901234567890" as `0x${string}`,
         },
         types: { TrustServer: [] },
         primaryType: "TrustServer" as const,
@@ -787,7 +794,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
           version: "1",
           chainId: 14800,
           verifyingContract:
-            "0x1234567890123456789012345678901234567890" as Address,
+            "0x1234567890123456789012345678901234567890" as `0x${string}`,
         },
         types: { UntrustServer: [] },
         primaryType: "UntrustServer" as const,
@@ -812,7 +819,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
           version: "1",
           chainId: 14800,
           verifyingContract:
-            "0x1234567890123456789012345678901234567890" as Address,
+            "0x1234567890123456789012345678901234567890" as `0x${string}`,
         },
         types: { UntrustServer: [] },
         primaryType: "UntrustServer" as const,
@@ -841,7 +848,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
           version: "1",
           chainId: 14800,
           verifyingContract:
-            "0x1234567890123456789012345678901234567890" as Address,
+            "0x1234567890123456789012345678901234567890" as `0x${string}`,
         },
         types: { UntrustServer: [] },
         primaryType: "UntrustServer" as const,

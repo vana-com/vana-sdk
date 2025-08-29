@@ -128,15 +128,16 @@ describe("SchemaController - Edge Cases", () => {
       expect(contextWithoutStorage.validateStorageRequired).toHaveBeenCalled();
     });
 
-    it("should handle getUserAddress when account is missing", async () => {
+    it("should handle missing wallet account", async () => {
       const contextWithoutAccount = {
         ...mockContext,
         walletClient: {
           ...mockContext.walletClient,
           account: undefined,
+          cacheTime: 0, // Add explicit cacheTime to match WalletClient type
           getAddresses: vi.fn().mockResolvedValue(["0xAddress1", "0xAddress2"]),
         },
-      };
+      } as ControllerContext;
       const controllerWithoutAccount = new SchemaController(
         contextWithoutAccount,
       );
@@ -172,6 +173,9 @@ describe("SchemaController - Edge Cases", () => {
 
   describe("create() additional edge cases", () => {
     it("should handle non-Error exceptions in create", async () => {
+      if (!mockContext.walletClient) {
+        throw new Error("WalletClient is required for this test");
+      }
       vi.mocked(mockContext.walletClient.writeContract).mockRejectedValueOnce(
         "string error",
       );

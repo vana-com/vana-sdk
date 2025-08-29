@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Address } from "viem";
+
 import { DataController } from "../controllers/data";
 import type { ControllerContext } from "../controllers/permissions";
 import {
@@ -24,7 +24,7 @@ vi.mock("../utils/transactionHelpers", () => ({
 
 // Mock the config modules
 vi.mock("../config/addresses", () => ({
-  getContractAddress: vi.fn(() => "0xDataRegistryAddress" as Address),
+  getContractAddress: vi.fn(() => "0xDataRegistryAddress"),
 }));
 
 vi.mock("../generated/abi", () => ({
@@ -42,10 +42,12 @@ describe("DataController - addFileWithPermissionsAndSchema", () => {
     mockWriteContract = vi.fn().mockResolvedValue("0xtxhash");
 
     mockContext = {
-      publicClient: {},
+      publicClient: {
+        chain: { id: 1, name: "Mainnet" },
+      },
       walletClient: {
-        chain: { id: 1 },
-        account: "0xUserAddress" as Address,
+        chain: { id: 1, name: "Mainnet" },
+        account: "0xUserAddress" as `0x${string}`,
         writeContract: mockWriteContract,
       },
       platform: "browser",
@@ -57,14 +59,14 @@ describe("DataController - addFileWithPermissionsAndSchema", () => {
   describe("with publicKey (automatic encryption)", () => {
     it("should automatically encrypt permissions when publicKey is provided", async () => {
       const url = "ipfs://QmHash123";
-      const ownerAddress = "0xOwnerAddress" as Address;
+      const ownerAddress = "0xOwnerAddress";
       const permissions = [
         {
-          account: "0xAccount1" as Address,
+          account: "0xAccount1" as `0x${string}` as `0x${string}`,
           publicKey: "0x04abc123...",
         },
         {
-          account: "0xAccount2" as Address,
+          account: "0xAccount2" as `0x${string}` as `0x${string}`,
           publicKey: "0x04def456...",
         },
       ];
@@ -110,8 +112,8 @@ describe("DataController - addFileWithPermissionsAndSchema", () => {
             url,
             ownerAddress,
             [
-              { account: "0xAccount1", key: "encryptedKey1" },
-              { account: "0xAccount2", key: "encryptedKey2" },
+              { account: "0xAccount1" as `0x${string}`, key: "encryptedKey1" },
+              { account: "0xAccount2" as `0x${string}`, key: "encryptedKey2" },
             ],
             BigInt(schemaId),
           ],
@@ -124,7 +126,7 @@ describe("DataController - addFileWithPermissionsAndSchema", () => {
     it("should throw error when publicKey is missing", async () => {
       const permissions = [
         {
-          account: "0xAccount1" as Address,
+          account: "0xAccount1" as `0x${string}`,
           // Missing publicKey
         },
       ] as any;
@@ -132,7 +134,7 @@ describe("DataController - addFileWithPermissionsAndSchema", () => {
       await expect(
         controller.addFileWithPermissionsAndSchema(
           "ipfs://hash",
-          "0xOwner" as Address,
+          "0xOwner",
           permissions,
           0,
         ),
@@ -142,7 +144,7 @@ describe("DataController - addFileWithPermissionsAndSchema", () => {
     it("should throw error when encryption key generation fails", async () => {
       const permissions = [
         {
-          account: "0xAccount1" as Address,
+          account: "0xAccount1" as `0x${string}` as `0x${string}`,
           publicKey: "0x04abc...",
         },
       ];
@@ -154,7 +156,7 @@ describe("DataController - addFileWithPermissionsAndSchema", () => {
       await expect(
         controller.addFileWithPermissionsAndSchema(
           "ipfs://hash",
-          "0xOwner" as Address,
+          "0xOwner",
           permissions,
           0,
         ),
@@ -166,7 +168,7 @@ describe("DataController - addFileWithPermissionsAndSchema", () => {
     it("should throw error when public key encryption fails", async () => {
       const permissions = [
         {
-          account: "0xAccount1" as Address,
+          account: "0xAccount1" as `0x${string}`,
           publicKey: "0x04invalid",
         },
       ];
@@ -179,7 +181,7 @@ describe("DataController - addFileWithPermissionsAndSchema", () => {
       await expect(
         controller.addFileWithPermissionsAndSchema(
           "ipfs://hash",
-          "0xOwner" as Address,
+          "0xOwner",
           permissions,
           0,
         ),
@@ -192,7 +194,7 @@ describe("DataController - addFileWithPermissionsAndSchema", () => {
   describe("with no permissions", () => {
     it("should handle empty permissions array", async () => {
       const url = "ipfs://QmHashNoPerms";
-      const ownerAddress = "0xOwnerAddress" as Address;
+      const ownerAddress = "0xOwnerAddress";
       const schemaId = 5;
 
       await controller.addFileWithPermissionsAndSchema(

@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@heroui/react";
-import { Database, Settings, Zap } from "lucide-react";
+import { Database, Settings, Zap, Eye } from "lucide-react";
 
 /**
  * Represents a navigation view in the sidebar
@@ -54,6 +54,13 @@ const navigationViews: NavigationView[] = [
     label: "AI Profile Demo",
     icon: Zap,
     description: "Generate AI insights from your data",
+  },
+  {
+    id: "read-only-demo",
+    href: "/read-only-demo",
+    label: "Read-Only Mode",
+    icon: Eye,
+    description: "Explore SDK without wallet connection",
   },
 ];
 

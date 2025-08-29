@@ -93,6 +93,7 @@ describe("DataController - getUserPermissions dual-mode functionality", () => {
         getAddresses: vi.fn().mockResolvedValue(["0xTestAddress"]),
       } as any,
       publicClient: {
+        chain: { id: 14800, name: "Moksha Testnet" },
         readContract: vi.fn().mockImplementation(async ({ functionName }) => {
           if (functionName === "userPermissionIdsLength") {
             return BigInt(3);
@@ -105,6 +106,7 @@ describe("DataController - getUserPermissions dual-mode functionality", () => {
       platform: mockPlatformAdapter,
       storageManager: mockStorageManager as StorageManager,
       subgraphUrl: undefined, // This will force RPC mode
+      userAddress: "0xTestAddress" as `0x${string}`,
     };
 
     controller = new DataController(mockContext);
@@ -167,8 +169,14 @@ describe("DataController - getUserPermissions dual-mode functionality", () => {
           ...mockContext.walletClient,
           chain: undefined,
         },
+        publicClient: {
+          ...mockContext.publicClient,
+          chain: undefined,
+        },
       };
-      const controllerWithoutChain = new DataController(contextWithoutChain);
+      const controllerWithoutChain = new DataController(
+        contextWithoutChain as ControllerContext,
+      );
 
       await expect(
         controllerWithoutChain.getUserPermissions({

@@ -43,7 +43,7 @@ vi.mock("../utils/multicall", () => ({
         status: "success",
         result: {
           id: BigInt(i + 1),
-          owner: "0x1234567890123456789012345678901234567890",
+          owner: "0x1234567890123456789012345678901234567890" as `0x${string}`,
           serverAddress:
             [
               "0x1111111111111111111111111111111111111111",
@@ -74,7 +74,7 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
   };
   let context: ControllerContext;
 
-  const userAddress: Address = "0x1234567890123456789012345678901234567890";
+  const userAddress: Address = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
   const serverAddresses: Address[] = [
     "0x1111111111111111111111111111111111111111",
     "0x2222222222222222222222222222222222222222",
@@ -90,7 +90,8 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
     mockPublicClient = {
       readContract: vi.fn(),
       getChainId: vi.fn().mockResolvedValue(vanaMainnet.id),
-    };
+      chain: vanaMainnet,
+    } as any;
 
     mockWalletClient = {
       getAddresses: vi.fn().mockResolvedValue([userAddress]),
@@ -103,6 +104,7 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
       publicClient: mockPublicClient as any,
       platform: createMockPlatformAdapter(),
       subgraphUrl: "https://subgraph.example.com",
+      userAddress: userAddress,
     };
 
     dataController = new DataController(context);
@@ -135,6 +137,8 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
       const contextWithoutSubgraph = {
         ...context,
         subgraphUrl: undefined,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
       };
       const dataControllerNoSubgraph = new DataController(
         contextWithoutSubgraph,
@@ -361,6 +365,8 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
       const contextWithoutSubgraph = {
         ...context,
         subgraphUrl: undefined,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
       };
       const dataControllerNoSubgraph = new DataController(
         contextWithoutSubgraph,

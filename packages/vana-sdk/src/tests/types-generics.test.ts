@@ -142,12 +142,12 @@ describe("Generic Types", () => {
       const filter: EventFilter<{ user: Address; amount: bigint }> = {
         event: "PermissionGranted",
         args: {
-          user: "0x1234567890123456789012345678901234567890" as Address,
+          user: "0x1234567890123456789012345678901234567890",
           amount: 1000n,
         },
         fromBlock: 1000n,
         toBlock: 2000n,
-        address: ["0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as Address],
+        address: ["0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
       };
 
       expect(filter.event).toBe("PermissionGranted");
@@ -164,8 +164,8 @@ describe("Generic Types", () => {
       const log: EventLog<{ from: Address; to: Address; value: bigint }> = {
         event: "Transfer",
         args: {
-          from: "0x1111111111111111111111111111111111111111" as Address,
-          to: "0x2222222222222222222222222222222222222222" as Address,
+          from: "0x1111111111111111111111111111111111111111",
+          to: "0x2222222222222222222222222222222222222222",
           value: 500n,
         },
         blockNumber: 15000n,
@@ -173,7 +173,7 @@ describe("Generic Types", () => {
           "0xfedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321" as Hash,
         logIndex: 2,
         transactionIndex: 5,
-        address: "0x3333333333333333333333333333333333333333" as Address,
+        address: "0x3333333333333333333333333333333333333333",
       };
 
       expect(log.event).toBe("Transfer");

@@ -94,16 +94,12 @@ describe("VanaCore", () => {
     });
   });
 
-  describe("getUserAddress", () => {
-    it("should return user address from permissions controller", async () => {
-      const mockAddress = "0x456" as `0x${string}`;
-      // Spy on the getUserAddress method of the actual permissions controller
-      vi.spyOn(vanaCore, "getUserAddress").mockResolvedValue(mockAddress);
+  describe("userAddress", () => {
+    it("should return user address from the getter", () => {
+      // The userAddress is extracted from the wallet client account
+      const address = vanaCore.userAddress;
 
-      const address = await vanaCore.getUserAddress();
-
-      expect(address).toBe(mockAddress);
-      expect(vanaCore.getUserAddress).toHaveBeenCalled();
+      expect(address).toBe("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
     });
   });
 

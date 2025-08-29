@@ -59,7 +59,7 @@ vi.mock("viem", async () => {
         schemasCount: vi.fn().mockResolvedValue(BigInt(5)),
         refiners: vi.fn().mockResolvedValue({
           dlpId: BigInt(1),
-          owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
           name: "Test Refiner",
           schemaId: BigInt(0),
           refinementInstructionUrl: "https://example.com/instructions",
@@ -118,30 +118,11 @@ vi.mock("../generated/abi", () => ({
 // Mock fetch globally - no real network calls
 global.fetch = vi.fn();
 
-interface MockWalletClient {
-  account: {
-    address: string;
-  };
-  chain: {
-    id: number;
-    name: string;
-  };
-  getChainId: ReturnType<typeof vi.fn>;
-  getAddresses: ReturnType<typeof vi.fn>;
-  signMessage: ReturnType<typeof vi.fn>;
-  writeContract: ReturnType<typeof vi.fn>;
-}
-
-interface MockPublicClient {
-  waitForTransactionReceipt: ReturnType<typeof vi.fn>;
-  getTransactionReceipt: ReturnType<typeof vi.fn>;
-}
-
 describe("DataController", () => {
   let controller: DataController;
   let mockContext: ControllerContext;
-  let mockWalletClient: MockWalletClient;
-  let mockPublicClient: MockPublicClient;
+  let mockWalletClient: any;
+  let mockPublicClient: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -165,6 +146,10 @@ describe("DataController", () => {
 
     // Create a fully mocked public client
     mockPublicClient = {
+      chain: {
+        id: 14800,
+        name: "Moksha Testnet",
+      },
       waitForTransactionReceipt: vi.fn().mockResolvedValue({ logs: [] }),
       getTransactionReceipt: vi.fn().mockResolvedValue({
         transactionHash: "0xTransactionHash",
@@ -183,6 +168,8 @@ describe("DataController", () => {
         mockPublicClient as unknown as ControllerContext["publicClient"],
       subgraphUrl: "https://moksha.vanagraph.io/v7",
       platform: mockPlatformAdapter,
+      userAddress:
+        "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
     };
 
     controller = new DataController(mockContext);
@@ -265,7 +252,8 @@ describe("DataController", () => {
 
       await expect(
         controller.getUserFiles({
-          owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+          owner:
+            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}` as `0x${string}`,
           subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
         }),
       ).rejects.toThrow(
@@ -278,6 +266,10 @@ describe("DataController", () => {
     it("should return file count from contract", async () => {
       const { createPublicClient } = await import("viem");
       const mockPublicClient = {
+        chain: {
+          id: 14800,
+          name: "Moksha Testnet",
+        },
         readContract: vi.fn().mockResolvedValue(BigInt(42)),
       };
       vi.mocked(createPublicClient).mockReturnValueOnce(
@@ -653,7 +645,7 @@ describe("DataController", () => {
 
       // Verify no blockchain methods were called
       expect(
-        contextWithStorage.walletClient.writeContract,
+        contextWithStorage.walletClient?.writeContract,
       ).not.toHaveBeenCalled();
       expect(
         contextWithStorage.publicClient.waitForTransactionReceipt,

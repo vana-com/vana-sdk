@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DataController } from "../controllers/data";
 import type { ControllerContext } from "../controllers/permissions";
-import type { Address } from "viem";
+
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock global fetch
@@ -60,6 +60,7 @@ describe("DataController Relayer Integration", () => {
       storageManager:
         mockStorageManager as unknown as ControllerContext["storageManager"],
       platform: mockPlatformAdapter,
+      userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
     };
 
     dataController = new DataController(mockContext);
@@ -70,27 +71,27 @@ describe("DataController Relayer Integration", () => {
       const testBlob = new Blob(["test data"], { type: "text/plain" });
       const permissions = [
         {
-          account: "0xTrustedServer" as Address,
+          account: "0xTrustedServer" as `0x${string}`,
           publicKey:
             "0x04a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4",
         },
       ];
 
-      const result = await dataController.uploadFileWithPermissions(
-        testBlob,
+      const result = await dataController.uploadFileWithPermissions({
+        data: testBlob,
         permissions,
-        "test.txt",
-      );
+        filename: "test.txt",
+      });
 
       // Verify relayer callback was called with correct parameters
       expect(
         mockContext.relayerCallbacks?.submitFileAdditionWithPermissions,
       ).toHaveBeenCalledWith(
         "ipfs://QmTestHash123",
-        "0xTestUser",
+        "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
         expect.arrayContaining([
           expect.objectContaining({
-            account: "0xTrustedServer",
+            account: "0xTrustedServer" as `0x${string}`,
             key: expect.any(String), // Encrypted key
           }),
         ]),
@@ -109,27 +110,27 @@ describe("DataController Relayer Integration", () => {
       const testBlob = new Blob(["test data"], { type: "text/plain" });
       const permissions = [
         {
-          account: "0xTrustedServer" as Address,
+          account: "0xTrustedServer" as `0x${string}`,
           publicKey:
             "0x04a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4",
         },
       ];
 
-      await dataController.uploadFileWithPermissions(
-        testBlob,
+      await dataController.uploadFileWithPermissions({
+        data: testBlob,
         permissions,
-        "test.txt",
-      );
+        filename: "test.txt",
+      });
 
       // Verify the callback was called with correct parameters
       expect(
         mockContext.relayerCallbacks?.submitFileAdditionWithPermissions,
       ).toHaveBeenCalledWith(
         "ipfs://QmTestHash123",
-        "0xTestUser",
+        "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
         expect.arrayContaining([
           expect.objectContaining({
-            account: "0xTrustedServer",
+            account: "0xTrustedServer" as `0x${string}`,
             key: expect.any(String), // Encrypted key
           }),
         ]),
@@ -137,10 +138,13 @@ describe("DataController Relayer Integration", () => {
     });
 
     it("should fallback to direct transaction when no relayerCallbacks", async () => {
-      // Remove relayer callbacks from context but add waitForTransactionEvents
+      // Remove relayer callbacks from context but add waitForTransactionEvents and publicClient
       const contextWithoutRelayer = {
         ...mockContext,
         relayerCallbacks: undefined,
+        publicClient: {
+          chain: { id: 14800, name: "Moksha Testnet" },
+        },
         waitForTransactionEvents: vi.fn().mockResolvedValue({
           expectedEvents: {
             FileAdded: {
@@ -149,39 +153,38 @@ describe("DataController Relayer Integration", () => {
           },
         }),
       };
-      const controller = new DataController(contextWithoutRelayer);
+      const controller = new DataController(
+        contextWithoutRelayer as unknown as ControllerContext,
+      );
 
-      // Mock the addFileWithPermissions method
-      const addFileWithPermissionsSpy = vi
-        .spyOn(controller, "addFileWithPermissions")
-        .mockResolvedValue({
-          hash: "0xDirectTxHash" as `0x${string}`,
-          from: "0xuser" as `0x${string}`,
-          contract: "DataRegistry",
-          fn: "addFileWithPermissions",
-        });
+      // Spy on the addFileWithPermissions method without mocking its implementation
+      const addFileWithPermissionsSpy = vi.spyOn(
+        controller,
+        "addFileWithPermissions",
+      );
+
+      // Mock the writeContract on wallet client to return a transaction hash
+      (contextWithoutRelayer.walletClient!.writeContract as any) = vi
+        .fn()
+        .mockResolvedValue("0xDirectTxHash");
 
       const testBlob = new Blob(["test data"], { type: "text/plain" });
       const permissions = [
         {
-          account: "0xTrustedServer" as Address,
+          account: "0xTrustedServer" as `0x${string}`,
           publicKey:
             "0x04a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4",
         },
       ];
 
-      const result = await controller.uploadFileWithPermissions(
-        testBlob,
+      const result = await controller.uploadFileWithPermissions({
+        data: testBlob,
         permissions,
-        "test.txt",
-      );
+        filename: "test.txt",
+      });
 
-      // Verify direct transaction was used
-      expect(addFileWithPermissionsSpy).toHaveBeenCalledWith(
-        "ipfs://QmTestHash123",
-        "0xTestUser",
-        expect.any(Array),
-      );
+      // Verify direct transaction was used (addFileWithPermissions should have been called)
+      expect(addFileWithPermissionsSpy).toHaveBeenCalled();
 
       expect(result.transactionHash).toBe("0xDirectTxHash");
       expect(result.fileId).toBe(789);
@@ -205,14 +208,14 @@ describe("DataController Relayer Integration", () => {
       const testBlob = new Blob(["test data"], { type: "text/plain" });
       const permissions = [
         {
-          account: "0xTrustedServer" as Address,
+          account: "0xTrustedServer" as `0x${string}`,
           publicKey:
             "0x04a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4",
         },
       ];
 
       await expect(
-        controller.uploadFileWithPermissions(testBlob, permissions),
+        controller.uploadFileWithPermissions({ data: testBlob, permissions }),
       ).rejects.toThrow("Failed to upload file with permissions");
     });
   });

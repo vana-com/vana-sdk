@@ -99,6 +99,7 @@ describe("useSchemasAndRefiners", () => {
       isInitialized: true,
       error: null,
       applicationAddress: "0xapp123",
+      isReadOnly: false,
     });
 
     mockVana.schemas.count.mockResolvedValue(2);
@@ -188,6 +189,7 @@ describe("useSchemasAndRefiners", () => {
         isInitialized: false,
         error: null,
         applicationAddress: "",
+        isReadOnly: false,
       });
 
       renderHook(() => useSchemasAndRefiners());
@@ -306,6 +308,7 @@ describe("useSchemasAndRefiners", () => {
         isInitialized: false,
         error: null,
         applicationAddress: "",
+        isReadOnly: false,
       });
 
       const { result } = renderHook(() => useSchemasAndRefiners());
@@ -509,6 +512,7 @@ describe("useSchemasAndRefiners", () => {
         isInitialized: false,
         error: null,
         applicationAddress: "",
+        isReadOnly: false,
       });
 
       const { result } = renderHook(() => useSchemasAndRefiners());

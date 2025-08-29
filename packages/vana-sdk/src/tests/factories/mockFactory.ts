@@ -84,15 +84,13 @@ type MockedAccount = Omit<
  * @example
  * ```typescript
  * const account = createMockAccount({
- *   address: "0xCustomAddress" as Address
+ *   address: "0xCustomAddress"
  * });
  * ```
  */
 export function createMockAccount(overrides?: Partial<Account>): Account {
   const mockAccount: MockedAccount = {
-    address:
-      overrides?.address ??
-      ("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address),
+    address: overrides?.address ?? "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
     type: overrides?.type ?? "local",
     signMessage: vi.fn().mockResolvedValue(`0x${"0".repeat(130)}`),
     signTypedData: vi.fn().mockResolvedValue(`0x${"0".repeat(130)}`),
@@ -149,7 +147,7 @@ export function createMockChain(overrides?: Partial<Chain>): Chain {
  * @example
  * ```typescript
  * const wallet = createTypedMockWalletClient({
- *   account: { address: "0xCustom" as Address },
+ *   account: { address: "0xCustom" },
  *   chain: { id: 1480 }
  * });
  * ```
@@ -231,8 +229,8 @@ export function createTypedMockPublicClient(
     transactionHash: "0xtxhash" as Hash,
     blockNumber: 12345n,
     blockHash: "0xblockhash" as Hash,
-    from: "0xfrom" as Address,
-    to: "0xto" as Address,
+    from: "0xfrom",
+    to: "0xto",
     cumulativeGasUsed: 100000n,
     gasUsed: 50000n,
     logs: [],
@@ -352,7 +350,7 @@ export function createTypedMockStorageManager(
  * @example
  * ```typescript
  * const context = createMockControllerContext({
- *   walletClient: { account: { address: "0xCustom" as Address } }
+ *   walletClient: { account: { address: "0xCustom" } }
  * });
  * const controller = new DataController(context);
  * ```
@@ -370,13 +368,13 @@ export function createMockControllerContext(
   // Set default response with commonly expected event structure
   fakeWaitForTransactionEvents.setDefaultResponse({
     hash: "0xtxhash" as Hash,
-    from: "0xfrom" as Address,
+    from: "0xfrom",
     contract: "DataPortabilityPermissions",
     fn: "addPermission",
     expectedEvents: {
       PermissionAdded: {
         permissionId: 1n,
-        user: "0xfrom" as Address,
+        user: "0xfrom",
         grant: "grant-data",
       },
     },
@@ -415,10 +413,19 @@ export function createMockControllerContext(
     return result;
   });
 
+  // Extract userAddress from the walletClient account
+  const userAddress =
+    overrides?.userAddress ??
+    (typeof walletClient.account === "string"
+      ? walletClient.account
+      : walletClient.account?.address) ??
+    "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
+
   // Build the context with guaranteed waitForTransactionEvents
   const context = {
     walletClient,
     publicClient,
+    userAddress,
     applicationClient: walletClient,
     platform: overrides?.platform ?? mockPlatformAdapter,
     storageManager:
@@ -525,7 +532,7 @@ export function safeCast<T>(value: DeepPartial<T>): T {
  * ```typescript
  * const mockLog = createMockLog("PermissionGranted", {
  *   permissionId: 123n,
- *   user: "0xUserAddress" as Address,
+ *   user: "0xUserAddress",
  *   grant: "grant-data"
  * });
  * ```
@@ -549,7 +556,7 @@ export function createMockLog(
   return {
     eventName,
     args,
-    address: "0x0000000000000000000000000000000000000000" as Address,
+    address: "0x0000000000000000000000000000000000000000",
     blockHash:
       "0x0000000000000000000000000000000000000000000000000000000000000000" as Hash,
     blockNumber: 1n,

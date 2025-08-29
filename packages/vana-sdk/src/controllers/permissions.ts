@@ -83,6 +83,7 @@ type SubgraphPermissionsResponse = {
  */
 // Import the shared ControllerContext from single source of truth
 import type { ControllerContext } from "../types/controller-context";
+import { BaseController } from "./base";
 export type { ControllerContext };
 
 /**
@@ -131,8 +132,10 @@ export type { ControllerContext };
  * @category Permissions
  * @see {@link https://docs.vana.com/developer/permissions | Vana Permissions System} for conceptual overview
  */
-export class PermissionsController {
-  constructor(private readonly context: ControllerContext) {}
+export class PermissionsController extends BaseController {
+  constructor(context: ControllerContext) {
+    super(context);
+  }
 
   /**
    * Grants permission for an application to access user data with gasless transactions.
@@ -169,6 +172,7 @@ export class PermissionsController {
    * ```
    */
   async grant(params: GrantPermissionParams): Promise<PermissionGrantResult> {
+    this.assertWallet();
     // Submit the transaction and wait for events internally
     const { typedData, signature } = await this.createAndSign(params);
     const result = await this.submitSignedGrantWithEvents(typedData, signature);
@@ -203,6 +207,7 @@ export class PermissionsController {
   async submitPermissionGrant(
     params: GrantPermissionParams,
   ): Promise<TransactionResult<"DataPortabilityPermissions", "addPermission">> {
+    this.assertWallet();
     const { typedData, signature } = await this.createAndSign(params);
     return await this.submitSignedGrant(typedData, signature);
   }
@@ -236,6 +241,7 @@ export class PermissionsController {
     preview: GrantFile;
     confirm: () => Promise<PermissionGrantResult>;
   }> {
+    this.assertWallet();
     try {
       // Step 1: Create grant file in memory (no IPFS upload yet)
       const grantFile = createGrantFile(params);
@@ -412,6 +418,7 @@ export class PermissionsController {
     typedData: PermissionGrantTypedData;
     signature: Hash;
   }> {
+    this.assertWallet();
     try {
       // Step 1: Create grant file with all the real data
       const grantFile = createGrantFile(params);
@@ -546,7 +553,7 @@ export class PermissionsController {
           signature,
         );
         const account =
-          this.context.walletClient.account ?? (await this.getUserAddress());
+          this.context.walletClient?.account ?? this.context.userAddress;
         const { tx } = await import("../utils/transactionHelpers");
         return tx({
           hash,
@@ -612,12 +619,11 @@ export class PermissionsController {
         trustServerInput,
         signature,
       );
-      const account =
-        this.context.walletClient.account ?? (await this.getUserAddress());
+      const account = this.context.userAddress;
       const { tx } = await import("../utils/transactionHelpers");
       return tx({
         hash,
-        from: typeof account === "string" ? account : account.address,
+        from: account,
         contract: "DataPortabilityServers",
         fn: "trustServerWithSignature",
       });
@@ -702,7 +708,7 @@ export class PermissionsController {
         signature,
       );
       const account =
-        this.context.walletClient.account ?? (await this.getUserAddress());
+        this.context.walletClient?.account ?? this.context.userAddress;
       const { tx } = await import("../utils/transactionHelpers");
       return tx({
         hash,
@@ -864,7 +870,7 @@ export class PermissionsController {
         );
       }
       const account =
-        this.context.walletClient.account ?? (await this.getUserAddress());
+        this.context.walletClient?.account ?? this.context.userAddress;
       const { tx } = await import("../utils/transactionHelpers");
       return tx({
         hash,
@@ -931,7 +937,7 @@ export class PermissionsController {
         );
       }
       const account =
-        this.context.walletClient.account ?? (await this.getUserAddress());
+        this.context.walletClient?.account ?? this.context.userAddress;
       const { tx } = await import("../utils/transactionHelpers");
       return tx({
         hash,
@@ -972,7 +978,8 @@ export class PermissionsController {
     typedData: PermissionGrantTypedData,
     signature: Hash,
   ): Promise<TransactionResult<"DataPortabilityPermissions", "addPermission">> {
-    const chainId = await this.context.walletClient.getChainId();
+    this.assertWallet();
+    const chainId = await this.context.publicClient.getChainId();
     const DataPortabilityPermissionsAddress = getContractAddress(
       chainId,
       "DataPortabilityPermissions",
@@ -1003,7 +1010,7 @@ export class PermissionsController {
 
     // Submit directly to the contract using the provided wallet client
     const account =
-      this.context.walletClient.account ?? (await this.getUserAddress());
+      this.context.walletClient?.account ?? this.context.userAddress;
 
     const txHash = await this.context.walletClient.writeContract({
       address: DataPortabilityPermissionsAddress,
@@ -1011,7 +1018,7 @@ export class PermissionsController {
       functionName: "addPermission",
       args: [permissionInput, formattedSignature],
       account,
-      chain: this.context.walletClient.chain ?? null,
+      chain: this.context.walletClient?.chain ?? null,
     });
 
     const { tx } = await import("../utils/transactionHelpers");
@@ -1050,6 +1057,7 @@ export class PermissionsController {
   async revoke(
     params: RevokePermissionParams,
   ): Promise<PermissionRevokeResult> {
+    this.assertWallet();
     const txResult = await this.submitPermissionRevoke(params);
 
     if (!this.context.waitForTransactionEvents) {
@@ -1104,13 +1112,14 @@ export class PermissionsController {
   ): Promise<
     TransactionResult<"DataPortabilityPermissions", "revokePermission">
   > {
+    this.assertWallet();
     try {
       // Check chain ID availability early
-      if (!this.context.walletClient.chain?.id) {
+      if (!this.context.walletClient?.chain?.id) {
         throw new BlockchainError("Chain ID not available");
       }
 
-      const chainId = await this.context.walletClient.getChainId();
+      const chainId = await this.context.publicClient.getChainId();
       const DataPortabilityPermissionsAddress = getContractAddress(
         chainId,
         "DataPortabilityPermissions",
@@ -1121,7 +1130,7 @@ export class PermissionsController {
 
       // Direct contract call for revocation
       const account =
-        this.context.walletClient.account ?? (await this.getUserAddress());
+        this.context.walletClient?.account ?? this.context.userAddress;
 
       const txHash = await this.context.walletClient.writeContract({
         address: DataPortabilityPermissionsAddress,
@@ -1129,7 +1138,7 @@ export class PermissionsController {
         functionName: "revokePermission",
         args: [params.permissionId],
         account,
-        chain: this.context.walletClient.chain ?? null,
+        chain: this.context.walletClient?.chain ?? null,
       });
 
       const { tx } = await import("../utils/transactionHelpers");
@@ -1194,9 +1203,10 @@ export class PermissionsController {
       "revokePermissionWithSignature"
     >
   > {
+    this.assertWallet();
     try {
       // Check chain ID availability early
-      if (!this.context.walletClient.chain?.id) {
+      if (!this.context.walletClient?.chain?.id) {
         throw new BlockchainError("Chain ID not available");
       }
 
@@ -1238,7 +1248,7 @@ export class PermissionsController {
       }
 
       const account =
-        this.context.walletClient.account ?? (await this.getUserAddress());
+        this.context.walletClient?.account ?? this.context.userAddress;
       const { tx } = await import("../utils/transactionHelpers");
       return tx({
         hash,
@@ -1280,8 +1290,8 @@ export class PermissionsController {
    */
   private async getServersUserNonce(): Promise<bigint> {
     try {
-      const userAddress = await this.getUserAddress();
-      const chainId = await this.context.walletClient.getChainId();
+      const userAddress = this.context.userAddress;
+      const chainId = await this.context.publicClient.getChainId();
 
       const DataPortabilityServersAddress = getContractAddress(
         chainId,
@@ -1330,8 +1340,8 @@ export class PermissionsController {
    */
   private async getPermissionsUserNonce(): Promise<bigint> {
     try {
-      const userAddress = await this.getUserAddress();
-      const chainId = await this.context.walletClient.getChainId();
+      const userAddress = this.context.userAddress;
+      const chainId = await this.context.publicClient.getChainId();
 
       const DataPortabilityPermissionsAddress = getContractAddress(
         chainId,
@@ -1384,7 +1394,7 @@ export class PermissionsController {
     );
 
     // Get granteeId from grantee address
-    const chainId = await this.context.walletClient.getChainId();
+    const chainId = await this.context.publicClient.getChainId();
     const DataPortabilityGranteesAddress = getContractAddress(
       chainId,
       "DataPortabilityGrantees",
@@ -1523,7 +1533,7 @@ export class PermissionsController {
    * @returns Promise resolving to the EIP-712 domain configuration
    */
   private async getPermissionDomain() {
-    const chainId = await this.context.walletClient.getChainId();
+    const chainId = await this.context.publicClient.getChainId();
     const DataPortabilityPermissionsAddress = getContractAddress(
       chainId,
       "DataPortabilityPermissions",
@@ -1544,11 +1554,11 @@ export class PermissionsController {
    * @returns Promise resolving to the cryptographic signature
    */
   private async signTypedData(typedData: GenericTypedData): Promise<Hash> {
+    this.assertWallet();
     try {
       // Get wallet address for cache key - use account if available, otherwise get from wallet
       const walletAddress =
-        this.context.walletClient.account?.address ??
-        (await this.getUserAddress());
+        this.context.walletClient.account?.address ?? this.context.userAddress;
 
       // Use signature cache to avoid repeated signing of identical messages
       return await withSignatureCache(
@@ -1577,17 +1587,10 @@ export class PermissionsController {
   }
 
   /**
-   * Gets the user's address from the wallet client.
+   * Gets the user's address from the context.
    *
-   * @returns Promise resolving to the user's wallet address
+   * @returns The user's address
    */
-  private async getUserAddress(): Promise<Address> {
-    const addresses = await this.context.walletClient.getAddresses();
-    if (addresses.length === 0) {
-      throw new BlockchainError("No addresses available in wallet client");
-    }
-    return addresses[0];
-  }
 
   /**
    * Gets on-chain permission grant data without expensive off-chain resolution.
@@ -1630,7 +1633,7 @@ export class PermissionsController {
     const { limit = 50, subgraphUrl } = options;
 
     try {
-      const userAddress = await this.getUserAddress();
+      const userAddress = this.context.userAddress;
 
       // Use provided subgraph URL or default from context
       const graphqlEndpoint = subgraphUrl ?? this.context.subgraphUrl;
@@ -1768,6 +1771,7 @@ export class PermissionsController {
   async addAndTrustServer(
     params: AddAndTrustServerParams,
   ): Promise<ServerTrustResult> {
+    this.assertWallet();
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
@@ -1778,7 +1782,7 @@ export class PermissionsController {
 
       // Submit directly to the contract
       const account =
-        this.context.walletClient.account ?? (await this.getUserAddress());
+        this.context.walletClient?.account ?? this.context.userAddress;
       const userAddress =
         typeof account === "string" ? account : account.address;
       const normalizedUserAddress = getAddress(userAddress);
@@ -1797,7 +1801,7 @@ export class PermissionsController {
           },
         ],
         account,
-        chain: this.context.walletClient.chain ?? null,
+        chain: this.context.walletClient?.chain ?? null,
       });
 
       const { tx } = await import("../utils/transactionHelpers");
@@ -1855,6 +1859,7 @@ export class PermissionsController {
   async submitTrustServer(
     params: TrustServerParams,
   ): Promise<TransactionResult<"DataPortabilityServers", "trustServer">> {
+    this.assertWallet();
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
@@ -1865,7 +1870,7 @@ export class PermissionsController {
 
       // Submit directly to the contract using trustServer method
       const account =
-        this.context.walletClient.account ?? (await this.getUserAddress());
+        this.context.walletClient?.account ?? this.context.userAddress;
 
       const txHash = await this.context.walletClient.writeContract({
         address: DataPortabilityServersAddress,
@@ -1873,7 +1878,7 @@ export class PermissionsController {
         functionName: "trustServer",
         args: [BigInt(params.serverId)],
         account,
-        chain: this.context.walletClient.chain ?? null,
+        chain: this.context.walletClient?.chain ?? null,
       });
 
       const { tx } = await import("../utils/transactionHelpers");
@@ -1908,6 +1913,7 @@ export class PermissionsController {
       "addAndTrustServerWithSignature"
     >
   > {
+    this.assertWallet();
     try {
       const nonce = await this.getServersUserNonce();
 
@@ -1955,7 +1961,7 @@ export class PermissionsController {
       }
 
       const account =
-        this.context.walletClient.account ?? (await this.getUserAddress());
+        this.context.walletClient?.account ?? this.context.userAddress;
       const { tx } = await import("../utils/transactionHelpers");
       return tx({
         hash,
@@ -2005,6 +2011,7 @@ export class PermissionsController {
   ): Promise<
     TransactionResult<"DataPortabilityServers", "trustServerWithSignature">
   > {
+    this.assertWallet();
     try {
       const nonce = await this.getServersUserNonce();
 
@@ -2035,7 +2042,7 @@ export class PermissionsController {
       }
 
       const account =
-        this.context.walletClient.account ?? (await this.getUserAddress());
+        this.context.walletClient?.account ?? this.context.userAddress;
       const { tx } = await import("../utils/transactionHelpers");
       return tx({
         hash,
@@ -2085,6 +2092,7 @@ export class PermissionsController {
   private async submitDirectUntrustTransaction(
     params: UntrustServerInput,
   ): Promise<TransactionResult<"DataPortabilityServers", "untrustServer">> {
+    this.assertWallet();
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
@@ -2095,7 +2103,7 @@ export class PermissionsController {
 
       // Submit directly to the contract
       const account =
-        this.context.walletClient.account ?? (await this.getUserAddress());
+        this.context.walletClient?.account ?? this.context.userAddress;
 
       const txHash = await this.context.walletClient.writeContract({
         address: DataPortabilityServersAddress,
@@ -2103,7 +2111,7 @@ export class PermissionsController {
         functionName: "untrustServer",
         args: [BigInt(params.serverId)],
         account,
-        chain: this.context.walletClient.chain ?? null,
+        chain: this.context.walletClient?.chain ?? null,
       });
 
       const { tx } = await import("../utils/transactionHelpers");
@@ -2155,6 +2163,7 @@ export class PermissionsController {
   async submitUntrustServer(
     params: UntrustServerParams,
   ): Promise<TransactionResult<"DataPortabilityServers", "untrustServer">> {
+    this.assertWallet();
     // Convert UntrustServerParams to UntrustServerInput by adding nonce
     const nonce = await this.getServersUserNonce();
     const untrustServerInput: UntrustServerInput = {
@@ -2182,6 +2191,7 @@ export class PermissionsController {
   ): Promise<
     TransactionResult<"DataPortabilityServers", "untrustServerWithSignature">
   > {
+    this.assertWallet();
     try {
       const nonce = await this.getServersUserNonce();
 
@@ -2210,7 +2220,7 @@ export class PermissionsController {
       }
 
       const account =
-        this.context.walletClient.account ?? (await this.getUserAddress());
+        this.context.walletClient?.account ?? this.context.userAddress;
       const { tx } = await import("../utils/transactionHelpers");
       return tx({
         hash,
@@ -2264,8 +2274,8 @@ export class PermissionsController {
    */
   async getTrustedServers(userAddress?: Address): Promise<number[]> {
     try {
-      const user = userAddress ?? (await this.getUserAddress());
-      const chainId = await this.context.walletClient.getChainId();
+      const user = userAddress ?? this.context.userAddress;
+      const chainId = await this.context.publicClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
         chainId,
         "DataPortabilityServers",
@@ -2297,8 +2307,8 @@ export class PermissionsController {
    */
   async getTrustedServersCount(userAddress?: Address): Promise<number> {
     try {
-      const user = userAddress ?? (await this.getUserAddress());
-      const chainId = await this.context.walletClient.getChainId();
+      const user = userAddress ?? this.context.userAddress;
+      const chainId = await this.context.publicClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
         chainId,
         "DataPortabilityServers",
@@ -2332,11 +2342,11 @@ export class PermissionsController {
     options: TrustedServerQueryOptions = {},
   ): Promise<PaginatedTrustedServers> {
     try {
-      const user = options.userAddress ?? (await this.getUserAddress());
+      const user = options.userAddress ?? this.context.userAddress;
       const limit = options.limit ?? 50;
       const offset = options.offset ?? 0;
 
-      const chainId = await this.context.walletClient.getChainId();
+      const chainId = await this.context.publicClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
         chainId,
         "DataPortabilityServers",
@@ -2474,9 +2484,8 @@ export class PermissionsController {
           // If server info fails, return basic info
           return {
             id: BigInt(serverId),
-            owner: "0x0000000000000000000000000000000000000000" as Address,
-            serverAddress:
-              "0x0000000000000000000000000000000000000000" as Address,
+            owner: "0x0000000000000000000000000000000000000000",
+            serverAddress: "0x0000000000000000000000000000000000000000",
             publicKey: "",
             url: "",
             startBlock: 0n,
@@ -2529,7 +2538,7 @@ export class PermissionsController {
     }
 
     try {
-      const chainId = await this.context.walletClient.getChainId();
+      const chainId = await this.context.publicClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
         chainId,
         "DataPortabilityServers",
@@ -2631,7 +2640,7 @@ export class PermissionsController {
     userAddress?: Address,
   ): Promise<ServerTrustStatus> {
     try {
-      const user = userAddress ?? (await this.getUserAddress());
+      const user = userAddress ?? this.context.userAddress;
       const trustedServers = await this.getTrustedServers(user);
 
       const trustIndex = trustedServers.findIndex(
@@ -2737,7 +2746,7 @@ export class PermissionsController {
    * @returns Promise resolving to the EIP-712 domain configuration
    */
   private async getServersDomain() {
-    const chainId = await this.context.walletClient.getChainId();
+    const chainId = await this.context.publicClient.getChainId();
     const DataPortabilityServersAddress = getContractAddress(
       chainId,
       "DataPortabilityServers",
@@ -2762,6 +2771,7 @@ export class PermissionsController {
     addAndTrustServerInput: AddAndTrustServerInput,
     signature: Hash,
   ): Promise<Hash> {
+    this.assertWallet();
     const chainId = await this.context.walletClient.getChainId();
     const DataPortabilityServersAddress = getContractAddress(
       chainId,
@@ -2797,9 +2807,8 @@ export class PermissionsController {
         },
         formattedSignature,
       ],
-      account:
-        this.context.walletClient.account ?? (await this.getUserAddress()),
-      chain: this.context.walletClient.chain ?? null,
+      account: this.context.walletClient?.account ?? this.context.userAddress,
+      chain: this.context.walletClient?.chain ?? null,
     });
 
     return txHash;
@@ -2816,6 +2825,7 @@ export class PermissionsController {
     trustServerInput: TrustServerInput,
     signature: Hash,
   ): Promise<Hash> {
+    this.assertWallet();
     const chainId = await this.context.walletClient.getChainId();
     const DataPortabilityServersAddress = getContractAddress(
       chainId,
@@ -2837,9 +2847,8 @@ export class PermissionsController {
         },
         formattedSignature,
       ],
-      account:
-        this.context.walletClient.account ?? (await this.getUserAddress()),
-      chain: this.context.walletClient.chain ?? null,
+      account: this.context.walletClient?.account ?? this.context.userAddress,
+      chain: this.context.walletClient?.chain ?? null,
     });
 
     return txHash;
@@ -2856,6 +2865,7 @@ export class PermissionsController {
     typedData: RevokePermissionTypedData,
     signature: Hash,
   ): Promise<Hash> {
+    this.assertWallet();
     const chainId = await this.context.walletClient.getChainId();
     const DataPortabilityPermissionsAddress = getContractAddress(
       chainId,
@@ -2871,9 +2881,8 @@ export class PermissionsController {
       abi: DataPortabilityPermissionsAbi,
       functionName: "revokePermissionWithSignature",
       args: [typedData.message, formattedSignature],
-      account:
-        this.context.walletClient.account ?? (await this.getUserAddress()),
-      chain: this.context.walletClient.chain ?? null,
+      account: this.context.walletClient?.account ?? this.context.userAddress,
+      chain: this.context.walletClient?.chain ?? null,
     });
 
     return txHash;
@@ -2890,6 +2899,7 @@ export class PermissionsController {
     typedData: UntrustServerTypedData,
     signature: Hash,
   ): Promise<Hash> {
+    this.assertWallet();
     const chainId = await this.context.walletClient.getChainId();
     const DataPortabilityServersAddress = getContractAddress(
       chainId,
@@ -2912,9 +2922,8 @@ export class PermissionsController {
       abi: DataPortabilityServersAbi,
       functionName: "untrustServerWithSignature",
       args: [contractMessage, formattedSignature],
-      account:
-        this.context.walletClient.account ?? (await this.getUserAddress()),
-      chain: this.context.walletClient.chain ?? null,
+      account: this.context.walletClient?.account ?? this.context.userAddress,
+      chain: this.context.walletClient?.chain ?? null,
     });
 
     return txHash;
@@ -2952,6 +2961,7 @@ export class PermissionsController {
   async submitRegisterGrantee(
     params: RegisterGranteeParams,
   ): Promise<TransactionResult<"DataPortabilityGrantees", "registerGrantee">> {
+    this.assertWallet();
     const chainId = await this.context.walletClient.getChainId();
     const DataPortabilityGranteesAddress = getContractAddress(
       chainId,
@@ -2962,7 +2972,7 @@ export class PermissionsController {
     const ownerAddress = getAddress(params.owner);
     const granteeAddress = getAddress(params.granteeAddress);
     const account =
-      this.context.walletClient.account ?? (await this.getUserAddress());
+      this.context.walletClient?.account ?? this.context.userAddress;
 
     const txHash = await this.context.walletClient.writeContract({
       address: DataPortabilityGranteesAddress,
@@ -2970,7 +2980,7 @@ export class PermissionsController {
       functionName: "registerGrantee",
       args: [ownerAddress, granteeAddress, params.publicKey],
       account,
-      chain: this.context.walletClient.chain ?? null,
+      chain: this.context.walletClient?.chain ?? null,
     });
 
     const { tx } = await import("../utils/transactionHelpers");
@@ -3000,6 +3010,7 @@ export class PermissionsController {
   async submitRegisterGranteeWithSignature(
     params: RegisterGranteeParams,
   ): Promise<TransactionResult<"DataPortabilityGrantees", "registerGrantee">> {
+    this.assertWallet();
     const nonce = await this.getServersUserNonce();
 
     const owner = getAddress(params.owner);
@@ -3023,7 +3034,7 @@ export class PermissionsController {
       signature,
     );
     const account =
-      this.context.walletClient.account ?? (await this.getUserAddress());
+      this.context.walletClient?.account ?? this.context.userAddress;
     const { tx } = await import("../utils/transactionHelpers");
     return tx({
       hash,
@@ -3054,7 +3065,7 @@ export class PermissionsController {
       signature,
     );
     const account =
-      this.context.walletClient.account ?? (await this.getUserAddress());
+      this.context.walletClient?.account ?? this.context.userAddress;
     const { tx } = await import("../utils/transactionHelpers");
     return tx({
       hash,
@@ -3294,7 +3305,7 @@ export class PermissionsController {
   private async buildRegisterGranteeTypedData(
     input: RegisterGranteeInput,
   ): Promise<RegisterGranteeTypedData> {
-    const chainId = await this.context.walletClient.getChainId();
+    const chainId = await this.context.publicClient.getChainId();
     const verifyingContract = getContractAddress(
       chainId,
       "DataPortabilityGrantees",
@@ -3332,6 +3343,7 @@ export class PermissionsController {
     typedData: GenericTypedData,
     _signature: Hash,
   ): Promise<Hash> {
+    this.assertWallet();
     const chainId = await this.context.walletClient.getChainId();
     const DataPortabilityGranteesAddress = getContractAddress(
       chainId,
@@ -3350,9 +3362,8 @@ export class PermissionsController {
         (typedData.message as RegisterGranteeInput).granteeAddress,
         (typedData.message as RegisterGranteeInput).publicKey,
       ],
-      account:
-        this.context.walletClient.account ?? (await this.getUserAddress()),
-      chain: this.context.walletClient.chain ?? null,
+      account: this.context.walletClient?.account ?? this.context.userAddress,
+      chain: this.context.walletClient?.chain ?? null,
     });
 
     return txHash;
@@ -3370,7 +3381,7 @@ export class PermissionsController {
    */
   async getUserServerIds(userAddress?: Address): Promise<bigint[]> {
     try {
-      const targetAddress = userAddress ?? (await this.getUserAddress());
+      const targetAddress = userAddress ?? this.context.userAddress;
       const chainId = await this.context.publicClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
         chainId,
@@ -3437,7 +3448,7 @@ export class PermissionsController {
    */
   async getUserServerCount(userAddress?: Address): Promise<bigint> {
     try {
-      const targetAddress = userAddress ?? (await this.getUserAddress());
+      const targetAddress = userAddress ?? this.context.userAddress;
       const chainId = await this.context.publicClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
         chainId,
@@ -3471,7 +3482,7 @@ export class PermissionsController {
     userAddress?: Address,
   ): Promise<TrustedServerInfo[]> {
     try {
-      const targetAddress = userAddress ?? (await this.getUserAddress());
+      const targetAddress = userAddress ?? this.context.userAddress;
       const chainId = await this.context.publicClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
         chainId,
@@ -3604,7 +3615,7 @@ export class PermissionsController {
    */
   async getUserPermissionIds(userAddress?: Address): Promise<bigint[]> {
     try {
-      const targetAddress = userAddress ?? (await this.getUserAddress());
+      const targetAddress = userAddress ?? this.context.userAddress;
       const chainId = await this.context.publicClient.getChainId();
       const DataPortabilityPermissionsAddress = getContractAddress(
         chainId,
@@ -3675,7 +3686,7 @@ export class PermissionsController {
    */
   async getUserPermissionCount(userAddress?: Address): Promise<bigint> {
     try {
-      const targetAddress = userAddress ?? (await this.getUserAddress());
+      const targetAddress = userAddress ?? this.context.userAddress;
       const chainId = await this.context.publicClient.getChainId();
       const DataPortabilityPermissionsAddress = getContractAddress(
         chainId,
@@ -4178,6 +4189,7 @@ export class PermissionsController {
     serverId: bigint,
     url: string,
   ): Promise<TransactionResult<"DataPortabilityServers", "updateServer">> {
+    this.assertWallet();
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityServersAddress = getContractAddress(
@@ -4187,14 +4199,14 @@ export class PermissionsController {
       const DataPortabilityServersAbi = getAbi("DataPortabilityServers");
 
       const account =
-        this.context.walletClient.account ?? (await this.getUserAddress());
+        this.context.walletClient?.account ?? this.context.userAddress;
 
       const hash = await this.context.walletClient.writeContract({
         address: DataPortabilityServersAddress,
         abi: DataPortabilityServersAbi,
         functionName: "updateServer",
         args: [serverId, url],
-        chain: this.context.walletClient.chain,
+        chain: this.context.walletClient?.chain,
         account,
       });
 
@@ -4373,6 +4385,7 @@ export class PermissionsController {
   async submitAddPermission(
     params: ServerFilesAndPermissionParams,
   ): Promise<TransactionResult<"DataPortabilityPermissions", "addPermission">> {
+    this.assertWallet();
     try {
       const nonce = await this.getPermissionsUserNonce();
 
@@ -4430,6 +4443,7 @@ export class PermissionsController {
     typedData: GenericTypedData,
     signature: Hash,
   ): Promise<TransactionResult<"DataPortabilityPermissions", "addPermission">> {
+    this.assertWallet();
     try {
       // Use relayer callbacks or direct transaction
       let hash: Hash;
@@ -4446,7 +4460,7 @@ export class PermissionsController {
       }
 
       const account =
-        this.context.walletClient.account ?? (await this.getUserAddress());
+        this.context.walletClient?.account ?? this.context.userAddress;
       const { tx } = await import("../utils/transactionHelpers");
       return tx({
         hash,
@@ -4530,6 +4544,7 @@ export class PermissionsController {
       "addServerFilesAndPermissions"
     >
   > {
+    this.assertWallet();
     try {
       // Validate that schemaIds array has same length as fileUrls
       if (params.schemaIds.length !== params.fileUrls.length) {
@@ -4623,6 +4638,7 @@ export class PermissionsController {
       "addServerFilesAndPermissions"
     >
   > {
+    this.assertWallet();
     try {
       // Debug logging to understand relayer callback availability
       console.debug("🔍 submitSignedAddServerFilesAndPermissions Debug Info:", {
@@ -4645,7 +4661,7 @@ export class PermissionsController {
             signature,
           );
         const account =
-          this.context.walletClient.account ?? (await this.getUserAddress());
+          this.context.walletClient?.account ?? this.context.userAddress;
         const { tx } = await import("../utils/transactionHelpers");
         return tx({
           hash,
@@ -4662,12 +4678,11 @@ export class PermissionsController {
             typedData,
             signature,
           );
-        const account =
-          this.context.walletClient.account ?? (await this.getUserAddress());
+        const account = this.context.userAddress;
         const { tx } = await import("../utils/transactionHelpers");
         return tx({
           hash,
-          from: typeof account === "string" ? account : account.address,
+          from: account,
           contract: "DataPortabilityPermissions",
           fn: "addServerFilesAndPermissions",
         });
@@ -4701,6 +4716,7 @@ export class PermissionsController {
   ): Promise<
     TransactionResult<"DataPortabilityPermissions", "revokePermission">
   > {
+    this.assertWallet();
     try {
       const chainId = await this.context.walletClient.getChainId();
       const DataPortabilityPermissionsAddress = getContractAddress(
@@ -4721,7 +4737,7 @@ export class PermissionsController {
         abi: DataPortabilityPermissionsAbi,
         functionName: "revokePermission",
         args: [permissionId],
-        chain: this.context.walletClient.chain,
+        chain: this.context.walletClient?.chain,
         account,
       });
 
@@ -4752,6 +4768,7 @@ export class PermissionsController {
     typedData: GenericTypedData,
     signature: Hash,
   ): Promise<Hash> {
+    this.assertWallet();
     const chainId = await this.context.walletClient.getChainId();
     const DataPortabilityPermissionsAddress = getContractAddress(
       chainId,
@@ -4775,9 +4792,8 @@ export class PermissionsController {
       abi: DataPortabilityPermissionsAbi,
       functionName: "addPermission",
       args: [permissionInput, formattedSignature],
-      account:
-        this.context.walletClient.account ?? (await this.getUserAddress()),
-      chain: this.context.walletClient.chain ?? null,
+      account: this.context.walletClient?.account ?? this.context.userAddress,
+      chain: this.context.walletClient?.chain ?? null,
     });
 
     return hash;
@@ -4794,7 +4810,8 @@ export class PermissionsController {
     typedData: ServerFilesAndPermissionTypedData,
     signature: Hash,
   ): Promise<Hash> {
-    const chainId = await this.context.walletClient.getChainId();
+    this.assertWallet();
+    const chainId = await this.context.publicClient.getChainId();
     const DataPortabilityPermissionsAddress = getContractAddress(
       chainId,
       "DataPortabilityPermissions",
@@ -4823,9 +4840,8 @@ export class PermissionsController {
       functionName: "addServerFilesAndPermissions",
       // @ts-expect-error - Viem's type inference for nested Permission[][] arrays is incompatible with our Permission type
       args: [serverFilesAndPermissionInput, formattedSignature],
-      account:
-        this.context.walletClient.account ?? (await this.getUserAddress()),
-      chain: this.context.walletClient.chain ?? null,
+      account: this.context.userAddress,
+      chain: this.context.walletClient?.chain ?? null,
     });
 
     return hash;

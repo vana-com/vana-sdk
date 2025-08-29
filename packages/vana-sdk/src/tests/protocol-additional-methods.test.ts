@@ -3,7 +3,7 @@ import { createWalletClient, createPublicClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { mokshaTestnet } from "../config/chains";
 import { ProtocolController } from "../controllers/protocol";
-import type { ControllerContext } from "../controllers/permissions";
+import type { ControllerContext } from "../types/controller-context";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock the config and ABI modules
@@ -91,6 +91,8 @@ describe("ProtocolController - Additional Methods", () => {
       walletClient: validWalletClient,
       publicClient: validPublicClient,
       platform: mockPlatformAdapter,
+      userAddress:
+        "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
     } as ControllerContext;
 
     controller = new ProtocolController(mockContext);

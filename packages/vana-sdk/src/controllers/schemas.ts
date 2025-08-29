@@ -1,4 +1,3 @@
-import type { Address } from "viem";
 import type {
   Schema,
   SchemaMetadata,
@@ -8,6 +7,7 @@ import type {
 // import type { TransactionResult } from "../types/operations";
 import type { SchemaAddedResult } from "../types/transactionResults";
 import type { ControllerContext } from "./permissions";
+import { BaseController } from "./base";
 import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../generated/abi";
 import { gasAwareMulticall } from "../utils/multicall";
@@ -111,8 +111,10 @@ export interface CreateSchemaResult {
  * ```
  * @category Schema Management
  */
-export class SchemaController {
-  constructor(private readonly context: ControllerContext) {}
+export class SchemaController extends BaseController {
+  constructor(context: ControllerContext) {
+    super(context);
+  }
 
   /**
    * Creates a new schema with automatic validation and IPFS upload.
@@ -152,6 +154,7 @@ export class SchemaController {
    * ```
    */
   async create(params: CreateSchemaParams): Promise<CreateSchemaResult> {
+    this.assertWallet();
     const { name, dialect, schema } = params;
 
     try {
@@ -206,7 +209,9 @@ export class SchemaController {
       );
 
       // Step 4: Register on blockchain
-      const chainId = this.context.walletClient.chain?.id;
+      const chainId =
+        this.context.walletClient?.chain?.id ??
+        this.context.publicClient.chain?.id;
       if (!chainId) {
         throw new Error("Chain ID not available");
       }
@@ -217,23 +222,22 @@ export class SchemaController {
       );
       const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
 
-      const account =
-        this.context.walletClient.account ?? (await this.getUserAddress());
-      const from = typeof account === "string" ? account : account.address;
+      const account = this.context.walletClient.account;
+      const from = typeof account === "string" ? account : account?.address;
 
       const hash = await this.context.walletClient.writeContract({
         address: dataRefinerRegistryAddress,
         abi: dataRefinerRegistryAbi,
         functionName: "addSchema",
         args: [name, dialect, uploadResult.url],
-        account,
+        account: account ?? null,
         chain: this.context.walletClient.chain ?? null,
       });
 
       const { tx } = await import("../utils/transactionHelpers");
       const txResult = tx({
         hash,
-        from,
+        from: from!,
         contract: "DataRefinerRegistry",
         fn: "addSchema",
       });
@@ -452,7 +456,9 @@ export class SchemaController {
       }
 
       // Get contract address and ABI
-      const chainId = this.context.walletClient.chain?.id;
+      const chainId =
+        this.context.walletClient?.chain?.id ??
+        this.context.publicClient.chain?.id;
       if (!chainId) {
         throw new Error("Chain ID not available");
       }
@@ -534,8 +540,11 @@ export class SchemaController {
    * @returns Promise resolving to the add schema result
    */
   async addSchema(params: AddSchemaParams): Promise<SchemaAddedResult> {
+    this.assertWallet();
     try {
-      const chainId = this.context.walletClient.chain?.id;
+      const chainId =
+        this.context.walletClient?.chain?.id ??
+        this.context.publicClient.chain?.id;
       if (!chainId) {
         throw new Error("Chain ID not available");
       }
@@ -546,16 +555,15 @@ export class SchemaController {
       );
       const dataRefinerRegistryAbi = getAbi("DataRefinerRegistry");
 
-      const account =
-        this.context.walletClient.account ?? (await this.getUserAddress());
-      const from = typeof account === "string" ? account : account.address;
+      const account = this.context.walletClient.account;
+      const from = typeof account === "string" ? account : account?.address;
 
       const hash = await this.context.walletClient.writeContract({
         address: dataRefinerRegistryAddress,
         abi: dataRefinerRegistryAbi,
         functionName: "addSchema",
         args: [params.name, params.dialect, params.definitionUrl],
-        account,
+        account: account ?? null,
         chain: this.context.walletClient.chain ?? null,
       });
 
@@ -563,7 +571,7 @@ export class SchemaController {
       const { tx } = await import("../utils/transactionHelpers");
       const txResult = tx({
         hash,
-        from,
+        from: from!,
         contract: "DataRefinerRegistry",
         fn: "addSchema",
       });
@@ -766,26 +774,6 @@ export class SchemaController {
    * @private
    * @returns Promise resolving to the user's address
    */
-  private async getUserAddress(): Promise<Address> {
-    if (!this.context.walletClient.account) {
-      throw new Error("No wallet account connected");
-    }
-
-    // Return the account address directly if available
-    if (typeof this.context.walletClient.account === "string") {
-      return this.context.walletClient.account as Address;
-    }
-
-    // If account is an object, get the address property
-    if (
-      typeof this.context.walletClient.account === "object" &&
-      this.context.walletClient.account.address
-    ) {
-      return this.context.walletClient.account.address;
-    }
-
-    throw new Error("Unable to determine wallet address");
-  }
 
   /**
    * Fetches and attaches definitions to an array of schemas.

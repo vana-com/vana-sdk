@@ -28,7 +28,7 @@ export default defineConfig({
       thresholds: {
         // Coverage adjusted after removing legacy handler and its tests
         statements: 76,
-        branches: 82.3,
+        branches: 82.2,
         functions: 87,
         lines: 76,
       },

@@ -4940,13 +4940,19 @@ export class PermissionsController extends BaseController {
       account: this.context.userAddress,
       chain: this.context.walletClient?.chain ?? null,
       ...(options?.gasLimit && { gas: options.gasLimit }),
-      ...(options?.gasPrice && { gasPrice: options.gasPrice }),
-      ...(options?.maxFeePerGas && { maxFeePerGas: options.maxFeePerGas }),
-      ...(options?.maxPriorityFeePerGas && {
-        maxPriorityFeePerGas: options.maxPriorityFeePerGas,
-      }),
       ...(options?.nonce && { nonce: options.nonce }),
       ...(options?.value && { value: options.value }),
+      // Use EIP-1559 if available, otherwise fall back to legacy gasPrice
+      ...(options?.maxFeePerGas || options?.maxPriorityFeePerGas
+        ? {
+            ...(options.maxFeePerGas && {
+              maxFeePerGas: options.maxFeePerGas,
+            }),
+            ...(options.maxPriorityFeePerGas && {
+              maxPriorityFeePerGas: options.maxPriorityFeePerGas,
+            }),
+          }
+        : options?.gasPrice && { gasPrice: options.gasPrice }),
     });
 
     return hash;

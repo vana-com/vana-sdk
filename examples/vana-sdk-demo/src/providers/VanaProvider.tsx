@@ -11,6 +11,7 @@ import { useAccount, useWalletClient } from "wagmi";
 import {
   type DownloadRelayerCallbacks,
   type RelayerConfig,
+  type UnifiedRelayerRequest,
   Vana,
   CallbackStorage,
   PinataStorage,
@@ -241,7 +242,7 @@ export function VanaProvider({
         // Create unified relayer callback - demonstrates the proper pattern
         const baseUrl = config.relayerUrl ?? window.location.origin;
         const relayer: RelayerConfig | undefined = useGaslessTransactions
-          ? async (request) => {
+          ? async (request: UnifiedRelayerRequest) => {
               const response = await fetch(`${baseUrl}/api/relay`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },

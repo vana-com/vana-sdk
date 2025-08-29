@@ -8,6 +8,7 @@ import type {
   VanaInstance,
   StorageProvider,
   WalletClient,
+  UnifiedRelayerRequest,
 } from "@opendatalabs/vana-sdk/browser";
 import { useWalletClient, useAccount as useWagmiAccount } from "wagmi";
 import type { GoogleDriveTokens } from "./google-drive-oauth";
@@ -109,7 +110,7 @@ export function VanaProvider({
 
         // Use unified relayer callback pattern
         const relayer = useGaslessTransactions
-          ? async (request) => {
+          ? async (request: UnifiedRelayerRequest) => {
               const response = await fetch("/api/relay", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },

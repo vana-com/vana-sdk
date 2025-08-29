@@ -1,5 +1,9 @@
-import type { Hash } from "viem";
-import type { GrantFile, PermissionGrantTypedData } from "./permissions";
+import type { Hash, Address } from "viem";
+import type {
+  GrantFile,
+  PermissionGrantTypedData,
+  GenericTypedData,
+} from "./permissions";
 
 /**
  * Response from the relayer service for grant file storage
@@ -124,29 +128,6 @@ export interface RelayerStatus {
     /** Transaction requests per hour */
     transactionRequestsPerHour: number;
   };
-}
-
-/**
- * Relayer configuration
- *
- * @category Advanced
- */
-export interface RelayerConfig {
-  /** Relayer service URL */
-  url: string;
-  /** API key for authentication */
-  apiKey?: string;
-  /** Timeout for requests in milliseconds */
-  timeout?: number;
-  /** Retry configuration */
-  retry?: {
-    /** Number of retry attempts */
-    attempts: number;
-    /** Delay between retries in milliseconds */
-    delay: number;
-  };
-  /** Whether to use HTTPS */
-  useHttps?: boolean;
 }
 
 /**
@@ -296,4 +277,190 @@ export interface RelayerWebhookPayload {
   webhookId: string;
   /** Signature for verification */
   signature: string;
+}
+
+// ===== NEW SIMPLIFIED RELAYER TYPES (v2) =====
+
+/**
+ * Handles both EIP-712 signed operations and direct server operations through a single interface.
+ *
+ * @remarks
+ * This discriminated union provides type safety through TypeScript's narrowing.
+ * The `type` field determines which operation variant is being used.
+ * Signed operations require blockchain transactions, while direct operations
+ * handle auxiliary tasks like file storage.
+ *
+ * @category Relayer
+ * @see {@link https://docs.vana.org/docs/gasless-transactions | Gasless Transactions Guide}
+ */
+export type UnifiedRelayerRequest = SignedRelayerRequest | DirectRelayerRequest;
+
+/**
+ * Represents an EIP-712 signed operation for gasless transaction submission.
+ *
+ * @remarks
+ * Signed requests contain typed data and signatures that are verified
+ * on-chain by smart contracts. The relayer pays gas fees on behalf of users.
+ *
+ * @category Relayer
+ */
+export interface SignedRelayerRequest {
+  /** Discriminator field identifying this as a signed operation */
+  type: "signed";
+  /** Operation identifier for routing (e.g., 'submitAddPermission') */
+  operation: SignedOperationType;
+  /** EIP-712 typed data structure for the operation */
+  typedData: GenericTypedData;
+  /** User's signature of the typed data */
+  signature: Hash;
+  /** Optional address for additional signer verification */
+  expectedUserAddress?: Address;
+}
+
+/**
+ * Supported signed operation types.
+ * @category Relayer
+ */
+export type SignedOperationType =
+  | "submitAddPermission"
+  | "submitPermissionRevoke"
+  | "submitTrustServer"
+  | "submitAddAndTrustServer"
+  | "submitUntrustServer"
+  | "submitAddServerFilesAndPermissions"
+  | "submitRegisterGrantee";
+
+/**
+ * Represents direct server operations that don't require blockchain signatures.
+ *
+ * @remarks
+ * Direct requests handle auxiliary operations like file uploads and grant storage.
+ * These operations may still result in blockchain transactions but don't require
+ * user signatures for gasless submission.
+ *
+ * @category Relayer
+ */
+export type DirectRelayerRequest =
+  | {
+      type: "direct";
+      operation: "submitFileAddition";
+      params: {
+        url: string;
+        userAddress: Address;
+      };
+    }
+  | {
+      type: "direct";
+      operation: "submitFileAdditionWithPermissions";
+      params: {
+        url: string;
+        userAddress: Address;
+        permissions: Array<{ account: Address; key: string }>;
+      };
+    }
+  | {
+      type: "direct";
+      operation: "submitFileAdditionComplete";
+      params: {
+        url: string;
+        userAddress: Address;
+        permissions: Array<{ account: Address; key: string }>;
+        schemaId: number;
+        ownerAddress?: Address;
+      };
+    }
+  | {
+      type: "direct";
+      operation: "storeGrantFile";
+      params: GrantFile;
+    };
+
+/**
+ * Provides type-safe responses for all relayer operations.
+ *
+ * @remarks
+ * The discriminated union ensures proper error handling and result typing.
+ * Check the `type` field to determine success or failure before accessing results.
+ *
+ * @category Relayer
+ */
+export type UnifiedRelayerResponse =
+  | {
+      type: "signed";
+      hash: Hash;
+    }
+  | {
+      type: "direct";
+      result: { fileId: number; transactionHash: Hash } | { url: string } | any;
+    }
+  | {
+      type: "error";
+      error: string;
+    };
+
+/**
+ * Simplified relayer configuration.
+ * Can be a URL string for convenience, or a callback for full control.
+ *
+ * @category Configuration
+ * @example
+ * ```typescript
+ * // Option 1: Simple URL (SDK handles the transport)
+ * const vana = Vana({
+ *   walletClient,
+ *   relayer: '/api/relay'
+ * });
+ *
+ * // Option 2: Full control with callback
+ * const vana = Vana({
+ *   walletClient,
+ *   relayer: async (request) => {
+ *     const response = await fetch('/api/relay', {
+ *       method: 'POST',
+ *       body: JSON.stringify(request)
+ *     });
+ *     return response.json();
+ *   }
+ * });
+ * ```
+ */
+export type RelayerConfig =
+  | string
+  | ((request: UnifiedRelayerRequest) => Promise<UnifiedRelayerResponse>);
+
+/**
+ * Simplified relayer callbacks interface (v2).
+ * A single callback handles all relayer operations.
+ *
+ * @category Configuration
+ * @example
+ * ```typescript
+ * const relayerCallbacks: RelayerCallbacksV2 = {
+ *   submit: async (request) => {
+ *     // Send to your server endpoint
+ *     const response = await fetch('/api/relay', {
+ *       method: 'POST',
+ *       headers: { 'Content-Type': 'application/json' },
+ *       body: JSON.stringify(request)
+ *     });
+ *     return response.json();
+ *   }
+ * };
+ * ```
+ */
+export interface RelayerCallbacksV2 {
+  /**
+   * Submit any relayer operation.
+   *
+   * This single callback handles all operations:
+   * - EIP-712 signed operations (permissions, server trust, etc.)
+   * - Direct operations (file additions, grant storage)
+   *
+   * On your server, pass the entire request object to the SDK's
+   * `handleRelayerOperation` helper function.
+   *
+   * @param request - The unified request object
+   * @returns Promise resolving to operation-specific response
+   */
+  submit: (request: UnifiedRelayerRequest) => Promise<UnifiedRelayerResponse>;
 }

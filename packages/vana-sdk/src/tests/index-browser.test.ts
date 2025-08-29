@@ -95,14 +95,11 @@ describe("Browser Index Entry Point", () => {
     it("should create instance with full configuration", async () => {
       const vana = Vana({
         walletClient: validWalletClient,
-        relayerCallbacks: {
-          submitPermissionGrant: async (_typedData, _signature) => "0xtxhash",
-          submitPermissionRevoke: async (_typedData, _signature) => "0xtxhash",
-        },
+        relayer: async () => ({ type: "signed", hash: "0xtxhash" }),
       });
 
       expect(vana).toBeInstanceOf(VanaBrowserImpl);
-      expect(vana.getConfig().relayerCallbacks).toBeDefined();
+      expect(vana.getConfig().relayerConfig).toBeDefined();
     });
 
     it("should throw error for invalid configuration", () => {

@@ -250,6 +250,11 @@ export {
 // Server-side utilities
 export { handleRelayerRequest } from "./server/handler";
 export type { RelayerRequestPayload } from "./server/handler";
+export { handleRelayerOperation } from "./server/relayerHandler";
+export type {
+  UnifiedRelayerRequest,
+  UnifiedRelayerResponse,
+} from "./types/relayer";
 // TransactionHandle removed - using POJOs instead
 export type {
   Operation,

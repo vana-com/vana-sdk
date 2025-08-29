@@ -28,8 +28,6 @@ import type {
   Grantee,
   GranteeInfo,
   RegisterGranteeParams,
-  RegisterGranteeInput,
-  RegisterGranteeTypedData,
   GranteeQueryOptions,
   PaginatedGrantees,
   ServerInfo,
@@ -44,6 +42,7 @@ import type {
 } from "../types/transactionResults";
 import type { TransactionResult } from "../types/operations";
 import type { PermissionInfo } from "../types/permissions";
+import type { UnifiedRelayerRequest } from "../types/relayer";
 import {
   RelayerError,
   UserRejectedRequestError,
@@ -306,22 +305,36 @@ export class PermissionsController extends BaseController {
       console.debug("🔍 Debug - Grant URL from params:", grantUrl);
       if (!grantUrl) {
         // Validate storage is available using the centralized validation method
-        if (
-          !this.context.relayerCallbacks?.storeGrantFile &&
-          !this.context.storageManager
-        ) {
+        const canStoreViaRelayer = this.context.relayer !== undefined;
+        if (!canStoreViaRelayer && !this.context.storageManager) {
           // Use centralized validation if available, otherwise fall back to old behavior
           if (this.context.validateStorageRequired) {
             this.context.validateStorageRequired();
           } else {
             throw new Error(
-              "No storage available. Provide a grantUrl, configure relayerCallbacks.storeGrantFile, or storageManager.",
+              "No storage available. Provide a grantUrl, configure relayer, or storageManager.",
             );
           }
         }
-        if (this.context.relayerCallbacks?.storeGrantFile) {
-          grantUrl =
-            await this.context.relayerCallbacks.storeGrantFile(grantFile);
+        if (canStoreViaRelayer && this.context.relayer) {
+          const request: UnifiedRelayerRequest = {
+            type: "direct",
+            operation: "storeGrantFile",
+            params: grantFile,
+          };
+          const response = await this.context.relayer(request);
+          if (response.type === "error") {
+            throw new Error(response.error);
+          }
+          if (
+            response.type === "direct" &&
+            typeof response.result === "object" &&
+            "url" in response.result
+          ) {
+            grantUrl = response.result.url as string;
+          } else {
+            throw new Error("Invalid response from relayer for grant storage");
+          }
         } else if (this.context.storageManager) {
           // Store using local storage manager if available
           const blob = new Blob([JSON.stringify(grantFile)], {
@@ -431,22 +444,36 @@ export class PermissionsController extends BaseController {
       console.debug("🔍 Debug - Grant URL from params:", grantUrl);
       if (!grantUrl) {
         // Validate storage is available using the centralized validation method
-        if (
-          !this.context.relayerCallbacks?.storeGrantFile &&
-          !this.context.storageManager
-        ) {
+        const canStoreViaRelayer = this.context.relayer !== undefined;
+        if (!canStoreViaRelayer && !this.context.storageManager) {
           // Use centralized validation if available, otherwise fall back to old behavior
           if (this.context.validateStorageRequired) {
             this.context.validateStorageRequired();
           } else {
             throw new Error(
-              "No storage available. Provide a grantUrl, configure relayerCallbacks.storeGrantFile, or storageManager.",
+              "No storage available. Provide a grantUrl, configure relayer, or storageManager.",
             );
           }
         }
-        if (this.context.relayerCallbacks?.storeGrantFile) {
-          grantUrl =
-            await this.context.relayerCallbacks.storeGrantFile(grantFile);
+        if (canStoreViaRelayer && this.context.relayer) {
+          const request: UnifiedRelayerRequest = {
+            type: "direct",
+            operation: "storeGrantFile",
+            params: grantFile,
+          };
+          const response = await this.context.relayer(request);
+          if (response.type === "error") {
+            throw new Error(response.error);
+          }
+          if (
+            response.type === "direct" &&
+            typeof response.result === "object" &&
+            "url" in response.result
+          ) {
+            grantUrl = response.result.url as string;
+          } else {
+            throw new Error("Invalid response from relayer for grant storage");
+          }
         } else if (this.context.storageManager) {
           // Store using local storage manager if available
           const blob = new Blob([JSON.stringify(grantFile)], {
@@ -546,12 +573,27 @@ export class PermissionsController extends BaseController {
         ),
       );
 
-      // Use relayer callbacks or direct transaction
-      if (this.context.relayerCallbacks?.submitPermissionGrant) {
-        const hash = await this.context.relayerCallbacks.submitPermissionGrant(
+      // Use relayer callback or direct transaction
+      if (this.context.relayer) {
+        const response = await this.context.relayer({
+          type: "signed",
+          operation: "submitAddPermission",
           typedData,
           signature,
-        );
+          expectedUserAddress: this.context.userAddress,
+        });
+
+        let hash: Hash;
+        if (response.type === "signed") {
+          hash = response.hash;
+        } else if (response.type === "error") {
+          throw new Error(`Relayer error: ${response.error}`);
+        } else {
+          throw new Error(
+            "Invalid response from relayer: expected signed transaction",
+          );
+        }
+
         const account =
           this.context.walletClient?.account ?? this.context.userAddress;
         const { tx } = await import("../utils/transactionHelpers");
@@ -856,13 +898,26 @@ export class PermissionsController extends BaseController {
     >
   > {
     try {
-      // Use relayer callbacks or direct transaction
+      // Use relayer callback or direct transaction
       let hash: Hash;
-      if (this.context.relayerCallbacks?.submitPermissionRevoke) {
-        hash = await this.context.relayerCallbacks.submitPermissionRevoke(
+      if (this.context.relayer) {
+        const response = await this.context.relayer({
+          type: "signed",
+          operation: "submitPermissionRevoke",
           typedData,
           signature,
-        );
+          expectedUserAddress: this.context.userAddress,
+        });
+
+        if (response.type === "signed") {
+          hash = response.hash;
+        } else if (response.type === "error") {
+          throw new Error(`Relayer error: ${response.error}`);
+        } else {
+          throw new Error(
+            "Invalid response from relayer: expected signed transaction",
+          );
+        }
       } else {
         hash = await this.submitDirectRevokeTransaction(
           typedData as RevokePermissionTypedData,
@@ -923,13 +978,26 @@ export class PermissionsController extends BaseController {
     TransactionResult<"DataPortabilityServers", "untrustServerWithSignature">
   > {
     try {
-      // Use relayer callbacks or direct transaction
+      // Use relayer callback or direct transaction
       let hash: Hash;
-      if (this.context.relayerCallbacks?.submitUntrustServer) {
-        hash = await this.context.relayerCallbacks.submitUntrustServer(
-          typedData as UntrustServerTypedData,
+      if (this.context.relayer) {
+        const response = await this.context.relayer({
+          type: "signed",
+          operation: "submitUntrustServer",
+          typedData,
           signature,
-        );
+          expectedUserAddress: this.context.userAddress,
+        });
+
+        if (response.type === "signed") {
+          hash = response.hash;
+        } else if (response.type === "error") {
+          throw new Error(`Relayer error: ${response.error}`);
+        } else {
+          throw new Error(
+            "Invalid response from relayer: expected signed transaction",
+          );
+        }
       } else {
         hash = await this.submitSignedUntrustTransaction(
           typedData as UntrustServerTypedData,
@@ -1233,13 +1301,26 @@ export class PermissionsController extends BaseController {
 
       const signature = await this.signTypedData(typedData);
 
-      // Submit via relayer callbacks or directly
+      // Submit via relayer callback or directly
       let hash: Hash;
-      if (this.context.relayerCallbacks?.submitPermissionRevoke) {
-        hash = await this.context.relayerCallbacks.submitPermissionRevoke(
+      if (this.context.relayer) {
+        const response = await this.context.relayer({
+          type: "signed",
+          operation: "submitPermissionRevoke",
           typedData,
           signature,
-        );
+          expectedUserAddress: this.context.userAddress,
+        });
+
+        if (response.type === "signed") {
+          hash = response.hash;
+        } else if (response.type === "error") {
+          throw new Error(`Relayer error: ${response.error}`);
+        } else {
+          throw new Error(
+            "Invalid response from relayer: expected signed transaction",
+          );
+        }
       } else {
         hash = await this.submitDirectRevokeTransaction(
           typedData as RevokePermissionTypedData,
@@ -1946,13 +2027,24 @@ export class PermissionsController extends BaseController {
 
       console.debug("🔍 Generated signature:", signature);
 
-      // Submit via relayer callbacks or direct transaction
+      // Submit via unified relayer callback or direct transaction
       let hash: Hash;
-      if (this.context.relayerCallbacks?.submitAddAndTrustServer) {
-        hash = await this.context.relayerCallbacks.submitAddAndTrustServer(
+      if (this.context.relayer) {
+        const request: UnifiedRelayerRequest = {
+          type: "signed",
+          operation: "submitAddAndTrustServer",
           typedData,
           signature,
-        );
+        };
+        const response = await this.context.relayer(request);
+        if (response.type === "error") {
+          throw new RelayerError(response.error);
+        }
+        if (response.type === "signed") {
+          hash = response.hash;
+        } else {
+          throw new Error("Unexpected response type from relayer");
+        }
       } else {
         hash = await this.submitAddAndTrustServerTransaction(
           addAndTrustServerInput,
@@ -2027,13 +2119,24 @@ export class PermissionsController extends BaseController {
       // Sign the typed data
       const signature = await this.signTypedData(typedData);
 
-      // Submit via relayer callbacks or direct transaction
+      // Submit via unified relayer callback or direct transaction
       let hash: Hash;
-      if (this.context.relayerCallbacks?.submitTrustServer) {
-        hash = await this.context.relayerCallbacks.submitTrustServer(
+      if (this.context.relayer) {
+        const request: UnifiedRelayerRequest = {
+          type: "signed",
+          operation: "submitTrustServer",
           typedData,
           signature,
-        );
+        };
+        const response = await this.context.relayer(request);
+        if (response.type === "error") {
+          throw new RelayerError(response.error);
+        }
+        if (response.type === "signed") {
+          hash = response.hash;
+        } else {
+          throw new Error("Unexpected response type from relayer");
+        }
       } else {
         hash = await this.submitTrustServerTransaction(
           trustServerInput,
@@ -2208,13 +2311,24 @@ export class PermissionsController extends BaseController {
       // Sign the typed data
       const signature = await this.signTypedData(typedData);
 
-      // Submit via relayer callbacks or direct transaction
+      // Submit via unified relayer callback or direct transaction
       let hash: Hash;
-      if (this.context.relayerCallbacks?.submitUntrustServer) {
-        hash = await this.context.relayerCallbacks.submitUntrustServer(
+      if (this.context.relayer) {
+        const request: UnifiedRelayerRequest = {
+          type: "signed",
+          operation: "submitUntrustServer",
           typedData,
           signature,
-        );
+        };
+        const response = await this.context.relayer(request);
+        if (response.type === "error") {
+          throw new RelayerError(response.error);
+        }
+        if (response.type === "signed") {
+          hash = response.hash;
+        } else {
+          throw new Error("Unexpected response type from relayer");
+        }
       } else {
         hash = await this.submitSignedUntrustTransaction(typedData, signature);
       }
@@ -2992,88 +3106,9 @@ export class PermissionsController extends BaseController {
     });
   }
 
-  /**
-   * Registers a grantee with a signature (gasless transaction)
-   *
-   * @param params - Parameters for registering the grantee
-   * @returns Promise resolving to the transaction hash
-   *
-   * @example
-   * ```typescript
-   * const txHash = await vana.permissions.registerGranteeWithSignature({
-   *   owner: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
-   *   granteeAddress: "0xApp1234567890123456789012345678901234567890",
-   *   publicKey: "0x1234567890abcdef..."
-   * });
-   * ```
-   */
-  async submitRegisterGranteeWithSignature(
-    params: RegisterGranteeParams,
-  ): Promise<TransactionResult<"DataPortabilityGrantees", "registerGrantee">> {
-    this.assertWallet();
-    const nonce = await this.getServersUserNonce();
-
-    const owner = getAddress(params.owner);
-    const granteeAddress = getAddress(params.granteeAddress);
-
-    const registerGranteeInput: RegisterGranteeInput = {
-      nonce,
-      owner,
-      granteeAddress,
-      publicKey: params.publicKey,
-    };
-
-    const typedData =
-      await this.buildRegisterGranteeTypedData(registerGranteeInput);
-    const signature = await this.signTypedData(typedData);
-
-    // TODO: Add submitRegisterGrantee to RelayerCallbacks interface
-    // For now, always use direct transaction
-    const hash = await this.submitSignedRegisterGranteeTransaction(
-      typedData,
-      signature,
-    );
-    const account =
-      this.context.walletClient?.account ?? this.context.userAddress;
-    const { tx } = await import("../utils/transactionHelpers");
-    return tx({
-      hash,
-      from: typeof account === "string" ? account : account.address,
-      contract: "DataPortabilityGrantees",
-      fn: "registerGrantee",
-    });
-  }
-
-  /**
-   * Submits a signed register grantee transaction via relayer
-   *
-   * @param typedData - The EIP-712 typed data for register grantee
-   * @param signature - The cryptographic signature
-   * @returns Promise resolving to the transaction hash
-   *
-   * @example
-   * ```typescript
-   * const result = await vana.permissions.submitSignedRegisterGrantee(typedData, signature);
-   * ```
-   */
-  async submitSignedRegisterGrantee(
-    typedData: RegisterGranteeTypedData,
-    signature: Hash,
-  ): Promise<TransactionResult<"DataPortabilityGrantees", "registerGrantee">> {
-    const hash = await this.submitSignedRegisterGranteeTransaction(
-      typedData,
-      signature,
-    );
-    const account =
-      this.context.walletClient?.account ?? this.context.userAddress;
-    const { tx } = await import("../utils/transactionHelpers");
-    return tx({
-      hash,
-      from: typeof account === "string" ? account : account.address,
-      contract: "DataPortabilityGrantees",
-      fn: "registerGrantee",
-    });
-  }
+  // TODO: When DataPortabilityGrantees contract adds registerGranteeWithSignature function,
+  // implement submitRegisterGranteeWithSignature and submitSignedRegisterGrantee methods
+  // to support gasless transactions via relayer
 
   /**
    * Retrieves all registered grantees from the DataPortabilityGrantees contract.
@@ -3293,80 +3328,6 @@ export class PermissionsController extends BaseController {
       console.warn(`Failed to fetch grantee ${granteeId}:`, error);
       return null;
     }
-  }
-
-  /**
-   * Builds EIP-712 typed data for grantee registration
-   *
-   * @param input - The register grantee input
-   * @returns Promise resolving to the typed data structure
-   * @private
-   */
-  private async buildRegisterGranteeTypedData(
-    input: RegisterGranteeInput,
-  ): Promise<RegisterGranteeTypedData> {
-    const chainId = await this.context.publicClient.getChainId();
-    const verifyingContract = getContractAddress(
-      chainId,
-      "DataPortabilityGrantees",
-    );
-
-    return {
-      domain: {
-        name: "DataPortabilityGrantees",
-        version: "1",
-        chainId,
-        verifyingContract,
-      },
-      types: {
-        RegisterGrantee: [
-          { name: "nonce", type: "uint256" },
-          { name: "owner", type: "address" },
-          { name: "granteeAddress", type: "address" },
-          { name: "publicKey", type: "string" },
-        ],
-      },
-      primaryType: "RegisterGrantee",
-      message: input,
-    };
-  }
-
-  /**
-   * Submits a register grantee transaction with signature.
-   *
-   * @param typedData - The EIP-712 typed data structure for the registration
-   * @param _signature - The cryptographic signature authorizing the registration (currently unused)
-   * @returns Promise resolving to the transaction hash
-   * @private
-   */
-  private async submitSignedRegisterGranteeTransaction(
-    typedData: GenericTypedData,
-    _signature: Hash,
-  ): Promise<Hash> {
-    this.assertWallet();
-    const chainId = await this.context.walletClient.getChainId();
-    const DataPortabilityGranteesAddress = getContractAddress(
-      chainId,
-      "DataPortabilityGrantees",
-    );
-    const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
-
-    // TODO: Add registerGranteeWithSignature to DataPortabilityGrantees contract
-    // For now, use direct registerGrantee function
-    const txHash = await this.context.walletClient.writeContract({
-      address: DataPortabilityGranteesAddress,
-      abi: DataPortabilityGranteesAbi,
-      functionName: "registerGrantee",
-      args: [
-        (typedData.message as RegisterGranteeInput).owner,
-        (typedData.message as RegisterGranteeInput).granteeAddress,
-        (typedData.message as RegisterGranteeInput).publicKey,
-      ],
-      account: this.context.walletClient?.account ?? this.context.userAddress,
-      chain: this.context.walletClient?.chain ?? null,
-    });
-
-    return txHash;
   }
 
   // ===========================
@@ -4445,13 +4406,24 @@ export class PermissionsController extends BaseController {
   ): Promise<TransactionResult<"DataPortabilityPermissions", "addPermission">> {
     this.assertWallet();
     try {
-      // Use relayer callbacks or direct transaction
+      // Use unified relayer callback or direct transaction
       let hash: Hash;
-      if (this.context.relayerCallbacks?.submitAddPermission) {
-        hash = await this.context.relayerCallbacks.submitAddPermission(
+      if (this.context.relayer) {
+        const request: UnifiedRelayerRequest = {
+          type: "signed",
+          operation: "submitAddPermission",
           typedData,
           signature,
-        );
+        };
+        const response = await this.context.relayer(request);
+        if (response.type === "error") {
+          throw new RelayerError(response.error);
+        }
+        if (response.type === "signed") {
+          hash = response.hash;
+        } else {
+          throw new Error("Unexpected response type from relayer");
+        }
       } else {
         hash = await this.submitDirectAddPermissionTransaction(
           typedData,
@@ -4640,53 +4612,46 @@ export class PermissionsController extends BaseController {
   > {
     this.assertWallet();
     try {
-      // Debug logging to understand relayer callback availability
-      console.debug("🔍 submitSignedAddServerFilesAndPermissions Debug Info:", {
-        hasRelayerCallbacks: !!this.context.relayerCallbacks,
-        hasSubmitMethod:
-          !!this.context.relayerCallbacks?.submitAddServerFilesAndPermissions,
-        availableRelayerMethods: this.context.relayerCallbacks
-          ? Object.keys(this.context.relayerCallbacks)
-          : [],
-      });
-
-      // Use relayer callbacks or direct transaction
-      if (this.context.relayerCallbacks?.submitAddServerFilesAndPermissions) {
+      // Use unified relayer callback or direct transaction
+      let hash: Hash;
+      if (this.context.relayer) {
         console.debug(
           "🚀 Using relayer for submitAddServerFilesAndPermissions",
         );
-        const hash =
-          await this.context.relayerCallbacks.submitAddServerFilesAndPermissions(
-            typedData,
-            signature,
-          );
-        const account =
-          this.context.walletClient?.account ?? this.context.userAddress;
-        const { tx } = await import("../utils/transactionHelpers");
-        return tx({
-          hash,
-          from: typeof account === "string" ? account : account.address,
-          contract: "DataPortabilityPermissions",
-          fn: "addServerFilesAndPermissions",
-        });
+        const request: UnifiedRelayerRequest = {
+          type: "signed",
+          operation: "submitAddServerFilesAndPermissions",
+          typedData,
+          signature,
+        };
+        const response = await this.context.relayer(request);
+        if (response.type === "error") {
+          throw new RelayerError(response.error);
+        }
+        if (response.type === "signed") {
+          hash = response.hash;
+        } else {
+          throw new Error("Unexpected response type from relayer");
+        }
       } else {
         console.debug(
           "📝 Using direct transaction for submitAddServerFilesAndPermissions",
         );
-        const hash =
-          await this.submitDirectAddServerFilesAndPermissionsTransaction(
-            typedData,
-            signature,
-          );
-        const account = this.context.userAddress;
-        const { tx } = await import("../utils/transactionHelpers");
-        return tx({
-          hash,
-          from: account,
-          contract: "DataPortabilityPermissions",
-          fn: "addServerFilesAndPermissions",
-        });
+        hash = await this.submitDirectAddServerFilesAndPermissionsTransaction(
+          typedData,
+          signature,
+        );
       }
+
+      const account =
+        this.context.walletClient?.account ?? this.context.userAddress;
+      const { tx } = await import("../utils/transactionHelpers");
+      return tx({
+        hash,
+        from: typeof account === "string" ? account : account.address,
+        contract: "DataPortabilityPermissions",
+        fn: "addServerFilesAndPermissions",
+      });
     } catch (error) {
       // Re-throw known Vana errors directly to preserve error types
       if (

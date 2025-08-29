@@ -1,50 +1,30 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getApiVanaInstance } from "../../../lib/api-vana";
-import { handleRelayerRequest } from "@opendatalabs/vana-sdk/node";
-import type { GenericTypedData } from "@opendatalabs/vana-sdk/node";
-import type { Hash } from "viem";
+import { handleRelayerOperation } from "@opendatalabs/vana-sdk/node";
+import type { UnifiedRelayerRequest } from "@opendatalabs/vana-sdk/node";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const {
-      typedData,
-      signature,
-      expectedUserAddress,
-    }: {
-      typedData: GenericTypedData;
-      signature: Hash;
-      expectedUserAddress?: string;
-    } = body;
+    const relayerRequest: UnifiedRelayerRequest = body;
 
-    if (!typedData || !signature) {
+    if (!relayerRequest) {
       return NextResponse.json(
-        { success: false, error: "Missing typedData or signature" },
+        { success: false, error: "Missing request body" },
         { status: 400 },
       );
     }
 
     const vana = getApiVanaInstance();
+    const result = await handleRelayerOperation(vana, relayerRequest);
 
-    const result = await handleRelayerRequest(vana, {
-      typedData,
-      signature,
-      expectedUserAddress: expectedUserAddress as `0x${string}` | undefined,
-    });
-
-    // TransactionResult provides immediate hash access
-    // The .hash property gives us the transaction hash directly
-    const transactionHash = result.hash;
-
-    return NextResponse.json({
-      success: true,
-      transactionHash,
-    });
+    // Return the unified response directly
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Error relaying transaction:", error);
     return NextResponse.json(
       {
-        success: false,
+        type: "error",
         error: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 },

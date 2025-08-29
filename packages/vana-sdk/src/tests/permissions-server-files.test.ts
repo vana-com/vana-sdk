@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { PermissionsController } from "../controllers/permissions";
 import type { ControllerContext } from "../controllers/permissions";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
+import type { Hash } from "viem";
 
 // Mock external dependencies
 vi.mock("viem", async () => {
@@ -285,12 +286,13 @@ describe("Permissions Server Files and Permissions", () => {
     });
 
     it("should use relayer callback when available", async () => {
-      const mockRelayerCallback = vi.fn().mockResolvedValue("0xrelaytxhash");
+      const mockRelayerCallback = vi.fn().mockResolvedValue({
+        type: "signed",
+        hash: "0xrelaytxhash" as Hash,
+      });
       const contextWithRelayer = {
         ...mockContext,
-        relayerCallbacks: {
-          submitAddServerFilesAndPermissions: mockRelayerCallback,
-        },
+        relayer: mockRelayerCallback,
       };
 
       const controllerWithRelayer = new PermissionsController(
@@ -320,9 +322,12 @@ describe("Permissions Server Files and Permissions", () => {
       expect(result).toHaveProperty("hash");
       expect(result).toHaveProperty("from");
 
-      // Verify the typed data passed to relayer has schemaIds
-      const [typedData] = mockRelayerCallback.mock.calls[0];
-      expect(typedData.message.schemaIds).toEqual([BigInt(0)]);
+      // Verify the request passed to relayer has schemaIds
+      const request = mockRelayerCallback.mock.calls[0][0];
+      expect(request.type).toBe("signed");
+      if (request.type === "signed") {
+        expect(request.typedData.message.schemaIds).toEqual([BigInt(0)]);
+      }
     });
 
     it("should handle large schema IDs correctly", async () => {

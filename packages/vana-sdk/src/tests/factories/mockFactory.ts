@@ -432,7 +432,7 @@ export function createMockControllerContext(
       overrides?.storageManager ?? createTypedMockStorageManager(),
     subgraphUrl: overrides?.subgraphUrl ?? "https://subgraph.test.com",
     defaultPersonalServerUrl: overrides?.defaultPersonalServerUrl,
-    relayerCallbacks: overrides?.relayerCallbacks ?? undefined,
+    relayer: overrides?.relayer ?? undefined,
     // Spread overrides but exclude waitForTransactionEvents if it's undefined
     ...(overrides
       ? Object.fromEntries(
@@ -599,7 +599,7 @@ export function createPartialMock<T>(partial: Partial<T>): T {
  *
  * @remarks
  * This factory variant is optimized for testing direct blockchain transactions
- * without gasless relayer support. It sets both `relayerCallbacks` and
+ * without gasless relayer support. It sets both `relayer` and
  * `storageManager` to `undefined`, forcing the controller to use direct transactions.
  *
  * @example
@@ -615,7 +615,7 @@ export function createMockControllerContextForDirectTransaction(
 ): ControllerContext &
   Required<Pick<ControllerContext, "waitForTransactionEvents">> {
   return createMockControllerContext({
-    relayerCallbacks: undefined,
+    relayer: undefined,
     storageManager: undefined,
     ...overrides,
   });
@@ -637,7 +637,7 @@ export function createMockControllerContextForDirectTransaction(
  * const context = createMockControllerContextWithRelayer();
  * const controller = new PermissionsController(context);
  * const result = await controller.grant(params);
- * expect(context.relayerCallbacks?.storeGrantFile).toHaveBeenCalled();
+ * expect(context.relayer?.storeGrantFile).toHaveBeenCalled();
  * ```
  */
 export function createMockControllerContextWithRelayer(
@@ -645,11 +645,20 @@ export function createMockControllerContextWithRelayer(
 ): ControllerContext &
   Required<Pick<ControllerContext, "waitForTransactionEvents">> {
   return createMockControllerContext({
-    relayerCallbacks: {
-      storeGrantFile: vi.fn().mockResolvedValue("https://mock-grant-url.com"),
-      submitPermissionGrant: vi.fn().mockResolvedValue("0xtxhash"),
-      ...overrides?.relayerCallbacks,
-    },
+    relayer:
+      overrides?.relayer ??
+      vi.fn().mockImplementation(async (request) => {
+        if (
+          request.type === "direct" &&
+          request.operation === "storeGrantFile"
+        ) {
+          return {
+            type: "direct",
+            result: { url: "https://mock-grant-url.com" },
+          };
+        }
+        return { type: "signed", hash: "0xtxhash" };
+      }),
     ...overrides,
   });
 }

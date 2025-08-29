@@ -47,16 +47,27 @@ describe("DataController Relayer Integration", () => {
       publicClient: {} as unknown as ControllerContext["publicClient"],
       applicationClient:
         {} as unknown as ControllerContext["applicationClient"],
-      relayerCallbacks: {
-        submitFileAddition: vi.fn().mockResolvedValue({
-          fileId: 123,
-          transactionHash: "0x123456789abcdef",
-        }),
-        submitFileAdditionWithPermissions: vi.fn().mockResolvedValue({
-          fileId: 456,
-          transactionHash: "0xabcdef123456789",
-        }),
-      },
+      relayer: vi.fn().mockImplementation(async (request) => {
+        if (
+          request.type === "direct" &&
+          request.operation === "submitFileAdditionWithPermissions"
+        ) {
+          return {
+            type: "direct",
+            result: {
+              fileId: 456,
+              transactionHash: "0xabcdef123456789",
+            },
+          };
+        }
+        return {
+          type: "direct",
+          result: {
+            fileId: 123,
+            transactionHash: "0x123456789abcdef",
+          },
+        };
+      }),
       storageManager:
         mockStorageManager as unknown as ControllerContext["storageManager"],
       platform: mockPlatformAdapter,
@@ -67,7 +78,7 @@ describe("DataController Relayer Integration", () => {
   });
 
   describe("uploadFileWithPermissions", () => {
-    it("should use relayer when relayerCallbacks is configured", async () => {
+    it("should use relayer when relayer is configured", async () => {
       const testBlob = new Blob(["test data"], { type: "text/plain" });
       const permissions = [
         {
@@ -83,18 +94,22 @@ describe("DataController Relayer Integration", () => {
         filename: "test.txt",
       });
 
-      // Verify relayer callback was called with correct parameters
-      expect(
-        mockContext.relayerCallbacks?.submitFileAdditionWithPermissions,
-      ).toHaveBeenCalledWith(
-        "ipfs://QmTestHash123",
-        "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        expect.arrayContaining([
-          expect.objectContaining({
-            account: "0xTrustedServer" as `0x${string}`,
-            key: expect.any(String), // Encrypted key
+      // Verify relayer was called with correct request
+      expect(mockContext.relayer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "direct",
+          operation: "submitFileAdditionWithPermissions",
+          params: expect.objectContaining({
+            url: "ipfs://QmTestHash123",
+            userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+            permissions: expect.arrayContaining([
+              expect.objectContaining({
+                account: "0xTrustedServer",
+                key: expect.any(String), // Encrypted key
+              }),
+            ]),
           }),
-        ]),
+        }),
       );
 
       // Verify response structure
@@ -122,26 +137,30 @@ describe("DataController Relayer Integration", () => {
         filename: "test.txt",
       });
 
-      // Verify the callback was called with correct parameters
-      expect(
-        mockContext.relayerCallbacks?.submitFileAdditionWithPermissions,
-      ).toHaveBeenCalledWith(
-        "ipfs://QmTestHash123",
-        "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        expect.arrayContaining([
-          expect.objectContaining({
-            account: "0xTrustedServer" as `0x${string}`,
-            key: expect.any(String), // Encrypted key
+      // Verify the relayer was called with correct request
+      expect(mockContext.relayer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "direct",
+          operation: "submitFileAdditionWithPermissions",
+          params: expect.objectContaining({
+            url: "ipfs://QmTestHash123",
+            userAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+            permissions: expect.arrayContaining([
+              expect.objectContaining({
+                account: "0xTrustedServer",
+                key: expect.any(String), // Encrypted key
+              }),
+            ]),
           }),
-        ]),
+        }),
       );
     });
 
-    it("should fallback to direct transaction when no relayerCallbacks", async () => {
+    it("should fallback to direct transaction when no relayer", async () => {
       // Remove relayer callbacks from context but add waitForTransactionEvents and publicClient
       const contextWithoutRelayer = {
         ...mockContext,
-        relayerCallbacks: undefined,
+        relayer: undefined,
         publicClient: {
           chain: { id: 14800, name: "Moksha Testnet" },
         },
@@ -194,14 +213,11 @@ describe("DataController Relayer Integration", () => {
       // Create context with relayer callback that throws an error
       const contextWithError = {
         ...mockContext,
-        relayerCallbacks: {
-          ...mockContext.relayerCallbacks,
-          submitFileAdditionWithPermissions: vi
-            .fn()
-            .mockRejectedValue(
-              new Error("Failed to register file on blockchain"),
-            ),
-        },
+        relayer: vi
+          .fn()
+          .mockRejectedValue(
+            new Error("Failed to register file on blockchain"),
+          ),
       };
       const controller = new DataController(contextWithError);
 

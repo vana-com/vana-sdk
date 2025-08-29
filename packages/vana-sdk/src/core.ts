@@ -13,10 +13,12 @@ import {
   isVanaChainId,
   hasStorageConfig,
 } from "./types";
+import type { DownloadRelayerCallbacks } from "./types/config";
 import type {
-  RelayerCallbacks,
-  DownloadRelayerCallbacks,
-} from "./types/config";
+  RelayerConfig,
+  UnifiedRelayerRequest,
+  UnifiedRelayerResponse,
+} from "./types/relayer";
 import { InvalidConfigurationError } from "./errors";
 import type { ControllerContext } from "./controllers/permissions";
 import { PermissionsController } from "./controllers/permissions";
@@ -168,7 +170,10 @@ export class VanaCore {
   /** Handles environment-specific operations like encryption and file systems. */
   protected platform: VanaPlatformAdapter;
 
-  private readonly relayerCallbacks?: RelayerCallbacks;
+  private readonly relayerConfig?: RelayerConfig;
+  private readonly relayerCallback?: (
+    request: UnifiedRelayerRequest,
+  ) => Promise<UnifiedRelayerResponse>;
   private readonly downloadRelayer?: DownloadRelayerCallbacks;
   private readonly storageManager?: StorageManager;
   private readonly hasRequiredStorage: boolean;
@@ -205,8 +210,38 @@ export class VanaCore {
     // Validate configuration
     this.validateConfig(config);
 
-    // Store relayer callbacks if provided
-    this.relayerCallbacks = config.relayerCallbacks;
+    // Store relayer config and set up callback
+    this.relayerConfig = config.relayer;
+    if (config.relayer) {
+      // Validate relayer type
+      if (
+        typeof config.relayer !== "string" &&
+        typeof config.relayer !== "function"
+      ) {
+        throw new InvalidConfigurationError(
+          "Relayer must be either a URL string or a callback function",
+        );
+      }
+
+      if (typeof config.relayer === "string") {
+        // Convenience: URL string - create HTTP transport
+        const url = config.relayer;
+        this.relayerCallback = async (request: UnifiedRelayerRequest) => {
+          const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(request),
+          });
+          if (!response.ok) {
+            throw new Error(`Relayer request failed: ${response.statusText}`);
+          }
+          return response.json();
+        };
+      } else {
+        // Direct callback function
+        this.relayerCallback = config.relayer;
+      }
+    }
 
     // Store download relayer if provided
     this.downloadRelayer = config.downloadRelayer;
@@ -330,7 +365,7 @@ export class VanaCore {
         return self.userAddress;
       },
       applicationClient: walletClient, // Using same wallet for now
-      relayerCallbacks: this.relayerCallbacks,
+      relayer: this.relayerCallback,
       downloadRelayer: this.downloadRelayer,
       storageManager: this.storageManager,
       subgraphUrl,
@@ -369,7 +404,7 @@ export class VanaCore {
       throw new InvalidConfigurationError(
         "Storage configuration is required for this operation. " +
           "Please configure storage providers in VanaConfig.storage, " +
-          "provide a relayerCallbacks.storeGrantFile implementation, " +
+          "provide a relayer configuration, " +
           "or pass pre-stored URLs to avoid this dependency. " +
           "\n\nFor better type safety, consider using VanaCoreFactory.createWithStorage() " +
           "with VanaConfigWithStorage to catch this error at compile time.",
@@ -423,15 +458,6 @@ export class VanaCore {
   private validateConfig(config: VanaConfig): void {
     if (!config) {
       throw new InvalidConfigurationError("Configuration object is required");
-    }
-
-    // Validate relayerCallbacks if provided
-    if (config.relayerCallbacks !== undefined) {
-      if (typeof config.relayerCallbacks !== "object") {
-        throw new InvalidConfigurationError(
-          "relayerCallbacks must be an object",
-        );
-      }
     }
 
     // Validate storage configuration if provided
@@ -619,7 +645,7 @@ export class VanaCore {
     return {
       chainId: this.chainId as VanaChainId,
       chainName: this.chainName,
-      relayerCallbacks: this.relayerCallbacks,
+      relayerConfig: this.relayerConfig,
       storageProviders: this.storageManager?.getStorageProviders() ?? [],
       defaultStorageProvider: this.storageManager?.getDefaultStorageProvider(),
     };

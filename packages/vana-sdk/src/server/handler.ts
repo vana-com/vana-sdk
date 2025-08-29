@@ -5,7 +5,6 @@ import type {
   GenericTypedData,
   PermissionGrantTypedData,
   RevokePermissionTypedData,
-  RegisterGranteeTypedData,
   TrustServerTypedData,
   AddAndTrustServerTypedData,
   ServerFilesAndPermissionTypedData,
@@ -183,11 +182,13 @@ export async function handleRelayerRequest(
         signature,
       );
 
-    case "RegisterGrantee":
-      return sdk.permissions.submitSignedRegisterGrantee(
-        typedData as unknown as RegisterGranteeTypedData,
-        signature,
-      );
+    // TODO: RegisterGrantee with signature is not supported until
+    // DataPortabilityGrantees contract adds registerGranteeWithSignature function
+    // case "RegisterGrantee":
+    //   return sdk.permissions.submitSignedRegisterGrantee(
+    //     typedData as unknown as RegisterGranteeTypedData,
+    //     signature,
+    //   );
 
     case "ServerFilesAndPermission":
       return sdk.permissions.submitSignedAddServerFilesAndPermissions(

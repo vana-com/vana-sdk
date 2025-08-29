@@ -368,12 +368,21 @@ describe("Correct Vana Encryption Implementation", () => {
           allEvents: [],
           hasExpectedEvents: true,
         }),
-        relayerCallbacks: {
-          submitFileAdditionWithPermissions: vi.fn().mockResolvedValue({
-            fileId: 123,
-            transactionHash: "0xtxhash",
-          }),
-        },
+        relayer: vi.fn().mockImplementation(async (request) => {
+          if (
+            request.type === "direct" &&
+            request.operation === "submitFileAdditionWithPermissions"
+          ) {
+            return {
+              type: "direct",
+              result: {
+                fileId: 123,
+                transactionHash: "0xtxhash",
+              },
+            };
+          }
+          return { type: "error", error: "Unknown request" };
+        }),
       };
 
       const controller = new DataController(mockContext);
@@ -397,9 +406,12 @@ describe("Correct Vana Encryption Implementation", () => {
       expect(result.fileId).toBe(123);
       expect(result.url).toBe("https://example.com/file123");
       expect(mockStorageManager.upload).toHaveBeenCalled();
-      expect(
-        mockContext.relayerCallbacks.submitFileAdditionWithPermissions,
-      ).toHaveBeenCalled();
+      expect(mockContext.relayer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "direct",
+          operation: "submitFileAdditionWithPermissions",
+        }),
+      );
     });
 
     it("should orchestrate permission granting through controller addPermissionToFile", async () => {
@@ -581,12 +593,21 @@ describe("Correct Vana Encryption Implementation", () => {
           },
           defaultProvider: "default",
         },
-        relayerCallbacks: {
-          submitFileAdditionWithPermissions: vi.fn().mockResolvedValue({
-            fileId: 123,
-            transactionHash: "0xtxhash",
-          }),
-        },
+        relayer: vi.fn().mockImplementation(async (request) => {
+          if (
+            request.type === "direct" &&
+            request.operation === "submitFileAdditionWithPermissions"
+          ) {
+            return {
+              type: "direct",
+              result: {
+                fileId: 123,
+                transactionHash: "0xtxhash",
+              },
+            };
+          }
+          return { type: "error", error: "Unknown request" };
+        }),
       };
 
       const vana = Vana(config);

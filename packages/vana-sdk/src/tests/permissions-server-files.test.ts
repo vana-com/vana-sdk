@@ -376,4 +376,144 @@ describe("Permissions Server Files and Permissions", () => {
       ]);
     });
   });
+
+  describe("TransactionOptions support", () => {
+    const baseParams = {
+      granteeId: BigInt(1),
+      grant: "ipfs://QmTestGrant",
+      fileUrls: ["https://example.com/file1.json"],
+      schemaIds: [123],
+      serverAddress: "0x742d35Cc6634C0532925a3b844Bc9e7595f0b0Bb" as const,
+      serverUrl: "https://server.example.com",
+      serverPublicKey: "0x123456789abcdef",
+      filePermissions: [
+        [
+          {
+            account:
+              "0x742d35Cc6634C0532925a3b844Bc9e7595f0b0Bb" as `0x${string}`,
+            key: "key1",
+          },
+        ],
+      ],
+    };
+
+    beforeEach(() => {
+      // Reset mocks before each test
+      vi.clearAllMocks();
+      mockPublicClient.readContract.mockResolvedValue(1n); // nonce
+    });
+
+    it("should pass EIP-1559 gas parameters to writeContract", async () => {
+      const options = {
+        maxFeePerGas: 100n * 10n ** 9n, // 100 gwei
+        maxPriorityFeePerGas: 2n * 10n ** 9n, // 2 gwei
+        gasLimit: 500000n,
+      };
+
+      await controller.submitAddServerFilesAndPermissions(baseParams, options);
+
+      expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          address: "0x1234567890123456789012345678901234567890",
+          abi: expect.any(Array),
+          functionName: "addServerFilesAndPermissions",
+          gas: 500000n,
+          maxFeePerGas: 100n * 10n ** 9n,
+          maxPriorityFeePerGas: 2n * 10n ** 9n,
+        }),
+      );
+    });
+
+    it("should pass legacy gas parameters to writeContract", async () => {
+      const options = {
+        gasPrice: 50n * 10n ** 9n, // 50 gwei
+        gasLimit: 300000n,
+        nonce: 42,
+      };
+
+      await controller.submitAddServerFilesAndPermissions(baseParams, options);
+
+      expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          address: "0x1234567890123456789012345678901234567890",
+          abi: expect.any(Array),
+          functionName: "addServerFilesAndPermissions",
+          gas: 300000n,
+          gasPrice: 50n * 10n ** 9n,
+          nonce: 42,
+        }),
+      );
+    });
+
+    it("should prefer EIP-1559 over legacy gas when both are provided", async () => {
+      const options = {
+        gasPrice: 30n * 10n ** 9n, // Should be ignored
+        maxFeePerGas: 100n * 10n ** 9n,
+        maxPriorityFeePerGas: 2n * 10n ** 9n,
+      };
+
+      await controller.submitAddServerFilesAndPermissions(baseParams, options);
+
+      const writeContractCall = mockWalletClient.writeContract.mock.calls[0][0];
+      expect(writeContractCall).toHaveProperty(
+        "maxFeePerGas",
+        100n * 10n ** 9n,
+      );
+      expect(writeContractCall).toHaveProperty(
+        "maxPriorityFeePerGas",
+        2n * 10n ** 9n,
+      );
+      expect(writeContractCall).not.toHaveProperty("gasPrice");
+    });
+
+    it("should include value parameter when provided", async () => {
+      const options = {
+        value: 10n ** 18n, // 1 ETH
+        gasLimit: 21000n,
+      };
+
+      await controller.submitAddServerFilesAndPermissions(baseParams, options);
+
+      expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          gas: 21000n,
+          value: 10n ** 18n,
+        }),
+      );
+    });
+
+    it("should work without any options (backward compatibility)", async () => {
+      await controller.submitAddServerFilesAndPermissions(baseParams);
+
+      expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          address: "0x1234567890123456789012345678901234567890",
+          abi: expect.any(Array),
+          functionName: "addServerFilesAndPermissions",
+        }),
+      );
+
+      const writeContractCall = mockWalletClient.writeContract.mock.calls[0][0];
+      expect(writeContractCall).not.toHaveProperty("gas");
+      expect(writeContractCall).not.toHaveProperty("gasPrice");
+      expect(writeContractCall).not.toHaveProperty("maxFeePerGas");
+    });
+
+    it("should only include provided gas parameters", async () => {
+      const options = {
+        maxFeePerGas: 100n * 10n ** 9n,
+        // maxPriorityFeePerGas intentionally omitted
+      };
+
+      await controller.submitAddServerFilesAndPermissions(baseParams, options);
+
+      const writeContractCall = mockWalletClient.writeContract.mock.calls[0][0];
+      expect(writeContractCall).toHaveProperty(
+        "maxFeePerGas",
+        100n * 10n ** 9n,
+      );
+      expect(writeContractCall).not.toHaveProperty("maxPriorityFeePerGas");
+      expect(writeContractCall).not.toHaveProperty("gasPrice");
+    });
+  });
 });

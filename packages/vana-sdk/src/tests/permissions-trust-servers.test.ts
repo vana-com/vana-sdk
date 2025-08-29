@@ -875,4 +875,74 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
   });
 
   // Note: isTrustedServer method not implemented in PermissionsController
+
+  describe("TransactionOptions support for server operations", () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      // Mock different contract functions based on functionName
+      mockPublicClient.readContract.mockImplementation((args) => {
+        if (args.functionName === "users") {
+          return [1n, []]; // [nonce, trustedServerIds] for getServersUserNonce
+        }
+        return 1n; // Default fallback
+      });
+    });
+
+    describe("submitUntrustServer with TransactionOptions", () => {
+      it("should pass EIP-1559 gas parameters to writeContract", async () => {
+        const params = { serverId: 1 };
+        const options = {
+          maxFeePerGas: 80n * 10n ** 9n, // 80 gwei
+          maxPriorityFeePerGas: 3n * 10n ** 9n, // 3 gwei
+          gasLimit: 400000n,
+        };
+
+        await controller.submitUntrustServer(params, options);
+
+        expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
+          expect.objectContaining({
+            address: "0x1234567890123456789012345678901234567890",
+            abi: expect.any(Array),
+            functionName: "untrustServer",
+            args: [BigInt(1)],
+            gas: 400000n,
+            maxFeePerGas: 80n * 10n ** 9n,
+            maxPriorityFeePerGas: 3n * 10n ** 9n,
+          }),
+        );
+      });
+
+      it("should pass legacy gas parameters to writeContract", async () => {
+        const params = { serverId: 1 };
+        const options = {
+          gasPrice: 60n * 10n ** 9n, // 60 gwei
+          gasLimit: 200000n,
+          nonce: 5,
+        };
+
+        await controller.submitUntrustServer(params, options);
+
+        expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
+          expect.objectContaining({
+            functionName: "untrustServer",
+            gas: 200000n,
+            gasPrice: 60n * 10n ** 9n,
+            nonce: 5,
+          }),
+        );
+      });
+
+      it("should work without options", async () => {
+        const params = { serverId: 1 };
+
+        await controller.submitUntrustServer(params);
+
+        const writeContractCall =
+          mockWalletClient.writeContract.mock.calls[0][0];
+        expect(writeContractCall).not.toHaveProperty("gas");
+        expect(writeContractCall).not.toHaveProperty("gasPrice");
+        expect(writeContractCall).not.toHaveProperty("maxFeePerGas");
+      });
+    });
+  });
 });

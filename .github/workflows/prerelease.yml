@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - feature/data-portability-sdk-v1
-      - tim/pro-594-improve-relayer-dx
 
 jobs:
   publish-prerelease:

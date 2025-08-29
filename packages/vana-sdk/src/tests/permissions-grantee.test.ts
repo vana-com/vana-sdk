@@ -1035,4 +1035,105 @@ describe("PermissionsController - Grantee Methods", () => {
       );
     });
   });
+
+  describe("TransactionOptions support for grantee operations", () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    describe("submitRegisterGrantee with TransactionOptions", () => {
+      it("should pass EIP-1559 gas parameters to writeContract", async () => {
+        const params = {
+          owner: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36" as `0x${string}`,
+          granteeAddress:
+            "0xApp1234567890123456789012345678901234567890" as `0x${string}`,
+          publicKey: "0x1234567890abcdef",
+        };
+        const options = {
+          maxFeePerGas: 120n * 10n ** 9n, // 120 gwei
+          maxPriorityFeePerGas: 5n * 10n ** 9n, // 5 gwei
+          gasLimit: 600000n,
+        };
+
+        const expectedTxHash = "0xRegisterHash123" as Hash;
+        vi.mocked(mockWalletClient.writeContract).mockResolvedValueOnce(
+          expectedTxHash,
+        );
+
+        await controller.submitRegisterGrantee(params, options);
+
+        expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
+          expect.objectContaining({
+            functionName: "registerGrantee",
+            args: [params.owner, params.granteeAddress, params.publicKey],
+            gas: 600000n,
+            maxFeePerGas: 120n * 10n ** 9n,
+            maxPriorityFeePerGas: 5n * 10n ** 9n,
+          }),
+        );
+      });
+
+      it("should pass legacy gas parameters to writeContract", async () => {
+        const params = {
+          owner: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36" as `0x${string}`,
+          granteeAddress:
+            "0xApp1234567890123456789012345678901234567890" as `0x${string}`,
+          publicKey: "0x1234567890abcdef",
+        };
+        const options = {
+          gasPrice: 70n * 10n ** 9n, // 70 gwei
+          gasLimit: 350000n,
+          nonce: 10,
+        };
+
+        const expectedTxHash = "0xRegisterHash456" as Hash;
+        vi.mocked(mockWalletClient.writeContract).mockResolvedValueOnce(
+          expectedTxHash,
+        );
+
+        await controller.submitRegisterGrantee(params, options);
+
+        expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
+          expect.objectContaining({
+            functionName: "registerGrantee",
+            gas: 350000n,
+            gasPrice: 70n * 10n ** 9n,
+            nonce: 10,
+          }),
+        );
+      });
+    });
+
+    describe("submitUpdateServer with TransactionOptions", () => {
+      it("should pass gas parameters to writeContract", async () => {
+        const serverId = 123n;
+        const newUrl = "https://updated-server.example.com";
+        const options = {
+          maxFeePerGas: 90n * 10n ** 9n,
+          gasLimit: 250000n,
+        };
+
+        const expectedTxHash = "0xUpdateHash789" as Hash;
+        vi.mocked(mockWalletClient.writeContract).mockResolvedValueOnce(
+          expectedTxHash,
+        );
+
+        await controller.submitUpdateServer(serverId, newUrl, options);
+
+        expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
+          expect.objectContaining({
+            functionName: "updateServer",
+            args: [serverId, newUrl],
+            gas: 250000n,
+            maxFeePerGas: 90n * 10n ** 9n,
+          }),
+        );
+
+        const writeContractCall = (mockWalletClient.writeContract as any).mock
+          .calls[0][0];
+        expect(writeContractCall).not.toHaveProperty("maxPriorityFeePerGas");
+        expect(writeContractCall).not.toHaveProperty("gasPrice");
+      });
+    });
+  });
 });

@@ -34,6 +34,7 @@ import type {
   ServerFilesAndPermissionParams,
   ServerFilesAndPermissionTypedData,
   Permission,
+  TransactionOptions,
 } from "../types/index";
 import type {
   PermissionGrantResult,
@@ -1163,6 +1164,7 @@ export class PermissionsController extends BaseController {
    * Use this when you want to handle transaction confirmation and event parsing separately.
    *
    * @param params - Parameters for revoking the permission
+   * @param options - Optional transaction options for gas parameters and timeout
    * @returns Promise resolving to the transaction hash when successfully submitted
    * @throws {BlockchainError} When revocation transaction fails
    * @throws {UserRejectedRequestError} When user rejects the transaction
@@ -1177,6 +1179,7 @@ export class PermissionsController extends BaseController {
    */
   async submitPermissionRevoke(
     params: RevokePermissionParams,
+    options?: TransactionOptions,
   ): Promise<
     TransactionResult<"DataPortabilityPermissions", "revokePermission">
   > {
@@ -1207,6 +1210,19 @@ export class PermissionsController extends BaseController {
         args: [params.permissionId],
         account,
         chain: this.context.walletClient?.chain ?? null,
+        ...(options?.gasLimit && { gas: options.gasLimit }),
+        ...(options?.nonce && { nonce: options.nonce }),
+        // Use EIP-1559 if available, otherwise fall back to legacy gasPrice
+        ...(options?.maxFeePerGas || options?.maxPriorityFeePerGas
+          ? {
+              ...(options.maxFeePerGas && {
+                maxFeePerGas: options.maxFeePerGas,
+              }),
+              ...(options.maxPriorityFeePerGas && {
+                maxPriorityFeePerGas: options.maxPriorityFeePerGas,
+              }),
+            }
+          : options?.gasPrice && { gasPrice: options.gasPrice }),
       });
 
       const { tx } = await import("../utils/transactionHelpers");
@@ -2194,6 +2210,7 @@ export class PermissionsController extends BaseController {
    */
   private async submitDirectUntrustTransaction(
     params: UntrustServerInput,
+    options?: TransactionOptions,
   ): Promise<TransactionResult<"DataPortabilityServers", "untrustServer">> {
     this.assertWallet();
     try {
@@ -2215,6 +2232,19 @@ export class PermissionsController extends BaseController {
         args: [BigInt(params.serverId)],
         account,
         chain: this.context.walletClient?.chain ?? null,
+        ...(options?.gasLimit && { gas: options.gasLimit }),
+        ...(options?.nonce && { nonce: options.nonce }),
+        // Use EIP-1559 if available, otherwise fall back to legacy gasPrice
+        ...(options?.maxFeePerGas || options?.maxPriorityFeePerGas
+          ? {
+              ...(options.maxFeePerGas && {
+                maxFeePerGas: options.maxFeePerGas,
+              }),
+              ...(options.maxPriorityFeePerGas && {
+                maxPriorityFeePerGas: options.maxPriorityFeePerGas,
+              }),
+            }
+          : options?.gasPrice && { gasPrice: options.gasPrice }),
       });
 
       const { tx } = await import("../utils/transactionHelpers");
@@ -2243,6 +2273,7 @@ export class PermissionsController extends BaseController {
    *
    * @param params - Parameters for untrusting the server
    * @param params.serverId - The numeric ID of the server to untrust
+   * @param options - Optional transaction options for gas parameters and timeout
    * @returns Promise resolving to transaction hash
    * @throws {Error} When wallet account is not available
    * @throws {NonceError} When retrieving user nonce fails
@@ -2265,6 +2296,7 @@ export class PermissionsController extends BaseController {
    */
   async submitUntrustServer(
     params: UntrustServerParams,
+    options?: TransactionOptions,
   ): Promise<TransactionResult<"DataPortabilityServers", "untrustServer">> {
     this.assertWallet();
     // Convert UntrustServerParams to UntrustServerInput by adding nonce
@@ -2274,7 +2306,10 @@ export class PermissionsController extends BaseController {
       serverId: params.serverId,
     };
 
-    return await this.submitDirectUntrustTransaction(untrustServerInput);
+    return await this.submitDirectUntrustTransaction(
+      untrustServerInput,
+      options,
+    );
   }
 
   /**
@@ -3057,6 +3092,7 @@ export class PermissionsController extends BaseController {
    * @param params.owner - The Ethereum address that will own this grantee registration
    * @param params.granteeAddress - The Ethereum address of the grantee (application)
    * @param params.publicKey - The public key used for data encryption/decryption (hex string)
+   * @param options - Optional transaction options for gas parameters and timeout
    * @returns Promise resolving to the transaction hash
    * @throws {BlockchainError} When the grantee registration transaction fails
    * @throws {UserRejectedRequestError} When user rejects the transaction
@@ -3074,6 +3110,7 @@ export class PermissionsController extends BaseController {
    */
   async submitRegisterGrantee(
     params: RegisterGranteeParams,
+    options?: TransactionOptions,
   ): Promise<TransactionResult<"DataPortabilityGrantees", "registerGrantee">> {
     this.assertWallet();
     const chainId = await this.context.walletClient.getChainId();
@@ -3095,6 +3132,17 @@ export class PermissionsController extends BaseController {
       args: [ownerAddress, granteeAddress, params.publicKey],
       account,
       chain: this.context.walletClient?.chain ?? null,
+      ...(options?.gasLimit && { gas: options.gasLimit }),
+      ...(options?.nonce && { nonce: options.nonce }),
+      // Use EIP-1559 if available, otherwise fall back to legacy gasPrice
+      ...(options?.maxFeePerGas || options?.maxPriorityFeePerGas
+        ? {
+            ...(options.maxFeePerGas && { maxFeePerGas: options.maxFeePerGas }),
+            ...(options.maxPriorityFeePerGas && {
+              maxPriorityFeePerGas: options.maxPriorityFeePerGas,
+            }),
+          }
+        : options?.gasPrice && { gasPrice: options.gasPrice }),
     });
 
     const { tx } = await import("../utils/transactionHelpers");
@@ -4144,11 +4192,13 @@ export class PermissionsController extends BaseController {
    *
    * @param serverId - Server ID to update
    * @param url - New URL for the server
+   * @param options - Optional transaction options for gas parameters and timeout
    * @returns Promise resolving to transaction hash
    */
   async submitUpdateServer(
     serverId: bigint,
     url: string,
+    options?: TransactionOptions,
   ): Promise<TransactionResult<"DataPortabilityServers", "updateServer">> {
     this.assertWallet();
     try {
@@ -4169,6 +4219,19 @@ export class PermissionsController extends BaseController {
         args: [serverId, url],
         chain: this.context.walletClient?.chain,
         account,
+        ...(options?.gasLimit && { gas: options.gasLimit }),
+        ...(options?.nonce && { nonce: options.nonce }),
+        // Use EIP-1559 if available, otherwise fall back to legacy gasPrice
+        ...(options?.maxFeePerGas || options?.maxPriorityFeePerGas
+          ? {
+              ...(options.maxFeePerGas && {
+                maxFeePerGas: options.maxFeePerGas,
+              }),
+              ...(options.maxPriorityFeePerGas && {
+                maxPriorityFeePerGas: options.maxPriorityFeePerGas,
+              }),
+            }
+          : options?.gasPrice && { gasPrice: options.gasPrice }),
       });
 
       const { tx } = await import("../utils/transactionHelpers");
@@ -4478,6 +4541,9 @@ export class PermissionsController extends BaseController {
    * @param params.serverPublicKey - Server's public key for encryption.
    *   Obtain via `vana.server.getIdentity(userAddress).publicKey`.
    * @param params.filePermissions - Nested array of permissions for each file
+   * @param options - Optional transaction options for gas parameters and timeout.
+   *   Note: These options are only applied for direct blockchain transactions.
+   *   When using relayer callbacks (gasless transactions), these options are ignored.
    * @returns TransactionResult with immediate hash access and optional event data
    * @throws {Error} When schemaIds array length doesn't match fileUrls array length
    * @throws {SchemaValidationError} When file data doesn't match the specified schema.
@@ -4491,6 +4557,7 @@ export class PermissionsController extends BaseController {
    *
    * @example
    * ```typescript
+   * // Submit with custom gas parameters and timeout
    * const result = await vana.permissions.submitAddServerFilesAndPermissions({
    *   granteeId: BigInt(1),
    *   grant: "ipfs://QmXxx...",
@@ -4503,13 +4570,21 @@ export class PermissionsController extends BaseController {
    *     account: "0x742d35Cc6634C0532925a3b844Bc9e7595f0b0Bb",
    *     key: encryptedKey
    *   }]]
+   * }, {
+   *   maxFeePerGas: 100n * 10n ** 9n, // 100 gwei
+   *   maxPriorityFeePerGas: 2n * 10n ** 9n, // 2 gwei tip
    * });
-   * const events = await result.waitForEvents();
-   * console.log(`Permission ID: ${events.permissionId}`);
+   *
+   * // Wait for confirmation with custom timeout
+   * const receipt = await vana.waitForTransactionReceipt(result, {
+   *   timeout: 180000 // 3 minutes
+   * });
+   * console.log(`Transaction confirmed: ${receipt.transactionHash}`);
    * ```
    */
   async submitAddServerFilesAndPermissions(
     params: ServerFilesAndPermissionParams,
+    options?: TransactionOptions,
   ): Promise<
     TransactionResult<
       "DataPortabilityPermissions",
@@ -4554,6 +4629,7 @@ export class PermissionsController extends BaseController {
       return await this.submitSignedAddServerFilesAndPermissions(
         typedData,
         signature,
+        options,
       );
     } catch (error) {
       // Re-throw known Vana errors directly
@@ -4583,6 +4659,9 @@ export class PermissionsController extends BaseController {
    *
    * @param typedData - The EIP-712 typed data for AddServerFilesAndPermissions
    * @param signature - The user's signature
+   * @param options - Optional transaction options for gas parameters and timeout.
+   *   Note: These options are only applied for direct blockchain transactions.
+   *   When using relayer callbacks (gasless transactions), these options are ignored.
    * @returns TransactionResult with immediate hash access and optional event data
    * @throws {RelayerError} When gasless transaction submission fails
    * @throws {BlockchainError} When server files and permissions addition fails
@@ -4604,6 +4683,7 @@ export class PermissionsController extends BaseController {
   async submitSignedAddServerFilesAndPermissions(
     typedData: ServerFilesAndPermissionTypedData,
     signature: Hash,
+    options?: TransactionOptions,
   ): Promise<
     TransactionResult<
       "DataPortabilityPermissions",
@@ -4640,6 +4720,7 @@ export class PermissionsController extends BaseController {
         hash = await this.submitDirectAddServerFilesAndPermissionsTransaction(
           typedData,
           signature,
+          options,
         );
       }
 
@@ -4674,10 +4755,12 @@ export class PermissionsController extends BaseController {
    * Submit permission revocation with signature to the blockchain
    *
    * @param permissionId - Permission ID to revoke
+   * @param options - Optional transaction options for gas parameters and timeout
    * @returns Promise resolving to transaction hash
    */
   async submitRevokePermission(
     permissionId: bigint,
+    options?: TransactionOptions,
   ): Promise<
     TransactionResult<"DataPortabilityPermissions", "revokePermission">
   > {
@@ -4704,6 +4787,19 @@ export class PermissionsController extends BaseController {
         args: [permissionId],
         chain: this.context.walletClient?.chain,
         account,
+        ...(options?.gasLimit && { gas: options.gasLimit }),
+        ...(options?.nonce && { nonce: options.nonce }),
+        // Use EIP-1559 if available, otherwise fall back to legacy gasPrice
+        ...(options?.maxFeePerGas || options?.maxPriorityFeePerGas
+          ? {
+              ...(options.maxFeePerGas && {
+                maxFeePerGas: options.maxFeePerGas,
+              }),
+              ...(options.maxPriorityFeePerGas && {
+                maxPriorityFeePerGas: options.maxPriorityFeePerGas,
+              }),
+            }
+          : options?.gasPrice && { gasPrice: options.gasPrice }),
       });
 
       // Return the strongly-typed, self-describing POJO
@@ -4774,6 +4870,7 @@ export class PermissionsController extends BaseController {
   private async submitDirectAddServerFilesAndPermissionsTransaction(
     typedData: ServerFilesAndPermissionTypedData,
     signature: Hash,
+    options?: TransactionOptions,
   ): Promise<Hash> {
     this.assertWallet();
     const chainId = await this.context.publicClient.getChainId();
@@ -4807,6 +4904,20 @@ export class PermissionsController extends BaseController {
       args: [serverFilesAndPermissionInput, formattedSignature],
       account: this.context.walletClient?.account ?? this.context.userAddress,
       chain: this.context.walletClient?.chain ?? null,
+      ...(options?.gasLimit && { gas: options.gasLimit }),
+      ...(options?.nonce && { nonce: options.nonce }),
+      ...(options?.value && { value: options.value }),
+      // Use EIP-1559 if available, otherwise fall back to legacy gasPrice
+      ...(options?.maxFeePerGas || options?.maxPriorityFeePerGas
+        ? {
+            ...(options.maxFeePerGas && {
+              maxFeePerGas: options.maxFeePerGas,
+            }),
+            ...(options.maxPriorityFeePerGas && {
+              maxPriorityFeePerGas: options.maxPriorityFeePerGas,
+            }),
+          }
+        : options?.gasPrice && { gasPrice: options.gasPrice }),
     });
 
     return hash;

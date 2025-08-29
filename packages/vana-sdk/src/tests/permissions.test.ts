@@ -1972,4 +1972,121 @@ describe("PermissionsController", () => {
       });
     });
   });
+
+  describe("TransactionOptions support for permission operations", () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    describe("submitPermissionRevoke with TransactionOptions", () => {
+      it("should pass EIP-1559 gas parameters to writeContract", async () => {
+        const params = { permissionId: 456n };
+        const options = {
+          maxFeePerGas: 150n * 10n ** 9n, // 150 gwei
+          maxPriorityFeePerGas: 10n * 10n ** 9n, // 10 gwei
+          gasLimit: 800000n,
+        };
+
+        await controller.submitPermissionRevoke(params, options);
+
+        expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
+          expect.objectContaining({
+            address: "0x1234567890123456789012345678901234567890",
+            abi: expect.any(Array),
+            functionName: "revokePermission",
+            args: [456n],
+            gas: 800000n,
+            maxFeePerGas: 150n * 10n ** 9n,
+            maxPriorityFeePerGas: 10n * 10n ** 9n,
+          }),
+        );
+      });
+
+      it("should pass legacy gas parameters to writeContract", async () => {
+        const params = { permissionId: 789n };
+        const options = {
+          gasPrice: 80n * 10n ** 9n, // 80 gwei
+          gasLimit: 400000n,
+          nonce: 15,
+        };
+
+        await controller.submitPermissionRevoke(params, options);
+
+        expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
+          expect.objectContaining({
+            functionName: "revokePermission",
+            args: [789n],
+            gas: 400000n,
+            gasPrice: 80n * 10n ** 9n,
+            nonce: 15,
+          }),
+        );
+      });
+
+      it("should not mix EIP-1559 and legacy gas parameters", async () => {
+        const params = { permissionId: 999n };
+        const options = {
+          gasPrice: 40n * 10n ** 9n, // Should be ignored
+          maxFeePerGas: 100n * 10n ** 9n, // Should be used
+          maxPriorityFeePerGas: 2n * 10n ** 9n, // Should be used
+        };
+
+        await controller.submitPermissionRevoke(params, options);
+
+        const writeContractCall =
+          mockWalletClient.writeContract.mock.calls[0][0];
+        expect(writeContractCall).toHaveProperty(
+          "maxFeePerGas",
+          100n * 10n ** 9n,
+        );
+        expect(writeContractCall).toHaveProperty(
+          "maxPriorityFeePerGas",
+          2n * 10n ** 9n,
+        );
+        expect(writeContractCall).not.toHaveProperty("gasPrice");
+      });
+    });
+
+    describe("submitRevokePermission with TransactionOptions", () => {
+      it("should pass gas parameters to writeContract", async () => {
+        const permissionId = 321n;
+        const options = {
+          maxFeePerGas: 110n * 10n ** 9n,
+          gasLimit: 300000n,
+        };
+
+        await controller.submitRevokePermission(permissionId, options);
+
+        expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
+          expect.objectContaining({
+            functionName: "revokePermission",
+            args: [permissionId],
+            gas: 300000n,
+            maxFeePerGas: 110n * 10n ** 9n,
+          }),
+        );
+
+        const writeContractCall =
+          mockWalletClient.writeContract.mock.calls[0][0];
+        expect(writeContractCall).not.toHaveProperty("maxPriorityFeePerGas");
+        expect(writeContractCall).not.toHaveProperty("gasPrice");
+      });
+
+      it("should work without options", async () => {
+        const permissionId = 654n;
+
+        await controller.submitRevokePermission(permissionId);
+
+        const writeContractCall =
+          mockWalletClient.writeContract.mock.calls[0][0];
+        expect(writeContractCall).toHaveProperty(
+          "functionName",
+          "revokePermission",
+        );
+        expect(writeContractCall).not.toHaveProperty("gas");
+        expect(writeContractCall).not.toHaveProperty("gasPrice");
+        expect(writeContractCall).not.toHaveProperty("maxFeePerGas");
+      });
+    });
+  });
 });

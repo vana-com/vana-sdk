@@ -2326,31 +2326,35 @@ export class DataController extends BaseController {
   }
 
   /**
-   * Adds a new refiner to the DataRefinerRegistry.
+   * Registers a data refiner for processing templates.
    *
    * @remarks
-   * Refiners are data processing templates that define how raw data should be
-   * transformed into structured formats. Each refiner is associated with a DLP
-   * (Data Liquidity Pool), has a specific schema for output, and includes
-   * instructions for the refinement process.
+   * Refiners define data transformation rules for DLPs.
+   * Associates schema, instructions, and processing logic.
    *
-   * @param params - Refiner configuration parameters
-   * @param params.dlpId - The Data Liquidity Pool ID this refiner belongs to
-   * @param params.name - Human-readable name for the refiner
-   * @param params.schemaId - Schema ID that defines the output format
-   * @param params.refinementInstructionUrl - URL containing processing instructions
-   * @returns Promise resolving to the new refiner ID and transaction hash
-   * @throws {Error} When chain ID is not available - "Chain ID not available"
-   * @throws {Error} When transaction fails - "Failed to add refiner: {error}"
+   * @param params - Refiner configuration
+   * @param params.dlpId - Data Liquidity Pool ID
+   * @param params.name - Refiner display name
+   * @param params.schemaId - Output schema ID.
+   *   Obtain via `vana.schemas.list()`.
+   * @param params.refinementInstructionUrl - Processing instructions URL
+   *
+   * @returns Refiner ID and transaction hash
+   *
+   * @throws {Error} Chain ID not available.
+   *   Ensure network connection.
+   * @throws {Error} Transaction failed.
+   *   Check wallet balance and network status.
+   *
    * @example
    * ```typescript
    * const result = await vana.data.addRefiner({
    *   dlpId: 1,
-   *   name: "Social Media Sentiment Analyzer",
+   *   name: "Sentiment Analyzer",
    *   schemaId: 42,
    *   refinementInstructionUrl: "ipfs://QmXxx..."
    * });
-   * console.log(`Created refiner ${result.refinerId} in tx ${result.transactionHash}`);
+   * console.log(`Refiner ${result.refinerId} created`);
    * ```
    */
   async addRefiner(params: AddRefinerParams): Promise<AddRefinerResult> {
@@ -2419,26 +2423,29 @@ export class DataController extends BaseController {
   }
 
   /**
-   * Retrieves a refiner by its ID.
+   * Retrieves refiner configuration by ID.
    *
    * @remarks
-   * Queries the DataRefinerRegistry contract to get complete information about
-   * a specific refiner including its DLP association, schema, and instructions.
+   * Queries DataRefinerRegistry for refiner details.
+   * Returns DLP association, schema, and processing instructions.
    *
-   * @param refinerId - The numeric refiner ID to retrieve
-   * @returns Promise resolving to the refiner information object
-   * @throws {Error} When chain ID is not available - "Chain ID not available"
-   * @throws {Error} When refiner doesn't exist - "Refiner with ID {refinerId} does not exist"
-   * @throws {Error} When contract read fails - "Failed to fetch refiner: {error}"
+   * @param refinerId - Numeric refiner ID
+   *
+   * @returns Refiner configuration object
+   *
+   * @throws {Error} Chain ID not available.
+   *   Ensure network connection.
+   * @throws {Error} Refiner not found.
+   *   Verify refiner ID exists.
+   * @throws {Error} Contract read failed.
+   *   Check network and RPC status.
+   *
    * @example
    * ```typescript
    * const refiner = await vana.data.getRefiner(1);
-   * console.log({
-   *   name: refiner.name,
-   *   dlp: refiner.dlpId,
-   *   schema: refiner.schemaId,
-   *   instructions: refiner.refinementInstructionUrl
-   * });
+   * console.log(`Refiner: ${refiner.name}`);
+   * console.log(`DLP: ${refiner.dlpId}`);
+   * console.log(`Schema: ${refiner.schemaId}`);
    * ```
    */
   async getRefiner(refinerId: number): Promise<Refiner> {

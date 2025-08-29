@@ -21,45 +21,51 @@ import { BaseController } from "./base";
 // Server types are now auto-imported from the generated exports
 
 /**
- * Manages interactions with Vana personal servers and identity infrastructure.
+ * Manages personal server interactions for secure data processing.
  *
  * @remarks
- * This controller handles communication with personal servers for data processing
- * and identity servers for public key derivation. It provides methods for posting
- * computation requests to personal servers, polling for results, and retrieving
- * cryptographic keys for secure data sharing. All server interactions use the
- * Replicate API infrastructure with proper authentication and error handling.
+ * Handles communication with personal servers for computation requests
+ * and identity retrieval. Personal servers process user data with
+ * cryptographic verification, ensuring privacy and permission compliance.
  *
- * **Server Identity System:**
- * Personal servers use deterministic key derivation: each user address maps to a specific server identity.
- * This enables secure communication without requiring servers to be online during key retrieval.
+ * **Architecture:**
+ * Servers use deterministic key derivation from user addresses.
+ * Identity cached for offline retrieval. Operations authenticated
+ * via wallet signatures and permission verification.
  *
  * **Method Selection:**
- * - `getIdentity()` retrieves server public keys and addresses for encryption setup
- * - `createOperation()` submits computation requests with signed permission verification
- * - `getOperation()` polls operation status and retrieves results when complete
- * - `cancelOperation()` stops running operations when cancellation is supported
+ * - `getIdentity()` - Retrieve server public key for encryption
+ * - `createOperation()` - Submit computation with permission ID
+ * - `getOperation()` - Check status and retrieve results
+ * - `waitForOperation()` - Poll until completion or timeout
+ * - `cancelOperation()` - Stop running operations
  *
- * **Workflow Pattern:**
- * Typical flow: Get identity → Create operation → Poll status → Retrieve results
+ * **Typical Workflow:**
+ * 1. Get server identity for encryption key
+ * 2. Create operation with permission ID
+ * 3. Poll for completion
+ * 4. Retrieve results
  *
  * @example
  * ```typescript
- * // Get a server's identity including public key for encryption
+ * // Get server identity for encryption
  * const identity = await vana.server.getIdentity({
  *   userAddress: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36"
  * });
+ * console.log(`Server key: ${identity.publicKey}`);
  *
- * // Create an operation using a granted permission
- * const response = await vana.server.createOperation({
- *   permissionId: 123,
+ * // Submit computation request
+ * const operation = await vana.server.createOperation({
+ *   permissionId: 123
  * });
  *
- * // Poll for computation results
- * const result = await vana.server.getOperation(response.id);
+ * // Wait for results
+ * const result = await vana.server.waitForOperation(operation.id);
+ * console.log("Processing complete:", result.result);
  * ```
+ *
  * @category Server Management
- * @see {@link https://docs.vana.com/developer/personal-servers | Vana Personal Servers} for conceptual overview
+ * @see For conceptual overview, visit {@link https://docs.vana.org/docs/personal-servers}
  */
 export class ServerController extends BaseController {
   constructor(context: ControllerContext) {
@@ -77,23 +83,25 @@ export class ServerController extends BaseController {
   }
 
   /**
-   * Retrieves the cryptographic identity of a personal server.
+   * Retrieves cryptographic identity for a personal server.
    *
    * @remarks
-   * This method fetches the public key and metadata for a personal server,
-   * which is required for encrypting data before sharing with the server.
-   * The identity includes the server's public key, address, and operational
-   * details needed for secure communication. This information is cached
-   * by identity servers to enable offline key retrieval.
+   * Fetches public key and metadata required for data encryption.
+   * Identity cached by infrastructure for offline retrieval.
+   * Each user address maps to deterministic server identity.
    *
-   * @param request - Parameters containing the user address
-   * @param request.userAddress - The wallet address associated with the personal server
-   * @returns Promise resolving to the server's identity information
-   * @throws {NetworkError} When the identity service is unavailable or returns invalid data
-   * @throws {PersonalServerError} When server identity cannot be retrieved
+   * @param request - Identity request parameters
+   * @param request.userAddress - Wallet address of server owner
+   *
+   * @returns Server identity with public key and metadata
+   *
+   * @throws {NetworkError} Identity service unavailable.
+   *   Check network connection and server URL configuration.
+   * @throws {PersonalServerError} Identity retrieval failed.
+   *   Verify user address and server registration.
+   *
    * @example
    * ```typescript
-   * // Get server identity for data encryption
    * const identity = await vana.server.getIdentity({
    *   userAddress: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36"
    * });
@@ -102,9 +110,9 @@ export class ServerController extends BaseController {
    * console.log(`Address: ${identity.address}`);
    * console.log(`Public Key: ${identity.publicKey}`);
    *
-   * // Use the public key for encrypting data to share with this server
-   * const encryptedData = await encryptWithWalletPublicKey(
-   *   userData,
+   * // Use for encryption before data sharing
+   * const encrypted = await encryptWithPublicKey(
+   *   data,
    *   identity.publicKey
    * );
    * ```

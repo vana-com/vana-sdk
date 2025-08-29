@@ -65,51 +65,56 @@ export interface CreateSchemaResult {
 }
 
 /**
- * Manages data schemas and refiners on the Vana network.
+ * Manages data schemas for validation and structure definition on Vana.
  *
  * @remarks
- * This controller handles the complete lifecycle of data schemas including creation,
- * validation, IPFS upload, and blockchain registration. It provides methods for managing
- * both schemas (data structure definitions) and refiners (data processing definitions).
+ * Handles schema lifecycle from creation through registration. Schemas define
+ * data structure and validation rules, ensuring consistency across the network.
+ * Stored unencrypted on IPFS for public reusability.
  *
- * **Schema Storage:**
- * Schemas are stored unencrypted on IPFS for public access and reusability across the network.
- * Schema definitions use JSON Schema format for data validation and structure definition.
+ * **Architecture:**
+ * Schemas use dual storage: definitions on IPFS (public), metadata on blockchain.
+ * Supports JSON Schema and SQLite dialects for flexible data modeling.
  *
  * **Method Selection:**
- * - `create()` validates, uploads to IPFS, and registers new schemas on blockchain
- * - `get()` retrieves existing schema metadata by ID from blockchain contracts
- * - `count()` returns total number of registered schemas for pagination
- * - `list()` provides paginated access to all schemas with optional filtering
- * - `addSchema()` provides lower-level schema registration with pre-uploaded URLs
+ * - `create()` - Validate, upload to IPFS, register on blockchain
+ * - `get()` - Retrieve schema with definition by ID
+ * - `list()` - Paginated schema browsing with metadata
+ * - `count()` - Total schemas for pagination
+ * - `addSchema()` - Low-level registration with pre-uploaded URL
  *
  * **Storage Requirements:**
- * Methods requiring storage configuration: `create()`
- * Methods working without storage: `get()`, `count()`, `list()`, `addSchema()`
+ * - Methods requiring storage: `create()`
+ * - Methods without storage: `get()`, `list()`, `count()`, `addSchema()`
  *
  * @example
  * ```typescript
- * // Create a new schema with automatic IPFS upload
+ * // Create schema with validation rules
  * const result = await vana.schemas.create({
  *   name: "User Profile",
  *   dialect: "json",
  *   schema: {
  *     type: "object",
  *     properties: {
- *       name: { type: "string" },
- *       age: { type: "number" }
+ *       name: { type: "string", minLength: 1 },
+ *       age: { type: "number", minimum: 0, maximum: 150 }
  *     },
  *     required: ["name"]
  *   }
  * });
+ * console.log(`Schema ${result.schemaId} created`);
  *
- * // Get an existing schema
- * const schema = await vana.schemas.get(1);
+ * // Retrieve for validation
+ * const schema = await vana.schemas.get(result.schemaId);
+ * console.log(`Schema: ${schema.name} (${schema.dialect})`);
  *
- * // List all schemas
- * const count = await vana.schemas.count();
+ * // Browse available schemas
+ * const schemas = await vana.schemas.list({ limit: 10 });
+ * schemas.forEach(s => console.log(`${s.id}: ${s.name}`));
  * ```
+ *
  * @category Schema Management
+ * @see For conceptual overview, visit {@link https://docs.vana.org/docs/schemas}
  */
 export class SchemaController extends BaseController {
   constructor(context: ControllerContext) {
@@ -117,40 +122,42 @@ export class SchemaController extends BaseController {
   }
 
   /**
-   * Creates a new schema with automatic validation and IPFS upload.
+   * Creates a schema with validation and IPFS upload.
    *
    * @remarks
-   * This is the primary method for creating schemas on the Vana network. It handles
-   * the complete workflow including schema validation, IPFS upload, and blockchain
-   * registration. The schema definition is stored unencrypted on IPFS to enable
-   * public access and reusability.
+   * Primary method for schema creation. Validates definition,
+   * uploads to IPFS (unencrypted for reusability), and registers
+   * on blockchain. Schema becomes immediately available network-wide.
    *
-   * The method automatically:
-   * - Validates the schema definition against the Vana metaschema
-   * - Uploads the definition to IPFS to generate a permanent URL
-   * - Registers the schema on the blockchain with the generated URL
+   * @param params - Creation configuration
+   * @param params.name - Human-readable schema name
+   * @param params.dialect - Schema format (`"json"` or `"sqlite"`)
+   * @param params.schema - Definition object or JSON string
    *
-   * @param params - Schema creation parameters including name, dialect, and definition
-   * @returns Promise resolving to creation results with schema ID and transaction hash
-   * @throws {SchemaValidationError} When the schema definition is invalid
-   * @throws {Error} When IPFS upload or blockchain registration fails
+   * @returns Schema ID, IPFS URL, and transaction hash
+   *
+   * @throws {SchemaValidationError} Invalid schema definition.
+   *   Verify schema follows JSON Schema or SQLite format.
+   * @throws {Error} Storage not configured.
+   *   Configure storage providers in VanaConfig.
+   * @throws {Error} IPFS upload failed.
+   *   Check network and storage provider status.
+   *
    * @example
    * ```typescript
-   * // Create a JSON schema for user profiles
    * const result = await vana.schemas.create({
    *   name: "User Profile",
    *   dialect: "json",
    *   schema: {
    *     type: "object",
    *     properties: {
-   *       name: { type: "string" },
+   *       name: { type: "string", minLength: 1 },
    *       age: { type: "number", minimum: 0 }
    *     },
    *     required: ["name"]
    *   }
    * });
-   *
-   * console.log(`Schema created with ID: ${result.schemaId}`);
+   * console.log(`Schema ${result.schemaId} at ${result.definitionUrl}`);
    * ```
    */
   async create(params: CreateSchemaParams): Promise<CreateSchemaResult> {

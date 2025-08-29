@@ -74,33 +74,34 @@ This file tracks the systematic audit and improvement of JSDoc comments in the V
 
 #### DataController
 
-- Status: IN PROGRESS
+- Status: PARTIALLY COMPLETE
 - Completed:
   - ✅ Class documentation: Active voice, architecture context, method selection
   - ✅ upload() method: Concise, recovery strategies in @throws, parameter guidance
-- Issues to fix:
-  - [ ] getUserFiles() - needs active voice, better error recovery
-  - [ ] decryptFile() - needs improvement
-  - [ ] getFileById() - needs documentation
+  - ✅ getUserFiles() - Active voice, better error recovery
+  - ✅ decryptFile() - Improved with recovery strategies
+  - ✅ getFileById() - Concise documentation added
+- Remaining:
   - [ ] encryptFile() - needs improvement
-  - [ ] Other public methods need review
+  - [ ] Other public methods (addRefiner, getRefiner, etc.)
 
 #### PermissionsController
 
-- Status: PENDING
-- Issues to check:
-  - Dual storage pattern explanation
-  - Parameter acquisition guidance
-  - Examples include proper initialization
-  - @throws with recovery instructions
+- Status: COMPLETE
+- Completed:
+  - ✅ Class documentation: Active voice, dual storage explanation
+  - ✅ Method selection guidance
+  - ✅ Gasless transaction context
+  - ✅ Self-contained examples
 
 #### SchemasController
 
-- Status: PENDING
-- Issues to check:
-  - Schema validation process documentation
-  - Examples show realistic usage
-  - Type consistency documentation
+- Status: COMPLETE
+- Completed:
+  - ✅ Class documentation: Active voice, architecture context
+  - ✅ create() method: Recovery strategies, parameter guidance
+  - ✅ Method selection with storage requirements
+  - ✅ Realistic examples
 
 #### ServerController
 

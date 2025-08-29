@@ -265,12 +265,13 @@ export class DataController extends BaseController {
           // Provide detailed error message
           if (error instanceof Error) {
             // Check if it's a SchemaValidationError with details
-            const errorWithDetails = error as Error & { errors?: unknown };
+            // Using type guard to safely check for errors property
             if (
-              errorWithDetails.errors &&
-              Array.isArray(errorWithDetails.errors)
+              typeof error === "object" &&
+              "errors" in error &&
+              Array.isArray(error.errors)
             ) {
-              validationErrors = errorWithDetails.errors;
+              validationErrors = error.errors;
             } else {
               validationErrors = [error.message];
             }

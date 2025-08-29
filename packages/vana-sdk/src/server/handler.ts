@@ -151,6 +151,12 @@ export async function handleRelayerRequest(
   // Step 3: Route to appropriate SDK method based on primaryType
   // Route to appropriate SDK method and return TransactionResult directly
   const primaryType = typedData.primaryType as TypedDataPrimaryType;
+
+  // NOTE: The type assertions below use `as unknown as` to bypass TypeScript checking.
+  // This is a known technical debt from the legacy relayer system.
+  // The new unified relayer handler (relayerHandler.ts) provides stronger type safety.
+  // TODO(TYPES): Migrate consumers to use the unified handler with proper type checking
+
   switch (primaryType) {
     case "Permission":
       return sdk.permissions.submitSignedGrant(

@@ -118,18 +118,17 @@ class VanaNodeImpl extends VanaCore {
  * ```typescript
  * // Express.js server integration
  * import express from 'express';
- * import { handleRelayerRequest } from '@opendatalabs/vana-sdk/node';
+ * import { handleRelayerOperation } from '@opendatalabs/vana-sdk/node';
  *
  * const app = express();
  *
- * app.post('/api/relay/:operation', async (req, res) => {
+ * app.post('/api/relay', async (req, res) => {
  *   try {
- *     const result = await handleRelayerRequest(
- *       req.params.operation,
- *       req.body,
- *       vana
+ *     const result = await handleRelayerOperation(
+ *       vana,
+ *       req.body
  *     );
- *     res.json({ success: true, result });
+ *     res.json(result);
  *   } catch (error) {
  *     res.status(500).json({ error: error.message });
  *   }
@@ -248,16 +247,11 @@ export {
 } from "./core/generics";
 
 // Server-side utilities
-// Primary export - unified handler with full type safety
 export { handleRelayerOperation } from "./server/relayerHandler";
 export type {
   UnifiedRelayerRequest,
   UnifiedRelayerResponse,
 } from "./types/relayer";
-
-// Legacy exports - DEPRECATED (will be removed in next major version)
-export { handleRelayerRequest } from "./server/handler";
-export type { RelayerRequestPayload } from "./server/handler";
 // TransactionHandle removed - using POJOs instead
 export type {
   Operation,

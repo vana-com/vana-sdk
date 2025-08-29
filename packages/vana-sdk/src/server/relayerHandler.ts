@@ -184,7 +184,8 @@ async function routeSignedOperation(
         signature,
       );
 
-    // RegisterGrantee is commented out as it's not supported by smart contracts yet
+    // TODO: RegisterGrantee with signature is not supported until
+    // DataPortabilityGrantees contract adds registerGranteeWithSignature function
     // case "RegisterGrantee":
     //   return sdk.permissions.submitSignedRegisterGrantee(...);
 
@@ -320,8 +321,3 @@ async function handleDirectOperation(
     }
   }
 }
-
-// Legacy handler export - DEPRECATED
-// TODO: Remove in next major version
-// Migration guide: Use handleRelayerOperation instead
-export { handleRelayerRequest } from "./handler";

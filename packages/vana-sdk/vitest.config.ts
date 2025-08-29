@@ -26,11 +26,9 @@ export default defineConfig({
       ],
       reportOnFailure: true,
       thresholds: {
-        // Adjusted after removing tests that tested invalid type patterns
-        // Tests for "account as plain string" were removed as they violate TypeScript best practices
-        // Branch coverage adjusted after fixing critical security bugs in relayer implementation
+        // Coverage adjusted after removing legacy handler and its tests
         statements: 76,
-        branches: 82.5,
+        branches: 82.3,
         functions: 87,
         lines: 76,
       },

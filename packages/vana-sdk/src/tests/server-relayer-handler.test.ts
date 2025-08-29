@@ -4,13 +4,6 @@ import type { VanaInstance } from "../index.node";
 import type { UnifiedRelayerRequest } from "../types/relayer";
 import type { Address } from "viem";
 
-// Mock the existing handler module
-vi.mock("../server/handler", () => ({
-  handleRelayerRequest: vi.fn().mockResolvedValue({
-    hash: "0xsignedhash",
-  }),
-}));
-
 // Mock viem for signature recovery (not testing actual crypto here)
 vi.mock("viem", async () => {
   const actual = await vi.importActual("viem");
@@ -515,13 +508,6 @@ describe("Server Relayer Handler", () => {
         },
       };
       expect(checkExhaustive(directReq)).toBe("storeGrantFile");
-    });
-  });
-
-  describe("Re-exports", () => {
-    it("should re-export handleRelayerRequest for backwards compatibility", async () => {
-      const module = await import("../server/relayerHandler");
-      expect(module.handleRelayerRequest).toBeDefined();
     });
   });
 

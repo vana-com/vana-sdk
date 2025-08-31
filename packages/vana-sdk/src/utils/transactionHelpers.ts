@@ -7,22 +7,14 @@ import type { TransactionResult } from "../types/operations";
 import type { Contract, Fn } from "../generated/event-types";
 
 /**
- * Creates a strongly-typed TransactionResult POJO.
+ * Creates typed TransactionResult with validation.
  *
  * @remarks
- * This helper ensures all required fields are present and typed correctly,
- * reducing boilerplate and preventing mistakes.
+ * Ensures type safety for transaction results.
+ * Reduces boilerplate in transaction handling.
  *
  * @param input - Transaction details
- * @param input.hash - Transaction hash
- * @param input.from - Transaction sender address
- * @param input.contract - Contract name
- * @param input.fn - Function name
- * @param input.chainId - Optional chain ID
- * @param input.value - Optional transaction value
- * @param input.nonce - Optional nonce
- * @param input.to - Optional recipient address
- * @returns Typed TransactionResult
+ * @returns Typed TransactionResult POJO
  *
  * @example
  * ```typescript
@@ -30,7 +22,7 @@ import type { Contract, Fn } from "../generated/event-types";
  *   hash,
  *   from: account.address,
  *   contract: "DataPortabilityPermissions",
- *   fn: "revokePermission",
+ *   fn: "revokePermission"
  * });
  * ```
  */

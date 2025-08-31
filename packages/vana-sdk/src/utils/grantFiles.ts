@@ -9,34 +9,23 @@ interface GrantFileStorageResponse {
 }
 
 /**
- * Creates a grant file structure from permission parameters.
+ * Creates grant file structure for permission storage.
  *
  * @remarks
- * This function constructs the JSON structure that represents a permission grant
- * in the Vana protocol. The grant file contains all necessary information for
- * a grantee to perform operations on behalf of the grantor.
+ * Constructs JSON for permission grants. Contains grantee,
+ * operation, parameters, and optional expiration.
  *
- * @param params - The permission parameters to create the grant file from
- * @returns The constructed grant file object
+ * @param params - Permission parameters
+ * @returns Grant file object for IPFS storage
+ *
  * @example
  * ```typescript
- * const grantFile = createGrantFile({
- *   grantee: '0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36',
+ * const grant = createGrantFile({
+ *   grantee: '0x742d35Cc...',
  *   operation: 'llm_inference',
- *   parameters: {
- *     model: 'gpt-4',
- *     maxTokens: 1000
- *   },
- *   expiresAt: Date.now() + 86400000 // 24 hours
+ *   parameters: { model: 'gpt-4' },
+ *   expiresAt: Date.now() + 86400000
  * });
- *
- * console.log(grantFile);
- * // {
- * //   grantee: '0x742d...',
- * //   operation: 'llm_inference',
- * //   parameters: { model: 'gpt-4', maxTokens: 1000 },
- * //   expires: 1234567890
- * // }
  * ```
  */
 export function createGrantFile(params: GrantPermissionParams): GrantFile {

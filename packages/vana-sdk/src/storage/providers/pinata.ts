@@ -75,29 +75,24 @@ interface PinataListResponse {
 }
 
 /**
- * Provides managed IPFS storage with full-featured API via Pinata
+ * Manages IPFS storage through Pinata's enhanced API.
  *
  * @remarks
- * This provider uses Pinata's enhanced IPFS service, which extends standard IPFS
- * with additional features like file listing, deletion (unpinning), and rich metadata.
- * It's the "it just works" solution for developers who want full CRUD operations
- * on IPFS without managing infrastructure.
+ * Extends IPFS with listing, deletion, metadata. Production-ready
+ * managed service with guaranteed availability and CRUD operations.
  *
  * @category Storage
- *
  * @example
  * ```typescript
- * const pinataStorage = new PinataStorage({
- *   jwt: "your-pinata-jwt-token"
+ * const storage = new PinataStorage({
+ *   jwt: "your-jwt-token"
  * });
  *
  * // Upload with metadata
- * const cid = await pinataStorage.upload(fileBlob, {
- *   name: "user-avatar.png",
- *   metadata: { userId: "123", category: "avatar" }
- * });
+ * const result = await storage.upload(blob, "file.json");
+ * console.log(`Pinned at: ${result.url}`);
  *
- * // List files with query
+ * // List and manage files
  * const files = await pinataStorage.list({ limit: 10 });
  *
  * // Delete file

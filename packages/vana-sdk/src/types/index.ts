@@ -1,3 +1,29 @@
+/**
+ * Centralized type exports for the Vana SDK.
+ *
+ * @remarks
+ * This module re-exports all public types from their respective modules,
+ * providing a single import point for SDK consumers. Types are organized
+ * by category for easy discovery and usage.
+ *
+ * **Import Strategy:**
+ * - Import types from this module for application code
+ * - Import from specific modules only for advanced use cases
+ * - Avoid importing from internal paths
+ *
+ * @example
+ * ```typescript
+ * // Recommended: Import from types module
+ * import type { VanaConfig, UserFile, GrantPermissionParams } from '@opendatalabs/vana-sdk';
+ *
+ * // Alternative: Import from specific category
+ * import type { StorageProvider } from '@opendatalabs/vana-sdk';
+ * ```
+ *
+ * @category Types
+ * @module types
+ */
+
 // Configuration types
 export type {
   BaseConfig,

@@ -1,12 +1,25 @@
 /**
- * Core blockchain types for the Vana SDK
+ * Defines core blockchain interaction types.
+ *
+ * @remarks
+ * This module provides fundamental types for blockchain transactions,
+ * including transaction requests, confirmation options, and results.
+ * These types form the basis for all blockchain interactions in the SDK.
+ *
+ * @category Types
+ * @module types/blockchain
  */
 
 import type { Hash, Address } from "viem";
 
 /**
- * Represents a transaction that has been submitted to the blockchain
- * This is what contract calls return before confirmation
+ * Represents a submitted blockchain transaction awaiting confirmation.
+ *
+ * @remarks
+ * Returned immediately after transaction submission, before confirmation.
+ * Use `waitForTransactionEvents` to wait for confirmation and retrieve events.
+ *
+ * @category Blockchain
  */
 export interface TransactionRequest {
   /** Transaction hash */
@@ -22,7 +35,13 @@ export interface TransactionRequest {
 }
 
 /**
- * Options for waiting for transaction confirmation
+ * Configures transaction confirmation waiting behavior.
+ *
+ * @remarks
+ * Controls how long and how often to check for transaction confirmation.
+ * Adjust based on network congestion and application requirements.
+ *
+ * @category Blockchain
  */
 export interface TransactionWaitOptions {
   /** Number of confirmations to wait for (default: 1) */
@@ -34,7 +53,14 @@ export interface TransactionWaitOptions {
 }
 
 /**
- * Base result for all confirmed transactions
+ * Represents a confirmed blockchain transaction with metadata.
+ *
+ * @remarks
+ * Contains essential transaction information after confirmation including
+ * gas usage, block number, and function details. Extended by specific
+ * result types with parsed events.
+ *
+ * @category Blockchain
  */
 export interface TransactionResult {
   /** Transaction hash */
@@ -52,11 +78,13 @@ export interface TransactionResult {
 }
 
 /**
- * Event arguments are dynamically typed based on the contract mappings.
- * The parseTransaction function will:
- * 1. Return expectedEvents with typed args for mapped functions
- * 2. Return allEvents with all parsed events from the transaction
+ * @remarks
+ * Event typing strategy:
+ * - Event arguments are dynamically typed based on contract mappings
+ * - `parseTransaction` returns `expectedEvents` with typed args for mapped functions
+ * - `allEvents` contains all parsed events from the transaction
+ * - This approach lets the mapping file drive types rather than requiring
+ *   specific result interfaces per event type
  *
- * This approach avoids the need for specific result interfaces per event type,
- * letting the mapping file drive the types instead.
+ * @internal
  */

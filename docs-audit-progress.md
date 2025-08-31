@@ -6,7 +6,7 @@
 
 You are completing a comprehensive JSDoc documentation audit of the Vana SDK. This requires documenting ALL 126+ TypeScript files according to DOCS_GUIDE.md standards. Work autonomously without seeking approval or confirmation.
 
-### Current Status: 26/126 files completed (20.6%)
+### Current Status: 34/126 files completed (27.0%)
 
 ## AUTONOMOUS WORK INSTRUCTIONS
 
@@ -51,7 +51,7 @@ Process files in this exact order for maximum impact:
 #### Phase 2: Public Types & Interfaces
 
 - [x] `/src/types/operations.ts` - IMPROVED
-- [ ] `/src/types/relayer.ts` - Needs improvement
+- [x] `/src/types/relayer.ts` - IMPROVED
 - [x] `/src/types/controller-context.ts` - Already good
 - [x] `/src/types/chains.ts` - IMPROVED
 - [x] `/src/types/index.ts` - IMPROVED
@@ -66,21 +66,23 @@ Process files in this exact order for maximum impact:
 - [x] `/src/utils/encryption.ts` - Already excellent
 - [x] `/src/utils/schemaValidation.ts` - Already good
 - [x] `/src/utils/wallet.ts` - IMPROVED
-- [ ] `/src/utils/urlResolver.ts`
+- [x] `/src/utils/urlResolver.ts` - IMPROVED
 - [x] `/src/utils/encoding.ts` - Already good
 - [x] `/src/utils/formatters.ts` - Already excellent
 - [x] `/src/utils/typeGuards.ts` - Already good
 - [x] `/src/utils/ipfs.ts` - Already good
 - [x] `/src/utils/multicall.ts` - Already excellent
-- [ ] `/src/utils/signatureCache.ts`
+- [x] `/src/utils/signatureCache.ts` - IMPROVED
+- [x] `/src/utils/grantValidation.ts` - IMPROVED
+- [x] `/src/utils/signatureFormatter.ts` - Already excellent
 
 #### Phase 5: Storage System
 
-- [ ] `/src/storage/manager.ts`
+- [x] `/src/storage/manager.ts` - IMPROVED
 - [x] `/src/storage/index.ts` - Already good
 - [x] `/src/storage/providers/ipfs.ts` - Already excellent
 - [x] `/src/storage/providers/google-drive.ts` - Already good
-- [ ] `/src/storage/providers/callback-storage.ts`
+- [x] `/src/storage/providers/callback-storage.ts` - IMPROVED
 
 #### Phase 6: Core Infrastructure
 
@@ -203,9 +205,9 @@ Before marking a file complete, verify:
 
 Update this section after each batch:
 
-## Completed Files: 26/126 (20.6%)
+## Completed Files: 34/126 (27.0%)
 
-### ✅ Completed (26 files)
+### ✅ Completed (34 files)
 
 #### Previously Completed (12 files)
 
@@ -222,7 +224,7 @@ Update this section after each batch:
 - `/src/utils/transactionHelpers.ts`
 - `/src/utils/grantFiles.ts`
 
-#### This Session (14 new files improved)
+#### This Session (22 new files improved)
 
 - `/src/types/operations.ts` - Added comprehensive documentation
 - `/src/types/chains.ts` - Added comprehensive documentation
@@ -239,12 +241,19 @@ Update this section after each batch:
 - `/src/platform/node.ts` - Added comprehensive documentation
 - `/src/platform/browser.ts` - Added comprehensive documentation
 - `/src/platform/interface.ts` - Added comprehensive documentation
+- `/src/storage/manager.ts` - Added comprehensive documentation
+- `/src/storage/providers/callback-storage.ts` - Added comprehensive documentation
+- `/src/utils/signatureCache.ts` - Added comprehensive documentation
+- `/src/utils/urlResolver.ts` - Added comprehensive documentation
+- `/src/types/relayer.ts` - Added comprehensive documentation
+- `/src/utils/grantValidation.ts` - Added comprehensive documentation
+- `/src/utils/signatureFormatter.ts` - Verified already excellent
 
 ### 🚧 In Progress (0 files)
 
 [Update as you work]
 
-### ❌ Not Started (100 files)
+### ❌ Not Started (92 files)
 
 [All others]
 

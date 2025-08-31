@@ -12,10 +12,11 @@ interface GrantFileStorageResponse {
  * Creates grant file structure for permission storage.
  *
  * @remarks
- * Constructs JSON for permission grants. Contains grantee,
- * operation, parameters, and optional expiration.
+ * Constructs JSON structure that represents a permission grant
+ * in the Vana protocol. The grant file contains all necessary information
+ * for a grantee to perform operations on behalf of the grantor.
  *
- * @param params - Permission parameters
+ * @param params - Permission parameters to create the grant file from
  * @returns Grant file object for IPFS storage
  *
  * @example
@@ -24,7 +25,7 @@ interface GrantFileStorageResponse {
  *   grantee: '0x742d35Cc...',
  *   operation: 'llm_inference',
  *   parameters: { model: 'gpt-4' },
- *   expiresAt: Date.now() + 86400000
+ *   expiresAt: Date.now() + 86400000 // 24 hours
  * });
  * ```
  */

@@ -27,6 +27,12 @@ export interface StorageRequiredMarker {
  * IPFS for decentralization, Pinata for reliability,
  * Google Drive for development, custom for flexibility.
  *
+ * **Provider Selection:**
+ * - IPFS: Decentralized, permanent storage ideal for production
+ * - Pinata: Managed IPFS with guaranteed availability
+ * - Google Drive: Centralized, suitable for development/testing
+ * - Custom providers: Implement StorageProvider interface
+ *
  * @category Configuration
  * @example
  * ```typescript

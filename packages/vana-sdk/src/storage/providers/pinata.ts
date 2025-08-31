@@ -78,8 +78,11 @@ interface PinataListResponse {
  * Manages IPFS storage through Pinata's enhanced API.
  *
  * @remarks
- * Extends IPFS with listing, deletion, metadata. Production-ready
- * managed service with guaranteed availability and CRUD operations.
+ * Extends standard IPFS with additional features like file listing,
+ * deletion (unpinning), and rich metadata. Production-ready managed
+ * service with guaranteed availability. The "it just works" solution
+ * for developers who want full CRUD operations on IPFS without
+ * managing infrastructure.
  *
  * @category Storage
  * @example
@@ -93,7 +96,7 @@ interface PinataListResponse {
  * console.log(`Pinned at: ${result.url}`);
  *
  * // List and manage files
- * const files = await pinataStorage.list({ limit: 10 });
+ * const files = await storage.list({ limit: 10 });
  *
  * // Delete file
  * await pinataStorage.delete(cid);

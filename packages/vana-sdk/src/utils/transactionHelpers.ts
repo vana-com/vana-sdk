@@ -14,6 +14,14 @@ import type { Contract, Fn } from "../generated/event-types";
  * Reduces boilerplate in transaction handling.
  *
  * @param input - Transaction details
+ * @param input.hash - Transaction hash from the blockchain
+ * @param input.from - Transaction sender address
+ * @param input.contract - Contract name being called
+ * @param input.fn - Function name being executed
+ * @param input.chainId - Optional chain ID for network identification
+ * @param input.value - Optional transaction value in wei
+ * @param input.nonce - Optional transaction nonce for ordering
+ * @param input.to - Optional recipient address for the transaction
  * @returns Typed TransactionResult POJO
  *
  * @example

@@ -1,12 +1,49 @@
+/**
+ * Provides type-safe conversion between Vana and viem typed data formats.
+ *
+ * @remarks
+ * This module bridges the gap between Vana's generic typed data structure
+ * and viem's strict TypedDataDefinition format, ensuring compatibility
+ * for EIP-712 signature operations.
+ *
+ * @category Utilities
+ * @module typedDataConverter
+ */
+
 import type { TypedDataDefinition } from "viem";
 import type { GenericTypedData } from "../types/permissions";
 
 /**
- * Converts a GenericTypedData object to a Viem-compatible TypedDataDefinition.
- * This function ensures type safety when passing typed data to viem's signTypedData method.
+ * Converts a GenericTypedData object to a viem-compatible TypedDataDefinition.
  *
- * @param typedData - The typed data object to convert
+ * @remarks
+ * Transforms Vana's flexible typed data format into viem's strict format
+ * with readonly arrays. This ensures type safety when passing typed data
+ * to viem's `signTypedData` method for EIP-712 signatures.
+ *
+ * @param typedData - The typed data object to convert.
+ *   Obtain from permission operations or server responses.
  * @returns A properly typed TypedDataDefinition for use with viem
+ *
+ * @example
+ * ```typescript
+ * const vanTypedData: GenericTypedData = {
+ *   domain: { name: 'Vana', version: '1', chainId: 14800 },
+ *   types: {
+ *     Permission: [
+ *       { name: 'grantee', type: 'address' },
+ *       { name: 'operation', type: 'string' }
+ *     ]
+ *   },
+ *   primaryType: 'Permission',
+ *   message: { grantee: '0x...', operation: 'read' }
+ * };
+ *
+ * const viemTypedData = toViemTypedDataDefinition(vanaTypedData);
+ * const signature = await walletClient.signTypedData(viemTypedData);
+ * ```
+ *
+ * @category Utilities
  */
 export function toViemTypedDataDefinition(
   typedData: GenericTypedData,

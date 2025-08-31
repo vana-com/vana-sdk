@@ -6,7 +6,7 @@
 
 You are completing a comprehensive JSDoc documentation audit of the Vana SDK. This requires documenting ALL 126+ TypeScript files according to DOCS_GUIDE.md standards. Work autonomously without seeking approval or confirmation.
 
-### Current Status: 34/126 files completed (27.0%)
+### Current Status: 38/126 files completed (30.2%)
 
 ## AUTONOMOUS WORK INSTRUCTIONS
 
@@ -205,9 +205,9 @@ Before marking a file complete, verify:
 
 Update this section after each batch:
 
-## Completed Files: 34/126 (27.0%)
+## Completed Files: 38/126 (30.2%)
 
-### ✅ Completed (34 files)
+### ✅ Completed (38 files)
 
 #### Previously Completed (12 files)
 
@@ -224,7 +224,7 @@ Update this section after each batch:
 - `/src/utils/transactionHelpers.ts`
 - `/src/utils/grantFiles.ts`
 
-#### This Session (22 new files improved)
+#### This Session (26 new files improved)
 
 - `/src/types/operations.ts` - Added comprehensive documentation
 - `/src/types/chains.ts` - Added comprehensive documentation
@@ -248,12 +248,16 @@ Update this section after each batch:
 - `/src/types/relayer.ts` - Added comprehensive documentation
 - `/src/utils/grantValidation.ts` - Added comprehensive documentation
 - `/src/utils/signatureFormatter.ts` - Verified already excellent
+- `/src/types/blockchain.ts` - Added comprehensive documentation
+- `/src/types/contracts.ts` - Added comprehensive documentation
+- `/src/core/generics.ts` - Verified already excellent
+- `/src/config/addresses.ts` - Verified already excellent
 
 ### 🚧 In Progress (0 files)
 
 [Update as you work]
 
-### ❌ Not Started (92 files)
+### ❌ Not Started (88 files)
 
 [All others]
 

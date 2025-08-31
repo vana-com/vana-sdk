@@ -1880,18 +1880,26 @@ export class DataController extends BaseController {
   }
 
   /**
-   * Gets the total number of files in the registry from the contract.
+   * Retrieves total file count from Data Registry.
    *
-   * @returns Promise resolving to the total file count
+   * @remarks
+   * Queries blockchain for complete file count across all users.
+   * Useful for pagination and network statistics.
+   *
+   * @returns Total number of registered files
+   *
+   * @throws {Error} Chain ID not available.
+   *   Ensure network connection.
+   * @throws {Error} Contract read failed.
+   *   Check RPC availability.
+   *
    * @example
    * ```typescript
-   * const totalFiles = await vana.data.getTotalFilesCount();
-   * console.log(`Total files in registry: ${totalFiles}`);
+   * const total = await vana.data.getTotalFilesCount();
+   * console.log(`Total files: ${total}`);
    *
-   * // Use for pagination calculations
-   * const filesPerPage = 20;
-   * const totalPages = Math.ceil(totalFiles / filesPerPage);
-   * console.log(`Total pages: ${totalPages}`);
+   * // Calculate pagination
+   * const pages = Math.ceil(total / 20);
    * ```
    */
   async getTotalFilesCount(): Promise<number> {
@@ -2492,21 +2500,27 @@ export class DataController extends BaseController {
   }
 
   /**
-   * Validates if a schema ID exists in the registry.
+   * Validates schema ID existence.
    *
    * @remarks
-   * Checks the DataRefinerRegistry contract to determine if a given schema ID
-   * has been registered and is available for use.
+   * Verifies schema registration in DataRegistry.
+   * Check before using schemas for uploads.
    *
-   * @param schemaId - The numeric schema ID to validate
-   * @returns Promise resolving to true if schema exists, false otherwise
+   * @param schemaId - Numeric schema ID to validate
+   *
+   * @returns True if schema exists, false otherwise
+   *
+   * @throws {Error} Chain ID not available.
+   *   Ensure network connection.
+   * @throws {Error} Contract read failed.
+   *   Check RPC availability.
+   *
    * @example
    * ```typescript
-   * const isValid = await vana.data.isValidSchemaId(42);
-   * if (isValid) {
-   *   console.log('Schema 42 is available for use');
-   * } else {
-   *   console.log('Schema 42 does not exist');
+   * const valid = await vana.data.isValidSchemaId(42);
+   * if (valid) {
+   *   // Safe to use schema 42
+   *   await vana.data.upload({ schemaId: 42, ... });
    * }
    * ```
    */

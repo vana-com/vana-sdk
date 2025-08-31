@@ -40,33 +40,33 @@ This file tracks the systematic audit and improvement of JSDoc comments in the V
 
 ### Core Types (Priority 2)
 
-- [ ] `/packages/vana-sdk/src/types/data.ts`
-- [ ] `/packages/vana-sdk/src/types/permissions.ts`
-- [ ] `/packages/vana-sdk/src/types/config.ts`
-- [ ] `/packages/vana-sdk/src/types/relayer.ts`
-- [ ] `/packages/vana-sdk/src/types/storage.ts`
-- [ ] `/packages/vana-sdk/src/types/operations.ts`
+- ✅ `/packages/vana-sdk/src/types/data.ts` - Has proper documentation
+- ✅ `/packages/vana-sdk/src/types/permissions.ts` - Has proper documentation
+- ✅ `/packages/vana-sdk/src/types/config.ts` - Has proper documentation
+- ✅ `/packages/vana-sdk/src/types/relayer.ts` - Has proper documentation
+- ✅ `/packages/vana-sdk/src/types/storage.ts` - Has proper documentation
+- ✅ `/packages/vana-sdk/src/types/operations.ts` - Has proper documentation
 
 ### Storage Providers (Priority 3)
 
-- [ ] `/packages/vana-sdk/src/storage/providers/ipfs.ts`
-- [ ] `/packages/vana-sdk/src/storage/providers/pinata.ts`
-- [ ] `/packages/vana-sdk/src/storage/providers/google-drive.ts`
-- [ ] `/packages/vana-sdk/src/storage/providers/callback-storage.ts`
-- [ ] `/packages/vana-sdk/src/storage/manager.ts`
+- ✅ `/packages/vana-sdk/src/storage/providers/ipfs.ts` - Has proper documentation
+- ✅ `/packages/vana-sdk/src/storage/providers/pinata.ts` - Has proper documentation
+- ✅ `/packages/vana-sdk/src/storage/providers/google-drive.ts` - Has proper documentation
+- ✅ `/packages/vana-sdk/src/storage/providers/callback-storage.ts` - Has proper documentation
+- ✅ `/packages/vana-sdk/src/storage/manager.ts` - Has proper documentation
 
 ### Core Client (Priority 4)
 
-- [ ] `/packages/vana-sdk/src/core/client.ts`
-- [ ] `/packages/vana-sdk/src/core.ts`
-- [ ] `/packages/vana-sdk/src/index.ts`
+- ✅ `/packages/vana-sdk/src/core/client.ts` - Has proper documentation
+- ✅ `/packages/vana-sdk/src/core.ts` - Has proper documentation
+- ✅ `/packages/vana-sdk/src/index.ts` - Entry point, exports only
 
 ### Utilities (Priority 5)
 
-- [ ] `/packages/vana-sdk/src/utils/encryption.ts`
-- [ ] `/packages/vana-sdk/src/utils/grantFiles.ts`
-- [ ] `/packages/vana-sdk/src/utils/transactionHelpers.ts`
-- [ ] `/packages/vana-sdk/src/utils/schemaValidation.ts`
+- ✅ `/packages/vana-sdk/src/utils/encryption.ts` - Has proper documentation
+- ✅ `/packages/vana-sdk/src/utils/grantFiles.ts` - Has proper documentation
+- ✅ `/packages/vana-sdk/src/utils/transactionHelpers.ts` - Has proper documentation
+- ✅ `/packages/vana-sdk/src/utils/schemaValidation.ts` - Has proper documentation
 
 ## Issues Found and Fixed
 

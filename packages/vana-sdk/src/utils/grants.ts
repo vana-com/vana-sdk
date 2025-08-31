@@ -1,3 +1,15 @@
+/**
+ * Provides high-level grant management utilities for the Vana permission system.
+ *
+ * @remarks
+ * This module simplifies grant file creation, validation, storage, and retrieval.
+ * Grants are the core mechanism for permission management in Vana, allowing users
+ * to delegate specific operations to applications and services.
+ *
+ * @category Permissions
+ * @module grants
+ */
+
 import type { Address } from "viem";
 import type { GrantFile, GrantPermissionParams } from "../types/permissions";
 import {
@@ -8,14 +20,31 @@ import {
 import { validateGrant, GrantValidationError } from "./grantValidation";
 
 /**
- * High-level utilities for working with grants in the Vana SDK
- */
-
-/**
- * Creates and validates a grant file from permission parameters
+ * Creates and validates a grant file from permission parameters.
  *
- * @param params - The permission parameters to create and validate the grant from
- * @returns The validated grant file object
+ * @remarks
+ * Combines grant creation with immediate validation to ensure only valid
+ * grants are created. Validates schema compliance, grantee address, and
+ * operation parameters before returning the grant file.
+ *
+ * @param params - The permission parameters to create and validate the grant from.
+ *   Obtain from user input or application configuration.
+ * @returns The validated grant file object ready for storage
+ *
+ * @throws {GrantValidationError} When grant parameters are invalid.
+ *   Check error message for specific validation failures.
+ *
+ * @example
+ * ```typescript
+ * const grant = createValidatedGrant({
+ *   grantee: '0x742d35Cc6634C0532925a3b844Bc9e7595f0b0Bb',
+ *   operation: 'llm_inference',
+ *   parameters: { model: 'gpt-4', maxTokens: 1000 },
+ *   expiresAt: Date.now() + 86400000 // 24 hours
+ * });
+ * ```
+ *
+ * @category Permissions
  */
 export function createValidatedGrant(params: GrantPermissionParams): GrantFile {
   const grantFile = createGrantFile(params);
@@ -38,11 +67,39 @@ export function createValidatedGrant(params: GrantPermissionParams): GrantFile {
 }
 
 /**
- * Creates a grant file and stores it in IPFS
+ * Creates a grant file and stores it in IPFS.
  *
- * @param params - The permission parameters to create the grant from
- * @param relayerUrl - The URL of the relayer service for IPFS storage
+ * @remarks
+ * Combines grant creation, validation, and IPFS storage in a single operation.
+ * The grant is stored immutably on IPFS and can be referenced by its URL in
+ * on-chain permission records.
+ *
+ * @param params - The permission parameters to create the grant from.
+ *   Obtain from user input or application configuration.
+ * @param relayerUrl - The URL of the relayer service for IPFS storage.
+ *   Obtain from SDK configuration or environment.
  * @returns Promise resolving to an object containing the grant file and its IPFS URL
+ *
+ * @throws {GrantValidationError} When grant parameters are invalid.
+ *   Check error message for specific validation failures.
+ * @throws {Error} When IPFS storage fails.
+ *   Retry with exponential backoff or check relayer status.
+ *
+ * @example
+ * ```typescript
+ * const { grantFile, grantUrl } = await createAndStoreGrant(
+ *   {
+ *     grantee: applicationAddress,
+ *     operation: 'data_processing',
+ *     parameters: { dataTypes: ['medical', 'financial'] }
+ *   },
+ *   'https://relayer.vana.org'
+ * );
+ *
+ * console.log('Grant stored at:', grantUrl);
+ * ```
+ *
+ * @category Permissions
  */
 export async function createAndStoreGrant(
   params: GrantPermissionParams,
@@ -55,11 +112,35 @@ export async function createAndStoreGrant(
 }
 
 /**
- * Retrieves and validates a grant file from IPFS
+ * Retrieves and validates a grant file from IPFS.
  *
- * @param grantUrl - The IPFS URL of the grant file to retrieve
- * @param relayerUrl - Optional URL of the relayer service
+ * @remarks
+ * Fetches a grant file from IPFS and performs basic validation to ensure
+ * the retrieved data is a valid grant structure. Use this when you need to
+ * verify or process existing grants.
+ *
+ * @param grantUrl - The IPFS URL of the grant file to retrieve.
+ *   Obtain from on-chain permission records or grant events.
+ * @param relayerUrl - Optional URL of the relayer service.
+ *   If not provided, uses default IPFS gateways.
  * @returns Promise resolving to the validated grant file
+ *
+ * @throws {Error} When grant retrieval fails.
+ *   Check network connectivity or IPFS gateway availability.
+ * @throws {Error} When grant file is malformed.
+ *   Verify the grant URL points to a valid grant file.
+ *
+ * @example
+ * ```typescript
+ * const grant = await retrieveAndValidateGrant(
+ *   'ipfs://QmXxx...'
+ * );
+ *
+ * console.log('Grant for:', grant.grantee);
+ * console.log('Operation:', grant.operation);
+ * ```
+ *
+ * @category Permissions
  */
 export async function retrieveAndValidateGrant(
   grantUrl: string,

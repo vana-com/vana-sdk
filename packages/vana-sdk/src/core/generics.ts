@@ -1,3 +1,15 @@
+/**
+ * Provides generic utilities for resilient SDK operations.
+ *
+ * @remarks
+ * This module contains reusable patterns for building robust SDK features including
+ * retry logic, rate limiting, circuit breakers, caching, and middleware pipelines.
+ * These utilities follow enterprise patterns for fault tolerance and scalability.
+ *
+ * @category Infrastructure
+ * @module generics
+ */
+
 import type {
   Controller,
   ControllerContext,
@@ -12,7 +24,14 @@ import type {
 } from "../types/generics";
 
 /**
- * Base controller class with common functionality
+ * Provides base controller functionality with middleware support.
+ *
+ * @remarks
+ * Abstract base class for SDK controllers that provides request execution
+ * with middleware pipeline, parameter validation, and error handling.
+ * All SDK controllers extend this base for consistent behavior.
+ *
+ * @category Infrastructure
  */
 export abstract class BaseController<
   TContext extends ControllerContext = ControllerContext,
@@ -25,12 +44,26 @@ export abstract class BaseController<
   }
 
   /**
-   * Execute a request with optional middleware pipeline
+   * Executes a request with optional middleware pipeline.
+   *
+   * @remarks
+   * Processes request through middleware chain, executes handler, and applies
+   * response middleware in reverse order. Handles errors through error middleware
+   * before failing the request.
    *
    * @param request - The generic request object containing parameters and metadata
    * @param handler - The function that processes the request parameters
    * @param middleware - Optional array of middleware functions to apply
    * @returns Promise resolving to a generic response object
+   *
+   * @example
+   * ```typescript
+   * const response = await this.executeRequest(
+   *   { params: { id: 123 }, options: {} },
+   *   async (params) => await fetchData(params.id),
+   *   [loggingMiddleware, cachingMiddleware]
+   * );
+   * ```
    */
   protected async executeRequest<TParams, TResponse>(
     request: GenericRequest<TParams>,
@@ -92,11 +125,24 @@ export abstract class BaseController<
   }
 
   /**
-   * Validate parameters with optional custom validator
+   * Validates parameters with optional custom validator.
+   *
+   * @remarks
+   * Type guard that validates and asserts parameter types at runtime.
+   * Use for input validation in public API methods.
    *
    * @param params - The parameters to validate
    * @param validator - Optional function to validate parameter types
-   * @throws Error if validation fails, asserts type if successful
+   * @throws {Error} When validation fails.
+   *   Provide valid parameters matching expected type.
+   *
+   * @example
+   * ```typescript
+   * this.validateParams<MyParams>(params, (p): p is MyParams => {
+   *   return typeof p === 'object' && 'id' in p;
+   * });
+   * // TypeScript now knows params is MyParams
+   * ```
    */
   protected validateParams<T>(
     params: unknown,
@@ -109,7 +155,28 @@ export abstract class BaseController<
 }
 
 /**
- * Generic retry utility with exponential backoff
+ * Implements retry logic with exponential backoff and jitter.
+ *
+ * @remarks
+ * Provides configurable retry behavior for transient failures with
+ * exponential backoff, maximum delay caps, and optional jitter to
+ * prevent thundering herd problems.
+ *
+ * @example
+ * ```typescript
+ * const result = await RetryUtility.withRetry(
+ *   async () => await unreliableOperation(),
+ *   {
+ *     maxAttempts: 5,
+ *     baseDelay: 1000,
+ *     backoffMultiplier: 2,
+ *     maxDelay: 30000,
+ *     shouldRetry: (error) => error.code === 'NETWORK_ERROR'
+ *   }
+ * );
+ * ```
+ *
+ * @category Infrastructure
  */
 export class RetryUtility {
   private static async delay(ms: number): Promise<void> {
@@ -160,7 +227,30 @@ export class RetryUtility {
 }
 
 /**
- * Generic rate limiter
+ * Implements token bucket rate limiting for API calls.
+ *
+ * @remarks
+ * Prevents API throttling by limiting requests per time window.
+ * Uses sliding window algorithm for smooth rate limiting without
+ * burst spikes at window boundaries.
+ *
+ * @example
+ * ```typescript
+ * const limiter = new RateLimiter({
+ *   requestsPerWindow: 100,
+ *   windowMs: 60000 // 100 requests per minute
+ * });
+ *
+ * // Check before making request
+ * if (await limiter.checkLimit()) {
+ *   await makeApiCall();
+ * } else {
+ *   await limiter.waitForSlot();
+ *   await makeApiCall();
+ * }
+ * ```
+ *
+ * @category Infrastructure
  */
 export class RateLimiter {
   private requests: number[] = [];

@@ -1,162 +1,270 @@
 # JSDoc Documentation Audit Progress
 
-## Current Status: INCOMPLETE (Less than 10% Coverage)
+## CRITICAL: Instructions for Autonomous Completion
 
-**Reality Check:** Only 12 out of 126+ TypeScript files have been modified.
-**Honest Assessment:** This is NOT a comprehensive audit - it's a partial improvement of select public APIs.
+### Your Mission
 
-## What Actually Happened
+You are completing a comprehensive JSDoc documentation audit of the Vana SDK. This requires documenting ALL 126+ TypeScript files according to DOCS_GUIDE.md standards. Work autonomously without seeking approval or confirmation.
 
-### Files Modified: 12 files total
+### Current Status: 12/126 files completed (9.5%)
 
-- 5 controllers
-- 4 type definitions
-- 2 utility files
-- 1 storage provider
+## AUTONOMOUS WORK INSTRUCTIONS
 
-### Files NOT Touched: 114+ files
+### 1. Read These Files First (Context)
 
-- Most utilities in `/utils/`
-- All platform abstractions in `/platform/`
-- Storage manager and 3 other providers
-- Core client files
-- Error handling files
-- Configuration files
-- Contract-related files
-- Server handler files
-- Blockchain utilities
-- Most type definitions
-- Index and export files
+```bash
+# Understand the standards
+cat /workspace/DOCS_GUIDE.md
 
-## Mistakes Made and Corrected
+# Review what's been done
+git log --oneline --grep="docs:" -10
 
-### Initial Mistakes (First Attempts)
+# Check current progress
+git diff --name-only origin/feature/data-portability-sdk-v1...HEAD | grep "\.ts$"
+```
 
-- **Misunderstood "comprehensive"**: Removed important information thinking brevity was the goal
-- **Removed critical details**: Parameter documentation, architecture explanations, provider guidance
-- **False progress reporting**: Claimed 30+ files complete when only 6-12 were modified
+### 2. Generate Working List
 
-### Corrections Applied
+```bash
+# Create complete file inventory
+find /workspace/packages/vana-sdk/src -name "*.ts" -type f \
+  ! -path "*/tests/*" \
+  ! -path "*/generated/*" \
+  | sort > /tmp/files-to-audit.txt
 
-- Restored parameter documentation in `transactionHelpers.ts`
-- Restored provider selection guidance in `config.ts`
-- Restored Vana protocol context in `grantFiles.ts`
-- Restored infrastructure context in `pinata.ts`
-- Verified architecture explanations preserved in controllers
+# Remove already completed files
+comm -23 /tmp/files-to-audit.txt <(git diff --name-only origin/feature/data-portability-sdk-v1...HEAD | grep "\.ts$" | sort)
+```
 
-## Actual Work Completed
+### 3. Work Order (Priority)
 
-### Controllers (5/6 modified)
+Process files in this exact order for maximum impact:
 
-✅ `/src/controllers/data.ts` - Improved with architecture preserved
-✅ `/src/controllers/permissions.ts` - Improved documentation
-✅ `/src/controllers/schemas.ts` - Improved documentation
-✅ `/src/controllers/server.ts` - Improved documentation
-✅ `/src/controllers/protocol.ts` - Improved documentation
-❌ `/src/controllers/base.ts` - Not modified
+#### Phase 1: Core Public API (Highest Priority)
 
-### Types (4/many modified)
+- [ ] `/src/index.ts` - Main export
+- [ ] `/src/index.browser.ts` - Browser exports
+- [ ] `/src/index.node.ts` - Node exports
+- [ ] `/src/core.ts` - Core Vana class
+- [ ] `/src/controllers/base.ts` - Base controller (missed earlier)
 
-✅ `/src/types/data.ts` - Minor improvements
-✅ `/src/types/permissions.ts` - Minor improvements
-✅ `/src/types/config.ts` - Restored provider guidance
-✅ `/src/types/storage.ts` - Minor improvements
-❌ `/src/types/operations.ts` - Not touched
-❌ `/src/types/relayer.ts` - Not touched
-❌ `/src/types/controller-context.ts` - Not touched
-❌ `/src/types/chains.ts` - Not touched
-❌ `/src/types/index.ts` - Not touched
-❌ Many other type files - Not touched
+#### Phase 2: Public Types & Interfaces
 
-### Utilities (2/dozens modified)
+- [ ] `/src/types/operations.ts`
+- [ ] `/src/types/relayer.ts`
+- [ ] `/src/types/controller-context.ts`
+- [ ] `/src/types/chains.ts`
+- [ ] `/src/types/index.ts`
+- [ ] All other files in `/src/types/`
 
-✅ `/src/utils/transactionHelpers.ts` - Parameter docs restored
-✅ `/src/utils/grantFiles.ts` - Protocol context restored
-❌ `/src/utils/encryption.ts` - Not touched
-❌ `/src/utils/schemaValidation.ts` - Not touched
-❌ `/src/utils/wallet.ts` - Not touched
-❌ `/src/utils/urlResolver.ts` - Not touched
-❌ `/src/utils/encoding.ts` - Not touched
-❌ `/src/utils/formatters.ts` - Not touched
-❌ `/src/utils/typeGuards.ts` - Not touched
-❌ `/src/utils/ipfs.ts` - Not touched
-❌ `/src/utils/multicall.ts` - Not touched
-❌ `/src/utils/signatureCache.ts` - Not touched
-❌ 20+ other utility files - Not touched
+#### Phase 3: Error Classes (User-Facing)
 
-### Storage (1/5 modified)
+- [ ] `/src/errors.ts` - All error classes
 
-✅ `/src/storage/providers/pinata.ts` - Context restored
-❌ `/src/storage/providers/ipfs.ts` - Not touched
-❌ `/src/storage/providers/google-drive.ts` - Not touched
-❌ `/src/storage/providers/callback-storage.ts` - Not touched
-❌ `/src/storage/manager.ts` - Not touched
+#### Phase 4: Core Utilities (Commonly Used)
 
-### Core Files (0/many modified)
+- [ ] `/src/utils/encryption.ts`
+- [ ] `/src/utils/schemaValidation.ts`
+- [ ] `/src/utils/wallet.ts`
+- [ ] `/src/utils/urlResolver.ts`
+- [ ] `/src/utils/encoding.ts`
+- [ ] `/src/utils/formatters.ts`
+- [ ] `/src/utils/typeGuards.ts`
+- [ ] `/src/utils/ipfs.ts`
+- [ ] `/src/utils/multicall.ts`
+- [ ] `/src/utils/signatureCache.ts`
 
-❌ `/src/core.ts` - Not touched
-❌ `/src/errors.ts` - Not touched
-❌ `/src/index.ts` - Not touched
-❌ `/src/index.browser.ts` - Not touched
-❌ `/src/index.node.ts` - Not touched
-❌ All other core files - Not touched
+#### Phase 5: Storage System
 
-### Platform (0/all not touched)
+- [ ] `/src/storage/manager.ts`
+- [ ] `/src/storage/index.ts`
+- [ ] `/src/storage/providers/ipfs.ts`
+- [ ] `/src/storage/providers/google-drive.ts`
+- [ ] `/src/storage/providers/callback-storage.ts`
 
-❌ All files in `/src/platform/` - Not touched
+#### Phase 6: Platform Abstractions
 
-### Other (0/many not touched)
+- [ ] All files in `/src/platform/`
 
-❌ Contract utilities in `/src/contracts/` - Not touched
-❌ Blockchain utilities in `/src/utils/blockchain/` - Not touched
-❌ Server handlers in `/src/server/` - Not touched
-❌ Configuration files in `/src/config/` - Not touched
+#### Phase 7: Remaining Internal Files
 
-## True Coverage Statistics
+- [ ] All remaining files not listed above
 
-- **Total TypeScript files in SDK**: 126+ (excluding tests and generated)
-- **Files actually modified**: 12
-- **Actual coverage**: <10%
-- **Claimed coverage**: "Comprehensive" (FALSE)
+### 4. Documentation Standards (From DOCS_GUIDE.md)
 
-## What Was Improved
+#### For EVERY Public Export:
 
-The files that WERE touched now have:
+##### Classes
 
-- Active voice with verb-starting summaries
-- Self-contained examples
-- Error recovery strategies
-- Architecture context (after restoration)
-- Complete parameter documentation (after restoration)
+```typescript
+/**
+ * [Active verb] [what it does].
+ *
+ * @remarks
+ * [Architecture/context if needed. Method selection guidance for controllers.]
+ *
+ * @category [Category for TypeDoc]
+ * @see [Optional link to docs.vana.org]
+ */
+```
 
-## What Still Needs Work
+##### Methods (Exact Order Required)
 
-Over 90% of the SDK still needs documentation review, including:
+````typescript
+/**
+ * [Active verb summary].
+ *
+ * @remarks
+ * [Optional: Critical context]
+ *
+ * @param paramName - [Purpose, not type].
+ *   [How to obtain if not obvious: "Obtain via `vana.method()`"]
+ * @returns [What it returns and why]
+ * @throws {ErrorClass} [When thrown].
+ *   [Recovery action: "Check X or configure Y"]
+ *
+ * @example
+ * ```typescript
+ * // Self-contained, runnable example
+ * const result = await vana.method();
+ * ```
+ *
+ * @see [Optional: docs.vana.org link]
+ */
+````
 
-- Complete utility function documentation
-- Platform abstraction documentation
-- Storage system documentation
-- Error handling documentation
-- Configuration documentation
-- Contract interaction documentation
-- Server handler documentation
-- Blockchain utility documentation
-- Type definition documentation
+##### Interfaces/Types
 
-## Honest Conclusion
+```typescript
+/**
+ * [What this represents].
+ * @category [Category]
+ */
+export interface Name {
+  /** [Purpose of every property] */
+  prop: type;
+}
+```
 
-This PR represents a **partial documentation improvement** focused on the most visible user-facing APIs (controllers). While these improvements are valuable, calling this a "comprehensive JSDoc audit" is misleading.
+### 5. Batch Processing Strategy
 
-**What we have**: Improved documentation for main controllers and a few types
-**What we don't have**: Documentation improvements for 90%+ of the codebase
+Work in batches to maximize efficiency:
 
-## Recommended Next Steps
+```typescript
+// Process 5-10 related files at once
+const fileBatch = [
+  "/src/utils/encryption.ts",
+  "/src/utils/decryption.ts",
+  "/src/utils/encoding.ts",
+  "/src/utils/signatureCache.ts",
+  "/src/utils/signatureFormatter.ts",
+];
 
-1. **Change PR title** to accurately reflect scope: "docs: improve JSDoc for main controllers and select types"
-2. **Continue the audit** systematically through remaining 114+ files
-3. **Track progress honestly** with actual file counts
-4. **Set realistic expectations** about completion percentage
+// Use MultiEdit or parallel Read operations
+// Commit after each logical batch
+```
 
-## Lesson Learned
+### 6. Commit Strategy
 
-**Never claim comprehensive completion when only 10% of work is done.** Always verify actual coverage against total file count before declaring victory.
+```bash
+# After each batch (5-10 files)
+git add [files]
+git commit -m "docs: add comprehensive JSDoc to [module name]
+
+- Document all public exports per DOCS_GUIDE.md
+- Add parameter acquisition guidance
+- Include error recovery strategies
+- Add self-contained examples
+- Files: [list files modified]"
+```
+
+### 7. Quality Checklist for Each File
+
+Before marking a file complete, verify:
+
+- [ ] Every exported class/function/interface/type is documented
+- [ ] Active voice with verb-starting summaries
+- [ ] Tag order: summary, @remarks, @param, @returns, @throws, @example, @see
+- [ ] Parameters include how to obtain values
+- [ ] Errors include recovery actions
+- [ ] Examples are self-contained and runnable
+- [ ] Technical terms use `backticks`
+- [ ] No passive voice or vague descriptions
+
+### 8. Progress Tracking
+
+Update this section after each batch:
+
+## Completed Files: 12/126 (9.5%)
+
+### ✅ Completed (12 files)
+
+- `/src/controllers/data.ts`
+- `/src/controllers/permissions.ts`
+- `/src/controllers/schemas.ts`
+- `/src/controllers/server.ts`
+- `/src/controllers/protocol.ts`
+- `/src/types/data.ts`
+- `/src/types/permissions.ts`
+- `/src/types/config.ts`
+- `/src/types/storage.ts`
+- `/src/storage/providers/pinata.ts`
+- `/src/utils/transactionHelpers.ts`
+- `/src/utils/grantFiles.ts`
+
+### 🚧 In Progress (0 files)
+
+[Update as you work]
+
+### ❌ Not Started (114+ files)
+
+[All others]
+
+## DO NOT:
+
+- Stop to ask for confirmation
+- Claim completion prematurely
+- Skip files because they're "internal"
+- Remove existing documentation
+- Add narrative or tutorials (that's for docs.vana.org)
+- Deviate from DOCS_GUIDE.md standards
+
+## DO:
+
+- Work systematically through every file
+- Follow DOCS_GUIDE.md exactly
+- Preserve all existing useful documentation
+- Add missing documentation
+- Commit frequently (every 5-10 files)
+- Track progress honestly
+- Continue until all 126+ files are complete
+
+## Recovery Instructions (If Context Lost)
+
+If returning to this task after context loss:
+
+1. Read this entire file
+2. Read DOCS_GUIDE.md
+3. Check git log to see what's been done
+4. Continue from the next uncompleted file in the priority list
+5. Work autonomously without seeking confirmation
+
+## Time Estimate
+
+- ~15-30 minutes per file
+- 114 remaining files
+- Total: ~28-57 hours of work
+- Work continuously within session limits
+
+## Final Validation
+
+When all files complete:
+
+```bash
+# Verify all exports documented
+npm run docs:build  # If available
+# Check for warnings
+# Review generated documentation
+```
+
+Remember: This is a MAP (precise, immediate API reference), not a COMPASS (conceptual guide). Stay focused on "what" not "why".

@@ -3,8 +3,15 @@ import type { GetOperationResponse } from "../generated/server/server-exports";
 import type { Contract, Fn } from "../generated/event-types";
 
 /**
- * Server operation result as a plain object.
+ * Represents a server-side operation status and result.
+ *
+ * @remarks
+ * Operations track asynchronous server processes like data refinement or ML inference.
+ * Poll operation status using `vana.server.waitForOperation()` until completion.
  * Fully serializable for API responses and cross-process communication.
+ *
+ * @category Operations
+ * @see {@link https://docs.vana.org/docs/operations | Operations Guide}
  */
 export interface Operation<T = unknown> {
   /** Unique operation identifier */
@@ -28,7 +35,27 @@ export interface Operation<T = unknown> {
  *
  * @remarks
  * Transaction results MUST include contract and function for proper event parsing.
- * This is a strongly-typed, heuristic-free design following POJO architecture.
+ * This strongly-typed design enables automatic event extraction without heuristics.
+ * Use `vana.waitForTransactionEvents()` to retrieve typed events from the receipt.
+ *
+ * **Architecture:**
+ * POJOs (Plain Old JavaScript Objects) ensure serialization safety and framework
+ * independence. Contract and function fields enable deterministic event parsing.
+ *
+ * @category Operations
+ * @example
+ * ```typescript
+ * const result: TransactionResult = {
+ *   hash: '0x123...',
+ *   from: '0x456...',
+ *   contract: 'DataRegistry',
+ *   fn: 'addFile',
+ *   chainId: 14800
+ * };
+ *
+ * // Wait for events
+ * const events = await vana.waitForTransactionEvents(result);
+ * ```
  */
 export interface TransactionResult<
   C extends Contract = Contract,
@@ -53,7 +80,13 @@ export interface TransactionResult<
 }
 
 /**
- * Extended transaction receipt with Vana-specific fields
+ * Extends viem's TransactionReceipt with Vana-specific event data.
+ *
+ * @remarks
+ * Includes parsed event data when available after transaction confirmation.
+ * Use this for detailed transaction analysis and event processing.
+ *
+ * @category Operations
  */
 export interface TransactionReceipt extends ViemReceipt {
   /** Parsed event data if available */
@@ -61,7 +94,13 @@ export interface TransactionReceipt extends ViemReceipt {
 }
 
 /**
- * Options for polling operations
+ * Configures polling behavior for asynchronous operations.
+ *
+ * @remarks
+ * Controls how frequently and how long to poll for operation completion.
+ * Lower intervals provide faster updates but increase server load.
+ *
+ * @category Operations
  */
 export interface PollingOptions {
   /** Polling interval in milliseconds (default: 500) */
@@ -71,7 +110,13 @@ export interface PollingOptions {
 }
 
 /**
- * Options for waiting for transaction confirmation
+ * Configures transaction confirmation waiting behavior.
+ *
+ * @remarks
+ * Controls confirmation depth and timeout for transaction finality.
+ * Higher confirmations provide more security against chain reorganizations.
+ *
+ * @category Operations
  */
 export interface TransactionWaitOptions {
   /** Number of confirmations to wait for (default: 1) */
@@ -85,8 +130,24 @@ export interface TransactionWaitOptions {
 /**
  * Validates whether an object conforms to the Operation interface.
  *
- * @param obj - The object to validate as an Operation.
- * @returns `true` if the object has required Operation properties, `false` otherwise.
+ * @remarks
+ * Type guard for runtime validation of operation objects from external sources.
+ * Use when deserializing operations from API responses or storage.
+ *
+ * @param obj - The object to validate as an Operation
+ * @returns `true` if the object has required Operation properties, `false` otherwise
+ *
+ * @example
+ * ```typescript
+ * const response = await fetch('/api/operation/123');
+ * const data = await response.json();
+ *
+ * if (isOperation(data)) {
+ *   console.log(`Operation ${data.id}: ${data.status}`);
+ * }
+ * ```
+ *
+ * @category Operations
  */
 export function isOperation(obj: unknown): obj is Operation {
   return (
@@ -102,8 +163,21 @@ export function isOperation(obj: unknown): obj is Operation {
 /**
  * Validates whether an object conforms to the TransactionResult interface.
  *
- * @param obj - The object to validate as a TransactionResult.
- * @returns `true` if the object has a valid transaction hash, `false` otherwise.
+ * @remarks
+ * Type guard for runtime validation of transaction results.
+ * Checks for required hash field with proper `0x` prefix.
+ *
+ * @param obj - The object to validate as a TransactionResult
+ * @returns `true` if the object has a valid transaction hash, `false` otherwise
+ *
+ * @example
+ * ```typescript
+ * if (isTransactionResult(result)) {
+ *   await vana.waitForTransactionEvents(result);
+ * }
+ * ```
+ *
+ * @category Operations
  */
 export function isTransactionResult(obj: unknown): obj is TransactionResult {
   if (typeof obj !== "object" || obj === null || !("hash" in obj)) {
@@ -116,8 +190,24 @@ export function isTransactionResult(obj: unknown): obj is TransactionResult {
 /**
  * Converts a server response to an Operation POJO.
  *
- * @param response - The raw server response containing operation status data.
- * @returns An Operation object with normalized fields for client consumption.
+ * @remarks
+ * Normalizes server responses into consistent Operation format.
+ * Separates success results from error messages based on status.
+ *
+ * @param response - The raw server response containing operation status data
+ * @returns An Operation object with normalized fields for client consumption
+ *
+ * @example
+ * ```typescript
+ * const serverResponse = await api.getOperation('op-123');
+ * const operation = toOperation<MLResult>(serverResponse);
+ *
+ * if (operation.status === 'succeeded') {
+ *   console.log('Result:', operation.result);
+ * }
+ * ```
+ *
+ * @category Operations
  */
 export function toOperation<T>(response: GetOperationResponse): Operation<T> {
   return {
@@ -134,8 +224,21 @@ export function toOperation<T>(response: GetOperationResponse): Operation<T> {
 /**
  * Extracts the operation ID from flexible input types.
  *
- * @param opOrId - An Operation object containing an `id` field or a raw operation ID string.
- * @returns The operation ID string for use in API calls.
+ * @remarks
+ * Utility for handling both Operation objects and raw ID strings.
+ * Enables flexible API design accepting either format.
+ *
+ * @param opOrId - An Operation object containing an `id` field or a raw operation ID string
+ * @returns The operation ID string for use in API calls
+ *
+ * @example
+ * ```typescript
+ * // Works with both formats
+ * await vana.server.getOperation(operation); // Operation object
+ * await vana.server.getOperation('op-123');  // ID string
+ * ```
+ *
+ * @category Operations
  */
 export function getOperationId(opOrId: Operation | string): string {
   return typeof opOrId === "string" ? opOrId : opOrId.id;
@@ -144,8 +247,22 @@ export function getOperationId(opOrId: Operation | string): string {
 /**
  * Extracts the transaction hash from flexible input types.
  *
- * @param txOrHash - A TransactionResult object, any object with a `hash` field, or a raw hash string.
- * @returns The transaction hash as a `0x`-prefixed string.
+ * @remarks
+ * Utility for handling TransactionResult objects, hash objects, or raw hash strings.
+ * Enables consistent hash extraction across different transaction representations.
+ *
+ * @param txOrHash - A TransactionResult object, any object with a `hash` field, or a raw hash string
+ * @returns The transaction hash as a `0x`-prefixed string
+ *
+ * @example
+ * ```typescript
+ * // All these work
+ * const hash1 = getTransactionHash(transactionResult);
+ * const hash2 = getTransactionHash({ hash: '0x123...' });
+ * const hash3 = getTransactionHash('0x123...');
+ * ```
+ *
+ * @category Operations
  */
 export function getTransactionHash(
   txOrHash: TransactionResult | { hash: Hash } | Hash,

@@ -1,7 +1,27 @@
+/**
+ * Defines generic types and interfaces for SDK infrastructure.
+ *
+ * @remarks
+ * This module provides reusable type definitions and interfaces that form
+ * the foundation of the SDK's architecture. It includes patterns for requests,
+ * responses, caching, middleware, repositories, and other common software
+ * engineering abstractions.
+ *
+ * @category Types
+ * @module types/generics
+ */
+
 import type { Address, Hash } from "viem";
 
 /**
- * Generic request pattern for all SDK operations
+ * Represents a standardized request structure for SDK operations.
+ *
+ * @remarks
+ * Provides consistent request handling across all SDK methods with
+ * typed parameters and optional configuration.
+ *
+ * @typeParam TParams - Type of request parameters
+ * @typeParam TOptions - Type of optional configuration
  *
  * @category Reference
  */
@@ -13,7 +33,14 @@ export interface GenericRequest<TParams = unknown, TOptions = unknown> {
 }
 
 /**
- * Generic response pattern for all SDK operations
+ * Represents a standardized response structure for SDK operations.
+ *
+ * @remarks
+ * Provides consistent response handling with success/error states
+ * and optional metadata for additional context.
+ *
+ * @typeParam TData - Type of response data
+ * @typeParam TMeta - Type of response metadata
  *
  * @category Reference
  */
@@ -33,7 +60,13 @@ export interface GenericResponse<TData = unknown, TMeta = unknown> {
 }
 
 /**
- * Generic async operation result
+ * Represents the result of an asynchronous blockchain operation.
+ *
+ * @remarks
+ * Includes transaction details when the operation involves
+ * blockchain state changes.
+ *
+ * @typeParam T - Type of the operation result
  *
  * @category Reference
  */
@@ -174,7 +207,14 @@ export interface StorageProvider<TConfig = unknown, TOptions = unknown> {
 }
 
 /**
- * Generic cache interface
+ * Defines a generic caching interface with TTL support.
+ *
+ * @remarks
+ * Provides standard cache operations for performance optimization
+ * and reducing redundant computations or network requests.
+ *
+ * @typeParam TKey - Type of cache keys
+ * @typeParam TValue - Type of cached values
  *
  * @category Reference
  */
@@ -196,7 +236,13 @@ export interface Cache<TKey = string, TValue = unknown> {
 }
 
 /**
- * Generic retry configuration
+ * Configures retry behavior for resilient operations.
+ *
+ * @remarks
+ * Supports exponential backoff, jitter, and custom retry conditions
+ * for handling transient failures gracefully.
+ *
+ * @typeParam TError - Type of errors to handle
  *
  * @category Reference
  */
@@ -230,7 +276,14 @@ export interface RateLimiterConfig {
 }
 
 /**
- * Generic middleware interface
+ * Defines middleware for request/response processing pipelines.
+ *
+ * @remarks
+ * Middleware can transform requests, responses, and handle errors
+ * in a composable chain of responsibility pattern.
+ *
+ * @typeParam TRequest - Type of requests to process
+ * @typeParam TResponse - Type of responses to process
  *
  * @category Reference
  */
@@ -285,7 +338,14 @@ export interface Factory<T, TParams = unknown> {
 }
 
 /**
- * Generic repository interface for data access
+ * Defines a repository pattern for data access abstraction.
+ *
+ * @remarks
+ * Provides CRUD operations with filtering, sorting, and pagination
+ * for consistent data access across different storage backends.
+ *
+ * @typeParam TEntity - Type of entities managed by the repository
+ * @typeParam TKey - Type of entity identifiers
  *
  * @category Reference
  */
@@ -383,7 +443,13 @@ export interface Service<TConfig = unknown> {
 }
 
 /**
- * Generic observer pattern
+ * Implements the observer in the observer pattern.
+ *
+ * @remarks
+ * Receives notifications about events from observable subjects
+ * for decoupled event handling.
+ *
+ * @typeParam TEvent - Type of events to observe
  *
  * @category Reference
  */
@@ -393,7 +459,13 @@ export interface Observer<TEvent = unknown> {
 }
 
 /**
- * Generic observable pattern
+ * Implements the subject in the observer pattern.
+ *
+ * @remarks
+ * Manages observers and emits events to all subscribed observers
+ * for event-driven architectures.
+ *
+ * @typeParam TEvent - Type of events to emit
  *
  * @category Reference
  */

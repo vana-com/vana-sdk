@@ -1,3 +1,21 @@
+/**
+ * Provides a generic HTTP client with enterprise-grade resilience features.
+ *
+ * @remarks
+ * This module implements a robust API client with automatic retry, rate limiting,
+ * circuit breaker pattern, and middleware support. It's used internally by the SDK
+ * for all HTTP operations and can be extended for custom API integrations.
+ *
+ * **Architecture:**
+ * - Middleware pipeline for request/response transformation
+ * - Exponential backoff retry with configurable policies
+ * - Token bucket rate limiting to prevent API throttling
+ * - Circuit breaker to fail fast when services are down
+ *
+ * @category Networking
+ * @module apiClient
+ */
+
 import type {
   GenericRequest,
   GenericResponse,
@@ -13,7 +31,13 @@ import {
 } from "./generics";
 
 /**
- * Configuration for the generic API client
+ * Configures the API client's behavior and resilience features.
+ *
+ * @remarks
+ * Provides fine-grained control over HTTP client behavior including
+ * retry strategies, rate limiting, and circuit breaker thresholds.
+ *
+ * @category Networking
  */
 export interface ApiClientConfig {
   /** Base URL for all requests */
@@ -35,12 +59,21 @@ export interface ApiClientConfig {
 }
 
 /**
- * HTTP method types
+ * Represents supported HTTP methods for API operations.
+ *
+ * @category Networking
  */
 export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
 
 /**
- * Request options for API calls
+ * Configures individual HTTP request behavior.
+ *
+ * @remarks
+ * Allows per-request overrides of client defaults including headers,
+ * timeout, and resilience features. Use to customize specific requests
+ * without affecting global configuration.
+ *
+ * @category Networking
  */
 export interface RequestOptions {
   /** HTTP method */
@@ -58,7 +91,50 @@ export interface RequestOptions {
 }
 
 /**
- * Generic API client with middleware, retry, rate limiting, and circuit breaker support
+ * Provides resilient HTTP client functionality with enterprise features.
+ *
+ * @remarks
+ * This client implements multiple resilience patterns to ensure reliable
+ * API communication even under adverse conditions. It automatically handles
+ * transient failures, rate limits, and service outages while providing
+ * hooks for custom behavior through middleware.
+ *
+ * **Features:**
+ * - Automatic retry with exponential backoff
+ * - Rate limiting to prevent API throttling
+ * - Circuit breaker for fast failure detection
+ * - Middleware pipeline for request/response transformation
+ * - Configurable timeouts and headers
+ *
+ * @example
+ * ```typescript
+ * // Create client with custom configuration
+ * const client = new ApiClient({
+ *   baseUrl: 'https://api.example.com',
+ *   headers: { 'API-Key': 'secret' },
+ *   retry: {
+ *     maxAttempts: 5,
+ *     baseDelay: 2000
+ *   },
+ *   rateLimit: {
+ *     requestsPerWindow: 50,
+ *     windowMs: 60000
+ *   }
+ * });
+ *
+ * // Add logging middleware
+ * client.use(async (req, next) => {
+ *   console.log(`Request: ${req.params.url}`);
+ *   const res = await next(req);
+ *   console.log(`Response: ${res.status}`);
+ *   return res;
+ * });
+ *
+ * // Make resilient API calls
+ * const data = await client.get('/users');
+ * ```
+ *
+ * @category Networking
  */
 export class ApiClient {
   private readonly config: Required<ApiClientConfig>;
@@ -94,20 +170,70 @@ export class ApiClient {
   }
 
   /**
-   * Add middleware to the request pipeline
+   * Adds middleware to the request processing pipeline.
+   *
+   * @remarks
+   * Middleware functions execute in order of registration and can transform
+   * requests, responses, or implement cross-cutting concerns like logging,
+   * authentication, or caching.
    *
    * @param middleware - The middleware function to add to the pipeline
+   *
+   * @example
+   * ```typescript
+   * // Add authentication middleware
+   * client.use(async (req, next) => {
+   *   req.options.headers = {
+   *     ...req.options.headers,
+   *     'Authorization': `Bearer ${getToken()}`
+   *   };
+   *   return next(req);
+   * });
+   *
+   * // Add response caching
+   * client.use(async (req, next) => {
+   *   const cached = cache.get(req.params.url);
+   *   if (cached) return cached;
+   *
+   *   const res = await next(req);
+   *   if (res.status === 'success') {
+   *     cache.set(req.params.url, res);
+   *   }
+   *   return res;
+   * });
+   * ```
    */
   use(middleware: Middleware): void {
     this.middleware.use(middleware);
   }
 
   /**
-   * Make a generic HTTP request
+   * Executes an HTTP request with full resilience features.
    *
-   * @param url - The URL to make the request to
+   * @remarks
+   * This is the core request method that applies all configured resilience
+   * patterns including retry, rate limiting, and circuit breaking. It processes
+   * the request through the middleware pipeline before execution.
+   *
+   * @param url - The URL to make the request to.
+   *   Can be relative (uses baseUrl) or absolute.
    * @param options - Request options including method, headers, body, etc.
    * @returns Promise resolving to the response data
+   *
+   * @throws {Error} When request fails after all retry attempts.
+   *   Check error message for details.
+   * @throws {Error} When circuit breaker is open.
+   *   Wait for recovery timeout before retrying.
+   *
+   * @example
+   * ```typescript
+   * const response = await client.request('/api/data', {
+   *   method: 'POST',
+   *   headers: { 'Content-Type': 'application/json' },
+   *   params: { name: 'John', age: 30 },
+   *   timeout: 5000
+   * });
+   * ```
    */
   async request<TData = unknown>(
     url: string,

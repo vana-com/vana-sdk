@@ -70,47 +70,56 @@ type SubgraphResponse<T> = {
 };
 
 /**
- * Manages encrypted user data files and their blockchain registration on the Vana network.
+ * Manages encrypted user data files and blockchain registration on the Vana network.
  *
  * @remarks
- * This controller handles the complete file lifecycle from encrypted upload to
- * blockchain registration and decryption. It provides methods for querying user files,
- * uploading new encrypted content, managing file schemas, and handling permissions for
- * secure data sharing. All operations respect the user's privacy through client-side
- * encryption before any data leaves the user's device.
+ * The DataController provides comprehensive file lifecycle management from encrypted upload
+ * through blockchain registration to decryption. Client-side encryption ensures data privacy
+ * before transmission. The controller integrates with multiple storage providers (IPFS, Pinata,
+ * Google Drive) and supports both gasless transactions via relayers and direct blockchain interaction.
  *
- * The controller integrates with multiple storage providers (IPFS, Pinata, Google Drive)
- * and supports both gasless transactions via relayers and direct blockchain interaction.
- * File metadata and access permissions are stored on the Vana blockchain while encrypted
- * file content is stored on decentralized storage networks.
+ * **Architecture:**
+ * Files use dual storage: encrypted content on decentralized storage (IPFS/Pinata/Google Drive),
+ * metadata and permissions on blockchain. This design minimizes on-chain data while maintaining
+ * decentralization and access control.
  *
  * **Method Selection:**
- * - `upload()` handles encryption, storage, and blockchain registration automatically
- * - `getUserFiles()` queries existing file metadata from blockchain and subgraph
- * - `decryptFile()` decrypts files for which you have access permissions
- * - `getFileById()` retrieves specific file metadata when you have the file ID
+ * - `upload()` - Complete workflow: encryption, storage, blockchain registration
+ * - `getUserFiles()` - Query file metadata from blockchain/subgraph
+ * - `decryptFile()` - Decrypt files you have permission to access
+ * - `getFileById()` - Retrieve specific file metadata by ID
  *
  * **Storage Requirements:**
- * Methods requiring storage configuration: `upload()`
- * Methods working without storage: `getUserFiles()`, `decryptFile()`, `getFileById()`
+ * - Methods requiring storage: `upload()`, `encryptFile()`
+ * - Methods working without storage: `getUserFiles()`, `decryptFile()`, `getFileById()`
+ *
+ * **Permission Model:**
+ * - File permissions (decryption access) are handled during upload
+ * - Operation permissions (what can be done with data) use `vana.permissions.grant()`
+ *
  * @example
  * ```typescript
- * // Upload an encrypted file with automatic schema validation
+ * // Upload encrypted file with schema validation
  * const result = await vana.data.upload({
- *   content: "My personal data",
- *   filename: "personal-data.json"
+ *   content: { name: "Alice", age: 30 },
+ *   filename: "profile.json",
+ *   schemaId: 1
  * });
+ * console.log(`File uploaded: ID ${result.fileId}, URL ${result.url}`);
  *
- * // Query files owned by a user
+ * // Query user's files
  * const files = await vana.data.getUserFiles({
- *   owner: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+ *   owner: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36"
  * });
+ * files.forEach(file => console.log(`File ${file.id}: ${file.url}`));
  *
- * // Decrypt accessible file content
+ * // Decrypt accessible file
  * const decryptedData = await vana.data.decryptFile(files[0]);
+ * console.log("Decrypted content:", decryptedData);
  * ```
+ *
  * @category Data Management
- * @see {@link https://docs.vana.com/developer/data-registry | Vana Data Registry Documentation} for conceptual overview
+ * @see For conceptual overview, visit {@link https://docs.vana.org/docs/data-registry}
  */
 export class DataController extends BaseController {
   constructor(context: ControllerContext) {
@@ -118,45 +127,52 @@ export class DataController extends BaseController {
   }
 
   /**
-   * Uploads user data with automatic encryption and blockchain registration.
+   * Uploads data with automatic encryption and blockchain registration.
    *
    * @remarks
-   * This is the primary method for uploading user data to the Vana network. It handles
-   * the complete workflow including content normalization, schema validation, encryption,
-   * storage upload, file permission granting, and blockchain registration.
+   * Primary method for uploading data to Vana. Handles complete workflow:
+   * content normalization, schema validation, encryption, storage upload,
+   * permission granting, and blockchain registration.
    *
-   * The method automatically:
-   * - Normalizes input content to a Blob
-   * - Validates data against schema if provided
-   * - Generates encryption keys and encrypts the data
-   * - Uploads to the configured storage provider
-   * - Grants file decryption permissions to specified accounts
-   * - Registers the file on the blockchain
+   * **Automatic Processing:**
+   * - Normalizes content to Blob format
+   * - Validates against schema if provided
+   * - Generates encryption keys
+   * - Uploads to configured storage
+   * - Grants decryption permissions
+   * - Registers on blockchain
    *
    * **TypeScript Overloads:**
-   * This method has three overloads to ensure type safety:
-   * 1. `EncryptedUploadParams` - When `encrypt: true` (default), permissions require publicKey
-   * 2. `UnencryptedUploadParams` - When `encrypt: false`, permissions are optional
-   * 3. `UploadParams` - General signature for runtime determination
+   * - `EncryptedUploadParams`: When `encrypt: true` (default), permissions require `publicKey`
+   * - `UnencryptedUploadParams`: When `encrypt: false`, permissions optional
+   * - `UploadParams`: General signature for runtime determination
    *
-   * IMPORTANT: The permissions parameter only grants decryption access to the file.
-   * To grant operation permissions (like "llm_inference"), use vana.permissions.grant()
-   * after uploading. This separation ensures clear distinction between:
-   * - File permissions: Who can decrypt and read the encrypted file (handled here)
-   * - Operation permissions: What operations can be performed on the data (handled separately)
+   * **Permission Separation:**
+   * - File permissions (here): Decryption access only
+   * - Operation permissions: Use `vana.permissions.grant()` separately
    *
-   * @param params - Upload parameters including content, filename, schema, and permissions
-   * @param params.permissions - Optional array of file permissions for granting decryption access
-   * @param params.schemaId - Optional schema ID for data validation. Get available schemas from `vana.schemas.list()`.
-   * @param params.owner - Optional owner address if uploading on behalf of another user (requires delegation).
-   * @returns Promise resolving to upload results with file ID and transaction hash
-   * @throws {Error} When storage manager is not configured - "Storage manager not configured. Please provide storage providers in VanaConfig."
-   * @throws {Error} When no wallet addresses available - "No addresses available in wallet client"
-   * @throws {Error} When chain ID is not available - "Chain ID not available"
-   * @throws {Error} When relay callback doesn't support required features - "The configured relay callback does not support schemas or permissions"
-   * @throws {Error} When schema fetch fails - "Failed to fetch schema definition: {status}"
-   * @throws {SchemaValidationError} When data doesn't match schema - includes specific validation errors
-   * @throws {Error} General upload failures - "Upload failed: {specific error message}"
+   * @param params - Upload configuration object
+   * @param params.content - Data to upload (string, object, or Blob)
+   * @param params.filename - Name for the uploaded file
+   * @param params.permissions - Decryption access grants.
+   *   Each requires `account` and `publicKey` for encryption.
+   * @param params.schemaId - Schema for validation.
+   *   Obtain via `vana.schemas.list()`.
+   * @param params.owner - Owner address for delegation scenarios.
+   *   Defaults to connected wallet address.
+   * @param params.encrypt - Enable encryption (default: `true`)
+   * @param params.providerName - Storage provider override
+   *
+   * @returns Upload result with file ID, URL, and transaction hash
+   *
+   * @throws {Error} Storage not configured.
+   *   Configure storage providers in `VanaConfig`.
+   * @throws {Error} No wallet addresses available.
+   *   Ensure wallet is connected.
+   * @throws {SchemaValidationError} Data doesn't match schema.
+   *   Verify data structure matches schema from `vana.schemas.get(schemaId)`.
+   * @throws {Error} Upload failed with specific error message.
+   *
    * @example
    * ```typescript
    * // Basic file upload
@@ -479,35 +495,33 @@ export class DataController extends BaseController {
   }
 
   /**
-   * Decrypts a file owned by the user using their wallet signature.
+   * Decrypts a file using wallet-derived decryption key.
    *
    * @remarks
-   * This is the high-level convenience method for decrypting user files, serving as the
-   * symmetrical counterpart to the `upload` method. It handles the complete decryption
-   * workflow including key generation, URL protocol detection, content fetching, and
-   * decryption.
+   * Counterpart to `upload()` for decrypting user files. Automatically
+   * generates decryption key from wallet, fetches encrypted content,
+   * and decrypts. Supports IPFS (with gateway fallback) and HTTP URLs.
    *
-   * The method automatically:
-   * - Generates the decryption key from the user's wallet signature
-   * - Determines the appropriate fetch method based on the file URL protocol
-   * - Fetches the encrypted content from IPFS or standard HTTP URLs
-   * - Decrypts the content using the generated key
+   * @param file - UserFile object from `getUserFiles()`
+   * @param options - Decryption options
+   * @param options.seed - Custom encryption seed.
+   *   Defaults to standard Vana seed.
    *
-   * For IPFS URLs, the method uses gateway fallback for improved reliability. For
-   * standard HTTP URLs, it uses a simple fetch. If you need custom authentication
-   * headers or specific gateway configurations, use the low-level primitives directly.
+   * @returns Decrypted content as Blob
    *
-   * @param file - The user file to decrypt (typically from getUserFiles)
-   * @param encryptionSeed - Optional custom encryption seed (defaults to Vana standard)
-   * @returns Promise resolving to the decrypted file content as a Blob
-   * @throws {Error} "No addresses available in wallet client" - When wallet is not connected
-   * @throws {Error} "Network error: Cannot access the file URL" - When file URL is inaccessible (CORS, server down)
-   * @throws {Error} "File not found: The encrypted file is no longer available" - When file returns 404
-   * @throws {Error} "Access denied" - When file returns 403 (no permission)
-   * @throws {Error} "File is empty or could not be retrieved" - When file has no content
-   * @throws {Error} "Invalid file format: This file doesn't appear to be encrypted with the Vana protocol" - When file is not properly encrypted
-   * @throws {Error} "Wrong encryption key" - When decryption fails due to incorrect key/seed
-   * @throws {Error} "Failed to decrypt file: {error}" - General decryption failures
+   * @throws {Error} No wallet connected.
+   *   Connect wallet before decrypting.
+   * @throws {Error} Network error accessing file.
+   *   Check CORS settings or server availability.
+   * @throws {Error} File not found (404).
+   *   File no longer available at stored URL.
+   * @throws {Error} Access denied (403).
+   *   No permission to access file.
+   * @throws {Error} Invalid file format.
+   *   File not encrypted with Vana protocol.
+   * @throws {Error} Wrong encryption key.
+   *   Verify seed matches upload or use default.
+   *
    * @example
    * ```typescript
    * // Basic file decryption
@@ -670,35 +684,38 @@ export class DataController extends BaseController {
   }
 
   /**
-   * Retrieves all data files owned by a specific user address.
+   * Retrieves all files owned by a specific user address.
    *
    * @remarks
-   * This method queries the Vana subgraph to find files directly owned by the user.
-   * It efficiently handles large datasets by using the File entity's owner field
-   * and returns complete file metadata without additional contract calls.
+   * Queries the Vana subgraph for files owned by the specified address.
+   * Automatically deduplicates by file ID, keeping the latest version
+   * when duplicates exist from re-indexing or chain reorganizations.
+   * Enriches results with DLP proof data when available.
    *
-   * **Deduplication Behavior:**
-   * The method automatically deduplicates files by ID, keeping only the latest version
-   * (highest timestamp) when duplicate file IDs are found. This handles cases where
-   * the subgraph may contain multiple entries for the same file due to re-indexing
-   * or blockchain reorganizations.
-   * @param params - The query parameters object
-   * @param params.owner - The wallet address of the file owner to query
-   * @param params.subgraphUrl - Optional subgraph URL to override the default endpoint
-   * @returns A Promise that resolves to an array of UserFile objects with metadata, sorted by latest timestamp first
-   * @throws {Error} When subgraphUrl is not provided and not configured - "subgraphUrl is required"
-   * @throws {Error} When subgraph request fails - "Subgraph request failed: {status} {statusText}"
-   * @throws {Error} When subgraph returns errors - "Subgraph errors: {error messages}"
-   * @throws {Error} When JSON parsing fails - "Failed to fetch user files from subgraph: {error}"
+   * @param params - Query configuration
+   * @param params.owner - Wallet address of the file owner
+   * @param params.subgraphUrl - Subgraph endpoint override.
+   *   Defaults to context configuration.
+   *
+   * @returns Array of UserFile objects sorted by timestamp (newest first)
+   *
+   * @throws {Error} Subgraph URL not configured.
+   *   Provide `subgraphUrl` parameter or configure in Vana constructor.
+   * @throws {Error} Subgraph request failed.
+   *   Check network connectivity and subgraph availability.
+   * @throws {Error} Subgraph returned errors.
+   *   Review query parameters and subgraph logs.
+   *
    * @example
    * ```typescript
-   * // Query files for a specific user
    * const files = await vana.data.getUserFiles({
-   *   owner: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+   *   owner: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36"
    * });
    *
    * files.forEach(file => {
-   *   console.log(`File ${file.id}: ${file.url} (Schema: ${file.schemaId})`);
+   *   console.log(`File ${file.id}: ${file.url}`);
+   *   console.log(`  Schema: ${file.schemaId}`);
+   *   console.log(`  DLPs: ${file.dlpIds?.join(", ") || "none"}`);
    * });
    * ```
    */
@@ -1863,18 +1880,26 @@ export class DataController extends BaseController {
   }
 
   /**
-   * Gets the total number of files in the registry from the contract.
+   * Retrieves total file count from Data Registry.
    *
-   * @returns Promise resolving to the total file count
+   * @remarks
+   * Queries blockchain for complete file count across all users.
+   * Useful for pagination and network statistics.
+   *
+   * @returns Total number of registered files
+   *
+   * @throws {Error} Chain ID not available.
+   *   Ensure network connection.
+   * @throws {Error} Contract read failed.
+   *   Check RPC availability.
+   *
    * @example
    * ```typescript
-   * const totalFiles = await vana.data.getTotalFilesCount();
-   * console.log(`Total files in registry: ${totalFiles}`);
+   * const total = await vana.data.getTotalFilesCount();
+   * console.log(`Total files: ${total}`);
    *
-   * // Use for pagination calculations
-   * const filesPerPage = 20;
-   * const totalPages = Math.ceil(totalFiles / filesPerPage);
-   * console.log(`Total pages: ${totalPages}`);
+   * // Calculate pagination
+   * const pages = Math.ceil(total / 20);
    * ```
    */
   async getTotalFilesCount(): Promise<number> {
@@ -1911,32 +1936,32 @@ export class DataController extends BaseController {
   }
 
   /**
-   * Retrieves details for a specific file by its ID.
+   * Retrieves file metadata by ID from the blockchain.
    *
-   * @param fileId - The file ID to look up
-   * @returns Promise resolving to UserFile object
-   * @throws {Error} "Chain ID not available" - When wallet chain is not configured
-   * @throws {Error} "File not found" - When file ID doesn't exist or returns empty data
-   * @throws {Error} "Failed to fetch file {fileId}: {error}" - General contract read failures
+   * @remarks
+   * Queries DataRegistry contract directly for file details.
+   * Works for any file ID regardless of ownership, enabling
+   * cross-user file discovery and verification.
+   *
+   * @param fileId - Numeric file ID to retrieve
+   *
+   * @returns UserFile object with metadata
+   *
+   * @throws {Error} Chain ID not available.
+   *   Ensure proper network connection.
+   * @throws {Error} File not found.
+   *   Verify file ID exists on-chain.
+   * @throws {Error} Contract call failed.
+   *   Check network and RPC availability.
+   *
    * @example
    * ```typescript
-   * try {
-   *   const file = await vana.data.getFileById(123);
-   *   console.log('File details:', {
-   *     id: file.id,
-   *     url: file.url,
-   *     owner: file.ownerAddress,
-   *     addedAt: file.addedAtBlock
-   *   });
-   * } catch (error) {
-   *   console.error('File not found or error retrieving file:', error);
-   * }
+   * const file = await vana.data.getFileById(123);
+   * console.log(`File ${file.id}:`);
+   * console.log(`  URL: ${file.url}`);
+   * console.log(`  Owner: ${file.ownerAddress}`);
+   * console.log(`  Block: ${file.addedAtBlock}`);
    * ```
-   *
-   * This method queries the DataRegistry contract directly
-   * to get file details for any file ID, regardless of user ownership.
-   * This is useful for file lookup functionality where users can search
-   * for specific files by ID.
    */
   async getFileById(fileId: number): Promise<UserFile> {
     try {
@@ -2309,31 +2334,35 @@ export class DataController extends BaseController {
   }
 
   /**
-   * Adds a new refiner to the DataRefinerRegistry.
+   * Registers a data refiner for processing templates.
    *
    * @remarks
-   * Refiners are data processing templates that define how raw data should be
-   * transformed into structured formats. Each refiner is associated with a DLP
-   * (Data Liquidity Pool), has a specific schema for output, and includes
-   * instructions for the refinement process.
+   * Refiners define data transformation rules for DLPs.
+   * Associates schema, instructions, and processing logic.
    *
-   * @param params - Refiner configuration parameters
-   * @param params.dlpId - The Data Liquidity Pool ID this refiner belongs to
-   * @param params.name - Human-readable name for the refiner
-   * @param params.schemaId - Schema ID that defines the output format
-   * @param params.refinementInstructionUrl - URL containing processing instructions
-   * @returns Promise resolving to the new refiner ID and transaction hash
-   * @throws {Error} When chain ID is not available - "Chain ID not available"
-   * @throws {Error} When transaction fails - "Failed to add refiner: {error}"
+   * @param params - Refiner configuration
+   * @param params.dlpId - Data Liquidity Pool ID
+   * @param params.name - Refiner display name
+   * @param params.schemaId - Output schema ID.
+   *   Obtain via `vana.schemas.list()`.
+   * @param params.refinementInstructionUrl - Processing instructions URL
+   *
+   * @returns Refiner ID and transaction hash
+   *
+   * @throws {Error} Chain ID not available.
+   *   Ensure network connection.
+   * @throws {Error} Transaction failed.
+   *   Check wallet balance and network status.
+   *
    * @example
    * ```typescript
    * const result = await vana.data.addRefiner({
    *   dlpId: 1,
-   *   name: "Social Media Sentiment Analyzer",
+   *   name: "Sentiment Analyzer",
    *   schemaId: 42,
    *   refinementInstructionUrl: "ipfs://QmXxx..."
    * });
-   * console.log(`Created refiner ${result.refinerId} in tx ${result.transactionHash}`);
+   * console.log(`Refiner ${result.refinerId} created`);
    * ```
    */
   async addRefiner(params: AddRefinerParams): Promise<AddRefinerResult> {
@@ -2402,26 +2431,29 @@ export class DataController extends BaseController {
   }
 
   /**
-   * Retrieves a refiner by its ID.
+   * Retrieves refiner configuration by ID.
    *
    * @remarks
-   * Queries the DataRefinerRegistry contract to get complete information about
-   * a specific refiner including its DLP association, schema, and instructions.
+   * Queries DataRefinerRegistry for refiner details.
+   * Returns DLP association, schema, and processing instructions.
    *
-   * @param refinerId - The numeric refiner ID to retrieve
-   * @returns Promise resolving to the refiner information object
-   * @throws {Error} When chain ID is not available - "Chain ID not available"
-   * @throws {Error} When refiner doesn't exist - "Refiner with ID {refinerId} does not exist"
-   * @throws {Error} When contract read fails - "Failed to fetch refiner: {error}"
+   * @param refinerId - Numeric refiner ID
+   *
+   * @returns Refiner configuration object
+   *
+   * @throws {Error} Chain ID not available.
+   *   Ensure network connection.
+   * @throws {Error} Refiner not found.
+   *   Verify refiner ID exists.
+   * @throws {Error} Contract read failed.
+   *   Check network and RPC status.
+   *
    * @example
    * ```typescript
    * const refiner = await vana.data.getRefiner(1);
-   * console.log({
-   *   name: refiner.name,
-   *   dlp: refiner.dlpId,
-   *   schema: refiner.schemaId,
-   *   instructions: refiner.refinementInstructionUrl
-   * });
+   * console.log(`Refiner: ${refiner.name}`);
+   * console.log(`DLP: ${refiner.dlpId}`);
+   * console.log(`Schema: ${refiner.schemaId}`);
    * ```
    */
   async getRefiner(refinerId: number): Promise<Refiner> {
@@ -2468,21 +2500,27 @@ export class DataController extends BaseController {
   }
 
   /**
-   * Validates if a schema ID exists in the registry.
+   * Validates schema ID existence.
    *
    * @remarks
-   * Checks the DataRefinerRegistry contract to determine if a given schema ID
-   * has been registered and is available for use.
+   * Verifies schema registration in DataRegistry.
+   * Check before using schemas for uploads.
    *
-   * @param schemaId - The numeric schema ID to validate
-   * @returns Promise resolving to true if schema exists, false otherwise
+   * @param schemaId - Numeric schema ID to validate
+   *
+   * @returns True if schema exists, false otherwise
+   *
+   * @throws {Error} Chain ID not available.
+   *   Ensure network connection.
+   * @throws {Error} Contract read failed.
+   *   Check RPC availability.
+   *
    * @example
    * ```typescript
-   * const isValid = await vana.data.isValidSchemaId(42);
-   * if (isValid) {
-   *   console.log('Schema 42 is available for use');
-   * } else {
-   *   console.log('Schema 42 does not exist');
+   * const valid = await vana.data.isValidSchemaId(42);
+   * if (valid) {
+   *   // Safe to use schema 42
+   *   await vana.data.upload({ schemaId: 42, ... });
    * }
    * ```
    */

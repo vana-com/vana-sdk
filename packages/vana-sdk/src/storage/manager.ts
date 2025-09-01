@@ -1,3 +1,15 @@
+/**
+ * Manages multiple storage providers with a unified interface.
+ *
+ * @remarks
+ * This module provides centralized management of storage providers, enabling
+ * applications to work with multiple storage backends through a single API.
+ * It handles provider registration, default selection, and operation routing.
+ *
+ * @category Storage
+ * @module storage/manager
+ */
+
 import type {
   StorageProvider,
   StorageUploadResult,
@@ -76,10 +88,20 @@ export class StorageManager {
   }
 
   /**
-   * Get a registered storage provider
+   * Retrieves a registered storage provider.
    *
-   * @param name - Provider identifier, uses default if not specified
-   * @returns Storage provider instance
+   * @param name - Provider identifier.
+   *   If not specified, returns the default provider.
+   * @returns The requested storage provider instance
+   *
+   * @throws {StorageError} With code 'NO_PROVIDER' if no provider available
+   * @throws {StorageError} With code 'PROVIDER_NOT_FOUND' if named provider doesn't exist
+   *
+   * @example
+   * ```typescript
+   * const provider = storage.getProvider('pinata');
+   * const config = provider.getConfig();
+   * ```
    */
   getProvider(name?: string): StorageProvider {
     const providerName = name ?? this.defaultProvider;
@@ -105,27 +127,51 @@ export class StorageManager {
   }
 
   /**
-   * List all registered providers
+   * Lists all registered provider names.
    *
-   * @returns Array of provider names
+   * @returns Array of registered provider identifiers
+   *
+   * @example
+   * ```typescript
+   * const providers = storage.listProviders();
+   * console.log('Available providers:', providers);
+   * // Output: ['ipfs', 'pinata', 'google-drive']
+   * ```
    */
   listProviders(): string[] {
     return Array.from(this.providers.keys());
   }
 
   /**
-   * Get the default provider name
+   * Gets the current default provider name.
    *
-   * @returns Default provider name or null
+   * @returns Default provider identifier or null if none set
+   *
+   * @example
+   * ```typescript
+   * const defaultName = storage.getDefaultProvider();
+   * if (defaultName) {
+   *   console.log(`Using ${defaultName} by default`);
+   * }
+   * ```
    */
   getDefaultProvider(): string | null {
     return this.defaultProvider;
   }
 
   /**
-   * Set the default provider
+   * Sets the default storage provider.
    *
-   * @param name - Provider identifier
+   * @param name - Provider identifier to set as default.
+   *   Must be a registered provider name.
+   *
+   * @throws {StorageError} With code 'PROVIDER_NOT_FOUND' if provider not registered
+   *
+   * @example
+   * ```typescript
+   * storage.setDefaultProvider('pinata');
+   * // Now all operations without provider name will use Pinata
+   * ```
    */
   setDefaultProvider(name: string): void {
     if (!this.providers.has(name)) {
@@ -170,11 +216,21 @@ export class StorageManager {
   }
 
   /**
-   * Download a file using the specified or default provider
+   * Downloads a file from storage.
    *
-   * @param url - The storage URL
-   * @param providerName - Optional provider to use
-   * @returns Promise with file blob
+   * @param url - The storage URL to download from.
+   *   Format depends on the storage provider.
+   * @param providerName - Optional provider identifier.
+   *   Uses default provider if not specified.
+   * @returns The downloaded file as a Blob
+   *
+   * @throws {StorageError} If download fails or provider unavailable
+   *
+   * @example
+   * ```typescript
+   * const blob = await storage.download('ipfs://QmXxx...');
+   * const text = await blob.text();
+   * ```
    */
   async download(url: string, providerName?: string): Promise<Blob> {
     const provider = this.getProvider(providerName);
@@ -182,11 +238,24 @@ export class StorageManager {
   }
 
   /**
-   * List files using the specified or default provider
+   * Lists files in storage.
    *
-   * @param options - Optional filtering and pagination
-   * @param providerName - Optional provider to use
-   * @returns Promise with file list
+   * @param options - Optional filtering and pagination.
+   * @param options.namePattern - Pattern to filter files.
+   * @param options.limit - Maximum files to return.
+   * @param providerName - Optional provider identifier.
+   *   Uses default provider if not specified.
+   * @returns Array of file metadata
+   *
+   * @throws {StorageError} If listing fails or not supported by provider
+   *
+   * @example
+   * ```typescript
+   * const files = await storage.list(
+   *   { namePattern: '*.json', limit: 10 },
+   *   'google-drive'
+   * );
+   * ```
    */
   async list(
     options?: StorageListOptions,
@@ -197,11 +266,23 @@ export class StorageManager {
   }
 
   /**
-   * Delete a file using the specified or default provider
+   * Deletes a file from storage.
    *
-   * @param url - The storage URL
-   * @param providerName - Optional provider to use
-   * @returns Promise with success status
+   * @param url - The storage URL to delete.
+   *   Must be a valid URL for the provider.
+   * @param providerName - Optional provider identifier.
+   *   Uses default provider if not specified.
+   * @returns True if deletion succeeded, false otherwise
+   *
+   * @throws {StorageError} If deletion fails or not supported by provider
+   *
+   * @example
+   * ```typescript
+   * const success = await storage.delete('ipfs://QmXxx...');
+   * if (success) {
+   *   console.log('File deleted successfully');
+   * }
+   * ```
    */
   async delete(url: string, providerName?: string): Promise<boolean> {
     const provider = this.getProvider(providerName);
@@ -209,18 +290,32 @@ export class StorageManager {
   }
 
   /**
-   * Get list of registered storage provider names
+   * Gets all registered storage provider names.
    *
-   * @returns Array of provider names
+   * @returns Array of provider identifiers
+   *
+   * @deprecated Use `listProviders()` instead
+   *
+   * @example
+   * ```typescript
+   * const providers = storage.getStorageProviders();
+   * ```
    */
   getStorageProviders(): string[] {
     return Array.from(this.providers.keys());
   }
 
   /**
-   * Get the default storage provider name
+   * Gets the default storage provider name.
    *
-   * @returns Default provider name or undefined
+   * @returns Default provider identifier or undefined if none set
+   *
+   * @deprecated Use `getDefaultProvider()` instead
+   *
+   * @example
+   * ```typescript
+   * const defaultProvider = storage.getDefaultStorageProvider();
+   * ```
    */
   getDefaultStorageProvider(): string | undefined {
     return this.defaultProvider ?? undefined;

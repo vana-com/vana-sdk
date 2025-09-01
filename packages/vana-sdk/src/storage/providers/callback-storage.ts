@@ -1,3 +1,16 @@
+/**
+ * Provides user-defined storage operations through callback functions.
+ *
+ * @remarks
+ * This module implements a flexible storage provider that delegates all
+ * operations to user-provided callbacks. It enables custom storage
+ * integrations without modifying the SDK, supporting any backend including
+ * HTTP APIs, WebSocket servers, cloud storage services, or local filesystems.
+ *
+ * @category Storage
+ * @module storage/providers/callback-storage
+ */
+
 import type { StorageCallbacks } from "../../types/config";
 import {
   StorageError,
@@ -9,13 +22,17 @@ import {
 } from "../../types/storage";
 
 /**
- * Storage provider that delegates all operations to user-provided callbacks.
+ * Delegates storage operations to user-provided callback functions.
  *
- * This provider follows the same flexible pattern as relayer callbacks,
- * allowing users to implement storage operations in any way they choose
- * (HTTP, WebSocket, direct cloud APIs, local filesystem, etc.).
+ * @remarks
+ * This provider enables custom storage integrations by delegating all
+ * operations to user-defined callbacks. It follows the same flexible
+ * pattern as relayer callbacks, allowing implementations via HTTP,
+ * WebSocket, direct cloud APIs, local filesystem, or any other backend.
  *
- * @category Storage
+ * The provider validates callback results and wraps errors in consistent
+ * `StorageError` types for uniform error handling across the SDK.
+ *
  * @example
  * ```typescript
  * // HTTP-based implementation
@@ -60,8 +77,17 @@ import {
  *   }
  * };
  * ```
+ *
+ * @category Storage
  */
 export class CallbackStorage implements StorageProvider {
+  /**
+   * Creates a new callback-based storage provider.
+   *
+   * @param callbacks - User-provided storage operation callbacks.
+   *   Must include at minimum `upload` and `download` functions.
+   * @throws {Error} If required callbacks are missing
+   */
   constructor(private readonly callbacks: StorageCallbacks) {
     if (!callbacks.upload || !callbacks.download) {
       throw new Error(
@@ -71,11 +97,23 @@ export class CallbackStorage implements StorageProvider {
   }
 
   /**
-   * Upload a file using the provided callback
+   * Uploads a file using the user-provided callback.
    *
-   * @param file - The blob to upload
-   * @param filename - Optional filename for the upload
-   * @returns The upload result with URL and metadata
+   * @param file - The blob to upload.
+   *   Can be any Blob-compatible object including File.
+   * @param filename - Optional filename for the upload.
+   *   If not provided, callback may generate a name.
+   * @returns Upload result containing URL and metadata
+   *
+   * @throws {StorageError} With code 'INVALID_UPLOAD_RESULT' if callback returns invalid data
+   * @throws {StorageError} With code 'UPLOAD_ERROR' if upload fails
+   *
+   * @example
+   * ```typescript
+   * const file = new File(['content'], 'data.json');
+   * const result = await storage.upload(file);
+   * console.log('Uploaded to:', result.url);
+   * ```
    */
   async upload(file: Blob, filename?: string): Promise<StorageUploadResult> {
     try {
@@ -105,10 +143,20 @@ export class CallbackStorage implements StorageProvider {
   }
 
   /**
-   * Download a file using the provided callback
+   * Downloads a file using the user-provided callback.
    *
-   * @param url - The URL or identifier to download
-   * @returns The downloaded blob
+   * @param url - The URL or identifier to download.
+   *   If `extractIdentifier` callback is provided, it will be used to extract the identifier.
+   * @returns The downloaded file as a Blob
+   *
+   * @throws {StorageError} With code 'INVALID_DOWNLOAD_RESULT' if callback returns non-Blob
+   * @throws {StorageError} With code 'DOWNLOAD_ERROR' if download fails
+   *
+   * @example
+   * ```typescript
+   * const blob = await storage.download('https://storage.example.com/file123');
+   * const text = await blob.text();
+   * ```
    */
   async download(url: string): Promise<Blob> {
     try {
@@ -142,10 +190,27 @@ export class CallbackStorage implements StorageProvider {
   }
 
   /**
-   * List files using the provided callback (if available)
+   * Lists files using the user-provided callback.
    *
-   * @param options - Optional list options including filters and pagination
-   * @returns Array of storage files
+   * @param options - Optional list options.
+   * @param options.namePattern - Pattern to filter files by name.
+   *   Implementation depends on callback.
+   * @param options.limit - Maximum number of files to return.
+   *   Implementation depends on callback.
+   * @returns Array of storage file metadata
+   *
+   * @throws {StorageError} With code 'NOT_SUPPORTED' if list callback not provided
+   * @throws {StorageError} With code 'LIST_ERROR' if listing fails
+   *
+   * @remarks
+   * This operation is optional and only available if a `list` callback
+   * is provided during construction.
+   *
+   * @example
+   * ```typescript
+   * const files = await storage.list({ namePattern: '*.json' });
+   * files.forEach(file => console.log(file.name, file.size));
+   * ```
    */
   async list(options?: StorageListOptions): Promise<StorageFile[]> {
     if (!this.callbacks.list) {
@@ -180,10 +245,26 @@ export class CallbackStorage implements StorageProvider {
   }
 
   /**
-   * Delete a file using the provided callback (if available)
+   * Deletes a file using the user-provided callback.
    *
-   * @param url - The URL or identifier to delete
-   * @returns True if deletion succeeded
+   * @param url - The URL or identifier to delete.
+   *   If `extractIdentifier` callback is provided, it will be used to extract the identifier.
+   * @returns True if deletion succeeded, false otherwise
+   *
+   * @throws {StorageError} With code 'NOT_SUPPORTED' if delete callback not provided
+   * @throws {StorageError} With code 'DELETE_ERROR' if deletion fails
+   *
+   * @remarks
+   * This operation is optional and only available if a `delete` callback
+   * is provided during construction.
+   *
+   * @example
+   * ```typescript
+   * const deleted = await storage.delete('https://storage.example.com/file123');
+   * if (deleted) {
+   *   console.log('File deleted successfully');
+   * }
+   * ```
    */
   async delete(url: string): Promise<boolean> {
     if (!this.callbacks.delete) {
@@ -212,9 +293,18 @@ export class CallbackStorage implements StorageProvider {
   }
 
   /**
-   * Get provider configuration
+   * Returns the provider's configuration and capabilities.
    *
-   * @returns Provider configuration metadata
+   * @returns Configuration object indicating supported features
+   *
+   * @example
+   * ```typescript
+   * const config = storage.getConfig();
+   * if (config.features.list) {
+   *   // List operation is supported
+   *   const files = await storage.list();
+   * }
+   * ```
    */
   getConfig(): StorageProviderConfig {
     return {

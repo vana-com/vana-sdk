@@ -87,50 +87,52 @@ import { BaseController } from "./base";
 export type { ControllerContext };
 
 /**
- * Manages gasless data access permissions and trusted server registry operations.
+ * Manages data access permissions and trusted server operations with gasless transaction support.
  *
  * @remarks
- * This controller enables users to grant applications access to their data without
- * paying gas fees. It handles the complete EIP-712 permission flow including signature
- * creation, IPFS storage of permission details, and gasless transaction submission.
- * The controller also manages trusted servers that can process user data and provides
- * methods for revoking permissions when access is no longer needed.
+ * Enables applications to access user data through EIP-712 signatures, eliminating gas fees
+ * for users. Handles permission lifecycle from creation through revocation, plus trusted
+ * server management for data processing operations.
  *
- * **Permission Architecture:**
- * Permissions use dual storage: detailed parameters stored on IPFS, references stored on blockchain.
- * This enables complex permissions while maintaining minimal on-chain data.
+ * **Architecture:**
+ * Permissions use dual storage: complex parameters on IPFS, references on blockchain.
+ * This minimizes on-chain data while maintaining decentralization and auditability.
  *
  * **Method Selection:**
- * - `grant()` creates new permissions with automatic IPFS upload and blockchain registration
- * - `prepareGrant()` allows preview before signing for interactive applications
- * - `revoke()` removes permissions by ID, supporting both gasless and direct transactions
- * - `getUserPermissionGrantsOnChain()` queries existing permissions efficiently
- * - `trustServer()` and `untrustServer()` manage server access for data processing
+ * - `grant()` - Create permissions with automatic IPFS upload and blockchain registration
+ * - `prepareGrant()` - Preview permission structure before signing
+ * - `revoke()` - Remove permissions by ID (gasless or direct)
+ * - `getUserPermissionGrantsOnChain()` - Query active permissions
+ * - `trustServer()`/`untrustServer()` - Manage server access
  *
- * **Transaction Types:**
- * Methods with gasless support: `grant()`, `revoke()`, `trustServer()`, `untrustServer()`
- * Methods requiring direct transactions: none (all support both gasless and direct)
+ * **Gasless Support:**
+ * All permission methods support both gasless (via relayer) and direct transactions.
+ * Configure relayer callbacks in Vana initialization for gasless operations.
+ *
  * @example
  * ```typescript
- * // Grant permission for an app to access your data
- * const txHash = await vana.permissions.grant({
+ * // Grant data access permission
+ * const result = await vana.permissions.grant({
  *   grantee: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
  *   operation: "llm_inference",
- *   files: [1, 2, 3],
- *   parameters: { model: "gpt-4", maxTokens: 1000 },
+ *   fileIds: [1, 2, 3],
+ *   parameters: { model: "gpt-4", maxTokens: 1000 }
  * });
+ * console.log(`Permission ${result.permissionId} granted`);
  *
- * // Trust a server for data processing
+ * // Trust server for processing
  * await vana.permissions.trustServer({
- *   serverId: "0x123...",
- *   serverUrl: "https://personal-server.vana.org",
+ *   serverAddress: "0x123...",
+ *   serverUrl: "https://personal-server.vana.org"
  * });
  *
- * // Query current permissions
+ * // Query active permissions
  * const permissions = await vana.permissions.getUserPermissionGrantsOnChain();
+ * permissions.forEach(p => console.log(`Permission ${p.id}: ${p.grantee}`));
  * ```
+ *
  * @category Permissions
- * @see {@link https://docs.vana.com/developer/permissions | Vana Permissions System} for conceptual overview
+ * @see For conceptual overview, visit {@link https://docs.vana.org/docs/permissions}
  */
 export class PermissionsController extends BaseController {
   constructor(context: ControllerContext) {

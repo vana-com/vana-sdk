@@ -1,16 +1,34 @@
 /**
- * Universal URL resolver for the Vana SDK
+ * Provides universal URL resolution across multiple protocols.
  *
- * Handles fetching data from various protocols (IPFS, HTTP, Arweave, etc.)
- * in a consistent, reliable way.
+ * @remarks
+ * This module enables fetching data from various protocols including IPFS,
+ * HTTP/HTTPS, and Arweave through a unified interface. It handles protocol
+ * conversion, gateway selection, and fallback strategies automatically.
+ *
+ * @category Utilities
+ * @module utils/urlResolver
  */
 
 import { universalFetch } from "./download";
 
 /**
- * Error thrown when URL resolution fails
+ * Indicates that URL resolution or data fetching failed.
+ *
+ * @remarks
+ * This error provides context about which URL failed and why,
+ * making it easier to debug issues with external resources.
+ *
+ * @category Errors
  */
 export class UrlResolutionError extends Error {
+  /**
+   * Creates a new URL resolution error.
+   *
+   * @param message - Description of what went wrong
+   * @param url - The URL that failed to resolve
+   * @param cause - The underlying error that caused the failure
+   */
   constructor(
     message: string,
     public readonly url: string,

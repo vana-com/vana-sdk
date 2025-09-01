@@ -10,22 +10,20 @@ export interface RecordCompatible {
 }
 
 /**
- * Represents on-chain permission grant data without expensive off-chain resolution.
+ * Contains on-chain permission data for efficient retrieval.
  *
- * This interface contains only the fast, on-chain data that can be retrieved
- * efficiently from the subgraph without making individual IPFS or contract calls.
- * Use this for fast permission listing in UIs, then call `retrieveGrantFile()`
- * on specific grants when detailed data is needed.
+ * @remarks
+ * Provides fast access to permission metadata from subgraph without
+ * IPFS calls. For detailed parameters, resolve `grantUrl` separately.
  *
  * @category Permissions
  * @example
  * ```typescript
- * // Fast: Get all on-chain permission data
  * const grants = await vana.permissions.getUserPermissionGrantsOnChain();
  *
- * // Lazy: Resolve detailed data for specific permission when needed
- * const grantFile = await retrieveGrantFile(grants[0].grantUrl);
- * console.log('Operation:', grantFile.operation);
+ * // Resolve details when needed
+ * const details = await retrieveGrantFile(grants[0].grantUrl);
+ * console.log(`Operation: ${details.operation}`);
  * ```
  */
 export interface OnChainPermissionGrant {
@@ -71,25 +69,22 @@ export interface GetUserPermissionsOptions {
 }
 
 /**
- * Parameters for granting data access permission to an application.
+ * Defines parameters for granting file access permissions.
  *
- * This interface defines the required and optional parameters when granting
- * an application permission to access specific files for a particular operation.
- * Used with `vana.permissions.grant()`.
+ * @remarks
+ * Specifies application, operation, files, and parameters for
+ * permission grants via `vana.permissions.grant()`.
  *
  * @category Permissions
  * @example
  * ```typescript
  * const params: GrantPermissionParams = {
- *   grantee: '0x1234...', // Application address
+ *   grantee: '0x1234...',
  *   operation: 'llm_inference',
- *   files: [1, 2, 3], // File IDs to grant access to
- *   parameters: {
- *     model: 'gpt-4',
- *     maxTokens: 1000,
- *     prompt: 'Analyze my data'
- *   }
+ *   files: [1, 2, 3],
+ *   parameters: { model: 'gpt-4', maxTokens: 1000 }
  * };
+ * const result = await vana.permissions.grant(params);
  * ```
  */
 export interface GrantPermissionParams {

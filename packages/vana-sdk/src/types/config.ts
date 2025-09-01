@@ -20,10 +20,12 @@ export interface StorageRequiredMarker {
 }
 
 /**
- * Configuration for storage providers used by the SDK.
+ * Configures storage providers for SDK file operations.
  *
- * Allows you to configure multiple storage backends (IPFS, Pinata, Google Drive, etc.)
- * and specify which one to use by default for file operations.
+ * @remarks
+ * Supports multiple backends with automatic fallback.
+ * IPFS for decentralization, Pinata for reliability,
+ * Google Drive for development, custom for flexibility.
  *
  * **Provider Selection:**
  * - IPFS: Decentralized, permanent storage ideal for production
@@ -37,7 +39,7 @@ export interface StorageRequiredMarker {
  * const storage: StorageConfig = {
  *   providers: {
  *     ipfs: new IPFSStorage({ gateway: 'https://gateway.pinata.cloud' }),
- *     pinata: new PinataStorage({ apiKey: 'your-key', secretKey: 'your-secret' })
+ *     pinata: new PinataStorage({ apiKey: 'key', secretKey: 'secret' })
  *   },
  *   defaultProvider: 'ipfs'
  * };

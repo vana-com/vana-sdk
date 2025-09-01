@@ -1,33 +1,21 @@
 /**
- * Interface for storage providers that handle file upload, download, and management operations.
+ * Defines interface for storage provider implementations.
  *
- * Storage providers abstract different storage backends (IPFS, Google Drive, Pinata, etc.)
- * behind a common interface. The SDK uses these providers to store encrypted user data
- * and permission grants in a decentralized manner.
+ * @remarks
+ * Abstracts storage backends (IPFS, Google Drive, Pinata) behind
+ * common interface for encrypted file operations.
  *
  * @category Storage
  * @example
  * ```typescript
- * // Implement a custom storage provider
- * class MyStorageProvider implements StorageProvider {
- *   async upload(file: Blob, filename?: string): Promise<StorageUploadResult> {
- *     // Custom upload logic
- *     return { url: 'https://my-storage.com/file.dat', size: file.size };
+ * class MyStorage implements StorageProvider {
+ *   async upload(file: Blob): Promise<StorageUploadResult> {
+ *     const url = await uploadToService(file);
+ *     return { url, size: file.size, contentType: file.type };
  *   }
  *
  *   async download(url: string): Promise<Blob> {
- *     // Custom download logic
- *     const response = await fetch(url);
- *     return response.blob();
- *   }
- *
- *   async list(options?: StorageListOptions): Promise<StorageFile[]> {
- *     // Return list of files
- *     return [];
- *   }
- *
- *   async delete(url: string): Promise<void> {
- *     // Delete file implementation
+ *     return fetch(url).then(r => r.blob());
  *   }
  * }
  * ```

@@ -1,7 +1,26 @@
+/**
+ * Defines types for smart contract interactions.
+ *
+ * @remarks
+ * This module provides comprehensive type definitions for Vana protocol
+ * smart contracts including contract names, deployment information, and
+ * advanced TypeScript utility types for type-safe contract interactions.
+ *
+ * @category Types
+ * @module types/contracts
+ */
+
 import type { Abi, Address, Hash, GetContractReturnType } from "viem";
 
 /**
- * Union type of all canonical Vana contract names
+ * Enumerates all supported Vana protocol contract names.
+ *
+ * @remarks
+ * Use these names with `getContractController()` to get typed contract
+ * instances. Each name corresponds to a specific protocol contract with
+ * its own ABI and functionality.
+ *
+ * @category Contracts
  */
 export type VanaContractName =
   | "DataPortabilityPermissions"
@@ -38,7 +57,15 @@ export type VanaContractName =
   | "DLPRoot";
 
 /**
- * Contract information with typed address and ABI
+ * Provides contract deployment information with typed ABI.
+ *
+ * @remarks
+ * Contains the minimum information needed to interact with a
+ * deployed contract: its address and ABI.
+ *
+ * @typeParam TAbi - The contract's ABI type for full type safety
+ *
+ * @category Contracts
  */
 export interface ContractInfo<TAbi extends Abi = Abi> {
   /** The contract's deployed address */
@@ -48,7 +75,13 @@ export interface ContractInfo<TAbi extends Abi = Abi> {
 }
 
 /**
- * Contract deployment information
+ * Tracks contract deployment metadata.
+ *
+ * @remarks
+ * Records when and how a contract was deployed to the blockchain,
+ * useful for verification and debugging.
+ *
+ * @category Contracts
  */
 export interface ContractDeployment {
   /** The contract's deployed address */
@@ -60,13 +93,27 @@ export interface ContractDeployment {
 }
 
 /**
- * Typed contract instance
+ * Represents a fully typed contract instance.
+ *
+ * @remarks
+ * Alias for viem's GetContractReturnType, providing a contract
+ * instance with all methods fully typed based on the ABI.
+ *
+ * @typeParam TAbi - The contract's ABI type
+ *
+ * @category Contracts
  */
 export type VanaContractInstance<TAbi extends Abi = Abi> =
   GetContractReturnType<TAbi>;
 
 /**
- * Contract addresses mapping by chain and contract name
+ * Maps contract addresses by chain ID and contract name.
+ *
+ * @remarks
+ * Hierarchical mapping structure for multi-chain contract deployments.
+ * Used internally for address resolution across different networks.
+ *
+ * @category Contracts
  */
 export type ContractAddresses = {
   [chainId: number]: {
@@ -75,7 +122,16 @@ export type ContractAddresses = {
 };
 
 /**
- * Contract method parameters for typed interactions
+ * Extracts typed parameters for a contract method from its ABI.
+ *
+ * @remarks
+ * Advanced utility type that provides type-safe parameter extraction
+ * from contract ABIs. Maps Solidity types to TypeScript types automatically.
+ *
+ * @typeParam TAbi - The contract's ABI type
+ * @typeParam TFunctionName - The name of the function to extract parameters for
+ *
+ * @internal
  */
 export type ContractMethodParams<
   TAbi extends Abi,
@@ -112,7 +168,16 @@ export type ContractMethodParams<
   : never;
 
 /**
- * Contract method return type for typed interactions
+ * Extracts typed return values for a contract method from its ABI.
+ *
+ * @remarks
+ * Advanced utility type that provides type-safe return type extraction
+ * from contract ABIs. Handles single values and tuples appropriately.
+ *
+ * @typeParam TAbi - The contract's ABI type
+ * @typeParam TFunctionName - The name of the function to extract return type for
+ *
+ * @internal
  */
 export type ContractMethodReturnType<
   TAbi extends Abi,

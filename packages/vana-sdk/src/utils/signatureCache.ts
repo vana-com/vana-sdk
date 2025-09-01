@@ -1,10 +1,30 @@
+/**
+ * Provides signature caching to improve UX by avoiding repeated wallet prompts.
+ *
+ * @remarks
+ * This module implements a secure signature cache that stores signed messages
+ * temporarily to avoid repeatedly prompting users for the same signature.
+ * It uses platform-appropriate storage (sessionStorage in browser, memory in Node.js)
+ * and includes automatic expiration and cleanup.
+ *
+ * @category Utilities
+ * @module utils/signatureCache
+ */
+
 import type { Hash } from "viem";
 import { getAddress, toHex } from "viem";
 import type { VanaCacheAdapter } from "../platform/interface";
 import { sha256 } from "@noble/hashes/sha256";
 
+/**
+ * Represents a cached signature with expiration metadata.
+ *
+ * @internal
+ */
 interface CachedSignature {
+  /** The cached signature hash */
   signature: Hash;
+  /** Unix timestamp when this cache entry expires */
   expires: number;
 }
 
@@ -189,12 +209,18 @@ export class SignatureCache {
   }
 
   /**
-   * Deterministic JSON replacer that handles BigInt values and sorts object keys
-   * This ensures consistent cache key generation for EIP-712 typed data
+   * Deterministic JSON replacer for consistent cache key generation.
+   *
+   * @remarks
+   * Handles BigInt serialization and sorts object keys to ensure
+   * identical objects always produce the same hash regardless of
+   * property order.
    *
    * @param _key - The object key being serialized (unused)
    * @param value - The value to serialize
    * @returns The serialized value with sorted keys for objects
+   *
+   * @internal
    */
   private static deterministicReplacer(_key: string, value: unknown): unknown {
     if (typeof value === "bigint") {
@@ -217,14 +243,37 @@ export class SignatureCache {
 }
 
 /**
- * Wrapper function to cache signature operations
+ * Wraps signature operations with caching to avoid repeated prompts.
  *
- * @param cache - The cache adapter to use for storage
- * @param walletAddress - The wallet address signing the message
- * @param typedData - The EIP-712 typed data being signed
- * @param signFn - Function that performs the actual signing
- * @param ttlHours - Cache TTL in hours (default 2)
+ * @remarks
+ * This helper function checks the cache before requesting a signature
+ * and stores new signatures for future use. It significantly improves
+ * UX for operations that may be retried or called multiple times.
+ *
+ * @param cache - The cache adapter to use for storage.
+ *   Obtain from platform adapter.
+ * @param walletAddress - The wallet address signing the message.
+ *   Obtain from wallet connection.
+ * @param typedData - The EIP-712 typed data being signed.
+ *   Typically permission or grant data.
+ * @param signFn - Async function that performs the actual signing.
+ *   Usually calls wallet.signTypedData().
+ * @param ttlHours - Cache TTL in hours.
+ *   Defaults to 2 hours.
  * @returns The signature (cached or newly generated)
+ *
+ * @example
+ * ```typescript
+ * const signature = await withSignatureCache(
+ *   platformAdapter.cache,
+ *   walletAddress,
+ *   typedData,
+ *   async () => wallet.signTypedData(typedData),
+ *   24 // Cache for 24 hours
+ * );
+ * ```
+ *
+ * @category Utilities
  */
 export async function withSignatureCache(
   cache: VanaCacheAdapter,

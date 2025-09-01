@@ -1,3 +1,15 @@
+/**
+ * Defines types for gasless transaction relayers and server operations.
+ *
+ * @remarks
+ * This module provides comprehensive type definitions for interacting with
+ * relayer services that enable gasless transactions and auxiliary operations.
+ * It includes both legacy v1 types and the simplified v2 unified interface.
+ *
+ * @category Types
+ * @module types/relayer
+ */
+
 import type { Hash, Address } from "viem";
 import type {
   GrantFile,
@@ -6,7 +18,11 @@ import type {
 } from "./permissions";
 
 /**
- * Response from the relayer service for grant file storage
+ * Represents the response from storing grant files via relayer.
+ *
+ * @remarks
+ * Contains storage location, metadata, and error information for
+ * grant file upload operations.
  *
  * @category Advanced
  */
@@ -29,7 +45,11 @@ export interface RelayerStorageResponse {
 }
 
 /**
- * Response from the relayer service for transaction submission
+ * Represents the response from submitting transactions via relayer.
+ *
+ * @remarks
+ * Contains transaction hash, status, and metadata for gasless
+ * transaction submissions.
  *
  * @category Advanced
  */
@@ -54,7 +74,11 @@ export interface RelayerTransactionResponse {
 }
 
 /**
- * Parameters for storing a grant file via relayer
+ * Specifies parameters for storing grant files via relayer.
+ *
+ * @remarks
+ * Includes the grant file and optional storage configuration
+ * such as encryption and pinning duration.
  *
  * @category Advanced
  */
@@ -73,7 +97,11 @@ export interface RelayerStoreParams {
 }
 
 /**
- * Parameters for submitting a transaction via relayer
+ * Specifies parameters for submitting gasless transactions.
+ *
+ * @remarks
+ * Contains signed typed data and transaction configuration options
+ * for relayer submission.
  *
  * @category Advanced
  */
@@ -94,7 +122,11 @@ export interface RelayerSubmitParams {
 }
 
 /**
- * Relayer service status
+ * Represents the current status and capabilities of a relayer service.
+ *
+ * @remarks
+ * Provides information about supported chains, rate limits, and
+ * current operational status for monitoring and decision-making.
  *
  * @category Advanced
  */
@@ -131,7 +163,11 @@ export interface RelayerStatus {
 }
 
 /**
- * Relayer request options
+ * Configures behavior for relayer requests.
+ *
+ * @remarks
+ * Controls timeout, retry logic, headers, and priority for
+ * relayer operation requests.
  *
  * @category Advanced
  */
@@ -147,7 +183,11 @@ export interface RelayerRequestOptions {
 }
 
 /**
- * Relayer error response
+ * Represents an error response from the relayer service.
+ *
+ * @remarks
+ * Provides structured error information including codes, messages,
+ * and debugging details for error handling and recovery.
  *
  * @category Advanced
  */
@@ -165,7 +205,11 @@ export interface RelayerErrorResponse {
 }
 
 /**
- * Relayer queue information
+ * Provides information about the relayer's processing queue.
+ *
+ * @remarks
+ * Includes queue size, position, estimated processing time, and
+ * performance statistics for queue monitoring.
  *
  * @category Advanced
  */
@@ -188,7 +232,11 @@ export interface RelayerQueueInfo {
 }
 
 /**
- * Relayer transaction status
+ * Tracks the status of a transaction submitted via relayer.
+ *
+ * @remarks
+ * Provides detailed tracking information including confirmation status,
+ * gas usage, and historical status checks.
  *
  * @category Advanced
  */
@@ -215,7 +263,11 @@ export interface RelayerTransactionStatus {
 }
 
 /**
- * Relayer metrics
+ * Provides performance metrics for the relayer service.
+ *
+ * @remarks
+ * Includes transaction statistics, success rates, processing times,
+ * and uptime information for monitoring and optimization.
  *
  * @category Advanced
  */
@@ -244,7 +296,11 @@ export interface RelayerMetrics {
 }
 
 /**
- * Relayer webhook configuration
+ * Configures webhook notifications for relayer events.
+ *
+ * @remarks
+ * Enables asynchronous notifications for transaction confirmations,
+ * failures, and storage completions.
  *
  * @category Advanced
  */
@@ -262,7 +318,11 @@ export interface RelayerWebhookConfig {
 }
 
 /**
- * Relayer webhook payload
+ * Represents a webhook event payload from the relayer.
+ *
+ * @remarks
+ * Contains event data, timestamp, and signature for verification
+ * of webhook authenticity.
  *
  * @category Advanced
  */
@@ -318,7 +378,12 @@ export interface SignedRelayerRequest {
 }
 
 /**
- * Supported signed operation types.
+ * Enumerates supported EIP-712 signed operation types.
+ *
+ * @remarks
+ * Each operation type corresponds to a specific smart contract
+ * function that accepts gasless transactions.
+ *
  * @category Relayer
  */
 export type SignedOperationType =
@@ -450,8 +515,9 @@ export type RelayerConfig =
  */
 export interface RelayerCallbacksV2 {
   /**
-   * Submit any relayer operation.
+   * Submits any relayer operation to the server.
    *
+   * @remarks
    * This single callback handles all operations:
    * - EIP-712 signed operations (permissions, server trust, etc.)
    * - Direct operations (file additions, grant storage)
@@ -459,8 +525,20 @@ export interface RelayerCallbacksV2 {
    * On your server, pass the entire request object to the SDK's
    * `handleRelayerOperation` helper function.
    *
-   * @param request - The unified request object
+   * @param request - The unified request object.
+   *   Check `type` field to determine operation variant.
    * @returns Promise resolving to operation-specific response
+   *
+   * @example
+   * ```typescript
+   * async submit(request) {
+   *   const response = await fetch('/api/relay', {
+   *     method: 'POST',
+   *     body: JSON.stringify(request)
+   *   });
+   *   return response.json();
+   * }
+   * ```
    */
   submit: (request: UnifiedRelayerRequest) => Promise<UnifiedRelayerResponse>;
 }

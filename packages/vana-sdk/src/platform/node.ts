@@ -1,9 +1,35 @@
 /**
- * Node.js implementation of the Vana Platform Adapter
+ * Provides Node.js-specific implementations of platform abstraction interfaces.
  *
- * WARNING: Dependencies that access globals during init
- * MUST be dynamically imported to support Turbopack.
- * See: https://github.com/vercel/next.js/issues/82632
+ * @remarks
+ * This module implements all platform-specific operations for Node.js environments,
+ * including cryptography, PGP operations, HTTP requests, and caching. It dynamically
+ * imports dependencies to avoid Turbopack TDZ issues and supports both standard
+ * eccrypto and custom ECIES implementations based on feature flags.
+ *
+ * WARNING: Dependencies that access globals during init MUST be dynamically imported
+ * to support Turbopack. See: https://github.com/vercel/next.js/issues/82632
+ *
+ * @example
+ * ```typescript
+ * // Use the Node.js platform adapter
+ * import { nodePlatformAdapter } from '@vana-sdk/platform/node';
+ *
+ * // Encrypt data with public key
+ * const encrypted = await nodePlatformAdapter.crypto.encryptWithPublicKey(
+ *   'sensitive data',
+ *   '0x04...' // Public key hex
+ * );
+ *
+ * // Generate PGP key pair
+ * const { publicKey, privateKey } = await nodePlatformAdapter.pgp.generateKeyPair({
+ *   name: 'Data Owner',
+ *   email: 'owner@example.com'
+ * });
+ * ```
+ *
+ * @category Platform
+ * @module platform/node
  */
 
 import type {
@@ -53,8 +79,14 @@ interface Secp256k1Module {
 }
 
 /**
- * Node.js implementation of crypto operations
- * Supports both eccrypto (default) and custom ECIES implementation
+ * Implements cryptographic operations for Node.js environments.
+ *
+ * @remarks
+ * Provides ECIES encryption/decryption, key generation, and password-based
+ * encryption using either eccrypto-js or a custom ECIES implementation.
+ * The implementation choice is controlled by the `useCustomECIES` feature flag.
+ *
+ * @internal
  */
 class NodeCryptoAdapter implements VanaCryptoAdapter {
   // Initialize both providers - only one will be used based on feature flag
@@ -63,6 +95,17 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
     eciesProvider: this.customEciesProvider,
   });
 
+  /**
+   * Encrypts data using ECIES with a public key.
+   *
+   * @param data - The plaintext string to encrypt.
+   *   Typically user data or sensitive information.
+   * @param publicKeyHex - The recipient's public key in hex format.
+   *   Obtain from key generation or user profile.
+   * @returns Encrypted data as a hex string containing IV, ephemeral key, ciphertext, and MAC
+   *
+   * @throws {Error} If encryption fails or public key is invalid
+   */
   async encryptWithPublicKey(
     data: string,
     publicKeyHex: string,
@@ -115,6 +158,18 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
     }
   }
 
+  /**
+   * Decrypts ECIES-encrypted data using a private key.
+   *
+   * @param encryptedData - Hex string containing encrypted data.
+   *   Must include IV, ephemeral public key, ciphertext, and MAC.
+   * @param privateKeyHex - The private key in hex format.
+   *   Must correspond to the public key used for encryption.
+   * @returns The decrypted plaintext string
+   *
+   * @throws {Error} If decryption fails or MAC verification fails
+   * @throws {ECIESError} If using custom ECIES and specific error occurs
+   */
   async decryptWithPrivateKey(
     encryptedData: string,
     privateKeyHex: string,
@@ -169,6 +224,15 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
     }
   }
 
+  /**
+   * Generates a new secp256k1 key pair for ECIES operations.
+   *
+   * @returns Object containing hex-encoded public and private keys
+   * @returns returns.publicKey - Compressed public key in hex format
+   * @returns returns.privateKey - Private key in hex format
+   *
+   * @throws {Error} If key generation fails
+   */
   async generateKeyPair(): Promise<{ publicKey: string; privateKey: string }> {
     try {
       if (features.useCustomECIES) {
@@ -206,6 +270,17 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
     }
   }
 
+  /**
+   * Encrypts data using a wallet's public key.
+   *
+   * @param data - The plaintext string to encrypt.
+   *   Typically permission data or DLP metadata.
+   * @param publicKey - The wallet's public key (with or without 0x prefix).
+   *   Obtain from wallet connection or user profile.
+   * @returns Encrypted data as a hex string
+   *
+   * @throws {Error} If encryption fails or key processing fails
+   */
   async encryptWithWalletPublicKey(
     data: string,
     publicKey: string,
@@ -240,6 +315,17 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
     }
   }
 
+  /**
+   * Decrypts data using a wallet's private key.
+   *
+   * @param encryptedData - Hex string containing encrypted data.
+   *   Must be encrypted with corresponding wallet public key.
+   * @param privateKey - The wallet's private key.
+   *   Obtain from wallet connection (handle with care).
+   * @returns The decrypted plaintext string
+   *
+   * @throws {Error} If decryption fails or key is invalid
+   */
   async decryptWithWalletPrivateKey(
     encryptedData: string,
     privateKey: string,
@@ -277,6 +363,21 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
     }
   }
 
+  /**
+   * Encrypts binary data using password-based encryption.
+   *
+   * @param data - Binary data to encrypt.
+   *   Typically file contents or serialized objects.
+   * @param password - Password for encryption.
+   *   Often derived from wallet signatures.
+   * @returns Encrypted data as Uint8Array
+   *
+   * @remarks
+   * Uses OpenPGP for password-based encryption. Note that this is not
+   * deterministic due to OpenPGP's random salt generation.
+   *
+   * @throws {Error} If encryption fails
+   */
   async encryptWithPassword(
     data: Uint8Array,
     password: string,
@@ -318,6 +419,17 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
     }
   }
 
+  /**
+   * Decrypts password-encrypted binary data.
+   *
+   * @param encryptedData - Password-encrypted data as Uint8Array.
+   *   Must be encrypted with the same password.
+   * @param password - Password for decryption.
+   *   Must match the encryption password.
+   * @returns Decrypted data as Uint8Array
+   *
+   * @throws {Error} If decryption fails or password is incorrect
+   */
   async decryptWithPassword(
     encryptedData: Uint8Array,
     password: string,
@@ -344,9 +456,26 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
 }
 
 /**
- * Node.js implementation of PGP operations using openpgp with Node-specific configuration
+ * Implements PGP operations for Node.js environments.
+ *
+ * @remarks
+ * Provides PGP encryption, decryption, and key generation using the OpenPGP.js
+ * library with Node.js-specific optimizations like zlib compression.
+ *
+ * @internal
  */
 class NodePGPAdapter implements VanaPGPAdapter {
+  /**
+   * Encrypts data using PGP public key encryption.
+   *
+   * @param data - The plaintext string to encrypt.
+   *   Typically messages or structured data.
+   * @param publicKeyArmored - ASCII-armored PGP public key.
+   *   Obtain from PGP key generation or key servers.
+   * @returns ASCII-armored encrypted message
+   *
+   * @throws {Error} If encryption fails or public key is invalid
+   */
   async encrypt(data: string, publicKeyArmored: string): Promise<string> {
     try {
       const openpgp = await getOpenPGP();
@@ -366,6 +495,17 @@ class NodePGPAdapter implements VanaPGPAdapter {
     }
   }
 
+  /**
+   * Decrypts PGP-encrypted data using a private key.
+   *
+   * @param encryptedData - ASCII-armored encrypted message.
+   *   Must be encrypted with corresponding public key.
+   * @param privateKeyArmored - ASCII-armored PGP private key.
+   *   Must correspond to the public key used for encryption.
+   * @returns The decrypted plaintext string
+   *
+   * @throws {Error} If decryption fails or private key is invalid
+   */
   async decrypt(
     encryptedData: string,
     privateKeyArmored: string,
@@ -390,6 +530,20 @@ class NodePGPAdapter implements VanaPGPAdapter {
     }
   }
 
+  /**
+   * Generates a new PGP key pair.
+   *
+   * @param options - Key generation options
+   * @param options.name - Name for the key identity.
+   *   Defaults to 'Vana User'.
+   * @param options.email - Email for the key identity.
+   *   Defaults to 'user@vana.com'.
+   * @param options.passphrase - Passphrase to protect the private key.
+   *   If not provided, key is unprotected.
+   * @returns ASCII-armored public and private keys
+   *
+   * @throws {Error} If key generation fails
+   */
   async generateKeyPair(options?: {
     name?: string;
     email?: string;
@@ -410,9 +564,26 @@ class NodePGPAdapter implements VanaPGPAdapter {
 }
 
 /**
- * Node.js implementation of HTTP operations using node-fetch or native fetch
+ * Implements HTTP operations for Node.js environments.
+ *
+ * @remarks
+ * Provides fetch functionality using the global fetch if available,
+ * suitable for Node.js 18+ or environments with fetch polyfills.
+ *
+ * @internal
  */
 class NodeHttpAdapter implements VanaHttpAdapter {
+  /**
+   * Performs an HTTP request using fetch.
+   *
+   * @param url - The URL to fetch.
+   *   Must be a valid HTTP/HTTPS URL.
+   * @param options - Standard fetch options.
+   *   See MDN fetch documentation for details.
+   * @returns Standard fetch Response object
+   *
+   * @throws {Error} If fetch is not available in the environment
+   */
   async fetch(url: string, options?: RequestInit): Promise<Response> {
     if (typeof globalThis.fetch !== "undefined") {
       return globalThis.fetch(url, options);
@@ -423,12 +594,26 @@ class NodeHttpAdapter implements VanaHttpAdapter {
 }
 
 /**
- * Node.js implementation of cache operations using in-memory Map with TTL
+ * Implements in-memory caching for Node.js environments.
+ *
+ * @remarks
+ * Provides a simple TTL-based cache using a Map. Cached values expire
+ * after 2 hours by default. This cache is not persistent and will be
+ * cleared when the process exits.
+ *
+ * @internal
  */
 class NodeCacheAdapter implements VanaCacheAdapter {
   private cache = new Map<string, { value: string; expires: number }>();
   private readonly defaultTtl = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
 
+  /**
+   * Retrieves a cached value by key.
+   *
+   * @param key - The cache key to look up.
+   *   Typically derived from operation parameters.
+   * @returns The cached value or null if not found/expired
+   */
   get(key: string): string | null {
     const entry = this.cache.get(key);
     if (!entry) {
@@ -444,6 +629,14 @@ class NodeCacheAdapter implements VanaCacheAdapter {
     return entry.value;
   }
 
+  /**
+   * Stores a value in the cache with TTL.
+   *
+   * @param key - The cache key.
+   *   Should be unique per operation.
+   * @param value - The value to cache.
+   *   Typically serialized data or signatures.
+   */
   set(key: string, value: string): void {
     this.cache.set(key, {
       value,
@@ -451,17 +644,52 @@ class NodeCacheAdapter implements VanaCacheAdapter {
     });
   }
 
+  /**
+   * Removes a specific key from the cache.
+   *
+   * @param key - The cache key to remove.
+   *   Use when cached data becomes invalid.
+   */
   delete(key: string): void {
     this.cache.delete(key);
   }
 
+  /**
+   * Clears all cached values.
+   *
+   * @remarks
+   * Use with caution as this removes all cached signatures
+   * and other performance optimizations.
+   */
   clear(): void {
     this.cache.clear();
   }
 }
 
 /**
- * Complete Node.js platform adapter implementation
+ * Provides complete platform abstraction for Node.js environments.
+ *
+ * @remarks
+ * This adapter aggregates all Node.js-specific implementations of platform
+ * operations. It automatically selects appropriate cryptographic implementations
+ * based on feature flags and provides consistent APIs across all operations.
+ *
+ * @example
+ * ```typescript
+ * // Create a custom Node.js adapter instance
+ * const adapter = new NodePlatformAdapter();
+ *
+ * // Use for encryption
+ * const encrypted = await adapter.crypto.encryptWithPublicKey(
+ *   'secret data',
+ *   publicKeyHex
+ * );
+ *
+ * // Use for caching
+ * adapter.cache.set('signature_key', signatureValue);
+ * ```
+ *
+ * @category Platform
  */
 export class NodePlatformAdapter implements VanaPlatformAdapter {
   crypto: VanaCryptoAdapter;
@@ -479,7 +707,22 @@ export class NodePlatformAdapter implements VanaPlatformAdapter {
 }
 
 /**
- * Default instance export for backwards compatibility
+ * Pre-configured Node.js platform adapter instance.
+ *
+ * @remarks
+ * This singleton instance is the default adapter used by the SDK when
+ * running in Node.js environments. It's automatically selected based on
+ * platform detection.
+ *
+ * @example
+ * ```typescript
+ * import { nodePlatformAdapter } from '@vana-sdk/platform/node';
+ *
+ * // Use directly for platform operations
+ * const keys = await nodePlatformAdapter.crypto.generateKeyPair();
+ * ```
+ *
+ * @category Platform
  */
 export const nodePlatformAdapter: VanaPlatformAdapter =
   new NodePlatformAdapter();

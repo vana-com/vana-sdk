@@ -11,50 +11,49 @@ import type { GetContractReturnType } from "viem";
 import { BaseController } from "./base";
 
 /**
- * Provides direct, low-level access to all Vana protocol smart contracts.
+ * Provides low-level access to Vana protocol smart contracts.
  *
  * @remarks
- * This controller serves as the designated "escape hatch" for advanced developers who need
- * to interact directly with the underlying blockchain contracts. It provides access to
- * contract addresses, ABIs, and factory methods for creating typed contract instances.
- * Most developers should use the higher-level DataController and PermissionsController
- * instead of this advanced API.
+ * Advanced API for direct contract interaction. Most developers should use
+ * higher-level controllers (DataController, PermissionsController) instead.
+ * This controller serves as an escape hatch when high-level APIs lack needed
+ * functionality.
  *
- * **Contract Selection:**
- * The controller automatically handles chain detection and provides only contracts that
- * are deployed on the current network. All contract instances are fully typed for
- * enhanced developer experience and type safety.
+ * **Architecture:**
+ * Automatically detects current chain and provides only deployed contracts.
+ * Full TypeScript type safety through contract ABIs and const assertions.
  *
  * **Method Selection:**
- * - `getContract()` retrieves contract address and ABI for manual interaction
- * - `createContract()` returns fully typed contract instance with read/write methods
- * - `getAvailableContracts()` lists all contracts deployed on current chain
- * - `isContractAvailable()` checks if specific contract exists on current chain
- * - `getChainId()` and `getChainName()` provide current network information
+ * - `getContract()` - Retrieve address and ABI for manual interaction
+ * - `createContract()` - Get typed contract instance with read/write methods
+ * - `getAvailableContracts()` - List all contracts on current chain
+ * - `isContractAvailable()` - Check contract deployment status
+ * - `getChainId()`/`getChainName()` - Current network information
  *
- * **Usage Guidelines:**
- * Use this controller when high-level controllers don't provide needed functionality.
- * Most developers should use `vana.data.*` for files and `vana.permissions.*` for access control.
+ * **When to Use:**
+ * - Custom contract interactions not covered by high-level APIs
+ * - Direct contract event listening
+ * - Advanced protocol operations
  *
  * **Type Safety:**
- * Use `as const` assertion with contract names for full TypeScript type inference.
- * Contract instances provide complete typing for all methods, parameters, and return values.
+ * Always use `as const` with contract names for full type inference.
  *
  * @example
  * ```typescript
- * // Get contract info for direct interaction
+ * // Get contract info with typed ABI
  * const registry = vana.protocol.getContract("DataRegistry" as const);
+ * console.log(`Contract at ${registry.address}`);
  *
- * // Access contract address and ABI with full typing
- * console.log(registry.address); // Contract address on current chain
- * console.log(registry.abi);     // Fully typed contract ABI
- *
- * // Create a typed contract instance
+ * // Create typed contract instance
  * const contract = vana.protocol.createContract("DataRegistry" as const);
- * const fileCount = await contract.read.filesCount();
+ * const count = await contract.read.filesCount(); // Returns: bigint
+ *
+ * // Write operations with full typing
+ * const hash = await contract.write.addFile(["ipfs://..."]);
  * ```
+ *
  * @category Advanced
- * @see {@link https://docs.vana.com/developer/protocol/contracts | Vana Protocol Contracts} for contract specifications
+ * @see For contract specifications, visit {@link https://docs.vana.org/docs/protocol-contracts}
  */
 export class ProtocolController extends BaseController {
   private readonly contractFactory: ContractFactory;

@@ -1,3 +1,15 @@
+/**
+ * Provides type-safe contract interaction utilities for the Vana protocol.
+ *
+ * @remarks
+ * This module enables strongly-typed smart contract interactions with automatic
+ * ABI loading, address resolution, and instance caching. It follows viem's patterns
+ * for contract typing while providing Vana-specific conveniences.
+ *
+ * @category Contracts
+ * @module contractController
+ */
+
 import type { Abi } from "abitype";
 import {
   getContract,
@@ -18,23 +30,36 @@ const contractCache = new Map<string, GetContractReturnType<Abi>>();
 export const contractCacheForTesting = contractCache;
 
 /**
- * Creates a cache key for contract instances
+ * Creates a cache key for contract instances.
+ *
+ * @remarks
+ * Generates unique keys for caching contract instances per chain to prevent
+ * cross-chain contamination and improve performance.
  *
  * @param contract - The contract name to create a cache key for
  * @param chainId - The chain ID to include in the cache key
  * @returns A string cache key combining contract name and chain ID
+ *
+ * @internal
  */
 function createCacheKey(contract: VanaContract, chainId: number): string {
   return `${contract}:${chainId}`;
 }
 
 /**
- * Gets a typed contract instance for the specified contract name with full type inference.
- * This function provides complete type safety following viem's patterns.
+ * Gets a typed contract instance for the specified contract name.
  *
- * @param contract - Name of the contract to instantiate (must be a const assertion for full typing)
- * @param client - Optional viem client instance
+ * @remarks
+ * Provides complete type safety following viem's patterns with automatic
+ * ABI loading and address resolution. Contract instances are cached per
+ * chain for performance. Use const assertion for full type inference.
+ *
+ * @param contract - Name of the contract to instantiate.
+ *   Use const assertion for full typing: `"DataRegistry" as const`
+ * @param client - Optional viem client instance.
+ *   Defaults to auto-configured client. Obtain via `createClient()` or viem.
  * @returns A fully typed contract instance with methods corresponding to the contract's ABI
+ *
  * @example
  * ```typescript
  * // Full type inference with const assertion
@@ -43,7 +68,13 @@ function createCacheKey(contract: VanaContract, chainId: number): string {
  * // Now dataRegistry has full type inference for all methods
  * const result = await dataRegistry.read.getFileCount(); // Type: bigint
  * await dataRegistry.write.addFile([url, proof]); // Typed parameters
+ *
+ * // Auto-configured client
+ * const permissions = getContractController("DataPortabilityPermissions" as const);
+ * const granted = await permissions.read.hasPermission([grantor, grantee]);
  * ```
+ *
+ * @category Contracts
  */
 export function getContractController<T extends VanaContract>(
   contract: T,
@@ -71,18 +102,33 @@ export function getContractController<T extends VanaContract>(
 }
 
 /**
- * Gets contract information (address and ABI) without creating a contract instance.
- * Useful for cases where you need contract details but don't want to create a client connection.
+ * Gets contract information without creating a contract instance.
  *
- * @param contract - Name of the contract
- * @param chainId - Chain ID (defaults to Vana mainnet)
+ * @remarks
+ * Returns contract address and ABI for manual contract interaction or
+ * custom client configuration. Useful when you need contract details
+ * but don't want to create a client connection.
+ *
+ * @param contract - Name of the contract.
+ *   Use const assertion for typed ABI.
+ * @param chainId - Chain ID to get contract info for.
+ *   Defaults to Vana mainnet (1480).
  * @returns Contract information with typed ABI
+ *
  * @example
  * ```typescript
  * const info = getContractInfo("DataRegistry" as const, 14800);
  * console.log(info.address); // Typed as Address
  * console.log(info.abi); // Fully typed ABI
+ *
+ * // Use with custom viem client
+ * const contract = getContract({
+ *   ...info,
+ *   client: customClient
+ * });
  * ```
+ *
+ * @category Contracts
  */
 export function getContractInfo<T extends VanaContract>(
   contract: T,
@@ -95,8 +141,25 @@ export function getContractInfo<T extends VanaContract>(
 }
 
 /**
- * Type-safe contract factory that creates contract instances with full type inference.
- * This provides an alternative API that's more explicit about typing.
+ * Provides type-safe contract factory for creating multiple contract instances.
+ *
+ * @remarks
+ * Alternative API for applications that need to create multiple contracts
+ * with the same client. The factory pattern reduces boilerplate and ensures
+ * consistent client configuration across contracts.
+ *
+ * @example
+ * ```typescript
+ * const factory = new ContractFactory(client);
+ *
+ * const dataRegistry = factory.create("DataRegistry" as const);
+ * const permissions = factory.create("DataPortabilityPermissions" as const);
+ *
+ * // List available contracts
+ * const contracts = factory.getAvailableContracts();
+ * ```
+ *
+ * @category Contracts
  */
 export class ContractFactory {
   private readonly client:

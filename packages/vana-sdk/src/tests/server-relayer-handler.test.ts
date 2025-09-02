@@ -23,6 +23,9 @@ function createMockSdk(): VanaInstance {
       addFileWithPermissionsAndSchema: vi.fn().mockResolvedValue({
         hash: "0xfilehash" as `0x${string}`,
       }),
+      addFileWithEncryptedPermissionsAndSchema: vi.fn().mockResolvedValue({
+        hash: "0xfilehash" as `0x${string}`,
+      }),
       upload: vi.fn().mockResolvedValue({
         url: "ipfs://mockhash",
       }),
@@ -238,26 +241,43 @@ describe("Server Relayer Handler", () => {
       });
     });
 
-    it("should handle submitFileAdditionComplete", async () => {
+    it("should handle submitFileAdditionComplete with encrypted permissions", async () => {
+      // Use realistic encrypted permission data
+      const encryptedKey =
+        "1f976421c75e53528844bbad6972f6cd046b883c3503f9633cc80424350da1faf9433d4152d7b400de852a2f7f34b1af75c49f6becf4a11c9d667926f3cbe746158eb2c947b453e7ebed85830c6d6c7a994302e967fd7f3d9d71533d2aa28356ad60eafabfa4765f8e09954a1eec0440e3376807daa30f8a9e06cfe26f2c02e004dd5831ee123adfed6c2c4b1c746c0541c929b62ad93e5d361423e0b4fcf884accad9cbb88210eb30f6e3dfd956053163a093d8222cbc19e55bb3efceb755ce1d91fbf3268e622a0293ee87e7317ba609807115b4d7ab5e8c2ee676f652d52dae26c4afebc91ecb6f9805ea8737a93d50b58b17b7af176f96d78eaaf5af129103";
+
       const request: UnifiedRelayerRequest = {
         type: "direct",
         operation: "submitFileAdditionComplete",
         params: {
           url: "https://storage.example/file",
           userAddress: "0xuser" as Address,
-          permissions: [{ account: "0xaccount" as Address, key: "key" }],
+          permissions: [
+            {
+              account: "0xaccount" as Address,
+              key: encryptedKey, // Already encrypted
+            },
+          ],
           schemaId: 42,
         },
       };
 
       const response = await handleRelayerOperation(mockSdk, request);
 
-      expect(mockSdk.data.addFileWithPermissionsAndSchema).toHaveBeenCalledWith(
+      // Should call the encrypted permissions method, not the public key one
+      expect(
+        mockSdk.data.addFileWithEncryptedPermissionsAndSchema,
+      ).toHaveBeenCalledWith(
         "https://storage.example/file",
         "0xuser",
-        [{ account: "0xaccount" as Address, publicKey: "key" }], // Mapped format
+        [{ account: "0xaccount" as Address, key: encryptedKey }], // No mapping, passes through as-is
         42,
       );
+
+      // Should NOT call the public key method
+      expect(
+        mockSdk.data.addFileWithPermissionsAndSchema,
+      ).not.toHaveBeenCalled();
 
       expect(response).toEqual({
         type: "direct",
@@ -282,7 +302,10 @@ describe("Server Relayer Handler", () => {
 
       await handleRelayerOperation(mockSdk, request);
 
-      expect(mockSdk.data.addFileWithPermissionsAndSchema).toHaveBeenCalledWith(
+      // Should use the encrypted permissions method
+      expect(
+        mockSdk.data.addFileWithEncryptedPermissionsAndSchema,
+      ).toHaveBeenCalledWith(
         "https://storage.example/file",
         "0xuser", // Falls back to userAddress
         [],
@@ -569,7 +592,9 @@ describe("Server Relayer Handler", () => {
 
       const response = await handleRelayerOperation(mockSdk, request);
 
-      expect(mockSdk.data.addFileWithPermissionsAndSchema).toHaveBeenCalledWith(
+      expect(
+        mockSdk.data.addFileWithEncryptedPermissionsAndSchema,
+      ).toHaveBeenCalledWith(
         "https://storage.example/file",
         "0xowner", // Should use ownerAddress when provided
         [],

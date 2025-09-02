@@ -260,17 +260,12 @@ async function handleDirectOperation(
       const { url, userAddress, permissions, schemaId, ownerAddress } =
         request.params;
 
-      // Map permissions from relayer format to SDK format
-      const sdkPermissions = permissions.map((p) => ({
-        account: p.account,
-        publicKey: p.key, // Map 'key' to 'publicKey'
-      }));
-
-      // Use SDK to add file with permissions and schema
-      const result = await sdk.data.addFileWithPermissionsAndSchema(
+      // Permissions are already encrypted, use the appropriate method
+      // No mapping needed - permissions already have { account, key } format
+      const result = await sdk.data.addFileWithEncryptedPermissionsAndSchema(
         url,
         ownerAddress ?? userAddress,
-        sdkPermissions,
+        permissions, // Already in correct format with encrypted 'key' field
         schemaId,
       );
 

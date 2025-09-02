@@ -116,12 +116,12 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
           : publicKeyHex;
         const publicKeyBytes = Buffer.from(cleanKey, "hex");
 
-        // Ensure public key is in uncompressed format (65 bytes with 0x04 prefix)
-        // If it's 64 bytes, add the 0x04 prefix; if already 65 bytes, use as-is
-        const publicKeyBuffer =
-          publicKeyBytes.length === 64
-            ? Buffer.concat([Buffer.from([4]), publicKeyBytes])
-            : publicKeyBytes;
+        // Normalize to uncompressed format using the ECIES provider
+        // This handles both compressed (33 bytes) and uncompressed (65 bytes) keys
+        const uncompressed = this.customEciesProvider.normalizeToUncompressed(
+          new Uint8Array(publicKeyBytes),
+        );
+        const publicKeyBuffer = Buffer.from(uncompressed);
 
         const message = Buffer.from(data, "utf8");
 
@@ -235,12 +235,12 @@ class BrowserCryptoAdapter implements VanaCryptoAdapter {
           : publicKey;
         const publicKeyBytes = Buffer.from(cleanKey, "hex");
 
-        // Ensure public key is in uncompressed format (65 bytes with 0x04 prefix)
-        // If it's 64 bytes, add the 0x04 prefix; if already 65 bytes, use as-is
-        const publicKeyBuffer =
-          publicKeyBytes.length === 64
-            ? Buffer.concat([Buffer.from([4]), publicKeyBytes])
-            : publicKeyBytes;
+        // Normalize to uncompressed format using the ECIES provider
+        // This handles both compressed (33 bytes) and uncompressed (65 bytes) keys
+        const uncompressed = this.customEciesProvider.normalizeToUncompressed(
+          new Uint8Array(publicKeyBytes),
+        );
+        const publicKeyBuffer = Buffer.from(uncompressed);
 
         const message = Buffer.from(data, "utf8");
 

@@ -133,7 +133,15 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
       } else {
         // Use eccrypto-js (default)
         const eccryptojs = await getEccryptoJS();
-        const publicKey = Buffer.from(publicKeyHex, "hex");
+        const publicKeyBytes = Buffer.from(publicKeyHex, "hex");
+
+        // Normalize to uncompressed format using the ECIES provider
+        // This handles both compressed (33 bytes) and uncompressed (65 bytes) keys
+        const uncompressed = this.customEciesProvider.normalizeToUncompressed(
+          new Uint8Array(publicKeyBytes),
+        );
+        const publicKey = Buffer.from(uncompressed);
+
         const message = Buffer.from(data, "utf8");
 
         const encrypted = await eccryptojs.encrypt(publicKey, message);
@@ -295,7 +303,14 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
       } else {
         // Use eccrypto-js directly for wallet encryption
         const eccryptojs = await getEccryptoJS();
-        const publicKeyBuffer = Buffer.from(processWalletPublicKey(publicKey));
+        const publicKeyBytes = processWalletPublicKey(publicKey);
+
+        // Normalize to uncompressed format using the ECIES provider
+        // This handles both compressed (33 bytes) and uncompressed (65 bytes) keys
+        const uncompressed =
+          this.customEciesProvider.normalizeToUncompressed(publicKeyBytes);
+        const publicKeyBuffer = Buffer.from(uncompressed);
+
         const message = Buffer.from(data, "utf8");
 
         const encrypted = await eccryptojs.encrypt(publicKeyBuffer, message);

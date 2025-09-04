@@ -1,0 +1,78 @@
+{
+  "masterAddress": "0xB7300F04dfC902FEfa3068dBbeB27273bDe20F76",
+  "createdAt": 1756459725961,
+  "lastUpdated": 1756474785134,
+  "children": [
+    {
+      "privateKey": "0x3795d5515947acefe9ca214a809e8561b589ab562e7dd055fd2cbf561103b4a2",
+      "address": "0x363575c4c153a0546d5143a08CBE0E292cfB9de5",
+      "balance": "50",
+      "lastFunded": 1756474696171,
+      "totalFunded": 70.21060500001485
+    },
+    {
+      "privateKey": "0x87d16abe6fbead896b40ce612bbd22e512439066bbf19d33cc8b93c543645878",
+      "address": "0xF54c6145a5636fDb16388664Cd52E5FA413F0bAc",
+      "balance": "50",
+      "lastFunded": 1756474707118,
+      "totalFunded": 70.21060500001485
+    },
+    {
+      "privateKey": "0x947e7e26a19278d739705d9cde6a0a766c89decbc83d407b3554a1cda2e9f70b",
+      "address": "0x886761575337292c0F347402c0829C4FB38Ca27a",
+      "balance": "50",
+      "lastFunded": 1756474718048,
+      "totalFunded": 70.21060500001485
+    },
+    {
+      "privateKey": "0xa4536ac75d0e314fc521e308126d530dfe4c831c3c69af1abc101907ef54a1e7",
+      "address": "0xcACB69D584452A3e2a79a98Bc4f82E021141A719",
+      "balance": "50",
+      "lastFunded": 1756474728654,
+      "totalFunded": 70.21060500001485
+    },
+    {
+      "privateKey": "0x6773198ed1c6bf8ee85c66493654352bf29d0d0069504dc88fa6d99cc57c97d6",
+      "address": "0x698aee42CC0f16F579156de616E4cb8F0b3cCFF7",
+      "balance": "50",
+      "lastFunded": 1756474735120,
+      "totalFunded": 70.21060500001485
+    },
+    {
+      "privateKey": "0x35625336f925b1a003f7f04b2d5b5164c3f55fa0590349bd9f151298392b87c1",
+      "address": "0xf5d97B019374EF6A0b335e38e0A3940226F860B8",
+      "balance": "50",
+      "lastFunded": 1756474741606,
+      "totalFunded": 70.21060500001485
+    },
+    {
+      "privateKey": "0x9c564c717f602b0ab70b2a6b91d7281451e68914a829b93affce228d33f80093",
+      "address": "0x1C87b5592201aC0D7A214965F0A51e3D6D675a7f",
+      "balance": "50",
+      "lastFunded": 1756474748083,
+      "totalFunded": 70.21060500001485
+    },
+    {
+      "privateKey": "0xe6aa12fa5757484201cc73aef420f83dc038f36c6c20736fc8cd222378385122",
+      "address": "0x96B80944C060b778e6120a099c2b7DAfdA597B64",
+      "balance": "50",
+      "lastFunded": 1756474754661,
+      "totalFunded": 70.21060500001485
+    },
+    {
+      "privateKey": "0x0bb08a6d89ab5375c6eac9f41ec224267c5a199347762a1ec2bf1b8fb853788e",
+      "address": "0x2CD48aBd0F43434F3756Da9a9d64838C8575b9b0",
+      "balance": "50",
+      "lastFunded": 1756474774046,
+      "totalFunded": 70.21060500001485
+    },
+    {
+      "privateKey": "0x7d43ef0dd9499cedbdb5fc534f03ff68bcc579e41e75b25aa84457bc4f513ecd",
+      "address": "0xcE86274a1f0d7464EB9593725A98549d580BfAe1",
+      "balance": "50",
+      "lastFunded": 1756474784993,
+      "totalFunded": 69.21008000001412
+    }
+  ],
+  "totalInvested": "701.1055250001481"
+}

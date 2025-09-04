@@ -1,0 +1,152 @@
+# Artillery Configuration: Conservative Load Test  
+# Moderate load testing for Vana SDK data portability workflow
+# Simulates 200 concurrent users over 1 hour (5k total users)
+
+config:
+  target: 'http://localhost:3001'
+  phases:
+    # Ramp up phase: 0 → 200 concurrent users over 10 minutes
+    - duration: 600  # 10 minutes in seconds
+      arrivalRate: 0.33  # ~200 users / 10 minutes = 0.33 users/second  
+      rampTo: 0.33
+      name: "Ramp Up"
+    
+    # Sustained load phase: 200 concurrent users for 40 minutes
+    - duration: 2400  # 40 minutes in seconds
+      arrivalRate: 0.33  # Maintain ~200 concurrent users
+      name: "Sustained Load"
+    
+    # Ramp down phase: 200 → 0 users over 10 minutes
+    - duration: 600  # 10 minutes in seconds
+      arrivalRate: 0.33
+      rampTo: 0
+      name: "Ramp Down"
+
+  # Artillery processor for custom test logic
+  processor: "./artillery-processor.js"
+  
+  # Test environment variables
+  variables:
+    serverUrl: "http://localhost:3001"
+    testType: "conservative"
+    maxConcurrentUsers: 200
+    totalTargetUsers: 5000
+    
+  # Performance thresholds (more lenient for conservative test)
+  ensure:
+    p95: 20000  # P95 response time < 20 seconds
+    p99: 45000  # P99 response time < 45 seconds  
+    maxErrorRate: 1  # Max 1% error rate
+    
+  # Reporting configuration
+  plugins:
+    metrics-by-endpoint: {}
+    
+scenarios:
+  # Main E2E data portability flow
+  - name: "Complete Data Portability Flow"
+    weight: 100
+    flow:
+      # Generate test data
+      - function: "generateTestData"
+      
+      # Execute complete E2E flow
+      - post:
+          url: "/api/test/execute-flow"
+          headers:
+            Content-Type: "application/json"
+          json:
+            testId: "{{ $randomUUID }}"
+            walletIndex: "{{ $randomInt(0, 10000) }}"  # Random wallet from smaller pool
+            userData: "{{ testData }}"
+            prompt: "Analyze this user's data and provide insights"
+            skipSchemaValidation: true
+          capture:
+            - json: "$.success"
+              as: "flowSuccess"
+            - json: "$.transactionHash" 
+              as: "txHash"
+            - json: "$.permissionId"
+              as: "permissionId"
+            - json: "$.operationId"
+              as: "operationId"
+          expect:
+            - statusCode: 200
+            - hasProperty: "success"
+      
+      # Poll for AI inference results
+      - loop:
+          count: 20  # Poll up to 20 times (20 seconds max)
+          over:
+            - post:
+                url: "/api/trusted-server/poll"
+                headers:
+                  Content-Type: "application/json"
+                json:
+                  operationId: "{{ operationId }}"
+                  chainId: 14800
+                capture:
+                  - json: "$.data.status"
+                    as: "inferenceStatus"
+                  - json: "$.data.result"
+                    as: "inferenceResult"
+                expect:
+                  - statusCode: 200
+            
+            # Break loop if completed
+            - function: "checkInferenceComplete"
+            
+            # Wait 1 second between polls
+            - think: 1
+
+# Custom functions for test data generation and flow control
+functions:
+  generateTestData: |
+    function generateTestData(context, events, done) {
+      const faker = require('@faker-js/faker').faker;
+      
+      const testData = {
+        user_profile: {
+          id: faker.string.uuid(),
+          name: faker.person.fullName(),
+          email: faker.internet.email(),
+          age: faker.number.int({ min: 18, max: 80 }),
+          location: {
+            city: faker.location.city(),
+            country: faker.location.country(),
+          },
+          preferences: {
+            theme: faker.helpers.arrayElement(['light', 'dark']),
+            language: faker.location.countryCode(),
+            notifications: faker.datatype.boolean(),
+          },
+        },
+        activity_logs: Array.from({ length: 25 }, () => ({  // Smaller dataset
+          id: faker.string.uuid(),
+          timestamp: faker.date.recent().toISOString(),
+          action: faker.helpers.arrayElement(['login', 'logout', 'view', 'click']),
+          details: {
+            page: faker.internet.url(),
+            duration: faker.number.int({ min: 1, max: 1800 }),
+            device: faker.helpers.arrayElement(['mobile', 'desktop']),
+          },
+        })),
+        metadata: {
+          generated_at: Date.now(),
+          test_type: 'conservative_load_test',
+          artillery_session: context.vars.$uuid,
+        },
+      };
+      
+      context.vars.testData = JSON.stringify(testData);
+      return done();
+    }
+  
+  checkInferenceComplete: |
+    function checkInferenceComplete(context, events, done) {
+      if (context.vars.inferenceStatus === 'completed') {
+        // Mark as complete to break the loop
+        context.vars.$loopElement = null;
+      }
+      return done();
+    }

@@ -141,10 +141,28 @@ export class ServerController extends BaseController {
 
       const serverResponse = (await response.json()) as IdentityResponseModel;
 
+      // Debug: Log the parsed response to understand the issue
+      console.debug("🔍 Debug - Parsed server response:", {
+        serverResponse,
+        personal_server: serverResponse.personal_server,
+        public_key: serverResponse.personal_server?.public_key,
+        public_key_type: typeof serverResponse.personal_server?.public_key,
+      });
+
+      // Format public key properly - ensure it has the 04 prefix for uncompressed format
+      let publicKey = serverResponse.personal_server.public_key;
+      if (publicKey && publicKey.length === 130 && publicKey.startsWith('0x')) {
+        // Raw coordinates (64 bytes) - add 04 prefix for uncompressed format
+        publicKey = `0x04${publicKey.slice(2)}`;
+      } else if (publicKey && publicKey.length === 128) {
+        // Raw coordinates without 0x prefix - add 0x04 prefix
+        publicKey = `0x04${publicKey}`;
+      }
+
       return {
         kind: serverResponse.personal_server.kind,
         address: serverResponse.personal_server.address,
-        publicKey: serverResponse.personal_server.public_key,
+        publicKey: publicKey,
         baseUrl: this.personalServerBaseUrl,
         name: "Hosted Vana Server",
       };

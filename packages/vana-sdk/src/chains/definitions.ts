@@ -63,6 +63,10 @@ export const moksha: VanaChainConfig = {
       url: mokshaServices.blockExplorerUrl,
     },
   },
+  // Ensure EVM compatibility for proper transaction handling
+  fees: {
+    baseFeeMultiplier: 1.2,
+  },
   subgraphUrl: mokshaServices.subgraphUrl,
   personalServerUrl: mokshaServices.personalServerUrl,
 } as const;

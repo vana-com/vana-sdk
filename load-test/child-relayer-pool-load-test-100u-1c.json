@@ -1,0 +1,15 @@
+{
+  "masterAddress": "0xB7300F04dfC902FEfa3068dBbeB27273bDe20F76",
+  "createdAt": 1756455695665,
+  "lastUpdated": 1756456442046,
+  "children": [
+    {
+      "privateKey": "0xfd5b02fc878ccb342916982916b166673d65a7df6cda3791e67c02d747458879",
+      "address": "0x9290aBbD260Cfdb37FdFDf32634Fa8C6E1070143",
+      "balance": "50",
+      "lastFunded": 1756456441888,
+      "totalFunded": 80.24882011343308
+    }
+  ],
+  "totalInvested": "80.24882011343308"
+}

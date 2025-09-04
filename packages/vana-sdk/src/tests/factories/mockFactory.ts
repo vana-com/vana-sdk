@@ -227,6 +227,7 @@ export function createTypedMockPublicClient(
 
   const defaultReceipt = {
     transactionHash: "0xtxhash" as Hash,
+    transactionIndex: 0,
     blockNumber: 12345n,
     blockHash: "0xblockhash" as Hash,
     from: "0xfrom",

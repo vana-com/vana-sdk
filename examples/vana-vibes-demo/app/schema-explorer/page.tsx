@@ -41,6 +41,15 @@ import {
 import Link from "next/link";
 import type { Address } from "viem";
 
+// Define artifact type
+interface Artifact {
+  name: string;
+  artifact_path: string;
+  size: number;
+}
+
+// Extend Window interface for operation ID storage
+
 // Type definitions - extending UserFile to include optional properties
 interface UserFile {
   id: number;
@@ -127,9 +136,44 @@ function SchemaExplorerContent() {
   );
   const [result, setResult] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const [aiPrompt, setAiPrompt] = useState<string>(
-    "Based on this data: {{data}}, provide insights",
-  );
+  const [useGeminiAgent, setUseGeminiAgent] = useState<boolean>(false);
+
+  // Unified prompt that switches based on mode
+  const defaultLLMPrompt = "Based on this data: {{data}}, provide insights";
+  const defaultGeminiGoal = `Analyze my digital footprint across all available data sources and create:
+
+1. A comprehensive "Digital Mirror" report showing:
+   - My interests, habits, and behavioral patterns across platforms
+   - Content consumption trends (what I watch, read, listen to)
+   - Communication style and key relationships from chat histories
+   - Professional growth trajectory from LinkedIn/work data
+   - Hidden patterns I might not be aware of
+
+2. A "Personal Intelligence Dashboard" with:
+   - Top insights about my personality and preferences
+   - Data-driven recommendations for personal growth
+   - Potential blind spots or biases in my digital behavior
+   - Unique characteristics that define my digital identity
+
+3. Actionable insights comparing my data across platforms to reveal:
+   - Inconsistencies between my professional and personal personas
+   - Evolution of my interests and values over time
+   - Predictive insights about my future interests or needs
+
+Create visually appealing outputs with charts, timelines, and summaries that I could share or use for self-reflection.`;
+
+  const [unifiedPrompt, setUnifiedPrompt] = useState<string>(defaultLLMPrompt);
+  const [artifacts, setArtifacts] = useState<Artifact[]>([]);
+  const [expandedArtifact, setExpandedArtifact] = useState<string | null>(null);
+  const [artifactContents, setArtifactContents] = useState<
+    Record<string, string>
+  >({});
+  const [operationId, setOperationId] = useState<string | undefined>();
+
+  // Switch prompt when mode changes
+  useEffect(() => {
+    setUnifiedPrompt(useGeminiAgent ? defaultGeminiGoal : defaultLLMPrompt);
+  }, [useGeminiAgent, defaultGeminiGoal, defaultLLMPrompt]);
 
   // Core filtering logic: Files can be filtered by schema, DLP, or both
   // This enables precise data selection for AI processing
@@ -402,6 +446,98 @@ function SchemaExplorerContent() {
   };
 
   // Handle processing with existing file - now uses fixed contract that supports existing files
+  const fetchArtifactContent = async (artifact: Artifact) => {
+    try {
+      if (!operationId) {
+        throw new Error("Operation ID not found");
+      }
+
+      const response = await fetch("/api/artifacts/download", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          operationId,
+          artifactPath: artifact.artifact_path,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch artifact");
+      }
+
+      const blob = await response.blob();
+      const text = await blob.text();
+      return text;
+    } catch (error) {
+      console.error("Error fetching artifact:", error);
+      return "Error loading artifact content";
+    }
+  };
+
+  const handleToggleArtifact = async (artifact: Artifact) => {
+    if (expandedArtifact === artifact.artifact_path) {
+      setExpandedArtifact(null);
+    } else {
+      setExpandedArtifact(artifact.artifact_path);
+
+      // Fetch content if not cached
+      if (!artifactContents[artifact.artifact_path]) {
+        const content = await fetchArtifactContent(artifact);
+        setArtifactContents((prev) => ({
+          ...prev,
+          [artifact.artifact_path]: content,
+        }));
+      }
+    }
+  };
+
+  const handleDownloadArtifact = async (artifact: Artifact) => {
+    try {
+      setStatus(`Downloading ${artifact.name}...`);
+
+      if (!operationId) {
+        throw new Error("Operation ID not found");
+      }
+
+      const response = await fetch("/api/artifacts/download", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          operationId,
+          artifactPath: artifact.artifact_path,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error ?? "Download failed");
+      }
+
+      const blob = await response.blob();
+
+      // Create download link
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = artifact.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      setStatus(`Downloaded ${artifact.name}`);
+    } catch (error) {
+      console.error("Download error:", error);
+      setStatus(
+        `Download failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  };
+
   const handleStartFlow = async () => {
     const walletAddress = wallet?.address ?? address;
 
@@ -416,6 +552,10 @@ function SchemaExplorerContent() {
 
     setIsProcessing(true);
     setResult("");
+    setArtifacts([]);
+    setExpandedArtifact(null);
+    setOperationId(undefined);
+    setArtifactContents({});
 
     try {
       setStatus("Preparing permission grant for existing file...");
@@ -467,10 +607,10 @@ function SchemaExplorerContent() {
       // Create grant data for the AI operation
       const grantData = {
         grantee: appAddress,
-        operation: "llm_inference",
-        parameters: {
-          prompt: aiPrompt,
-        },
+        operation: useGeminiAgent ? "prompt_gemini_agent" : "llm_inference",
+        parameters: useGeminiAgent
+          ? { goal: unifiedPrompt }
+          : { prompt: unifiedPrompt },
       };
 
       // Create grant file blob
@@ -549,14 +689,24 @@ function SchemaExplorerContent() {
         throw new Error(inferenceResult.error ?? "API request failed");
       }
 
+      // Store operation ID for artifact downloads
+      if (inferenceResult.data?.id) {
+        setOperationId(inferenceResult.data.id);
+      }
+
       setStatus("AI inference completed!");
-      setResult(
-        JSON.stringify(
-          inferenceResult.data?.result ?? inferenceResult.data,
-          null,
-          2,
-        ),
-      );
+      const resultData = inferenceResult.data?.result ?? inferenceResult.data;
+      const resultStr = JSON.stringify(resultData, null, 2);
+      setResult(resultStr);
+
+      // Parse and extract artifacts if present
+      try {
+        if (resultData.artifacts && Array.isArray(resultData.artifacts)) {
+          setArtifacts(resultData.artifacts);
+        }
+      } catch {
+        // Not JSON or no artifacts
+      }
     } catch (error) {
       // Specific error handling based on operation phase
       const errorMessage =
@@ -829,26 +979,56 @@ function SchemaExplorerContent() {
             </Card>
           ))}
 
-        {/* AI Prompt */}
+        {/* Operation Mode & Prompt Configuration */}
         {state.selectedFileId && (
-          <div>
-            <Label
-              htmlFor="aiPrompt"
-              className="text-sm font-medium text-gray-700 mb-2 block"
-            >
-              AI Prompt
-            </Label>
-            <Textarea
-              id="aiPrompt"
-              value={aiPrompt}
-              onChange={(e) => {
-                setAiPrompt(e.target.value);
-              }}
-              rows={2}
-              className="resize-none"
-              placeholder="Enter your AI prompt here..."
-              disabled={isProcessing}
-            />
+          <div className="space-y-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="useGemini"
+                checked={useGeminiAgent}
+                onChange={(e) => {
+                  setUseGeminiAgent(e.target.checked);
+                }}
+                disabled={isProcessing}
+                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <Label
+                htmlFor="useGemini"
+                className="text-sm font-medium text-gray-700"
+              >
+                Use Gemini Agent for Comprehensive Analysis
+              </Label>
+            </div>
+
+            <div>
+              <Label
+                htmlFor="prompt"
+                className="text-sm font-medium text-gray-700 mb-2 block"
+              >
+                {useGeminiAgent ? "Analysis Goal" : "AI Prompt"}
+              </Label>
+              <Textarea
+                id="prompt"
+                value={unifiedPrompt}
+                onChange={(e) => {
+                  setUnifiedPrompt(e.target.value);
+                }}
+                rows={useGeminiAgent ? 8 : 2}
+                className="resize-none font-mono text-xs"
+                placeholder={
+                  useGeminiAgent
+                    ? "What should the Gemini agent analyze?"
+                    : "Enter your prompt..."
+                }
+                disabled={isProcessing}
+              />
+              <div className="mt-1 text-xs text-gray-500">
+                {useGeminiAgent
+                  ? "Gemini will analyze your selected file and related data based on this goal"
+                  : "Use {{data}} to reference your file content"}
+              </div>
+            </div>
           </div>
         )}
 
@@ -894,6 +1074,63 @@ function SchemaExplorerContent() {
             placeholder="AI inference results will appear here..."
           />
         </div>
+
+        {/* Artifacts Display */}
+        {artifacts.length > 0 && (
+          <div>
+            <Label className="text-sm font-medium text-gray-700 mb-2 block">
+              Generated Artifacts
+            </Label>
+            <div className="space-y-2">
+              {artifacts.map((artifact, index) => (
+                <div
+                  key={index}
+                  className="bg-gray-100 border border-gray-300 rounded-lg overflow-hidden"
+                >
+                  <div className="p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="font-medium text-sm">
+                          {artifact.name}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          Size: {artifact.size} bytes
+                        </div>
+                      </div>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleToggleArtifact(artifact)}
+                          className="px-3 py-1 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 cursor-pointer"
+                          type="button"
+                        >
+                          {expandedArtifact === artifact.artifact_path
+                            ? "Hide"
+                            : "View"}
+                        </button>
+                        <button
+                          onClick={() => handleDownloadArtifact(artifact)}
+                          className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
+                          type="button"
+                        >
+                          Download
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {expandedArtifact === artifact.artifact_path && (
+                    <div className="border-t border-gray-300 bg-white p-4">
+                      <pre className="text-xs font-mono whitespace-pre-wrap overflow-x-auto max-h-96 overflow-y-auto">
+                        {artifactContents[artifact.artifact_path] ||
+                          "Loading..."}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

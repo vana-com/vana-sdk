@@ -27,7 +27,7 @@ describe("IPFS Utilities", () => {
     it("should convert IPFS URLs to gateway URLs", () => {
       const ipfsUrl = "ipfs://QmTestHash123";
       const result = convertIpfsUrl(ipfsUrl);
-      expect(result).toBe("https://dweb.link/ipfs/QmTestHash123");
+      expect(result).toBe("https://ipfs.io/ipfs/QmTestHash123");
     });
 
     it("should use custom gateway when provided", () => {
@@ -46,7 +46,7 @@ describe("IPFS Utilities", () => {
     it("should handle empty IPFS URLs", () => {
       const emptyIpfsUrl = "ipfs://";
       const result = convertIpfsUrl(emptyIpfsUrl);
-      expect(result).toBe("https://dweb.link/ipfs/");
+      expect(result).toBe("https://ipfs.io/ipfs/");
     });
   });
 
@@ -111,7 +111,7 @@ describe("IPFS Utilities", () => {
 
   describe("DEFAULT_IPFS_GATEWAY", () => {
     it("should be set to ipfs.io gateway", () => {
-      expect(DEFAULT_IPFS_GATEWAY).toBe("https://dweb.link/ipfs/");
+      expect(DEFAULT_IPFS_GATEWAY).toBe("https://ipfs.io/ipfs/");
     });
   });
 });

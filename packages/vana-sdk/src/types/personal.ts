@@ -58,6 +58,26 @@ export interface CreateOperationParams {
 }
 
 /**
+ * Parameters for downloading an artifact from a server operation.
+ *
+ * @remarks
+ * Artifacts are files generated during operations like Gemini agent analysis.
+ * The download requires authentication using the application's signature.
+ *
+ * @category Personal Server
+ */
+export interface DownloadArtifactParams {
+  /**
+   * The operation ID that generated the artifact.
+   */
+  operationId: string;
+  /**
+   * The path to the artifact file to download.
+   */
+  artifactPath: string;
+}
+
+/**
  * Defines parameters for initializing personal server connections.
  *
  * @remarks

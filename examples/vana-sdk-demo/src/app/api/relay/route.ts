@@ -1,5 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createRelayerVana } from "@/lib/relayer";
+import {
+  createRelayerVana,
+  relayerAccount,
+  relayerConfig,
+} from "@/lib/relayer";
 import {
   handleRelayerOperation,
   type UnifiedRelayerRequest,
@@ -24,7 +28,19 @@ export async function POST(request: NextRequest) {
     // Without store: returns signed/confirmed responses immediately
     // With store: enables async polling for resilient transaction management
     const vana = createRelayerVana();
-    const result = await handleRelayerOperation(vana, body);
+    let result = await handleRelayerOperation(vana, body);
+
+    // Simple retry on nonce errors - fetch fresh nonce and try once more
+    if (
+      result.type === "error" &&
+      (result.error.includes("nonce") || result.error.includes("replacement"))
+    ) {
+      console.info("⚠️ Nonce conflict detected, retrying with fresh nonce...");
+      const freshNonce = await relayerConfig.publicClient.getTransactionCount({
+        address: relayerAccount.address,
+      });
+      result = await handleRelayerOperation(vana, body, { nonce: freshNonce });
+    }
 
     console.info("✅ Operation completed successfully:", result);
 

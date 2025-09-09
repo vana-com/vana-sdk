@@ -36,7 +36,7 @@ const RELAYER_PRIVATE_KEY =
   "0x0000000000000000000000000000000000000000000000000000000000000001"; // Dummy key for build process
 
 // Set up relayer wallet client
-const relayerAccount = privateKeyToAccount(
+export const relayerAccount = privateKeyToAccount(
   RELAYER_PRIVATE_KEY as `0x${string}`,
 );
 

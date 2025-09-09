@@ -128,6 +128,12 @@ interface StreamingMetricsV2 {
 /**
  * Artillery-style user stream generator
  * Implements realistic arrival patterns with ramp up/down
+ * 
+ * Behavior:
+ * - Ensures all target users are generated before completing
+ * - During ramp-down, maintains minimum rate needed to meet target
+ * - Extends ramp-down phase if necessary to complete all users
+ * - Prevents hanging by adapting rate dynamically
  */
 class ArtilleryStyleUserStream extends EventEmitter {
   private config: StreamingConfigV2;
@@ -176,11 +182,12 @@ class ArtilleryStyleUserStream extends EventEmitter {
       // Normal phased generation for larger tests
       console.log(`[UserStream] Phase durations - Ramp: ${this.config.rampUpDurationSeconds}s, Sustain: ${this.config.sustainDurationSeconds}s, RampDown: ${this.config.rampDownDurationSeconds}s`);
       
-      while (this.isActive && this.usersGenerated < this.config.totalUsers) {
+      // Generate users based on phases and rates, not just total count
+      while (this.isActive) {
         const currentRate = this.getCurrentArrivalRate();
         const elapsed = (Date.now() - this.phaseStartTime) / 1000;
         
-        if (currentRate > 0) {
+        if (currentRate > 0 && this.usersGenerated < this.config.totalUsers) {
           const userId = `user-${this.usersGenerated + 1}`;
           console.log(`[UserStream] Generating ${userId}`);
           this.emit('user', userId);
@@ -194,17 +201,23 @@ class ArtilleryStyleUserStream extends EventEmitter {
           }
           await new Promise(resolve => setTimeout(resolve, delayMs));
         } else {
-          // Wait a bit during ramp periods (should rarely happen with minimum rate)
+          // Wait a bit during ramp periods or when target reached
           await new Promise(resolve => setTimeout(resolve, 100));
         }
         
-        // Update phase if needed
+        // Update phase if needed (this may set isActive to false)
         this.updatePhase();
         
         // For small tests, check if we should move to next phase early
         if (this.shouldAdvancePhaseEarly()) {
           console.log(`[UserStream] Advancing phase early for small test`);
           this.advanceToNextPhase();
+        }
+        
+        // Stop if we've reached the target
+        if (this.usersGenerated >= this.config.totalUsers) {
+          console.log(`[UserStream] Target users reached: ${this.usersGenerated}/${this.config.totalUsers}`);
+          break;
         }
       }
     }
@@ -259,11 +272,27 @@ class ArtilleryStyleUserStream extends EventEmitter {
         return this.config.arrivalRateUsersPerSecond;
         
       case 'rampDown':
+        // Check if we've met our target
+        if (this.usersGenerated >= this.config.totalUsers) {
+          return 0;
+        }
+        
+        // Calculate remaining users and time
+        const remainingUsers = this.config.totalUsers - this.usersGenerated;
+        const remainingTime = Math.max(this.config.rampDownDurationSeconds - elapsed, 1);
+        
+        // Calculate minimum rate needed to complete all users
+        const minRateNeeded = remainingUsers / remainingTime;
+        
         // Linear ramp from target rate to 0
         const rampDownProgress = Math.min(elapsed / this.config.rampDownDurationSeconds, 1);
-        const rampDownRate = this.config.arrivalRateUsersPerSecond * (1 - rampDownProgress);
-        // Allow rate to go to 0 during ramp down when we're done generating users
-        return this.usersGenerated >= this.config.totalUsers ? 0 : rampDownRate;
+        const plannedRate = this.config.arrivalRateUsersPerSecond * (1 - rampDownProgress);
+        
+        // Use the higher of planned rate or minimum needed rate
+        // This ensures we generate all users before rate drops to 0
+        const rampDownRate = Math.max(plannedRate, minRateNeeded);
+        
+        return rampDownRate;
         
       default:
         return 0;
@@ -281,6 +310,18 @@ class ArtilleryStyleUserStream extends EventEmitter {
       this.currentPhase = 'rampDown';
       this.phaseStartTime = Date.now();
       this.emit('phaseChange', 'rampDown');
+    } else if (this.currentPhase === 'rampDown' && totalElapsed >= this.config.rampDownDurationSeconds) {
+      // Check if we've met the target
+      if (this.usersGenerated >= this.config.totalUsers) {
+        // Target met, stop generation
+        this.isActive = false;
+        console.log(`[UserStream] Ramp-down complete. Successfully generated all ${this.usersGenerated} users`);
+      } else {
+        // Extend ramp-down if we haven't met the target yet
+        const remainingUsers = this.config.totalUsers - this.usersGenerated;
+        console.log(chalk.yellow(`[UserStream] Extending ramp-down to complete remaining ${remainingUsers} users...`));
+        // Don't stop, keep generating at minimum rate
+      }
     }
   }
   
@@ -576,7 +617,12 @@ class StreamingLoadTestV2Relayer {
     // Wait for completion
     await new Promise<void>((resolve) => {
       this.userStream!.once('complete', () => {
-        console.log(chalk.green('\n✅ All users generated'));
+        const status = this.userStream!.getStatus();
+        if (status.generated < this.streamingConfig.totalUsers) {
+          console.log(chalk.yellow(`\n⚠️  User generation stopped after phase completion: ${status.generated}/${this.streamingConfig.totalUsers} users`));
+        } else {
+          console.log(chalk.green(`\n✅ All ${status.generated} users generated`));
+        }
         resolve();
       });
     });

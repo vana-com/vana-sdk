@@ -1,5 +1,10 @@
 import type { Address, Hash } from "viem";
 import { getContract } from "viem";
+import type {
+  TransactionOptions,
+  TransactionResult,
+} from "../types/operations";
+
 import type { StorageUploadResult } from "../types/storage";
 
 import type {
@@ -24,7 +29,6 @@ import type {
   DecryptFileWithPermissionOptions,
 } from "../types/index";
 // import { FilePermissionResult } from "../types/transactionResults";
-import type { TransactionResult } from "../types/operations";
 import type { UnifiedRelayerRequest } from "../types/relayer";
 import type { ControllerContext } from "./permissions";
 import { BaseController } from "./base";
@@ -2044,6 +2048,7 @@ export class DataController extends BaseController {
   async registerFileWithSchema(
     url: string,
     schemaId: number,
+    options?: TransactionOptions,
   ): Promise<TransactionResult<"DataRegistry", "addFileWithSchema">> {
     this.assertWallet();
 
@@ -2067,6 +2072,7 @@ export class DataController extends BaseController {
         args: [url, BigInt(schemaId)],
         account,
         chain: this.context.walletClient.chain ?? null,
+        ...this.spreadTransactionOptions(options),
       });
 
       const { tx } = await import("../utils/transactionHelpers");
@@ -2111,6 +2117,7 @@ export class DataController extends BaseController {
     url: string,
     ownerAddress: Address,
     permissions: Array<{ account: Address; key: string }> = [],
+    options?: TransactionOptions,
   ): Promise<TransactionResult<"DataRegistry", "addFileWithPermissions">> {
     this.assertWallet();
 
@@ -2134,6 +2141,7 @@ export class DataController extends BaseController {
         args: [url, ownerAddress, permissions],
         account,
         chain: this.context.walletClient.chain ?? null,
+        ...this.spreadTransactionOptions(options),
       });
 
       const { tx } = await import("../utils/transactionHelpers");
@@ -2195,6 +2203,7 @@ export class DataController extends BaseController {
     ownerAddress: Address,
     permissions: Array<{ account: Address; publicKey: string }> = [],
     schemaId: number = 0,
+    options?: TransactionOptions,
   ): Promise<
     TransactionResult<"DataRegistry", "addFileWithPermissionsAndSchema">
   > {
@@ -2241,6 +2250,7 @@ export class DataController extends BaseController {
         ownerAddress,
         encryptedPermissions,
         schemaId,
+        options,
       );
     } catch (error) {
       console.error("Failed to add file with permissions and schema:", error);
@@ -2293,6 +2303,7 @@ export class DataController extends BaseController {
     ownerAddress: Address,
     permissions: Array<{ account: Address; key: string }> = [],
     schemaId: number = 0,
+    options?: TransactionOptions,
   ): Promise<
     TransactionResult<"DataRegistry", "addFileWithPermissionsAndSchema">
   > {
@@ -2316,6 +2327,7 @@ export class DataController extends BaseController {
         args: [url, ownerAddress, permissions, BigInt(schemaId)],
         account,
         chain: this.context.walletClient.chain ?? null,
+        ...this.spreadTransactionOptions(options),
       });
 
       const { tx } = await import("../utils/transactionHelpers");
@@ -2365,7 +2377,10 @@ export class DataController extends BaseController {
    * console.log(`Refiner ${result.refinerId} created`);
    * ```
    */
-  async addRefiner(params: AddRefinerParams): Promise<AddRefinerResult> {
+  async addRefiner(
+    params: AddRefinerParams,
+    options?: TransactionOptions,
+  ): Promise<AddRefinerResult> {
     this.assertWallet();
 
     try {
@@ -2396,6 +2411,7 @@ export class DataController extends BaseController {
         ],
         account,
         chain: this.context.walletClient.chain ?? null,
+        ...this.spreadTransactionOptions(options),
       });
 
       // Create TransactionResult POJO
@@ -2618,6 +2634,7 @@ export class DataController extends BaseController {
    */
   async updateSchemaId(
     params: UpdateSchemaIdParams,
+    options?: TransactionOptions,
   ): Promise<UpdateSchemaIdResult> {
     this.assertWallet();
 
@@ -2643,6 +2660,7 @@ export class DataController extends BaseController {
         args: [BigInt(params.refinerId), BigInt(params.newSchemaId)],
         account,
         chain: this.context.walletClient.chain ?? null,
+        ...this.spreadTransactionOptions(options),
       });
 
       // Wait for transaction confirmation
@@ -2902,11 +2920,12 @@ export class DataController extends BaseController {
    */
   async addPermissionToFile(
     params: AddFilePermissionParams,
+    options?: TransactionOptions,
   ): Promise<TransactionResult<"DataRegistry", "addFilePermission">> {
     this.assertWallet();
 
     const { fileId, account, publicKey } = params;
-    return await this.submitFilePermission(fileId, account, publicKey);
+    return await this.submitFilePermission(fileId, account, publicKey, options);
   }
 
   /**
@@ -2941,6 +2960,7 @@ export class DataController extends BaseController {
     fileId: number,
     account: Address,
     publicKey: string,
+    options?: TransactionOptions,
   ): Promise<TransactionResult<"DataRegistry", "addFilePermission">> {
     this.assertWallet();
 
@@ -2979,6 +2999,7 @@ export class DataController extends BaseController {
         args: [BigInt(fileId), account, encryptedKey],
         account: walletAccount,
         chain: this.context.walletClient.chain ?? null,
+        ...this.spreadTransactionOptions(options),
       });
 
       const { tx } = await import("../utils/transactionHelpers");

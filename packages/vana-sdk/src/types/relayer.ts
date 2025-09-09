@@ -10,7 +10,7 @@
  * @module types/relayer
  */
 
-import type { Hash, Address } from "viem";
+import type { Hash, Address, TransactionReceipt } from "viem";
 import type {
   GrantFile,
   PermissionGrantTypedData,
@@ -353,7 +353,13 @@ export interface RelayerWebhookPayload {
  * @category Relayer
  * @see {@link https://docs.vana.org/docs/gasless-transactions | Gasless Transactions Guide}
  */
-export type UnifiedRelayerRequest = SignedRelayerRequest | DirectRelayerRequest;
+export type UnifiedRelayerRequest =
+  | SignedRelayerRequest
+  | DirectRelayerRequest
+  | {
+      type: "status_check";
+      operationId: string;
+    };
 
 /**
  * Represents an EIP-712 signed operation for gasless transaction submission.
@@ -446,10 +452,25 @@ export type DirectRelayerRequest =
  * @remarks
  * The discriminated union ensures proper error handling and result typing.
  * Check the `type` field to determine success or failure before accessing results.
+ * The new async pattern returns pending operations with operationIds for polling.
  *
  * @category Relayer
  */
 export type UnifiedRelayerResponse =
+  | {
+      type: "pending";
+      operationId: string;
+    }
+  | {
+      type: "submitted";
+      hash: Hash;
+    }
+  | {
+      type: "confirmed";
+      hash: Hash;
+      // Receipt is optional; a performance hint for the client SDK's polling logic.
+      receipt?: TransactionReceipt;
+    }
   | {
       type: "signed";
       hash: Hash;
@@ -457,6 +478,12 @@ export type UnifiedRelayerResponse =
   | {
       type: "direct";
       result: { fileId: number; transactionHash: Hash } | { url: string };
+    }
+  | {
+      /** Non-transactional operations that don't require tracking (e.g., IPFS uploads) */
+      type: "direct_result_untracked";
+      /** The result data from the operation, structure depends on the specific operation */
+      result: unknown;
     }
   | {
       type: "error";

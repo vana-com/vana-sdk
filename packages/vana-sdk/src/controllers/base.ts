@@ -16,6 +16,7 @@
 
 import type { WalletClient } from "viem";
 import type { ControllerContext } from "../types/controller-context";
+import type { TransactionOptions } from "../types/operations";
 import { ReadOnlyError } from "../errors";
 
 /**
@@ -104,5 +105,50 @@ export abstract class BaseController {
         `No wallet account connected. Cannot perform ${callingMethod} without an account.`,
       );
     }
+  }
+
+  /**
+   * Helper to safely spread transaction options for viem compatibility.
+   * Handles EIP-1559 vs legacy gas pricing correctly.
+   *
+   * @param options - Transaction options to spread
+   * @returns Properly formatted options for viem
+   * @internal
+   */
+  protected spreadTransactionOptions(options?: TransactionOptions) {
+    if (!options) return {};
+
+    const baseOptions: any = {
+      ...(options.nonce !== undefined && { nonce: options.nonce }),
+      ...(options.gas !== undefined && { gas: options.gas }),
+      ...(options.gasLimit !== undefined && { gas: options.gasLimit }),
+    };
+
+    // EIP-1559 and legacy gasPrice are mutually exclusive in viem
+    // If EIP-1559 params are provided, use them and exclude gasPrice
+    if (
+      options.maxFeePerGas !== undefined ||
+      options.maxPriorityFeePerGas !== undefined
+    ) {
+      return {
+        ...baseOptions,
+        ...(options.maxFeePerGas !== undefined && {
+          maxFeePerGas: options.maxFeePerGas,
+        }),
+        ...(options.maxPriorityFeePerGas !== undefined && {
+          maxPriorityFeePerGas: options.maxPriorityFeePerGas,
+        }),
+      };
+    }
+
+    // Otherwise, use legacy gasPrice if provided
+    if (options.gasPrice !== undefined) {
+      return {
+        ...baseOptions,
+        gasPrice: options.gasPrice,
+      };
+    }
+
+    return baseOptions;
   }
 }

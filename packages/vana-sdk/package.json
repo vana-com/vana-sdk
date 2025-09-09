@@ -122,6 +122,7 @@
     "eccrypto-js": "^5.4.0",
     "graphql": "^16.11.0",
     "openpgp": "^6.1.1",
+    "uuid": "^13.0.0",
     "viem": "^2.35.1"
   },
   "devDependencies": {
@@ -131,6 +132,7 @@
     "@graphql-codegen/typescript-operations": "^4.6.1",
     "@types/node": "^24.3.0",
     "@types/secp256k1": "^4.0.6",
+    "@types/uuid": "^10.0.0",
     "@typescript-eslint/eslint-plugin": "^8.41.0",
     "@typescript-eslint/parser": "^8.41.0",
     "@vitest/coverage-v8": "^3.2.4",

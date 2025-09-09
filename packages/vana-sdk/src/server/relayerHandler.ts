@@ -1,11 +1,15 @@
+import { v4 as uuidv4 } from "uuid";
 import type { VanaInstance } from "../index.node";
 import type {
   UnifiedRelayerRequest,
   UnifiedRelayerResponse,
-  SignedRelayerRequest,
   DirectRelayerRequest,
 } from "../types/relayer";
-import type { TransactionResult } from "../types/operations";
+import type {
+  TransactionResult,
+  TransactionOptions,
+  IOperationStore,
+} from "../types";
 import type { Contract, Fn } from "../generated/event-types";
 import type {
   GenericTypedData,
@@ -53,70 +57,149 @@ import { recoverTypedDataAddress, getAddress, type Hash } from "viem";
  * ```
  */
 export async function handleRelayerOperation(
-  sdk: VanaInstance,
+  sdk: VanaInstance, // The public signature is generic
   request: UnifiedRelayerRequest,
+  options?: TransactionOptions,
 ): Promise<UnifiedRelayerResponse> {
-  // Handle signed operations (EIP-712)
-  if (request.type === "signed") {
-    return handleSignedOperation(sdk, request);
-  }
+  // Type assertion required: VanaInstance public interface doesn't expose operationStore
+  // to maintain API simplicity, but server-side handler needs access for stateful mode.
+  // The factory overloads guarantee this is safe for relayer-configured instances.
+  // TODO(TYPES): Consider exposing operationStore through a server-specific interface
 
-  // Handle direct operations (non-signed)
-  return handleDirectOperation(sdk, request);
-}
+  const store = (sdk as any).operationStore as IOperationStore | undefined;
 
-/**
- * Handle EIP-712 signed operations with full type safety
- */
-async function handleSignedOperation(
-  sdk: VanaInstance,
-  request: SignedRelayerRequest,
-): Promise<UnifiedRelayerResponse> {
-  const { typedData, signature, expectedUserAddress } = request;
+  // --- STATEFUL (ROBUST) MODE ---
+  // This block executes ONLY if the developer provided an IOperationStore.
+  if (store) {
+    if (request.type === "status_check") {
+      const state = await store.get(request.operationId);
+      if (!state) return { type: "error", error: "Operation not found" };
+      if (state.status === "confirmed")
+        return {
+          type: "confirmed",
+          hash: state.transactionHash,
+          receipt: state.finalReceipt,
+        };
+      if (state.status === "failed")
+        return { type: "error", error: state.error ?? "Operation failed" };
+      return { type: "pending", operationId: request.operationId };
+    }
 
-  // Step 1: Verify the signature (security check)
-  let recoveredAddress: `0x${string}`;
-  try {
-    recoveredAddress = await recoverTypedDataAddress({
-      domain: {
-        ...typedData.domain,
-        chainId: typedData.domain.chainId
-          ? BigInt(typedData.domain.chainId)
-          : undefined,
-      },
-      types: typedData.types,
-      primaryType: typedData.primaryType,
-      message: typedData.message as unknown as Record<string, unknown>,
-      signature,
-    });
-  } catch (error) {
-    // Handle signature verification errors
-    throw new SignatureError(
-      `Signature verification failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-    );
-  }
+    const operationId = uuidv4();
+    try {
+      const txResult = await routeAndExecuteRequest(sdk, request, options);
 
-  // Optional security check: Verify the signer matches expected address
-  if (expectedUserAddress) {
-    const normalizedExpected = getAddress(expectedUserAddress);
-    const normalizedSigner = getAddress(recoveredAddress);
-
-    if (normalizedSigner !== normalizedExpected) {
-      throw new SignatureError(
-        `Security verification failed: Recovered signer address (${normalizedSigner}) does not match expected user address (${normalizedExpected})`,
-      );
+      // We only store state for operations that result in a transaction.
+      if ("hash" in txResult) {
+        await store.set(operationId, {
+          status: "pending",
+          transactionHash: txResult.hash,
+          originalRequest: request,
+          nonce: (options?.nonce ?? 0) as number,
+          retryCount: 0,
+          lastAttemptedGas: {
+            maxFeePerGas: options?.maxFeePerGas?.toString(),
+            maxPriorityFeePerGas: options?.maxPriorityFeePerGas?.toString(),
+          },
+          submittedAt: Date.now(),
+        });
+        return { type: "pending", operationId };
+      } else {
+        // This handles non-transactional direct operations like `storeGrantFile`
+        return { type: "direct_result_untracked", result: txResult };
+      }
+    } catch (e) {
+      const error =
+        e instanceof Error
+          ? e
+          : new Error("Unknown error during operation submission");
+      // We don't create a persistent error state for an initial submission failure.
+      return { type: "error", error: error.message };
     }
   }
 
-  // Step 2: Route to appropriate SDK method based on primaryType
-  // The return type of routeSignedOperation guarantees it has a hash property
-  const result = await routeSignedOperation(sdk, typedData, signature);
+  // --- STATELESS (SIMPLE) MODE ---
+  // This block executes if no IOperationStore was provided. Fire-and-forget.
+  else {
+    if (request.type === "status_check") {
+      return {
+        type: "error",
+        error: "Stateless relayer does not support operation status checks.",
+      };
+    }
 
-  // TypeScript now knows result has a hash property due to the return type
-  return {
-    type: "signed",
-    hash: result.hash,
-  };
+    try {
+      const txResult = await routeAndExecuteRequest(sdk, request, options);
+
+      // For stateless relayers, we can only handle transactional results.
+      if ("hash" in txResult) {
+        return { type: "submitted", hash: txResult.hash };
+      } else {
+        // Non-transactional direct operations can return their result directly.
+        return { type: "direct_result_untracked", result: txResult };
+      }
+    } catch (e) {
+      const error =
+        e instanceof Error
+          ? e
+          : new Error("Unknown error during operation submission");
+      return { type: "error", error: error.message };
+    }
+  }
+}
+
+/**
+ * Helper function to route and execute requests.
+ * This simply delegates to the appropriate handler based on request type.
+ */
+async function routeAndExecuteRequest(
+  sdk: VanaInstance,
+  request: UnifiedRelayerRequest,
+  options?: TransactionOptions,
+): Promise<TransactionResult<Contract, Fn<Contract>> | { url: string }> {
+  if (request.type === "signed") {
+    const { typedData, signature, expectedUserAddress } = request;
+
+    // Step 1: Verify the signature (security check)
+    let recoveredAddress: `0x${string}`;
+    try {
+      recoveredAddress = await recoverTypedDataAddress({
+        domain: {
+          ...typedData.domain,
+          chainId: typedData.domain.chainId
+            ? BigInt(typedData.domain.chainId)
+            : undefined,
+        },
+        types: typedData.types,
+        primaryType: typedData.primaryType,
+        message: typedData.message as unknown as Record<string, unknown>,
+        signature,
+      });
+    } catch (error) {
+      // Handle signature verification errors
+      throw new SignatureError(
+        `Signature verification failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+
+    // Optional security check: Verify the signer matches expected address
+    if (expectedUserAddress) {
+      const normalizedExpected = getAddress(expectedUserAddress);
+      const normalizedSigner = getAddress(recoveredAddress);
+
+      if (normalizedSigner !== normalizedExpected) {
+        throw new SignatureError(
+          `Security verification failed: Recovered signer address (${normalizedSigner}) does not match expected user address (${normalizedExpected})`,
+        );
+      }
+    }
+
+    // Step 2: Route to appropriate SDK method based on primaryType
+    return await routeSignedOperation(sdk, typedData, signature, options);
+  } else if (request.type === "direct") {
+    return await handleDirectOperation(sdk, request, options);
+  }
+  throw new Error("Invalid request type for execution");
 }
 
 /**
@@ -129,6 +212,7 @@ async function routeSignedOperation(
   sdk: VanaInstance,
   typedData: GenericTypedData,
   signature: Hash,
+  options?: TransactionOptions,
 ): Promise<TransactionResult<Contract, Fn<Contract>>> {
   // Validate primaryType before casting
   const validPrimaryTypes: readonly TypedDataPrimaryType[] = [
@@ -161,6 +245,7 @@ async function routeSignedOperation(
           primaryType: "Permission",
         } as PermissionGrantTypedData,
         signature,
+        options,
       );
 
     case "RevokePermission":
@@ -170,6 +255,7 @@ async function routeSignedOperation(
           primaryType: "RevokePermission",
         } as RevokePermissionTypedData,
         signature,
+        options,
       );
 
     case "TrustServer":
@@ -181,6 +267,7 @@ async function routeSignedOperation(
           primaryType: "TrustServer",
         } as TrustServerTypedData,
         signature,
+        options,
       );
 
     case "AddServer":
@@ -190,6 +277,7 @@ async function routeSignedOperation(
           primaryType: "AddServer",
         } as AddAndTrustServerTypedData,
         signature,
+        options,
       );
 
     case "UntrustServer":
@@ -199,6 +287,7 @@ async function routeSignedOperation(
           primaryType: "UntrustServer",
         } as GenericTypedData,
         signature,
+        options,
       );
 
     case "ServerFilesAndPermission":
@@ -208,6 +297,7 @@ async function routeSignedOperation(
           primaryType: "ServerFilesAndPermission",
         } as ServerFilesAndPermissionTypedData,
         signature,
+        options,
       );
 
     // TODO: RegisterGrantee with signature is not supported until
@@ -230,7 +320,8 @@ async function routeSignedOperation(
 async function handleDirectOperation(
   sdk: VanaInstance,
   request: DirectRelayerRequest,
-): Promise<UnifiedRelayerResponse> {
+  options?: TransactionOptions,
+): Promise<TransactionResult<Contract, Fn<Contract>> | { url: string }> {
   switch (request.operation) {
     case "submitFileAddition": {
       const { url, userAddress } = request.params;
@@ -240,23 +331,11 @@ async function handleDirectOperation(
         url,
         userAddress,
         [], // No permissions
+        options,
       );
 
-      // Wait for transaction events to get fileId
-      const eventData = await sdk.waitForTransactionEvents(result);
-      const fileId = eventData.expectedEvents?.FileAdded?.fileId;
-
-      if (!fileId) {
-        throw new Error("Failed to get fileId from transaction events");
-      }
-
-      return {
-        type: "direct",
-        result: {
-          fileId: Number(fileId),
-          transactionHash: result.hash,
-        },
-      };
+      // Return the TransactionResult directly
+      return result;
     }
 
     case "submitFileAdditionWithPermissions": {
@@ -267,23 +346,11 @@ async function handleDirectOperation(
         url,
         userAddress,
         permissions,
+        options,
       );
 
-      // Wait for transaction events to get fileId
-      const eventData = await sdk.waitForTransactionEvents(result);
-      const fileId = eventData.expectedEvents?.FileAdded?.fileId;
-
-      if (!fileId) {
-        throw new Error("Failed to get fileId from transaction events");
-      }
-
-      return {
-        type: "direct",
-        result: {
-          fileId: Number(fileId),
-          transactionHash: result.hash,
-        },
-      };
+      // Return the TransactionResult directly
+      return result;
     }
 
     case "submitFileAdditionComplete": {
@@ -297,23 +364,11 @@ async function handleDirectOperation(
         ownerAddress ?? userAddress,
         permissions, // Already in correct format with encrypted 'key' field
         schemaId,
+        options,
       );
 
-      // Wait for transaction events to get fileId
-      const eventData = await sdk.waitForTransactionEvents(result);
-      const fileId = eventData.expectedEvents?.FileAdded?.fileId;
-
-      if (!fileId) {
-        throw new Error("Failed to get fileId from transaction events");
-      }
-
-      return {
-        type: "direct",
-        result: {
-          fileId: Number(fileId),
-          transactionHash: result.hash,
-        },
-      };
+      // Return the TransactionResult directly
+      return result;
     }
 
     case "storeGrantFile": {
@@ -331,10 +386,7 @@ async function handleDirectOperation(
         filename: `grant-${Date.now()}.json`,
       });
 
-      return {
-        type: "direct",
-        result: { url: result.url },
-      };
+      return { url: result.url };
     }
 
     default: {

@@ -20,7 +20,9 @@ export async function POST(request: NextRequest) {
       ),
     );
 
-    // Use the new unified relayer handler - it handles EVERYTHING
+    // Use the unified relayer handler - works with or without operation store
+    // Without store: returns signed/confirmed responses immediately
+    // With store: enables async polling for resilient transaction management
     const vana = createRelayerVana();
     const result = await handleRelayerOperation(vana, body);
 

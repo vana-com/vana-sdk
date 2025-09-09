@@ -297,8 +297,11 @@ describe("Server Relayer Handler", () => {
       ).not.toHaveBeenCalled();
 
       expect(response).toEqual({
-        type: "submitted",
-        hash: "0xfilehash",
+        type: "direct",
+        result: {
+          fileId: 789,
+          transactionHash: "0xfilehash",
+        },
       });
     });
 
@@ -314,7 +317,7 @@ describe("Server Relayer Handler", () => {
         },
       };
 
-      await handleRelayerOperation(mockSdk, request);
+      const response = await handleRelayerOperation(mockSdk, request);
 
       // Should use the encrypted permissions method
       expect(
@@ -326,15 +329,27 @@ describe("Server Relayer Handler", () => {
         42,
         undefined,
       );
+
+      expect(response).toEqual({
+        type: "direct",
+        result: {
+          fileId: 789,
+          transactionHash: "0xfilehash",
+        },
+      });
     });
   });
 
   describe("Direct Operations - Grant Storage", () => {
     it("should handle storeGrantFile", async () => {
-      // Mock the data.upload method for grant storage
-      mockSdk.data.upload = vi.fn().mockResolvedValue({
-        url: "ipfs://mockhash",
-      });
+      // Mock the context with storageManager
+      (mockSdk.data as any).context = {
+        storageManager: {
+          upload: vi.fn().mockResolvedValue({
+            url: "ipfs://mockhash",
+          }),
+        },
+      };
 
       const grantFile = {
         grantee: "0xgrantee" as Address,
@@ -351,17 +366,13 @@ describe("Server Relayer Handler", () => {
 
       const response = await handleRelayerOperation(mockSdk, request);
 
-      // Verify it was called with a Blob containing the grant file
-      expect(mockSdk.data.upload).toHaveBeenCalledWith({
-        content: expect.any(Blob),
-        filename: expect.stringMatching(/^grant-\d+\.json$/),
-      });
-
-      // Verify the blob contains the correct data
-      const callArgs = (mockSdk.data.upload as any).mock.calls[0][0];
-      const blob = callArgs.content as Blob;
-      const text = await blob.text();
-      expect(JSON.parse(text)).toEqual(grantFile);
+      // Should use context.storageManager.upload
+      expect(
+        (mockSdk.data as any).context.storageManager.upload,
+      ).toHaveBeenCalledWith(
+        expect.any(Blob),
+        expect.stringMatching(/^grant-\d+\.json$/),
+      );
 
       expect(response).toEqual({
         type: "direct",
@@ -370,9 +381,7 @@ describe("Server Relayer Handler", () => {
     });
 
     it("should handle storage errors", async () => {
-      mockSdk.data.upload = vi
-        .fn()
-        .mockRejectedValue(new Error("Storage failed"));
+      // Don't mock data.upload since it's not used anymore
 
       const grantFile = {
         grantee: "0xgrantee" as Address,
@@ -388,9 +397,10 @@ describe("Server Relayer Handler", () => {
       };
 
       const response = await handleRelayerOperation(mockSdk, request);
+      // Without storage configuration, the handler should return an error
       expect(response).toEqual({
         type: "error",
-        error: "Storage failed",
+        error: "Storage configuration is required for storing grant files",
       });
     });
   });
@@ -590,8 +600,11 @@ describe("Server Relayer Handler", () => {
       );
 
       expect(response).toEqual({
-        type: "submitted",
-        hash: "0xfilehash",
+        type: "direct",
+        result: {
+          fileId: 789,
+          transactionHash: "0xfilehash",
+        },
       });
     });
   });

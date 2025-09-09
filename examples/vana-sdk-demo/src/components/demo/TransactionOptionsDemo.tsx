@@ -97,20 +97,10 @@ export function TransactionOptionsDemo() {
 
         addLog(`Permission grant submitted! Transaction: ${result.hash}`);
 
-        // Demonstrate sequential transaction with next nonce
-        const options2: TransactionOptions = {
-          nonce: currentNonce + 1,
-          gas: BigInt(gas),
-          gasPrice: BigInt(gasPrice) * BigInt(10 ** 9),
-        };
-
+        // Example: Sequential transactions can be submitted by incrementing the nonce
         addLog(
-          `Submitting second transaction with nonce ${currentNonce + 1}...`,
+          `Next transaction would use nonce ${currentNonce + 1} for sequential ordering`,
         );
-
-        // Could do another operation here with options2
-        // For demo purposes, just show the concept
-        addLog("Sequential transactions ensure proper ordering");
       } catch (error) {
         addLog(
           `Operation failed: ${error instanceof Error ? error.message : "Unknown error"}`,

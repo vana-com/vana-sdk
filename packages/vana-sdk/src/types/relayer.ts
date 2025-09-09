@@ -476,12 +476,8 @@ export type UnifiedRelayerResponse =
       hash: Hash;
     }
   | {
+      /** Non-transactional operations that complete immediately (e.g., IPFS uploads, file info) */
       type: "direct";
-      result: { fileId: number; transactionHash: Hash } | { url: string };
-    }
-  | {
-      /** Non-transactional operations that don't require tracking (e.g., IPFS uploads) */
-      type: "direct_result_untracked";
       /** The result data from the operation, structure depends on the specific operation */
       result: unknown;
     }

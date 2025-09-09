@@ -106,7 +106,7 @@ export async function handleRelayerOperation(
         return { type: "pending", operationId };
       } else {
         // This handles non-transactional direct operations like `storeGrantFile`
-        return { type: "direct_result_untracked", result: txResult };
+        return { type: "direct", result: txResult };
       }
     } catch (e) {
       const error =
@@ -136,7 +136,7 @@ export async function handleRelayerOperation(
         return { type: "submitted", hash: txResult.hash };
       } else {
         // Non-transactional direct operations can return their result directly.
-        return { type: "direct_result_untracked", result: txResult };
+        return { type: "direct", result: txResult };
       }
     } catch (e) {
       const error =

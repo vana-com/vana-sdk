@@ -364,7 +364,7 @@ describe("Server Relayer Handler", () => {
       expect(JSON.parse(text)).toEqual(grantFile);
 
       expect(response).toEqual({
-        type: "direct_result_untracked",
+        type: "direct",
         result: { url: "ipfs://mockhash" },
       });
     });

@@ -351,6 +351,7 @@ export class PermissionsController extends BaseController {
           if (
             response.type === "direct" &&
             typeof response.result === "object" &&
+            response.result !== null &&
             "url" in response.result
           ) {
             grantUrl = response.result.url as string;
@@ -490,6 +491,7 @@ export class PermissionsController extends BaseController {
           if (
             response.type === "direct" &&
             typeof response.result === "object" &&
+            response.result !== null &&
             "url" in response.result
           ) {
             grantUrl = response.result.url as string;

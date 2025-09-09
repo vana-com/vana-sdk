@@ -301,9 +301,10 @@ export function usePermissions(): UsePermissionsReturn {
       try {
         // Use custom parameters if provided, otherwise use defaults
         const params: GrantPermissionParams = {
-          grantee: applicationAddress as `0x${string}`,
+          grantee:
+            customParams?.grantee ?? (applicationAddress as `0x${string}`),
           operation: customParams?.operation ?? "llm_inference",
-          files: selectedFiles,
+          files: customParams?.files ?? selectedFiles,
           parameters: customParams?.parameters ?? {
             prompt: promptText,
           },
@@ -325,10 +326,57 @@ export function usePermissions(): UsePermissionsReturn {
           signature: null,
         });
 
-        console.debug("🟢 [usePermissions] Grant preview set, opening modal");
-        setIsGranting(false); // Reset here since modal will take over
-        onOpenGrant();
-        console.debug("🟢 [usePermissions] Modal should be open now");
+        // If customParams provided, we're being called from the modal - go straight to signing
+        if (customParams) {
+          console.debug(
+            "🟢 [usePermissions] Custom params provided, proceeding to sign",
+          );
+          console.debug(
+            "🟢 [usePermissions] vana instance config:",
+            vana?.getConfig?.(),
+          );
+          // Don't rely on state - pass params directly since state updates are async
+          setIsGranting(true);
+          setGrantTxHash("");
+          setGrantStatus("Creating grant file...");
+
+          // Debug: Check what's actually available
+          console.debug("🟢 [usePermissions] About to call createAndSign");
+          console.debug(
+            "🟢 [usePermissions] vana.permissions context:",
+            (vana.permissions as any).context,
+          );
+          const { typedData, signature } =
+            await vana.permissions.createAndSign(paramsWithExpiry);
+
+          setGrantStatus("Submitting to blockchain...");
+          const txHandle = await vana.permissions.submitSignedGrant(
+            typedData,
+            signature,
+          );
+          const txHash = txHandle.hash;
+
+          setGrantTxHash(txHash);
+          setGrantStatus(`✅ Permission granted! Transaction: ${txHash}`);
+
+          addToast({
+            title: "Permission Granted",
+            description: `Successfully granted permission. Transaction: ${txHash}`,
+            variant: "solid",
+            color: "success",
+          });
+
+          // Refresh permissions after delay
+          setTimeout(() => {
+            void loadUserPermissions();
+          }, 3000);
+        } else {
+          // Otherwise, open the modal for user to configure
+          console.debug("🟢 [usePermissions] Grant preview set, opening modal");
+          setIsGranting(false); // Reset here since modal will take over
+          onOpenGrant();
+          console.debug("🟢 [usePermissions] Modal should be open now");
+        }
       } catch (error) {
         console.error(
           "🟢 [usePermissions] Failed to prepare permission grant:",

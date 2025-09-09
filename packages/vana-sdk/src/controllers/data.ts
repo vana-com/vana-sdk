@@ -358,7 +358,12 @@ export class DataController extends BaseController {
         if (response.type === "error") {
           throw new Error(response.error);
         }
-        if (response.type !== "direct" || !("fileId" in response.result)) {
+        if (
+          response.type !== "direct" ||
+          typeof response.result !== "object" ||
+          response.result === null ||
+          !("fileId" in response.result)
+        ) {
           throw new Error("Invalid response from relayer");
         }
         result = response.result as { fileId: number; transactionHash: Hash };
@@ -2747,7 +2752,12 @@ export class DataController extends BaseController {
         if (response.type === "error") {
           throw new Error(response.error);
         }
-        if (response.type !== "direct" || !("fileId" in response.result)) {
+        if (
+          response.type !== "direct" ||
+          typeof response.result !== "object" ||
+          response.result === null ||
+          !("fileId" in response.result)
+        ) {
           throw new Error("Invalid response from relayer");
         }
         const result = response.result as {

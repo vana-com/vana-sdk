@@ -121,7 +121,6 @@ export abstract class BaseController {
     const baseOptions: any = {
       ...(options.nonce !== undefined && { nonce: options.nonce }),
       ...(options.gas !== undefined && { gas: options.gas }),
-      ...(options.gasLimit !== undefined && { gas: options.gasLimit }),
     };
 
     // EIP-1559 and legacy gasPrice are mutually exclusive in viem

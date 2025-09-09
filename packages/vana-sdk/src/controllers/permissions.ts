@@ -937,7 +937,7 @@ export class PermissionsController extends BaseController {
     options: { timeout?: number; pollingInterval?: number } = {},
   ): Promise<{ hash: Hash }> {
     const timeout = options.timeout ?? 30000; // 30 seconds default
-    const interval = options.pollingInterval ?? 1000; // 1 second default
+    let interval = options.pollingInterval ?? 1000; // 1 second default
     const startTime = Date.now();
 
     while (Date.now() - startTime < timeout) {
@@ -961,8 +961,10 @@ export class PermissionsController extends BaseController {
         );
       }
 
-      // Wait before next poll
+      // Wait before next poll with exponential backoff
       await new Promise((resolve) => setTimeout(resolve, interval));
+      // Simple exponential backoff: multiply by 1.5, cap at 5 seconds
+      interval = Math.min(interval * 1.5, 5000);
     }
 
     throw new Error(`Operation ${operationId} timed out after ${timeout}ms`);
@@ -1330,7 +1332,7 @@ export class PermissionsController extends BaseController {
         args: [params.permissionId],
         account,
         chain: this.context.walletClient?.chain ?? null,
-        ...(options?.gasLimit && { gas: options.gasLimit }),
+        ...(options?.gas && { gas: options.gas }),
         ...(options?.nonce && { nonce: options.nonce }),
         // Use EIP-1559 if available, otherwise fall back to legacy gasPrice
         ...(options?.maxFeePerGas || options?.maxPriorityFeePerGas
@@ -2352,7 +2354,7 @@ export class PermissionsController extends BaseController {
         args: [BigInt(params.serverId)],
         account,
         chain: this.context.walletClient?.chain ?? null,
-        ...(options?.gasLimit && { gas: options.gasLimit }),
+        ...(options?.gas && { gas: options.gas }),
         ...(options?.nonce && { nonce: options.nonce }),
         // Use EIP-1559 if available, otherwise fall back to legacy gasPrice
         ...(options?.maxFeePerGas || options?.maxPriorityFeePerGas
@@ -3255,17 +3257,7 @@ export class PermissionsController extends BaseController {
       args: [ownerAddress, granteeAddress, params.publicKey],
       account,
       chain: this.context.walletClient?.chain ?? null,
-      ...(options?.gasLimit && { gas: options.gasLimit }),
-      ...(options?.nonce && { nonce: options.nonce }),
-      // Use EIP-1559 if available, otherwise fall back to legacy gasPrice
-      ...(options?.maxFeePerGas || options?.maxPriorityFeePerGas
-        ? {
-            ...(options.maxFeePerGas && { maxFeePerGas: options.maxFeePerGas }),
-            ...(options.maxPriorityFeePerGas && {
-              maxPriorityFeePerGas: options.maxPriorityFeePerGas,
-            }),
-          }
-        : options?.gasPrice && { gasPrice: options.gasPrice }),
+      ...this.spreadTransactionOptions(options),
     });
 
     const { tx } = await import("../utils/transactionHelpers");
@@ -4342,7 +4334,7 @@ export class PermissionsController extends BaseController {
         args: [serverId, url],
         chain: this.context.walletClient?.chain,
         account,
-        ...(options?.gasLimit && { gas: options.gasLimit }),
+        ...(options?.gas && { gas: options.gas }),
         ...(options?.nonce && { nonce: options.nonce }),
         // Use EIP-1559 if available, otherwise fall back to legacy gasPrice
         ...(options?.maxFeePerGas || options?.maxPriorityFeePerGas
@@ -4912,7 +4904,7 @@ export class PermissionsController extends BaseController {
         args: [permissionId],
         chain: this.context.walletClient?.chain,
         account,
-        ...(options?.gasLimit && { gas: options.gasLimit }),
+        ...(options?.gas && { gas: options.gas }),
         ...(options?.nonce && { nonce: options.nonce }),
         // Use EIP-1559 if available, otherwise fall back to legacy gasPrice
         ...(options?.maxFeePerGas || options?.maxPriorityFeePerGas
@@ -5027,24 +5019,11 @@ export class PermissionsController extends BaseController {
       address: DataPortabilityPermissionsAddress,
       abi: DataPortabilityPermissionsAbi,
       functionName: "addServerFilesAndPermissions",
-      // @ts-expect-error - Viem's type inference for nested Permission[][] arrays is incompatible with our Permission type
       args: [serverFilesAndPermissionInput, formattedSignature],
       account: this.context.walletClient?.account ?? this.context.userAddress,
       chain: this.context.walletClient?.chain ?? null,
-      ...(options?.gasLimit && { gas: options.gasLimit }),
-      ...(options?.nonce && { nonce: options.nonce }),
       ...(options?.value && { value: options.value }),
-      // Use EIP-1559 if available, otherwise fall back to legacy gasPrice
-      ...(options?.maxFeePerGas || options?.maxPriorityFeePerGas
-        ? {
-            ...(options.maxFeePerGas && {
-              maxFeePerGas: options.maxFeePerGas,
-            }),
-            ...(options.maxPriorityFeePerGas && {
-              maxPriorityFeePerGas: options.maxPriorityFeePerGas,
-            }),
-          }
-        : options?.gasPrice && { gasPrice: options.gasPrice }),
+      ...this.spreadTransactionOptions(options),
     });
 
     return hash;

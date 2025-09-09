@@ -276,14 +276,13 @@ export function getTransactionHash(
 
 /**
  * Options for customizing a blockchain transaction.
- * Compatible with viem's transaction parameters.
+ * Matches viem's transaction parameters exactly.
  *
  * @category Operations
  */
 export interface TransactionOptions {
   nonce?: number;
   gas?: bigint;
-  gasLimit?: bigint;
   maxFeePerGas?: bigint;
   maxPriorityFeePerGas?: bigint;
   gasPrice?: bigint;
@@ -301,7 +300,7 @@ export interface OperationState {
   status: "pending" | "confirmed" | "failed";
   transactionHash: Hash;
   originalRequest: UnifiedRelayerRequest;
-  nonce: number;
+  nonce?: number;
   retryCount: number;
   lastAttemptedGas: { maxFeePerGas?: string; maxPriorityFeePerGas?: string };
   submittedAt: number; // Unix timestamp (ms)

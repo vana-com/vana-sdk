@@ -95,7 +95,7 @@ export async function handleRelayerOperation(
           status: "pending",
           transactionHash: txResult.hash,
           originalRequest: request,
-          nonce: (options?.nonce ?? 0) as number,
+          nonce: options?.nonce,
           retryCount: 0,
           lastAttemptedGas: {
             maxFeePerGas: options?.maxFeePerGas?.toString(),

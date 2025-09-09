@@ -7,10 +7,28 @@ import {
   type VanaInstance,
   type VanaChain,
   type VanaChainId,
+  type IOperationStore,
+  type OperationState,
 } from "@opendatalabs/vana-sdk/node";
 
 // Simple in-memory storage for demo purposes
 const parameterStorage = new Map<string, string>();
+
+// Simple in-memory operation store for demo purposes
+// In production, use a persistent database like Redis or PostgreSQL
+class InMemoryOperationStore implements IOperationStore {
+  private operations = new Map<string, OperationState>();
+
+  async get(operationId: string): Promise<OperationState | null> {
+    return this.operations.get(operationId) ?? null;
+  }
+
+  async set(operationId: string, state: OperationState): Promise<void> {
+    this.operations.set(operationId, state);
+  }
+}
+
+const operationStore = new InMemoryOperationStore();
 
 // Demo relayer configuration
 const RELAYER_PRIVATE_KEY =
@@ -76,9 +94,13 @@ export const relayerStorage = {
 };
 
 /**
- * Create a pre-configured Vana SDK instance using the relayer wallet
+ * Create a pre-configured Vana SDK instance using the relayer wallet.
+ * Includes an operation store for resilient transaction management.
  */
 export function createRelayerVana(chainId: VanaChainId = 14800): VanaInstance {
   const config = createRelayerConfig(chainId);
-  return Vana({ walletClient: config.walletClient });
+  return Vana({
+    walletClient: config.walletClient,
+    operationStore, // Enable stateful relayer mode with operation tracking
+  });
 }

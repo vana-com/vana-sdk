@@ -28,7 +28,8 @@ interface DataPortabilityConfig {
  * Executes the complete E2E data portability workflow
  */
 export class DataPortabilityFlow {
-  private vana: any; // Vana SDK instance
+  private vana: any; // Vana SDK instance (for signing/encryption)
+  private vanaRelayer: any; // Vana SDK instance (for transactions) - optional
   private walletClient: WalletClient;
   private callbacks: FlowStepCallbacks;
   private platformAdapter: NodePlatformAdapter;
@@ -44,9 +45,11 @@ export class DataPortabilityFlow {
     callbacks: FlowStepCallbacks,
     testId: string = 'load-test',
     config?: DataPortabilityConfig,
-    loadTestConfig?: LoadTestConfig
+    loadTestConfig?: LoadTestConfig,
+    vanaRelayer?: VanaInstance // Optional relayer SDK instance for transactions
   ) {
     this.vana = vana;
+    this.vanaRelayer = vanaRelayer || vana; // Use relayer if provided, otherwise use same instance
     this.walletClient = walletClient;
     this.callbacks = callbacks;
     this.platformAdapter = new NodePlatformAdapter();
@@ -205,7 +208,7 @@ export class DataPortabilityFlow {
     userAddress: string,
     customPrompt: string,
     schemaId?: number | null,
-  ): Promise<string> {
+  ): Promise<{ permissionId: string; transactionHash: string }> {
     this.callbacks.onStatusUpdate(`[${this.testId}] Preparing data portability transaction...`);
 
     try {
@@ -219,7 +222,7 @@ export class DataPortabilityFlow {
 
       // CRITICAL FIX: Get grantee info from SDK to get the grantee's address (like vana-vibes does)
       console.log(`🔍 Debug - Looking up grantee ID ${granteeId} on blockchain...`);
-      const grantee = await this.vana.permissions.getGranteeById(Number(granteeId));
+      const grantee = await this.vanaRelayer.permissions.getGranteeById(Number(granteeId));
       
       if (!grantee) {
         throw new Error(`Grantee ${granteeId} not found on chain - this will cause transaction revert!`);
@@ -247,7 +250,7 @@ export class DataPortabilityFlow {
         parameters,
       );
 
-      const serverInfo = await this.vana.server.getIdentity({
+      const serverInfo = await this.vanaRelayer.server.getIdentity({
         userAddress: userAddress as `0x${string}`,
       });
 
@@ -302,7 +305,7 @@ export class DataPortabilityFlow {
         const permissionsController = (this.vana as any).permissions;
         if (permissionsController && typeof permissionsController.getPermissionsUserNonce === 'function') {
           const currentNonce = await permissionsController.getPermissionsUserNonce();
-          console.log(`🔍 Debug - Current contract nonce for this wallet: ${currentNonce}`);
+          console.log(`🔍 Debug - Current contract nonce for end-user wallet: ${currentNonce}`);
         }
       } catch (error) {
         console.log(`🔍 Debug - Could not read contract nonce: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -348,15 +351,22 @@ export class DataPortabilityFlow {
 
       console.log(`🔍 [${this.testId}] DEBUG: Submitting addServerFilesAndPermissions transaction...`);
       
-      // Get wallet address first
+      // Get relayer wallet address (for transactions)
+      const relayerWalletClient = (this.vanaRelayer as any).walletClient;
+      const relayerAddress = relayerWalletClient?.account?.address || 'unknown';
+      
+      // Get end-user wallet address (for signing)
       const walletAddress = this.walletClient.account?.address || 'unknown';
+      
+      console.log(`🔍 [${this.testId}] DEBUG: Using relayer wallet ${relayerAddress} for transaction`);
+      console.log(`🔍 [${this.testId}] DEBUG: End-user wallet ${walletAddress} for signing`);
       
       // Check current nonce for debugging
       let currentNonce: bigint;
       try {
         // Get nonce directly from contract using the same method as the SDK
-        // We'll access the contract address through the vana instance's public client
-        const chainId = await this.vana.publicClient.getChainId();
+        // We'll access the contract address through the relayer instance's public client
+        const chainId = await this.vanaRelayer.publicClient.getChainId();
         
         // For now, let's use the known contract address for Moksha testnet
         // TODO: This should be dynamic based on chain, but for debugging it's fine
@@ -364,11 +374,11 @@ export class DataPortabilityFlow {
         const { getAbi } = await import('@opendatalabs/vana-sdk/node');
         const DataPortabilityPermissionsAbi = getAbi("DataPortabilityPermissions");
         
-        currentNonce = await this.vana.publicClient.readContract({
+        currentNonce = await this.vanaRelayer.publicClient.readContract({
           address: DataPortabilityPermissionsAddress,
           abi: DataPortabilityPermissionsAbi,
           functionName: "userNonce",
-          args: [walletAddress as `0x${string}`],
+          args: [walletAddress as `0x${string}`], // Use end-user address - nonce is per user, not per relayer
         });
         console.log(`🔍 [${this.testId}] DEBUG: Current contract nonce for this wallet: ${currentNonce}`);
       } catch (error) {
@@ -380,7 +390,7 @@ export class DataPortabilityFlow {
         granteeId: BigInt(granteeId),
         grant: grantUrl,
         fileUrls: [fileUrl],
-        schemaIds: [finalSchemaId],
+        schemaIds: [BigInt(finalSchemaId)],
         serverAddress: serverInfo.address as `0x${string}`,
         serverUrl: serverInfo.baseUrl,
         serverPublicKey: serverInfo.publicKey,
@@ -424,7 +434,7 @@ export class DataPortabilityFlow {
         'granteeId (BigInt)': transactionInput.granteeId.toString(),
         'grant URL length': transactionInput.grant.length,
         'fileUrls[0] length': transactionInput.fileUrls[0]?.length || 0,
-        'schemaIds[0]': transactionInput.schemaIds[0],
+        'schemaIds[0] (BigInt)': transactionInput.schemaIds[0].toString(),
         'serverAddress': transactionInput.serverAddress,
         'serverUrl length': transactionInput.serverUrl.length,
         'serverPublicKey length': transactionInput.serverPublicKey.length,
@@ -433,22 +443,94 @@ export class DataPortabilityFlow {
         'filePermissions[0][0].key length': transactionInput.filePermissions[0]?.[0]?.key?.length || 0,
       });
 
-      // Debug: Check the actual transaction submission
-      console.log(`🔍 [${this.testId}] DEBUG: Pre-submission check:`, {
-        'walletClient.account': this.walletClient.account?.address,
-        'walletClient.chain': this.walletClient.chain?.name,
-        'vana has permissions': !!this.vana.permissions,
-        'vana.permissions has submitAddServerFilesAndPermissions': typeof this.vana.permissions.submitAddServerFilesAndPermissions === 'function',
+      // Import handleRelayerOperation from vana-sdk
+      const { handleRelayerOperation } = await import('@opendatalabs/vana-sdk/node');
+      
+      // Create typed data structure for ServerFilesAndPermission
+      const chainId = await this.vanaRelayer.publicClient.getChainId();
+      const domain = {
+        name: "VanaDataPortabilityPermissions",
+        version: "1",
+        chainId: Number(chainId),
+        verifyingContract: "0xD54523048AdD05b4d734aFaE7C68324Ebb7373eF" as `0x${string}`, // DataPortabilityPermissions contract
+      };
+
+      const types = {
+        Permission: [
+          { name: "account", type: "address" },
+          { name: "key", type: "string" },
+        ],
+        ServerFilesAndPermission: [
+          { name: "nonce", type: "uint256" },
+          { name: "granteeId", type: "uint256" },
+          { name: "grant", type: "string" },
+          { name: "fileUrls", type: "string[]" },
+          { name: "schemaIds", type: "uint256[]" },
+          { name: "serverAddress", type: "address" },
+          { name: "serverUrl", type: "string" },
+          { name: "serverPublicKey", type: "string" },
+          { name: "filePermissions", type: "Permission[][]" },
+        ],
+      };
+
+      const message = {
+        nonce: currentNonce,
+        ...transactionInput,
+      };
+
+      const typedData = {
+        domain,
+        types,
+        primaryType: "ServerFilesAndPermission" as const,
+        message,
+      };
+
+      console.log(`🔍 [${this.testId}] DEBUG: Signing typed data with end-user wallet ${walletAddress}`);
+      
+      // Sign the typed data with the END-USER wallet (not the relayer)
+      const signature = await this.walletClient.signTypedData({
+        account: this.walletClient.account!,
+        domain,
+        types,
+        primaryType: "ServerFilesAndPermission",
+        message,
       });
 
-      const txHandle = await this.vana.permissions.submitAddServerFilesAndPermissions(
-        transactionInput,
-        transactionOptions
-      );
+      console.log(`🔍 [${this.testId}] DEBUG: Signature obtained from end-user wallet`);
+      console.log(`🔍 [${this.testId}] DEBUG: Submitting via handleRelayerOperation with relayer wallet ${relayerAddress}`);
 
-      const txHash = txHandle.hash;
+      // Create the signed relayer request
+      const relayerRequest = {
+        type: "signed" as const,
+        operation: "submitAddServerFilesAndPermissions" as const,
+        typedData,
+        signature,
+        expectedUserAddress: this.walletClient.account?.address, // End-user address for verification
+      };
+
+      // Call handleRelayerOperation with vanaRelayer (which has the master relayer wallet)
+      const result = await handleRelayerOperation(this.vanaRelayer, relayerRequest);
       
-      console.log(`✅ [${this.testId}] DEBUG: Transaction submitted successfully!`);
+      console.log(`✅ [${this.testId}] DEBUG: handleRelayerOperation completed!`);
+      console.log(`🔍 [${this.testId}] DEBUG: Relayer result:`, result);
+
+      // Extract transaction hash from the result
+      let txHash: string;
+      if (result.type === "signed" && result.hash) {
+        txHash = result.hash;
+      } else {
+        throw new Error(`Unexpected result from handleRelayerOperation: ${JSON.stringify(result)}`);
+      }
+
+      // Create a transaction handle compatible with waitForTransactionEvents
+      const txHandle = {
+        hash: txHash as `0x${string}`,
+        from: relayerAddress as `0x${string}`, // The relayer submitted the tx
+        contract: "DataPortabilityPermissions" as const,
+        fn: "addServerFilesAndPermissions" as const,
+      };
+      
+      console.log(`✅ [${this.testId}] DEBUG: Transaction submitted successfully via handleRelayerOperation!`);
       console.log(`🔍 [${this.testId}] DEBUG: Transaction handle:`, {
         hash: txHandle.hash,
         from: txHandle.from,
@@ -456,10 +538,10 @@ export class DataPortabilityFlow {
         fn: txHandle.fn
       });
       
-      this.callbacks.onStatusUpdate(`[${this.testId}] Transaction submitted: ${txHash}`);
+      this.callbacks.onStatusUpdate(`[${this.testId}] Transaction submitted via relayer: ${txHash}`);
       
-      // Log wallet address and transaction hash for debugging nonce issues
-      console.log(`[${this.testId}] Wallet: ${walletAddress} | TxHash: ${txHash}`);
+      // Log wallet addresses and transaction hash for debugging
+      console.log(`[${this.testId}] End-user: ${walletAddress} | Relayer: ${relayerAddress} | TxHash: ${txHash} (via handleRelayerOperation)`);
 
       // Wait for transaction confirmation and extract permission ID from events
       this.callbacks.onStatusUpdate(
@@ -468,7 +550,7 @@ export class DataPortabilityFlow {
 
       try {
         console.log(`🔍 [${this.testId}] DEBUG: Waiting for transaction events for tx ${txHash}`);
-        const events = await this.vana.waitForTransactionEvents(txHandle);
+        const events = await this.vanaRelayer.waitForTransactionEvents(txHandle);
         
         // Debug: Log the full events structure
         console.log(`🔍 [${this.testId}] DEBUG: Transaction events received:`, {
@@ -519,20 +601,25 @@ export class DataPortabilityFlow {
         this.callbacks.onStatusUpdate(
           `[${this.testId}] Permission ID received: ${permissionIdStr}`,
         );
-        return permissionIdStr;
+        return { 
+          permissionId: permissionIdStr,
+          transactionHash: txHash 
+        };
       } catch (waitError) {
-        // Include wallet address and transaction hash in error for debugging
+        // Include wallet addresses and transaction hash in error for debugging
         throw new Error(
-          `Transaction ${txHash} failed for wallet ${walletAddress}: ${
+          `Transaction ${txHash} failed for end-user ${walletAddress} (submitted by relayer ${relayerAddress}): ${
             waitError instanceof Error ? waitError.message : "Unknown error"
           }`,
         );
       }
     } catch (error) {
-      // This catches errors from submitAddServerFilesAndPermissions
+      // This catches errors from handleRelayerOperation
       const walletAddress = this.walletClient.account?.address || 'unknown';
+      const relayerWalletClient = (this.vanaRelayer as any).walletClient;
+      const relayerAddress = relayerWalletClient?.account?.address || 'unknown';
       throw new Error(
-        `Transaction submission failed for wallet ${walletAddress}: ${
+        `Transaction submission failed for end-user ${walletAddress} (relayer: ${relayerAddress}): ${
           error instanceof Error ? error.message : "Unknown error"
         }`,
       );
@@ -705,14 +792,17 @@ export class DataPortabilityFlow {
     prompt: string,
     serverUrl: string,
     schemaId?: number | null,
-  ): Promise<void> {
+  ): Promise<{ transactionHash?: string; permissionId?: string }> {
+    let transactionHash: string | undefined;
+    let permissionId: string | undefined;
+    
     try {
       // Step 0: Validate data against schema if provided
       if (schemaId && schemaId > 0) {
         this.callbacks.onStatusUpdate(`[${this.testId}] Validating data against schema...`);
         try {
-          // Get schema metadata from blockchain
-          const schema = await this.vana.schemas.get(schemaId);
+          // Get schema metadata from blockchain (use relayer SDK for blockchain reads)
+          const schema = await this.vanaRelayer.schemas.get(schemaId);
           
           // Fetch the actual schema definition
           const dataSchema = await this.fetchSchemaDefinition(schema);
@@ -742,12 +832,14 @@ export class DataPortabilityFlow {
       const fileUrl = await this.uploadToStorage(encryptedBlob);
 
       // Step 3: Execute blockchain transaction with permissions (NO RETRY - one-time only)
-      const permissionId = await this.executeTransaction(
+      const txResult = await this.executeTransaction(
         fileUrl,
         userAddress,
         prompt,
         schemaId,
       );
+      transactionHash = txResult.transactionHash;
+      permissionId = txResult.permissionId;
 
       // Step 4: Submit AI inference request (retry on network/server errors)
       const operationId = await this.executeWithSelectiveRetry(
@@ -769,6 +861,12 @@ export class DataPortabilityFlow {
       this.callbacks.onStatusUpdate(
         `[${this.testId}] Data portability flow completed successfully!`,
       );
+      
+      // Return transaction hash and permission ID
+      return { 
+        transactionHash: transactionHash,
+        permissionId: permissionId 
+      };
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error occurred";

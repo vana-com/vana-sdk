@@ -74,8 +74,10 @@ async function createStorageProviders(config: LoadTestConfig): Promise<Record<st
  * 5. Result polling and retrieval
  */
 export class VanaLoadTestClient {
-  private vana: any; // Vana SDK instance
+  private vana: any; // Vana SDK instance (user wallet for signing)
+  private vanaRelayer: any; // Vana SDK instance (master relayer for transactions)
   private walletClient: WalletClient;
+  private relayerWalletClient?: WalletClient; // Master relayer wallet client
   private publicClient: any;
   private config: LoadTestConfig;
   private account: Account;
@@ -95,8 +97,7 @@ export class VanaLoadTestClient {
       transport: http(rpcEndpoint),
     });
 
-    // Create wallet client with standard configuration
-    // Ensure local signing for QuickNode compatibility (uses eth_sendRawTransaction)
+    // Create wallet client for end-user (signing, encryption)
     const baseWalletClient = createWalletClient({
       chain: mokshaTestnet,
       transport: http(rpcEndpoint),
@@ -107,10 +108,25 @@ export class VanaLoadTestClient {
       console.log(chalk.gray(`[${this.account.address}] Using RPC: ${rpcEndpoint}`));
     }
     
-    // Use the standard wallet client - premium gas will be handled via SDK TransactionOptions
+    // Use the standard wallet client for the end-user
     this.walletClient = baseWalletClient;
+    
+    // Create master relayer wallet client if provided
+    if (config.masterRelayerPrivateKey) {
+      const relayerAccount = privateKeyToAccount(config.masterRelayerPrivateKey as `0x${string}`);
+      this.relayerWalletClient = createWalletClient({
+        chain: mokshaTestnet,
+        transport: http(rpcEndpoint),
+        account: relayerAccount,
+      });
+      
+      if (config.enableDebugLogs) {
+        console.log(chalk.yellow(`[${this.account.address}] Using master relayer ${relayerAccount.address} for transactions`));
+      }
+    }
+    
     if (config.enableDebugLogs) {
-      console.log(chalk.yellow(`[${this.account.address}] Using SDK TransactionOptions for ${config.premiumGasMultiplier}x gas premium (no monkey-patch needed)`));
+      console.log(chalk.yellow(`[${this.account.address}] Using SDK TransactionOptions for ${config.premiumGasMultiplier}x gas premium`));
     }
     
     // Determine the default provider (prefer real storage over mock)
@@ -118,8 +134,7 @@ export class VanaLoadTestClient {
       : storageProviders['pinata'] ? 'pinata' 
       : 'mock';
     
-    // Initialize Vana SDK instance with storage configuration
-    // Cast the walletClient to match the expected type (similar to vana-vibes)
+    // Initialize Vana SDK instance with end-user wallet (for signing, encryption)
     this.vana = Vana({ 
       walletClient: this.walletClient as WalletClient & { chain: typeof mokshaTestnet }, 
       storage: {
@@ -128,6 +143,21 @@ export class VanaLoadTestClient {
       },
       defaultPersonalServerUrl: config.personalServerUrl || 'http://localhost:3001',
     });
+    
+    // Initialize separate Vana SDK instance with master relayer wallet (for transactions)
+    if (this.relayerWalletClient) {
+      this.vanaRelayer = Vana({
+        walletClient: this.relayerWalletClient as WalletClient & { chain: typeof mokshaTestnet },
+        storage: {
+          providers: storageProviders,
+          defaultProvider,
+        },
+        defaultPersonalServerUrl: config.personalServerUrl || 'http://localhost:3001',
+      });
+    } else {
+      // Fallback to using the same instance if no master relayer is provided
+      this.vanaRelayer = this.vana;
+    }
     
     // DEBUG: Check if the SDK properly initialized the context
     if (config.enableDebugLogs) {
@@ -239,21 +269,22 @@ export class VanaLoadTestClient {
         console.log(`[${testId}] ⏭️  Skipping funding check (using pre-funded wallet)`);
       }
 
-      // Create the data portability flow instance
+      // Create the data portability flow instance with dual wallet setup
       const flow = new DataPortabilityFlow(
-        this.vana,
-        this.walletClient,
+        this.vana, // User SDK for signing/encryption
+        this.walletClient, // User wallet client
         this.createCallbacks(testId),
         testId,
         {
           dataWalletAppAddress: this.config.dataWalletAppAddress,
           defaultGranteeId: this.config.defaultGranteeId,
         },
-        this.config // Pass load test config for premium gas configuration and timeout
+        this.config, // Pass load test config for premium gas configuration and timeout
+        this.vanaRelayer // Pass relayer SDK for transactions
       );
 
       // Execute the complete flow with granular error handling
-      await flow.executeCompleteFlow(
+      const flowResult = await flow.executeCompleteFlow(
         walletAddress,
         userData,
         prompt,
@@ -265,6 +296,8 @@ export class VanaLoadTestClient {
 
       if (this.config.enableDebugLogs) {
         console.log(`[${testId}] E2E flow completed successfully in ${duration}ms`);
+        console.log(`[${testId}] Transaction hash: ${flowResult.transactionHash}`);
+        console.log(`[${testId}] Permission ID: ${flowResult.permissionId}`);
       }
 
       return {
@@ -272,6 +305,8 @@ export class VanaLoadTestClient {
         duration,
         walletAddress,
         inferenceResult: 'Flow completed successfully',
+        transactionHash: flowResult.transactionHash,
+        permissionId: flowResult.permissionId,
       };
 
     } catch (error) {

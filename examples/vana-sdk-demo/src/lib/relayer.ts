@@ -115,6 +115,7 @@ export function createRelayerVana(chainId: VanaChainId = 14800): VanaInstance {
 
   return Vana({
     walletClient: config.walletClient,
+    publicClient: config.publicClient, // Add public client for blockchain queries
     operationStore, // Enable stateful relayer mode with operation tracking
     ...(Object.keys(storageProviders).length > 0 && {
       storage: {

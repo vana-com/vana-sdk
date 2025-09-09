@@ -42,6 +42,7 @@ import type {
   PollingOptions,
   TransactionResult,
   TransactionWaitOptions,
+  IOperationStore,
 } from "./types/operations";
 import type {
   Contract,
@@ -181,6 +182,7 @@ export class VanaCore {
   private readonly publicClient: PublicClient;
   private readonly walletClient?: WalletClient;
   private readonly _staticUserAddress?: Address; // For read-only mode
+  protected readonly operationStore?: IOperationStore;
 
   /**
    * Initializes a new VanaCore client instance with the provided configuration.
@@ -209,6 +211,9 @@ export class VanaCore {
 
     // Validate configuration
     this.validateConfig(config);
+
+    // Store operation store if provided
+    this.operationStore = config?.operationStore;
 
     // Store relayer config and set up callback
     this.relayerConfig = config.relayer;
@@ -376,6 +381,7 @@ export class VanaCore {
       defaultPersonalServerUrl: personalServerUrl,
       waitForTransactionEvents: this.waitForTransactionEvents.bind(this),
       waitForOperation: this.waitForOperation.bind(this),
+      operationStore: this.operationStore,
     };
 
     // Initialize controllers

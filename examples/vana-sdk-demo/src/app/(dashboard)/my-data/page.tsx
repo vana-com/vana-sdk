@@ -20,6 +20,7 @@ import { PermissionsTab } from "./components/PermissionsTab";
 import { ServersTab } from "./components/ServersTab";
 import { GranteesTab } from "./components/GranteesTab";
 import { ContractCallsTab } from "@/components/ui/ContractCallsTab";
+import { TransactionOptionsDemo } from "@/components/demo/TransactionOptionsDemo";
 
 /**
  * My Data page - User's personal data control panel
@@ -513,6 +514,9 @@ export default function MyDataPage() {
         </Tab>
         <Tab key="contract-calls" title="Contract Calls">
           {vana && <ContractCallsTab vana={vana} chainId={chainId || 14800} />}
+        </Tab>
+        <Tab key="transaction-options" title="Transaction Options">
+          <TransactionOptionsDemo />
         </Tab>
       </Tabs>
 

@@ -894,7 +894,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         const options = {
           maxFeePerGas: 80n * 10n ** 9n, // 80 gwei
           maxPriorityFeePerGas: 3n * 10n ** 9n, // 3 gwei
-          gasLimit: 400000n,
+          gas: 400000n,
         };
 
         await controller.submitUntrustServer(params, options);
@@ -916,7 +916,7 @@ describe("PermissionsController - Trust/Untrust Server Methods", () => {
         const params = { serverId: 1 };
         const options = {
           gasPrice: 60n * 10n ** 9n, // 60 gwei
-          gasLimit: 200000n,
+          gas: 200000n,
           nonce: 5,
         };
 

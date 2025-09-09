@@ -435,12 +435,11 @@ describe("Additional IPFS Utils", () => {
 
   describe("Constants", () => {
     it("should export expected gateway URLs", () => {
-      expect(IPFS_GATEWAYS).toHaveLength(5);
-      expect(IPFS_GATEWAYS[0]).toBe("https://dweb.link/ipfs/");
-      expect(IPFS_GATEWAYS[1]).toBe("https://ipfs.io/ipfs/");
-      expect(IPFS_GATEWAYS[2]).toBe("https://cloudflare-ipfs.com/ipfs/");
-      expect(IPFS_GATEWAYS[3]).toBe("https://gateway.pinata.cloud/ipfs/");
-      expect(IPFS_GATEWAYS[4]).toBe("https://ipfs.filebase.io/ipfs/");
+      expect(IPFS_GATEWAYS).toHaveLength(4);
+      expect(IPFS_GATEWAYS[0]).toBe("https://ipfs.io/ipfs/");
+      expect(IPFS_GATEWAYS[1]).toBe("https://dweb.link/ipfs/");
+      expect(IPFS_GATEWAYS[2]).toBe("https://gateway.pinata.cloud/ipfs/");
+      expect(IPFS_GATEWAYS[3]).toBe("https://ipfs.filebase.io/ipfs/");
     });
 
     it("should have correct default gateway", () => {

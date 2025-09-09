@@ -229,6 +229,7 @@ export function createTypedMockPublicClient(
     transactionHash: "0xtxhash" as Hash,
     blockNumber: 12345n,
     blockHash: "0xblockhash" as Hash,
+    transactionIndex: 0,
     from: "0xfrom",
     to: "0xto",
     cumulativeGasUsed: 100000n,

@@ -111,7 +111,7 @@ describe("Generic Types", () => {
         method: "grantPermission",
         args: ["0x1234567890123456789012345678901234567890", 123, true],
         options: {
-          gasLimit: 100000n,
+          gas: 100000n,
           gasPrice: 20000000000n,
           value: 0n,
         },
@@ -123,7 +123,7 @@ describe("Generic Types", () => {
         123,
         true,
       ]);
-      expect(call.options?.gasLimit).toBe(100000n);
+      expect(call.options?.gas).toBe(100000n);
       expect(call.options?.gasPrice).toBe(20000000000n);
     });
 

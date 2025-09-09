@@ -16,6 +16,7 @@ import type {
   TransactionWaitOptions,
   Operation,
   PollingOptions,
+  IOperationStore,
 } from "./operations";
 import type {
   Contract,
@@ -81,4 +82,6 @@ export interface ControllerContext {
   waitForTransactionEvents?: WaitForTransactionEventsFn;
   /** Waits for an operation to complete with polling. */
   waitForOperation?: WaitForOperationFn;
+  /** Tracks async relayed transactions for resilient management. */
+  operationStore?: IOperationStore;
 }

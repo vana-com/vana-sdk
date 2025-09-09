@@ -9,15 +9,38 @@ import type {
   VanaConfig,
   VanaConfigWithStorage,
   StorageRequiredMarker,
+  RelayerRequiredMarker,
+  IOperationStore,
 } from "./types";
+
+/**
+ * Node.js-specific configuration interface with operation store support
+ *
+ * @category Configuration
+ */
+export type VanaNodeConfig = VanaConfig & {
+  operationStore?: IOperationStore;
+};
+
+/**
+ * Node.js configuration with storage requirements
+ *
+ * @category Configuration
+ */
+export type VanaNodeConfigWithStorage = VanaConfigWithStorage & {
+  operationStore?: IOperationStore;
+};
 
 /**
  * Internal implementation class for Node.js environments.
  * This class is not exported directly - use the Vana factory function instead.
  */
 class VanaNodeImpl extends VanaCore {
-  constructor(config: VanaConfig) {
+  override readonly operationStore?: IOperationStore;
+
+  constructor(config: VanaNodeConfig) {
     super(new NodePlatformAdapter(), config);
+    this.operationStore = config.operationStore;
   }
 }
 
@@ -139,17 +162,26 @@ class VanaNodeImpl extends VanaCore {
  * @see {@link VanaCore} for the underlying implementation details
  * @category Core SDK
  */
+// Overload 1: For configurations that include both storage and operation store
 export function Vana(
-  config: VanaConfigWithStorage,
+  config: VanaNodeConfigWithStorage & { operationStore: IOperationStore },
+): VanaNodeImpl & StorageRequiredMarker & RelayerRequiredMarker;
+
+// Overload 2: For configurations that include only the operation store
+export function Vana(
+  config: VanaNodeConfig & { operationStore: IOperationStore },
+): VanaNodeImpl & RelayerRequiredMarker;
+
+// Overload 3: For configurations with storage but no operation store
+export function Vana(
+  config: VanaNodeConfigWithStorage,
 ): VanaNodeImpl & StorageRequiredMarker;
-export function Vana(config: VanaConfig): VanaNodeImpl;
-/**
- * Creates a new Vana SDK instance.
- *
- * @param config - The configuration for the Vana SDK
- * @returns A new Vana SDK instance
- */
-export function Vana(config: VanaConfig) {
+
+// Overload 4: Base configuration without special requirements
+export function Vana(config: VanaNodeConfig): VanaNodeImpl;
+
+// Implementation
+export function Vana(config: VanaNodeConfig) {
   return new VanaNodeImpl(config);
 }
 

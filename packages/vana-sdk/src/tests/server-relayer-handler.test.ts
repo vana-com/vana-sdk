@@ -33,21 +33,39 @@ function createMockSdk(): VanaInstance {
     permissions: {
       submitSignedGrant: vi.fn().mockResolvedValue({
         hash: "0xsignedhash" as `0x${string}`,
+        from: "0xuser" as `0x${string}`,
+        contract: "DataPortabilityPermissions",
+        fn: "addPermission",
       }),
       submitSignedRevoke: vi.fn().mockResolvedValue({
         hash: "0xsignedhash" as `0x${string}`,
+        from: "0xuser" as `0x${string}`,
+        contract: "DataPortabilityPermissions",
+        fn: "revokePermission",
       }),
       submitSignedTrustServer: vi.fn().mockResolvedValue({
         hash: "0xsignedhash" as `0x${string}`,
+        from: "0xuser" as `0x${string}`,
+        contract: "DataPortabilityServers",
+        fn: "trustServerWithSignature",
       }),
       submitSignedAddAndTrustServer: vi.fn().mockResolvedValue({
         hash: "0xsignedhash" as `0x${string}`,
+        from: "0xuser" as `0x${string}`,
+        contract: "DataPortabilityServers",
+        fn: "addAndTrustServerWithSignature",
       }),
       submitSignedUntrustServer: vi.fn().mockResolvedValue({
         hash: "0xsignedhash" as `0x${string}`,
+        from: "0xuser" as `0x${string}`,
+        contract: "DataPortabilityServers",
+        fn: "untrustServerWithSignature",
       }),
       submitSignedAddServerFilesAndPermissions: vi.fn().mockResolvedValue({
         hash: "0xsignedhash" as `0x${string}`,
+        from: "0xuser" as `0x${string}`,
+        contract: "DataPortabilityServers",
+        fn: "addServerFilesAndPermissions",
       }),
     },
     waitForTransactionEvents: vi.fn().mockResolvedValue({
@@ -99,7 +117,7 @@ describe("Server Relayer Handler", () => {
       const response = await handleRelayerOperation(mockSdk, request);
 
       expect(response).toEqual({
-        type: "signed",
+        type: "submitted",
         hash: "0xsignedhash",
       });
     });
@@ -135,9 +153,11 @@ describe("Server Relayer Handler", () => {
         expectedUserAddress: "0xExpectedAddress" as Address,
       };
 
-      await expect(handleRelayerOperation(mockSdk, request)).rejects.toThrow(
-        "Security verification failed",
-      );
+      const response = await handleRelayerOperation(mockSdk, request);
+      expect(response).toEqual({
+        type: "error",
+        error: expect.stringContaining("Security verification failed"),
+      });
     });
 
     it("should handle all signed operation types", async () => {
@@ -175,7 +195,7 @@ describe("Server Relayer Handler", () => {
         const response = await handleRelayerOperation(mockSdk, request);
 
         expect(response).toEqual({
-          type: "signed",
+          type: "submitted",
           hash: "0xsignedhash",
         });
       }
@@ -199,14 +219,12 @@ describe("Server Relayer Handler", () => {
         "https://storage.example/file",
         "0xuser",
         [],
+        undefined,
       );
 
       expect(response).toEqual({
-        type: "direct",
-        result: {
-          fileId: 789,
-          transactionHash: "0xfilehash",
-        },
+        type: "submitted",
+        hash: "0xfilehash",
       });
     });
 
@@ -230,14 +248,12 @@ describe("Server Relayer Handler", () => {
         "https://storage.example/file",
         "0xuser",
         request.params.permissions,
+        undefined,
       );
 
       expect(response).toEqual({
-        type: "direct",
-        result: {
-          fileId: 789,
-          transactionHash: "0xfilehash",
-        },
+        type: "submitted",
+        hash: "0xfilehash",
       });
     });
 
@@ -272,6 +288,7 @@ describe("Server Relayer Handler", () => {
         "0xuser",
         [{ account: "0xaccount" as Address, key: encryptedKey }], // No mapping, passes through as-is
         42,
+        undefined,
       );
 
       // Should NOT call the public key method
@@ -280,11 +297,8 @@ describe("Server Relayer Handler", () => {
       ).not.toHaveBeenCalled();
 
       expect(response).toEqual({
-        type: "direct",
-        result: {
-          fileId: 789,
-          transactionHash: "0xfilehash",
-        },
+        type: "submitted",
+        hash: "0xfilehash",
       });
     });
 
@@ -310,25 +324,7 @@ describe("Server Relayer Handler", () => {
         "0xuser", // Falls back to userAddress
         [],
         42,
-      );
-    });
-
-    it("should throw error when fileId not returned", async () => {
-      mockSdk.waitForTransactionEvents = vi.fn().mockResolvedValue({
-        expectedEvents: {}, // No FileAdded event
-      });
-
-      const request: UnifiedRelayerRequest = {
-        type: "direct",
-        operation: "submitFileAddition",
-        params: {
-          url: "https://storage.example/file",
-          userAddress: "0xuser" as Address,
-        },
-      };
-
-      await expect(handleRelayerOperation(mockSdk, request)).rejects.toThrow(
-        "Failed to get fileId from transaction events",
+        undefined,
       );
     });
   });
@@ -368,7 +364,7 @@ describe("Server Relayer Handler", () => {
       expect(JSON.parse(text)).toEqual(grantFile);
 
       expect(response).toEqual({
-        type: "direct",
+        type: "direct_result_untracked",
         result: { url: "ipfs://mockhash" },
       });
     });
@@ -391,9 +387,11 @@ describe("Server Relayer Handler", () => {
         params: grantFile,
       };
 
-      await expect(handleRelayerOperation(mockSdk, request)).rejects.toThrow(
-        "Storage failed",
-      );
+      const response = await handleRelayerOperation(mockSdk, request);
+      expect(response).toEqual({
+        type: "error",
+        error: "Storage failed",
+      });
     });
   });
 
@@ -425,9 +423,11 @@ describe("Server Relayer Handler", () => {
         signature: "0xbadsignature" as `0x${string}`,
       };
 
-      await expect(handleRelayerOperation(mockSdk, request)).rejects.toThrow(
-        "Signature verification failed",
-      );
+      const response = await handleRelayerOperation(mockSdk, request);
+      expect(response).toEqual({
+        type: "error",
+        error: expect.stringContaining("Signature verification failed"),
+      });
     });
 
     it("should handle SDK errors in direct operations", async () => {
@@ -444,29 +444,11 @@ describe("Server Relayer Handler", () => {
         },
       };
 
-      await expect(handleRelayerOperation(mockSdk, request)).rejects.toThrow(
-        "Blockchain error",
-      );
-    });
-
-    it("should handle transaction event errors", async () => {
-      mockSdk.waitForTransactionEvents = vi
-        .fn()
-        .mockRejectedValue(new Error("Transaction failed"));
-
-      const request: UnifiedRelayerRequest = {
-        type: "direct",
-        operation: "submitFileAdditionWithPermissions",
-        params: {
-          url: "https://storage.example/file",
-          userAddress: "0xuser" as Address,
-          permissions: [],
-        },
-      };
-
-      await expect(handleRelayerOperation(mockSdk, request)).rejects.toThrow(
-        "Transaction failed",
-      );
+      const response = await handleRelayerOperation(mockSdk, request);
+      expect(response).toEqual({
+        type: "error",
+        error: "Blockchain error",
+      });
     });
   });
 
@@ -492,6 +474,9 @@ describe("Server Relayer Handler", () => {
               const exhaustiveCheck: never = request;
               return exhaustiveCheck;
           }
+        } else if (request.type === "status_check") {
+          // Handle the new status check type
+          return "status_check";
         } else {
           // TypeScript will error here if a new request type is added
           const exhaustiveCheck: never = request;
@@ -551,6 +536,7 @@ describe("Server Relayer Handler", () => {
         "https://storage.example/basic.txt",
         "0xuser123",
         [],
+        undefined,
       );
     });
 
@@ -574,6 +560,7 @@ describe("Server Relayer Handler", () => {
         "https://storage.example/secure.txt",
         "0xuser456",
         request.params.permissions,
+        undefined,
       );
     });
 
@@ -599,14 +586,12 @@ describe("Server Relayer Handler", () => {
         "0xowner", // Should use ownerAddress when provided
         [],
         42,
+        undefined,
       );
 
       expect(response).toEqual({
-        type: "direct",
-        result: {
-          fileId: 789,
-          transactionHash: "0xfilehash",
-        },
+        type: "submitted",
+        hash: "0xfilehash",
       });
     });
   });

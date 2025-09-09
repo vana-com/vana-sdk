@@ -1984,7 +1984,7 @@ describe("PermissionsController", () => {
         const options = {
           maxFeePerGas: 150n * 10n ** 9n, // 150 gwei
           maxPriorityFeePerGas: 10n * 10n ** 9n, // 10 gwei
-          gasLimit: 800000n,
+          gas: 800000n,
         };
 
         await controller.submitPermissionRevoke(params, options);
@@ -2006,7 +2006,7 @@ describe("PermissionsController", () => {
         const params = { permissionId: 789n };
         const options = {
           gasPrice: 80n * 10n ** 9n, // 80 gwei
-          gasLimit: 400000n,
+          gas: 400000n,
           nonce: 15,
         };
 
@@ -2052,7 +2052,7 @@ describe("PermissionsController", () => {
         const permissionId = 321n;
         const options = {
           maxFeePerGas: 110n * 10n ** 9n,
-          gasLimit: 300000n,
+          gas: 300000n,
         };
 
         await controller.submitRevokePermission(permissionId, options);

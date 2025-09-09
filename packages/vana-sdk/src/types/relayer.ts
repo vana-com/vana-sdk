@@ -456,7 +456,7 @@ export type UnifiedRelayerResponse =
     }
   | {
       type: "direct";
-      result: { fileId: number; transactionHash: Hash } | { url: string } | any;
+      result: { fileId: number; transactionHash: Hash } | { url: string };
     }
   | {
       type: "error";

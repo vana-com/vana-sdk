@@ -5,6 +5,8 @@ import type {
   SignedRelayerRequest,
   DirectRelayerRequest,
 } from "../types/relayer";
+import type { TransactionResult } from "../types/operations";
+import type { Contract, Fn } from "../generated/event-types";
 import type {
   GenericTypedData,
   PermissionGrantTypedData,
@@ -107,10 +109,10 @@ async function handleSignedOperation(
   }
 
   // Step 2: Route to appropriate SDK method based on primaryType
-  // Using proper type narrowing instead of unsafe casts
+  // The return type of routeSignedOperation guarantees it has a hash property
   const result = await routeSignedOperation(sdk, typedData, signature);
 
-  // Return the transaction hash with type
+  // TypeScript now knows result has a hash property due to the return type
   return {
     type: "signed",
     hash: result.hash,
@@ -118,13 +120,35 @@ async function handleSignedOperation(
 }
 
 /**
- * Route signed operations to the appropriate SDK method with type safety
+ * Route signed operations to the appropriate SDK method with type safety.
+ *
+ * Returns a TransactionResult for one of the valid contracts and their functions.
+ * Using Contract and Fn<Contract> ensures we're working with known contract types.
  */
 async function routeSignedOperation(
   sdk: VanaInstance,
   typedData: GenericTypedData,
   signature: Hash,
-) {
+): Promise<TransactionResult<Contract, Fn<Contract>>> {
+  // Validate primaryType before casting
+  const validPrimaryTypes: readonly TypedDataPrimaryType[] = [
+    "Permission",
+    "RevokePermission",
+    "TrustServer",
+    "AddServer",
+    "UntrustServer",
+    "ServerFilesAndPermission",
+  ] as const;
+
+  if (
+    !validPrimaryTypes.includes(typedData.primaryType as TypedDataPrimaryType)
+  ) {
+    throw new Error(
+      `Unsupported operation type: ${typedData.primaryType}. ` +
+        `Supported types: ${validPrimaryTypes.join(", ")}`,
+    );
+  }
+
   const primaryType = typedData.primaryType as TypedDataPrimaryType;
 
   // Type-safe routing based on primaryType
@@ -149,6 +173,8 @@ async function routeSignedOperation(
       );
 
     case "TrustServer":
+      // Note: TrustServer operation is deprecated but still supported for backwards compatibility
+      // New implementations should use AddServer (AddAndTrustServer) instead
       return sdk.permissions.submitSignedTrustServer(
         {
           ...typedData,
@@ -190,7 +216,11 @@ async function routeSignedOperation(
     //   return sdk.permissions.submitSignedRegisterGrantee(...);
 
     default:
-      throw new Error(`Unsupported operation type: ${typedData.primaryType}`);
+      // This should never be reached due to validation above, but TypeScript requires it
+      throw new Error(
+        `Unsupported operation type: ${typedData.primaryType}. ` +
+          `Supported types: Permission, RevokePermission, TrustServer, AddServer, UntrustServer, ServerFilesAndPermission`,
+      );
   }
 }
 

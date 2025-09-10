@@ -12,6 +12,7 @@ import chalk from 'chalk';
 import { EventEmitter } from 'events';
 import * as fs from 'fs';
 import * as path from 'path';
+import { RelayerNonceManager } from '../../src/utils/relayer-nonce-manager.js';
 
 /**
  * Milestone 5 V2 with Master Relayer: Optimized Streaming Load Test
@@ -52,6 +53,9 @@ interface StreamingConfigV2 {
   rampUpDurationSeconds: number;
   sustainDurationSeconds: number;
   rampDownDurationSeconds: number;
+  
+  // Nonce Management
+  useNonceManagement: boolean; // Enable/disable nonce management
 }
 
 interface WalletInfo {
@@ -97,7 +101,8 @@ interface StreamingMetricsV2 {
   endTime?: number;
   responseTimes: number[];
   errorsByType: { [key: string]: number };
-  transactionCosts: bigint[]; // Track actual transaction costs
+  transactionCosts: bigint[]; // Track estimated transaction costs
+  actualTransactionFees: bigint[]; // Track actual fees paid on-chain
   fundingStats: {
     childRelayers: number;
     preFunded: number;
@@ -396,6 +401,7 @@ class StreamingLoadTestV2Relayer {
   private masterRelayerPrivateKey?: string;
   private masterRelayerAddress?: string;
   private metricsInterval?: NodeJS.Timeout;
+  private nonceManager?: RelayerNonceManager;
   
   // Logging
   private logFile: string;
@@ -428,6 +434,7 @@ class StreamingLoadTestV2Relayer {
       responseTimes: [],
       errorsByType: {},
       transactionCosts: [],
+      actualTransactionFees: [],
       fundingStats: {
         childRelayers: 0, // Not used in relayer mode
         preFunded: 0, // Not used in relayer mode
@@ -579,14 +586,15 @@ class StreamingLoadTestV2Relayer {
     console.log(chalk.cyan.bold('\n🚀 Streaming Load Test V2 with Master Relayer'));
     console.log(chalk.gray('═'.repeat(60)));
     
-    // Load and validate master relayer wallet
-    await this.loadMasterRelayerWallet();
-    
-    // Start API server
-    console.log(chalk.yellow('\n📡 Starting API server...'));
-    this.apiServer = new LoadTestApiServer(this.config, 3001);
-    await this.apiServer.start();
-    console.log(chalk.green('✅ API server ready'));
+    try {
+      // Load and validate master relayer wallet
+      await this.loadMasterRelayerWallet();
+      
+      // Start API server
+      console.log(chalk.yellow('\n📡 Starting API server...'));
+      this.apiServer = new LoadTestApiServer(this.config, 3001);
+      await this.apiServer.start();
+      console.log(chalk.green('✅ API server ready'));
     
     // Display test configuration
     console.log(chalk.cyan('\n📊 Test Configuration:'));
@@ -595,6 +603,7 @@ class StreamingLoadTestV2Relayer {
     console.log(`   Max Concurrent: ${chalk.white(this.streamingConfig.maxConcurrentUsers)}`);
     console.log(`   Master Relayer: ${chalk.white(this.masterRelayerAddress)}`);
     console.log(`   Premium Gas Multiplier: ${chalk.white(this.config.premiumGasMultiplier)}x`);
+    console.log(`   Nonce Management: ${this.streamingConfig.useNonceManagement ? chalk.green('Enabled') : chalk.yellow('Disabled')}`);
     
     console.log(chalk.cyan('\n⏱️  Phase Durations:'));
     console.log(`   Ramp Up: ${chalk.white(this.streamingConfig.rampUpDurationSeconds)}s`);
@@ -627,38 +636,114 @@ class StreamingLoadTestV2Relayer {
       });
     });
     
-    // Wait for all active flows to complete
-    console.log(chalk.yellow('\n⏳ Waiting for active flows to complete...'));
-    while (this.activeFlows.size > 0) {
-      console.log(chalk.gray(`   ${this.activeFlows.size} flows remaining...`));
+    // Stop accepting new flows
+    this.stopping = true;
+    
+    // Wait for all active flows to complete with timeout
+    const maxWaitTime = 120000; // 2 minutes max wait
+    const waitStart = Date.now();
+    console.log(chalk.yellow('\n⏳ Waiting for all active data portability flows to complete...'));
+    
+    while (this.activeFlows.size > 0 && (Date.now() - waitStart) < maxWaitTime) {
+      const remaining = this.activeFlows.size;
+      const elapsed = Math.floor((Date.now() - waitStart) / 1000);
+      console.log(chalk.gray(`   ${remaining} flows still running (waited ${elapsed}s)...`));
+      
+      // Show which users are still active
+      if (remaining <= 5) {
+        const activeUsers = Array.from(this.activeFlows.keys()).join(', ');
+        console.log(chalk.gray(`   Active users: ${activeUsers}`));
+      }
+      
       await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+    
+    if (this.activeFlows.size > 0) {
+      console.log(chalk.yellow(`⚠️  Timed out waiting for ${this.activeFlows.size} flows to complete`));
+      const timedOutUsers = Array.from(this.activeFlows.keys()).join(', ');
+      console.log(chalk.yellow(`   Timed out users: ${timedOutUsers}`));
+    } else {
+      console.log(chalk.green('✅ All data portability flows completed'));
     }
     
     // Wait for all block tracking to complete
     if (this.activeBlockTracking.size > 0) {
-      console.log(chalk.yellow(`\n⏳ Waiting for ${this.activeBlockTracking.size} block stat operations to complete...`));
-      await Promise.all(Array.from(this.activeBlockTracking));
-      console.log(chalk.green('✅ Block tracking complete'));
+      console.log(chalk.yellow(`\n⏳ Waiting for ${this.activeBlockTracking.size} block stat operations...`));
+      try {
+        await Promise.race([
+          Promise.all(Array.from(this.activeBlockTracking)),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Block tracking timeout')), 10000))
+        ]);
+        console.log(chalk.green('✅ Block tracking complete'));
+      } catch (e) {
+        console.log(chalk.yellow('⚠️  Block tracking timed out, continuing...'));
+      }
     }
     
     // Stop metrics display before generating final report
     this.stopMetricsDisplay();
     
-    // Generate final report
-    this.generateFinalReport();
+    // Ensure we have the final metrics and update block stats one last time
+    this.metrics.endTime = Date.now();
+    this.updateBlockAggregateStats();
     
-    // Cleanup
-    await this.apiServer.stop();
-    
-    // Restore console and close log
-    console.log = this.originalConsole.log;
-    console.error = this.originalConsole.error;
-    console.warn = this.originalConsole.warn;
-    console.info = this.originalConsole.info;
-    
-    if (this.logStream) {
-      this.log('Test completed successfully');
-      this.logStream.end();
+    console.log(chalk.cyan('\n📊 Final metrics collected, generating report...'));
+      
+    } catch (error) {
+      console.error(chalk.red('\n❌ Test error:'), error);
+      this.stopMetricsDisplay();
+      
+      // Track the error
+      if (error instanceof Error) {
+        console.error(chalk.red('Stack:'), error.stack);
+      }
+    } finally {
+      // Wait a moment for any pending console output
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Always generate final report, even on errors
+      try {
+        // Ensure endTime is set
+        if (!this.metrics.endTime) {
+          this.metrics.endTime = Date.now();
+        }
+        
+        // IMPORTANT: Generate report BEFORE restoring console
+        this.generateFinalReport();
+        
+        // Confirm report was generated
+        this.originalConsole.log(chalk.green('\n✅ Final report generated'));
+      } catch (reportError) {
+        // Use originalConsole to ensure error is visible
+        this.originalConsole.error(chalk.red('❌ Failed to generate final report:'), reportError);
+      }
+      
+      // Wait for output to flush
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Cleanup
+      try {
+        if (this.apiServer) {
+          await this.apiServer.stop();
+        }
+      } catch (cleanupError) {
+        this.originalConsole.error(chalk.red('❌ Cleanup error:'), cleanupError);
+      }
+      
+      // Restore console AFTER report generation
+      console.log = this.originalConsole.log;
+      console.error = this.originalConsole.error;
+      console.warn = this.originalConsole.warn;
+      console.info = this.originalConsole.info;
+      
+      if (this.logStream) {
+        this.log('Test finished');
+        this.logStream.end();
+      }
+      
+      // Exit with appropriate code
+      const exitCode = this.metrics.successfulUsers === this.metrics.totalUsers ? 0 : 1;
+      process.exit(exitCode);
     }
   }
   
@@ -682,6 +767,19 @@ class StreamingLoadTestV2Relayer {
     this.masterRelayerAddress = relayerAccount.address;
     
     console.log(chalk.green(`✅ Master relayer wallet loaded: ${this.masterRelayerAddress}`));
+    
+    // Initialize nonce manager for the master relayer if enabled
+    if (this.streamingConfig.useNonceManagement) {
+      this.nonceManager = new RelayerNonceManager(
+        this.masterRelayerAddress as `0x${string}`,
+        this.config.rpcEndpoints[0],
+        this.config.enableDebugLogs
+      );
+      await this.nonceManager.initialize();
+      console.log(chalk.green(`✅ Nonce manager initialized`));
+    } else {
+      console.log(chalk.yellow(`⚠️  Nonce management disabled - may cause conflicts with concurrent transactions`));
+    }
   }
   
   private async checkMasterRelayerBalance(): Promise<void> {
@@ -694,10 +792,11 @@ class StreamingLoadTestV2Relayer {
     const balance = await publicClient.getBalance({ address: this.masterRelayerAddress as `0x${string}` });
     const balanceInVana = formatEther(balance);
     
-    // Estimate cost per transaction (rough estimate)
-    const estimatedGasPerTx = 600000n;
-    const estimatedGasPrice = 30n * 1_000_000_000n; // 30 gwei
-    const estimatedCostPerTx = estimatedGasPerTx * estimatedGasPrice * BigInt(this.config.premiumGasMultiplier || 1);
+    // Realistic cost estimation based on actual network usage
+    const estimatedGasPerTx = 100000n; // ~100k gas per data portability tx
+    const estimatedGasPrice = 30n * 1_000_000_000n; // 30 gwei (conservative estimate)
+    // Don't apply multiplier to cost - multiplier affects tx priority/acceptance, not actual cost paid
+    const estimatedCostPerTx = estimatedGasPerTx * estimatedGasPrice;
     const totalEstimatedCost = estimatedCostPerTx * BigInt(this.streamingConfig.totalUsers);
     const totalEstimatedCostInVana = formatEther(totalEstimatedCost);
     
@@ -841,7 +940,12 @@ class StreamingLoadTestV2Relayer {
         masterRelayerPrivateKey: this.masterRelayerPrivateKey, // Add master relayer key
       };
       
-      const client = await VanaLoadTestClient.create(wallet.privateKey, configWithRelayer);
+      // Pass nonce manager only if enabled
+      const client = await VanaLoadTestClient.create(
+        wallet.privateKey, 
+        configWithRelayer, 
+        this.streamingConfig.useNonceManagement ? this.nonceManager : undefined
+      );
       
       const userData = this.generateTestData();
       const prompt = generateWalletPrompt(wallet.address);
@@ -867,8 +971,9 @@ class StreamingLoadTestV2Relayer {
       let transactionCost = 0n;
       try {
         // Could check relayer balance change here if needed
-        // For now, we'll estimate based on gas used
-        transactionCost = 600000n * 30n * 1_000_000_000n * BigInt(this.config.premiumGasMultiplier || 1);
+        // For now, estimate based on realistic gas usage
+        // ~100k gas per tx at 30 gwei (no multiplier for actual cost)
+        transactionCost = 100000n * 30n * 1_000_000_000n;
       } catch (e) {
         // Ignore balance check errors
       }
@@ -980,6 +1085,30 @@ class StreamingLoadTestV2Relayer {
       if (!receipt || !receipt.blockNumber) {
         console.warn(`[BlockStats] Could not get block number for tx ${txHash}`);
         return;
+      }
+      
+      // Get the actual transaction to fetch gas price
+      const tx = await publicClient.getTransaction({ 
+        hash: txHash as `0x${string}` 
+      });
+      
+      // Calculate actual fee paid
+      if (tx && receipt) {
+        let actualFee: bigint;
+        if (tx.type === 'eip1559' && receipt.effectiveGasPrice) {
+          // EIP-1559 transaction: use effective gas price
+          actualFee = receipt.gasUsed * receipt.effectiveGasPrice;
+        } else if (tx.gasPrice) {
+          // Legacy transaction: use gas price
+          actualFee = receipt.gasUsed * tx.gasPrice;
+        } else {
+          // Fallback: estimate based on receipt
+          actualFee = receipt.gasUsed * (receipt.effectiveGasPrice || 30000000000n);
+        }
+        
+        // Track the actual fee
+        this.metrics.actualTransactionFees.push(actualFee);
+        console.log(`[BlockStats] Actual fee paid: ${formatEther(actualFee)} VANA`);
       }
       
       const blockNumber = receipt.blockNumber;
@@ -1117,6 +1246,11 @@ class StreamingLoadTestV2Relayer {
     this.metrics.endTime = Date.now();
     const totalDuration = (this.metrics.endTime - this.metrics.startTime) / 1000;
     
+    // Force output before report
+    if (this.originalConsole && this.originalConsole.log) {
+      this.originalConsole.log('\n\n');
+    }
+    
     console.log(chalk.cyan.bold('\n' + '═'.repeat(60)));
     console.log(chalk.cyan.bold('📈 FINAL REPORT - MASTER RELAYER MODE'));
     console.log(chalk.cyan.bold('═'.repeat(60)));
@@ -1157,14 +1291,81 @@ class StreamingLoadTestV2Relayer {
       console.log(`   P99: ${p99.toFixed(2)}s`);
     }
     
-    // Transaction Costs (estimated)
-    if (this.metrics.transactionCosts.length > 0) {
-      const totalCost = this.metrics.transactionCosts.reduce((a, b) => a + b, 0n);
-      const avgCost = totalCost / BigInt(this.metrics.transactionCosts.length);
+    // Transaction Costs
+    if (this.metrics.transactionCosts.length > 0 || this.metrics.actualTransactionFees.length > 0) {
+      console.log(chalk.yellow('\n💰 Transaction Costs:'));
       
-      console.log(chalk.yellow('\n💰 Transaction Costs (Estimated):'));
-      console.log(`   Total: ${formatEther(totalCost)} VANA`);
-      console.log(`   Average: ${formatEther(avgCost)} VANA`);
+      // Show ACTUAL fees if we have them
+      if (this.metrics.actualTransactionFees.length > 0) {
+        const actualTotalFee = this.metrics.actualTransactionFees.reduce((a, b) => a + b, 0n);
+        const actualAvgFee = actualTotalFee / BigInt(this.metrics.actualTransactionFees.length);
+        
+        // Calculate min/max actual fees
+        const sortedFees = [...this.metrics.actualTransactionFees].sort((a, b) => {
+          if (a < b) return -1;
+          if (a > b) return 1;
+          return 0;
+        });
+        const actualMinFee = sortedFees[0];
+        const actualMaxFee = sortedFees[sortedFees.length - 1];
+        
+        console.log(chalk.green('\n   🔍 Actual On-Chain Fees (from receipts):'));
+        console.log(`   Total Actual Cost: ${chalk.white.bold(formatEther(actualTotalFee))} VANA`);
+        console.log(`   Average Cost: ${chalk.white.bold(formatEther(actualAvgFee))} VANA`);
+        console.log(`   Min Cost: ${formatEther(actualMinFee)} VANA`);
+        console.log(`   Max Cost: ${formatEther(actualMaxFee)} VANA`);
+        console.log(`   Transactions Tracked: ${this.metrics.actualTransactionFees.length}/${this.metrics.successfulUsers}`);
+        
+        // Calculate effective gas price from actual fees
+        const avgGasUsed = 100000n; // Approximate
+        const effectiveGasPrice = actualAvgFee / avgGasUsed;
+        const effectiveGwei = Number(effectiveGasPrice) / 1e9;
+        console.log(`   Effective Gas Price: ~${effectiveGwei.toFixed(1)} gwei`);
+      }
+      
+      // Show estimates for comparison (using transactionCosts if available, otherwise calculate)
+      const estimatedTotal = this.metrics.transactionCosts.length > 0 
+        ? this.metrics.transactionCosts.reduce((a, b) => a + b, 0n)
+        : 100000n * 30n * 1_000_000_000n * BigInt(this.metrics.successfulUsers);
+      const estimatedAvg = this.metrics.transactionCosts.length > 0
+        ? estimatedTotal / BigInt(this.metrics.transactionCosts.length)
+        : 100000n * 30n * 1_000_000_000n;
+      
+      // Also calculate optimistic costs at 5 gwei
+      const optimisticTotalCost = (estimatedTotal * 5n) / 30n;
+      const optimisticAvgCost = (estimatedAvg * 5n) / 30n;
+      
+      console.log(chalk.gray('\n   📊 Estimates (for comparison):'));
+      console.log(`   Gas per TX: ~100k gas`);
+      console.log(`   Network Gas Price Range: 5-30 gwei`);
+      console.log(chalk.gray('   ─────────────────'));
+      console.log(`   Est. Total (@ 30 gwei): ${formatEther(estimatedTotal)} VANA`);
+      console.log(`   Est. Average (@ 30 gwei): ${formatEther(estimatedAvg)} VANA`);
+      console.log(chalk.gray('   ─────────────────'));
+      console.log(`   Est. Total (@ 5 gwei): ${formatEther(optimisticTotalCost)} VANA`);
+      console.log(`   Est. Average (@ 5 gwei): ${formatEther(optimisticAvgCost)} VANA`);
+      
+      if (this.metrics.actualTransactionFees.length > 0) {
+        // Calculate accuracy of estimates
+        const actualAvgFee = this.metrics.actualTransactionFees.reduce((a, b) => a + b, 0n) / BigInt(this.metrics.actualTransactionFees.length);
+        const highEstimateAccuracy = Number(actualAvgFee * 100n / estimatedAvg);
+        const lowEstimateAccuracy = Number(actualAvgFee * 100n / optimisticAvgCost);
+        
+        console.log(chalk.gray('\n   📈 Estimate Accuracy:'));
+        if (highEstimateAccuracy < 100) {
+          console.log(`   30 gwei estimate was ${(100 - highEstimateAccuracy).toFixed(0)}% higher than actual`);
+        } else {
+          console.log(`   30 gwei estimate was ${(highEstimateAccuracy - 100).toFixed(0)}% lower than actual`);
+        }
+        
+        if (lowEstimateAccuracy < 100) {
+          console.log(`   5 gwei estimate was ${(100 - lowEstimateAccuracy).toFixed(0)}% lower than actual`);
+        } else {
+          console.log(`   5 gwei estimate was ${(lowEstimateAccuracy - 100).toFixed(0)}% higher than actual`);
+        }
+      }
+      
+      console.log(chalk.gray(`\n   Note: Gas multiplier (${this.config.premiumGasMultiplier}x) affects tx priority, not actual cost`));
     }
     
     // Phase Breakdown
@@ -1275,6 +1476,7 @@ function parseArgs(): StreamingConfigV2 {
     rampUpDurationSeconds: isSmallTest ? 5 : 30, // Shorter ramp for small tests
     sustainDurationSeconds: isSmallTest ? 10 : 180, // Shorter sustain for small tests
     rampDownDurationSeconds: isSmallTest ? 5 : 30, // Shorter ramp down for small tests
+    useNonceManagement: true, // Enable nonce management by default
   };
   
   for (let i = 0; i < args.length; i++) {
@@ -1300,28 +1502,39 @@ function parseArgs(): StreamingConfigV2 {
       case '--ramp-down':
         config.rampDownDurationSeconds = parseInt(args[++i]);
         break;
+      case '--no-nonce-management':
+        config.useNonceManagement = false;
+        break;
+      case '--nonce-management':
+        config.useNonceManagement = true;
+        break;
       case '--help':
         console.log(`
 Usage: npx tsx milestones/ms-05/test-streaming-load-relayer.ts [options]
 
 Options:
-  --users <n>        Total number of users (default: 50)
-  --rate <n>         Users per second arrival rate (default: 1.0)
-  --duration <n>     Test duration in minutes (default: 5)
-  --concurrency <n>  Max concurrent users (default: 10)
-  --ramp-up <n>      Ramp up duration in seconds (default: 30)
-  --sustain <n>      Sustain duration in seconds (default: 180)
-  --ramp-down <n>    Ramp down duration in seconds (default: 30)
-  --help             Show this help message
+  --users <n>             Total number of users (default: 50)
+  --rate <n>              Users per second arrival rate (default: 1.0)
+  --duration <n>          Test duration in minutes (default: 5)
+  --concurrency <n>       Max concurrent users (default: 10)
+  --ramp-up <n>           Ramp up duration in seconds (default: 30)
+  --sustain <n>           Sustain duration in seconds (default: 180)
+  --ramp-down <n>         Ramp down duration in seconds (default: 30)
+  --no-nonce-management   Disable nonce management (may cause conflicts)
+  --nonce-management      Enable nonce management (default: enabled)
+  --help                  Show this help message
 
 Environment Variables:
   RELAYER_PRIVATE_KEY       Required - Master relayer wallet private key
   PREMIUM_GAS_MULTIPLIER    Gas price multiplier (default: 2.0)
   TRANSACTION_TIMEOUT_MS    Transaction timeout in ms (default: 180000)
 
-Example:
-  # High throughput test with master relayer
+Examples:
+  # High throughput test with master relayer and nonce management
   PREMIUM_GAS_MULTIPLIER=50 npx tsx milestones/ms-05/test-streaming-load-relayer.ts --users 100 --rate 2.0 --concurrency 20
+  
+  # Test without nonce management (may cause conflicts)
+  npx tsx milestones/ms-05/test-streaming-load-relayer.ts --users 10 --no-nonce-management
         `);
         process.exit(0);
     }

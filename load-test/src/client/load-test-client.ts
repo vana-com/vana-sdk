@@ -82,6 +82,7 @@ export class VanaLoadTestClient {
   private config: LoadTestConfig;
   private account: Account;
   private walletFunder?: WalletFunder;
+  private nonceManager?: any; // Optional nonce manager for coordinated transactions
 
 
   private constructor(privateKey: string, config: LoadTestConfig, storageProviders: Record<string, StorageProvider>) {
@@ -135,8 +136,11 @@ export class VanaLoadTestClient {
       : 'mock';
     
     // Initialize Vana SDK instance with end-user wallet (for signing, encryption)
+    // To use a different signer for app_signature, pass applicationClient separately
     this.vana = Vana({ 
-      walletClient: this.walletClient as WalletClient & { chain: typeof mokshaTestnet }, 
+      walletClient: this.walletClient as WalletClient & { chain: typeof mokshaTestnet },
+      // Uncomment and provide a different wallet client to change app_signature signer:
+      // applicationClient: someOtherWalletClient as WalletClient & { chain: typeof mokshaTestnet },
       storage: {
         providers: storageProviders,
         defaultProvider,
@@ -206,12 +210,23 @@ export class VanaLoadTestClient {
   /**
    * Create a new VanaLoadTestClient instance with async storage provider setup
    */
-  static async create(privateKey: string, config: LoadTestConfig): Promise<VanaLoadTestClient> {
+  static async create(privateKey: string, config: LoadTestConfig, nonceManager?: any): Promise<VanaLoadTestClient> {
     // Initialize storage providers (async)
     const storageProviders = await createStorageProviders(config);
     
     // Create and return the client
-    return new VanaLoadTestClient(privateKey, config, storageProviders);
+    const client = new VanaLoadTestClient(privateKey, config, storageProviders);
+    if (nonceManager) {
+      client.setNonceManager(nonceManager);
+    }
+    return client;
+  }
+
+  /**
+   * Set the nonce manager for coordinated transaction submission
+   */
+  public setNonceManager(nonceManager: any): void {
+    this.nonceManager = nonceManager;
   }
 
 
@@ -282,6 +297,11 @@ export class VanaLoadTestClient {
         this.config, // Pass load test config for premium gas configuration and timeout
         this.vanaRelayer // Pass relayer SDK for transactions
       );
+      
+      // Pass nonce manager if available
+      if (this.nonceManager) {
+        (flow as any).setNonceManager(this.nonceManager);
+      }
 
       // Execute the complete flow with granular error handling
       const flowResult = await flow.executeCompleteFlow(
@@ -312,8 +332,11 @@ export class VanaLoadTestClient {
     } catch (error) {
       const duration = Date.now() - startTime;
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Extract failed nonce if available
+      const failedNonce = (error as any)?.failedNonce;
 
-      // Track error with detailed context
+      // Track error with detailed context including nonce
       globalErrorTracker.trackError(
         error instanceof Error ? error : new Error(errorMessage),
         {
@@ -322,7 +345,8 @@ export class VanaLoadTestClient {
           timestamp: Date.now(),
           duration,
           walletAddress,
-          step: 'execute_data_portability_flow'
+          step: 'execute_data_portability_flow',
+          failedNonce
         },
         {
           serverUrl,
@@ -340,6 +364,7 @@ export class VanaLoadTestClient {
         duration,
         walletAddress,
         error: errorMessage,
+        failedNonce,
       };
     }
   }

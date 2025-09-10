@@ -34,22 +34,22 @@ export class LoadTestApiServer {
    * Get Vana SDK instance for real API calls
    */
   private getVanaInstance() {
-    if (!this.config.relayerPrivateKey) {
-      throw new Error('RELAYER_PRIVATE_KEY is required for real Vana server operations');
+    if (!this.config.apiServerPrivateKey) {
+      throw new Error('API_SERVER_PRIVATE_KEY is required for real Vana server operations');
     }
 
     // Ensure private key is properly formatted
     let formattedPrivateKey: `0x${string}`;
     
-    if (this.config.relayerPrivateKey.startsWith('0x')) {
-      formattedPrivateKey = this.config.relayerPrivateKey as `0x${string}`;
+    if (this.config.apiServerPrivateKey.startsWith('0x')) {
+      formattedPrivateKey = this.config.apiServerPrivateKey as `0x${string}`;
     } else {
-      formattedPrivateKey = `0x${this.config.relayerPrivateKey}` as `0x${string}`;
+      formattedPrivateKey = `0x${this.config.apiServerPrivateKey}` as `0x${string}`;
     }
     
     // Validate private key length (should be 66 chars: 0x + 64 hex chars)
     if (formattedPrivateKey.length !== 66) {
-      throw new Error(`Invalid RELAYER_PRIVATE_KEY length: expected 66 characters (0x + 64 hex), got ${formattedPrivateKey.length}`);
+      throw new Error(`Invalid API_SERVER_PRIVATE_KEY length: expected 66 characters (0x + 64 hex), got ${formattedPrivateKey.length}`);
     }
 
     const applicationAccount = privateKeyToAccount(formattedPrivateKey);
@@ -105,7 +105,7 @@ export class LoadTestApiServer {
 
       try {
         // Use real Vana server if configured, otherwise fall back to mock
-        if (this.config.personalServerUrl && this.config.relayerPrivateKey) {
+        if (this.config.personalServerUrl && this.config.apiServerPrivateKey) {
           try {
             const vana = this.getVanaInstance();
             const serverInfo = await vana.server.getIdentity({
@@ -212,7 +212,7 @@ export class LoadTestApiServer {
         }
 
         // Use real Vana server if configured, otherwise fall back to mock
-        if (this.config.personalServerUrl && this.config.relayerPrivateKey) {
+        if (this.config.personalServerUrl && this.config.apiServerPrivateKey) {
           try {
             const vana = this.getVanaInstance();
             const response = await vana.server.createOperation({
@@ -279,7 +279,7 @@ export class LoadTestApiServer {
         }
 
         // Use real Vana server if configured, otherwise fall back to mock
-        if (this.config.personalServerUrl && this.config.relayerPrivateKey) {
+        if (this.config.personalServerUrl && this.config.apiServerPrivateKey) {
           try {
             const vana = this.getVanaInstance();
             const response = await vana.server.getOperation(operationId);

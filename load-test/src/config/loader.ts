@@ -95,6 +95,9 @@ export function loadConfigFromEnv(): LoadTestConfig {
   if (process.env.RELAYER_PRIVATE_KEY) {
     envConfig.relayerPrivateKey = process.env.RELAYER_PRIVATE_KEY;
   }
+  if (process.env.API_SERVER_PRIVATE_KEY) {
+    envConfig.apiServerPrivateKey = process.env.API_SERVER_PRIVATE_KEY;
+  }
 
   // Google Cloud Storage (Service Account-based)
   if (process.env.GOOGLE_CLOUD_SERVICE_ACCOUNT_JSON) {

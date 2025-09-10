@@ -39,6 +39,7 @@ export interface LoadTestConfig {
   // Real System Configuration
   personalServerUrl?: string;        // Personal server base URL (e.g., https://test.server.vana.com/api/v1)
   relayerPrivateKey?: string;        // Private key for gasless transaction relayer
+  apiServerPrivateKey?: string;      // Private key for API server operations (loaded from API_SERVER_PRIVATE_KEY env var)
   masterRelayerPrivateKey?: string;  // Master relayer private key for sending transactions (separate from user wallet)
   
   // Google Cloud Storage (PREFERRED - Service Account-based for server-side)
@@ -62,6 +63,7 @@ export interface TestResult {
   transactionHash?: string;
   permissionId?: string;
   inferenceResult?: string;
+  failedNonce?: number; // Track nonce that failed for debugging
 }
 
 /**

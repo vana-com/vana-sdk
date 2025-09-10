@@ -38,6 +38,8 @@ export class DataPortabilityFlow {
   private gasConfig?: GasConfiguration;
   private config?: DataPortabilityConfig;
   private loadTestConfig?: LoadTestConfig;
+  private nonceManager?: any; // Optional nonce manager for coordinated transactions
+  private lastFailedNonce?: number; // Track last failed nonce for error reporting
 
   constructor(
     vana: VanaInstance,
@@ -61,6 +63,13 @@ export class DataPortabilityFlow {
     if (loadTestConfig) {
       this.gasConfig = new GasConfiguration(loadTestConfig);
     }
+  }
+
+  /**
+   * Set the nonce manager for coordinated transaction submission
+   */
+  public setNonceManager(nonceManager: any): void {
+    this.nonceManager = nonceManager;
   }
 
   /**
@@ -366,7 +375,7 @@ export class DataPortabilityFlow {
       try {
         // Get nonce directly from contract using the same method as the SDK
         // We'll access the contract address through the relayer instance's public client
-        const chainId = await this.vanaRelayer.publicClient.getChainId();
+        await this.vanaRelayer.publicClient.getChainId();
         
         // For now, let's use the known contract address for Moksha testnet
         // TODO: This should be dynamic based on chain, but for debugging it's fine
@@ -499,24 +508,91 @@ export class DataPortabilityFlow {
       console.log(`🔍 [${this.testId}] DEBUG: Signature obtained from end-user wallet`);
       console.log(`🔍 [${this.testId}] DEBUG: Submitting via handleRelayerOperation with relayer wallet ${relayerAddress}`);
 
+      // Reserve nonce if using nonce manager
+      let reservedNonce: number | undefined;
+      if (this.nonceManager) {
+        console.log(`🔍 [${this.testId}] DEBUG: Reserving nonce from nonce manager...`);
+        reservedNonce = await this.nonceManager.reserveNonce(this.testId);
+        console.log(`🔍 [${this.testId}] DEBUG: Reserved nonce ${reservedNonce} for transaction`);
+      }
+
       // Create the signed relayer request
-      const relayerRequest = {
+      const relayerRequest: any = {
         type: "signed" as const,
         operation: "submitAddServerFilesAndPermissions" as const,
         typedData,
         signature,
         expectedUserAddress: this.walletClient.account?.address, // End-user address for verification
       };
+      
+      // Prepare transaction options with nonce if available
+      const txOptions = reservedNonce !== undefined ? { nonce: reservedNonce } : undefined;
 
-      // Call handleRelayerOperation with vanaRelayer (which has the master relayer wallet)
-      const result = await handleRelayerOperation(this.vanaRelayer, relayerRequest);
+      let result: any;
+      try {
+        // Call handleRelayerOperation with vanaRelayer (which has the master relayer wallet)
+        result = await handleRelayerOperation(this.vanaRelayer, relayerRequest, txOptions);
+        
+        // Mark nonce as pending if we have a transaction hash
+        if (this.nonceManager && reservedNonce !== undefined && (result.type === "signed" || result.type === "submitted") && result.hash) {
+          this.nonceManager.markNoncePending(reservedNonce, result.hash);
+          console.log(`🔍 [${this.testId}] DEBUG: Marked nonce ${reservedNonce} as pending with tx ${result.hash}`);
+        }
+      } catch (error) {
+        // Handle nonce errors with retry logic
+        if (this.nonceManager && reservedNonce !== undefined) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          
+          // Store the failed nonce for error reporting
+          this.lastFailedNonce = reservedNonce;
+          
+          // Log specific error types for debugging
+          if (errorMessage.toLowerCase().includes('underpriced')) {
+            console.log(`⚠️ [${this.testId}] Underpriced error for nonce ${reservedNonce}: Transaction with same nonce exists in mempool`);
+          } else if (errorMessage.toLowerCase().includes('nonce')) {
+            console.log(`⚠️ [${this.testId}] Nonce error for nonce ${reservedNonce}: ${errorMessage.substring(0, 100)}`);
+          }
+          
+          const newNonce = await this.nonceManager.markNonceFailed(reservedNonce, errorMessage);
+          
+          if (newNonce !== null) {
+            console.log(`🔄 [${this.testId}] Retrying with new nonce ${newNonce} (previously ${reservedNonce})`);
+            // Update the transaction options with new nonce
+            const retryOptions = { nonce: newNonce };
+            
+            // Retry the operation with new nonce
+            result = await handleRelayerOperation(this.vanaRelayer, relayerRequest, retryOptions);
+            
+            if ((result.type === "signed" || result.type === "submitted") && result.hash) {
+              this.nonceManager.markNoncePending(newNonce, result.hash);
+              console.log(`✅ [${this.testId}] Retry successful with nonce ${newNonce}, tx: ${result.hash}`);
+              // Clear the failed nonce on success
+              this.lastFailedNonce = undefined;
+            }
+          } else {
+            console.log(`❌ [${this.testId}] No more retries available for nonce ${reservedNonce}`);
+            // Add nonce to error message before throwing
+            const enhancedError = new Error(`${errorMessage} [Failed Nonce: ${reservedNonce}]`);
+            throw enhancedError;
+          }
+        } else {
+          // If we have a reserved nonce but no manager, still track it
+          if (reservedNonce !== undefined) {
+            this.lastFailedNonce = reservedNonce;
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            const enhancedError = new Error(`${errorMessage} [Failed Nonce: ${reservedNonce}]`);
+            throw enhancedError;
+          }
+          throw error; // Re-throw if no nonce info
+        }
+      }
       
       console.log(`✅ [${this.testId}] DEBUG: handleRelayerOperation completed!`);
       console.log(`🔍 [${this.testId}] DEBUG: Relayer result:`, result);
 
       // Extract transaction hash from the result
       let txHash: string;
-      if (result.type === "signed" && result.hash) {
+      if ((result.type === "signed" || result.type === "submitted") && result.hash) {
         txHash = result.hash;
       } else {
         throw new Error(`Unexpected result from handleRelayerOperation: ${JSON.stringify(result)}`);
@@ -597,6 +673,12 @@ export class DataPortabilityFlow {
 
         // Convert bigint to string for API compatibility
         const permissionIdStr = permissionId.toString();
+        
+        // Mark nonce as confirmed if using nonce manager
+        if (this.nonceManager && reservedNonce !== undefined) {
+          this.nonceManager.markNonceConfirmed(reservedNonce);
+          console.log(`🔍 [${this.testId}] DEBUG: Marked nonce ${reservedNonce} as confirmed`);
+        }
 
         this.callbacks.onStatusUpdate(
           `[${this.testId}] Permission ID received: ${permissionIdStr}`,
@@ -843,7 +925,7 @@ export class DataPortabilityFlow {
 
       // Step 4: Submit AI inference request (retry on network/server errors)
       const operationId = await this.executeWithSelectiveRetry(
-        () => this.submitInferenceRequest(permissionId, serverUrl),
+        () => this.submitInferenceRequest(permissionId!, serverUrl),
         3,
         'AI inference request',
         ['network', 'timeout', 'server_error']
@@ -870,9 +952,28 @@ export class DataPortabilityFlow {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error occurred";
-      this.callbacks.onError(errorMessage);
-      this.callbacks.onStatusUpdate(`[${this.testId}] Flow failed: ${errorMessage}`);
-      throw error;
+      
+      // Include failed nonce in error message if available
+      const enhancedErrorMessage = this.lastFailedNonce !== undefined 
+        ? `${errorMessage} [Failed Nonce: ${this.lastFailedNonce}]`
+        : errorMessage;
+      
+      this.callbacks.onError(enhancedErrorMessage);
+      this.callbacks.onStatusUpdate(`[${this.testId}] Flow failed: ${enhancedErrorMessage}`);
+      
+      // Create enhanced error with nonce info
+      const enhancedError = new Error(enhancedErrorMessage);
+      if (this.lastFailedNonce !== undefined) {
+        (enhancedError as any).failedNonce = this.lastFailedNonce;
+      }
+      throw enhancedError;
     }
+  }
+  
+  /**
+   * Get the last failed nonce (for debugging)
+   */
+  getLastFailedNonce(): number | undefined {
+    return this.lastFailedNonce;
   }
 }

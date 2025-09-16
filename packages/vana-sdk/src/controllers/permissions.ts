@@ -3090,6 +3090,9 @@ export class PermissionsController extends BaseController {
    * A grantee is an entity (like an application) that can receive data permissions
    * from users. Once registered, users can grant the grantee access to their data.
    *
+   * This method supports gasless transactions via relayer when configured.
+   * If no relayer is available, it falls back to direct wallet transactions.
+   *
    * @param params - Parameters for registering the grantee
    * @param params.owner - The Ethereum address that will own this grantee registration
    * @param params.granteeAddress - The Ethereum address of the grantee (application)
@@ -3098,7 +3101,7 @@ export class PermissionsController extends BaseController {
    * @returns Promise resolving to the transaction hash
    * @throws {BlockchainError} When the grantee registration transaction fails
    * @throws {UserRejectedRequestError} When user rejects the transaction
-   * @throws {ContractError} When grantee is already registered
+   * @throws {RelayerError} When gasless transaction submission fails
    *
    * @example
    * ```typescript
@@ -3114,51 +3117,119 @@ export class PermissionsController extends BaseController {
     params: RegisterGranteeParams,
     options?: TransactionOptions,
   ): Promise<TransactionResult<"DataPortabilityGrantees", "registerGrantee">> {
-    this.assertWallet();
-    const chainId = await this.context.walletClient.getChainId();
-    const DataPortabilityGranteesAddress = getContractAddress(
-      chainId,
-      "DataPortabilityGrantees",
-    );
-    const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
+    try {
+      // Submit via unified relayer callback or direct transaction
+      let hash: Hash;
+      if (this.context.relayer) {
+        const request: UnifiedRelayerRequest = {
+          type: "direct",
+          operation: "submitRegisterGrantee",
+          params: {
+            owner: params.owner,
+            granteeAddress: params.granteeAddress,
+            publicKey: params.publicKey,
+          },
+        };
+        const response = await this.context.relayer(request);
+        if (response.type === "error") {
+          throw new RelayerError(response.error);
+        }
+        if (response.type === "direct") {
+          hash = response.result.transactionHash;
+        } else {
+          throw new Error("Unexpected response type from relayer");
+        }
+      } else {
+        // Fall back to direct wallet transaction
+        this.assertWallet();
+        const chainId = await this.context.walletClient.getChainId();
+        const DataPortabilityGranteesAddress = getContractAddress(
+          chainId,
+          "DataPortabilityGrantees",
+        );
+        const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
 
-    const ownerAddress = getAddress(params.owner);
-    const granteeAddress = getAddress(params.granteeAddress);
-    const account =
-      this.context.walletClient?.account ?? this.context.userAddress;
+        const ownerAddress = getAddress(params.owner);
+        const granteeAddress = getAddress(params.granteeAddress);
+        const account =
+          this.context.walletClient?.account ?? this.context.userAddress;
 
-    const txHash = await this.context.walletClient.writeContract({
-      address: DataPortabilityGranteesAddress,
-      abi: DataPortabilityGranteesAbi,
-      functionName: "registerGrantee",
-      args: [ownerAddress, granteeAddress, params.publicKey],
-      account,
-      chain: this.context.walletClient?.chain ?? null,
-      ...(options?.gasLimit && { gas: options.gasLimit }),
-      ...(options?.nonce && { nonce: options.nonce }),
-      // Use EIP-1559 if available, otherwise fall back to legacy gasPrice
-      ...(options?.maxFeePerGas || options?.maxPriorityFeePerGas
-        ? {
-            ...(options.maxFeePerGas && { maxFeePerGas: options.maxFeePerGas }),
-            ...(options.maxPriorityFeePerGas && {
-              maxPriorityFeePerGas: options.maxPriorityFeePerGas,
-            }),
-          }
-        : options?.gasPrice && { gasPrice: options.gasPrice }),
-    });
+        hash = await this.context.walletClient.writeContract({
+          address: DataPortabilityGranteesAddress,
+          abi: DataPortabilityGranteesAbi,
+          functionName: "registerGrantee",
+          args: [ownerAddress, granteeAddress, params.publicKey],
+          account,
+          chain: this.context.walletClient?.chain ?? null,
+          ...(options?.gasLimit && { gas: options.gasLimit }),
+          ...(options?.nonce && { nonce: options.nonce }),
+          // Use EIP-1559 if available, otherwise fall back to legacy gasPrice
+          ...(options?.maxFeePerGas || options?.maxPriorityFeePerGas
+            ? {
+                ...(options.maxFeePerGas && {
+                  maxFeePerGas: options.maxFeePerGas,
+                }),
+                ...(options.maxPriorityFeePerGas && {
+                  maxPriorityFeePerGas: options.maxPriorityFeePerGas,
+                }),
+              }
+            : options?.gasPrice && { gasPrice: options.gasPrice }),
+        });
+      }
 
-    const { tx } = await import("../utils/transactionHelpers");
-    return tx({
-      hash: txHash,
-      from: typeof account === "string" ? account : account.address,
-      contract: "DataPortabilityGrantees",
-      fn: "registerGrantee",
-    });
+      const account =
+        this.context.walletClient?.account ?? this.context.userAddress;
+      const { tx } = await import("../utils/transactionHelpers");
+      return tx({
+        hash,
+        from: typeof account === "string" ? account : account.address,
+        contract: "DataPortabilityGrantees",
+        fn: "registerGrantee",
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        // Re-throw known Vana errors directly
+        if (
+          error instanceof RelayerError ||
+          error instanceof UserRejectedRequestError ||
+          error instanceof SerializationError ||
+          error instanceof SignatureError ||
+          error instanceof BlockchainError
+        ) {
+          throw error;
+        }
+
+        // Handle viem contract errors
+        if (error.name === "ContractFunctionExecutionError") {
+          throw new BlockchainError(
+            `Grantee registration failed: ${error.message}`,
+            error,
+          );
+        }
+
+        // Handle user rejection
+        if (error.name === "UserRejectedRequestError") {
+          throw new UserRejectedRequestError(
+            "User rejected the grantee registration transaction",
+          );
+        }
+
+        // Handle other blockchain errors
+        throw new BlockchainError(
+          `Failed to register grantee: ${error.message}`,
+          error,
+        );
+      }
+
+      // Handle non-Error objects
+      throw new BlockchainError(`Failed to register grantee: ${String(error)}`);
+    }
   }
 
   // TODO: When DataPortabilityGrantees contract adds registerGranteeWithSignature function,
   // implement submitRegisterGranteeWithSignature and submitSignedRegisterGrantee methods
-  // to support gasless transactions via relayer
+  // to support EIP-712 signed gasless transactions via relayer.
+  // Current implementation above supports direct gasless transactions (relayer pays gas directly).
 
   /**
    * Retrieves all registered grantees from the DataPortabilityGrantees contract.

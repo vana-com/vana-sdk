@@ -2851,19 +2851,10 @@ export class DataController extends BaseController {
         }
       }
 
-      // Generate filename with appropriate extension
-      let finalFilename: string;
-      if (filename) {
-        // If filename is provided and we're encrypting, add .enc extension
-        finalFilename = encrypt && !filename.endsWith('.enc') 
-          ? `${filename}.enc` 
-          : filename;
-      } else {
-        // Generate default filename with appropriate extension
-        finalFilename = encrypt 
-          ? `upload-${Date.now()}.enc` 
+      const finalFilename =
+        (filename ?? encrypt)
+          ? `upload-${Date.now()}.enc`
           : `upload-${Date.now()}.dat`;
-      }
 
       const uploadResult = await this.context.storageManager.upload(
         finalBlob,

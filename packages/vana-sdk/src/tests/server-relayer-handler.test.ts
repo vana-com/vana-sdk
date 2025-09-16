@@ -148,7 +148,7 @@ describe("Server Relayer Handler", () => {
         "submitAddAndTrustServer",
         "submitUntrustServer",
         "submitAddServerFilesAndPermissions",
-        "submitRegisterGrantee",
+        //"submitRegisterGrantee", // TODO: Add when contract supports registerGranteeWithSignature
       ] as const;
 
       for (const operation of operationTypes) {

@@ -3326,7 +3326,9 @@ export class PermissionsController extends BaseController {
         if (response.type === "error") {
           throw new RelayerError(response.error);
         }
-        if (response.type === "direct") {
+        if (response.type === "submitted") {
+          hash = response.hash;
+        } else if (response.type === "direct") {
           const result = response.result as { transactionHash: Hash };
           hash = result.transactionHash;
         } else {

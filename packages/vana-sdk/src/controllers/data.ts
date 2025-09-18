@@ -3004,9 +3004,8 @@ export class DataController extends BaseController {
       }
 
       const finalFilename =
-        (filename ?? encrypt)
-          ? `upload-${Date.now()}.enc`
-          : `upload-${Date.now()}.dat`;
+        filename ??
+        (encrypt ? `upload-${Date.now()}.enc` : `upload-${Date.now()}.dat`);
 
       const uploadResult = await this.context.storageManager.upload(
         finalBlob,

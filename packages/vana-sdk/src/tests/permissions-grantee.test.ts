@@ -1114,10 +1114,8 @@ describe("PermissionsController - Grantee Methods", () => {
 
         // Mock relayer callback
         const mockRelayer = vi.fn().mockResolvedValue({
-          type: "direct",
-          result: {
-            transactionHash: "0xRelayerTxHash" as Hash,
-          },
+          type: "submitted",
+          hash: "0xRelayerTxHash" as Hash,
         });
 
         // Create controller with relayer

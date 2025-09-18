@@ -431,10 +431,8 @@ describe("Server Relayer Handler", () => {
       });
 
       expect(response).toEqual({
-        type: "direct",
-        result: {
-          transactionHash: "0xgranteehash",
-        },
+        type: "submitted",
+        hash: "0xgranteehash",
       });
     });
 
@@ -453,9 +451,11 @@ describe("Server Relayer Handler", () => {
         },
       };
 
-      await expect(handleRelayerOperation(mockSdk, request)).rejects.toThrow(
-        "Grantee registration failed",
-      );
+      const response = await handleRelayerOperation(mockSdk, request);
+      expect(response).toEqual({
+        type: "error",
+        error: "Grantee registration failed",
+      });
     });
   });
 

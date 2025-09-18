@@ -398,8 +398,8 @@ export type SignedOperationType =
   | "submitTrustServer"
   | "submitAddAndTrustServer"
   | "submitUntrustServer"
-  | "submitAddServerFilesAndPermissions"
-  | "submitRegisterGrantee";
+  | "submitAddServerFilesAndPermissions";
+// | "submitRegisterGrantee"; // TODO: Add when contract supports registerGranteeWithSignature
 
 /**
  * Represents direct server operations that don't require blockchain signatures.
@@ -444,6 +444,15 @@ export type DirectRelayerRequest =
       type: "direct";
       operation: "storeGrantFile";
       params: GrantFile;
+    }
+  | {
+      type: "direct";
+      operation: "submitRegisterGrantee";
+      params: {
+        owner: Address;
+        granteeAddress: Address;
+        publicKey: string;
+      };
     };
 
 /**

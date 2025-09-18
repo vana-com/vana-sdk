@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { handleRelayerOperation } from "../server/relayerHandler";
 import type { VanaInstance } from "../index.node";
 import type { UnifiedRelayerRequest } from "../types/relayer";
-import type { Address } from "viem";
+import type { Address, Hash } from "viem";
 
 // Mock viem for signature recovery (not testing actual crypto here)
 vi.mock("viem", async () => {
@@ -168,7 +168,7 @@ describe("Server Relayer Handler", () => {
         "submitAddAndTrustServer",
         "submitUntrustServer",
         "submitAddServerFilesAndPermissions",
-        "submitRegisterGrantee",
+        //"submitRegisterGrantee", // TODO: Add when contract supports registerGranteeWithSignature
       ] as const;
 
       for (const operation of operationTypes) {
@@ -405,6 +405,60 @@ describe("Server Relayer Handler", () => {
     });
   });
 
+  describe("Direct Operations - Grantee Registration", () => {
+    it("should handle submitRegisterGrantee", async () => {
+      // Mock the permissions.submitRegisterGrantee method
+      mockSdk.permissions.submitRegisterGrantee = vi.fn().mockResolvedValue({
+        hash: "0xgranteehash" as Hash,
+      });
+
+      const request: UnifiedRelayerRequest = {
+        type: "direct",
+        operation: "submitRegisterGrantee",
+        params: {
+          owner: "0xowner" as Address,
+          granteeAddress: "0xgrantee" as Address,
+          publicKey: "0x1234567890abcdef",
+        },
+      };
+
+      const response = await handleRelayerOperation(mockSdk, request);
+
+      expect(mockSdk.permissions.submitRegisterGrantee).toHaveBeenCalledWith({
+        owner: "0xowner",
+        granteeAddress: "0xgrantee",
+        publicKey: "0x1234567890abcdef",
+      });
+
+      expect(response).toEqual({
+        type: "direct",
+        result: {
+          transactionHash: "0xgranteehash",
+        },
+      });
+    });
+
+    it("should handle registerGrantee errors", async () => {
+      mockSdk.permissions.submitRegisterGrantee = vi
+        .fn()
+        .mockRejectedValue(new Error("Grantee registration failed"));
+
+      const request: UnifiedRelayerRequest = {
+        type: "direct",
+        operation: "submitRegisterGrantee",
+        params: {
+          owner: "0xowner" as Address,
+          granteeAddress: "0xgrantee" as Address,
+          publicKey: "0x1234567890abcdef",
+        },
+      };
+
+      await expect(handleRelayerOperation(mockSdk, request)).rejects.toThrow(
+        "Grantee registration failed",
+      );
+    });
+  });
+
   describe("Error Handling", () => {
     it("should handle errors from signed operations", async () => {
       // Mock recoverTypedDataAddress to throw an error for this test
@@ -478,6 +532,7 @@ describe("Server Relayer Handler", () => {
             case "submitFileAdditionWithPermissions":
             case "submitFileAdditionComplete":
             case "storeGrantFile":
+            case "submitRegisterGrantee":
               return request.operation;
             default:
               // TypeScript will error here if a new operation is added

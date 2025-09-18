@@ -6,6 +6,7 @@ on:
       - feature/data-portability-sdk-v1
       - feat/compressed-key-support
       - tim/pro-624-enable-relayers-to-manage-nonce-and-gas-settings
+      - feature/DX-15/grantee-relayer
 
 jobs:
   publish-prerelease:

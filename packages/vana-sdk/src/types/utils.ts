@@ -266,56 +266,6 @@ export interface BlockRange {
 }
 
 /**
- * Transaction options for customizing blockchain transaction parameters.
- *
- * @remarks
- * Provides fine-grained control over transaction execution. Supports both
- * legacy (gasPrice) and EIP-1559 (maxFeePerGas) transaction types. When
- * not specified, the SDK will use appropriate defaults based on network
- * conditions. Use these options to optimize for speed or cost.
- *
- * @example
- * ```typescript
- * // High priority transaction with EIP-1559 pricing
- * await vana.permissions.grant(params, {
- *   maxFeePerGas: 100n * 10n ** 9n, // 100 gwei
- *   maxPriorityFeePerGas: 2n * 10n ** 9n, // 2 gwei tip
- *   timeout: 180000, // 3 minutes
- * });
- *
- * // Legacy transaction with specific gas limit
- * await vana.data.registerFile(params, {
- *   gasLimit: 500000n,
- *   gasPrice: 50n * 10n ** 9n, // 50 gwei
- *   timeout: 600000, // 10 minutes
- * });
- *
- * // Send ETH with the transaction
- * await vana.protocol.execute(params, {
- *   value: 10n ** 18n, // 1 ETH
- *   gasLimit: 21000n
- * });
- * ```
- * @category Reference
- */
-export interface TransactionOptions {
-  /** Gas limit */
-  gasLimit?: bigint;
-  /** Gas price */
-  gasPrice?: bigint;
-  /** Max fee per gas (EIP-1559) */
-  maxFeePerGas?: bigint;
-  /** Max priority fee per gas (EIP-1559) */
-  maxPriorityFeePerGas?: bigint;
-  /** Nonce */
-  nonce?: number;
-  /** Value to send with transaction */
-  value?: bigint;
-  /** Transaction timeout in milliseconds for receipt waiting (default: 30000) */
-  timeout?: number;
-}
-
-/**
  * Transaction receipt with additional metadata for tracking transaction results.
  *
  * @remarks

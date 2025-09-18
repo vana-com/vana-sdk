@@ -1851,7 +1851,9 @@ export class PermissionsController extends BaseController {
   async getUserPermissionGrantsOnChain(
     options: GetUserPermissionsOptions = {},
   ): Promise<OnChainPermissionGrant[]> {
-    const { limit = 50, subgraphUrl } = options;
+    const { limit = 50, fetchAll = false, subgraphUrl } = options;
+    const pageSize = fetchAll ? 100 : limit; // Query efficiently based on mode
+    const maxResults = fetchAll ? 10000 : limit; // Reasonable max for fetchAll
 
     try {
       const userAddress = this.context.userAddress;
@@ -1865,12 +1867,12 @@ export class PermissionsController extends BaseController {
         );
       }
 
-      // Query the subgraph for user's permissions - SINGLE QUERY, NO LOOPS
+      // Query the subgraph for user's permissions with pagination
       const query = `
-        query GetUserPermissions($userId: ID!) {
+        query GetUserPermissions($userId: ID!, $first: Int!, $skip: Int!) {
           user(id: $userId) {
             id
-            permissions {
+            permissions(first: $first, skip: $skip, orderBy: addedAtBlock, orderDirection: desc) {
               id
               grant
               nonce
@@ -1889,56 +1891,121 @@ export class PermissionsController extends BaseController {
         }
       `;
 
-      const response = await fetch(graphqlEndpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          query,
-          variables: {
-            userId: userAddress.toLowerCase(),
+      const allPermissions: any[] = [];
+      let currentOffset = 0;
+
+      // If not fetching all, just get the requested limit in one query
+      if (!fetchAll) {
+        const response = await fetch(graphqlEndpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
           },
-        }),
-      });
-
-      if (!response.ok) {
-        throw new BlockchainError(
-          `Subgraph request failed: ${response.status} ${response.statusText}`,
-        );
-      }
-
-      const result = (await response.json()) as SubgraphPermissionsResponse;
-
-      if (result.errors) {
-        throw new BlockchainError(
-          `Subgraph errors: ${result.errors.map((e: { message: string }) => e.message).join(", ")}`,
-        );
-      }
-
-      const userData = result.data?.user;
-      if (!userData?.permissions?.length) {
-        return [];
-      }
-
-      // Process permissions without expensive network calls - FAST PATH
-      const onChainGrants: OnChainPermissionGrant[] = userData.permissions
-        .slice(0, limit)
-        .map(
-          (permission: NonNullable<typeof userData.permissions>[number]) => ({
-            id: BigInt(permission.id),
-            grantUrl: permission.grant,
-            grantSignature: permission.signature,
-            nonce: BigInt(permission.nonce),
-            startBlock: BigInt(permission.startBlock),
-            addedAtBlock: BigInt(permission.addedAtBlock),
-            addedAtTimestamp: BigInt(permission.addedAtTimestamp ?? "0"),
-            transactionHash: permission.transactionHash ?? "",
-            grantor: userAddress,
-            grantee: permission.grantee,
-            active: !permission.endBlock || BigInt(permission.endBlock) === 0n, // Active if no end block or end block is 0
+          body: JSON.stringify({
+            query,
+            variables: {
+              userId: userAddress.toLowerCase(),
+              first: limit,
+              skip: 0,
+            },
           }),
-        );
+        });
+
+        if (!response.ok) {
+          throw new BlockchainError(
+            `Subgraph request failed: ${response.status} ${response.statusText}`,
+          );
+        }
+
+        const result = (await response.json()) as SubgraphPermissionsResponse;
+
+        if (result.errors) {
+          throw new BlockchainError(
+            `Subgraph errors: ${result.errors.map((e: { message: string }) => e.message).join(", ")}`,
+          );
+        }
+
+        const userData = result.data?.user;
+
+        // If no permissions found, return empty array
+        if (!userData?.permissions?.length) {
+          return [];
+        }
+
+        allPermissions.push(...userData.permissions);
+      } else {
+        // Fetch permissions in batches for fetchAll
+        while (allPermissions.length < maxResults) {
+          const currentLimit = Math.min(
+            pageSize,
+            maxResults - allPermissions.length,
+          );
+
+          const response = await fetch(graphqlEndpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              query,
+              variables: {
+                userId: userAddress.toLowerCase(),
+                first: currentLimit,
+                skip: currentOffset,
+              },
+            }),
+          });
+
+          if (!response.ok) {
+            throw new BlockchainError(
+              `Subgraph request failed: ${response.status} ${response.statusText}`,
+            );
+          }
+
+          const result = (await response.json()) as SubgraphPermissionsResponse;
+
+          if (result.errors) {
+            throw new BlockchainError(
+              `Subgraph errors: ${result.errors.map((e: { message: string }) => e.message).join(", ")}`,
+            );
+          }
+
+          const userData = result.data?.user;
+
+          // If no permissions found in this batch, we're done
+          if (!userData?.permissions?.length) {
+            break;
+          }
+
+          // Add permissions from this batch
+          allPermissions.push(...userData.permissions);
+
+          // If we got fewer permissions than requested, we've reached the end
+          if (userData.permissions.length < currentLimit) {
+            break;
+          }
+
+          // Move to next batch
+          currentOffset += userData.permissions.length;
+        }
+      }
+
+      // Process all permissions without expensive network calls - FAST PATH
+      const onChainGrants: OnChainPermissionGrant[] = allPermissions.map(
+        (permission: any) => ({
+          id: BigInt(permission.id),
+          grantUrl: permission.grant,
+          grantSignature: permission.signature,
+          nonce: BigInt(permission.nonce),
+          startBlock: BigInt(permission.startBlock),
+          addedAtBlock: BigInt(permission.addedAtBlock),
+          addedAtTimestamp: BigInt(permission.addedAtTimestamp ?? "0"),
+          transactionHash: permission.transactionHash ?? "",
+          grantor: userAddress,
+          grantee: permission.grantee,
+          active: !permission.endBlock || BigInt(permission.endBlock) === 0n, // Active if no end block or end block is 0
+        }),
+      );
 
       return onChainGrants.sort((a, b) => {
         // Sort by ID - most recent first

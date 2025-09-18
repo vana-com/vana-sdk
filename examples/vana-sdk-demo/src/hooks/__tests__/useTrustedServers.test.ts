@@ -138,11 +138,15 @@ describe("useTrustedServers", () => {
         expect(result.current.isLoadingTrustedServers).toBe(false);
       });
 
-      expect(mockVana.data.getUserTrustedServers).toHaveBeenCalledWith({
-        user: "0x123",
-        subgraphUrl: "http://localhost:8000/subgraphs/name/vana",
-        limit: 10,
-      });
+      expect(mockVana.data.getUserTrustedServers).toHaveBeenCalledWith(
+        {
+          user: "0x123",
+          subgraphUrl: "http://localhost:8000/subgraphs/name/vana",
+        },
+        {
+          limit: 10,
+        },
+      );
       expect(result.current.trustedServers).toEqual(mockTrustedServers);
       expect(addToastMock).toHaveBeenCalledWith({
         color: "success",
@@ -193,11 +197,15 @@ describe("useTrustedServers", () => {
         await result.current.loadUserTrustedServers();
       });
 
-      expect(mockVana.data.getUserTrustedServers).toHaveBeenCalledWith({
-        user: "0x123",
-        subgraphUrl: "http://localhost:8000/subgraphs/name/vana",
-        limit: 10,
-      });
+      expect(mockVana.data.getUserTrustedServers).toHaveBeenCalledWith(
+        {
+          user: "0x123",
+          subgraphUrl: "http://localhost:8000/subgraphs/name/vana",
+        },
+        {
+          limit: 10,
+        },
+      );
       expect(result.current.trustedServers).toEqual(mockTrustedServers);
       expect(result.current.isLoadingTrustedServers).toBe(false);
     });
@@ -209,11 +217,15 @@ describe("useTrustedServers", () => {
         await result.current.loadUserTrustedServers();
       });
 
-      expect(mockVana.data.getUserTrustedServers).toHaveBeenCalledWith({
-        user: "0x123",
-        subgraphUrl: "http://localhost:8000/subgraphs/name/vana",
-        limit: 10,
-      });
+      expect(mockVana.data.getUserTrustedServers).toHaveBeenCalledWith(
+        {
+          user: "0x123",
+          subgraphUrl: "http://localhost:8000/subgraphs/name/vana",
+        },
+        {
+          limit: 10,
+        },
+      );
     });
 
     it("handles array response", async () => {

@@ -134,9 +134,11 @@ export function usePermissions(): UsePermissionsReturn {
 
     setIsLoadingPermissions(true);
     try {
+      // Load ALL permissions using fetchAll
+      // This ensures users can see all their permissions, not just the first 20
       const onChainPermissions =
         await vana.permissions.getUserPermissionGrantsOnChain({
-          limit: 20,
+          fetchAll: true,
         });
       setUserPermissions(onChainPermissions);
       return onChainPermissions;

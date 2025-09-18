@@ -150,7 +150,7 @@ describe("usePermissions", () => {
       expect(
         mockVana.permissions.getUserPermissionGrantsOnChain,
       ).toHaveBeenCalledWith({
-        limit: 20,
+        fetchAll: true,
       });
       expect(result.current.userPermissions).toEqual(mockPermissions);
     });

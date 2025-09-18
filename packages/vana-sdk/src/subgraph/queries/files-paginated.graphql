@@ -1,0 +1,35 @@
+# Paginated query for user files with ordering support
+query GetUserFilesPaginated(
+  $userId: ID!
+  $first: Int!
+  $skip: Int!
+  $orderBy: File_orderBy
+  $orderDirection: OrderDirection
+) {
+  user(id: $userId) {
+    id
+    files(
+      first: $first
+      skip: $skip
+      orderBy: $orderBy
+      orderDirection: $orderDirection
+    ) {
+      id
+      url
+      schemaId
+      addedAtBlock
+      addedAtTimestamp
+      transactionHash
+      owner {
+        id
+      }
+    }
+  }
+  _meta {
+    block {
+      number
+      timestamp
+    }
+    hasIndexingErrors
+  }
+}

@@ -1,0 +1,37 @@
+# Paginated query for user trusted servers with ordering support
+query GetUserTrustedServersPaginated(
+  $userId: ID!
+  $first: Int!
+  $skip: Int!
+  $orderBy: UserServer_orderBy
+  $orderDirection: OrderDirection
+) {
+  user(id: $userId) {
+    id
+    serverTrusts(
+      first: $first
+      skip: $skip
+      orderBy: $orderBy
+      orderDirection: $orderDirection
+    ) {
+      id
+      server {
+        id
+        serverAddress
+        url
+        publicKey
+      }
+      trustedAt
+      trustedAtBlock
+      untrustedAtBlock
+      transactionHash
+    }
+  }
+  _meta {
+    block {
+      number
+      timestamp
+    }
+    hasIndexingErrors
+  }
+}

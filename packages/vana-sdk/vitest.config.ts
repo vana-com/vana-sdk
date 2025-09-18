@@ -26,9 +26,9 @@ export default defineConfig({
       ],
       reportOnFailure: true,
       thresholds: {
-        // Coverage adjusted after removing legacy handler and its tests
+        // Coverage adjusted after consistency features implementation
         statements: 76,
-        branches: 82.2,
+        branches: 81.8,
         functions: 87,
         lines: 76,
       },

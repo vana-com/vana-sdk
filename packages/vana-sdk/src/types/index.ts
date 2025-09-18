@@ -281,6 +281,16 @@ export type {
   OperationState,
 } from "./operations";
 
+// Options types
+export type {
+  ConsistencyOptions,
+  DataSource,
+  PaginationOptions,
+  ListOptions,
+  WriteOptions,
+  LegacyTransactionOptions,
+} from "./options";
+
 // Generic types for extensibility
 export type {
   GenericRequest,

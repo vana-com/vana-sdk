@@ -3,6 +3,9 @@ import type { GetOperationResponse } from "../generated/server/server-exports";
 import type { Contract, Fn } from "../generated/event-types";
 import type { UnifiedRelayerRequest } from "./relayer";
 
+// Re-export TransactionOptions from the new options module
+export type { TransactionOptions } from "./options";
+
 /**
  * Represents a server-side operation status and result.
  *
@@ -272,21 +275,6 @@ export function getTransactionHash(
     return txOrHash;
   }
   return txOrHash.hash;
-}
-
-/**
- * Options for customizing a blockchain transaction.
- * Matches viem's transaction parameters exactly.
- *
- * @category Operations
- */
-export interface TransactionOptions {
-  nonce?: number;
-  gas?: bigint;
-  maxFeePerGas?: bigint;
-  maxPriorityFeePerGas?: bigint;
-  gasPrice?: bigint;
-  value?: bigint;
 }
 
 /**

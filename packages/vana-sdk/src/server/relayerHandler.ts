@@ -505,12 +505,8 @@ async function handleDirectOperation(
         publicKey,
       });
 
-      return {
-        type: "direct",
-        result: {
-          transactionHash: result.hash,
-        },
-      };
+      // Return as a TransactionResult that the SDK expects
+      return result;
     }
 
     default: {

@@ -3327,7 +3327,8 @@ export class PermissionsController extends BaseController {
           throw new RelayerError(response.error);
         }
         if (response.type === "direct") {
-          hash = response.result.transactionHash;
+          const result = response.result as { transactionHash: Hash };
+          hash = result.transactionHash;
         } else {
           throw new Error("Unexpected response type from relayer");
         }

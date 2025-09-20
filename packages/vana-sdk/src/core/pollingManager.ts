@@ -177,7 +177,7 @@ export class PollingManager {
         if (status.type === "confirmed") {
           return {
             hash: status.hash,
-            receipt: status.receipt,
+            receipt: status.receipt as TransactionReceipt | undefined,
           };
         }
 

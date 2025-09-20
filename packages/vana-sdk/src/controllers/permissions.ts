@@ -622,6 +622,7 @@ export class PermissionsController extends BaseController {
           // --- ROBUST RELAYER PATH ---
           const pollResult = await this.pollRelayerForConfirmation(
             response.operationId,
+            options,
           );
           finalHash = pollResult.hash;
         } else if (response.type === "confirmed") {
@@ -930,46 +931,29 @@ export class PermissionsController extends BaseController {
    * Polls the relayer for confirmation of a pending operation.
    *
    * @param operationId - The operation ID to poll
-   * @returns Promise resolving to the confirmed hash
-   * @throws {Error} When the operation fails or times out
+   * @param options - Polling configuration including status updates and cancellation
+   * @returns Promise resolving to the confirmed hash and receipt
+   * @throws {TransactionPendingError} When the operation times out
+   * @throws {Error} When the operation fails or is cancelled
    * @internal
    */
   private async pollRelayerForConfirmation(
     operationId: string,
-    options: { timeout?: number; pollingInterval?: number } = {},
-  ): Promise<{ hash: Hash }> {
-    const timeout = options.timeout ?? 30000; // 30 seconds default
-    let interval = options.pollingInterval ?? 1000; // 1 second default
-    const startTime = Date.now();
-
-    while (Date.now() - startTime < timeout) {
-      // Poll the relayer for status
-      if (!this.context.relayer) {
-        throw new Error("Relayer not configured for polling");
-      }
-
-      const statusResponse = await this.context.relayer({
-        type: "status_check",
-        operationId,
-      });
-
-      if (statusResponse.type === "confirmed") {
-        return { hash: statusResponse.hash };
-      }
-
-      if (statusResponse.type === "error") {
-        throw new Error(
-          `Operation ${operationId} failed: ${statusResponse.error}`,
-        );
-      }
-
-      // Wait before next poll with exponential backoff
-      await new Promise((resolve) => setTimeout(resolve, interval));
-      // Simple exponential backoff: multiply by 1.5, cap at 5 seconds
-      interval = Math.min(interval * 1.5, 5000);
+    options?: TransactionOptions,
+  ): Promise<{ hash: Hash; receipt?: unknown }> {
+    if (!this.context.relayer) {
+      throw new Error("Relayer not configured for polling");
     }
 
-    throw new Error(`Operation ${operationId} timed out after ${timeout}ms`);
+    // Import PollingManager dynamically to avoid circular dependencies
+    const { PollingManager } = await import("../core/pollingManager");
+    const pollingManager = new PollingManager(this.context.relayer);
+
+    return await pollingManager.startPolling(operationId, {
+      signal: options?.signal,
+      onStatusUpdate: options?.onStatusUpdate,
+      ...options?.pollingOptions,
+    });
   }
 
   /**
@@ -996,7 +980,7 @@ export class PermissionsController extends BaseController {
   async submitSignedRevoke(
     typedData: GenericTypedData,
     signature: Hash,
-    _options?: TransactionOptions,
+    options?: TransactionOptions,
   ): Promise<
     TransactionResult<
       "DataPortabilityPermissions",
@@ -1027,6 +1011,7 @@ export class PermissionsController extends BaseController {
           // --- ROBUST RELAYER PATH ---
           const pollResult = await this.pollRelayerForConfirmation(
             response.operationId,
+            options,
           );
           hash = pollResult.hash;
         } else if (response.type === "confirmed") {

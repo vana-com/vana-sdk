@@ -7,7 +7,7 @@ import {
   type VanaInstance,
   type VanaChain,
   type VanaChainId,
-  type IOperationStore,
+  type IRelayerStateStore,
   type OperationState,
 } from "@opendatalabs/vana-sdk/node";
 
@@ -16,7 +16,7 @@ const parameterStorage = new Map<string, string>();
 
 // Simple in-memory operation store for demo purposes
 // In production, use a persistent database like Redis or PostgreSQL
-class InMemoryOperationStore implements IOperationStore {
+class InMemoryOperationStore implements IRelayerStateStore {
   private operations = new Map<string, OperationState>();
 
   async get(operationId: string): Promise<OperationState | null> {

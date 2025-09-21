@@ -10,8 +10,13 @@ import type {
   UnifiedRelayerRequest,
   UnifiedRelayerResponse,
 } from "../types/relayer";
+import type { IOperationStore } from "../types/operationStore";
+import type { IAtomicStore } from "../types/atomicStore";
+import type { WalletClient, PublicClient } from "viem";
 import { BaseController } from "./base";
 import { PollingManager } from "../core/pollingManager";
+import { DistributedNonceManager } from "../core/nonceManager";
+import { parseEther } from "viem";
 
 /**
  * Controller for managing asynchronous operations.
@@ -206,6 +211,308 @@ export class OperationsController extends BaseController {
     //
     // const response = await this.context.relayer(request);
     // return response.type === 'success';
+  }
+
+  /**
+   * Processes queued operations from the operation store.
+   *
+   * @remarks
+   * This method is designed for worker processes that handle asynchronous
+   * operation processing. It fetches queued operations, processes them with
+   * proper nonce management and gas escalation, and handles retries.
+   *
+   * This is typically called from a background worker or cron job to process
+   * operations that were queued for asynchronous execution.
+   *
+   * @param config - Configuration for queue processing
+   * @returns Promise resolving to processing results
+   *
+   * @example
+   * ```typescript
+   * // In a worker process
+   * const results = await vana.operations.processQueue({
+   *   operationStore,
+   *   atomicStore,
+   *   walletClient,
+   *   publicClient,
+   *   maxOperations: 10,
+   *   onOperationComplete: (id, success) => {
+   *     console.log(`Operation ${id}: ${success ? 'completed' : 'failed'}`);
+   *   }
+   * });
+   *
+   * console.log(`Processed ${results.processed} operations`);
+   * ```
+   */
+  async processQueue(config: {
+    operationStore: IOperationStore;
+    atomicStore: IAtomicStore;
+    walletClient: WalletClient;
+    publicClient: PublicClient;
+    maxOperations?: number;
+    maxRetries?: number;
+    gasEscalationFactor?: number;
+    maxGasMultiplier?: number;
+    onOperationComplete?: (operationId: string, success: boolean) => void;
+    onError?: (operationId: string, error: Error) => void;
+  }): Promise<{
+    processed: number;
+    succeeded: number;
+    failed: number;
+    errors: Array<{ operationId: string; error: string }>;
+  }> {
+    const {
+      operationStore,
+      atomicStore,
+      walletClient,
+      publicClient,
+      maxOperations = 10,
+      maxRetries = 3,
+      gasEscalationFactor = 1.2,
+      maxGasMultiplier = 3,
+      onOperationComplete,
+      onError,
+    } = config;
+
+    const results = {
+      processed: 0,
+      succeeded: 0,
+      failed: 0,
+      errors: [] as Array<{ operationId: string; error: string }>,
+    };
+
+    // Initialize nonce manager
+    const nonceManager = new DistributedNonceManager({
+      atomicStore,
+      publicClient,
+    });
+
+    // Get queued operations
+    const operations = await operationStore.getQueuedOperations({
+      limit: maxOperations,
+    });
+
+    console.log(
+      `[OperationsController] Processing ${operations.length} queued operations`,
+    );
+
+    for (const operation of operations) {
+      results.processed++;
+
+      try {
+        // Mark as processing
+        await operationStore.updateStatus(operation.id, "processing");
+
+        // Parse the stored transaction
+        const storedTx = JSON.parse(operation.data, (_key, value) => {
+          if (typeof value === "string" && value.startsWith("__BIGINT__")) {
+            return BigInt(value.slice(10));
+          }
+          return value;
+        });
+
+        // Get chain ID from wallet client
+        const chainId = await walletClient.getChainId();
+
+        // Get relayer address
+        const [address] = await walletClient.getAddresses();
+
+        // Assign nonce atomically
+        const nonce = await nonceManager.assignNonce(address, chainId);
+
+        if (nonce === null) {
+          throw new Error("Failed to acquire nonce lock");
+        }
+
+        // Calculate gas with escalation based on retry count
+        const retryCount = operation.retryCount ?? 0;
+        const gasMultiplier = Math.min(
+          Math.pow(gasEscalationFactor, retryCount),
+          maxGasMultiplier,
+        );
+
+        // Apply gas escalation
+        const escalatedTx = {
+          ...storedTx,
+          nonce,
+          maxFeePerGas: storedTx.maxFeePerGas
+            ? BigInt(Math.floor(Number(storedTx.maxFeePerGas) * gasMultiplier))
+            : undefined,
+          maxPriorityFeePerGas: storedTx.maxPriorityFeePerGas
+            ? BigInt(
+                Math.floor(
+                  Number(storedTx.maxPriorityFeePerGas) * gasMultiplier,
+                ),
+              )
+            : undefined,
+          gasPrice: storedTx.gasPrice
+            ? BigInt(Math.floor(Number(storedTx.gasPrice) * gasMultiplier))
+            : undefined,
+        };
+
+        console.log(
+          `[OperationsController] Processing operation ${operation.id} with nonce ${nonce} (retry ${retryCount})`,
+        );
+
+        // Send transaction
+        const hash = await walletClient.sendTransaction(escalatedTx);
+
+        // Update status to submitted
+        await operationStore.updateStatus(operation.id, "submitted", {
+          hash,
+          nonce,
+          submittedAt: Date.now(),
+        });
+
+        console.log(
+          `[OperationsController] Operation ${operation.id} submitted: ${hash}`,
+        );
+
+        // Wait for confirmation (with timeout)
+        const receipt = await publicClient.waitForTransactionReceipt({
+          hash,
+          timeout: 60000, // 1 minute timeout
+        });
+
+        if (receipt.status === "success") {
+          // Update to completed
+          await operationStore.updateStatus(operation.id, "completed", {
+            receipt,
+            completedAt: Date.now(),
+          });
+
+          results.succeeded++;
+          onOperationComplete?.(operation.id, true);
+
+          console.log(
+            `[OperationsController] Operation ${operation.id} completed successfully`,
+          );
+        } else {
+          // Transaction reverted
+          throw new Error(`Transaction reverted: ${hash}`);
+        }
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        console.error(
+          `[OperationsController] Operation ${operation.id} failed:`,
+          errorMessage,
+        );
+
+        results.failed++;
+        results.errors.push({
+          operationId: operation.id,
+          error: errorMessage,
+        });
+
+        const retryCount = (operation.retryCount ?? 0) + 1;
+
+        if (retryCount >= maxRetries) {
+          // Max retries reached, mark as failed
+          await operationStore.updateStatus(operation.id, "failed", {
+            error: errorMessage,
+            failedAt: Date.now(),
+          });
+        } else {
+          // Return to queue for retry
+          await operationStore.updateStatus(operation.id, "queued", {
+            retryCount,
+            lastError: errorMessage,
+            lastAttemptAt: Date.now(),
+          });
+        }
+
+        onOperationComplete?.(operation.id, false);
+        onError?.(
+          operation.id,
+          error instanceof Error ? error : new Error(errorMessage),
+        );
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Burns a stuck nonce by sending a minimal self-transfer.
+   *
+   * @remarks
+   * This method is used to unblock the transaction queue when a transaction
+   * is stuck. It sends a minimal amount to the same address with the stuck
+   * nonce and higher gas to ensure it gets mined.
+   *
+   * @param config - Configuration for nonce burning
+   * @returns Promise resolving to the burn transaction hash
+   *
+   * @example
+   * ```typescript
+   * const hash = await vana.operations.burnStuckNonce({
+   *   walletClient,
+   *   publicClient,
+   *   atomicStore,
+   *   address: relayerAddress,
+   *   stuckNonce: 42
+   * });
+   *
+   * console.log(`Burned stuck nonce with tx: ${hash}`);
+   * ```
+   */
+  async burnStuckNonce(config: {
+    walletClient: WalletClient;
+    publicClient: PublicClient;
+    atomicStore: IAtomicStore;
+    address: `0x${string}`;
+    stuckNonce: number;
+  }): Promise<string> {
+    const { walletClient, publicClient, atomicStore, address, stuckNonce } =
+      config;
+
+    console.log(
+      `[OperationsController] Burning stuck nonce ${stuckNonce} for ${address}`,
+    );
+
+    // Get current gas prices with 50% premium
+    const gasPrice = await publicClient.getGasPrice();
+    const premiumGasPrice = (gasPrice * 150n) / 100n;
+
+    // Send minimal self-transfer
+    const hash = await walletClient.sendTransaction({
+      account: walletClient.account!,
+      chain: walletClient.chain,
+      to: address,
+      value: parseEther("0.00001"), // Minimal amount
+      nonce: stuckNonce,
+      gasPrice: premiumGasPrice,
+      gas: 21000n, // Standard transfer gas
+    });
+
+    console.log(`[OperationsController] Nonce burn transaction sent: ${hash}`);
+
+    // Wait for confirmation
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash,
+      timeout: 120000, // 2 minutes
+    });
+
+    if (receipt.status === "success") {
+      console.log(
+        `[OperationsController] Nonce ${stuckNonce} successfully burned`,
+      );
+
+      // Update stored nonce to reflect the burn
+      const chainId = await walletClient.getChainId();
+      const lastUsedKey = `nonce:${chainId}:${address}:lastUsed`;
+
+      // Only update if this nonce was higher than stored
+      const currentLastUsed = await atomicStore.get(lastUsedKey);
+      if (!currentLastUsed || parseInt(currentLastUsed) < stuckNonce) {
+        await atomicStore.set(lastUsedKey, stuckNonce.toString());
+      }
+    } else {
+      throw new Error(`Nonce burn transaction failed: ${hash}`);
+    }
+
+    return hash;
   }
 
   /**

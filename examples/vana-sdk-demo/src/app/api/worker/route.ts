@@ -10,7 +10,7 @@ import { NextResponse } from "next/server";
 import {
   Vana,
   handleRelayerOperation,
-  type IOperationStore,
+  type IRelayerStateStore,
   type OperationState,
 } from "@opendatalabs/vana-sdk/node";
 import {
@@ -263,7 +263,7 @@ async function checkTransactionStatus(publicClient: any, txHash: Hash) {
  */
 async function retryOperation(
   vana: any,
-  operationStore: IOperationStore,
+  operationStore: IRelayerStateStore,
   atomicStore: any,
   operationId: string,
   state: OperationState,

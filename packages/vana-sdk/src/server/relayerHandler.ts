@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import type { VanaInstance } from "../index.node";
+import type { VanaInstance, VanaWithStores } from "../index.node";
 import type {
   UnifiedRelayerRequest,
   UnifiedRelayerResponse,
@@ -8,12 +8,9 @@ import type {
 import type {
   TransactionResult,
   TransactionOptions,
-  IOperationStore,
-  OperationState,
   TransactionReceipt,
 } from "../types";
-import type { IAtomicStore } from "../types/atomicStore";
-import { DistributedNonceManager } from "../core/nonceManager";
+import type { OperationState } from "../types/operationStore";
 import type { Contract, Fn } from "../generated/event-types";
 import type {
   GenericTypedData,
@@ -61,19 +58,23 @@ import { recoverTypedDataAddress, getAddress, type Hash } from "viem";
  * ```
  */
 export async function handleRelayerOperation(
-  sdk: VanaInstance, // The public signature is generic
+  sdk: VanaInstance,
   request: UnifiedRelayerRequest,
   options?: TransactionOptions,
 ): Promise<UnifiedRelayerResponse> {
-  // Type assertion required: VanaInstance public interface doesn't expose operationStore
-  // to maintain API simplicity, but server-side handler needs access for stateful mode.
-  // The factory overloads guarantee this is safe for relayer-configured instances.
-  // TODO(TYPES): Consider exposing operationStore through a server-specific interface
+  // Type cast to access internal properties - safe for server-side relayer instances
+  const sdkWithStores = sdk as VanaInstance & Partial<VanaWithStores>;
+  const storeUntyped = sdkWithStores.operationStore;
 
-  const store = (sdk as any).operationStore as IOperationStore | undefined;
+  // Check if it's a IRelayerStateStore (has get/set methods)
+  const isRelayerStore =
+    storeUntyped && "get" in storeUntyped && "set" in storeUntyped;
+  const store = isRelayerStore
+    ? (storeUntyped as import("../types/operationStore").IRelayerStateStore)
+    : undefined;
 
   // --- STATEFUL (ROBUST) MODE ---
-  // This block executes ONLY if the developer provided an IOperationStore.
+  // This block executes ONLY if the developer provided a relayer state store.
   if (store) {
     if (request.type === "status_check") {
       const state = await store.get(request.operationId);
@@ -93,8 +94,7 @@ export async function handleRelayerOperation(
       if (state.status === "pending") {
         try {
           // Get a public client to check transaction status
-          // The SDK stores it as a direct property
-          const publicClient = (sdk as any).publicClient;
+          const publicClient = sdkWithStores.publicClient;
 
           if (publicClient) {
             // Check if transaction has been mined
@@ -163,45 +163,15 @@ export async function handleRelayerOperation(
 
     const operationId = uuidv4();
     try {
-      // Use distributed nonce manager if atomicStore is available
-      let finalOptions = options;
-      const atomicStore = (sdk as any).atomicStore as IAtomicStore | undefined;
-
-      if (atomicStore && request.type === "signed" && !options?.nonce) {
-        const publicClient = (sdk as any).publicClient;
-        const privateKey = (sdk as any).privateKey;
-
-        if (publicClient && privateKey) {
-          // Extract relayer address from private key
-          const { privateKeyToAccount } = await import("viem/accounts");
-          const account = privateKeyToAccount(privateKey);
-          const chainId = await publicClient.getChainId();
-
-          // Use nonce manager for atomic assignment
-          const nonceManager = new DistributedNonceManager({
-            atomicStore,
-            publicClient,
-          });
-
-          const assignedNonce = await nonceManager.assignNonce(
-            account.address,
-            chainId,
-          );
-          if (assignedNonce !== null) {
-            console.log(`[Relayer] Using distributed nonce: ${assignedNonce}`);
-            finalOptions = { ...options, nonce: assignedNonce };
-          }
-        }
-      }
-
-      const txResult = await routeAndExecuteRequest(sdk, request, finalOptions);
+      // Nonce management is handled internally by the SDK when atomicStore is configured
+      const txResult = await routeAndExecuteRequest(sdk, request, options);
       // We only store state for operations that result in a transaction.
       if ("hash" in txResult) {
         await store.set(operationId, {
           status: "pending",
           transactionHash: txResult.hash,
           originalRequest: request,
-          nonce: finalOptions?.nonce,
+          nonce: options?.nonce,
           retryCount: 0,
           lastAttemptedGas: {
             maxFeePerGas: options?.maxFeePerGas?.toString(),
@@ -483,8 +453,7 @@ async function handleDirectOperation(
 
       // File uploads need synchronous response with fileId
       // Use the SDK's built-in event parsing - it knows how to extract events from TransactionResult
-      // The SDK has waitForTransactionEvents as a public method
-      const eventResult = await (sdk as any).waitForTransactionEvents(txResult);
+      const eventResult = await sdk.waitForTransactionEvents(txResult);
       const fileAddedEvent = eventResult.expectedEvents?.FileAdded;
 
       if (!fileAddedEvent || !fileAddedEvent.fileId) {

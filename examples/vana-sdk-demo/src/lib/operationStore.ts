@@ -1,5 +1,5 @@
 /**
- * Production-ready Redis implementation of IOperationStore for the Vana SDK stateful relayer.
+ * Production-ready Redis implementation of IRelayerStateStore for the Vana SDK stateful relayer.
  *
  * This implementation provides persistent storage for operation state with:
  * - Atomic state transitions
@@ -11,7 +11,7 @@
 
 import Redis, { type RedisOptions } from "ioredis";
 import type {
-  IOperationStore,
+  IRelayerStateStore,
   OperationState,
 } from "@opendatalabs/vana-sdk/node";
 
@@ -51,7 +51,7 @@ function deserializeBigInt(str: string): any {
 }
 
 /**
- * Redis-backed implementation of IOperationStore for production use.
+ * Redis-backed implementation of IRelayerStateStore for production use.
  *
  * @example
  * ```typescript
@@ -67,7 +67,7 @@ function deserializeBigInt(str: string): any {
  * });
  * ```
  */
-export class RedisOperationStore implements IOperationStore {
+export class RedisOperationStore implements IRelayerStateStore {
   private redis: Redis;
   private operationTTL: number;
   private keyPrefix: string;

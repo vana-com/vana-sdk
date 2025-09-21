@@ -277,9 +277,15 @@ export type {
   TransactionOptions,
   TransactionReceipt,
   TransactionResult,
-  IOperationStore,
-  OperationState,
 } from "./operations";
+
+// Operation store types
+export type {
+  IOperationStore,
+  StoredOperation,
+  IRelayerStateStore,
+  OperationState,
+} from "./operationStore";
 
 // Options types
 export type {

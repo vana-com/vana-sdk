@@ -43,8 +43,11 @@ import type {
   PollingOptions,
   TransactionResult,
   TransactionWaitOptions,
-  IOperationStore,
 } from "./types/operations";
+import type {
+  IOperationStore,
+  IRelayerStateStore,
+} from "./types/operationStore";
 import type { IAtomicStore } from "./types/atomicStore";
 import type {
   Contract,
@@ -184,10 +187,10 @@ export class VanaCore {
   private readonly storageManager?: StorageManager;
   private readonly hasRequiredStorage: boolean;
   private readonly ipfsGateways?: string[];
-  private readonly publicClient: PublicClient;
+  public readonly publicClient: PublicClient;
   private readonly walletClient?: WalletClient;
   private readonly _staticUserAddress?: Address; // For read-only mode
-  protected readonly operationStore?: IOperationStore;
+  protected readonly operationStore?: IOperationStore | IRelayerStateStore;
   protected readonly atomicStore?: IAtomicStore;
 
   /**

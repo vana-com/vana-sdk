@@ -1,7 +1,6 @@
 import type { Hash, TransactionReceipt as ViemReceipt, Address } from "viem";
 import type { GetOperationResponse } from "../generated/server/server-exports";
 import type { Contract, Fn } from "../generated/event-types";
-import type { UnifiedRelayerRequest } from "./relayer";
 
 // Re-export TransactionOptions from the new options module
 export type { TransactionOptions } from "./options";
@@ -275,34 +274,4 @@ export function getTransactionHash(
     return txOrHash;
   }
   return txOrHash.hash;
-}
-
-/**
- * The state of an asynchronous, relayed operation. This is the data
- * the application backend is responsible for persisting. It serves as a
- * complete recovery log for a given operation.
- *
- * @category Operations
- */
-export interface OperationState {
-  status: "pending" | "confirmed" | "failed";
-  transactionHash: Hash;
-  originalRequest: UnifiedRelayerRequest;
-  nonce?: number;
-  retryCount: number;
-  lastAttemptedGas: { maxFeePerGas?: string; maxPriorityFeePerGas?: string };
-  submittedAt: number; // Unix timestamp (ms)
-  finalReceipt?: TransactionReceipt;
-  error?: string;
-}
-
-/**
- * The storage interface that the application developer must implement
- * for their backend to support the Vana relayer system.
- *
- * @category Operations
- */
-export interface IOperationStore {
-  get(operationId: string): Promise<OperationState | null>;
-  set(operationId: string, state: OperationState): Promise<void>;
 }

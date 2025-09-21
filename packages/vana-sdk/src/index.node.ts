@@ -10,9 +10,13 @@ import type {
   VanaConfigWithStorage,
   StorageRequiredMarker,
   RelayerRequiredMarker,
-  IOperationStore,
 } from "./types";
+import type {
+  IOperationStore,
+  IRelayerStateStore,
+} from "./types/operationStore";
 import type { IAtomicStore } from "./types/atomicStore";
+import type { PublicClient } from "viem";
 
 /**
  * Node.js-specific configuration interface with operation store support
@@ -20,7 +24,7 @@ import type { IAtomicStore } from "./types/atomicStore";
  * @category Configuration
  */
 export type VanaNodeConfig = VanaConfig & {
-  operationStore?: IOperationStore;
+  operationStore?: IOperationStore | IRelayerStateStore; // Can be either type
   atomicStore?: IAtomicStore;
 };
 
@@ -30,7 +34,7 @@ export type VanaNodeConfig = VanaConfig & {
  * @category Configuration
  */
 export type VanaNodeConfigWithStorage = VanaConfigWithStorage & {
-  operationStore?: IOperationStore;
+  operationStore?: IOperationStore | IRelayerStateStore; // Can be either type
   atomicStore?: IAtomicStore;
 };
 
@@ -39,7 +43,7 @@ export type VanaNodeConfigWithStorage = VanaConfigWithStorage & {
  * This class is not exported directly - use the Vana factory function instead.
  */
 class VanaNodeImpl extends VanaCore {
-  override readonly operationStore?: IOperationStore;
+  override readonly operationStore?: IOperationStore | IRelayerStateStore;
   override readonly atomicStore?: IAtomicStore;
 
   constructor(config: VanaNodeConfig) {
@@ -205,10 +209,28 @@ export default Vana;
 // Core class and factory
 export { VanaCore, VanaCoreFactory } from "./core";
 export { DistributedNonceManager } from "./core/nonceManager";
+export { SystemHealthChecker } from "./core/health";
+export type {
+  SystemHealthCheckerConfig,
+  HealthStatus,
+  ComponentHealth,
+  NonceHealth,
+  QueueHealth,
+} from "./core/health";
+
+// Storage implementations
+export { RedisAtomicStore } from "./lib/redisAtomicStore";
+export type { RedisAtomicStoreConfig } from "./lib/redisAtomicStore";
 
 // Types - modular exports
 export type * from "./types";
 export type { IAtomicStore } from "./types/atomicStore";
+export type {
+  IOperationStore,
+  StoredOperation,
+  IRelayerStateStore,
+  OperationState,
+} from "./types/operationStore";
 
 // Type guards and utilities
 export {
@@ -333,3 +355,10 @@ export type {
 // Note: Default export is already handled above with the Vana factory function
 // For testing purposes, we also export the implementation class
 export { VanaNodeImpl };
+
+// Server-specific interface for accessing stores
+export interface VanaWithStores {
+  readonly operationStore?: IOperationStore | IRelayerStateStore;
+  readonly atomicStore?: IAtomicStore;
+  readonly publicClient: PublicClient;
+}

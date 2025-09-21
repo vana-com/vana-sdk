@@ -12,6 +12,7 @@ import type {
   RelayerRequiredMarker,
   IOperationStore,
 } from "./types";
+import type { IAtomicStore } from "./types/atomicStore";
 
 /**
  * Node.js-specific configuration interface with operation store support
@@ -20,6 +21,7 @@ import type {
  */
 export type VanaNodeConfig = VanaConfig & {
   operationStore?: IOperationStore;
+  atomicStore?: IAtomicStore;
 };
 
 /**
@@ -29,6 +31,7 @@ export type VanaNodeConfig = VanaConfig & {
  */
 export type VanaNodeConfigWithStorage = VanaConfigWithStorage & {
   operationStore?: IOperationStore;
+  atomicStore?: IAtomicStore;
 };
 
 /**
@@ -37,10 +40,12 @@ export type VanaNodeConfigWithStorage = VanaConfigWithStorage & {
  */
 class VanaNodeImpl extends VanaCore {
   override readonly operationStore?: IOperationStore;
+  override readonly atomicStore?: IAtomicStore;
 
   constructor(config: VanaNodeConfig) {
     super(new NodePlatformAdapter(), config);
     this.operationStore = config.operationStore;
+    this.atomicStore = config.atomicStore;
   }
 }
 
@@ -199,9 +204,11 @@ export default Vana;
 // Re-export everything that was in index.ts (avoiding circular dependency)
 // Core class and factory
 export { VanaCore, VanaCoreFactory } from "./core";
+export { DistributedNonceManager } from "./core/nonceManager";
 
 // Types - modular exports
 export type * from "./types";
+export type { IAtomicStore } from "./types/atomicStore";
 
 // Type guards and utilities
 export {
@@ -223,6 +230,7 @@ export { DataController } from "./controllers/data";
 export { ServerController } from "./controllers/server";
 export { ProtocolController } from "./controllers/protocol";
 export { SchemaController } from "./controllers/schemas";
+export { OperationsController } from "./controllers/operations";
 
 // Contract controller
 export * from "./contracts/contractController";

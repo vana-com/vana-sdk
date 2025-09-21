@@ -1,11 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createRelayerVana, relayerConfig } from "@/lib/relayer";
-import { nonceManager } from "@/lib/nonceManager";
 import {
+  Vana,
   handleRelayerOperation,
   type UnifiedRelayerRequest,
-  type TransactionOptions,
 } from "@opendatalabs/vana-sdk/node";
+import { createWalletClient, http } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { RedisOperationStore } from "@/lib/operationStore";
+import { RedisAtomicStore } from "@/lib/redisAtomicStore";
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,52 +24,71 @@ export async function POST(request: NextRequest) {
       ),
     );
 
-    // Use the unified relayer handler - works with or without operation store
-    // Without store: returns signed/confirmed responses immediately
-    // With store: enables async polling for resilient transaction management
-    const vana = createRelayerVana();
+    // Initialize stores if Redis is configured
+    let operationStore;
+    let atomicStore;
 
-    // Proactively manage nonces for transaction operations
-    let options: TransactionOptions | undefined;
+    if (process.env.REDIS_URL) {
+      try {
+        operationStore = new RedisOperationStore({
+          redis: process.env.REDIS_URL,
+        });
 
-    // Skip nonce management for operations that don't create transactions
-    // - status_check: just reads state
-    // - storeGrantFile: now only uploads to IPFS, no blockchain transaction
-    const skipNonce =
-      body.type === "status_check" ||
-      (body.type === "direct" && body.operation === "storeGrantFile");
+        atomicStore = new RedisAtomicStore({
+          redis: process.env.REDIS_URL,
+        });
 
-    if (!skipNonce) {
-      const requestId = Math.random().toString(36).substr(2, 9);
-      console.info(
-        `🆔 [Relayer] Request ${requestId} - Getting nonce for ${body.type} operation${body.type === "direct" ? ` (${body.operation})` : ""}`,
-      );
-      const nonce = await nonceManager.getNonce(relayerConfig.publicClient);
-      options = { nonce };
-      console.info(`📝 [Relayer] Request ${requestId} - Got nonce: ${nonce}`);
+        console.info(
+          "✅ [Relayer] Using Redis for stateful operation management",
+        );
+      } catch (error) {
+        console.warn(
+          "⚠️ [Relayer] Failed to initialize Redis stores, falling back to stateless mode:",
+          error,
+        );
+      }
     }
 
-    let result = await handleRelayerOperation(vana, body, options);
+    // Create Vana SDK with proper wallet configuration
+    const privateKey = process.env.RELAYER_PRIVATE_KEY;
+    if (!privateKey) {
+      throw new Error("RELAYER_PRIVATE_KEY not configured");
+    }
 
-    // Retry with incremented nonce if we hit a nonce conflict
-    // This handles edge cases where concurrent requests slip through
+    const account = privateKeyToAccount(privateKey as `0x${string}`);
+    const chainId = process.env.NEXT_PUBLIC_MOKSHA === "true" ? 14800 : 1480;
+    const rpcUrl =
+      chainId === 14800
+        ? (process.env.RPC_URL_VANA_MOKSHA ?? "https://rpc.moksha.vana.org")
+        : (process.env.RPC_URL_VANA ?? "https://rpc.vana.org");
+
+    const walletClient = createWalletClient({
+      account,
+      transport: http(rpcUrl),
+    });
+
+    const vana = Vana({
+      walletClient,
+      operationStore,
+      atomicStore,
+    });
+
+    // The unified handler will automatically:
+    // - Use distributed nonce management if atomicStore is provided
+    // - Store operation state if operationStore is provided
+    // - Return pending responses for async polling
+    const result = await handleRelayerOperation(vana, body);
+
+    // With atomicStore, nonce conflicts should be rare
+    // But log if they occur for debugging
     if (
       result.type === "error" &&
       (result.error.includes("replacement transaction underpriced") ||
         result.error.includes("nonce too low"))
     ) {
-      console.warn(
-        `⚠️ [Relayer] Nonce conflict detected, retrying with incremented nonce...`,
+      console.error(
+        `❌ [Relayer] Nonce conflict despite atomic store: ${result.error}`,
       );
-      if (options) {
-        // Force increment the nonce
-        const retryNonce = await nonceManager.getNonce(
-          relayerConfig.publicClient,
-        );
-        options.nonce = retryNonce;
-        console.info(`🔄 [Relayer] Retrying with nonce: ${retryNonce}`);
-        result = await handleRelayerOperation(vana, body, options);
-      }
     }
 
     console.info("✅ Operation completed successfully:", result);

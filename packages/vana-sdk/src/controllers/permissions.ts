@@ -6,6 +6,7 @@ import type {
 } from "../types/operations";
 
 import { gasAwareMulticall } from "../utils/multicall";
+import { PollingManager } from "../core/pollingManager";
 import type {
   GrantPermissionParams,
   RevokePermissionParams,
@@ -945,8 +946,6 @@ export class PermissionsController extends BaseController {
       throw new Error("Relayer not configured for polling");
     }
 
-    // Import PollingManager dynamically to avoid circular dependencies
-    const { PollingManager } = await import("../core/pollingManager");
     const pollingManager = new PollingManager(this.context.relayer);
 
     return await pollingManager.startPolling(operationId, {

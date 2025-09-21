@@ -26,6 +26,7 @@ import { DataController } from "./controllers/data";
 import { SchemaController } from "./controllers/schemas";
 import { ServerController } from "./controllers/server";
 import { ProtocolController } from "./controllers/protocol";
+import { OperationsController } from "./controllers/operations";
 import { StorageManager } from "./storage";
 import { createWalletClient, createPublicClient, http } from "viem";
 import type {
@@ -44,6 +45,7 @@ import type {
   TransactionWaitOptions,
   IOperationStore,
 } from "./types/operations";
+import type { IAtomicStore } from "./types/atomicStore";
 import type {
   Contract,
   Fn,
@@ -162,6 +164,9 @@ export class VanaCore {
   /** Manages data schemas and refiners. */
   public readonly schemas: SchemaController;
 
+  /** Manages asynchronous operation recovery and status checking. */
+  public readonly operations: OperationsController;
+
   /** Provides personal server setup and trusted server interactions. */
   public readonly server: ServerController;
 
@@ -183,6 +188,7 @@ export class VanaCore {
   private readonly walletClient?: WalletClient;
   private readonly _staticUserAddress?: Address; // For read-only mode
   protected readonly operationStore?: IOperationStore;
+  protected readonly atomicStore?: IAtomicStore;
 
   /**
    * Initializes a new VanaCore client instance with the provided configuration.
@@ -388,6 +394,7 @@ export class VanaCore {
     this.permissions = new PermissionsController(sharedContext);
     this.data = new DataController(sharedContext);
     this.schemas = new SchemaController(sharedContext);
+    this.operations = new OperationsController(sharedContext);
     this.server = new ServerController(sharedContext);
     this.protocol = new ProtocolController(sharedContext);
   }

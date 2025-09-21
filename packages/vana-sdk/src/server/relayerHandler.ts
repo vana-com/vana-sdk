@@ -12,6 +12,8 @@ import type {
   OperationState,
   TransactionReceipt,
 } from "../types";
+import type { IAtomicStore } from "../types/atomicStore";
+import { DistributedNonceManager } from "../core/nonceManager";
 import type { Contract, Fn } from "../generated/event-types";
 import type {
   GenericTypedData,
@@ -161,14 +163,45 @@ export async function handleRelayerOperation(
 
     const operationId = uuidv4();
     try {
-      const txResult = await routeAndExecuteRequest(sdk, request, options);
+      // Use distributed nonce manager if atomicStore is available
+      let finalOptions = options;
+      const atomicStore = (sdk as any).atomicStore as IAtomicStore | undefined;
+
+      if (atomicStore && request.type === "signed" && !options?.nonce) {
+        const publicClient = (sdk as any).publicClient;
+        const privateKey = (sdk as any).privateKey;
+
+        if (publicClient && privateKey) {
+          // Extract relayer address from private key
+          const { privateKeyToAccount } = await import("viem/accounts");
+          const account = privateKeyToAccount(privateKey);
+          const chainId = await publicClient.getChainId();
+
+          // Use nonce manager for atomic assignment
+          const nonceManager = new DistributedNonceManager({
+            atomicStore,
+            publicClient,
+          });
+
+          const assignedNonce = await nonceManager.assignNonce(
+            account.address,
+            chainId,
+          );
+          if (assignedNonce !== null) {
+            console.log(`[Relayer] Using distributed nonce: ${assignedNonce}`);
+            finalOptions = { ...options, nonce: assignedNonce };
+          }
+        }
+      }
+
+      const txResult = await routeAndExecuteRequest(sdk, request, finalOptions);
       // We only store state for operations that result in a transaction.
       if ("hash" in txResult) {
         await store.set(operationId, {
           status: "pending",
           transactionHash: txResult.hash,
           originalRequest: request,
-          nonce: options?.nonce,
+          nonce: finalOptions?.nonce,
           retryCount: 0,
           lastAttemptedGas: {
             maxFeePerGas: options?.maxFeePerGas?.toString(),

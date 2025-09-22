@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { handleRelayerOperation } from "../server/relayerHandler";
 import type { VanaInstance } from "../index.node";
 import type { UnifiedRelayerRequest } from "../types/relayer";
-import type { Address } from "viem";
+import type { TransactionOptions } from "../types";
+import type { Address, Hash } from "viem";
 
 // Mock viem for signature recovery (not testing actual crypto here)
 vi.mock("viem", async () => {
@@ -199,6 +200,7 @@ describe("Server Relayer Handler", () => {
         "https://storage.example/file",
         "0xuser",
         [],
+        undefined, // options parameter
       );
 
       expect(response).toEqual({
@@ -230,6 +232,7 @@ describe("Server Relayer Handler", () => {
         "https://storage.example/file",
         "0xuser",
         request.params.permissions,
+        undefined, // options parameter
       );
 
       expect(response).toEqual({
@@ -272,6 +275,7 @@ describe("Server Relayer Handler", () => {
         "0xuser",
         [{ account: "0xaccount" as Address, key: encryptedKey }], // No mapping, passes through as-is
         42,
+        undefined, // options parameter
       );
 
       // Should NOT call the public key method
@@ -310,6 +314,7 @@ describe("Server Relayer Handler", () => {
         "0xuser", // Falls back to userAddress
         [],
         42,
+        undefined, // options parameter
       );
     });
 
@@ -551,6 +556,7 @@ describe("Server Relayer Handler", () => {
         "https://storage.example/basic.txt",
         "0xuser123",
         [],
+        undefined, // options parameter
       );
     });
 
@@ -574,6 +580,7 @@ describe("Server Relayer Handler", () => {
         "https://storage.example/secure.txt",
         "0xuser456",
         request.params.permissions,
+        undefined, // options parameter
       );
     });
 
@@ -599,6 +606,7 @@ describe("Server Relayer Handler", () => {
         "0xowner", // Should use ownerAddress when provided
         [],
         42,
+        undefined, // options parameter
       );
 
       expect(response).toEqual({
@@ -608,6 +616,321 @@ describe("Server Relayer Handler", () => {
           transactionHash: "0xfilehash",
         },
       });
+    });
+  });
+
+  describe("Transaction Options Support", () => {
+    it("should pass transaction options for direct file operations", async () => {
+      const options: TransactionOptions = {
+        nonce: 42,
+        gasLimit: 100000n,
+        maxFeePerGas: 20000000000n,
+      };
+
+      const request: UnifiedRelayerRequest = {
+        type: "direct",
+        operation: "submitFileAddition",
+        params: {
+          url: "https://storage.example/file",
+          userAddress: "0xuser" as Address,
+        },
+      };
+
+      await handleRelayerOperation(mockSdk, request, options);
+
+      expect(mockSdk.data.addFileWithPermissions).toHaveBeenCalledWith(
+        "https://storage.example/file",
+        "0xuser",
+        [],
+        options,
+      );
+    });
+
+    it("should pass transaction options for file addition with permissions", async () => {
+      const options: TransactionOptions = {
+        nonce: 43,
+        gasPrice: 10000000000n,
+      };
+
+      const request: UnifiedRelayerRequest = {
+        type: "direct",
+        operation: "submitFileAdditionWithPermissions",
+        params: {
+          url: "https://storage.example/file",
+          userAddress: "0xuser" as Address,
+          permissions: [{ account: "0xaccount1" as Address, key: "key1" }],
+        },
+      };
+
+      await handleRelayerOperation(mockSdk, request, options);
+
+      expect(mockSdk.data.addFileWithPermissions).toHaveBeenCalledWith(
+        "https://storage.example/file",
+        "0xuser",
+        request.params.permissions,
+        options,
+      );
+    });
+
+    it("should pass transaction options for encrypted file operations", async () => {
+      const options: TransactionOptions = {
+        nonce: 44,
+        maxFeePerGas: 30000000000n,
+        maxPriorityFeePerGas: 2000000000n,
+      };
+
+      const request: UnifiedRelayerRequest = {
+        type: "direct",
+        operation: "submitFileAdditionComplete",
+        params: {
+          url: "https://storage.example/file",
+          userAddress: "0xuser" as Address,
+          permissions: [],
+          schemaId: 42,
+        },
+      };
+
+      await handleRelayerOperation(mockSdk, request, options);
+
+      expect(
+        mockSdk.data.addFileWithEncryptedPermissionsAndSchema,
+      ).toHaveBeenCalledWith(
+        "https://storage.example/file",
+        "0xuser",
+        [],
+        42,
+        options,
+      );
+    });
+
+    it("should pass transaction options for signed AddServer operation", async () => {
+      const options: TransactionOptions = {
+        nonce: 45,
+        gasLimit: 200000n,
+      };
+
+      const request: UnifiedRelayerRequest = {
+        type: "signed",
+        operation: "submitAddPermission",
+        typedData: {
+          domain: {
+            name: "DataPortabilityServers",
+            version: "1",
+            chainId: 14800,
+            verifyingContract: "0xservers" as Address,
+          },
+          types: {
+            EIP712Domain: [
+              { name: "name", type: "string" },
+              { name: "version", type: "string" },
+              { name: "chainId", type: "uint256" },
+              { name: "verifyingContract", type: "address" },
+            ],
+            AddServer: [
+              { name: "nonce", type: "uint256" },
+              { name: "serverAddress", type: "address" },
+              { name: "serverUrl", type: "string" },
+              { name: "publicKey", type: "string" },
+            ],
+          },
+          primaryType: "AddServer",
+          message: {
+            nonce: 1n,
+            serverAddress: "0xserver" as Address,
+            serverUrl: "https://server.example",
+            publicKey: "0xpublickey",
+          },
+        },
+        signature: "0xsignature" as Hash,
+      };
+
+      await handleRelayerOperation(mockSdk, request, options);
+
+      expect(
+        mockSdk.permissions.submitSignedAddAndTrustServer,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          primaryType: "AddServer",
+        }),
+        "0xsignature",
+        options,
+      );
+    });
+
+    it("should pass transaction options for signed TrustServer operation", async () => {
+      const options: TransactionOptions = {
+        nonce: 46,
+        value: 1000000000000000n, // 0.001 ETH
+      };
+
+      const request: UnifiedRelayerRequest = {
+        type: "signed",
+        operation: "submitAddPermission",
+        typedData: {
+          domain: {
+            name: "DataPortabilityServers",
+            version: "1",
+            chainId: 14800,
+            verifyingContract: "0xservers" as Address,
+          },
+          types: {
+            EIP712Domain: [
+              { name: "name", type: "string" },
+              { name: "version", type: "string" },
+              { name: "chainId", type: "uint256" },
+              { name: "verifyingContract", type: "address" },
+            ],
+            TrustServer: [
+              { name: "nonce", type: "uint256" },
+              { name: "serverId", type: "uint256" },
+            ],
+          },
+          primaryType: "TrustServer",
+          message: {
+            nonce: 1n,
+            serverId: 123n,
+          },
+        },
+        signature: "0xsignature" as Hash,
+      };
+
+      await handleRelayerOperation(mockSdk, request, options);
+
+      expect(mockSdk.permissions.submitSignedTrustServer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          primaryType: "TrustServer",
+        }),
+        "0xsignature",
+        options,
+      );
+    });
+
+    it("should pass transaction options for signed UntrustServer operation", async () => {
+      const options: TransactionOptions = {
+        nonce: 47,
+        gasPrice: 15000000000n,
+        timeout: 60000,
+      };
+
+      const request: UnifiedRelayerRequest = {
+        type: "signed",
+        operation: "submitAddPermission",
+        typedData: {
+          domain: {
+            name: "DataPortabilityServers",
+            version: "1",
+            chainId: 14800,
+            verifyingContract: "0xservers" as Address,
+          },
+          types: {
+            EIP712Domain: [
+              { name: "name", type: "string" },
+              { name: "version", type: "string" },
+              { name: "chainId", type: "uint256" },
+              { name: "verifyingContract", type: "address" },
+            ],
+            UntrustServer: [
+              { name: "nonce", type: "uint256" },
+              { name: "serverId", type: "uint256" },
+            ],
+          },
+          primaryType: "UntrustServer",
+          message: {
+            nonce: 1n,
+            serverId: 123n,
+          },
+        },
+        signature: "0xsignature" as Hash,
+      };
+
+      await handleRelayerOperation(mockSdk, request, options);
+
+      expect(
+        mockSdk.permissions.submitSignedUntrustServer,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          primaryType: "UntrustServer",
+        }),
+        "0xsignature",
+        options,
+      );
+    });
+
+    it("should handle undefined options gracefully", async () => {
+      const request: UnifiedRelayerRequest = {
+        type: "direct",
+        operation: "submitFileAddition",
+        params: {
+          url: "https://storage.example/file",
+          userAddress: "0xuser" as Address,
+        },
+      };
+
+      // Call without options
+      await handleRelayerOperation(mockSdk, request);
+
+      expect(mockSdk.data.addFileWithPermissions).toHaveBeenCalledWith(
+        "https://storage.example/file",
+        "0xuser",
+        [],
+        undefined,
+      );
+    });
+
+    it("should pass complex transaction options correctly", async () => {
+      const options: TransactionOptions = {
+        nonce: 100,
+        gasLimit: 500000n,
+        maxFeePerGas: 50000000000n,
+        maxPriorityFeePerGas: 3000000000n,
+        value: 2000000000000000n,
+        timeout: 120000,
+      };
+
+      const request: UnifiedRelayerRequest = {
+        type: "signed",
+        operation: "submitAddPermission",
+        typedData: {
+          domain: {
+            name: "DataPortabilityPermissions",
+            version: "1",
+            chainId: 14800,
+            verifyingContract: "0xpermissions" as Address,
+          },
+          types: {
+            EIP712Domain: [
+              { name: "name", type: "string" },
+              { name: "version", type: "string" },
+              { name: "chainId", type: "uint256" },
+              { name: "verifyingContract", type: "address" },
+            ],
+            Permission: [
+              { name: "nonce", type: "uint256" },
+              { name: "granteeId", type: "uint256" },
+              { name: "grant", type: "string" },
+              { name: "fileIds", type: "uint256[]" },
+            ],
+          },
+          primaryType: "Permission",
+          message: {
+            nonce: 1n,
+            granteeId: 456n,
+            grant: "encryptedGrant",
+            fileIds: [789n, 790n],
+          },
+        },
+        signature: "0xsignature" as Hash,
+      };
+
+      await handleRelayerOperation(mockSdk, request, options);
+
+      expect(mockSdk.permissions.submitSignedGrant).toHaveBeenCalledWith(
+        expect.objectContaining({
+          primaryType: "Permission",
+        }),
+        "0xsignature",
+        options,
+      );
     });
   });
 });

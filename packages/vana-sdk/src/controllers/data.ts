@@ -22,6 +22,7 @@ import type {
   UploadFileWithPermissionsParams,
   AddFilePermissionParams,
   DecryptFileWithPermissionOptions,
+  TransactionOptions,
 } from "../types/index";
 // import { FilePermissionResult } from "../types/transactionResults";
 import type { TransactionResult } from "../types/operations";
@@ -2111,6 +2112,7 @@ export class DataController extends BaseController {
     url: string,
     ownerAddress: Address,
     permissions: Array<{ account: Address; key: string }> = [],
+    options?: TransactionOptions,
   ): Promise<TransactionResult<"DataRegistry", "addFileWithPermissions">> {
     this.assertWallet();
 
@@ -2134,6 +2136,19 @@ export class DataController extends BaseController {
         args: [url, ownerAddress, permissions],
         account,
         chain: this.context.walletClient.chain ?? null,
+        ...(options && {
+          gas: options.gasLimit,
+          nonce: options.nonce,
+          // Use EIP-1559 gas pricing if available, otherwise legacy
+          ...(options.maxFeePerGas || options.maxPriorityFeePerGas
+            ? {
+                maxFeePerGas: options.maxFeePerGas,
+                maxPriorityFeePerGas: options.maxPriorityFeePerGas,
+              }
+            : options.gasPrice
+              ? { gasPrice: options.gasPrice }
+              : {}),
+        }),
       });
 
       const { tx } = await import("../utils/transactionHelpers");
@@ -2293,6 +2308,7 @@ export class DataController extends BaseController {
     ownerAddress: Address,
     permissions: Array<{ account: Address; key: string }> = [],
     schemaId: number = 0,
+    options?: TransactionOptions,
   ): Promise<
     TransactionResult<"DataRegistry", "addFileWithPermissionsAndSchema">
   > {
@@ -2316,6 +2332,19 @@ export class DataController extends BaseController {
         args: [url, ownerAddress, permissions, BigInt(schemaId)],
         account,
         chain: this.context.walletClient.chain ?? null,
+        ...(options && {
+          gas: options.gasLimit,
+          nonce: options.nonce,
+          // Use EIP-1559 gas pricing if available, otherwise legacy
+          ...(options.maxFeePerGas || options.maxPriorityFeePerGas
+            ? {
+                maxFeePerGas: options.maxFeePerGas,
+                maxPriorityFeePerGas: options.maxPriorityFeePerGas,
+              }
+            : options.gasPrice
+              ? { gasPrice: options.gasPrice }
+              : {}),
+        }),
       });
 
       const { tx } = await import("../utils/transactionHelpers");

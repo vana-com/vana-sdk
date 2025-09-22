@@ -5,6 +5,7 @@ on:
     branches:
       - feature/data-portability-sdk-v1
       - feat/compressed-key-support
+      - hotfix/app-548/add-transaction-options
 
 jobs:
   publish-prerelease:

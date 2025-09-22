@@ -564,6 +564,7 @@ export class PermissionsController extends BaseController {
   async submitSignedGrant(
     typedData: PermissionGrantTypedData,
     signature: Hash,
+    options?: TransactionOptions,
   ): Promise<TransactionResult<"DataPortabilityPermissions", "addPermission">> {
     try {
       console.debug(
@@ -607,7 +608,11 @@ export class PermissionsController extends BaseController {
           fn: "addPermission",
         });
       } else {
-        return await this.submitDirectTransaction(typedData, signature);
+        return await this.submitDirectTransaction(
+          typedData,
+          signature,
+          options,
+        );
       }
     } catch (error) {
       // Re-throw known Vana errors directly to preserve error types
@@ -651,6 +656,7 @@ export class PermissionsController extends BaseController {
   async submitSignedTrustServer(
     typedData: TrustServerTypedData,
     signature: Hash,
+    options?: TransactionOptions,
   ): Promise<
     TransactionResult<"DataPortabilityServers", "trustServerWithSignature">
   > {
@@ -663,6 +669,7 @@ export class PermissionsController extends BaseController {
       const hash = await this.submitTrustServerTransaction(
         trustServerInput,
         signature,
+        options,
       );
       const account = this.context.userAddress;
       const { tx } = await import("../utils/transactionHelpers");
@@ -734,6 +741,7 @@ export class PermissionsController extends BaseController {
   async submitSignedAddAndTrustServer(
     typedData: AddAndTrustServerTypedData,
     signature: Hash,
+    options?: TransactionOptions,
   ): Promise<
     TransactionResult<
       "DataPortabilityServers",
@@ -751,6 +759,7 @@ export class PermissionsController extends BaseController {
       const hash = await this.submitAddAndTrustServerTransaction(
         addAndTrustServerInput,
         signature,
+        options,
       );
       const account =
         this.context.walletClient?.account ?? this.context.userAddress;
@@ -894,6 +903,7 @@ export class PermissionsController extends BaseController {
   async submitSignedRevoke(
     typedData: GenericTypedData,
     signature: Hash,
+    options?: TransactionOptions,
   ): Promise<
     TransactionResult<
       "DataPortabilityPermissions",
@@ -925,6 +935,7 @@ export class PermissionsController extends BaseController {
         hash = await this.submitDirectRevokeTransaction(
           typedData as RevokePermissionTypedData,
           signature,
+          options,
         );
       }
       const account =
@@ -977,6 +988,7 @@ export class PermissionsController extends BaseController {
   async submitSignedUntrustServer(
     typedData: GenericTypedData,
     signature: Hash,
+    options?: TransactionOptions,
   ): Promise<
     TransactionResult<"DataPortabilityServers", "untrustServerWithSignature">
   > {
@@ -1005,6 +1017,7 @@ export class PermissionsController extends BaseController {
         hash = await this.submitSignedUntrustTransaction(
           typedData as UntrustServerTypedData,
           signature,
+          options,
         );
       }
       const account =
@@ -1048,6 +1061,7 @@ export class PermissionsController extends BaseController {
   private async submitDirectTransaction(
     typedData: PermissionGrantTypedData,
     signature: Hash,
+    options?: TransactionOptions,
   ): Promise<TransactionResult<"DataPortabilityPermissions", "addPermission">> {
     this.assertWallet();
     const chainId = await this.context.publicClient.getChainId();
@@ -1090,6 +1104,19 @@ export class PermissionsController extends BaseController {
       args: [permissionInput, formattedSignature],
       account,
       chain: this.context.walletClient?.chain ?? null,
+      ...(options && {
+        gas: options.gasLimit,
+        nonce: options.nonce,
+        // Use EIP-1559 gas pricing if available, otherwise legacy
+        ...(options.maxFeePerGas || options.maxPriorityFeePerGas
+          ? {
+              maxFeePerGas: options.maxFeePerGas,
+              maxPriorityFeePerGas: options.maxPriorityFeePerGas,
+            }
+          : options.gasPrice
+            ? { gasPrice: options.gasPrice }
+            : {}),
+      }),
     });
 
     const { tx } = await import("../utils/transactionHelpers");
@@ -1283,6 +1310,7 @@ export class PermissionsController extends BaseController {
    */
   async submitRevokeWithSignature(
     params: RevokePermissionParams,
+    options?: TransactionOptions,
   ): Promise<
     TransactionResult<
       "DataPortabilityPermissions",
@@ -1343,6 +1371,7 @@ export class PermissionsController extends BaseController {
         hash = await this.submitDirectRevokeTransaction(
           typedData as RevokePermissionTypedData,
           signature,
+          options,
         );
       }
 
@@ -2006,6 +2035,7 @@ export class PermissionsController extends BaseController {
    */
   async submitAddAndTrustServerWithSignature(
     params: AddAndTrustServerParams,
+    options?: TransactionOptions,
   ): Promise<
     TransactionResult<
       "DataPortabilityServers",
@@ -2067,6 +2097,7 @@ export class PermissionsController extends BaseController {
         hash = await this.submitAddAndTrustServerTransaction(
           addAndTrustServerInput,
           signature,
+          options,
         );
       }
 
@@ -2118,6 +2149,7 @@ export class PermissionsController extends BaseController {
    */
   async submitTrustServerWithSignature(
     params: TrustServerParams,
+    options?: TransactionOptions,
   ): Promise<
     TransactionResult<"DataPortabilityServers", "trustServerWithSignature">
   > {
@@ -2159,6 +2191,7 @@ export class PermissionsController extends BaseController {
         hash = await this.submitTrustServerTransaction(
           trustServerInput,
           signature,
+          options,
         );
       }
 
@@ -2921,6 +2954,7 @@ export class PermissionsController extends BaseController {
   private async submitAddAndTrustServerTransaction(
     addAndTrustServerInput: AddAndTrustServerInput,
     signature: Hash,
+    options?: TransactionOptions,
   ): Promise<Hash> {
     this.assertWallet();
     const chainId = await this.context.walletClient.getChainId();
@@ -2960,6 +2994,19 @@ export class PermissionsController extends BaseController {
       ],
       account: this.context.walletClient?.account ?? this.context.userAddress,
       chain: this.context.walletClient?.chain ?? null,
+      ...(options && {
+        gas: options.gasLimit,
+        nonce: options.nonce,
+        // Use EIP-1559 gas pricing if available, otherwise legacy
+        ...(options.maxFeePerGas || options.maxPriorityFeePerGas
+          ? {
+              maxFeePerGas: options.maxFeePerGas,
+              maxPriorityFeePerGas: options.maxPriorityFeePerGas,
+            }
+          : options.gasPrice
+            ? { gasPrice: options.gasPrice }
+            : {}),
+      }),
     });
 
     return txHash;
@@ -2975,6 +3022,7 @@ export class PermissionsController extends BaseController {
   private async submitTrustServerTransaction(
     trustServerInput: TrustServerInput,
     signature: Hash,
+    options?: TransactionOptions,
   ): Promise<Hash> {
     this.assertWallet();
     const chainId = await this.context.walletClient.getChainId();
@@ -3000,6 +3048,19 @@ export class PermissionsController extends BaseController {
       ],
       account: this.context.walletClient?.account ?? this.context.userAddress,
       chain: this.context.walletClient?.chain ?? null,
+      ...(options && {
+        gas: options.gasLimit,
+        nonce: options.nonce,
+        // Use EIP-1559 gas pricing if available, otherwise legacy
+        ...(options.maxFeePerGas || options.maxPriorityFeePerGas
+          ? {
+              maxFeePerGas: options.maxFeePerGas,
+              maxPriorityFeePerGas: options.maxPriorityFeePerGas,
+            }
+          : options.gasPrice
+            ? { gasPrice: options.gasPrice }
+            : {}),
+      }),
     });
 
     return txHash;
@@ -3015,6 +3076,7 @@ export class PermissionsController extends BaseController {
   private async submitDirectRevokeTransaction(
     typedData: RevokePermissionTypedData,
     signature: Hash,
+    options?: TransactionOptions,
   ): Promise<Hash> {
     this.assertWallet();
     const chainId = await this.context.walletClient.getChainId();
@@ -3034,6 +3096,19 @@ export class PermissionsController extends BaseController {
       args: [typedData.message, formattedSignature],
       account: this.context.walletClient?.account ?? this.context.userAddress,
       chain: this.context.walletClient?.chain ?? null,
+      ...(options && {
+        gas: options.gasLimit,
+        nonce: options.nonce,
+        // Use EIP-1559 gas pricing if available, otherwise legacy
+        ...(options.maxFeePerGas || options.maxPriorityFeePerGas
+          ? {
+              maxFeePerGas: options.maxFeePerGas,
+              maxPriorityFeePerGas: options.maxPriorityFeePerGas,
+            }
+          : options.gasPrice
+            ? { gasPrice: options.gasPrice }
+            : {}),
+      }),
     });
 
     return txHash;
@@ -3049,6 +3124,7 @@ export class PermissionsController extends BaseController {
   private async submitSignedUntrustTransaction(
     typedData: UntrustServerTypedData,
     signature: Hash,
+    options?: TransactionOptions,
   ): Promise<Hash> {
     this.assertWallet();
     const chainId = await this.context.walletClient.getChainId();
@@ -3075,6 +3151,19 @@ export class PermissionsController extends BaseController {
       args: [contractMessage, formattedSignature],
       account: this.context.walletClient?.account ?? this.context.userAddress,
       chain: this.context.walletClient?.chain ?? null,
+      ...(options && {
+        gas: options.gasLimit,
+        nonce: options.nonce,
+        // Use EIP-1559 gas pricing if available, otherwise legacy
+        ...(options.maxFeePerGas || options.maxPriorityFeePerGas
+          ? {
+              maxFeePerGas: options.maxFeePerGas,
+              maxPriorityFeePerGas: options.maxPriorityFeePerGas,
+            }
+          : options.gasPrice
+            ? { gasPrice: options.gasPrice }
+            : {}),
+      }),
     });
 
     return txHash;

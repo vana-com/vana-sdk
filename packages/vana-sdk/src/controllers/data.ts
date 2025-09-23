@@ -241,6 +241,7 @@ export class DataController extends BaseController {
       encrypt = true,
       providerName,
       owner,
+      schemaValidation = "strict",
     } = params;
 
     try {
@@ -248,7 +249,7 @@ export class DataController extends BaseController {
       let validationErrors: string[] = [];
 
       // Step 1: Schema validation if provided
-      if (schemaId !== undefined) {
+      if (schemaId !== undefined && schemaValidation !== "skip") {
         try {
           // Use SchemaController to get complete schema with definition
           const { SchemaController } = await import("./schemas");
@@ -278,22 +279,32 @@ export class DataController extends BaseController {
           // Validate against schema (Schema is compatible with DataSchema)
           validateDataAgainstSchema(parsedContent, schema);
         } catch (error) {
-          isValid = false;
-          // Provide detailed error message
-          if (error instanceof Error) {
-            // Check if it's a SchemaValidationError with details
-            // Using type guard to safely check for errors property
-            if (
-              typeof error === "object" &&
-              "errors" in error &&
-              Array.isArray(error.errors)
-            ) {
-              validationErrors = error.errors;
-            } else {
-              validationErrors = [error.message];
+          // Handle validation failure based on mode
+          if (schemaValidation === "strict") {
+            // Re-throw the error to maintain backward compatibility
+            throw error;
+          } else if (schemaValidation === "warn") {
+            // Log warning and continue
+            console.warn(
+              '[Vana SDK] Schema validation failed, but continuing due to validation mode "warn"',
+            );
+            if (error instanceof Error) {
+              console.warn("  Validation error:", error.message);
+              // Check if it's a SchemaValidationError with details
+              if (
+                typeof error === "object" &&
+                "errors" in error &&
+                Array.isArray(error.errors)
+              ) {
+                console.warn("  Detailed errors:", error.errors);
+              }
             }
-          } else {
-            validationErrors = ["Schema validation failed"];
+            // Mark as invalid but don't block upload
+            isValid = false;
+            validationErrors =
+              error instanceof Error
+                ? [error.message]
+                : ["Schema validation failed"];
           }
         }
       }

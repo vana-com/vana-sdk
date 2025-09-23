@@ -6,6 +6,7 @@ on:
       - feature/data-portability-sdk-v1
       - feat/compressed-key-support
       - hotfix/app-548/add-transaction-options
+      - fix/disable-validation
 
 jobs:
   publish-prerelease:

@@ -412,44 +412,99 @@ describe("PermissionsController - Helper Methods", () => {
   describe("DataPortabilityGrantees Helper Methods", () => {
     describe("getGranteeInfo", () => {
       it("should successfully get grantee info", async () => {
-        const mockGranteeInfo = {
+        // Mock granteesV2 call (used by getGranteeById)
+        mockPublicClient.readContract.mockResolvedValueOnce({
+          owner: "0xowner" as `0x${string}`,
+          granteeAddress: "0xgrantee" as `0x${string}`,
+          publicKey: "0xpubkey",
+          permissionsCount: 2n,
+        });
+
+        // Mock granteePermissionsPaginated call (used by getGranteeById)
+        mockPublicClient.readContract.mockResolvedValueOnce([
+          [BigInt(1), BigInt(2)], // permissionIds
+          2n, // totalCount
+          false, // hasMore
+        ]);
+
+        const result = await controller.getGranteeInfo(BigInt(1));
+
+        expect(result).toEqual({
           owner: "0xowner" as `0x${string}`,
           granteeAddress: "0xgrantee" as `0x${string}`,
           publicKey: "0xpubkey",
           permissionIds: [BigInt(1), BigInt(2)],
-        };
-        mockPublicClient.readContract.mockResolvedValue(mockGranteeInfo);
+        });
 
-        const result = await controller.getGranteeInfo(BigInt(1));
-
-        expect(result).toEqual(mockGranteeInfo);
-        expect(mockPublicClient.readContract).toHaveBeenCalledWith({
+        // First call should be to granteesV2
+        expect(mockPublicClient.readContract).toHaveBeenNthCalledWith(1, {
           address: "0x1234567890123456789012345678901234567890",
           abi: [],
-          functionName: "granteeInfo",
+          functionName: "granteesV2",
           args: [BigInt(1)],
+        });
+
+        // Second call should be to granteePermissionsPaginated
+        expect(mockPublicClient.readContract).toHaveBeenNthCalledWith(2, {
+          address: "0x1234567890123456789012345678901234567890",
+          abi: [],
+          functionName: "granteePermissionsPaginated",
+          args: [BigInt(1), BigInt(0), BigInt(100)],
         });
       });
     });
 
     describe("getGranteeInfoByAddress", () => {
       it("should successfully get grantee info by address", async () => {
-        const mockGranteeInfo = {
+        // Mock granteeAddressToId call
+        mockPublicClient.readContract.mockResolvedValueOnce(BigInt(1));
+
+        // Mock granteesV2 call (used by getGranteeById)
+        mockPublicClient.readContract.mockResolvedValueOnce({
+          owner: "0xowner" as `0x${string}`,
+          granteeAddress: "0xgrantee" as `0x${string}`,
+          publicKey: "0xpubkey",
+          permissionsCount: 2n,
+        });
+
+        // Mock granteePermissionsPaginated call (used by getGranteeById)
+        mockPublicClient.readContract.mockResolvedValueOnce([
+          [BigInt(1), BigInt(2)], // permissionIds
+          2n, // totalCount
+          false, // hasMore
+        ]);
+
+        const result = await controller.getGranteeInfoByAddress("0xgrantee");
+
+        expect(result).toEqual({
           owner: "0xowner" as `0x${string}`,
           granteeAddress: "0xgrantee" as `0x${string}`,
           publicKey: "0xpubkey",
           permissionIds: [BigInt(1), BigInt(2)],
-        };
-        mockPublicClient.readContract.mockResolvedValue(mockGranteeInfo);
+        });
 
-        const result = await controller.getGranteeInfoByAddress("0xgrantee");
-
-        expect(result).toEqual(mockGranteeInfo);
-        expect(mockPublicClient.readContract).toHaveBeenCalledWith({
+        // First call should be to granteeAddressToId
+        expect(mockPublicClient.readContract).toHaveBeenNthCalledWith(1, {
           address: "0x1234567890123456789012345678901234567890",
           abi: [],
-          functionName: "granteeByAddress",
+          functionName: "granteeAddressToId",
           args: ["0xgrantee"],
+        });
+
+        // Second call should be to granteesV2
+        expect(mockPublicClient.readContract).toHaveBeenNthCalledWith(2, {
+          address: "0x1234567890123456789012345678901234567890",
+          abi: [],
+          functionName: "granteesV2",
+          args: [BigInt(1)],
+        });
+
+        // Third call should be to granteePermissionsPaginated
+        expect(mockPublicClient.readContract).toHaveBeenNthCalledWith(3, {
+          address: "0x1234567890123456789012345678901234567890",
+          abi: [],
+          functionName: "granteePermissionsPaginated",
+          args: [BigInt(1), BigInt(0), BigInt(100)],
         });
       });
     });

@@ -72,16 +72,23 @@ describe("PermissionsController - Grantee Methods", () => {
     it("should return grantee information for a valid address", async () => {
       const granteeAddress = "0x1234567890123456789012345678901234567890";
 
-      // Mock the first contract call (granteeByAddress)
+      // Mock the granteeAddressToId call
+      vi.mocked(mockPublicClient.readContract).mockResolvedValueOnce(42n);
+
+      // Mock the granteesV2 call (used by getGranteeById)
       vi.mocked(mockPublicClient.readContract).mockResolvedValueOnce({
         owner: "0xOwnerAddress" as `0x${string}`,
         granteeAddress,
         publicKey: "0xPublicKey123",
-        permissionIds: [1n, 2n, 3n],
+        permissionsCount: 3n,
       });
 
-      // Mock the second contract call (granteeAddressToId)
-      vi.mocked(mockPublicClient.readContract).mockResolvedValueOnce(42n);
+      // Mock the granteePermissionsPaginated call (used by getGranteeById)
+      vi.mocked(mockPublicClient.readContract).mockResolvedValueOnce([
+        [1n, 2n, 3n], // permissionIds
+        3n, // totalCount
+        false, // hasMore
+      ]);
 
       const result = await controller.getGranteeByAddress(granteeAddress);
 
@@ -94,19 +101,25 @@ describe("PermissionsController - Grantee Methods", () => {
       });
 
       // Verify contract calls
-      expect(mockPublicClient.readContract).toHaveBeenCalledTimes(2);
+      expect(mockPublicClient.readContract).toHaveBeenCalledTimes(3);
 
-      // Check first call
+      // Check first call (granteeAddressToId)
       const firstCall = vi.mocked(mockPublicClient.readContract).mock
         .calls[0][0];
-      expect(firstCall.functionName).toBe("granteeByAddress");
+      expect(firstCall.functionName).toBe("granteeAddressToId");
       expect(firstCall.args).toEqual([granteeAddress]);
 
-      // Check second call
+      // Check second call (granteesV2)
       const secondCall = vi.mocked(mockPublicClient.readContract).mock
         .calls[1][0];
-      expect(secondCall.functionName).toBe("granteeAddressToId");
-      expect(secondCall.args).toEqual([granteeAddress]);
+      expect(secondCall.functionName).toBe("granteesV2");
+      expect(secondCall.args).toEqual([42n]);
+
+      // Check third call (granteePermissionsPaginated)
+      const thirdCall = vi.mocked(mockPublicClient.readContract).mock
+        .calls[2][0];
+      expect(thirdCall.functionName).toBe("granteePermissionsPaginated");
+      expect(thirdCall.args).toEqual([42n, 0n, 100n]);
     });
 
     it("should return null when contract call fails", async () => {
@@ -138,14 +151,21 @@ describe("PermissionsController - Grantee Methods", () => {
     it("should return grantee information for a valid ID", async () => {
       const granteeId = 42;
 
-      // Mock the contract call
+      // Mock the granteesV2 call (returns permissionsCount instead of permissionIds)
       vi.mocked(mockPublicClient.readContract).mockResolvedValueOnce({
         owner: "0xOwnerAddress" as `0x${string}`,
         granteeAddress:
           "0x1234567890123456789012345678901234567890" as `0x${string}`,
         publicKey: "0xPublicKey123",
-        permissionIds: [10n, 20n, 30n],
+        permissionsCount: 3n,
       });
+
+      // Mock the granteePermissionsPaginated call
+      vi.mocked(mockPublicClient.readContract).mockResolvedValueOnce([
+        [10n, 20n, 30n], // permissionIds
+        3n, // totalCount
+        false, // hasMore
+      ]);
 
       const result = await controller.getGranteeById(granteeId);
 
@@ -157,11 +177,20 @@ describe("PermissionsController - Grantee Methods", () => {
         permissionIds: [10, 20, 30],
       });
 
-      // Verify contract call
-      expect(mockPublicClient.readContract).toHaveBeenCalledTimes(1);
-      const call = vi.mocked(mockPublicClient.readContract).mock.calls[0][0];
-      expect(call.functionName).toBe("grantees");
-      expect(call.args).toEqual([42n]);
+      // Verify contract calls
+      expect(mockPublicClient.readContract).toHaveBeenCalledTimes(2);
+
+      // Check first call (granteesV2)
+      const firstCall = vi.mocked(mockPublicClient.readContract).mock
+        .calls[0][0];
+      expect(firstCall.functionName).toBe("granteesV2");
+      expect(firstCall.args).toEqual([42n]);
+
+      // Check second call (granteePermissionsPaginated)
+      const secondCall = vi.mocked(mockPublicClient.readContract).mock
+        .calls[1][0];
+      expect(secondCall.functionName).toBe("granteePermissionsPaginated");
+      expect(secondCall.args).toEqual([42n, 0n, 100n]);
     });
 
     it("should return null when grantee is not found", async () => {
@@ -265,26 +294,43 @@ describe("PermissionsController - Grantee Methods", () => {
       // Mock granteesCount
       vi.mocked(mockPublicClient.readContract).mockResolvedValueOnce(3n);
 
-      // Mock individual grantee fetches
+      // Mock for first grantee (id=1)
       vi.mocked(mockPublicClient.readContract)
         .mockResolvedValueOnce({
           owner: "0xOwner1" as `0x${string}`,
           granteeAddress: "0xGrantee1" as `0x${string}`,
           publicKey: "0xKey1",
-          permissionIds: [1n, 2n],
+          permissionsCount: 2n,
         })
+        .mockResolvedValueOnce([
+          [1n, 2n], // permissionIds
+          2n, // totalCount
+          false, // hasMore
+        ])
+        // Mock for second grantee (id=2)
         .mockResolvedValueOnce({
           owner: "0xOwner2" as `0x${string}`,
           granteeAddress: "0xGrantee2" as `0x${string}`,
           publicKey: "0xKey2",
-          permissionIds: [3n],
+          permissionsCount: 1n,
         })
+        .mockResolvedValueOnce([
+          [3n], // permissionIds
+          1n, // totalCount
+          false, // hasMore
+        ])
+        // Mock for third grantee (id=3)
         .mockResolvedValueOnce({
           owner: "0xOwner3" as `0x${string}`,
           granteeAddress: "0xGrantee3" as `0x${string}`,
           publicKey: "0xKey3",
-          permissionIds: [],
-        });
+          permissionsCount: 0n,
+        })
+        .mockResolvedValueOnce([
+          [], // permissionIds
+          0n, // totalCount
+          false, // hasMore
+        ]);
 
       const result = await controller.getGrantees();
 
@@ -323,21 +369,33 @@ describe("PermissionsController - Grantee Methods", () => {
       // Mock granteesCount
       vi.mocked(mockPublicClient.readContract).mockResolvedValueOnce(5n);
 
-      // Mock individual grantee fetches - second one fails
+      // Mock first grantee (id=2, offset=1 so we start at grantee 2)
       vi.mocked(mockPublicClient.readContract)
         .mockResolvedValueOnce({
           owner: "0xOwner2" as `0x${string}`,
           granteeAddress: "0xGrantee2" as `0x${string}`,
           publicKey: "0xKey2",
-          permissionIds: [],
+          permissionsCount: 0n,
         })
-        .mockRejectedValueOnce(new Error("Grantee not found")) // This one fails
+        .mockResolvedValueOnce([
+          [], // permissionIds
+          0n, // totalCount
+          false, // hasMore
+        ])
+        // Second grantee fails (id=3)
+        .mockRejectedValueOnce(new Error("Grantee not found")) // granteesV2 fails
+        // Third grantee (id=4)
         .mockResolvedValueOnce({
           owner: "0xOwner4" as `0x${string}`,
           granteeAddress: "0xGrantee4" as `0x${string}`,
           publicKey: "0xKey4",
-          permissionIds: [10n],
-        });
+          permissionsCount: 1n,
+        })
+        .mockResolvedValueOnce([
+          [10n], // permissionIds
+          1n, // totalCount
+          false, // hasMore
+        ]);
 
       // Spy on console.warn
       const consoleWarnSpy = vi
@@ -655,25 +713,42 @@ describe("PermissionsController - Grantee Methods", () => {
   describe("getGranteeInfo", () => {
     it("should return grantee info for a valid grantee ID", async () => {
       const granteeId = 789n;
-      const mockGranteeInfo = {
-        id: granteeId,
-        address: "0xGranteeAddress",
-        publicKey: "0xPublicKey789",
-        owner: "0xOwnerAddress" as `0x${string}`,
-      };
 
-      // Mock contract call
-      vi.mocked(mockPublicClient.readContract).mockResolvedValueOnce(
-        mockGranteeInfo,
-      );
+      // Mock granteesV2 call (used by getGranteeById)
+      vi.mocked(mockPublicClient.readContract).mockResolvedValueOnce({
+        owner: "0xOwnerAddress" as `0x${string}`,
+        granteeAddress: "0xGranteeAddress" as `0x${string}`,
+        publicKey: "0xPublicKey789",
+        permissionsCount: 2n,
+      });
+
+      // Mock granteePermissionsPaginated call (used by getGranteeById)
+      vi.mocked(mockPublicClient.readContract).mockResolvedValueOnce([
+        [100n, 200n], // permissionIds
+        2n, // totalCount
+        false, // hasMore
+      ]);
 
       const result = await controller.getGranteeInfo(granteeId);
 
-      expect(result).toEqual(mockGranteeInfo);
+      expect(result).toEqual({
+        owner: "0xOwnerAddress" as `0x${string}`,
+        granteeAddress: "0xGranteeAddress" as `0x${string}`,
+        publicKey: "0xPublicKey789",
+        permissionIds: [100n, 200n],
+      });
+
+      // Check the contract calls
       expect(mockPublicClient.readContract).toHaveBeenCalledWith(
         expect.objectContaining({
-          functionName: "granteeInfo",
-          args: [granteeId],
+          functionName: "granteesV2",
+          args: [789n],
+        }),
+      );
+      expect(mockPublicClient.readContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          functionName: "granteePermissionsPaginated",
+          args: [789n, 0n, 100n],
         }),
       );
     });

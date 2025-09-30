@@ -2851,10 +2851,21 @@ export class DataController extends BaseController {
         }
       }
 
-      const finalFilename =
-        (filename ?? encrypt)
+      // Determine final filename with proper .enc extension handling
+      const finalFilename = (() => {
+        if (filename) {
+          // If encrypting and filename doesn't already have .enc extension, add it
+          if (encrypt && !filename.endsWith(".enc")) {
+            return `${filename}.enc`;
+          }
+          // Otherwise use filename as provided
+          return filename;
+        }
+        // No filename provided - generate one based on encryption status
+        return encrypt
           ? `upload-${Date.now()}.enc`
           : `upload-${Date.now()}.dat`;
+      })();
 
       const uploadResult = await this.context.storageManager.upload(
         finalBlob,

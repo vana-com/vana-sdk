@@ -1,4 +1,5 @@
 import type { VanaInstance } from "../index.node";
+import type { TransactionOptions } from "../types/index";
 import type {
   UnifiedRelayerRequest,
   UnifiedRelayerResponse,
@@ -53,14 +54,15 @@ import { recoverTypedDataAddress, getAddress, type Hash } from "viem";
 export async function handleRelayerOperation(
   sdk: VanaInstance,
   request: UnifiedRelayerRequest,
+  options?: TransactionOptions,
 ): Promise<UnifiedRelayerResponse> {
   // Handle signed operations (EIP-712)
   if (request.type === "signed") {
-    return handleSignedOperation(sdk, request);
+    return handleSignedOperation(sdk, request, options);
   }
 
   // Handle direct operations (non-signed)
-  return handleDirectOperation(sdk, request);
+  return handleDirectOperation(sdk, request, options);
 }
 
 /**
@@ -69,6 +71,7 @@ export async function handleRelayerOperation(
 async function handleSignedOperation(
   sdk: VanaInstance,
   request: SignedRelayerRequest,
+  options?: TransactionOptions,
 ): Promise<UnifiedRelayerResponse> {
   const { typedData, signature, expectedUserAddress } = request;
 
@@ -107,8 +110,8 @@ async function handleSignedOperation(
   }
 
   // Step 2: Route to appropriate SDK method based on primaryType
-  // Using proper type narrowing instead of unsafe casts
-  const result = await routeSignedOperation(sdk, typedData, signature);
+  // Pass transaction options through for nonce and other parameters
+  const result = await routeSignedOperation(sdk, typedData, signature, options);
 
   // Return the transaction hash with type
   return {
@@ -124,6 +127,7 @@ async function routeSignedOperation(
   sdk: VanaInstance,
   typedData: GenericTypedData,
   signature: Hash,
+  options?: TransactionOptions,
 ) {
   const primaryType = typedData.primaryType as TypedDataPrimaryType;
 
@@ -137,6 +141,7 @@ async function routeSignedOperation(
           primaryType: "Permission",
         } as PermissionGrantTypedData,
         signature,
+        options,
       );
 
     case "RevokePermission":
@@ -146,6 +151,7 @@ async function routeSignedOperation(
           primaryType: "RevokePermission",
         } as RevokePermissionTypedData,
         signature,
+        options,
       );
 
     case "TrustServer":
@@ -155,6 +161,7 @@ async function routeSignedOperation(
           primaryType: "TrustServer",
         } as TrustServerTypedData,
         signature,
+        options,
       );
 
     case "AddServer":
@@ -164,6 +171,7 @@ async function routeSignedOperation(
           primaryType: "AddServer",
         } as AddAndTrustServerTypedData,
         signature,
+        options,
       );
 
     case "UntrustServer":
@@ -173,6 +181,7 @@ async function routeSignedOperation(
           primaryType: "UntrustServer",
         } as GenericTypedData,
         signature,
+        options,
       );
 
     case "ServerFilesAndPermission":
@@ -182,6 +191,7 @@ async function routeSignedOperation(
           primaryType: "ServerFilesAndPermission",
         } as ServerFilesAndPermissionTypedData,
         signature,
+        options,
       );
 
     // TODO: RegisterGrantee with signature is not supported until
@@ -200,6 +210,7 @@ async function routeSignedOperation(
 async function handleDirectOperation(
   sdk: VanaInstance,
   request: DirectRelayerRequest,
+  options?: TransactionOptions,
 ): Promise<UnifiedRelayerResponse> {
   switch (request.operation) {
     case "submitFileAddition": {
@@ -210,6 +221,7 @@ async function handleDirectOperation(
         url,
         userAddress,
         [], // No permissions
+        options,
       );
 
       // Wait for transaction events to get fileId
@@ -237,6 +249,7 @@ async function handleDirectOperation(
         url,
         userAddress,
         permissions,
+        options,
       );
 
       // Wait for transaction events to get fileId
@@ -267,6 +280,7 @@ async function handleDirectOperation(
         ownerAddress ?? userAddress,
         permissions, // Already in correct format with encrypted 'key' field
         schemaId,
+        options,
       );
 
       // Wait for transaction events to get fileId

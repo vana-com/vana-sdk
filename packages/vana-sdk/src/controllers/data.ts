@@ -22,6 +22,7 @@ import type {
   UploadFileWithPermissionsParams,
   AddFilePermissionParams,
   DecryptFileWithPermissionOptions,
+  TransactionOptions,
 } from "../types/index";
 // import { FilePermissionResult } from "../types/transactionResults";
 import type { TransactionResult } from "../types/operations";
@@ -240,6 +241,7 @@ export class DataController extends BaseController {
       encrypt = true,
       providerName,
       owner,
+      schemaValidation = "strict",
     } = params;
 
     try {
@@ -247,7 +249,7 @@ export class DataController extends BaseController {
       let validationErrors: string[] = [];
 
       // Step 1: Schema validation if provided
-      if (schemaId !== undefined) {
+      if (schemaId !== undefined && schemaValidation !== "skip") {
         try {
           // Use SchemaController to get complete schema with definition
           const { SchemaController } = await import("./schemas");
@@ -277,22 +279,32 @@ export class DataController extends BaseController {
           // Validate against schema (Schema is compatible with DataSchema)
           validateDataAgainstSchema(parsedContent, schema);
         } catch (error) {
-          isValid = false;
-          // Provide detailed error message
-          if (error instanceof Error) {
-            // Check if it's a SchemaValidationError with details
-            // Using type guard to safely check for errors property
-            if (
-              typeof error === "object" &&
-              "errors" in error &&
-              Array.isArray(error.errors)
-            ) {
-              validationErrors = error.errors;
-            } else {
-              validationErrors = [error.message];
+          // Handle validation failure based on mode
+          if (schemaValidation === "strict") {
+            // Re-throw the error to maintain backward compatibility
+            throw error;
+          } else if (schemaValidation === "warn") {
+            // Log warning and continue
+            console.warn(
+              '[Vana SDK] Schema validation failed, but continuing due to validation mode "warn"',
+            );
+            if (error instanceof Error) {
+              console.warn("  Validation error:", error.message);
+              // Check if it's a SchemaValidationError with details
+              if (
+                typeof error === "object" &&
+                "errors" in error &&
+                Array.isArray(error.errors)
+              ) {
+                console.warn("  Detailed errors:", error.errors);
+              }
             }
-          } else {
-            validationErrors = ["Schema validation failed"];
+            // Mark as invalid but don't block upload
+            isValid = false;
+            validationErrors =
+              error instanceof Error
+                ? [error.message]
+                : ["Schema validation failed"];
           }
         }
       }
@@ -2111,6 +2123,7 @@ export class DataController extends BaseController {
     url: string,
     ownerAddress: Address,
     permissions: Array<{ account: Address; key: string }> = [],
+    options?: TransactionOptions,
   ): Promise<TransactionResult<"DataRegistry", "addFileWithPermissions">> {
     this.assertWallet();
 
@@ -2134,6 +2147,19 @@ export class DataController extends BaseController {
         args: [url, ownerAddress, permissions],
         account,
         chain: this.context.walletClient.chain ?? null,
+        ...(options && {
+          gas: options.gasLimit,
+          nonce: options.nonce,
+          // Use EIP-1559 gas pricing if available, otherwise legacy
+          ...(options.maxFeePerGas || options.maxPriorityFeePerGas
+            ? {
+                maxFeePerGas: options.maxFeePerGas,
+                maxPriorityFeePerGas: options.maxPriorityFeePerGas,
+              }
+            : options.gasPrice
+              ? { gasPrice: options.gasPrice }
+              : {}),
+        }),
       });
 
       const { tx } = await import("../utils/transactionHelpers");
@@ -2293,6 +2319,7 @@ export class DataController extends BaseController {
     ownerAddress: Address,
     permissions: Array<{ account: Address; key: string }> = [],
     schemaId: number = 0,
+    options?: TransactionOptions,
   ): Promise<
     TransactionResult<"DataRegistry", "addFileWithPermissionsAndSchema">
   > {
@@ -2316,6 +2343,19 @@ export class DataController extends BaseController {
         args: [url, ownerAddress, permissions, BigInt(schemaId)],
         account,
         chain: this.context.walletClient.chain ?? null,
+        ...(options && {
+          gas: options.gasLimit,
+          nonce: options.nonce,
+          // Use EIP-1559 gas pricing if available, otherwise legacy
+          ...(options.maxFeePerGas || options.maxPriorityFeePerGas
+            ? {
+                maxFeePerGas: options.maxFeePerGas,
+                maxPriorityFeePerGas: options.maxPriorityFeePerGas,
+              }
+            : options.gasPrice
+              ? { gasPrice: options.gasPrice }
+              : {}),
+        }),
       });
 
       const { tx } = await import("../utils/transactionHelpers");

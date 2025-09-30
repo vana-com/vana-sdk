@@ -99,8 +99,29 @@ export const relayerStorage = {
  */
 export function createRelayerVana(chainId: VanaChainId = 14800): VanaInstance {
   const config = createRelayerConfig(chainId);
+
+  // Import storage providers for the relayer to store grant files
+  const { PinataStorage } = require("@opendatalabs/vana-sdk/node");
+
+  // Configure storage for the relayer (needed for storeGrantFile operations)
+  const storageProviders: Record<string, any> = {};
+  if (process.env.PINATA_JWT) {
+    storageProviders["pinata"] = new PinataStorage({
+      jwt: process.env.PINATA_JWT,
+      gatewayUrl:
+        process.env.PINATA_GATEWAY_URL ?? "https://gateway.pinata.cloud",
+    });
+  }
+
   return Vana({
     walletClient: config.walletClient,
+    publicClient: config.publicClient, // Add public client for blockchain queries
     operationStore, // Enable stateful relayer mode with operation tracking
+    ...(Object.keys(storageProviders).length > 0 && {
+      storage: {
+        providers: storageProviders,
+        defaultProvider: "pinata",
+      },
+    }),
   });
 }

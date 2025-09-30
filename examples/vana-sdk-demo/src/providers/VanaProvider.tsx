@@ -246,7 +246,9 @@ export function VanaProvider({
               const response = await fetch(`${baseUrl}/api/relay`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(request),
+                body: JSON.stringify(request, (_key, value) =>
+                  typeof value === "bigint" ? value.toString() : value,
+                ),
               });
               if (!response.ok) {
                 throw new Error(

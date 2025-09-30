@@ -1104,6 +1104,129 @@ describe("PermissionsController - Grantee Methods", () => {
       });
     });
 
+    describe("submitRegisterGrantee with relayer", () => {
+      it("should use relayer when available", async () => {
+        const params = {
+          owner: "0xOwnerAddress" as `0x${string}`,
+          granteeAddress: "0xGranteeAddress" as `0x${string}`,
+          publicKey: "0xPublicKey123",
+        };
+
+        // Mock relayer callback
+        const mockRelayer = vi.fn().mockResolvedValue({
+          type: "submitted",
+          hash: "0xRelayerTxHash" as Hash,
+        });
+
+        // Create controller with relayer
+        const controllerWithRelayer = new PermissionsController({
+          ...mockContext,
+          relayer: mockRelayer,
+        });
+
+        const result =
+          await controllerWithRelayer.submitRegisterGrantee(params);
+
+        // Verify relayer was called with correct request
+        expect(mockRelayer).toHaveBeenCalledWith({
+          type: "direct",
+          operation: "submitRegisterGrantee",
+          params: {
+            owner: params.owner,
+            granteeAddress: params.granteeAddress,
+            publicKey: params.publicKey,
+          },
+        });
+
+        // Verify result
+        expect(result.hash).toBe("0xRelayerTxHash");
+        expect(result.contract).toBe("DataPortabilityGrantees");
+        expect(result.fn).toBe("registerGrantee");
+
+        // Verify direct wallet transaction was NOT called
+        expect(mockWalletClient.writeContract).not.toHaveBeenCalled();
+      });
+
+      it("should fall back to direct transaction when relayer fails", async () => {
+        const params = {
+          owner: "0xOwnerAddress" as `0x${string}`,
+          granteeAddress: "0xGranteeAddress" as `0x${string}`,
+          publicKey: "0xPublicKey123",
+        };
+
+        // Mock relayer to return error
+        const mockRelayer = vi.fn().mockResolvedValue({
+          type: "error",
+          error: "Relayer service unavailable",
+        });
+
+        // Create controller with failing relayer
+        const controllerWithRelayer = new PermissionsController({
+          ...mockContext,
+          relayer: mockRelayer,
+        });
+
+        // Should throw RelayerError
+        await expect(
+          controllerWithRelayer.submitRegisterGrantee(params),
+        ).rejects.toThrow("Relayer service unavailable");
+
+        // Verify relayer was called
+        expect(mockRelayer).toHaveBeenCalled();
+        // Verify direct transaction was NOT attempted
+        expect(mockWalletClient.writeContract).not.toHaveBeenCalled();
+      });
+
+      it("should fall back to direct transaction when no relayer configured", async () => {
+        const params = {
+          owner: "0xOwnerAddress" as `0x${string}`,
+          granteeAddress: "0xGranteeAddress" as `0x${string}`,
+          publicKey: "0xPublicKey123",
+        };
+
+        const expectedTxHash = "0xDirectTxHash" as Hash;
+        vi.mocked(mockWalletClient.writeContract).mockResolvedValueOnce(
+          expectedTxHash,
+        );
+
+        // Use controller without relayer (original controller)
+        const result = await controller.submitRegisterGrantee(params);
+
+        // Verify direct transaction was called
+        expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
+          expect.objectContaining({
+            functionName: "registerGrantee",
+            args: [params.owner, params.granteeAddress, params.publicKey],
+          }),
+        );
+
+        expect(result.hash).toBe(expectedTxHash);
+      });
+
+      it("should handle unexpected relayer response type", async () => {
+        const params = {
+          owner: "0xOwnerAddress" as `0x${string}`,
+          granteeAddress: "0xGranteeAddress" as `0x${string}`,
+          publicKey: "0xPublicKey123",
+        };
+
+        // Mock relayer to return unexpected response type
+        const mockRelayer = vi.fn().mockResolvedValue({
+          type: "signed", // Wrong type for direct operation
+          hash: "0xWrongType",
+        });
+
+        const controllerWithRelayer = new PermissionsController({
+          ...mockContext,
+          relayer: mockRelayer,
+        });
+
+        await expect(
+          controllerWithRelayer.submitRegisterGrantee(params),
+        ).rejects.toThrow("Unexpected response type from relayer");
+      });
+    });
+
     describe("submitUpdateServer with TransactionOptions", () => {
       it("should pass gas parameters to writeContract", async () => {
         const serverId = 123n;

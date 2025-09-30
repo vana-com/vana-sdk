@@ -161,7 +161,7 @@ export default function DashboardLayout({
         <Navbar isBordered>
           <NavbarBrand>
             <h1 className="text-xl font-bold text-foreground">
-              Vana SDK Demo {isConnected ? "(✅ Full Mode)" : "(🔒 Read-Only)"}
+              Vana SDK Demo {isConnected ? "" : "(🔒 Read-Only)"}
             </h1>
           </NavbarBrand>
           <NavbarContent justify="end">

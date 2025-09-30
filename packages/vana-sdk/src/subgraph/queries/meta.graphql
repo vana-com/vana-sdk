@@ -1,0 +1,25 @@
+# Query to get the current block information from the subgraph
+query GetSubgraphMeta {
+  _meta {
+    block {
+      number
+      timestamp
+      hash
+    }
+    deployment
+    hasIndexingErrors
+  }
+}
+
+# Query to get subgraph metadata at a specific block
+query GetSubgraphMetaAtBlock($blockNumber: Int!) {
+  _meta(block: { number: $blockNumber }) {
+    block {
+      number
+      timestamp
+      hash
+    }
+    deployment
+    hasIndexingErrors
+  }
+}

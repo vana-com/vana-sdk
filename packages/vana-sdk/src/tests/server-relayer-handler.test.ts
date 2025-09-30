@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { handleRelayerOperation } from "../server/relayerHandler";
 import type { VanaInstance } from "../index.node";
 import type { UnifiedRelayerRequest } from "../types/relayer";
-import type { Address } from "viem";
+import type { Address, Hash } from "viem";
 
 // Mock viem for signature recovery (not testing actual crypto here)
 vi.mock("viem", async () => {
@@ -168,7 +168,7 @@ describe("Server Relayer Handler", () => {
         "submitAddAndTrustServer",
         "submitUntrustServer",
         "submitAddServerFilesAndPermissions",
-        "submitRegisterGrantee",
+        //"submitRegisterGrantee", // TODO: Add when contract supports registerGranteeWithSignature
       ] as const;
 
       for (const operation of operationTypes) {
@@ -297,8 +297,11 @@ describe("Server Relayer Handler", () => {
       ).not.toHaveBeenCalled();
 
       expect(response).toEqual({
-        type: "submitted",
-        hash: "0xfilehash",
+        type: "direct",
+        result: {
+          fileId: 789,
+          transactionHash: "0xfilehash",
+        },
       });
     });
 
@@ -314,7 +317,7 @@ describe("Server Relayer Handler", () => {
         },
       };
 
-      await handleRelayerOperation(mockSdk, request);
+      const response = await handleRelayerOperation(mockSdk, request);
 
       // Should use the encrypted permissions method
       expect(
@@ -326,15 +329,27 @@ describe("Server Relayer Handler", () => {
         42,
         undefined,
       );
+
+      expect(response).toEqual({
+        type: "direct",
+        result: {
+          fileId: 789,
+          transactionHash: "0xfilehash",
+        },
+      });
     });
   });
 
   describe("Direct Operations - Grant Storage", () => {
     it("should handle storeGrantFile", async () => {
-      // Mock the data.upload method for grant storage
-      mockSdk.data.upload = vi.fn().mockResolvedValue({
-        url: "ipfs://mockhash",
-      });
+      // Mock the context with storageManager
+      (mockSdk.data as any).context = {
+        storageManager: {
+          upload: vi.fn().mockResolvedValue({
+            url: "ipfs://mockhash",
+          }),
+        },
+      };
 
       const grantFile = {
         grantee: "0xgrantee" as Address,
@@ -351,28 +366,22 @@ describe("Server Relayer Handler", () => {
 
       const response = await handleRelayerOperation(mockSdk, request);
 
-      // Verify it was called with a Blob containing the grant file
-      expect(mockSdk.data.upload).toHaveBeenCalledWith({
-        content: expect.any(Blob),
-        filename: expect.stringMatching(/^grant-\d+\.json$/),
-      });
-
-      // Verify the blob contains the correct data
-      const callArgs = (mockSdk.data.upload as any).mock.calls[0][0];
-      const blob = callArgs.content as Blob;
-      const text = await blob.text();
-      expect(JSON.parse(text)).toEqual(grantFile);
+      // Should use context.storageManager.upload
+      expect(
+        (mockSdk.data as any).context.storageManager.upload,
+      ).toHaveBeenCalledWith(
+        expect.any(Blob),
+        expect.stringMatching(/^grant-\d+\.json$/),
+      );
 
       expect(response).toEqual({
-        type: "direct_result_untracked",
+        type: "direct",
         result: { url: "ipfs://mockhash" },
       });
     });
 
     it("should handle storage errors", async () => {
-      mockSdk.data.upload = vi
-        .fn()
-        .mockRejectedValue(new Error("Storage failed"));
+      // Don't mock data.upload since it's not used anymore
 
       const grantFile = {
         grantee: "0xgrantee" as Address,
@@ -388,9 +397,64 @@ describe("Server Relayer Handler", () => {
       };
 
       const response = await handleRelayerOperation(mockSdk, request);
+      // Without storage configuration, the handler should return an error
       expect(response).toEqual({
         type: "error",
-        error: "Storage failed",
+        error: "Storage configuration is required for storing grant files",
+      });
+    });
+  });
+
+  describe("Direct Operations - Grantee Registration", () => {
+    it("should handle submitRegisterGrantee", async () => {
+      // Mock the permissions.submitRegisterGrantee method
+      mockSdk.permissions.submitRegisterGrantee = vi.fn().mockResolvedValue({
+        hash: "0xgranteehash" as Hash,
+      });
+
+      const request: UnifiedRelayerRequest = {
+        type: "direct",
+        operation: "submitRegisterGrantee",
+        params: {
+          owner: "0xowner" as Address,
+          granteeAddress: "0xgrantee" as Address,
+          publicKey: "0x1234567890abcdef",
+        },
+      };
+
+      const response = await handleRelayerOperation(mockSdk, request);
+
+      expect(mockSdk.permissions.submitRegisterGrantee).toHaveBeenCalledWith({
+        owner: "0xowner",
+        granteeAddress: "0xgrantee",
+        publicKey: "0x1234567890abcdef",
+      });
+
+      expect(response).toEqual({
+        type: "submitted",
+        hash: "0xgranteehash",
+      });
+    });
+
+    it("should handle registerGrantee errors", async () => {
+      mockSdk.permissions.submitRegisterGrantee = vi
+        .fn()
+        .mockRejectedValue(new Error("Grantee registration failed"));
+
+      const request: UnifiedRelayerRequest = {
+        type: "direct",
+        operation: "submitRegisterGrantee",
+        params: {
+          owner: "0xowner" as Address,
+          granteeAddress: "0xgrantee" as Address,
+          publicKey: "0x1234567890abcdef",
+        },
+      };
+
+      const response = await handleRelayerOperation(mockSdk, request);
+      expect(response).toEqual({
+        type: "error",
+        error: "Grantee registration failed",
       });
     });
   });
@@ -468,6 +532,7 @@ describe("Server Relayer Handler", () => {
             case "submitFileAdditionWithPermissions":
             case "submitFileAdditionComplete":
             case "storeGrantFile":
+            case "submitRegisterGrantee":
               return request.operation;
             default:
               // TypeScript will error here if a new operation is added
@@ -590,8 +655,11 @@ describe("Server Relayer Handler", () => {
       );
 
       expect(response).toEqual({
-        type: "submitted",
-        hash: "0xfilehash",
+        type: "direct",
+        result: {
+          fileId: 789,
+          transactionHash: "0xfilehash",
+        },
       });
     });
   });

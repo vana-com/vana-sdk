@@ -80,11 +80,15 @@ export function useTrustedServers(): UseTrustedServersReturn {
 
     setIsLoadingTrustedServers(true);
     try {
-      const servers = await vana.data.getUserTrustedServers({
-        user: address,
-        subgraphUrl: process.env.NEXT_PUBLIC_SUBGRAPH_URL,
-        limit: 10, // For demo purposes, limit to 10 servers
-      });
+      const servers = await vana.data.getUserTrustedServers(
+        {
+          user: address,
+          subgraphUrl: process.env.NEXT_PUBLIC_SUBGRAPH_URL,
+        },
+        {
+          limit: 10, // For demo purposes, limit to 10 servers
+        },
+      );
 
       console.info("Loaded trusted servers:", servers);
 

@@ -351,6 +351,7 @@ export class PermissionsController extends BaseController {
           if (
             response.type === "direct" &&
             typeof response.result === "object" &&
+            response.result !== null &&
             "url" in response.result
           ) {
             grantUrl = response.result.url as string;
@@ -490,6 +491,7 @@ export class PermissionsController extends BaseController {
           if (
             response.type === "direct" &&
             typeof response.result === "object" &&
+            response.result !== null &&
             "url" in response.result
           ) {
             grantUrl = response.result.url as string;
@@ -1855,7 +1857,9 @@ export class PermissionsController extends BaseController {
   async getUserPermissionGrantsOnChain(
     options: GetUserPermissionsOptions = {},
   ): Promise<OnChainPermissionGrant[]> {
-    const { limit = 50, subgraphUrl } = options;
+    const { limit = 50, fetchAll = false, subgraphUrl } = options;
+    const pageSize = fetchAll ? 100 : limit; // Query efficiently based on mode
+    const maxResults = fetchAll ? 10000 : limit; // Reasonable max for fetchAll
 
     try {
       const userAddress = this.context.userAddress;
@@ -1869,12 +1873,12 @@ export class PermissionsController extends BaseController {
         );
       }
 
-      // Query the subgraph for user's permissions - SINGLE QUERY, NO LOOPS
+      // Query the subgraph for user's permissions with pagination
       const query = `
-        query GetUserPermissions($userId: ID!) {
+        query GetUserPermissions($userId: ID!, $first: Int!, $skip: Int!) {
           user(id: $userId) {
             id
-            permissions {
+            permissions(first: $first, skip: $skip, orderBy: addedAtBlock, orderDirection: desc) {
               id
               grant
               nonce
@@ -1893,56 +1897,121 @@ export class PermissionsController extends BaseController {
         }
       `;
 
-      const response = await fetch(graphqlEndpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          query,
-          variables: {
-            userId: userAddress.toLowerCase(),
+      const allPermissions: any[] = [];
+      let currentOffset = 0;
+
+      // If not fetching all, just get the requested limit in one query
+      if (!fetchAll) {
+        const response = await fetch(graphqlEndpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
           },
-        }),
-      });
-
-      if (!response.ok) {
-        throw new BlockchainError(
-          `Subgraph request failed: ${response.status} ${response.statusText}`,
-        );
-      }
-
-      const result = (await response.json()) as SubgraphPermissionsResponse;
-
-      if (result.errors) {
-        throw new BlockchainError(
-          `Subgraph errors: ${result.errors.map((e: { message: string }) => e.message).join(", ")}`,
-        );
-      }
-
-      const userData = result.data?.user;
-      if (!userData?.permissions?.length) {
-        return [];
-      }
-
-      // Process permissions without expensive network calls - FAST PATH
-      const onChainGrants: OnChainPermissionGrant[] = userData.permissions
-        .slice(0, limit)
-        .map(
-          (permission: NonNullable<typeof userData.permissions>[number]) => ({
-            id: BigInt(permission.id),
-            grantUrl: permission.grant,
-            grantSignature: permission.signature,
-            nonce: BigInt(permission.nonce),
-            startBlock: BigInt(permission.startBlock),
-            addedAtBlock: BigInt(permission.addedAtBlock),
-            addedAtTimestamp: BigInt(permission.addedAtTimestamp ?? "0"),
-            transactionHash: permission.transactionHash ?? "",
-            grantor: userAddress,
-            grantee: permission.grantee,
-            active: !permission.endBlock || BigInt(permission.endBlock) === 0n, // Active if no end block or end block is 0
+          body: JSON.stringify({
+            query,
+            variables: {
+              userId: userAddress.toLowerCase(),
+              first: limit,
+              skip: 0,
+            },
           }),
-        );
+        });
+
+        if (!response.ok) {
+          throw new BlockchainError(
+            `Subgraph request failed: ${response.status} ${response.statusText}`,
+          );
+        }
+
+        const result = (await response.json()) as SubgraphPermissionsResponse;
+
+        if (result.errors) {
+          throw new BlockchainError(
+            `Subgraph errors: ${result.errors.map((e: { message: string }) => e.message).join(", ")}`,
+          );
+        }
+
+        const userData = result.data?.user;
+
+        // If no permissions found, return empty array
+        if (!userData?.permissions?.length) {
+          return [];
+        }
+
+        allPermissions.push(...userData.permissions);
+      } else {
+        // Fetch permissions in batches for fetchAll
+        while (allPermissions.length < maxResults) {
+          const currentLimit = Math.min(
+            pageSize,
+            maxResults - allPermissions.length,
+          );
+
+          const response = await fetch(graphqlEndpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              query,
+              variables: {
+                userId: userAddress.toLowerCase(),
+                first: currentLimit,
+                skip: currentOffset,
+              },
+            }),
+          });
+
+          if (!response.ok) {
+            throw new BlockchainError(
+              `Subgraph request failed: ${response.status} ${response.statusText}`,
+            );
+          }
+
+          const result = (await response.json()) as SubgraphPermissionsResponse;
+
+          if (result.errors) {
+            throw new BlockchainError(
+              `Subgraph errors: ${result.errors.map((e: { message: string }) => e.message).join(", ")}`,
+            );
+          }
+
+          const userData = result.data?.user;
+
+          // If no permissions found in this batch, we're done
+          if (!userData?.permissions?.length) {
+            break;
+          }
+
+          // Add permissions from this batch
+          allPermissions.push(...userData.permissions);
+
+          // If we got fewer permissions than requested, we've reached the end
+          if (userData.permissions.length < currentLimit) {
+            break;
+          }
+
+          // Move to next batch
+          currentOffset += userData.permissions.length;
+        }
+      }
+
+      // Process all permissions without expensive network calls - FAST PATH
+      const onChainGrants: OnChainPermissionGrant[] = allPermissions.map(
+        (permission: any) => ({
+          id: BigInt(permission.id),
+          grantUrl: permission.grant,
+          grantSignature: permission.signature,
+          nonce: BigInt(permission.nonce),
+          startBlock: BigInt(permission.startBlock),
+          addedAtBlock: BigInt(permission.addedAtBlock),
+          addedAtTimestamp: BigInt(permission.addedAtTimestamp ?? "0"),
+          transactionHash: permission.transactionHash ?? "",
+          grantor: userAddress,
+          grantee: permission.grantee,
+          active: !permission.endBlock || BigInt(permission.endBlock) === 0n, // Active if no end block or end block is 0
+        }),
+      );
 
       return onChainGrants.sort((a, b) => {
         // Sort by ID - most recent first
@@ -3228,6 +3297,9 @@ export class PermissionsController extends BaseController {
    * A grantee is an entity (like an application) that can receive data permissions
    * from users. Once registered, users can grant the grantee access to their data.
    *
+   * This method supports gasless transactions via relayer when configured.
+   * If no relayer is available, it falls back to direct wallet transactions.
+   *
    * @param params - Parameters for registering the grantee
    * @param params.owner - The Ethereum address that will own this grantee registration
    * @param params.granteeAddress - The Ethereum address of the grantee (application)
@@ -3236,7 +3308,7 @@ export class PermissionsController extends BaseController {
    * @returns Promise resolving to the transaction hash
    * @throws {BlockchainError} When the grantee registration transaction fails
    * @throws {UserRejectedRequestError} When user rejects the transaction
-   * @throws {ContractError} When grantee is already registered
+   * @throws {RelayerError} When gasless transaction submission fails
    *
    * @example
    * ```typescript
@@ -3252,41 +3324,110 @@ export class PermissionsController extends BaseController {
     params: RegisterGranteeParams,
     options?: TransactionOptions,
   ): Promise<TransactionResult<"DataPortabilityGrantees", "registerGrantee">> {
-    this.assertWallet();
-    const chainId = await this.context.walletClient.getChainId();
-    const DataPortabilityGranteesAddress = getContractAddress(
-      chainId,
-      "DataPortabilityGrantees",
-    );
-    const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
+    try {
+      // Submit via unified relayer callback or direct transaction
+      let hash: Hash;
+      if (this.context.relayer) {
+        const request: UnifiedRelayerRequest = {
+          type: "direct",
+          operation: "submitRegisterGrantee",
+          params: {
+            owner: params.owner,
+            granteeAddress: params.granteeAddress,
+            publicKey: params.publicKey,
+          },
+        };
+        const response = await this.context.relayer(request);
+        if (response.type === "error") {
+          throw new RelayerError(response.error);
+        }
+        if (response.type === "submitted") {
+          hash = response.hash;
+        } else if (response.type === "direct") {
+          const result = response.result as { transactionHash: Hash };
+          hash = result.transactionHash;
+        } else {
+          throw new Error("Unexpected response type from relayer");
+        }
+      } else {
+        // Fall back to direct wallet transaction
+        this.assertWallet();
+        const chainId = await this.context.walletClient.getChainId();
+        const DataPortabilityGranteesAddress = getContractAddress(
+          chainId,
+          "DataPortabilityGrantees",
+        );
+        const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
 
-    const ownerAddress = getAddress(params.owner);
-    const granteeAddress = getAddress(params.granteeAddress);
-    const account =
-      this.context.walletClient?.account ?? this.context.userAddress;
+        const ownerAddress = getAddress(params.owner);
+        const granteeAddress = getAddress(params.granteeAddress);
+        const account =
+          this.context.walletClient?.account ?? this.context.userAddress;
 
-    const txHash = await this.context.walletClient.writeContract({
-      address: DataPortabilityGranteesAddress,
-      abi: DataPortabilityGranteesAbi,
-      functionName: "registerGrantee",
-      args: [ownerAddress, granteeAddress, params.publicKey],
-      account,
-      chain: this.context.walletClient?.chain ?? null,
-      ...this.spreadTransactionOptions(options),
-    });
+        hash = await this.context.walletClient.writeContract({
+          address: DataPortabilityGranteesAddress,
+          abi: DataPortabilityGranteesAbi,
+          functionName: "registerGrantee",
+          args: [ownerAddress, granteeAddress, params.publicKey],
+          account,
+          chain: this.context.walletClient?.chain ?? null,
+          ...this.spreadTransactionOptions(options),
+        });
+      }
 
-    const { tx } = await import("../utils/transactionHelpers");
-    return tx({
-      hash: txHash,
-      from: typeof account === "string" ? account : account.address,
-      contract: "DataPortabilityGrantees",
-      fn: "registerGrantee",
-    });
+      const account =
+        this.context.walletClient?.account ?? this.context.userAddress;
+      const { tx } = await import("../utils/transactionHelpers");
+      return tx({
+        hash,
+        from: typeof account === "string" ? account : account.address,
+        contract: "DataPortabilityGrantees",
+        fn: "registerGrantee",
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        // Re-throw known Vana errors directly
+        if (
+          error instanceof RelayerError ||
+          error instanceof UserRejectedRequestError ||
+          error instanceof SerializationError ||
+          error instanceof SignatureError ||
+          error instanceof BlockchainError
+        ) {
+          throw error;
+        }
+
+        // Handle viem contract errors
+        if (error.name === "ContractFunctionExecutionError") {
+          throw new BlockchainError(
+            `Grantee registration failed: ${error.message}`,
+            error,
+          );
+        }
+
+        // Handle user rejection
+        if (error.name === "UserRejectedRequestError") {
+          throw new UserRejectedRequestError(
+            "User rejected the grantee registration transaction",
+          );
+        }
+
+        // Handle other blockchain errors
+        throw new BlockchainError(
+          `Failed to register grantee: ${error.message}`,
+          error,
+        );
+      }
+
+      // Handle non-Error objects
+      throw new BlockchainError(`Failed to register grantee: ${String(error)}`);
+    }
   }
 
   // TODO: When DataPortabilityGrantees contract adds registerGranteeWithSignature function,
   // implement submitRegisterGranteeWithSignature and submitSignedRegisterGrantee methods
-  // to support gasless transactions via relayer
+  // to support EIP-712 signed gasless transactions via relayer.
+  // Current implementation above supports direct gasless transactions (relayer pays gas directly).
 
   /**
    * Retrieves all registered grantees from the DataPortabilityGrantees contract.

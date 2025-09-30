@@ -9,6 +9,8 @@ import type {
   TransactionResult,
   TransactionOptions,
   IOperationStore,
+  OperationState,
+  TransactionReceipt,
 } from "../types";
 import type { Contract, Fn } from "../generated/event-types";
 import type {
@@ -74,6 +76,8 @@ export async function handleRelayerOperation(
     if (request.type === "status_check") {
       const state = await store.get(request.operationId);
       if (!state) return { type: "error", error: "Operation not found" };
+
+      // If already confirmed or failed, return immediately
       if (state.status === "confirmed")
         return {
           type: "confirmed",
@@ -82,13 +86,82 @@ export async function handleRelayerOperation(
         };
       if (state.status === "failed")
         return { type: "error", error: state.error ?? "Operation failed" };
+
+      // For pending operations, check the blockchain for transaction status
+      if (state.status === "pending") {
+        try {
+          // Get a public client to check transaction status
+          // The SDK stores it as a direct property
+          const publicClient = (sdk as any).publicClient;
+
+          if (publicClient) {
+            // Check if transaction has been mined
+            let receipt;
+            try {
+              receipt = await publicClient.getTransactionReceipt({
+                hash: state.transactionHash,
+              });
+            } catch (receiptError: any) {
+              // Transaction not found is expected - it may not be mined yet
+              if (receiptError?.name !== "TransactionReceiptNotFoundError") {
+                // Unexpected error - log but don't fail
+                console.warn(
+                  `⚠️ [Relayer] Unexpected error checking receipt:`,
+                  receiptError?.message ?? receiptError,
+                );
+              }
+              // Continue returning pending status
+              receipt = null;
+            }
+
+            if (receipt) {
+              // Update the operation state based on transaction status
+              const updatedState: OperationState = {
+                ...state,
+                status: receipt.status === "success" ? "confirmed" : "failed",
+                finalReceipt: receipt as TransactionReceipt,
+                ...(receipt.status !== "success" && {
+                  error: "Transaction reverted on chain",
+                }),
+              };
+
+              // Persist the updated state
+              await store.set(request.operationId, updatedState);
+
+              // Return the appropriate response
+              if (receipt.status === "success") {
+                return {
+                  type: "confirmed",
+                  hash: state.transactionHash,
+                  receipt: receipt as TransactionReceipt,
+                };
+              } else {
+                return {
+                  type: "error",
+                  error: "Transaction reverted on chain",
+                };
+              }
+            }
+          } else {
+            console.warn(
+              "⚠️ [Relayer] No public client available for status checking",
+            );
+          }
+        } catch (error) {
+          console.error(
+            `❌ [Relayer] Unexpected error in status check:`,
+            error,
+          );
+          // Don't fail the operation, just continue returning pending
+        }
+      }
+
       return { type: "pending", operationId: request.operationId };
     }
 
     const operationId = uuidv4();
     try {
       const txResult = await routeAndExecuteRequest(sdk, request, options);
-
       // We only store state for operations that result in a transaction.
       if ("hash" in txResult) {
         await store.set(operationId, {
@@ -106,7 +179,7 @@ export async function handleRelayerOperation(
         return { type: "pending", operationId };
       } else {
         // This handles non-transactional direct operations like `storeGrantFile`
-        return { type: "direct_result_untracked", result: txResult };
+        return { type: "direct", result: txResult };
       }
     } catch (e) {
       const error =
@@ -136,7 +209,7 @@ export async function handleRelayerOperation(
         return { type: "submitted", hash: txResult.hash };
       } else {
         // Non-transactional direct operations can return their result directly.
-        return { type: "direct_result_untracked", result: txResult };
+        return { type: "direct", result: txResult };
       }
     } catch (e) {
       const error =
@@ -156,7 +229,11 @@ async function routeAndExecuteRequest(
   sdk: VanaInstance,
   request: UnifiedRelayerRequest,
   options?: TransactionOptions,
-): Promise<TransactionResult<Contract, Fn<Contract>> | { url: string }> {
+): Promise<
+  | TransactionResult<Contract, Fn<Contract>>
+  | { url: string }
+  | { fileId: number; transactionHash: Hash }
+> {
   if (request.type === "signed") {
     const { typedData, signature, expectedUserAddress } = request;
 
@@ -321,7 +398,11 @@ async function handleDirectOperation(
   sdk: VanaInstance,
   request: DirectRelayerRequest,
   options?: TransactionOptions,
-): Promise<TransactionResult<Contract, Fn<Contract>> | { url: string }> {
+): Promise<
+  | TransactionResult<Contract, Fn<Contract>>
+  | { url: string }
+  | { fileId: number; transactionHash: Hash }
+> {
   switch (request.operation) {
     case "submitFileAddition": {
       const { url, userAddress } = request.params;
@@ -359,7 +440,7 @@ async function handleDirectOperation(
 
       // Permissions are already encrypted, use the appropriate method
       // No mapping needed - permissions already have { account, key } format
-      const result = await sdk.data.addFileWithEncryptedPermissionsAndSchema(
+      const txResult = await sdk.data.addFileWithEncryptedPermissionsAndSchema(
         url,
         ownerAddress ?? userAddress,
         permissions, // Already in correct format with encrypted 'key' field
@@ -367,26 +448,65 @@ async function handleDirectOperation(
         options,
       );
 
-      // Return the TransactionResult directly
-      return result;
+      // File uploads need synchronous response with fileId
+      // Use the SDK's built-in event parsing - it knows how to extract events from TransactionResult
+      // The SDK has waitForTransactionEvents as a public method
+      const eventResult = await (sdk as any).waitForTransactionEvents(txResult);
+      const fileAddedEvent = eventResult.expectedEvents?.FileAdded;
+
+      if (!fileAddedEvent || !fileAddedEvent.fileId) {
+        console.error("Event result:", eventResult);
+        throw new Error("FileAdded event not found in transaction");
+      }
+
+      const fileId = Number(fileAddedEvent.fileId);
+
+      // Return as a direct result that the SDK expects
+      return {
+        fileId,
+        transactionHash: txResult.hash,
+      };
     }
 
     case "storeGrantFile": {
       const grantFile = request.params;
 
-      // Store grant file using SDK's data controller
+      // Access the data controller's context which has storage
+      const dataController = sdk.data as any;
+      const context = dataController.context;
+
+      if (!context?.storageManager) {
+        throw new Error(
+          "Storage configuration is required for storing grant files",
+        );
+      }
+
       // Convert grant file to blob for storage
       const blob = new Blob([JSON.stringify(grantFile)], {
         type: "application/json",
       });
 
-      // Upload using the data controller
-      const result = await sdk.data.upload({
-        content: blob,
-        filename: `grant-${Date.now()}.json`,
+      // Upload directly to storage (IPFS) without blockchain transaction
+      const uploadResult = await context.storageManager.upload(
+        blob,
+        `grant-${Date.now()}.json`,
+      );
+
+      return { url: uploadResult.url };
+    }
+
+    case "submitRegisterGrantee": {
+      const { owner, granteeAddress, publicKey } = request.params;
+
+      // Use SDK to register grantee
+      const result = await sdk.permissions.submitRegisterGrantee({
+        owner,
+        granteeAddress,
+        publicKey,
       });
 
-      return { url: result.url };
+      // Return as a TransactionResult that the SDK expects
+      return result;
     }
 
     default: {

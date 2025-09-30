@@ -398,8 +398,8 @@ export type SignedOperationType =
   | "submitTrustServer"
   | "submitAddAndTrustServer"
   | "submitUntrustServer"
-  | "submitAddServerFilesAndPermissions"
-  | "submitRegisterGrantee";
+  | "submitAddServerFilesAndPermissions";
+// | "submitRegisterGrantee"; // TODO: Add when contract supports registerGranteeWithSignature
 
 /**
  * Represents direct server operations that don't require blockchain signatures.
@@ -444,6 +444,15 @@ export type DirectRelayerRequest =
       type: "direct";
       operation: "storeGrantFile";
       params: GrantFile;
+    }
+  | {
+      type: "direct";
+      operation: "submitRegisterGrantee";
+      params: {
+        owner: Address;
+        granteeAddress: Address;
+        publicKey: string;
+      };
     };
 
 /**
@@ -476,12 +485,8 @@ export type UnifiedRelayerResponse =
       hash: Hash;
     }
   | {
+      /** Non-transactional operations that complete immediately (e.g., IPFS uploads, file info) */
       type: "direct";
-      result: { fileId: number; transactionHash: Hash } | { url: string };
-    }
-  | {
-      /** Non-transactional operations that don't require tracking (e.g., IPFS uploads) */
-      type: "direct_result_untracked";
       /** The result data from the operation, structure depends on the specific operation */
       result: unknown;
     }

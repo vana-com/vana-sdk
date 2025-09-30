@@ -44,9 +44,10 @@ export default function ReadOnlyDemoPage() {
       description: "Fetch user's file metadata from blockchain",
       operation: async () => {
         if (!vana) throw new Error("SDK not initialized");
-        const files = await vana.data.getUserFiles({
-          owner: "0x0000000000000000000000000000000000000000" as Address,
-        });
+        const files = await vana.data.getUserFiles(
+          { owner: "0x0000000000000000000000000000000000000000" as Address },
+          {},
+        );
         return { count: files.length, files: files.slice(0, 3) };
       },
     },

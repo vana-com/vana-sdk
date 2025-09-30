@@ -321,6 +321,24 @@ async function handleDirectOperation(
       };
     }
 
+    case "submitRegisterGrantee": {
+      const { owner, granteeAddress, publicKey } = request.params;
+
+      // Use SDK to register grantee
+      const result = await sdk.permissions.submitRegisterGrantee({
+        owner,
+        granteeAddress,
+        publicKey,
+      });
+
+      return {
+        type: "direct",
+        result: {
+          transactionHash: result.hash,
+        },
+      };
+    }
+
     default: {
       // TypeScript exhaustiveness check - ensures all cases are handled at compile time
       const exhaustiveCheck: never = request;

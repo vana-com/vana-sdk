@@ -1112,7 +1112,10 @@ export class PermissionsController extends BaseController {
           expectedUserAddress: this.context.userAddress,
         });
 
-        if (response.type === "signed") {
+        if (response.type === "submitted") {
+          hash = response.hash;
+        } else if (response.type === "signed") {
+          // Legacy response format
           hash = response.hash;
         } else if (response.type === "error") {
           throw new Error(`Relayer error: ${response.error}`);
@@ -1452,7 +1455,10 @@ export class PermissionsController extends BaseController {
           expectedUserAddress: this.context.userAddress,
         });
 
-        if (response.type === "signed") {
+        if (response.type === "submitted") {
+          hash = response.hash;
+        } else if (response.type === "signed") {
+          // Legacy response format
           hash = response.hash;
         } else if (response.type === "error") {
           throw new Error(`Relayer error: ${response.error}`);
@@ -2247,7 +2253,10 @@ export class PermissionsController extends BaseController {
         if (response.type === "error") {
           throw new RelayerError(response.error);
         }
-        if (response.type === "signed") {
+        if (response.type === "submitted") {
+          hash = response.hash;
+        } else if (response.type === "signed") {
+          // Legacy response format
           hash = response.hash;
         } else {
           throw new Error("Unexpected response type from relayer");
@@ -2339,7 +2348,10 @@ export class PermissionsController extends BaseController {
         if (response.type === "error") {
           throw new RelayerError(response.error);
         }
-        if (response.type === "signed") {
+        if (response.type === "submitted") {
+          hash = response.hash;
+        } else if (response.type === "signed") {
+          // Legacy response format
           hash = response.hash;
         } else {
           throw new Error("Unexpected response type from relayer");
@@ -2550,7 +2562,10 @@ export class PermissionsController extends BaseController {
         if (response.type === "error") {
           throw new RelayerError(response.error);
         }
-        if (response.type === "signed") {
+        if (response.type === "submitted") {
+          hash = response.hash;
+        } else if (response.type === "signed") {
+          // Legacy response format
           hash = response.hash;
         } else {
           throw new Error("Unexpected response type from relayer");
@@ -4739,7 +4754,10 @@ export class PermissionsController extends BaseController {
         if (response.type === "error") {
           throw new RelayerError(response.error);
         }
-        if (response.type === "signed") {
+        if (response.type === "submitted") {
+          hash = response.hash;
+        } else if (response.type === "signed") {
+          // Legacy response format
           hash = response.hash;
         } else {
           throw new Error("Unexpected response type from relayer");
@@ -4966,7 +4984,10 @@ export class PermissionsController extends BaseController {
         if (response.type === "error") {
           throw new RelayerError(response.error);
         }
-        if (response.type === "signed") {
+        if (response.type === "submitted") {
+          hash = response.hash;
+        } else if (response.type === "signed") {
+          // Legacy response format
           hash = response.hash;
         } else {
           throw new Error("Unexpected response type from relayer");

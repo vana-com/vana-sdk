@@ -3410,10 +3410,10 @@ export class PermissionsController extends BaseController {
         permissionsCount: bigint;
       };
 
-      // Fetch all permission IDs using the dedicated function that handles pagination
-      const allPermissionIds = await this.fetchAllGranteePermissions(
+      // Fetch all permission IDs using pagination
+      const allPermissionIds = (await this.getGranteePermissionsPaginated(
         BigInt(granteeId),
-      );
+      )) as bigint[];
 
       return {
         id: granteeId,
@@ -4041,75 +4041,57 @@ export class PermissionsController extends BaseController {
   }
 
   /**
-   * Get permission IDs for a specific grantee with pagination support.
+   * Get permission IDs for a specific grantee with optional pagination support.
    *
-   * This method is gas-efficient and should be used when dealing with grantees
-   * that may have a large number of permissions. It fetches permissions in chunks
-   * to avoid potential out-of-gas errors.
+   * This method is gas-efficient and flexible:
+   * - Without offset/limit: Fetches all permissions using pagination internally
+   * - With offset/limit: Fetches a specific page of permissions
    *
    * @param granteeId - Grantee ID to get permissions for
-   * @param offset - Starting index for pagination (0-based)
-   * @param limit - Maximum number of permission IDs to return
-   * @returns Promise resolving to paginated permission data including IDs, total count, and hasMore flag
+   * @param options - Optional pagination parameters
+   * @param options.offset - Starting index for pagination (0-based)
+   * @param options.limit - Maximum number of permission IDs to return
+   * @returns Promise resolving to permission data (array of all IDs or paginated result)
    * @throws {BlockchainError} When contract read operation fails
    *
    * @example
    * ```typescript
-   * // Fetch first 100 permissions
-   * const result = await vana.permissions.getGranteePermissionsPaginated(
-   *   BigInt(1),
-   *   BigInt(0),
-   *   BigInt(100)
-   * );
+   * // Fetch all permissions (no pagination params)
+   * const allPermissions = await vana.permissions.getGranteePermissionsPaginated(BigInt(1));
+   * console.log(`Total permissions: ${allPermissions.length}`);
    *
-   * console.log(`Fetched ${result.permissionIds.length} permissions`);
-   * console.log(`Total permissions: ${result.totalCount}`);
-   * console.log(`Has more: ${result.hasMore}`);
+   * // Fetch a specific page (with pagination params)
+   * const page = await vana.permissions.getGranteePermissionsPaginated(BigInt(1), {
+   *   offset: BigInt(0),
+   *   limit: BigInt(100)
+   * });
+   * console.log(`Fetched ${page.permissionIds.length} permissions`);
+   * console.log(`Total: ${page.totalCount}, Has more: ${page.hasMore}`);
    *
-   * // Fetch next batch if needed
-   * if (result.hasMore) {
-   *   const nextResult = await vana.permissions.getGranteePermissionsPaginated(
-   *     BigInt(1),
-   *     BigInt(100),
-   *     BigInt(100)
-   *   );
-   * }
-   * ```
-   *
-   * @example
-   * ```typescript
-   * // Fetch all permissions using pagination
-   * async function fetchAllPermissions(granteeId: bigint) {
-   *   const allPermissions: bigint[] = [];
-   *   let offset = BigInt(0);
-   *   const limit = BigInt(100);
-   *   let hasMore = true;
-   *
-   *   while (hasMore) {
-   *     const result = await vana.permissions.getGranteePermissionsPaginated(
-   *       granteeId,
-   *       offset,
-   *       limit
-   *     );
-   *
-   *     allPermissions.push(...result.permissionIds);
-   *     hasMore = result.hasMore;
-   *     offset += limit;
-   *   }
-   *
-   *   return allPermissions;
+   * // Fetch next page
+   * if (page.hasMore) {
+   *   const nextPage = await vana.permissions.getGranteePermissionsPaginated(BigInt(1), {
+   *     offset: BigInt(100),
+   *     limit: BigInt(100)
+   *   });
    * }
    * ```
    */
   async getGranteePermissionsPaginated(
     granteeId: bigint,
-    offset: bigint,
-    limit: bigint,
-  ): Promise<{
-    permissionIds: bigint[];
-    totalCount: bigint;
-    hasMore: boolean;
-  }> {
+    options?: {
+      offset?: bigint;
+      limit?: bigint;
+    },
+  ): Promise<
+    | bigint[] // When fetching all (no options)
+    | {
+        // When fetching a specific page (with options)
+        permissionIds: bigint[];
+        totalCount: bigint;
+        hasMore: boolean;
+      }
+  > {
     try {
       const chainId = await this.context.publicClient.getChainId();
       const DataPortabilityGranteesAddress = getContractAddress(
@@ -4118,77 +4100,49 @@ export class PermissionsController extends BaseController {
       );
       const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
 
-      const [permissionIds, totalCount, hasMore] =
-        (await this.context.publicClient.readContract({
-          address: DataPortabilityGranteesAddress,
-          abi: DataPortabilityGranteesAbi,
-          functionName: "granteePermissionsPaginated",
-          args: [granteeId, offset, limit],
-        })) as [readonly bigint[], bigint, boolean];
+      // Otherwise, fetch all permissions using pagination
+      const allPermissionIds: bigint[] = [];
+      // If both offset and limit are provided, fetch just that page
+      const fetchOnlyOnePage =
+        options?.offset !== undefined && options?.limit !== undefined;
+      let currentOffset = options?.offset ?? BigInt(0);
+      const batchSize = options?.limit ?? BigInt(100);
+      let hasMore = true;
 
-      return {
-        permissionIds: [...permissionIds],
-        totalCount,
-        hasMore,
-      };
+      while (hasMore) {
+        const [permissionIds, totalCount, more] =
+          (await this.context.publicClient.readContract({
+            address: DataPortabilityGranteesAddress,
+            abi: DataPortabilityGranteesAbi,
+            functionName: "granteePermissionsPaginated",
+            args: [granteeId, currentOffset, batchSize],
+          })) as [readonly bigint[], bigint, boolean];
+
+        if (fetchOnlyOnePage) {
+          return {
+            permissionIds: [...permissionIds],
+            totalCount,
+            hasMore,
+          };
+        }
+
+        allPermissionIds.push(...permissionIds);
+        hasMore = more;
+        currentOffset += batchSize;
+
+        // Safety check to prevent infinite loops
+        if (currentOffset >= totalCount) {
+          break;
+        }
+      }
+
+      return allPermissionIds;
     } catch (error) {
       throw new BlockchainError(
-        `Failed to get grantee permissions with pagination: ${error instanceof Error ? error.message : "Unknown error"}`,
+        `Failed to get grantee permissions: ${error instanceof Error ? error.message : "Unknown error"}`,
         error as Error,
       );
     }
-  }
-
-  /**
-   * Fetch all permission IDs for a specific grantee.
-   *
-   * This method automatically handles pagination to fetch all permissions
-   * regardless of the number, avoiding gas issues for grantees with many permissions.
-   *
-   * @param granteeId - Grantee ID to get all permissions for
-   * @param batchSize - Number of permissions to fetch per batch (default: 100)
-   * @returns Promise resolving to array of all permission IDs
-   * @throws {BlockchainError} When contract read operation fails
-   *
-   * @example
-   * ```typescript
-   * // Fetch all permissions for grantee ID 1
-   * const allPermissions = await vana.permissions.fetchAllGranteePermissions(BigInt(1));
-   * console.log(`Total permissions: ${allPermissions.length}`);
-   *
-   * // Use custom batch size for optimization
-   * const permissions = await vana.permissions.fetchAllGranteePermissions(
-   *   BigInt(1),
-   *   BigInt(200) // Fetch 200 at a time
-   * );
-   * ```
-   */
-  async fetchAllGranteePermissions(
-    granteeId: bigint,
-    batchSize: bigint = BigInt(100),
-  ): Promise<bigint[]> {
-    const allPermissionIds: bigint[] = [];
-    let offset = BigInt(0);
-    let hasMore = true;
-
-    while (hasMore) {
-      const result = await this.getGranteePermissionsPaginated(
-        granteeId,
-        offset,
-        batchSize,
-      );
-
-      allPermissionIds.push(...result.permissionIds);
-      hasMore = result.hasMore;
-      offset += batchSize;
-
-      // Safety check to prevent infinite loops
-      if (offset >= result.totalCount) {
-        break;
-      }
-    }
-
-    return allPermissionIds;
   }
 
   // ===== DataPortabilityServersImplementation Methods =====

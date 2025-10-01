@@ -1111,6 +1111,262 @@ describe("PermissionsController - Grantee Methods", () => {
     });
   });
 
+  describe("getGranteePermissionsPaginated", () => {
+    it("should fetch a single page when both offset and limit are provided", async () => {
+      const granteeId = 10n;
+      const offset = 20n;
+      const limit = 5n;
+
+      // Mock contract call for single page
+      vi.mocked(mockPublicClient.readContract).mockResolvedValueOnce([
+        [101n, 102n, 103n, 104n, 105n], // permissionIds
+        150n, // totalCount
+        true, // hasMore
+      ]);
+
+      const result = await controller.getGranteePermissionsPaginated(
+        granteeId,
+        {
+          offset,
+          limit,
+        },
+      );
+
+      // Should return paginated result object
+      expect(result).toEqual({
+        permissionIds: [101n, 102n, 103n, 104n, 105n],
+        totalCount: 150n,
+        hasMore: true,
+      });
+
+      // Should make only one contract call
+      expect(mockPublicClient.readContract).toHaveBeenCalledTimes(1);
+      expect(mockPublicClient.readContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          functionName: "granteePermissionsPaginated",
+          args: [granteeId, offset, limit],
+        }),
+      );
+    });
+
+    it("should fetch all permissions when no options are provided", async () => {
+      const granteeId = 20n;
+
+      // Mock multiple contract calls for pagination
+      vi.mocked(mockPublicClient.readContract).mockResolvedValueOnce([
+        [1n, 2n, 3n], // First batch
+        3n, // totalCount
+        false, // hasMore
+      ]);
+
+      const result = await controller.getGranteePermissionsPaginated(granteeId);
+
+      // Should return array of all permission IDs
+      expect(result).toEqual([1n, 2n, 3n]);
+
+      // Should make one contract call (all permissions fit in one batch)
+      expect(mockPublicClient.readContract).toHaveBeenCalledTimes(1);
+      expect(mockPublicClient.readContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          functionName: "granteePermissionsPaginated",
+          args: [granteeId, 0n, 100n], // Default offset=0, limit=100
+        }),
+      );
+    });
+
+    it("should handle multiple batches when fetching all permissions", async () => {
+      const granteeId = 30n;
+
+      // Mock multiple contract calls for pagination
+      vi.mocked(mockPublicClient.readContract)
+        .mockResolvedValueOnce([
+          Array.from({ length: 100 }, (_, i) => BigInt(i + 1)), // First batch of 100
+          150n, // totalCount
+          true, // hasMore
+        ])
+        .mockResolvedValueOnce([
+          Array.from({ length: 50 }, (_, i) => BigInt(i + 101)), // Second batch of 50
+          150n, // totalCount
+          false, // hasMore
+        ]);
+
+      const result = await controller.getGranteePermissionsPaginated(granteeId);
+
+      // Should return array of all permission IDs
+      expect(result).toHaveLength(150);
+      expect(result[0]).toBe(1n);
+      expect(result[149]).toBe(150n);
+
+      // Should make two contract calls
+      expect(mockPublicClient.readContract).toHaveBeenCalledTimes(2);
+
+      // First call
+      expect(mockPublicClient.readContract).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          functionName: "granteePermissionsPaginated",
+          args: [granteeId, 0n, 100n],
+        }),
+      );
+
+      // Second call
+      expect(mockPublicClient.readContract).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          functionName: "granteePermissionsPaginated",
+          args: [granteeId, 100n, 100n],
+        }),
+      );
+    });
+
+    it("should fetch all permissions starting from offset when only offset is provided", async () => {
+      const granteeId = 40n;
+      const offset = 10n;
+
+      // Mock contract call - with 0-based offset, starting at index 10 of 13 total items
+      // Should return items at indices 10, 11, 12 (the last 3 items)
+      vi.mocked(mockPublicClient.readContract).mockResolvedValueOnce([
+        [110n, 111n, 112n], // permissions at indices 10, 11, 12 (using arbitrary IDs)
+        13n, // totalCount (13 items total, indices 0-12)
+        false, // hasMore (no more items after index 12)
+      ]);
+
+      const result = await controller.getGranteePermissionsPaginated(
+        granteeId,
+        {
+          offset,
+        },
+      );
+
+      // Should return array of permission IDs from offset to end
+      expect(result).toEqual([110n, 111n, 112n]);
+
+      // Should use provided offset with default limit
+      expect(mockPublicClient.readContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          functionName: "granteePermissionsPaginated",
+          args: [granteeId, offset, 100n],
+        }),
+      );
+    });
+
+    it("should fetch all permissions with custom batch size when only limit is provided", async () => {
+      const granteeId = 50n;
+      const limit = 50n;
+
+      // Mock contract calls with custom batch size
+      vi.mocked(mockPublicClient.readContract)
+        .mockResolvedValueOnce([
+          Array.from({ length: 50 }, (_, i) => BigInt(i + 1)), // First batch of 50
+          120n, // totalCount
+          true, // hasMore
+        ])
+        .mockResolvedValueOnce([
+          Array.from({ length: 50 }, (_, i) => BigInt(i + 51)), // Second batch of 50
+          120n, // totalCount
+          true, // hasMore
+        ])
+        .mockResolvedValueOnce([
+          Array.from({ length: 20 }, (_, i) => BigInt(i + 101)), // Last batch of 20
+          120n, // totalCount
+          false, // hasMore
+        ]);
+
+      const result = await controller.getGranteePermissionsPaginated(
+        granteeId,
+        {
+          limit,
+        },
+      );
+
+      // Should return all 120 permission IDs
+      expect(result).toHaveLength(120);
+      expect(result[0]).toBe(1n);
+      expect(result[119]).toBe(120n);
+
+      // Should make three contract calls with custom batch size
+      expect(mockPublicClient.readContract).toHaveBeenCalledTimes(3);
+
+      // All calls should use the custom limit
+      expect(mockPublicClient.readContract).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          functionName: "granteePermissionsPaginated",
+          args: [granteeId, 0n, limit],
+        }),
+      );
+      expect(mockPublicClient.readContract).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          functionName: "granteePermissionsPaginated",
+          args: [granteeId, 50n, limit],
+        }),
+      );
+      expect(mockPublicClient.readContract).toHaveBeenNthCalledWith(
+        3,
+        expect.objectContaining({
+          functionName: "granteePermissionsPaginated",
+          args: [granteeId, 100n, limit],
+        }),
+      );
+    });
+
+    it("should handle empty result when no permissions exist", async () => {
+      const granteeId = 60n;
+
+      // Mock empty result
+      vi.mocked(mockPublicClient.readContract).mockResolvedValueOnce([
+        [], // no permissions
+        0n, // totalCount
+        false, // hasMore
+      ]);
+
+      const result = await controller.getGranteePermissionsPaginated(granteeId);
+
+      // Should return empty array
+      expect(result).toEqual([]);
+
+      expect(mockPublicClient.readContract).toHaveBeenCalledTimes(1);
+    });
+
+    it("should throw BlockchainError when contract call fails", async () => {
+      const granteeId = 999n;
+
+      // Mock contract call to throw error
+      vi.mocked(mockPublicClient.readContract).mockRejectedValueOnce(
+        new Error("Network error"),
+      );
+
+      await expect(
+        controller.getGranteePermissionsPaginated(granteeId),
+      ).rejects.toThrow("Failed to get grantee permissions: Network error");
+    });
+
+    it("should handle edge case where contract returns inconsistent pagination data", async () => {
+      const granteeId = 70n;
+
+      // Mock contract returning inconsistent data:
+      // - Returns 2 items which equals totalCount
+      // - But incorrectly claims hasMore=true
+      // This tests that the function gracefully handles contract bugs
+      // by using the safety check (currentOffset >= totalCount) to stop
+      vi.mocked(mockPublicClient.readContract).mockResolvedValueOnce([
+        [1n, 2n], // All permissions (2 items)
+        2n, // totalCount is 2
+        true, // hasMore incorrectly true (contract bug)
+      ]);
+
+      const result = await controller.getGranteePermissionsPaginated(granteeId);
+
+      // Should return all fetched permissions
+      expect(result).toEqual([1n, 2n]);
+
+      // Should make only one call - the safety check prevents a second call
+      // because after fetching with default batchSize=100, currentOffset=100 >= totalCount=2
+      expect(mockPublicClient.readContract).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe("TransactionOptions support for grantee operations", () => {
     beforeEach(() => {
       vi.clearAllMocks();

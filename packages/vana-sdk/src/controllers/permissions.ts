@@ -3284,19 +3284,24 @@ export class PermissionsController extends BaseController {
     const limit = options.limit ?? 50;
     const offset = options.offset ?? 0;
 
-    const grantees: Grantee[] = [];
-
     // Fetch grantees in the requested range
     const endIndex = Math.min(offset + limit, total);
+    const granteeIds = Array.from(
+      { length: endIndex - offset },
+      (_, i) => offset + i + 1, // Grantee IDs are 1-indexed
+    );
 
-    for (let i = offset; i < endIndex; i++) {
-      const granteeId = i + 1; // Grantee IDs are 1-indexed
-      const grantee = await this.getGranteeById(granteeId);
+    // Fetch all grantees in parallel
+    const granteePromises = granteeIds.map((granteeId) =>
+      this.getGranteeById(granteeId),
+    );
 
-      if (grantee) {
-        grantees.push(grantee);
-      }
-    }
+    const granteeResults = await Promise.all(granteePromises);
+
+    // Filter out null results
+    const grantees = granteeResults.filter(
+      (grantee): grantee is Grantee => grantee !== null,
+    );
 
     return {
       grantees,

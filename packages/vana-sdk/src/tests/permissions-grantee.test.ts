@@ -291,46 +291,53 @@ describe("PermissionsController - Grantee Methods", () => {
 
   describe("getGrantees", () => {
     it("should return paginated list of grantees with default options", async () => {
-      // Mock granteesCount
-      vi.mocked(mockPublicClient.readContract).mockResolvedValueOnce(3n);
+      // Set up mocks for parallel calls
+      // Since getGranteeById is called in parallel, we need to handle calls based on args
+      vi.mocked(mockPublicClient.readContract).mockImplementation(
+        async (args: any) => {
+          // Handle granteesCount call
+          if (args.functionName === "granteesCount") {
+            return 3n;
+          }
 
-      // Mock for first grantee (id=1)
-      vi.mocked(mockPublicClient.readContract)
-        .mockResolvedValueOnce({
-          owner: "0xOwner1" as `0x${string}`,
-          granteeAddress: "0xGrantee1" as `0x${string}`,
-          publicKey: "0xKey1",
-          permissionsCount: 2n,
-        })
-        .mockResolvedValueOnce([
-          [1n, 2n], // permissionIds
-          2n, // totalCount
-          false, // hasMore
-        ])
-        // Mock for second grantee (id=2)
-        .mockResolvedValueOnce({
-          owner: "0xOwner2" as `0x${string}`,
-          granteeAddress: "0xGrantee2" as `0x${string}`,
-          publicKey: "0xKey2",
-          permissionsCount: 1n,
-        })
-        .mockResolvedValueOnce([
-          [3n], // permissionIds
-          1n, // totalCount
-          false, // hasMore
-        ])
-        // Mock for third grantee (id=3)
-        .mockResolvedValueOnce({
-          owner: "0xOwner3" as `0x${string}`,
-          granteeAddress: "0xGrantee3" as `0x${string}`,
-          publicKey: "0xKey3",
-          permissionsCount: 0n,
-        })
-        .mockResolvedValueOnce([
-          [], // permissionIds
-          0n, // totalCount
-          false, // hasMore
-        ]);
+          // Handle granteesV2 and granteePermissionsPaginated calls
+          if (args.functionName === "granteesV2") {
+            const granteeId = Number(args.args[0]);
+            if (granteeId === 1) {
+              return {
+                owner: "0xOwner1" as `0x${string}`,
+                granteeAddress: "0xGrantee1" as `0x${string}`,
+                publicKey: "0xKey1",
+                permissionsCount: 2n,
+              };
+            } else if (granteeId === 2) {
+              return {
+                owner: "0xOwner2" as `0x${string}`,
+                granteeAddress: "0xGrantee2" as `0x${string}`,
+                publicKey: "0xKey2",
+                permissionsCount: 1n,
+              };
+            } else if (granteeId === 3) {
+              return {
+                owner: "0xOwner3" as `0x${string}`,
+                granteeAddress: "0xGrantee3" as `0x${string}`,
+                publicKey: "0xKey3",
+                permissionsCount: 0n,
+              };
+            }
+          } else if (args.functionName === "granteePermissionsPaginated") {
+            const granteeId = Number(args.args[0]);
+            if (granteeId === 1) {
+              return [[1n, 2n], 2n, false];
+            } else if (granteeId === 2) {
+              return [[3n], 1n, false];
+            } else if (granteeId === 3) {
+              return [[], 0n, false];
+            }
+          }
+          return null;
+        },
+      );
 
       const result = await controller.getGrantees();
 
@@ -366,36 +373,46 @@ describe("PermissionsController - Grantee Methods", () => {
     });
 
     it("should handle pagination and skip failed grantees", async () => {
-      // Mock granteesCount
-      vi.mocked(mockPublicClient.readContract).mockResolvedValueOnce(5n);
+      // Set up mocks for parallel calls with pagination
+      vi.mocked(mockPublicClient.readContract).mockImplementation(
+        async (args: any) => {
+          // Handle granteesCount call
+          if (args.functionName === "granteesCount") {
+            return 5n;
+          }
 
-      // Mock first grantee (id=2, offset=1 so we start at grantee 2)
-      vi.mocked(mockPublicClient.readContract)
-        .mockResolvedValueOnce({
-          owner: "0xOwner2" as `0x${string}`,
-          granteeAddress: "0xGrantee2" as `0x${string}`,
-          publicKey: "0xKey2",
-          permissionsCount: 0n,
-        })
-        .mockResolvedValueOnce([
-          [], // permissionIds
-          0n, // totalCount
-          false, // hasMore
-        ])
-        // Second grantee fails (id=3)
-        .mockRejectedValueOnce(new Error("Grantee not found")) // granteesV2 fails
-        // Third grantee (id=4)
-        .mockResolvedValueOnce({
-          owner: "0xOwner4" as `0x${string}`,
-          granteeAddress: "0xGrantee4" as `0x${string}`,
-          publicKey: "0xKey4",
-          permissionsCount: 1n,
-        })
-        .mockResolvedValueOnce([
-          [10n], // permissionIds
-          1n, // totalCount
-          false, // hasMore
-        ]);
+          // Handle granteesV2 and granteePermissionsPaginated calls
+          if (args.functionName === "granteesV2") {
+            const granteeId = Number(args.args[0]);
+            if (granteeId === 2) {
+              return {
+                owner: "0xOwner2" as `0x${string}`,
+                granteeAddress: "0xGrantee2" as `0x${string}`,
+                publicKey: "0xKey2",
+                permissionsCount: 0n,
+              };
+            } else if (granteeId === 3) {
+              // Grantee 3 fails
+              throw new Error("Grantee not found");
+            } else if (granteeId === 4) {
+              return {
+                owner: "0xOwner4" as `0x${string}`,
+                granteeAddress: "0xGrantee4" as `0x${string}`,
+                publicKey: "0xKey4",
+                permissionsCount: 1n,
+              };
+            }
+          } else if (args.functionName === "granteePermissionsPaginated") {
+            const granteeId = Number(args.args[0]);
+            if (granteeId === 2) {
+              return [[], 0n, false];
+            } else if (granteeId === 4) {
+              return [[10n], 1n, false];
+            }
+          }
+          return null;
+        },
+      );
 
       // Spy on console.warn
       const consoleWarnSpy = vi

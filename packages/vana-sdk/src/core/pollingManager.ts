@@ -192,8 +192,10 @@ export class PollingManager {
         if (this.isRetryableError(error)) {
           retryCount++;
           if (retryCount > 5) {
+            const errorMessage =
+              error instanceof Error ? error.message : String(error);
             throw new Error(
-              `Failed to poll after ${retryCount} attempts: ${error}`,
+              `Failed to poll after ${retryCount} attempts: ${errorMessage}`,
             );
           }
         } else {

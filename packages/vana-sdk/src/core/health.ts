@@ -410,7 +410,7 @@ export class SystemHealthChecker {
         oldestPending,
         isStale,
       };
-    } catch (error) {
+    } catch {
       return undefined;
     }
   }

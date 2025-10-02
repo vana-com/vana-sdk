@@ -423,51 +423,47 @@ describe("gasAwareMulticall", () => {
   });
 
   describe("edge cases", () => {
-    it(
-      "should handle very large number of calls",
-      async () => {
-        const contracts = Array(1000)
-          .fill(null)
-          .map(() => ({
-            address: mockAddress,
-            abi: mockAbi,
-            functionName: "balanceOf",
-            args: [mockAddress],
-          })) as ContractFunctionConfig[];
+    it("should handle very large number of calls", async () => {
+      const contracts = Array(1000)
+        .fill(null)
+        .map(() => ({
+          address: mockAddress,
+          abi: mockAbi,
+          functionName: "balanceOf",
+          args: [mockAddress],
+        })) as ContractFunctionConfig[];
 
-        // Mock progressive gas estimates
-        estimateGasSpy
-          .mockResolvedValueOnce(2_000_000n) // First checkpoint
-          .mockResolvedValueOnce(4_000_000n) // Second checkpoint
-          .mockResolvedValueOnce(6_000_000n) // Third checkpoint
-          .mockResolvedValueOnce(8_000_000n) // Fourth checkpoint
-          .mockResolvedValueOnce(11_000_000n) // Exceeds limit
-          .mockResolvedValue(3_000_000n); // Subsequent batches
+      // Mock progressive gas estimates
+      estimateGasSpy
+        .mockResolvedValueOnce(2_000_000n) // First checkpoint
+        .mockResolvedValueOnce(4_000_000n) // Second checkpoint
+        .mockResolvedValueOnce(6_000_000n) // Third checkpoint
+        .mockResolvedValueOnce(8_000_000n) // Fourth checkpoint
+        .mockResolvedValueOnce(11_000_000n) // Exceeds limit
+        .mockResolvedValue(3_000_000n); // Subsequent batches
 
-        // Set up multicall to return appropriate results for any batch size
-        multicallSpy.mockImplementation((args: unknown) => {
-          const params = args as { contracts: ContractFunctionConfig[] };
-          const batch = params.contracts;
-          return Promise.resolve(Array(batch.length).fill(parseEther("1")));
-        });
+      // Set up multicall to return appropriate results for any batch size
+      multicallSpy.mockImplementation((args: unknown) => {
+        const params = args as { contracts: ContractFunctionConfig[] };
+        const batch = params.contracts;
+        return Promise.resolve(Array(batch.length).fill(parseEther("1")));
+      });
 
-        const result = await gasAwareMulticall(mockClient, { contracts });
+      const result = await gasAwareMulticall(mockClient, { contracts });
 
-        expect(result).toHaveLength(1000);
-        expect(multicallSpy.mock.calls.length).toBeGreaterThan(1);
+      expect(result).toHaveLength(1000);
+      expect(multicallSpy.mock.calls.length).toBeGreaterThan(1);
 
-        // Verify total results
-        const totalReturned = multicallSpy.mock.calls.reduce(
-          (sum: number, call: unknown[]) => {
-            const args = call[0] as { contracts: ContractFunctionConfig[] };
-            return sum + args.contracts.length;
-          },
-          0,
-        );
-        expect(totalReturned).toBe(1000);
-      },
-      { timeout: 10000 },
-    );
+      // Verify total results
+      const totalReturned = multicallSpy.mock.calls.reduce(
+        (sum: number, call: unknown[]) => {
+          const args = call[0] as { contracts: ContractFunctionConfig[] };
+          return sum + args.contracts.length;
+        },
+        0,
+      );
+      expect(totalReturned).toBe(1000);
+    }, 10000);
 
     it("should handle single large call that exceeds gas limit", async () => {
       const contracts = [

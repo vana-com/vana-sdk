@@ -26,7 +26,6 @@ export default defineConfig({
       ],
       reportOnFailure: true,
       thresholds: {
-        // Coverage adjusted after consistency features implementation
         statements: 76,
         branches: 81.8,
         functions: 87,

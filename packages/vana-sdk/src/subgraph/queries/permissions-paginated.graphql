@@ -1,0 +1,45 @@
+# Paginated query for user permissions with ordering support
+query GetUserPermissionsPaginated(
+  $userId: ID!
+  $first: Int!
+  $skip: Int!
+  $orderBy: Permission_orderBy
+  $orderDirection: OrderDirection
+) {
+  user(id: $userId) {
+    id
+    permissions(
+      first: $first
+      skip: $skip
+      orderBy: $orderBy
+      orderDirection: $orderDirection
+    ) {
+      id
+      grant
+      nonce
+      signature
+      startBlock
+      endBlock
+      addedAtBlock
+      addedAtTimestamp
+      transactionHash
+      grantee {
+        id
+        address
+      }
+      filePermissions {
+        file {
+          id
+          url
+        }
+      }
+    }
+  }
+  _meta {
+    block {
+      number
+      timestamp
+    }
+    hasIndexingErrors
+  }
+}

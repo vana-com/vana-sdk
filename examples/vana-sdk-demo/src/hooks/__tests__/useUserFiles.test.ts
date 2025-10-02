@@ -89,9 +89,10 @@ describe("useUserFiles", () => {
         expect(result.current.userFiles).toHaveLength(2);
       });
 
-      expect(mockVana.data.getUserFiles).toHaveBeenCalledWith({
-        owner: "0x123",
-      });
+      expect(mockVana.data.getUserFiles).toHaveBeenCalledWith(
+        { owner: "0x123" },
+        {},
+      );
       expect(result.current.userFiles[0]).toEqual({
         ...mockUserFiles[0],
         source: "discovered",
@@ -147,9 +148,10 @@ describe("useUserFiles", () => {
       expect(result.current.isLoadingFiles).toBe(false);
       expect(result.current.userFiles).toHaveLength(2);
       expect(result.current.userFiles[0].source).toBe("discovered");
-      expect(mockVana.data.getUserFiles).toHaveBeenCalledWith({
-        owner: "0x123",
-      });
+      expect(mockVana.data.getUserFiles).toHaveBeenCalledWith(
+        { owner: "0x123" },
+        {},
+      );
     });
 
     it("handles errors when loading files fails", async () => {

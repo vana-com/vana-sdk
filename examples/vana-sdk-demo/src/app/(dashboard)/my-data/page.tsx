@@ -20,6 +20,7 @@ import { PermissionsTab } from "./components/PermissionsTab";
 import { ServersTab } from "./components/ServersTab";
 import { GranteesTab } from "./components/GranteesTab";
 import { ContractCallsTab } from "@/components/ui/ContractCallsTab";
+import { TransactionOptionsDemo } from "@/components/demo/TransactionOptionsDemo";
 
 /**
  * My Data page - User's personal data control panel
@@ -200,10 +201,9 @@ export default function MyDataPage() {
         validationErrors: result.validationErrors,
       });
 
-      // Refresh files list to show the new file
-      setTimeout(() => {
-        void onRefreshFiles();
-      }, 2000); // Wait a bit for blockchain to propagate
+      // Immediately refresh with consistency guarantee
+      // The new file will appear without delay
+      void onRefreshFiles(true);
     } catch (error) {
       console.error("Upload failed:", error);
       setUploadError(error instanceof Error ? error.message : "Upload failed");
@@ -513,6 +513,9 @@ export default function MyDataPage() {
         </Tab>
         <Tab key="contract-calls" title="Contract Calls">
           {vana && <ContractCallsTab vana={vana} chainId={chainId || 14800} />}
+        </Tab>
+        <Tab key="transaction-options" title="Transaction Options">
+          <TransactionOptionsDemo />
         </Tab>
       </Tabs>
 

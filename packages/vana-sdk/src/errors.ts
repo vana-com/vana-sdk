@@ -466,3 +466,80 @@ export class ReadOnlyError extends VanaError {
   /** Suggested solution for fixing the error */
   public readonly suggestion: string;
 }
+
+/**
+ * Thrown when a long-running transaction operation times out or fails during polling.
+ *
+ * @remarks
+ * This error occurs when asynchronous relayer operations exceed the configured timeout
+ * or encounter non-recoverable errors during status polling. It preserves the operation ID
+ * to allow recovery and status checking at a later time.
+ *
+ * The error includes:
+ * - Operation ID for recovery and status checking
+ * - Last known status before failure
+ * - Original error details
+ *
+ * Recovery strategies:
+ * - Save the operation ID for later status checking
+ * - Implement manual recovery flow using the operation ID
+ * - Check transaction status through alternative means
+ * - Contact support if operation remains stuck
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   const result = await vana.permissions.grant({
+ *     grantee: '0x...',
+ *     files: [1, 2, 3]
+ *   });
+ * } catch (error) {
+ *   if (error instanceof TransactionPendingError) {
+ *     // Save operation ID for recovery
+ *     localStorage.setItem('pending_operation', error.operationId);
+ *
+ *     // Show recovery UI
+ *     showRecoveryDialog({
+ *       operationId: error.operationId,
+ *       lastStatus: error.lastKnownStatus
+ *     });
+ *
+ *     // Attempt recovery later
+ *     const status = await vana.checkOperationStatus(error.operationId);
+ *   }
+ * }
+ * ```
+ * @category Error Handling
+ */
+export class TransactionPendingError extends VanaError {
+  constructor(
+    /** The operation ID that can be used for status checking */
+    public readonly operationId: string,
+    message: string,
+    /** The last known status of the operation before failure */
+    public readonly lastKnownStatus?: unknown,
+  ) {
+    super(
+      `Transaction operation pending: ${message} (operationId: ${operationId})`,
+      "TRANSACTION_PENDING",
+    );
+  }
+
+  /**
+   * Converts the error to a JSON-serializable format.
+   *
+   * @remarks
+   * Useful for logging, storage, or transmission of error details.
+   *
+   * @returns JSON representation of the error
+   */
+  toJSON(): Record<string, unknown> {
+    return {
+      name: this.name,
+      code: this.code,
+      message: this.message,
+      operationId: this.operationId,
+      lastKnownStatus: this.lastKnownStatus,
+    };
+  }
+}

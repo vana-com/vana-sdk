@@ -126,7 +126,7 @@ describe("PermissionsController - TransactionOptions Integration", () => {
           const options = {
             maxFeePerGas: 200n * 10n ** 9n, // 200 gwei
             maxPriorityFeePerGas: 15n * 10n ** 9n, // 15 gwei
-            gasLimit: 750000n,
+            gas: 750000n,
           };
 
           await (controller as any)[method](...params, options);
@@ -148,7 +148,7 @@ describe("PermissionsController - TransactionOptions Integration", () => {
         it("should handle legacy gas parameters correctly", async () => {
           const options = {
             gasPrice: 90n * 10n ** 9n, // 90 gwei
-            gasLimit: 450000n,
+            gas: 450000n,
             nonce: 25,
           };
 
@@ -210,8 +210,8 @@ describe("PermissionsController - TransactionOptions Integration", () => {
   });
 
   describe("Edge cases and validation", () => {
-    it("should handle only gasLimit without gas price", async () => {
-      const options = { gasLimit: 500000n };
+    it("should handle only gas without gas price", async () => {
+      const options = { gas: 500000n };
 
       await controller.submitPermissionRevoke({ permissionId: 123n }, options);
 
@@ -268,7 +268,7 @@ describe("PermissionsController - TransactionOptions Integration", () => {
       const premiumGasOptions = {
         maxFeePerGas: 500n * 10n ** 9n, // 500 gwei - very high priority
         maxPriorityFeePerGas: 50n * 10n ** 9n, // 50 gwei tip
-        gasLimit: 1000000n, // Conservative gas limit
+        gas: 1000000n, // Conservative gas limit
       };
 
       const serverFilesParams = {
@@ -308,7 +308,7 @@ describe("PermissionsController - TransactionOptions Integration", () => {
     it("should support batch operation gas optimization", async () => {
       const batchGasOptions = {
         gasPrice: 20n * 10n ** 9n, // Lower gas price for batch operations
-        gasLimit: 300000n,
+        gas: 300000n,
       };
 
       // Simulate multiple operations with same gas settings

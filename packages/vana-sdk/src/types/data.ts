@@ -799,8 +799,4 @@ export interface GetUserTrustedServersParams {
   user: Address;
   /** Optional subgraph URL to override default */
   subgraphUrl?: string;
-  /** Maximum number of results */
-  limit?: number;
-  /** Number of results to skip */
-  offset?: number;
 }

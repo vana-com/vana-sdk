@@ -64,6 +64,8 @@ export interface OnChainPermissionGrant {
 export interface GetUserPermissionsOptions {
   /** Maximum number of permissions to retrieve */
   limit?: number;
+  /** Whether to fetch all permissions (ignores limit) */
+  fetchAll?: boolean;
   /** Custom subgraph URL to use for querying */
   subgraphUrl?: string;
 }

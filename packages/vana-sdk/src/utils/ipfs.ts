@@ -14,9 +14,8 @@ export const DEFAULT_IPFS_GATEWAY = "https://dweb.link/ipfs/";
  * Alternative IPFS gateways for fallback - ordered by reliability and rate limits
  */
 export const IPFS_GATEWAYS = [
-  "https://dweb.link/ipfs/", // Interplanetary Shipyard - highly reliable
   "https://ipfs.io/ipfs/", // IPFS Foundation - reliable
-  "https://cloudflare-ipfs.com/ipfs/", // Cloudflare - good performance
+  "https://dweb.link/ipfs/", // Interplanetary Shipyard - observed to be having issues
   "https://gateway.pinata.cloud/ipfs/", // Pinata - backup option (has rate limits)
   "https://ipfs.filebase.io/ipfs/", // Filebase - emerging reliable option
 ] as const;

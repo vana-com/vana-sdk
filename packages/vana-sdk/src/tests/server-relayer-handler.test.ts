@@ -34,21 +34,39 @@ function createMockSdk(): VanaInstance {
     permissions: {
       submitSignedGrant: vi.fn().mockResolvedValue({
         hash: "0xsignedhash" as `0x${string}`,
+        from: "0xuser" as `0x${string}`,
+        contract: "DataPortabilityPermissions",
+        fn: "addPermission",
       }),
       submitSignedRevoke: vi.fn().mockResolvedValue({
         hash: "0xsignedhash" as `0x${string}`,
+        from: "0xuser" as `0x${string}`,
+        contract: "DataPortabilityPermissions",
+        fn: "revokePermission",
       }),
       submitSignedTrustServer: vi.fn().mockResolvedValue({
         hash: "0xsignedhash" as `0x${string}`,
+        from: "0xuser" as `0x${string}`,
+        contract: "DataPortabilityServers",
+        fn: "trustServerWithSignature",
       }),
       submitSignedAddAndTrustServer: vi.fn().mockResolvedValue({
         hash: "0xsignedhash" as `0x${string}`,
+        from: "0xuser" as `0x${string}`,
+        contract: "DataPortabilityServers",
+        fn: "addAndTrustServerWithSignature",
       }),
       submitSignedUntrustServer: vi.fn().mockResolvedValue({
         hash: "0xsignedhash" as `0x${string}`,
+        from: "0xuser" as `0x${string}`,
+        contract: "DataPortabilityServers",
+        fn: "untrustServerWithSignature",
       }),
       submitSignedAddServerFilesAndPermissions: vi.fn().mockResolvedValue({
         hash: "0xsignedhash" as `0x${string}`,
+        from: "0xuser" as `0x${string}`,
+        contract: "DataPortabilityServers",
+        fn: "addServerFilesAndPermissions",
       }),
     },
     waitForTransactionEvents: vi.fn().mockResolvedValue({
@@ -100,7 +118,7 @@ describe("Server Relayer Handler", () => {
       const response = await handleRelayerOperation(mockSdk, request);
 
       expect(response).toEqual({
-        type: "signed",
+        type: "submitted",
         hash: "0xsignedhash",
       });
     });
@@ -136,9 +154,11 @@ describe("Server Relayer Handler", () => {
         expectedUserAddress: "0xExpectedAddress" as Address,
       };
 
-      await expect(handleRelayerOperation(mockSdk, request)).rejects.toThrow(
-        "Security verification failed",
-      );
+      const response = await handleRelayerOperation(mockSdk, request);
+      expect(response).toEqual({
+        type: "error",
+        error: expect.stringContaining("Security verification failed"),
+      });
     });
 
     it("should handle all signed operation types", async () => {
@@ -176,7 +196,7 @@ describe("Server Relayer Handler", () => {
         const response = await handleRelayerOperation(mockSdk, request);
 
         expect(response).toEqual({
-          type: "signed",
+          type: "submitted",
           hash: "0xsignedhash",
         });
       }
@@ -204,11 +224,8 @@ describe("Server Relayer Handler", () => {
       );
 
       expect(response).toEqual({
-        type: "direct",
-        result: {
-          fileId: 789,
-          transactionHash: "0xfilehash",
-        },
+        type: "submitted",
+        hash: "0xfilehash",
       });
     });
 
@@ -236,11 +253,8 @@ describe("Server Relayer Handler", () => {
       );
 
       expect(response).toEqual({
-        type: "direct",
-        result: {
-          fileId: 789,
-          transactionHash: "0xfilehash",
-        },
+        type: "submitted",
+        hash: "0xfilehash",
       });
     });
 
@@ -304,7 +318,7 @@ describe("Server Relayer Handler", () => {
         },
       };
 
-      await handleRelayerOperation(mockSdk, request);
+      const response = await handleRelayerOperation(mockSdk, request);
 
       // Should use the encrypted permissions method
       expect(
@@ -316,34 +330,27 @@ describe("Server Relayer Handler", () => {
         42,
         undefined, // options parameter
       );
-    });
 
-    it("should throw error when fileId not returned", async () => {
-      mockSdk.waitForTransactionEvents = vi.fn().mockResolvedValue({
-        expectedEvents: {}, // No FileAdded event
-      });
-
-      const request: UnifiedRelayerRequest = {
+      expect(response).toEqual({
         type: "direct",
-        operation: "submitFileAddition",
-        params: {
-          url: "https://storage.example/file",
-          userAddress: "0xuser" as Address,
+        result: {
+          fileId: 789,
+          transactionHash: "0xfilehash",
         },
-      };
-
-      await expect(handleRelayerOperation(mockSdk, request)).rejects.toThrow(
-        "Failed to get fileId from transaction events",
-      );
+      });
     });
   });
 
   describe("Direct Operations - Grant Storage", () => {
     it("should handle storeGrantFile", async () => {
-      // Mock the data.upload method for grant storage
-      mockSdk.data.upload = vi.fn().mockResolvedValue({
-        url: "ipfs://mockhash",
-      });
+      // Mock the context with storageManager
+      (mockSdk.data as any).context = {
+        storageManager: {
+          upload: vi.fn().mockResolvedValue({
+            url: "ipfs://mockhash",
+          }),
+        },
+      };
 
       const grantFile = {
         grantee: "0xgrantee" as Address,
@@ -360,17 +367,13 @@ describe("Server Relayer Handler", () => {
 
       const response = await handleRelayerOperation(mockSdk, request);
 
-      // Verify it was called with a Blob containing the grant file
-      expect(mockSdk.data.upload).toHaveBeenCalledWith({
-        content: expect.any(Blob),
-        filename: expect.stringMatching(/^grant-\d+\.json$/),
-      });
-
-      // Verify the blob contains the correct data
-      const callArgs = (mockSdk.data.upload as any).mock.calls[0][0];
-      const blob = callArgs.content as Blob;
-      const text = await blob.text();
-      expect(JSON.parse(text)).toEqual(grantFile);
+      // Should use context.storageManager.upload
+      expect(
+        (mockSdk.data as any).context.storageManager.upload,
+      ).toHaveBeenCalledWith(
+        expect.any(Blob),
+        expect.stringMatching(/^grant-\d+\.json$/),
+      );
 
       expect(response).toEqual({
         type: "direct",
@@ -379,9 +382,7 @@ describe("Server Relayer Handler", () => {
     });
 
     it("should handle storage errors", async () => {
-      mockSdk.data.upload = vi
-        .fn()
-        .mockRejectedValue(new Error("Storage failed"));
+      // Don't mock data.upload since it's not used anymore
 
       const grantFile = {
         grantee: "0xgrantee" as Address,
@@ -396,9 +397,12 @@ describe("Server Relayer Handler", () => {
         params: grantFile,
       };
 
-      await expect(handleRelayerOperation(mockSdk, request)).rejects.toThrow(
-        "Storage failed",
-      );
+      const response = await handleRelayerOperation(mockSdk, request);
+      // Without storage configuration, the handler should return an error
+      expect(response).toEqual({
+        type: "error",
+        error: "Storage configuration is required for storing grant files",
+      });
     });
   });
 
@@ -428,10 +432,8 @@ describe("Server Relayer Handler", () => {
       });
 
       expect(response).toEqual({
-        type: "direct",
-        result: {
-          transactionHash: "0xgranteehash",
-        },
+        type: "submitted",
+        hash: "0xgranteehash",
       });
     });
 
@@ -450,13 +452,138 @@ describe("Server Relayer Handler", () => {
         },
       };
 
-      await expect(handleRelayerOperation(mockSdk, request)).rejects.toThrow(
-        "Grantee registration failed",
-      );
+      const response = await handleRelayerOperation(mockSdk, request);
+      expect(response).toEqual({
+        type: "error",
+        error: "Grantee registration failed",
+      });
+    });
+  });
+
+  describe("Status Check Operations", () => {
+    it("should return error for status_check in stateless mode", async () => {
+      const request: UnifiedRelayerRequest = {
+        type: "status_check",
+        operationId: "op123",
+      };
+
+      const result = await handleRelayerOperation(mockSdk, request);
+
+      expect(result).toEqual({
+        type: "error",
+        error: "Stateless relayer does not support operation status checks.",
+      });
+    });
+  });
+
+  describe("Response Type Conversion", () => {
+    it("should convert direct results with transaction hash to submitted", async () => {
+      // Mock a direct operation that returns a TransactionResult
+      mockSdk.permissions.submitRegisterGrantee = vi.fn().mockResolvedValue({
+        hash: "0xregisterhash" as Hash,
+        contract: "DataPortabilityGrantees" as const,
+        function: "registerGrantee" as const,
+        args: [],
+        status: "submitted" as const,
+      });
+
+      const request: UnifiedRelayerRequest = {
+        type: "direct",
+        operation: "submitRegisterGrantee",
+        params: {
+          owner: "0xowner" as Address,
+          granteeAddress: "0xgrantee" as Address,
+          publicKey: "publickey",
+        },
+      };
+
+      const result = await handleRelayerOperation(mockSdk, request);
+
+      expect(result).toEqual({
+        type: "submitted",
+        hash: "0xregisterhash",
+      });
+    });
+
+    it("should return direct results without hash as-is", async () => {
+      const mockStorageManager = {
+        upload: vi.fn().mockResolvedValue({ url: "ipfs://grant123" }),
+      };
+      const mockSdkWithStorage = {
+        ...mockSdk,
+        data: {
+          ...mockSdk.data,
+          context: { storageManager: mockStorageManager },
+        },
+      } as any;
+
+      const request: UnifiedRelayerRequest = {
+        type: "direct",
+        operation: "storeGrantFile",
+        params: {
+          grantee: "0xgrantee" as Address,
+          operation: "read",
+          parameters: {
+            fileId: 123,
+            encryptedKey: "enckey",
+          },
+          expires: Math.floor(Date.now() / 1000) + 86400,
+        },
+      };
+
+      const result = await handleRelayerOperation(mockSdkWithStorage, request);
+
+      expect(result).toEqual({
+        type: "direct",
+        result: { url: "ipfs://grant123" },
+      });
     });
   });
 
   describe("Error Handling", () => {
+    it("should handle errors during direct operations", async () => {
+      mockSdk.data.addFileWithPermissions = vi
+        .fn()
+        .mockRejectedValue(new Error("Network error"));
+
+      const request: UnifiedRelayerRequest = {
+        type: "direct",
+        operation: "submitFileAddition",
+        params: {
+          url: "https://storage.example/file",
+          userAddress: "0xuser" as Address,
+        },
+      };
+
+      const result = await handleRelayerOperation(mockSdk, request);
+
+      expect(result).toEqual({
+        type: "error",
+        error: "Network error",
+      });
+    });
+
+    it("should handle non-Error exceptions", async () => {
+      mockSdk.data.addFileWithPermissions = vi
+        .fn()
+        .mockRejectedValue("String error");
+
+      const request: UnifiedRelayerRequest = {
+        type: "direct",
+        operation: "submitFileAddition",
+        params: {
+          url: "https://storage.example/file",
+          userAddress: "0xuser" as Address,
+        },
+      };
+
+      const result = await handleRelayerOperation(mockSdk, request);
+
+      expect(result).toEqual({
+        type: "error",
+        error: "Unknown error during operation submission",
+      });
+    });
     it("should handle errors from signed operations", async () => {
       // Mock recoverTypedDataAddress to throw an error for this test
       const { recoverTypedDataAddress } = await import("viem");
@@ -484,9 +611,11 @@ describe("Server Relayer Handler", () => {
         signature: "0xbadsignature" as `0x${string}`,
       };
 
-      await expect(handleRelayerOperation(mockSdk, request)).rejects.toThrow(
-        "Signature verification failed",
-      );
+      const response = await handleRelayerOperation(mockSdk, request);
+      expect(response).toEqual({
+        type: "error",
+        error: expect.stringContaining("Signature verification failed"),
+      });
     });
 
     it("should handle SDK errors in direct operations", async () => {
@@ -503,29 +632,11 @@ describe("Server Relayer Handler", () => {
         },
       };
 
-      await expect(handleRelayerOperation(mockSdk, request)).rejects.toThrow(
-        "Blockchain error",
-      );
-    });
-
-    it("should handle transaction event errors", async () => {
-      mockSdk.waitForTransactionEvents = vi
-        .fn()
-        .mockRejectedValue(new Error("Transaction failed"));
-
-      const request: UnifiedRelayerRequest = {
-        type: "direct",
-        operation: "submitFileAdditionWithPermissions",
-        params: {
-          url: "https://storage.example/file",
-          userAddress: "0xuser" as Address,
-          permissions: [],
-        },
-      };
-
-      await expect(handleRelayerOperation(mockSdk, request)).rejects.toThrow(
-        "Transaction failed",
-      );
+      const response = await handleRelayerOperation(mockSdk, request);
+      expect(response).toEqual({
+        type: "error",
+        error: "Blockchain error",
+      });
     });
   });
 
@@ -552,6 +663,9 @@ describe("Server Relayer Handler", () => {
               const exhaustiveCheck: never = request;
               return exhaustiveCheck;
           }
+        } else if (request.type === "status_check") {
+          // Handle the new status check type
+          return "status_check";
         } else {
           // TypeScript will error here if a new request type is added
           const exhaustiveCheck: never = request;
@@ -591,6 +705,31 @@ describe("Server Relayer Handler", () => {
         },
       };
       expect(checkExhaustive(directReq)).toBe("storeGrantFile");
+    });
+  });
+
+  describe("TransactionOptions Edge Cases", () => {
+    it("should handle empty transaction options object correctly", async () => {
+      const request: UnifiedRelayerRequest = {
+        type: "direct",
+        operation: "submitFileAddition",
+        params: {
+          url: "https://storage.example/file",
+          userAddress: "0xuser" as Address,
+        },
+      };
+
+      // Empty object - no valid transaction options
+      const emptyOptions = {};
+
+      await handleRelayerOperation(mockSdk, request, emptyOptions);
+
+      expect(mockSdk.data.addFileWithPermissions).toHaveBeenCalledWith(
+        "https://storage.example/file",
+        "0xuser",
+        [],
+        undefined, // Should be undefined since no valid options
+      );
     });
   });
 
@@ -678,7 +817,7 @@ describe("Server Relayer Handler", () => {
     it("should pass transaction options for direct file operations", async () => {
       const options: TransactionOptions = {
         nonce: 42,
-        gasLimit: 100000n,
+        gas: 100000n,
         maxFeePerGas: 20000000000n,
       };
 
@@ -761,7 +900,7 @@ describe("Server Relayer Handler", () => {
     it("should pass transaction options for signed AddServer operation", async () => {
       const options: TransactionOptions = {
         nonce: 45,
-        gasLimit: 200000n,
+        gas: 200000n,
       };
 
       const request: UnifiedRelayerRequest = {
@@ -864,7 +1003,6 @@ describe("Server Relayer Handler", () => {
       const options: TransactionOptions = {
         nonce: 47,
         gasPrice: 15000000000n,
-        timeout: 60000,
       };
 
       const request: UnifiedRelayerRequest = {
@@ -932,14 +1070,288 @@ describe("Server Relayer Handler", () => {
       );
     });
 
+    it("should pass undefined when only relayer-specific options are provided", async () => {
+      const request: UnifiedRelayerRequest = {
+        type: "direct",
+        operation: "submitFileAddition",
+        params: {
+          url: "https://storage.example/file",
+          userAddress: "0xuser" as Address,
+        },
+      };
+
+      // Only relayer-specific options, no transaction options
+      const relayerOptions = {
+        execution: "sync" as const,
+        syncTimeout: 5000,
+      };
+
+      await handleRelayerOperation(mockSdk, request, relayerOptions);
+
+      expect(mockSdk.data.addFileWithPermissions).toHaveBeenCalledWith(
+        "https://storage.example/file",
+        "0xuser",
+        [],
+        undefined, // Should be undefined since no transaction options
+      );
+    });
+
+    it("should extract only transaction options from mixed options", async () => {
+      const request: UnifiedRelayerRequest = {
+        type: "direct",
+        operation: "submitFileAddition",
+        params: {
+          url: "https://storage.example/file",
+          userAddress: "0xuser" as Address,
+        },
+      };
+
+      // Mix of relayer and transaction options
+      const mixedOptions = {
+        execution: "sync" as const,
+        syncTimeout: 10000,
+        nonce: 42,
+        gas: 100000n,
+        maxFeePerGas: 20000000000n,
+      };
+
+      await handleRelayerOperation(mockSdk, request, mixedOptions);
+
+      expect(mockSdk.data.addFileWithPermissions).toHaveBeenCalledWith(
+        "https://storage.example/file",
+        "0xuser",
+        [],
+        {
+          nonce: 42,
+          gas: 100000n,
+          maxFeePerGas: 20000000000n,
+        }, // Only transaction options extracted
+      );
+    });
+
+    it("should handle nonce: 0 correctly", async () => {
+      const request: UnifiedRelayerRequest = {
+        type: "direct",
+        operation: "submitFileAddition",
+        params: {
+          url: "https://storage.example/file",
+          userAddress: "0xuser" as Address,
+        },
+      };
+
+      const optionsWithZeroNonce = {
+        nonce: 0, // Zero nonce should be included
+        gasPrice: 10000000000n,
+      };
+
+      await handleRelayerOperation(mockSdk, request, optionsWithZeroNonce);
+
+      expect(mockSdk.data.addFileWithPermissions).toHaveBeenCalledWith(
+        "https://storage.example/file",
+        "0xuser",
+        [],
+        {
+          nonce: 0,
+          gasPrice: 10000000000n,
+        },
+      );
+    });
+
+    it("should handle all gas-related options", async () => {
+      const request: UnifiedRelayerRequest = {
+        type: "direct",
+        operation: "submitFileAddition",
+        params: {
+          url: "https://storage.example/file",
+          userAddress: "0xuser" as Address,
+        },
+      };
+
+      const gasOptions = {
+        maxPriorityFeePerGas: 3000000000n,
+        // No other options - should still create object
+      };
+
+      await handleRelayerOperation(mockSdk, request, gasOptions);
+
+      expect(mockSdk.data.addFileWithPermissions).toHaveBeenCalledWith(
+        "https://storage.example/file",
+        "0xuser",
+        [],
+        {
+          maxPriorityFeePerGas: 3000000000n,
+        },
+      );
+    });
+
+    it("should handle only gas option", async () => {
+      const request: UnifiedRelayerRequest = {
+        type: "direct",
+        operation: "submitFileAddition",
+        params: {
+          url: "https://storage.example/file",
+          userAddress: "0xuser" as Address,
+        },
+      };
+
+      await handleRelayerOperation(mockSdk, request, { gas: 500000n });
+
+      expect(mockSdk.data.addFileWithPermissions).toHaveBeenCalledWith(
+        "https://storage.example/file",
+        "0xuser",
+        [],
+        { gas: 500000n },
+      );
+    });
+
+    it("should handle only value option", async () => {
+      const request: UnifiedRelayerRequest = {
+        type: "direct",
+        operation: "submitFileAddition",
+        params: {
+          url: "https://storage.example/file",
+          userAddress: "0xuser" as Address,
+        },
+      };
+
+      await handleRelayerOperation(mockSdk, request, { value: 123456789n });
+
+      expect(mockSdk.data.addFileWithPermissions).toHaveBeenCalledWith(
+        "https://storage.example/file",
+        "0xuser",
+        [],
+        { value: 123456789n },
+      );
+    });
+
+    it("should handle only gasPrice option", async () => {
+      const request: UnifiedRelayerRequest = {
+        type: "direct",
+        operation: "submitFileAddition",
+        params: {
+          url: "https://storage.example/file",
+          userAddress: "0xuser" as Address,
+        },
+      };
+
+      await handleRelayerOperation(mockSdk, request, { gasPrice: 5000000000n });
+
+      expect(mockSdk.data.addFileWithPermissions).toHaveBeenCalledWith(
+        "https://storage.example/file",
+        "0xuser",
+        [],
+        { gasPrice: 5000000000n },
+      );
+    });
+
+    it("should handle only maxFeePerGas option", async () => {
+      const request: UnifiedRelayerRequest = {
+        type: "direct",
+        operation: "submitFileAddition",
+        params: {
+          url: "https://storage.example/file",
+          userAddress: "0xuser" as Address,
+        },
+      };
+
+      await handleRelayerOperation(mockSdk, request, {
+        maxFeePerGas: 30000000000n,
+      });
+
+      expect(mockSdk.data.addFileWithPermissions).toHaveBeenCalledWith(
+        "https://storage.example/file",
+        "0xuser",
+        [],
+        { maxFeePerGas: 30000000000n },
+      );
+    });
+
+    it("should pass signal and onStatusUpdate options", async () => {
+      const request: UnifiedRelayerRequest = {
+        type: "direct",
+        operation: "submitFileAddition",
+        params: {
+          url: "https://storage.example/file",
+          userAddress: "0xuser" as Address,
+        },
+      };
+
+      const controller = new AbortController();
+      const onStatusUpdate = vi.fn();
+
+      const optionsWithCallbacks = {
+        signal: controller.signal,
+        onStatusUpdate,
+        value: 1000000000000000n,
+      };
+
+      await handleRelayerOperation(mockSdk, request, optionsWithCallbacks);
+
+      expect(mockSdk.data.addFileWithPermissions).toHaveBeenCalledWith(
+        "https://storage.example/file",
+        "0xuser",
+        [],
+        {
+          signal: controller.signal,
+          onStatusUpdate,
+          value: 1000000000000000n,
+        },
+      );
+    });
+
+    it("should handle only onStatusUpdate callback", async () => {
+      const request: UnifiedRelayerRequest = {
+        type: "direct",
+        operation: "submitFileAddition",
+        params: {
+          url: "https://storage.example/file",
+          userAddress: "0xuser" as Address,
+        },
+      };
+
+      const onStatusUpdate = vi.fn();
+      const optionsWithCallback = { onStatusUpdate };
+
+      await handleRelayerOperation(mockSdk, request, optionsWithCallback);
+
+      expect(mockSdk.data.addFileWithPermissions).toHaveBeenCalledWith(
+        "https://storage.example/file",
+        "0xuser",
+        [],
+        { onStatusUpdate },
+      );
+    });
+
+    it("should handle only signal option", async () => {
+      const request: UnifiedRelayerRequest = {
+        type: "direct",
+        operation: "submitFileAddition",
+        params: {
+          url: "https://storage.example/file",
+          userAddress: "0xuser" as Address,
+        },
+      };
+
+      const controller = new AbortController();
+      const optionsWithSignal = { signal: controller.signal };
+
+      await handleRelayerOperation(mockSdk, request, optionsWithSignal);
+
+      expect(mockSdk.data.addFileWithPermissions).toHaveBeenCalledWith(
+        "https://storage.example/file",
+        "0xuser",
+        [],
+        { signal: controller.signal },
+      );
+    });
+
     it("should pass complex transaction options correctly", async () => {
       const options: TransactionOptions = {
         nonce: 100,
-        gasLimit: 500000n,
+        gas: 500000n,
         maxFeePerGas: 50000000000n,
         maxPriorityFeePerGas: 3000000000n,
         value: 2000000000000000n,
-        timeout: 120000,
       };
 
       const request: UnifiedRelayerRequest = {

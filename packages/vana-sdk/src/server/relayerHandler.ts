@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import type { VanaInstance, VanaWithStores } from "../index.node";
+import type { TransactionOptions } from "../types/index";
 import type {
   UnifiedRelayerRequest,
   UnifiedRelayerResponse,
@@ -327,11 +328,7 @@ async function routeAndExecuteRequest(
   sdk: VanaInstance,
   request: UnifiedRelayerRequest,
   options?: TransactionOptions,
-): Promise<
-  | TransactionResult<Contract, Fn<Contract>>
-  | { url: string }
-  | { fileId: number; transactionHash: Hash }
-> {
+): Promise<UnifiedRelayerResponse> {
   if (request.type === "signed") {
     const { typedData, signature, expectedUserAddress } = request;
 
@@ -370,7 +367,13 @@ async function routeAndExecuteRequest(
     }
 
     // Step 2: Route to appropriate SDK method based on primaryType
-    return await routeSignedOperation(sdk, typedData, signature, options);
+    const result = await routeSignedOperation(
+      sdk,
+      typedData,
+      signature,
+      options,
+    );
+    return { type: "signed", hash: result.hash };
   } else if (request.type === "direct") {
     return await handleDirectOperation(sdk, request, options);
   }
@@ -407,7 +410,6 @@ async function routeSignedOperation(
         `Supported types: ${validPrimaryTypes.join(", ")}`,
     );
   }
-
   const primaryType = typedData.primaryType as TypedDataPrimaryType;
 
   // Type-safe routing based on primaryType
@@ -496,11 +498,7 @@ async function handleDirectOperation(
   sdk: VanaInstance,
   request: DirectRelayerRequest,
   options?: TransactionOptions,
-): Promise<
-  | TransactionResult<Contract, Fn<Contract>>
-  | { url: string }
-  | { fileId: number; transactionHash: Hash }
-> {
+): Promise<UnifiedRelayerResponse> {
   switch (request.operation) {
     case "submitFileAddition": {
       const { url, userAddress } = request.params;
@@ -513,8 +511,8 @@ async function handleDirectOperation(
         options,
       );
 
-      // Return the TransactionResult directly
-      return result;
+      // Return as direct result wrapped in UnifiedRelayerResponse
+      return { type: "direct", result };
     }
 
     case "submitFileAdditionWithPermissions": {
@@ -528,8 +526,8 @@ async function handleDirectOperation(
         options,
       );
 
-      // Return the TransactionResult directly
-      return result;
+      // Return as direct result wrapped in UnifiedRelayerResponse
+      return { type: "direct", result };
     }
 
     case "submitFileAdditionComplete": {
@@ -558,10 +556,13 @@ async function handleDirectOperation(
 
       const fileId = Number(fileAddedEvent.fileId);
 
-      // Return as a direct result that the SDK expects
+      // Return as a direct result wrapped in UnifiedRelayerResponse
       return {
-        fileId,
-        transactionHash: txResult.hash,
+        type: "direct",
+        result: {
+          fileId,
+          transactionHash: txResult.hash,
+        },
       };
     }
 
@@ -589,7 +590,7 @@ async function handleDirectOperation(
         `grant-${Date.now()}.json`,
       );
 
-      return { url: uploadResult.url };
+      return { type: "direct", result: { url: uploadResult.url } };
     }
 
     case "submitRegisterGrantee": {
@@ -602,8 +603,8 @@ async function handleDirectOperation(
         publicKey,
       });
 
-      // Return as a TransactionResult that the SDK expects
-      return result;
+      // Return as direct result wrapped in UnifiedRelayerResponse
+      return { type: "direct", result };
     }
 
     default: {

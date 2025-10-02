@@ -158,4 +158,58 @@ describe("ECIES eccrypto Compatibility", () => {
       expect(decrypted).toEqual(message);
     });
   });
+
+  describe("Ephemeral Key Format Strictness", () => {
+    it("should immediately reject 33-byte compressed ephemeral keys", async () => {
+      // Generate a valid encryption
+      const privateKey = new Uint8Array(
+        Buffer.from(
+          "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+          "hex",
+        ),
+      );
+      const publicKey = new Uint8Array(
+        Buffer.from(
+          "04bb50e2d89a4ed70663d080659fe0ad4b9bc3e06c17a227433966cb59ceee020decddbf6e00192011648d13b1c00af770c0c1bb609d4d3a5c98a43772e0e18ef4",
+          "hex",
+        ),
+      );
+      const message = new TextEncoder().encode("Test message");
+
+      // Encrypt normally (produces 65-byte ephemeral key)
+      const encrypted = await nodeProvider.encrypt(publicKey, message);
+
+      // Verify the ephemeral key is 65 bytes
+      expect(encrypted.ephemPublicKey.length).toBe(65);
+      expect(encrypted.ephemPublicKey[0]).toBe(0x04);
+
+      // Compress the ephemeral public key to 33 bytes
+      const secp256k1 = await import("@noble/secp256k1");
+      const point = secp256k1.Point.fromHex(encrypted.ephemPublicKey);
+      const compressedEphemKey = point.toRawBytes(true); // compressed (33 bytes)
+
+      expect(compressedEphemKey.length).toBe(33);
+      expect([0x02, 0x03]).toContain(compressedEphemKey[0]);
+
+      // Create modified encrypted data with compressed ephemeral key
+      const modifiedEncrypted = {
+        ...encrypted,
+        ephemPublicKey: compressedEphemKey,
+      };
+
+      // Should fail immediately with format error (not MAC error)
+      await expect(
+        nodeProvider.decrypt(privateKey, modifiedEncrypted),
+      ).rejects.toThrow(
+        /Invalid ephemeral public key.*expected 65 bytes.*got 33 bytes/i,
+      );
+
+      // Also verify browser provider behaves the same
+      await expect(
+        browserProvider.decrypt(privateKey, modifiedEncrypted),
+      ).rejects.toThrow(
+        /Invalid ephemeral public key.*expected 65 bytes.*got 33 bytes/i,
+      );
+    });
+  });
 });

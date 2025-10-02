@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - feature/data-portability-sdk-v1
-      - feat/compressed-key-support
-      - tim/pro-624-enable-relayers-to-manage-nonce-and-gas-settings
 
 jobs:
   publish-prerelease:

@@ -128,6 +128,13 @@ export interface UploadParams {
   providerName?: string;
   /** Optional owner address (defaults to current wallet address). */
   owner?: Address;
+  /**
+   * Schema validation mode when schemaId is provided:
+   * - 'strict': Throw error on validation failure (default)
+   * - 'warn': Log warning and continue on validation failure
+   * - 'skip': Skip validation entirely
+   */
+  schemaValidation?: "strict" | "warn" | "skip";
 }
 
 /**

@@ -3159,7 +3159,7 @@ export class PermissionsController extends BaseController {
       account: this.context.walletClient?.account ?? this.context.userAddress,
       chain: this.context.walletClient?.chain ?? null,
       ...(options && {
-        gas: options.gasLimit,
+        gas: options.gas,
         nonce: options.nonce,
         // Use EIP-1559 gas pricing if available, otherwise legacy
         ...(options.maxFeePerGas || options.maxPriorityFeePerGas
@@ -3249,7 +3249,7 @@ export class PermissionsController extends BaseController {
       account: this.context.walletClient?.account ?? this.context.userAddress,
       chain: this.context.walletClient?.chain ?? null,
       ...(options && {
-        gas: options.gasLimit,
+        gas: options.gas,
         nonce: options.nonce,
         // Use EIP-1559 gas pricing if available, otherwise legacy
         ...(options.maxFeePerGas || options.maxPriorityFeePerGas
@@ -3304,7 +3304,7 @@ export class PermissionsController extends BaseController {
       account: this.context.walletClient?.account ?? this.context.userAddress,
       chain: this.context.walletClient?.chain ?? null,
       ...(options && {
-        gas: options.gasLimit,
+        gas: options.gas,
         nonce: options.nonce,
         // Use EIP-1559 gas pricing if available, otherwise legacy
         ...(options.maxFeePerGas || options.maxPriorityFeePerGas

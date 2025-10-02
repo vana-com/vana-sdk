@@ -207,36 +207,32 @@ describe("PollingManager", () => {
       expect(mockRelayerCallback).toHaveBeenCalledTimes(3);
     });
 
-    it(
-      "should fail after too many network errors",
-      async () => {
-        const operationId = "test-op-many-errors";
+    it("should fail after too many network errors", async () => {
+      const operationId = "test-op-many-errors";
 
-        // Always fail with network error
-        mockRelayerCallback.mockRejectedValue(
-          new Error("Network error: timeout"),
-        );
+      // Always fail with network error
+      mockRelayerCallback.mockRejectedValue(
+        new Error("Network error: timeout"),
+      );
 
-        const pollPromise = pollingManager.startPolling(operationId, {
-          initialInterval: 50,
-          timeout: 2000, // Reduced timeout to fit within test timeout
-          maxInterval: 100, // Keep intervals small for faster test
-        });
+      const pollPromise = pollingManager.startPolling(operationId, {
+        initialInterval: 50,
+        timeout: 2000, // Reduced timeout to fit within test timeout
+        maxInterval: 100, // Keep intervals small for faster test
+      });
 
-        // Handle promise immediately to avoid unhandled rejection
-        const errorPromise = pollPromise.catch((e) => e);
+      // Handle promise immediately to avoid unhandled rejection
+      const errorPromise = pollPromise.catch((e) => e);
 
-        // Advance through multiple retry attempts
-        for (let i = 0; i < 7; i++) {
-          await vi.advanceTimersByTimeAsync(100);
-        }
+      // Advance through multiple retry attempts
+      for (let i = 0; i < 7; i++) {
+        await vi.advanceTimersByTimeAsync(100);
+      }
 
-        const error = await errorPromise;
-        expect(error).toBeInstanceOf(TransactionPendingError);
-        expect(error.message).toMatch(/Failed to poll after \d+ attempts/);
-      },
-      { timeout: 10000 }, // Increase test timeout for safety
-    );
+      const error = await errorPromise;
+      expect(error).toBeInstanceOf(TransactionPendingError);
+      expect(error.message).toMatch(/Failed to poll after \d+ attempts/);
+    }, 10000); // Increase test timeout for safety
   });
 
   describe("cancellation", () => {

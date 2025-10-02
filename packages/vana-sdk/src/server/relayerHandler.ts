@@ -1,6 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
 import type { VanaInstance, VanaWithStores } from "../index.node";
-import type { TransactionOptions } from "../types/index";
 import type {
   UnifiedRelayerRequest,
   UnifiedRelayerResponse,
@@ -112,6 +111,33 @@ export async function handleRelayerOperation(
   const executionMode = options.execution ?? "sync";
   const syncTimeout = options.syncTimeout ?? 30000; // 30 seconds default
 
+  // Extract only TransactionOptions, excluding relayer-specific options
+  // Pass undefined if no transaction options were provided
+  const transactionOptions: TransactionOptions | undefined =
+    options.gas ||
+    options.gasPrice ||
+    options.maxFeePerGas ||
+    options.maxPriorityFeePerGas ||
+    options.nonce !== undefined ||
+    options.value ||
+    options.signal ||
+    options.onStatusUpdate
+      ? {
+          ...(options.gas && { gas: options.gas }),
+          ...(options.gasPrice && { gasPrice: options.gasPrice }),
+          ...(options.maxFeePerGas && { maxFeePerGas: options.maxFeePerGas }),
+          ...(options.maxPriorityFeePerGas && {
+            maxPriorityFeePerGas: options.maxPriorityFeePerGas,
+          }),
+          ...(options.nonce !== undefined && { nonce: options.nonce }),
+          ...(options.value && { value: options.value }),
+          ...(options.signal && { signal: options.signal }),
+          ...(options.onStatusUpdate && {
+            onStatusUpdate: options.onStatusUpdate,
+          }),
+        }
+      : undefined;
+
   // --- STATEFUL (ROBUST) MODE ---
   // This block executes ONLY if the developer provided a relayer state store.
   if (store) {
@@ -212,8 +238,9 @@ export async function handleRelayerOperation(
         nonce: options?.nonce,
         retryCount: 0,
         lastAttemptedGas: {
-          maxFeePerGas: options?.maxFeePerGas?.toString(),
-          maxPriorityFeePerGas: options?.maxPriorityFeePerGas?.toString(),
+          maxFeePerGas: transactionOptions?.maxFeePerGas?.toString(),
+          maxPriorityFeePerGas:
+            transactionOptions?.maxPriorityFeePerGas?.toString(),
         },
         submittedAt: Date.now(),
       });
@@ -234,32 +261,36 @@ export async function handleRelayerOperation(
       });
 
       // Race between execution and timeout
-      const txResult = await Promise.race([
-        routeAndExecuteRequest(sdk, request, options),
+      const response = await Promise.race([
+        routeAndExecuteRequest(sdk, request, transactionOptions),
         timeoutPromise,
       ]);
 
-      // We only store state for operations that result in a transaction.
-      if ("hash" in txResult) {
-        // In sync mode with successful execution, store as confirmed
+      // Handle different response types
+      if (response.type === "signed") {
+        // Store signed transaction state
         await store.set(operationId, {
           status: "confirmed",
-          transactionHash: txResult.hash,
+          transactionHash: response.hash,
           originalRequest: request,
-          nonce: options?.nonce,
+          nonce: transactionOptions?.nonce,
           retryCount: 0,
           lastAttemptedGas: {
-            maxFeePerGas: options?.maxFeePerGas?.toString(),
-            maxPriorityFeePerGas: options?.maxPriorityFeePerGas?.toString(),
+            maxFeePerGas: transactionOptions?.maxFeePerGas?.toString(),
+            maxPriorityFeePerGas:
+              transactionOptions?.maxPriorityFeePerGas?.toString(),
           },
           submittedAt: Date.now(),
         });
 
-        // Return immediately with the transaction hash (sync success)
-        return { type: "signed", hash: txResult.hash };
+        // Return signed response as-is
+        return response;
+      } else if (response.type === "direct") {
+        // Non-transactional direct operations - return as-is
+        return response;
       } else {
-        // This handles non-transactional direct operations like `storeGrantFile`
-        return { type: "direct", result: txResult };
+        // Error responses - return as-is
+        return response;
       }
     } catch (e) {
       // On timeout or error in sync mode, fall back to pending
@@ -276,8 +307,9 @@ export async function handleRelayerOperation(
         nonce: options?.nonce,
         retryCount: 0,
         lastAttemptedGas: {
-          maxFeePerGas: options?.maxFeePerGas?.toString(),
-          maxPriorityFeePerGas: options?.maxPriorityFeePerGas?.toString(),
+          maxFeePerGas: transactionOptions?.maxFeePerGas?.toString(),
+          maxPriorityFeePerGas:
+            transactionOptions?.maxPriorityFeePerGas?.toString(),
         },
         submittedAt: Date.now(),
         error: error.message,
@@ -301,14 +333,29 @@ export async function handleRelayerOperation(
     }
 
     try {
-      const txResult = await routeAndExecuteRequest(sdk, request, options);
+      const response = await routeAndExecuteRequest(
+        sdk,
+        request,
+        transactionOptions,
+      );
 
-      // For stateless relayers, we can only handle transactional results.
-      if ("hash" in txResult) {
-        return { type: "submitted", hash: txResult.hash };
+      // For stateless relayers, convert transaction responses to 'submitted' type
+      if (response.type === "signed") {
+        return { type: "submitted", hash: response.hash };
+      } else if (
+        response.type === "direct" &&
+        response.result &&
+        typeof response.result === "object" &&
+        "hash" in response.result
+      ) {
+        // Direct operations that return TransactionResults
+        return {
+          type: "submitted",
+          hash: (response.result as { hash: Hash }).hash,
+        };
       } else {
-        // Non-transactional direct operations can return their result directly.
-        return { type: "direct", result: txResult };
+        // Return other response types as-is (direct non-transaction results, error)
+        return response;
       }
     } catch (e) {
       const error =

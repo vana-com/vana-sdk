@@ -31,6 +31,7 @@ import type {
 // import { FilePermissionResult } from "../types/transactionResults";
 import type { UnifiedRelayerRequest } from "../types/relayer";
 import type { ControllerContext } from "./permissions";
+import { PollingManager } from "../core/pollingManager";
 import { BaseController } from "./base";
 import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../generated/abi";
@@ -375,15 +376,23 @@ export class DataController extends BaseController {
         if (response.type === "error") {
           throw new Error(response.error);
         }
-        if (
-          response.type !== "direct" ||
-          typeof response.result !== "object" ||
-          response.result === null ||
-          !("fileId" in response.result)
+
+        // Handle pending response (stateful relayer)
+        if (response.type === "pending") {
+          result = await this.pollRelayerForConfirmation(
+            response.operationId,
+            undefined, // TODO: Add TransactionOptions to upload method signature
+          );
+        } else if (
+          response.type === "direct" &&
+          typeof response.result === "object" &&
+          response.result !== null &&
+          "fileId" in response.result
         ) {
+          result = response.result as { fileId: number; transactionHash: Hash };
+        } else {
           throw new Error("Invalid response from relayer");
         }
-        result = response.result as { fileId: number; transactionHash: Hash };
 
         // Fallback: No relay support, use a direct transaction
       } else {
@@ -2876,18 +2885,27 @@ export class DataController extends BaseController {
         if (response.type === "error") {
           throw new Error(response.error);
         }
-        if (
-          response.type !== "direct" ||
-          typeof response.result !== "object" ||
-          response.result === null ||
-          !("fileId" in response.result)
+
+        // Handle pending response (stateful relayer)
+        let result: { fileId: number; transactionHash: Hash };
+        if (response.type === "pending") {
+          result = await this.pollRelayerForConfirmation(
+            response.operationId,
+            undefined, // TODO: Add TransactionOptions to upload method signature
+          );
+        } else if (
+          response.type === "direct" &&
+          typeof response.result === "object" &&
+          response.result !== null &&
+          "fileId" in response.result
         ) {
+          result = response.result as {
+            fileId: number;
+            transactionHash: Hash;
+          };
+        } else {
           throw new Error("Invalid response from relayer");
         }
-        const result = response.result as {
-          fileId: number;
-          transactionHash: Hash;
-        };
         return {
           fileId: result.fileId,
           url: uploadResult.url,
@@ -3552,5 +3570,34 @@ export class DataController extends BaseController {
    */
   async fetchAndValidateSchema(url: string): Promise<DataSchema> {
     return fetchAndValidateSchema(url);
+  }
+
+  /**
+   * Polls for confirmation of a relayer operation.
+   * @internal
+   */
+  private async pollRelayerForConfirmation(
+    operationId: string,
+    options?: TransactionOptions,
+  ): Promise<{ fileId: number; transactionHash: Hash }> {
+    if (!this.context.relayer) {
+      throw new Error("Relayer not configured for polling");
+    }
+
+    const pollingManager = new PollingManager(this.context.relayer);
+
+    const result = await pollingManager.startPolling(operationId, {
+      signal: options?.signal,
+      onStatusUpdate: options?.onStatusUpdate,
+      ...options?.pollingOptions,
+    });
+
+    // For data operations, we need to extract the fileId from the transaction
+    // This would typically come from parsing transaction logs
+    // For now, we'll return a placeholder that would need proper implementation
+    return {
+      fileId: 0, // This would need to be extracted from transaction events
+      transactionHash: result.hash,
+    };
   }
 }

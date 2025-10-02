@@ -7,7 +7,7 @@ import type {
 } from "./storage";
 
 import type { RelayerConfig } from "./relayer";
-import type { IOperationStore } from "./operations";
+import type { IOperationStore, IRelayerStateStore } from "./operationStore";
 
 /**
  * Marker interface to indicate that a Vana instance has storage configured.
@@ -347,7 +347,7 @@ export interface BaseConfig {
    * });
    * ```
    */
-  operationStore?: IOperationStore;
+  operationStore?: IOperationStore | IRelayerStateStore;
 }
 
 /**
@@ -412,7 +412,7 @@ export interface BaseConfigWithStorage {
    * When provided with a relayer, enables resilient transaction management
    * with polling support for pending operations.
    */
-  operationStore?: IOperationStore;
+  operationStore?: IOperationStore | IRelayerStateStore;
 }
 
 /**

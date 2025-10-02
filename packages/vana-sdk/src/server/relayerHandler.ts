@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import type { VanaInstance } from "../index.node";
+import type { VanaInstance, VanaWithStores } from "../index.node";
 import type {
   UnifiedRelayerRequest,
   UnifiedRelayerResponse,
@@ -8,10 +8,9 @@ import type {
 import type {
   TransactionResult,
   TransactionOptions,
-  IOperationStore,
-  OperationState,
   TransactionReceipt,
 } from "../types";
+import type { OperationState } from "../types/operationStore";
 import type { Contract, Fn } from "../generated/event-types";
 import type {
   GenericTypedData,
@@ -26,6 +25,35 @@ import { SignatureError } from "../errors";
 import { recoverTypedDataAddress, getAddress, type Hash } from "viem";
 
 /**
+ * Options for handleRelayerOperation
+ */
+export interface RelayerOperationOptions extends TransactionOptions {
+  /**
+   * Execution mode for the operation.
+   *
+   * @remarks
+   * - 'sync' (default): Attempts to process the transaction immediately.
+   *   If a timeout occurs, automatically falls back to returning a pending operation ID.
+   *   This is the Vana App's current model.
+   *
+   * - 'async': Immediately queues the operation and returns a pending operation ID.
+   *   The transaction will be processed by a background worker.
+   *   Requires an operationStore to be configured.
+   *
+   * @default 'sync'
+   */
+  execution?: "sync" | "async";
+
+  /**
+   * Timeout for synchronous execution in milliseconds.
+   * Only applies when execution is 'sync'.
+   *
+   * @default 30000 (30 seconds)
+   */
+  syncTimeout?: number;
+}
+
+/**
  * Universal handler for all relayer operations.
  *
  * This function processes both EIP-712 signed operations and direct operations,
@@ -33,6 +61,7 @@ import { recoverTypedDataAddress, getAddress, type Hash } from "viem";
  *
  * @param sdk - Initialized Vana SDK instance
  * @param request - The unified relayer request
+ * @param options - Transaction and execution options
  * @returns Promise resolving to operation-specific response
  *
  * @category Server
@@ -46,7 +75,11 @@ import { recoverTypedDataAddress, getAddress, type Hash } from "viem";
  *     const body = await request.json();
  *     const vana = getServerVanaInstance(); // Your server SDK instance
  *
- *     const result = await handleRelayerOperation(vana, body);
+ *     // Explicit synchronous execution (Vana App model)
+ *     const result = await handleRelayerOperation(vana, body, {
+ *       execution: 'sync', // Explicit mode
+ *       syncTimeout: 45000  // 45 second timeout
+ *     });
  *
  *     return NextResponse.json(result);
  *   } catch (error) {
@@ -59,19 +92,27 @@ import { recoverTypedDataAddress, getAddress, type Hash } from "viem";
  * ```
  */
 export async function handleRelayerOperation(
-  sdk: VanaInstance, // The public signature is generic
+  sdk: VanaInstance,
   request: UnifiedRelayerRequest,
-  options?: TransactionOptions,
+  options: RelayerOperationOptions = {},
 ): Promise<UnifiedRelayerResponse> {
-  // Type assertion required: VanaInstance public interface doesn't expose operationStore
-  // to maintain API simplicity, but server-side handler needs access for stateful mode.
-  // The factory overloads guarantee this is safe for relayer-configured instances.
-  // TODO(TYPES): Consider exposing operationStore through a server-specific interface
+  // Type cast to access internal properties - safe for server-side relayer instances
+  const sdkWithStores = sdk as VanaInstance & Partial<VanaWithStores>;
+  const storeUntyped = sdkWithStores.operationStore;
 
-  const store = (sdk as any).operationStore as IOperationStore | undefined;
+  // Check if it's a IRelayerStateStore (has get/set methods)
+  const isRelayerStore =
+    storeUntyped && "get" in storeUntyped && "set" in storeUntyped;
+  const store = isRelayerStore
+    ? (storeUntyped as import("../types/operationStore").IRelayerStateStore)
+    : undefined;
+
+  // Extract execution mode and timeout with defaults
+  const executionMode = options.execution ?? "sync";
+  const syncTimeout = options.syncTimeout ?? 30000; // 30 seconds default
 
   // --- STATEFUL (ROBUST) MODE ---
-  // This block executes ONLY if the developer provided an IOperationStore.
+  // This block executes ONLY if the developer provided a relayer state store.
   if (store) {
     if (request.type === "status_check") {
       const state = await store.get(request.operationId);
@@ -91,8 +132,7 @@ export async function handleRelayerOperation(
       if (state.status === "pending") {
         try {
           // Get a public client to check transaction status
-          // The SDK stores it as a direct property
-          const publicClient = (sdk as any).publicClient;
+          const publicClient = sdkWithStores.publicClient;
 
           if (publicClient) {
             // Check if transaction has been mined
@@ -160,12 +200,49 @@ export async function handleRelayerOperation(
     }
 
     const operationId = uuidv4();
+
+    // Handle async execution mode - immediately queue and return
+    if (executionMode === "async") {
+      // Store the operation for later processing
+      await store.set(operationId, {
+        status: "pending",
+        transactionHash: "" as Hash, // Will be filled when processed
+        originalRequest: request,
+        nonce: options?.nonce,
+        retryCount: 0,
+        lastAttemptedGas: {
+          maxFeePerGas: options?.maxFeePerGas?.toString(),
+          maxPriorityFeePerGas: options?.maxPriorityFeePerGas?.toString(),
+        },
+        submittedAt: Date.now(),
+      });
+
+      console.log(
+        `[Relayer] Operation ${operationId} queued for async processing`,
+      );
+      return { type: "pending", operationId };
+    }
+
+    // Handle sync execution mode (default) - try to execute immediately with timeout protection
     try {
-      const txResult = await routeAndExecuteRequest(sdk, request, options);
+      // Create a timeout promise
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          reject(new Error(`Sync execution timeout after ${syncTimeout}ms`));
+        }, syncTimeout);
+      });
+
+      // Race between execution and timeout
+      const txResult = await Promise.race([
+        routeAndExecuteRequest(sdk, request, options),
+        timeoutPromise,
+      ]);
+
       // We only store state for operations that result in a transaction.
       if ("hash" in txResult) {
+        // In sync mode with successful execution, store as confirmed
         await store.set(operationId, {
-          status: "pending",
+          status: "confirmed",
           transactionHash: txResult.hash,
           originalRequest: request,
           nonce: options?.nonce,
@@ -176,18 +253,39 @@ export async function handleRelayerOperation(
           },
           submittedAt: Date.now(),
         });
-        return { type: "pending", operationId };
+
+        // Return immediately with the transaction hash (sync success)
+        return { type: "signed", hash: txResult.hash };
       } else {
         // This handles non-transactional direct operations like `storeGrantFile`
         return { type: "direct", result: txResult };
       }
     } catch (e) {
+      // On timeout or error in sync mode, fall back to pending
       const error =
         e instanceof Error
           ? e
           : new Error("Unknown error during operation submission");
-      // We don't create a persistent error state for an initial submission failure.
-      return { type: "error", error: error.message };
+
+      // Store as pending for recovery
+      await store.set(operationId, {
+        status: "pending",
+        transactionHash: "" as Hash, // Will be filled when retried
+        originalRequest: request,
+        nonce: options?.nonce,
+        retryCount: 0,
+        lastAttemptedGas: {
+          maxFeePerGas: options?.maxFeePerGas?.toString(),
+          maxPriorityFeePerGas: options?.maxPriorityFeePerGas?.toString(),
+        },
+        submittedAt: Date.now(),
+        error: error.message,
+      });
+
+      console.warn(
+        `[Relayer] Sync execution failed/timed out, returning pending operationId: ${operationId}`,
+      );
+      return { type: "pending", operationId };
     }
   }
 
@@ -450,8 +548,7 @@ async function handleDirectOperation(
 
       // File uploads need synchronous response with fileId
       // Use the SDK's built-in event parsing - it knows how to extract events from TransactionResult
-      // The SDK has waitForTransactionEvents as a public method
-      const eventResult = await (sdk as any).waitForTransactionEvents(txResult);
+      const eventResult = await sdk.waitForTransactionEvents(txResult);
       const fileAddedEvent = eventResult.expectedEvents?.FileAdded;
 
       if (!fileAddedEvent || !fileAddedEvent.fileId) {

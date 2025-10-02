@@ -209,6 +209,7 @@ export default Vana;
 // Core class and factory
 export { VanaCore, VanaCoreFactory } from "./core";
 export { DistributedNonceManager } from "./core/nonceManager";
+export { InMemoryNonceManager } from "./core/inMemoryNonceManager";
 export { SystemHealthChecker } from "./core/health";
 export type {
   SystemHealthCheckerConfig,
@@ -309,7 +310,10 @@ export {
 } from "./core/generics";
 
 // Server-side utilities
-export { handleRelayerOperation } from "./server/relayerHandler";
+export {
+  handleRelayerOperation,
+  type RelayerOperationOptions,
+} from "./server/relayerHandler";
 export type {
   UnifiedRelayerRequest,
   UnifiedRelayerResponse,

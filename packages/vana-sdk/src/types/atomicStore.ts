@@ -184,4 +184,71 @@ export interface IAtomicStore {
    * ```
    */
   delete?(key: string): Promise<void>;
+
+  /**
+   * Executes an atomic script (e.g., Lua in Redis, stored procedure in SQL).
+   *
+   * @remarks
+   * This is an optional method that allows execution of atomic scripts
+   * for complex operations that require multiple steps to be atomic.
+   * Not all stores support this - simple stores may omit it.
+   *
+   * For Redis: executes a Lua script
+   * For PostgreSQL: executes a stored procedure or CTE
+   * For DynamoDB: might use TransactWrite
+   *
+   * @param script - The script to execute
+   * @param keys - Array of keys the script will operate on
+   * @param args - Array of arguments to pass to the script
+   * @returns The script's return value
+   *
+   * @example
+   * ```typescript
+   * const result = await store.eval(
+   *   'return redis.call("INCR", KEYS[1])',
+   *   ['counter:users'],
+   *   []
+   * );
+   * ```
+   */
+  eval?(script: string, keys: string[], args: string[]): Promise<any>;
+}
+
+/**
+ * Extended atomic store interface with nonce support.
+ *
+ * @remarks
+ * Some atomic stores (like Redis) provide optimized atomic nonce assignment
+ * through native scripting capabilities. This interface extends the base
+ * IAtomicStore with this optional optimization.
+ *
+ * @internal
+ */
+export interface IAtomicStoreWithNonceSupport extends IAtomicStore {
+  /**
+   * Atomically assigns a nonce with gap prevention.
+   *
+   * @param key - The storage key for the last used nonce
+   * @param pendingCount - The current pending transaction count from blockchain
+   * @returns The assigned nonce
+   */
+  atomicAssignNonce(key: string, pendingCount: number): Promise<number>;
+}
+
+/**
+ * Type guard to check if an atomic store supports optimized nonce assignment.
+ *
+ * @param store - The atomic store to check
+ * @returns True if the store supports atomicAssignNonce
+ *
+ * @internal
+ */
+export function hasNonceSupport(
+  store: IAtomicStore,
+): store is IAtomicStoreWithNonceSupport {
+  return (
+    "atomicAssignNonce" in store &&
+    typeof (store as IAtomicStoreWithNonceSupport).atomicAssignNonce ===
+      "function"
+  );
 }

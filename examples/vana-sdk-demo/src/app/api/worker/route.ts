@@ -23,8 +23,10 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { RedisOperationStore } from "@/lib/operationStore";
-import { RedisAtomicStore } from "@/lib/redisAtomicStore";
-import { DistributedNonceManager } from "@opendatalabs/vana-sdk/node";
+import {
+  RedisAtomicStore,
+  DistributedNonceManager,
+} from "@opendatalabs/vana-sdk/node";
 
 // Configuration from environment
 const MAX_RETRIES = parseInt(process.env.WORKER_MAX_RETRIES ?? "3");

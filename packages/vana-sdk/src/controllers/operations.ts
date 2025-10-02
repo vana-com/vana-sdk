@@ -16,6 +16,7 @@ import type { WalletClient, PublicClient } from "viem";
 import { BaseController } from "./base";
 import { PollingManager } from "../core/pollingManager";
 import { DistributedNonceManager } from "../core/nonceManager";
+import { InMemoryNonceManager } from "../core/inMemoryNonceManager";
 import { parseEther } from "viem";
 
 /**
@@ -281,11 +282,15 @@ export class OperationsController extends BaseController {
       errors: [] as Array<{ operationId: string; error: string }>,
     };
 
-    // Initialize nonce manager
-    const nonceManager = new DistributedNonceManager({
-      atomicStore,
-      publicClient,
-    });
+    // Initialize appropriate nonce manager based on configuration
+    // If we have an atomicStore, use distributed nonce manager for multi-instance safety
+    // Otherwise use in-memory for single-instance simplicity
+    const nonceManager = atomicStore
+      ? new DistributedNonceManager({
+          atomicStore,
+          publicClient,
+        })
+      : new InMemoryNonceManager(publicClient);
 
     // Get queued operations
     const operations = await operationStore.getQueuedOperations({
@@ -320,8 +325,8 @@ export class OperationsController extends BaseController {
         // Assign nonce atomically
         const nonce = await nonceManager.assignNonce(address, chainId);
 
-        if (nonce === null) {
-          throw new Error("Failed to acquire nonce lock");
+        if (nonce === null || nonce === undefined) {
+          throw new Error("Failed to acquire nonce");
         }
 
         // Calculate gas with escalation based on retry count

@@ -13,8 +13,10 @@ import { NextResponse } from "next/server";
 import { createPublicClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { RedisOperationStore } from "@/lib/operationStore";
-import { RedisAtomicStore } from "@/lib/redisAtomicStore";
-import { DistributedNonceManager } from "@opendatalabs/vana-sdk/node";
+import {
+  RedisAtomicStore,
+  DistributedNonceManager,
+} from "@opendatalabs/vana-sdk/node";
 
 interface HealthCheckResult {
   status: "healthy" | "degraded" | "unhealthy";
@@ -80,8 +82,10 @@ export async function GET() {
           };
         }
 
-        await atomicStore.delete("health:check");
-        await atomicStore.close();
+        if (atomicStore.delete) {
+          await atomicStore.delete("health:check");
+        }
+        // Note: SDK's RedisAtomicStore manages connection internally
       } catch (error) {
         checks.redis = {
           status: "error",
@@ -181,7 +185,7 @@ export async function GET() {
           },
         };
 
-        await atomicStore.close();
+        // SDK's RedisAtomicStore manages connection internally
       } catch (error) {
         checks.nonce = {
           status: "error",
@@ -271,7 +275,7 @@ export async function GET() {
           };
         }
 
-        await atomicStore.close();
+        // SDK's RedisAtomicStore manages connection internally
       } catch (error) {
         checks.worker = {
           status: "error",

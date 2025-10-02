@@ -219,7 +219,7 @@ describe("Server Relayer Handler", () => {
         "https://storage.example/file",
         "0xuser",
         [],
-        undefined,
+        {},
       );
 
       expect(response).toEqual({
@@ -248,7 +248,7 @@ describe("Server Relayer Handler", () => {
         "https://storage.example/file",
         "0xuser",
         request.params.permissions,
-        undefined,
+        {},
       );
 
       expect(response).toEqual({
@@ -288,7 +288,7 @@ describe("Server Relayer Handler", () => {
         "0xuser",
         [{ account: "0xaccount" as Address, key: encryptedKey }], // No mapping, passes through as-is
         42,
-        undefined,
+        {},
       );
 
       // Should NOT call the public key method
@@ -327,7 +327,7 @@ describe("Server Relayer Handler", () => {
         "0xuser", // Falls back to userAddress
         [],
         42,
-        undefined,
+        {},
       );
 
       expect(response).toEqual({
@@ -601,7 +601,7 @@ describe("Server Relayer Handler", () => {
         "https://storage.example/basic.txt",
         "0xuser123",
         [],
-        undefined,
+        {},
       );
     });
 
@@ -625,7 +625,7 @@ describe("Server Relayer Handler", () => {
         "https://storage.example/secure.txt",
         "0xuser456",
         request.params.permissions,
-        undefined,
+        {},
       );
     });
 
@@ -651,7 +651,7 @@ describe("Server Relayer Handler", () => {
         "0xowner", // Should use ownerAddress when provided
         [],
         42,
-        undefined,
+        {},
       );
 
       expect(response).toEqual({

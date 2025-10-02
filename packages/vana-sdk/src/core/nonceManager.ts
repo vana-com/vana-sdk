@@ -5,8 +5,9 @@
  * @module
  */
 
-import type { PublicClient, Address } from "viem";
+import type { PublicClient, WalletClient, Address, Hash } from "viem";
 import type { IAtomicStore } from "../types/atomicStore";
+import { hasNonceSupport } from "../types/atomicStore";
 
 /**
  * Configuration for the distributed nonce manager.
@@ -36,10 +37,11 @@ export interface NonceManagerConfig {
  * coordinate between multiple instances and prevent nonce conflicts.
  *
  * Key features:
- * - Distributed locking to prevent race conditions
+ * - Store-specific optimizations when available (e.g., Redis Lua scripts)
+ * - Fallback to distributed locking for generic stores
  * - Syncing with blockchain pending count
- * - Exponential backoff for lock acquisition
- * - Automatic recovery from stuck states
+ * - Nonce gap prevention
+ * - Nonce burning capability for stuck transactions
  */
 export class DistributedNonceManager {
   private readonly store: IAtomicStore;
@@ -60,12 +62,15 @@ export class DistributedNonceManager {
    * Atomically assigns the next available nonce for an address.
    *
    * @remarks
-   * This method:
-   * 1. Acquires a distributed lock to prevent race conditions
-   * 2. Queries the blockchain for the current pending nonce
-   * 3. Syncs the stored nonce if blockchain is ahead
-   * 4. Atomically increments and returns the next nonce
-   * 5. Releases the lock
+   * This method uses two strategies depending on the atomic store capabilities:
+   * 1. If the store provides atomicAssignNonce (store-specific optimization),
+   *    it uses that for maximum reliability and performance
+   * 2. Otherwise, it falls back to the lock-based approach:
+   *    - Acquires a distributed lock to prevent race conditions
+   *    - Queries the blockchain for the current pending nonce
+   *    - Syncs the stored nonce if blockchain is ahead
+   *    - Atomically increments and returns the next nonce
+   *    - Releases the lock
    *
    * @param address - The address to assign a nonce for
    * @param chainId - The chain ID for the network
@@ -74,6 +79,35 @@ export class DistributedNonceManager {
   async assignNonce(address: Address, chainId: number): Promise<number | null> {
     const lastUsedKey = `nonce:${chainId}:${address}:lastUsed`;
     const lockKey = `nonce:${chainId}:${address}:lock`;
+
+    // Check if the store provides an optimized atomic nonce assignment
+    if (hasNonceSupport(this.store)) {
+      try {
+        // Get pending transaction count from blockchain
+        const pendingCount = await this.publicClient.getTransactionCount({
+          address,
+          blockTag: "pending",
+        });
+
+        // Use store-specific optimized implementation (e.g., Redis Lua script)
+        const nonce = await this.store.atomicAssignNonce(
+          lastUsedKey,
+          pendingCount,
+        );
+
+        console.log(
+          `[NonceManager] Assigned nonce ${nonce} for ${address} on chain ${chainId} (using store optimization)`,
+        );
+
+        return nonce;
+      } catch (error) {
+        console.error(
+          "[NonceManager] Error during optimized nonce assignment:",
+          error,
+        );
+        throw error;
+      }
+    }
 
     // Try to acquire lock with retries
     let lockAcquired = false;
@@ -269,5 +303,104 @@ export class DistributedNonceManager {
     }
 
     return null;
+  }
+
+  /**
+   * Burns a stuck nonce by sending a minimal self-transfer with higher gas.
+   *
+   * @remarks
+   * This method implements Vana App's production nonce burning strategy.
+   * It sends a zero-value transaction to the same address with elevated gas
+   * to replace a stuck transaction and unblock the nonce queue.
+   *
+   * Ported from apps/web/app/api/relay/route.ts (Vana App production code)
+   *
+   * @param walletClient - The wallet client to send the burn transaction
+   * @param nonceToBurn - The nonce to burn
+   * @param address - The address whose nonce to burn
+   * @param chainId - The chain ID for the network
+   * @param gasMultiplier - Multiplier for gas prices (default: 1.5)
+   * @returns The transaction hash of the burn transaction
+   */
+  async burnNonce(
+    walletClient: WalletClient,
+    nonceToBurn: number,
+    address: Address,
+    chainId: number,
+    gasMultiplier: number = 1.5,
+  ): Promise<Hash> {
+    try {
+      // Get current gas prices
+      const fees = await this.publicClient.estimateFeesPerGas();
+
+      // Bump gas prices by multiplier (Vana App's exact formula)
+      const bump = (x: bigint) =>
+        (x * BigInt(Math.floor(gasMultiplier * 100))) / 100n;
+
+      const newMaxFee = bump(fees.maxFeePerGas);
+      const newMaxPriorityFee = bump(fees.maxPriorityFeePerGas);
+
+      console.log(
+        `[NonceManager] Burning stuck nonce ${nonceToBurn} with high gas price: maxFee ${newMaxFee}, maxPriorityFee ${newMaxPriorityFee}`,
+      );
+
+      // Send minimal self-transfer to burn the nonce
+      const burnTx = await walletClient.sendTransaction({
+        account: walletClient.account!, // WalletClient should have an account
+        to: address, // Self-transfer
+        value: 0n,
+        nonce: nonceToBurn,
+        gas: 21000n, // Minimal gas for transfer
+        maxFeePerGas: newMaxFee,
+        maxPriorityFeePerGas: newMaxPriorityFee,
+        chain: {
+          id: chainId,
+          name: chainId === 14800 ? "Vana Moksha" : "Vana Mainnet",
+          network: chainId === 14800 ? "moksha" : "mainnet",
+          nativeCurrency: { name: "VANA", symbol: "VANA", decimals: 18 },
+          rpcUrls: {
+            default: {
+              http: [
+                chainId === 14800
+                  ? "https://rpc.moksha.vana.org"
+                  : "https://rpc.vana.org",
+              ],
+            },
+            public: {
+              http: [
+                chainId === 14800
+                  ? "https://rpc.moksha.vana.org"
+                  : "https://rpc.vana.org",
+              ],
+            },
+          },
+        },
+      });
+
+      console.log(
+        `[NonceManager] Burn nonce ${nonceToBurn} transaction sent: ${burnTx}`,
+      );
+
+      return burnTx;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+
+      // Check for common errors that indicate nonce was already used
+      if (
+        errorMessage.includes("nonce too low") ||
+        errorMessage.includes("underpriced") ||
+        errorMessage.includes("already known")
+      ) {
+        console.log(`[NonceManager] Nonce ${nonceToBurn} was already used`);
+      } else {
+        console.error(
+          `[NonceManager] Error burning nonce ${nonceToBurn}:`,
+          error,
+        );
+      }
+
+      throw error;
+    }
   }
 }

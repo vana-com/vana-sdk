@@ -2,12 +2,12 @@ import { NextResponse, type NextRequest } from "next/server";
 import {
   Vana,
   handleRelayerOperation,
+  RedisAtomicStore,
   type UnifiedRelayerRequest,
 } from "@opendatalabs/vana-sdk/node";
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { RedisOperationStore } from "@/lib/operationStore";
-import { RedisAtomicStore } from "@/lib/redisAtomicStore";
 
 export async function POST(request: NextRequest) {
   try {

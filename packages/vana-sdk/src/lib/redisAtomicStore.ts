@@ -8,7 +8,7 @@
  * @module
  */
 
-import type { IAtomicStore } from "../types/atomicStore";
+import type { IAtomicStoreWithNonceSupport } from "../types/atomicStore";
 
 /**
  * Configuration for RedisAtomicStore
@@ -16,7 +16,7 @@ import type { IAtomicStore } from "../types/atomicStore";
 export interface RedisAtomicStoreConfig {
   /** Redis connection URL or ioredis options */
   redis: string | any;
-  /** Key prefix for all operations (default: 'atomic') */
+  /** Key prefix for all operations (default: 'vana-sdk:atomic') */
   keyPrefix?: string;
 }
 
@@ -54,7 +54,7 @@ export interface RedisAtomicStoreConfig {
  *
  * @category Storage
  */
-export class RedisAtomicStore implements IAtomicStore {
+export class RedisAtomicStore implements IAtomicStoreWithNonceSupport {
   private redis: any; // ioredis instance
   private keyPrefix: string;
 
@@ -81,7 +81,7 @@ export class RedisAtomicStore implements IAtomicStore {
     }
 
     this.redis = config.redis;
-    this.keyPrefix = config.keyPrefix ?? "atomic";
+    this.keyPrefix = config.keyPrefix ?? "vana-sdk:atomic";
 
     // Validate that the redis instance has the methods we need
     if (
@@ -186,5 +186,77 @@ export class RedisAtomicStore implements IAtomicStore {
   async delete?(key: string): Promise<void> {
     const fullKey = `${this.keyPrefix}:${key}`;
     await this.redis.del(fullKey);
+  }
+
+  /**
+   * Executes a Lua script atomically.
+   *
+   * @remarks
+   * This provides generic script execution for complex atomic operations.
+   * Keys passed to the script will be automatically prefixed.
+   *
+   * @param script - The Lua script to execute
+   * @param keys - Array of keys (will be prefixed)
+   * @param args - Array of arguments
+   * @returns The script's return value
+   */
+  async eval(script: string, keys: string[], args: string[]): Promise<any> {
+    // Apply key prefix to all keys
+    const prefixedKeys = keys.map((key) => `${this.keyPrefix}:${key}`);
+
+    // Execute the Lua script
+    const result = await this.redis.eval(
+      script,
+      keys.length,
+      ...prefixedKeys,
+      ...args,
+    );
+
+    return result;
+  }
+
+  /**
+   * Atomically assigns a nonce using Vana App's battle-tested logic.
+   *
+   * @remarks
+   * This is a Redis-specific optimization that uses a Lua script for
+   * atomic nonce assignment with gap prevention. This method is called
+   * by DistributedNonceManager when it detects a Redis store.
+   *
+   * Ported from apps/web/app/api/relay/route.ts (Vana App production code)
+   * DO NOT MODIFY without thorough testing in production environment.
+   *
+   * @param key - The key for storing the last used nonce
+   * @param pendingCount - The current pending transaction count from blockchain
+   * @returns The assigned nonce
+   */
+  async atomicAssignNonce(key: string, pendingCount: number): Promise<number> {
+    const LUA_ASSIGN_NONCE = `
+      -- KEYS[1] = lastUsedKey
+      -- ARGV[1] = pendingCount (integer)
+
+      local last = tonumber(redis.call("GET", KEYS[1]) or "-1")
+      local pending = tonumber(ARGV[1])
+      local candidate = last + 1
+      if pending > candidate or (candidate - pending > 500) then
+        -- If pending is ahead OR if candidate is too far ahead (>500 nonces), reset to pending
+        candidate = pending
+      end
+
+      -- IMPORTANT: Atomically update the last used nonce
+      redis.call("SET", KEYS[1], candidate)
+
+      return candidate
+    `;
+
+    const fullKey = `${this.keyPrefix}:${key}`;
+    const nonce = (await this.redis.eval(
+      LUA_ASSIGN_NONCE,
+      1, // Number of keys
+      fullKey, // KEYS[1]
+      pendingCount.toString(), // ARGV[1]
+    )) as number;
+
+    return nonce;
   }
 }

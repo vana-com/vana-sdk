@@ -270,7 +270,7 @@ describe("OperationsController - processQueue", () => {
       });
 
       expect(results.failed).toBe(1);
-      expect(results.errors[0].error).toContain("Failed to acquire nonce lock");
+      expect(results.errors[0].error).toContain("Failed to acquire nonce");
     });
 
     it("should handle transaction failure and retry", async () => {

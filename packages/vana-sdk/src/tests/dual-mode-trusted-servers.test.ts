@@ -26,11 +26,21 @@ vi.mock("../utils/multicall", () => ({
 
     // First call: server IDs (allowFailure: false, returns bigints directly)
     if (callIndex % 2 === 0) {
-      return params.contracts.map((_: any, i: number) => BigInt(i + 1));
+      // Extract the index from the args to properly handle pagination
+      return params.contracts.map((contract: any) => {
+        // The userServerIdsAt function is called with [user, index]
+        // We need to return the server ID at that index
+        const serverIndex = contract.args?.[1];
+        if (serverIndex !== undefined) {
+          // Return server ID at the requested index (1-indexed)
+          return BigInt(Number(serverIndex) + 1);
+        }
+        return BigInt(1);
+      });
     }
 
     // Second call: server info (allowFailure: true, returns status/result objects)
-    return params.contracts.map((_contract: any, i: number) => {
+    return params.contracts.map((contract: any, i: number) => {
       // Check if we should simulate a failure for this index
       if (mockServerInfoFailureIndex === i) {
         return {
@@ -39,19 +49,24 @@ vi.mock("../utils/multicall", () => ({
         };
       }
 
+      // Extract the server ID from the contract args
+      const serverId = contract.args?.[0] ?? BigInt(i + 1);
+      const serverIdNum = Number(serverId);
+
       return {
         status: "success",
         result: {
-          id: BigInt(i + 1),
+          id: serverId,
           owner: "0x1234567890123456789012345678901234567890" as `0x${string}`,
           serverAddress:
             [
               "0x1111111111111111111111111111111111111111",
               "0x2222222222222222222222222222222222222222",
               "0x3333333333333333333333333333333333333333",
-            ][i] || "0x0000000000000000000000000000000000000000",
+            ][serverIdNum - 1] ||
+            `0x${serverIdNum.toString(16).padStart(40, "0")}`,
           publicKey: `0x${"0".repeat(64)}`,
-          url: `https://server${i + 1}.example.com`,
+          url: `https://server${serverIdNum}.example.com`,
         },
       };
     });
@@ -224,10 +239,10 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
       const contextNoSubgraph = { ...context, subgraphUrl: undefined };
       const dataControllerRpc = new DataController(contextNoSubgraph);
 
-      const result = await dataControllerRpc.getUserTrustedServers({
-        user: userAddress,
-        limit: 10,
-      });
+      const result = await dataControllerRpc.getUserTrustedServers(
+        { user: userAddress },
+        { limit: 10 },
+      );
 
       expect(result).toHaveLength(3);
       expect(result[0]).toEqual({
@@ -241,34 +256,18 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
     });
 
     it("should handle pagination correctly", async () => {
-      mockPublicClient.readContract
-        .mockResolvedValueOnce(10n) // Total count is 10
-        .mockResolvedValueOnce(3n) // userServerIdsAt(2)
-        .mockResolvedValueOnce(4n) // userServerIdsAt(3)
-        .mockResolvedValueOnce({
-          id: 3n,
-          owner: userAddress,
-          serverAddress: serverAddresses[2],
-          publicKey: `0x${"0".repeat(64)}`,
-          url: "https://server3.example.com",
-        })
-        .mockResolvedValueOnce({
-          id: 4n,
-          owner: userAddress,
-          serverAddress: serverAddresses[0],
-          publicKey: `0x${"0".repeat(64)}`,
-          url: "https://server1.example.com",
-        });
+      mockPublicClient.readContract.mockResolvedValueOnce(10n); // Total count is 10
+
+      // The gasAwareMulticall mock should handle the rest
 
       // Without subgraph configured, should use RPC directly
       const contextNoSubgraph = { ...context, subgraphUrl: undefined };
       const dataControllerRpc = new DataController(contextNoSubgraph);
 
-      const result = await dataControllerRpc.getUserTrustedServers({
-        user: userAddress,
-        offset: 2,
-        limit: 2,
-      });
+      const result = await dataControllerRpc.getUserTrustedServers(
+        { user: userAddress },
+        { offset: 2, limit: 2 },
+      );
 
       expect(result).toHaveLength(2);
       expect(result[0].trustIndex).toBe(2);
@@ -490,10 +489,10 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
       const contextNoSubgraph = { ...context, subgraphUrl: undefined };
       const dataControllerRpc = new DataController(contextNoSubgraph);
 
-      const result = await dataControllerRpc.getUserTrustedServers({
-        user: userAddress,
-        limit: requestedLimit,
-      });
+      const result = await dataControllerRpc.getUserTrustedServers(
+        { user: userAddress },
+        { limit: requestedLimit },
+      );
 
       expect(result).toHaveLength(requestedLimit);
     });
@@ -653,12 +652,16 @@ describe("Trusted Server Queries with Automatic Fallback", () => {
           }),
       });
 
-      const result = await dataController.getUserTrustedServers({
-        user: userAddress,
-        subgraphUrl: "https://subgraph.example.com",
-        limit: 2,
-        offset: 1,
-      });
+      const result = await dataController.getUserTrustedServers(
+        {
+          user: userAddress,
+          subgraphUrl: "https://subgraph.example.com",
+        },
+        {
+          limit: 2,
+          offset: 1,
+        },
+      );
 
       expect(result).toHaveLength(2); // limit applied
     });

@@ -231,9 +231,10 @@ function SchemaExplorerContent() {
 
       try {
         // Fetch user's files
-        const files = await vana.data.getUserFiles({
-          owner: userAddress as `0x${string}`,
-        });
+        const files = await vana.data.getUserFiles(
+          { owner: userAddress as `0x${string}` },
+          {},
+        );
 
         if (!files || files.length === 0) {
           setState((prev) => ({

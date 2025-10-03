@@ -46,6 +46,7 @@ export type {
   ConfigValidationResult,
   DownloadRelayerCallbacks,
   StorageRequiredMarker,
+  RelayerRequiredMarker,
 } from "./config";
 
 export {
@@ -260,8 +261,6 @@ export type {
   PaginationParams,
   PaginationResult,
   BlockRange,
-  TransactionOptions,
-  TransactionReceipt,
   ApiResponse,
   CacheConfig,
   ValidationResult,
@@ -272,6 +271,31 @@ export type {
   GasEstimate,
   TimeRange,
 } from "./utils";
+
+// Operation types
+export type {
+  TransactionOptions,
+  TransactionReceipt,
+  TransactionResult,
+} from "./operations";
+
+// Operation store types
+export type {
+  IOperationStore,
+  StoredOperation,
+  IRelayerStateStore,
+  OperationState,
+} from "./operationStore";
+
+// Options types
+export type {
+  ConsistencyOptions,
+  DataSource,
+  PaginationOptions,
+  ListOptions,
+  WriteOptions,
+  LegacyTransactionOptions,
+} from "./options";
 
 // Generic types for extensibility
 export type {

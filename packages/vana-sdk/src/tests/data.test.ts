@@ -696,10 +696,10 @@ describe("DataController", () => {
       expect(generateEncryptionKey).toHaveBeenCalled();
       expect(encryptBlobWithSignedKey).toHaveBeenCalled();
 
-      // Verify the encrypted blob was uploaded
+      // Verify the encrypted blob was uploaded with .enc extension
       expect(mockStorageManager.upload).toHaveBeenCalledWith(
         expect.any(Blob),
-        "encrypted.txt",
+        "encrypted.txt.enc",
         undefined,
       );
     });

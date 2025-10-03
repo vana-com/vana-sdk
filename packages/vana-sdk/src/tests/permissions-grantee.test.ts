@@ -1475,7 +1475,7 @@ describe("PermissionsController - Grantee Methods", () => {
         const options = {
           maxFeePerGas: 120n * 10n ** 9n, // 120 gwei
           maxPriorityFeePerGas: 5n * 10n ** 9n, // 5 gwei
-          gasLimit: 600000n,
+          gas: 600000n,
         };
 
         const expectedTxHash = "0xRegisterHash123" as Hash;
@@ -1505,7 +1505,7 @@ describe("PermissionsController - Grantee Methods", () => {
         };
         const options = {
           gasPrice: 70n * 10n ** 9n, // 70 gwei
-          gasLimit: 350000n,
+          gas: 350000n,
           nonce: 10,
         };
 
@@ -1537,10 +1537,8 @@ describe("PermissionsController - Grantee Methods", () => {
 
         // Mock relayer callback
         const mockRelayer = vi.fn().mockResolvedValue({
-          type: "direct",
-          result: {
-            transactionHash: "0xRelayerTxHash" as Hash,
-          },
+          type: "submitted",
+          hash: "0xRelayerTxHash" as Hash,
         });
 
         // Create controller with relayer
@@ -1658,7 +1656,7 @@ describe("PermissionsController - Grantee Methods", () => {
         const newUrl = "https://updated-server.example.com";
         const options = {
           maxFeePerGas: 90n * 10n ** 9n,
-          gasLimit: 250000n,
+          gas: 250000n,
         };
 
         const expectedTxHash = "0xUpdateHash789" as Hash;

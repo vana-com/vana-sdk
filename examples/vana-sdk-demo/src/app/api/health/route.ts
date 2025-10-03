@@ -1,48 +1,41 @@
 import { NextResponse } from "next/server";
-import { relayerConfig } from "@/lib/relayer";
-import { createPinataProvider } from "@/lib/storage-server";
+import { privateKeyToAccount } from "viem/accounts";
 
 export function GET() {
-  // Test Pinata connection using SDK
-  let pinataTest: { success: boolean; error?: string; data?: unknown } = {
-    success: false,
-    error: "PINATA_JWT not configured",
-  };
+  // Get relayer configuration from environment
+  const privateKey = process.env.RELAYER_PRIVATE_KEY;
+  const chainId = process.env.NEXT_PUBLIC_MOKSHA === "true" ? 14800 : 1480;
+  const chainRpcUrl =
+    chainId === 14800
+      ? (process.env.RPC_URL_VANA_MOKSHA ?? "https://rpc.moksha.vana.org")
+      : (process.env.RPC_URL_VANA ?? "https://rpc.vana.org");
 
-  if (process.env.PINATA_JWT) {
-    try {
-      // Test if the provider can be created without errors
-      createPinataProvider();
-      pinataTest = { success: true };
-    } catch (error) {
-      pinataTest = {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      };
-    }
-  }
+  const relayerAddress = privateKey
+    ? privateKeyToAccount(privateKey as `0x${string}`).address
+    : "Not configured";
+
+  // Check if storage is configured
+  const storageEnabled = Boolean(process.env.PINATA_JWT);
 
   return NextResponse.json({
     status: "ok",
-    relayer: relayerConfig.account.address,
-    chain: relayerConfig.chainId,
-    chainRpcUrl: relayerConfig.chainRpcUrl,
+    relayer: relayerAddress,
+    chain: chainId,
+    chainRpcUrl,
     timestamp: new Date().toISOString(),
     service: "Vana SDK Demo Relayer (Next.js + HeroUI)",
     storage: {
       ipfs: {
-        enabled: pinataTest.success,
-        error: pinataTest.error ?? null,
+        enabled: storageEnabled,
       },
-      memory: {
-        enabled: true,
-        fallback: true,
+      redis: {
+        enabled: Boolean(process.env.REDIS_URL),
       },
     },
     features: {
-      signatureVerification: true,
-      blockchainSubmission: true,
-      ipfsStorage: pinataTest.success,
+      statefulRelayer: Boolean(process.env.REDIS_URL),
+      distributedNonces: Boolean(process.env.REDIS_URL),
+      ipfsStorage: storageEnabled,
       gaslessTransactions: true,
     },
   });

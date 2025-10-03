@@ -2,6 +2,9 @@ import type { Hash, TransactionReceipt as ViemReceipt, Address } from "viem";
 import type { GetOperationResponse } from "../generated/server/server-exports";
 import type { Contract, Fn } from "../generated/event-types";
 
+// Re-export TransactionOptions from the new options module
+export type { TransactionOptions } from "./options";
+
 /**
  * Represents a server-side operation status and result.
  *

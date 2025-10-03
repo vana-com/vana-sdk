@@ -96,7 +96,7 @@ export interface ContractCall<
   /** Call options */
   options?: {
     /** Gas limit */
-    gasLimit?: bigint;
+    gas?: bigint;
     /** Gas price */
     gasPrice?: bigint;
     /** Value to send */

@@ -9,15 +9,47 @@ import type {
   VanaConfig,
   VanaConfigWithStorage,
   StorageRequiredMarker,
+  RelayerRequiredMarker,
 } from "./types";
+import type {
+  IOperationStore,
+  IRelayerStateStore,
+} from "./types/operationStore";
+import type { IAtomicStore } from "./types/atomicStore";
+import type { PublicClient } from "viem";
+
+/**
+ * Node.js-specific configuration interface with operation store support
+ *
+ * @category Configuration
+ */
+export type VanaNodeConfig = VanaConfig & {
+  operationStore?: IOperationStore | IRelayerStateStore; // Can be either type
+  atomicStore?: IAtomicStore;
+};
+
+/**
+ * Node.js configuration with storage requirements
+ *
+ * @category Configuration
+ */
+export type VanaNodeConfigWithStorage = VanaConfigWithStorage & {
+  operationStore?: IOperationStore | IRelayerStateStore; // Can be either type
+  atomicStore?: IAtomicStore;
+};
 
 /**
  * Internal implementation class for Node.js environments.
  * This class is not exported directly - use the Vana factory function instead.
  */
 class VanaNodeImpl extends VanaCore {
-  constructor(config: VanaConfig) {
+  override readonly operationStore?: IOperationStore | IRelayerStateStore;
+  override readonly atomicStore?: IAtomicStore;
+
+  constructor(config: VanaNodeConfig) {
     super(new NodePlatformAdapter(), config);
+    this.operationStore = config.operationStore;
+    this.atomicStore = config.atomicStore;
   }
 }
 
@@ -139,17 +171,26 @@ class VanaNodeImpl extends VanaCore {
  * @see {@link VanaCore} for the underlying implementation details
  * @category Core SDK
  */
+// Overload 1: For configurations that include both storage and operation store
 export function Vana(
-  config: VanaConfigWithStorage,
+  config: VanaNodeConfigWithStorage & { operationStore: IOperationStore },
+): VanaNodeImpl & StorageRequiredMarker & RelayerRequiredMarker;
+
+// Overload 2: For configurations that include only the operation store
+export function Vana(
+  config: VanaNodeConfig & { operationStore: IOperationStore },
+): VanaNodeImpl & RelayerRequiredMarker;
+
+// Overload 3: For configurations with storage but no operation store
+export function Vana(
+  config: VanaNodeConfigWithStorage,
 ): VanaNodeImpl & StorageRequiredMarker;
-export function Vana(config: VanaConfig): VanaNodeImpl;
-/**
- * Creates a new Vana SDK instance.
- *
- * @param config - The configuration for the Vana SDK
- * @returns A new Vana SDK instance
- */
-export function Vana(config: VanaConfig) {
+
+// Overload 4: Base configuration without special requirements
+export function Vana(config: VanaNodeConfig): VanaNodeImpl;
+
+// Implementation
+export function Vana(config: VanaNodeConfig) {
   return new VanaNodeImpl(config);
 }
 
@@ -167,9 +208,30 @@ export default Vana;
 // Re-export everything that was in index.ts (avoiding circular dependency)
 // Core class and factory
 export { VanaCore, VanaCoreFactory } from "./core";
+export { DistributedNonceManager } from "./core/nonceManager";
+export { InMemoryNonceManager } from "./core/inMemoryNonceManager";
+export { SystemHealthChecker } from "./core/health";
+export type {
+  SystemHealthCheckerConfig,
+  HealthStatus,
+  ComponentHealth,
+  NonceHealth,
+  QueueHealth,
+} from "./core/health";
+
+// Storage implementations
+export { RedisAtomicStore } from "./lib/redisAtomicStore";
+export type { RedisAtomicStoreConfig } from "./lib/redisAtomicStore";
 
 // Types - modular exports
 export type * from "./types";
+export type { IAtomicStore } from "./types/atomicStore";
+export type {
+  IOperationStore,
+  StoredOperation,
+  IRelayerStateStore,
+  OperationState,
+} from "./types/operationStore";
 
 // Type guards and utilities
 export {
@@ -191,6 +253,7 @@ export { DataController } from "./controllers/data";
 export { ServerController } from "./controllers/server";
 export { ProtocolController } from "./controllers/protocol";
 export { SchemaController } from "./controllers/schemas";
+export { OperationsController } from "./controllers/operations";
 
 // Contract controller
 export * from "./contracts/contractController";
@@ -247,7 +310,10 @@ export {
 } from "./core/generics";
 
 // Server-side utilities
-export { handleRelayerOperation } from "./server/relayerHandler";
+export {
+  handleRelayerOperation,
+  type RelayerOperationOptions,
+} from "./server/relayerHandler";
 export type {
   UnifiedRelayerRequest,
   UnifiedRelayerResponse,
@@ -293,3 +359,10 @@ export type {
 // Note: Default export is already handled above with the Vana factory function
 // For testing purposes, we also export the implementation class
 export { VanaNodeImpl };
+
+// Server-specific interface for accessing stores
+export interface VanaWithStores {
+  readonly operationStore?: IOperationStore | IRelayerStateStore;
+  readonly atomicStore?: IAtomicStore;
+  readonly publicClient: PublicClient;
+}

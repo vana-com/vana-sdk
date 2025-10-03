@@ -407,7 +407,7 @@ describe("Permissions Server Files and Permissions", () => {
       const options = {
         maxFeePerGas: 100n * 10n ** 9n, // 100 gwei
         maxPriorityFeePerGas: 2n * 10n ** 9n, // 2 gwei
-        gasLimit: 500000n,
+        gas: 500000n,
       };
 
       await controller.submitAddServerFilesAndPermissions(baseParams, options);
@@ -427,7 +427,7 @@ describe("Permissions Server Files and Permissions", () => {
     it("should pass legacy gas parameters to writeContract", async () => {
       const options = {
         gasPrice: 50n * 10n ** 9n, // 50 gwei
-        gasLimit: 300000n,
+        gas: 300000n,
         nonce: 42,
       };
 
@@ -469,7 +469,7 @@ describe("Permissions Server Files and Permissions", () => {
     it("should include value parameter when provided", async () => {
       const options = {
         value: 10n ** 18n, // 1 ETH
-        gasLimit: 21000n,
+        gas: 21000n,
       };
 
       await controller.submitAddServerFilesAndPermissions(baseParams, options);

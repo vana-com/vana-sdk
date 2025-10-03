@@ -142,10 +142,13 @@ src/
 const relayerHealth = await fetch("/api/health");
 
 // Live subgraph queries for user data
-const files = await vana.data.getUserFiles({
-  owner: userAddress,
-  subgraphUrl: process.env.NEXT_PUBLIC_SUBGRAPH_URL,
-});
+const files = await vana.data.getUserFiles(
+  {
+    owner: userAddress,
+    subgraphUrl: process.env.NEXT_PUBLIC_SUBGRAPH_URL,
+  },
+  {}, // Optional pagination/consistency options
+);
 ```
 
 #### **2. Comprehensive Error Handling**

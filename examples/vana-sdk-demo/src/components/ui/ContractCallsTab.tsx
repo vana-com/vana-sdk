@@ -120,7 +120,7 @@ export const ContractCallsTab: React.FC<ContractCallsTabProps> = ({
         }
       }
 
-      setPermissionStatus("Signing transaction...");
+      setPermissionStatus("Resolving grantee address...");
 
       // Resolve grantee ID to grantee address
       const grantee = await vana.permissions.getGranteeById(
@@ -130,14 +130,53 @@ export const ContractCallsTab: React.FC<ContractCallsTabProps> = ({
         throw new Error(`Grantee with ID ${permissionGranteeId} not found`);
       }
 
+      setPermissionStatus("Signing transaction...");
+
       // Use the proper Permission method with GrantPermissionParams
-      const grantResult = await vana.permissions.grant({
-        grantee: grantee.address, // Resolved grantee address from ID
-        operation: "data_access", // Default operation type
-        files: validFileIds.map((id) => parseInt(id)), // File IDs as numbers
-        parameters: {}, // Empty parameters for simple permission
-        grantUrl: permissionGrant, // Grant URL can be any string
-      });
+      // NOW WITH ASYNC POLLING SUPPORT for long-running operations
+      const grantResult = await vana.permissions.grant(
+        {
+          grantee: grantee.address, // Resolved grantee address from ID
+          operation: "data_access", // Default operation type
+          files: validFileIds.map((id) => parseInt(id)), // File IDs as numbers
+          parameters: {}, // Empty parameters for simple permission
+          grantUrl: permissionGrant, // Grant URL can be any string
+        },
+        {
+          // NEW: Real-time status updates during async operations
+          onStatusUpdate: (status) => {
+            switch (status.type) {
+              case "pending":
+                setPermissionStatus(
+                  `⏳ Transaction pending (ID: ${status.operationId})...`,
+                );
+                break;
+              case "queued":
+                setPermissionStatus(
+                  `📋 Queued (position: ${status.position ?? "unknown"})...`,
+                );
+                break;
+              case "processing":
+                setPermissionStatus("⚙️ Processing transaction...");
+                break;
+              case "submitted":
+                setPermissionStatus(`📤 Transaction submitted: ${status.hash}`);
+                break;
+              case "confirmed":
+                setPermissionStatus(`✅ Transaction confirmed: ${status.hash}`);
+                break;
+              case "failed":
+                setPermissionStatus(`❌ Transaction failed: ${status.error}`);
+                break;
+            }
+          },
+          // Configure polling behavior
+          pollingOptions: {
+            timeout: 60000, // 1 minute timeout for demo
+            initialInterval: 1000, // Start checking every second
+          },
+        },
+      );
 
       const { transactionHash } = grantResult;
 
@@ -152,10 +191,26 @@ export const ContractCallsTab: React.FC<ContractCallsTabProps> = ({
 
       console.info("Permission added:", transactionHash);
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Failed to add permission";
-      setPermissionError(errorMessage);
-      setPermissionStatus("❌ Failed to add permission");
+      // Enhanced error handling for async operations
+      if (error instanceof Error && error.name === "TransactionPendingError") {
+        // Handle timeout with recovery information
+        const pendingError = error as any;
+        setPermissionError(
+          `Transaction timed out but may still complete. Operation ID: ${pendingError.operationId} - Save this ID to check status later.`,
+        );
+        setPermissionStatus("⏱️ Transaction timed out (may still complete)");
+      } else if (
+        error instanceof Error &&
+        error.message.includes("cancelled")
+      ) {
+        setPermissionError("Operation was cancelled");
+        setPermissionStatus("🚫 Operation cancelled");
+      } else {
+        const errorMessage =
+          error instanceof Error ? error.message : "Failed to add permission";
+        setPermissionError(errorMessage);
+        setPermissionStatus("❌ Failed to add permission");
+      }
     } finally {
       setIsAddingPermission(false);
     }
@@ -763,23 +818,91 @@ export const ContractCallsTab: React.FC<ContractCallsTabProps> = ({
               <h5 className="text-sm font-medium mb-2">Add Permission</h5>
               <CodeDisplay
                 language="typescript"
-                code={`// Add permission using proper Permission method with grantee ID
+                code={`// Add permission with async polling support
 // First, resolve grantee ID to grantee address
 const grantee = await vana.permissions.getGranteeById(1);
 if (!grantee) {
   throw new Error('Grantee with ID 1 not found');
 }
 
-// Use GrantPermissionParams (proper Permission type)
+// Grant permission with real-time status updates
 const grantResult = await vana.permissions.grant({
-  grantee: grantee.address,           // resolved grantee address from ID
+  grantee: grantee.address,           // resolved grantee address
   operation: "data_access",           // operation type
-  files: [123, 456, 789],            // file IDs (array of numbers)
+  files: [123, 456, 789],            // file IDs
   parameters: {},                     // operation parameters
-  grantUrl: "https://example.com/grant" // grant URL (any string)
+  grantUrl: "https://example.com/grant" // grant URL
+}, {
+  // NEW: Get real-time status updates
+  onStatusUpdate: (status) => {
+    switch (status.type) {
+      case "pending":
+        console.log(\`⏳ Pending: \${status.operationId}\`);
+        break;
+      case "queued":
+        console.log(\`📋 Queue position: \${status.position}\`);
+        break;
+      case "submitted":
+        console.log(\`📤 Submitted: \${status.hash}\`);
+        break;
+      case "confirmed":
+        console.log(\`✅ Confirmed: \${status.hash}\`);
+        break;
+    }
+  },
+  // Configure polling behavior
+  pollingOptions: {
+    timeout: 120000,        // 2 minute timeout
+    initialInterval: 1000,  // Start at 1 second
+  }
 });
 
 console.log("Permission added:", grantResult.transactionHash);`}
+              />
+            </div>
+
+            <Divider />
+
+            <div>
+              <h5 className="text-sm font-medium mb-2">
+                Cancellable Permission Grant
+              </h5>
+              <CodeDisplay
+                language="typescript"
+                code={`// Support for cancelling long-running operations
+const controller = new AbortController();
+
+// Start the grant operation
+const grantPromise = vana.permissions.grant({
+  grantee: "0x742d35Cc6634C0532925a3b844Bc9e7595f0fEd4",
+  operation: "data_access",
+  files: [123, 456],
+  parameters: {},
+  grantUrl: "https://example.com/grant"
+}, {
+  signal: controller.signal,  // Pass abort signal
+  onStatusUpdate: (status) => {
+    console.log(\`Status: \${status.type}\`);
+  }
+});
+
+// Cancel after 5 seconds if still pending
+setTimeout(() => {
+  controller.abort();
+  console.log("Operation cancelled by user");
+}, 5000);
+
+try {
+  const result = await grantPromise;
+  console.log("Success:", result.transactionHash);
+} catch (error) {
+  if (error.message.includes("cancelled")) {
+    console.log("Operation was cancelled");
+  } else if (error.name === "TransactionPendingError") {
+    console.log("Timed out. Operation ID:", error.operationId);
+    // Can check status later using the operation ID
+  }
+}`}
               />
             </div>
 

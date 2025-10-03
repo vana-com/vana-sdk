@@ -7077,6 +7077,33 @@ export type GetUserTrustedServersQuery = {
   } | null;
 };
 
+export type GetUserFilesPaginatedQueryVariables = Exact<{
+  userId: Scalars["ID"]["input"];
+  first: Scalars["Int"]["input"];
+  skip: Scalars["Int"]["input"];
+  orderBy?: InputMaybe<File_OrderBy>;
+  orderDirection?: InputMaybe<OrderDirection>;
+}>;
+
+export type GetUserFilesPaginatedQuery = {
+  user?: {
+    id: string;
+    files: Array<{
+      id: string;
+      url: string;
+      schemaId: string;
+      addedAtBlock: string;
+      addedAtTimestamp: string;
+      transactionHash: string;
+      owner: { id: string };
+    }>;
+  } | null;
+  _meta?: {
+    hasIndexingErrors: boolean;
+    block: { number: number; timestamp?: number | null };
+  } | null;
+};
+
 export type GetUserFilesQueryVariables = Exact<{
   userId: Scalars["ID"]["input"];
 }>;
@@ -7119,6 +7146,59 @@ export type GetDlpQuery = {
   } | null;
 };
 
+export type GetSubgraphMetaQueryVariables = Exact<{ [key: string]: never }>;
+
+export type GetSubgraphMetaQuery = {
+  _meta?: {
+    deployment: string;
+    hasIndexingErrors: boolean;
+    block: { number: number; timestamp?: number | null; hash?: string | null };
+  } | null;
+};
+
+export type GetSubgraphMetaAtBlockQueryVariables = Exact<{
+  blockNumber: Scalars["Int"]["input"];
+}>;
+
+export type GetSubgraphMetaAtBlockQuery = {
+  _meta?: {
+    deployment: string;
+    hasIndexingErrors: boolean;
+    block: { number: number; timestamp?: number | null; hash?: string | null };
+  } | null;
+};
+
+export type GetUserPermissionsPaginatedQueryVariables = Exact<{
+  userId: Scalars["ID"]["input"];
+  first: Scalars["Int"]["input"];
+  skip: Scalars["Int"]["input"];
+  orderBy?: InputMaybe<Permission_OrderBy>;
+  orderDirection?: InputMaybe<OrderDirection>;
+}>;
+
+export type GetUserPermissionsPaginatedQuery = {
+  user?: {
+    id: string;
+    permissions: Array<{
+      id: string;
+      grant: string;
+      nonce: string;
+      signature: string;
+      startBlock: string;
+      endBlock?: string | null;
+      addedAtBlock: string;
+      addedAtTimestamp: string;
+      transactionHash: string;
+      grantee: { id: string; address: string };
+      filePermissions: Array<{ file: { id: string; url: string } }>;
+    }>;
+  } | null;
+  _meta?: {
+    hasIndexingErrors: boolean;
+    block: { number: number; timestamp?: number | null };
+  } | null;
+};
+
 export type GetSchemaQueryVariables = Exact<{
   id: Scalars["ID"]["input"];
 }>;
@@ -7156,6 +7236,37 @@ export type ListSchemasQuery = {
 export type CountSchemasQueryVariables = Exact<{ [key: string]: never }>;
 
 export type CountSchemasQuery = { schemas: Array<{ id: string }> };
+
+export type GetUserTrustedServersPaginatedQueryVariables = Exact<{
+  userId: Scalars["ID"]["input"];
+  first: Scalars["Int"]["input"];
+  skip: Scalars["Int"]["input"];
+  orderBy?: InputMaybe<UserServer_OrderBy>;
+  orderDirection?: InputMaybe<OrderDirection>;
+}>;
+
+export type GetUserTrustedServersPaginatedQuery = {
+  user?: {
+    id: string;
+    serverTrusts: Array<{
+      id: string;
+      trustedAt: string;
+      trustedAtBlock: string;
+      untrustedAtBlock?: string | null;
+      transactionHash: string;
+      server: {
+        id: string;
+        serverAddress: string;
+        url: string;
+        publicKey: string;
+      };
+    }>;
+  } | null;
+  _meta?: {
+    hasIndexingErrors: boolean;
+    block: { number: number; timestamp?: number | null };
+  } | null;
+};
 
 export const GetUserPermissionsDocument = {
   kind: "Document",
@@ -7389,6 +7500,202 @@ export const GetUserTrustedServersDocument = {
   GetUserTrustedServersQuery,
   GetUserTrustedServersQueryVariables
 >;
+export const GetUserFilesPaginatedDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "GetUserFilesPaginated" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "userId" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "ID" } },
+          },
+        },
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "first" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "Int" } },
+          },
+        },
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "skip" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "Int" } },
+          },
+        },
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "orderBy" },
+          },
+          type: {
+            kind: "NamedType",
+            name: { kind: "Name", value: "File_orderBy" },
+          },
+        },
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "orderDirection" },
+          },
+          type: {
+            kind: "NamedType",
+            name: { kind: "Name", value: "OrderDirection" },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "user" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "id" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "userId" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "id" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "files" },
+                  arguments: [
+                    {
+                      kind: "Argument",
+                      name: { kind: "Name", value: "first" },
+                      value: {
+                        kind: "Variable",
+                        name: { kind: "Name", value: "first" },
+                      },
+                    },
+                    {
+                      kind: "Argument",
+                      name: { kind: "Name", value: "skip" },
+                      value: {
+                        kind: "Variable",
+                        name: { kind: "Name", value: "skip" },
+                      },
+                    },
+                    {
+                      kind: "Argument",
+                      name: { kind: "Name", value: "orderBy" },
+                      value: {
+                        kind: "Variable",
+                        name: { kind: "Name", value: "orderBy" },
+                      },
+                    },
+                    {
+                      kind: "Argument",
+                      name: { kind: "Name", value: "orderDirection" },
+                      value: {
+                        kind: "Variable",
+                        name: { kind: "Name", value: "orderDirection" },
+                      },
+                    },
+                  ],
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                      { kind: "Field", name: { kind: "Name", value: "url" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "schemaId" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "addedAtBlock" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "addedAtTimestamp" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "transactionHash" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "owner" },
+                        selectionSet: {
+                          kind: "SelectionSet",
+                          selections: [
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "id" },
+                            },
+                          ],
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "_meta" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "block" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "number" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "timestamp" },
+                      },
+                    ],
+                  },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "hasIndexingErrors" },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  GetUserFilesPaginatedQuery,
+  GetUserFilesPaginatedQueryVariables
+>;
 export const GetUserFilesDocument = {
   kind: "Document",
   definitions: [
@@ -7603,6 +7910,373 @@ export const GetDlpDocument = {
     },
   ],
 } as unknown as DocumentNode<GetDlpQuery, GetDlpQueryVariables>;
+export const GetSubgraphMetaDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "GetSubgraphMeta" },
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "_meta" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "block" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "number" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "timestamp" },
+                      },
+                      { kind: "Field", name: { kind: "Name", value: "hash" } },
+                    ],
+                  },
+                },
+                { kind: "Field", name: { kind: "Name", value: "deployment" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "hasIndexingErrors" },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  GetSubgraphMetaQuery,
+  GetSubgraphMetaQueryVariables
+>;
+export const GetSubgraphMetaAtBlockDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "GetSubgraphMetaAtBlock" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "blockNumber" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "Int" } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "_meta" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "block" },
+                value: {
+                  kind: "ObjectValue",
+                  fields: [
+                    {
+                      kind: "ObjectField",
+                      name: { kind: "Name", value: "number" },
+                      value: {
+                        kind: "Variable",
+                        name: { kind: "Name", value: "blockNumber" },
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "block" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "number" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "timestamp" },
+                      },
+                      { kind: "Field", name: { kind: "Name", value: "hash" } },
+                    ],
+                  },
+                },
+                { kind: "Field", name: { kind: "Name", value: "deployment" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "hasIndexingErrors" },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  GetSubgraphMetaAtBlockQuery,
+  GetSubgraphMetaAtBlockQueryVariables
+>;
+export const GetUserPermissionsPaginatedDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "GetUserPermissionsPaginated" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "userId" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "ID" } },
+          },
+        },
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "first" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "Int" } },
+          },
+        },
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "skip" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "Int" } },
+          },
+        },
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "orderBy" },
+          },
+          type: {
+            kind: "NamedType",
+            name: { kind: "Name", value: "Permission_orderBy" },
+          },
+        },
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "orderDirection" },
+          },
+          type: {
+            kind: "NamedType",
+            name: { kind: "Name", value: "OrderDirection" },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "user" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "id" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "userId" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "id" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "permissions" },
+                  arguments: [
+                    {
+                      kind: "Argument",
+                      name: { kind: "Name", value: "first" },
+                      value: {
+                        kind: "Variable",
+                        name: { kind: "Name", value: "first" },
+                      },
+                    },
+                    {
+                      kind: "Argument",
+                      name: { kind: "Name", value: "skip" },
+                      value: {
+                        kind: "Variable",
+                        name: { kind: "Name", value: "skip" },
+                      },
+                    },
+                    {
+                      kind: "Argument",
+                      name: { kind: "Name", value: "orderBy" },
+                      value: {
+                        kind: "Variable",
+                        name: { kind: "Name", value: "orderBy" },
+                      },
+                    },
+                    {
+                      kind: "Argument",
+                      name: { kind: "Name", value: "orderDirection" },
+                      value: {
+                        kind: "Variable",
+                        name: { kind: "Name", value: "orderDirection" },
+                      },
+                    },
+                  ],
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                      { kind: "Field", name: { kind: "Name", value: "grant" } },
+                      { kind: "Field", name: { kind: "Name", value: "nonce" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "signature" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "startBlock" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "endBlock" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "addedAtBlock" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "addedAtTimestamp" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "transactionHash" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "grantee" },
+                        selectionSet: {
+                          kind: "SelectionSet",
+                          selections: [
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "id" },
+                            },
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "address" },
+                            },
+                          ],
+                        },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "filePermissions" },
+                        selectionSet: {
+                          kind: "SelectionSet",
+                          selections: [
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "file" },
+                              selectionSet: {
+                                kind: "SelectionSet",
+                                selections: [
+                                  {
+                                    kind: "Field",
+                                    name: { kind: "Name", value: "id" },
+                                  },
+                                  {
+                                    kind: "Field",
+                                    name: { kind: "Name", value: "url" },
+                                  },
+                                ],
+                              },
+                            },
+                          ],
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "_meta" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "block" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "number" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "timestamp" },
+                      },
+                    ],
+                  },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "hasIndexingErrors" },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  GetUserPermissionsPaginatedQuery,
+  GetUserPermissionsPaginatedQueryVariables
+>;
 export const GetSchemaDocument = {
   kind: "Document",
   definitions: [
@@ -7796,3 +8470,210 @@ export const CountSchemasDocument = {
     },
   ],
 } as unknown as DocumentNode<CountSchemasQuery, CountSchemasQueryVariables>;
+export const GetUserTrustedServersPaginatedDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "GetUserTrustedServersPaginated" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "userId" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "ID" } },
+          },
+        },
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "first" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "Int" } },
+          },
+        },
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "skip" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "Int" } },
+          },
+        },
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "orderBy" },
+          },
+          type: {
+            kind: "NamedType",
+            name: { kind: "Name", value: "UserServer_orderBy" },
+          },
+        },
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "orderDirection" },
+          },
+          type: {
+            kind: "NamedType",
+            name: { kind: "Name", value: "OrderDirection" },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "user" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "id" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "userId" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "id" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "serverTrusts" },
+                  arguments: [
+                    {
+                      kind: "Argument",
+                      name: { kind: "Name", value: "first" },
+                      value: {
+                        kind: "Variable",
+                        name: { kind: "Name", value: "first" },
+                      },
+                    },
+                    {
+                      kind: "Argument",
+                      name: { kind: "Name", value: "skip" },
+                      value: {
+                        kind: "Variable",
+                        name: { kind: "Name", value: "skip" },
+                      },
+                    },
+                    {
+                      kind: "Argument",
+                      name: { kind: "Name", value: "orderBy" },
+                      value: {
+                        kind: "Variable",
+                        name: { kind: "Name", value: "orderBy" },
+                      },
+                    },
+                    {
+                      kind: "Argument",
+                      name: { kind: "Name", value: "orderDirection" },
+                      value: {
+                        kind: "Variable",
+                        name: { kind: "Name", value: "orderDirection" },
+                      },
+                    },
+                  ],
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "server" },
+                        selectionSet: {
+                          kind: "SelectionSet",
+                          selections: [
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "id" },
+                            },
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "serverAddress" },
+                            },
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "url" },
+                            },
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "publicKey" },
+                            },
+                          ],
+                        },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "trustedAt" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "trustedAtBlock" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "untrustedAtBlock" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "transactionHash" },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "_meta" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "block" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "number" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "timestamp" },
+                      },
+                    ],
+                  },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "hasIndexingErrors" },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  GetUserTrustedServersPaginatedQuery,
+  GetUserTrustedServersPaginatedQueryVariables
+>;

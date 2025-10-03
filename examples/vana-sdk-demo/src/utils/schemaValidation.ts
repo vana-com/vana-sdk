@@ -1,5 +1,6 @@
 import {
   validateDataAgainstSchema as sdkValidateDataAgainstSchema,
+  validateDataSchemaAgainstMetaSchema,
   type DataSchema,
   type Schema,
   fetchWithFallbacks,
@@ -110,36 +111,58 @@ export async function validateDataAgainstSchema(
  *
  * @param schemaDefinition - The raw schema definition object
  * @param name - The schema name
+ * @param dialect - The schema dialect (json or sqlite)
  * @param version - The schema version
  * @returns Validation result with success status and error messages
  */
 export function validateSchemaDefinition(
   schemaDefinition: unknown,
   name: string,
+  dialect: "json" | "sqlite" = "json",
   version: string = "1.0.0",
 ): ValidationResult {
   try {
     const dataSchema: DataSchema = {
       name,
       version,
-      dialect: "json",
+      dialect,
       schema: schemaDefinition as string | object,
     };
 
-    // This will throw if invalid
-    sdkValidateDataAgainstSchema({}, dataSchema);
+    // Validate the schema definition against the metaschema
+    validateDataSchemaAgainstMetaSchema(dataSchema);
 
     return {
       isValid: true,
       errors: [],
     };
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown validation error";
+    // Extract detailed error messages
+    const errors: string[] = [];
+
+    // Check if it's a SchemaValidationError with AJV errors
+    if (error && typeof error === "object" && "errors" in error) {
+      const ajvErrors = (error as any).errors;
+      if (Array.isArray(ajvErrors) && ajvErrors.length > 0) {
+        // Extract detailed validation errors from AJV
+        for (const ajvError of ajvErrors) {
+          const path = ajvError.instancePath ?? ajvError.dataPath ?? "root";
+          const message = ajvError.message ?? "validation failed";
+          errors.push(`${path}: ${message}`);
+        }
+      }
+    }
+
+    // Fall back to error message if no detailed errors
+    if (errors.length === 0) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown validation error";
+      errors.push(errorMessage);
+    }
 
     return {
       isValid: false,
-      errors: [errorMessage],
+      errors,
     };
   }
 }

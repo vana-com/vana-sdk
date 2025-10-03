@@ -32,6 +32,7 @@ describe("useSchemasAndRefiners", () => {
     schemas: {
       count: vi.fn(),
       get: vi.fn(),
+      list: vi.fn(),
       create: vi.fn(),
     },
     data: {
@@ -120,9 +121,9 @@ describe("useSchemasAndRefiners", () => {
     it("returns default state when initialized", async () => {
       const { result } = renderHook(() => useSchemasAndRefiners());
 
-      // Initially loading should be true since the hook auto-loads when vana and address are available
+      // Initially loading refiners should be true, but schemas loading is handled by page component
       expect(result.current.schemas).toEqual([]);
-      expect(result.current.isLoadingSchemas).toBe(true);
+      expect(result.current.isLoadingSchemas).toBe(false);
       expect(result.current.schemasCount).toBe(0);
       expect(result.current.schemaName).toBe("");
       expect(result.current.schemaType).toBe("");
@@ -147,32 +148,27 @@ describe("useSchemasAndRefiners", () => {
       expect(result.current.isUpdatingSchema).toBe(false);
       expect(result.current.updateSchemaStatus).toBe("");
 
-      // Wait for auto-loading to complete
+      // Wait for auto-loading to complete (only refiners and schema count, not schemas themselves)
       await waitFor(() => {
-        expect(result.current.isLoadingSchemas).toBe(false);
         expect(result.current.isLoadingRefiners).toBe(false);
-        expect(result.current.schemas).toHaveLength(2);
         expect(result.current.refiners).toHaveLength(2);
+        expect(result.current.schemasCount).toBe(2);
       });
     });
 
-    it("loads schemas and refiners automatically when vana and address are available", async () => {
+    it("loads schema count and refiners automatically when vana and address are available", async () => {
       const { result } = renderHook(() => useSchemasAndRefiners());
 
       await waitFor(() => {
-        expect(result.current.schemas).toHaveLength(2);
+        expect(result.current.schemasCount).toBe(2);
         expect(result.current.refiners).toHaveLength(2);
       });
 
+      // Should load schema count but not individual schemas
       expect(mockVana.schemas.count).toHaveBeenCalled();
-      expect(mockVana.schemas.get).toHaveBeenCalledWith(1);
-      expect(mockVana.schemas.get).toHaveBeenCalledWith(2);
-      expect(result.current.schemasCount).toBe(2);
-      expect(result.current.schemas[0]).toEqual({
-        ...mockSchemas[0],
-        source: "discovered",
-      });
+      expect(mockVana.schemas.get).not.toHaveBeenCalled();
 
+      // Should still auto-load refiners
       expect(mockVana.data.getRefinersCount).toHaveBeenCalled();
       expect(mockVana.data.getRefiner).toHaveBeenCalledWith(1);
       expect(mockVana.data.getRefiner).toHaveBeenCalledWith(2);

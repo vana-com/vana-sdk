@@ -4105,40 +4105,72 @@ export class PermissionsController extends BaseController {
       );
       const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
 
-      // Otherwise, fetch all permissions using pagination
-      const allPermissionIds: bigint[] = [];
       // If both offset and limit are provided, fetch just that page
       const fetchOnlyOnePage =
         options?.offset !== undefined && options?.limit !== undefined;
-      let currentOffset = options?.offset ?? BigInt(0);
-      const batchSize = options?.limit ?? BigInt(100);
-      let hasMore = true;
 
-      while (hasMore) {
-        const [permissionIds, totalCount, more] =
+      if (fetchOnlyOnePage) {
+        // For single page requests, make a direct contract call
+        const [permissionIds, totalCount, hasMore] =
           (await this.context.publicClient.readContract({
             address: DataPortabilityGranteesAddress,
             abi: DataPortabilityGranteesAbi,
             functionName: "granteePermissionsPaginated",
-            args: [granteeId, currentOffset, batchSize],
+            args: [granteeId, options.offset!, options.limit!],
           })) as [readonly bigint[], bigint, boolean];
 
-        if (fetchOnlyOnePage) {
-          return {
-            permissionIds: [...permissionIds],
-            totalCount,
-            hasMore,
-          };
-        }
+        return {
+          permissionIds: [...permissionIds],
+          totalCount,
+          hasMore,
+        };
+      }
 
+      // For fetching all permissions, use gasAwareMulticall to batch pagination calls
+      // First, make an initial call to get the total count
+      const [, totalCount] = (await this.context.publicClient.readContract({
+        address: DataPortabilityGranteesAddress,
+        abi: DataPortabilityGranteesAbi,
+        functionName: "granteePermissionsPaginated",
+        args: [granteeId, BigInt(0), BigInt(1)],
+      })) as [readonly bigint[], bigint, boolean];
+
+      // If no permissions exist, return early
+      if (totalCount === BigInt(0)) {
+        return [];
+      }
+
+      // Build multicall contracts for all pages
+      const batchSize = options?.limit ?? BigInt(100);
+      const startOffset = options?.offset ?? BigInt(0);
+      const endOffset = totalCount;
+      const numBatches = Math.ceil(
+        Number(endOffset - startOffset) / Number(batchSize),
+      );
+      const paginationCalls = Array.from({ length: numBatches }, (_, i) => ({
+        address: DataPortabilityGranteesAddress,
+        abi: DataPortabilityGranteesAbi,
+        functionName: "granteePermissionsPaginated" as const,
+        args: [
+          granteeId,
+          startOffset + BigInt(i) * batchSize,
+          batchSize,
+        ] as const,
+      }));
+
+      // Execute all pagination calls in parallel using gasAwareMulticall
+      const results = await gasAwareMulticall<typeof paginationCalls, false>(
+        this.context.publicClient,
+        {
+          contracts: paginationCalls,
+        },
+      );
+
+      // Flatten all permission IDs from all pages
+      const allPermissionIds: bigint[] = [];
+      for (const result of results) {
+        const [permissionIds] = result as [readonly bigint[], bigint, boolean];
         allPermissionIds.push(...permissionIds);
-        hasMore = more;
-        currentOffset += batchSize;
-
-        // Safety check to prevent infinite loops
-        if (currentOffset >= totalCount) {
-          break;
-        }
       }
 
       return allPermissionIds;

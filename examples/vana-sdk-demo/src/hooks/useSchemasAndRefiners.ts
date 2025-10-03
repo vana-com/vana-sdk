@@ -56,7 +56,7 @@ export interface UseSchemasAndRefinersReturn {
   updateSchemaStatus: string;
 
   // Actions
-  loadSchemas: () => Promise<void>;
+  loadSchemas: (page?: number, pageSize?: number) => Promise<void>;
   loadRefiners: () => Promise<void>;
   handleCreateSchema: () => Promise<void>;
   handleCreateRefiner: () => Promise<void>;
@@ -116,34 +116,39 @@ export function useSchemasAndRefiners(): UseSchemasAndRefinersReturn {
   const [isUpdatingSchema, setIsUpdatingSchema] = useState(false);
   const [updateSchemaStatus, setUpdateSchemaStatus] = useState<string>("");
 
-  const loadSchemas = useCallback(async () => {
-    if (!vana) return;
+  const loadSchemas = useCallback(
+    async (page = 1, pageSize = 10) => {
+      if (!vana) return;
 
-    setIsLoadingSchemas(true);
-    try {
-      const count = await vana.schemas.count();
-      setSchemasCount(count);
+      setIsLoadingSchemas(true);
+      try {
+        const count = await vana.schemas.count();
+        setSchemasCount(count);
 
-      // Load first 10 schemas for display
-      const schemaList: ExtendedSchema[] = [];
-      const maxToLoad = Math.min(count, 10);
+        // Calculate offset for pagination (page is 1-based)
+        const offset = (page - 1) * pageSize;
 
-      for (let i = 1; i <= maxToLoad; i++) {
-        try {
-          const schema = await vana.schemas.get(i);
-          schemaList.push({ ...schema, source: "discovered" });
-        } catch (error) {
-          console.warn(`Failed to load schema ${i}:`, error);
-        }
+        // Use SDK's pagination support
+        const schemaList = await vana.schemas.list({
+          limit: pageSize,
+          offset,
+        });
+
+        // Mark schemas as discovered
+        const extendedSchemas: ExtendedSchema[] = schemaList.map((schema) => ({
+          ...schema,
+          source: "discovered" as const,
+        }));
+
+        setSchemas(extendedSchemas);
+      } catch (error) {
+        console.error("Failed to load schemas:", error);
+      } finally {
+        setIsLoadingSchemas(false);
       }
-
-      setSchemas(schemaList);
-    } catch (error) {
-      console.error("Failed to load schemas:", error);
-    } finally {
-      setIsLoadingSchemas(false);
-    }
-  }, [vana]);
+    },
+    [vana],
+  );
 
   const loadRefiners = useCallback(async () => {
     if (!vana) return;
@@ -216,10 +221,12 @@ export function useSchemasAndRefiners(): UseSchemasAndRefinersReturn {
           setSchemaName("");
           setSchemaType("");
           setSchemaDefinition("");
-          // Refresh counts
-          setTimeout(() => {
-            void loadSchemas();
-          }, 2000);
+          // Update count (page component handles reloading current page)
+          if (vana) {
+            setTimeout(() => {
+              vana.schemas.count().then(setSchemasCount).catch(console.error);
+            }, 2000);
+          }
         },
       },
     );
@@ -336,19 +343,22 @@ export function useSchemasAndRefiners(): UseSchemasAndRefinersReturn {
     await handler();
   }, [vana, updateRefinerId, updateSchemaId, loadRefiners]);
 
-  // Load schemas and refiners when Vana is initialized
+  // Load only count on init (page component handles actual schema loading with pagination)
   useEffect(() => {
     if (vana && address) {
-      void loadSchemas();
       void loadRefiners();
+      // Load schema count only
+      vana.schemas.count().then(setSchemasCount).catch(console.error);
     }
-  }, [vana, address, loadSchemas, loadRefiners]);
+  }, [vana, address, loadRefiners]);
 
   // Clear state when wallet disconnects
   useEffect(() => {
     if (!address) {
       setSchemas([]);
+      setSchemasCount(0);
       setRefiners([]);
+      setRefinersCount(0);
       setSchemaName("");
       setSchemaType("");
       setSchemaDefinition("");

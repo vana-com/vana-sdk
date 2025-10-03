@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { FormBuilder } from "@/components/ui/FormBuilder";
 import type { VanaContractName } from "@opendatalabs/vana-sdk/browser";
+import { convertIpfsUrl } from "@opendatalabs/vana-sdk/browser";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SchemaIdDisplay } from "@/components/ui/SchemaIdDisplay";
 import { RefinerIdDisplay } from "@/components/ui/RefinerIdDisplay";
@@ -36,6 +37,7 @@ import { DlpIdDisplay } from "@/components/ui/DlpIdDisplay";
 import { SchemaCreationForm } from "@/components/ui/SchemaCreationForm";
 import { SchemaValidationTab } from "@/components/ui/SchemaValidationTab";
 import { AdvancedToolsTab } from "@/components/ui/AdvancedToolsTab";
+import { SchemaDefinitionModal } from "@/components/ui/SchemaDefinitionModal";
 import { useSchemasAndRefiners } from "@/hooks/useSchemasAndRefiners";
 import { useVana } from "@/providers/VanaProvider";
 import { getContractUrl } from "@/lib/explorer";
@@ -108,6 +110,14 @@ export default function DeveloperToolsPage() {
 
   const [activeTab, setActiveTab] = React.useState("schemas");
 
+  // Schema definition modal state
+  const [schemaModalOpen, setSchemaModalOpen] = React.useState(false);
+  const [selectedSchemaForModal, setSelectedSchemaForModal] = React.useState<{
+    id: number;
+    name: string;
+    definitionUrl: string;
+  } | null>(null);
+
   // Schemas pagination state
   const [schemasCurrentPage, setSchemasCurrentPage] = React.useState(1);
   const SCHEMAS_PER_PAGE = 10;
@@ -116,12 +126,12 @@ export default function DeveloperToolsPage() {
   const [refinersCurrentPage, setRefinersCurrentPage] = React.useState(1);
   const REFINERS_PER_PAGE = 10;
 
-  // Calculate paginated schemas
-  const paginatedSchemas = useMemo(() => {
-    const startIndex = (schemasCurrentPage - 1) * SCHEMAS_PER_PAGE;
-    const endIndex = startIndex + SCHEMAS_PER_PAGE;
-    return schemas.slice(startIndex, endIndex);
-  }, [schemas, schemasCurrentPage, SCHEMAS_PER_PAGE]);
+  // Load schemas when page changes or count changes (new schema created)
+  React.useEffect(() => {
+    if (schemasCount > 0) {
+      void loadSchemas(schemasCurrentPage, SCHEMAS_PER_PAGE);
+    }
+  }, [schemasCurrentPage, schemasCount, loadSchemas, SCHEMAS_PER_PAGE]);
 
   // Calculate paginated refiners
   const paginatedRefiners = useMemo(() => {
@@ -130,13 +140,13 @@ export default function DeveloperToolsPage() {
     return refiners.slice(startIndex, endIndex);
   }, [refiners, refinersCurrentPage, REFINERS_PER_PAGE]);
 
-  const schemaTotalPages = Math.ceil(schemas.length / SCHEMAS_PER_PAGE);
+  const schemaTotalPages = Math.ceil(schemasCount / SCHEMAS_PER_PAGE);
   const refinersTotalPages = Math.ceil(refiners.length / REFINERS_PER_PAGE);
 
-  // Reset to first page when data changes
+  // Reset to first page when count changes
   React.useEffect(() => {
     setSchemasCurrentPage(1);
-  }, [schemas.length]);
+  }, [schemasCount]);
 
   React.useEffect(() => {
     setRefinersCurrentPage(1);
@@ -172,12 +182,12 @@ export default function DeveloperToolsPage() {
               <div>
                 <h3 className="text-lg font-semibold">Schemas</h3>
                 <p className="text-sm text-default-500">
-                  {schemas.length} schemas available
+                  {schemasCount} schemas available
                 </p>
               </div>
             </div>
             <Button
-              onPress={loadSchemas}
+              onPress={() => loadSchemas(schemasCurrentPage, SCHEMAS_PER_PAGE)}
               variant="bordered"
               size="sm"
               startContent={
@@ -216,7 +226,7 @@ export default function DeveloperToolsPage() {
                   <TableColumn>Actions</TableColumn>
                 </TableHeader>
                 <TableBody>
-                  {paginatedSchemas.map((schema) => (
+                  {schemas.map((schema) => (
                     <TableRow key={schema.id}>
                       <TableCell>
                         <SchemaIdDisplay
@@ -245,12 +255,16 @@ export default function DeveloperToolsPage() {
                       </TableCell>
                       <TableCell>
                         <Button
-                          as="a"
-                          href={schema.definitionUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
                           size="sm"
                           variant="flat"
+                          onPress={() => {
+                            setSelectedSchemaForModal({
+                              id: schema.id,
+                              name: schema.name,
+                              definitionUrl: schema.definitionUrl,
+                            });
+                            setSchemaModalOpen(true);
+                          }}
                           startContent={<ExternalLink className="h-3 w-3" />}
                         >
                           View Definition
@@ -261,7 +275,7 @@ export default function DeveloperToolsPage() {
                 </TableBody>
               </Table>
 
-              {schemas.length > SCHEMAS_PER_PAGE && (
+              {schemasCount > SCHEMAS_PER_PAGE && (
                 <div className="flex justify-center">
                   <Pagination
                     total={schemaTotalPages}
@@ -592,7 +606,9 @@ export default function DeveloperToolsPage() {
                       <TableCell>
                         <Button
                           as="a"
-                          href={refiner.refinementInstructionUrl}
+                          href={convertIpfsUrl(
+                            refiner.refinementInstructionUrl,
+                          )}
                           target="_blank"
                           rel="noopener noreferrer"
                           size="sm"
@@ -695,6 +711,20 @@ export default function DeveloperToolsPage() {
           {renderContractsTab()}
         </Tab>
       </Tabs>
+
+      {/* Schema Definition Modal */}
+      {selectedSchemaForModal && (
+        <SchemaDefinitionModal
+          isOpen={schemaModalOpen}
+          onClose={() => {
+            setSchemaModalOpen(false);
+            setSelectedSchemaForModal(null);
+          }}
+          schemaId={selectedSchemaForModal.id}
+          schemaName={selectedSchemaForModal.name}
+          definitionUrl={selectedSchemaForModal.definitionUrl}
+        />
+      )}
     </div>
   );
 }

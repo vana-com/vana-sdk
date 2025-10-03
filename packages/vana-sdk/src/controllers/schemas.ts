@@ -212,7 +212,6 @@ export class SchemaController extends BaseController {
       const uploadResult = await this.context.storageManager.upload(
         schemaBlob,
         `${name.replace(/[^a-zA-Z0-9]/g, "_")}.json`,
-        "ipfs", // Use IPFS for public schema storage
       );
 
       // Step 4: Register on blockchain

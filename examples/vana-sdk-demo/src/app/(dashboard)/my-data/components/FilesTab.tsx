@@ -27,13 +27,14 @@ import {
   RefreshCw,
   Key,
   Users,
+  FileJson,
 } from "lucide-react";
 import type { Schema } from "@opendatalabs/vana-sdk/browser";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusDisplay } from "@/components/ui/StatusDisplay";
 import { CopyButton } from "@/components/ui/CopyButton";
-import { FilePreview } from "@/components/FilePreview";
+import { ContentPreviewModal } from "@/components/ui/ContentPreviewModal";
 import { FileIdDisplay } from "@/components/ui/FileIdDisplay";
 import { AddressDisplay } from "@/components/ui/AddressDisplay";
 import { ErrorMessage } from "@/components/ui/ErrorMessage";
@@ -111,6 +112,14 @@ export function FilesTab({
   setFilesSortDescriptor,
   setIsGrantModalOpen,
 }: FilesTabProps) {
+  // Content preview modal state
+  const [contentModalOpen, setContentModalOpen] = React.useState(false);
+  const [selectedContentForModal, setSelectedContentForModal] = React.useState<{
+    content: string;
+    url: string;
+    fileId: number;
+  } | null>(null);
+
   // Calculate paginated files
   const sortedFiles = [...userFiles];
 
@@ -425,33 +434,55 @@ export function FilesTab({
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="flat"
-                              onPress={() => {
-                                onDecryptFile(file);
-                              }}
-                              isLoading={isDecrypting}
-                              isDisabled={isDecrypting}
-                              startContent={
-                                !isDecrypting ? (
-                                  <Key className="h-3 w-3" />
-                                ) : undefined
-                              }
-                            >
-                              {isDecrypting ? "Decrypting..." : "Decrypt"}
-                            </Button>
-                            {decryptedContent && (
+                            {!decryptedContent ? (
                               <Button
                                 size="sm"
                                 variant="flat"
                                 onPress={() => {
-                                  onDownloadDecryptedFile(file);
+                                  onDecryptFile(file);
                                 }}
-                                startContent={<Download className="h-3 w-3" />}
+                                isLoading={isDecrypting}
+                                isDisabled={isDecrypting}
+                                startContent={
+                                  !isDecrypting ? (
+                                    <Key className="h-3 w-3" />
+                                  ) : undefined
+                                }
                               >
-                                Download
+                                {isDecrypting ? "Decrypting..." : "Decrypt"}
                               </Button>
+                            ) : (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="flat"
+                                  onPress={() => {
+                                    setSelectedContentForModal({
+                                      content: decryptedContent,
+                                      url: file.url,
+                                      fileId: file.id,
+                                    });
+                                    setContentModalOpen(true);
+                                  }}
+                                  startContent={
+                                    <FileJson className="h-3 w-3" />
+                                  }
+                                >
+                                  JSON Preview
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="flat"
+                                  onPress={() => {
+                                    onDownloadDecryptedFile(file);
+                                  }}
+                                  startContent={
+                                    <Download className="h-3 w-3" />
+                                  }
+                                >
+                                  Download
+                                </Button>
+                              </>
                             )}
                           </div>
                           {fileDecryptErrors.has(file.id) && (
@@ -462,17 +493,6 @@ export function FilesTab({
                                   onClearFileError(file.id);
                                 }}
                                 className="text-xs"
-                              />
-                            </div>
-                          )}
-                          {decryptedContent && (
-                            <div className="mt-2">
-                              <FilePreview
-                                content={decryptedContent}
-                                fileName={
-                                  file.url.split("/").pop() ?? `file-${file.id}`
-                                }
-                                className="max-w-md"
                               />
                             </div>
                           )}
@@ -499,6 +519,22 @@ export function FilesTab({
           )}
         </CardBody>
       </Card>
+
+      {/* File Content Modal */}
+      {selectedContentForModal && (
+        <ContentPreviewModal
+          isOpen={contentModalOpen}
+          onClose={() => {
+            setContentModalOpen(false);
+            setSelectedContentForModal(null);
+          }}
+          title="File Content"
+          subtitle={`${selectedContentForModal.url} (ID: ${selectedContentForModal.fileId})`}
+          icon={<Database className="h-5 w-5" />}
+          content={selectedContentForModal.content}
+          language="json"
+        />
+      )}
     </div>
   );
 }

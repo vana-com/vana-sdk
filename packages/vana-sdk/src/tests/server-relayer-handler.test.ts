@@ -20,6 +20,9 @@ function createMockSdk(): VanaInstance {
     data: {
       addFileWithPermissions: vi.fn().mockResolvedValue({
         hash: "0xfilehash" as `0x${string}`,
+        contract: "DataRegistry",
+        fn: "addFileWithPermissions",
+        from: "0xrelayer",
       }),
       addFileWithPermissionsAndSchema: vi.fn().mockResolvedValue({
         hash: "0xfilehash" as `0x${string}`,
@@ -226,6 +229,11 @@ describe("Server Relayer Handler", () => {
       expect(response).toEqual({
         type: "submitted",
         hash: "0xfilehash",
+        context: {
+          contract: "DataRegistry",
+          fn: "addFileWithPermissions",
+          from: "0xrelayer",
+        },
       });
     });
 
@@ -255,6 +263,11 @@ describe("Server Relayer Handler", () => {
       expect(response).toEqual({
         type: "submitted",
         hash: "0xfilehash",
+        context: {
+          contract: "DataRegistry",
+          fn: "addFileWithPermissions",
+          from: "0xrelayer",
+        },
       });
     });
 
@@ -411,6 +424,9 @@ describe("Server Relayer Handler", () => {
       // Mock the permissions.submitRegisterGrantee method
       mockSdk.permissions.submitRegisterGrantee = vi.fn().mockResolvedValue({
         hash: "0xgranteehash" as Hash,
+        contract: undefined,
+        fn: undefined,
+        from: undefined,
       });
 
       const request: UnifiedRelayerRequest = {
@@ -434,6 +450,11 @@ describe("Server Relayer Handler", () => {
       expect(response).toEqual({
         type: "submitted",
         hash: "0xgranteehash",
+        context: {
+          contract: undefined,
+          fn: undefined,
+          from: undefined,
+        },
       });
     });
 
@@ -482,9 +503,8 @@ describe("Server Relayer Handler", () => {
       mockSdk.permissions.submitRegisterGrantee = vi.fn().mockResolvedValue({
         hash: "0xregisterhash" as Hash,
         contract: "DataPortabilityGrantees" as const,
-        function: "registerGrantee" as const,
-        args: [],
-        status: "submitted" as const,
+        fn: undefined,
+        from: undefined,
       });
 
       const request: UnifiedRelayerRequest = {
@@ -502,6 +522,11 @@ describe("Server Relayer Handler", () => {
       expect(result).toEqual({
         type: "submitted",
         hash: "0xregisterhash",
+        context: {
+          contract: "DataPortabilityGrantees",
+          fn: undefined,
+          from: undefined,
+        },
       });
     });
 

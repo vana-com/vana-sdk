@@ -16,6 +16,7 @@ import type {
   PermissionGrantTypedData,
   GenericTypedData,
 } from "./permissions";
+import type { Contract, Fn } from "../generated/event-types";
 
 /**
  * Represents the response from storing grant files via relayer.
@@ -456,12 +457,33 @@ export type DirectRelayerRequest =
     };
 
 /**
+ * Context for transaction operations to enable proper event parsing.
+ *
+ * @remarks
+ * This context is preserved in relayer responses to enable client-side
+ * event parsing without requiring manual reconstruction of transaction details.
+ *
+ * @category Relayer
+ */
+export interface TransactionContext {
+  /** The contract that was called */
+  contract: Contract;
+  /** The function that was called on the contract */
+  fn: Fn<Contract>;
+  /** The address that initiated the transaction */
+  from: Address;
+}
+
+/**
  * Provides type-safe responses for all relayer operations.
  *
  * @remarks
  * The discriminated union ensures proper error handling and result typing.
  * Check the `type` field to determine success or failure before accessing results.
  * The new async pattern returns pending operations with operationIds for polling.
+ *
+ * Transaction responses include optional context to enable client-side event parsing
+ * through the enhanced response pattern.
  *
  * @category Relayer
  */
@@ -473,6 +495,8 @@ export type UnifiedRelayerResponse =
   | {
       type: "submitted";
       hash: Hash;
+      /** Optional context for client-side event parsing and enhanced responses */
+      context?: TransactionContext;
     }
   | {
       type: "confirmed";
@@ -483,6 +507,8 @@ export type UnifiedRelayerResponse =
   | {
       type: "signed";
       hash: Hash;
+      /** Optional context for client-side event parsing and enhanced responses */
+      context?: TransactionContext;
     }
   | {
       /** Non-transactional operations that complete immediately (e.g., IPFS uploads, file info) */

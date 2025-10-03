@@ -420,7 +420,15 @@ async function routeAndExecuteRequest(
       signature,
       options,
     );
-    return { type: "signed", hash: result.hash };
+    return {
+      type: "signed",
+      hash: result.hash,
+      context: {
+        contract: result.contract,
+        fn: result.fn,
+        from: result.from,
+      },
+    };
   } else if (request.type === "direct") {
     return await handleDirectOperation(sdk, request, options);
   }
@@ -558,8 +566,16 @@ async function handleDirectOperation(
         options,
       );
 
-      // Return as direct result wrapped in UnifiedRelayerResponse
-      return { type: "direct", result };
+      // Return as submitted with context for proper event parsing
+      return {
+        type: "submitted",
+        hash: result.hash,
+        context: {
+          contract: result.contract,
+          fn: result.fn,
+          from: result.from,
+        },
+      };
     }
 
     case "submitFileAdditionWithPermissions": {
@@ -573,8 +589,16 @@ async function handleDirectOperation(
         options,
       );
 
-      // Return as direct result wrapped in UnifiedRelayerResponse
-      return { type: "direct", result };
+      // Return as submitted with context for proper event parsing
+      return {
+        type: "submitted",
+        hash: result.hash,
+        context: {
+          contract: result.contract,
+          fn: result.fn,
+          from: result.from,
+        },
+      };
     }
 
     case "submitFileAdditionComplete": {
@@ -650,8 +674,16 @@ async function handleDirectOperation(
         publicKey,
       });
 
-      // Return as direct result wrapped in UnifiedRelayerResponse
-      return { type: "direct", result };
+      // Return as submitted with context for proper event parsing
+      return {
+        type: "submitted",
+        hash: result.hash,
+        context: {
+          contract: result.contract,
+          fn: result.fn,
+          from: result.from,
+        },
+      };
     }
 
     default: {

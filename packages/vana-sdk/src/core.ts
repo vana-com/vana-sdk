@@ -929,4 +929,53 @@ export class VanaCore {
     // TypeScript knows exactly what events are possible!
     return result;
   }
+
+  /**
+   * Enhances a unified relayer response with client-side behavior.
+   *
+   * @remarks
+   * This method wraps a relayer response in an enhanced object that provides
+   * a fluent `.wait()` method for handling asynchronous operations. The enhanced
+   * response intelligently handles both submitted transactions (via hash) and
+   * pending operations (via operationId).
+   *
+   * @param response - The unified relayer response to enhance
+   * @returns EnhancedTransactionResponse if the response can be enhanced, null otherwise
+   *
+   * @example
+   * ```typescript
+   * // Enhance a relayer response for fluent waiting
+   * const response = await handleRelayerOperation(vana, request);
+   * const enhanced = vana.enhanceRelayerResponse(response);
+   * if (enhanced) {
+   *   const result = await enhanced.wait();
+   *   if (result.expectedEvents?.FileAdded) {
+   *     console.log('File ID:', result.expectedEvents.FileAdded.fileId);
+   *   }
+   * }
+   * ```
+   *
+   * @example
+   * ```typescript
+   * // With status updates for pending operations
+   * const enhanced = vana.enhanceRelayerResponse(response);
+   * if (enhanced) {
+   *   const result = await enhanced.wait({
+   *     onStatusUpdate: (status) => {
+   *       console.log('Operation status:', status.type);
+   *     },
+   *     timeout: 60000 // 1 minute timeout
+   *   });
+   * }
+   * ```
+   *
+   * @category Relayer
+   * @since 0.2.0
+   */
+  public async enhanceRelayerResponse(
+    response: UnifiedRelayerResponse,
+  ): Promise<any> {
+    const { enhanceResponse } = await import("./client/enhancedResponse");
+    return enhanceResponse(response, this);
+  }
 }

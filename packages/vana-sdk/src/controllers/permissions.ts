@@ -3516,36 +3516,24 @@ export class PermissionsController extends BaseController {
     const limit = options.limit ?? 50;
     const offset = options.offset ?? 0;
 
-    const grantees: Grantee[] = [];
-
     // Fetch grantees in the requested range
     const endIndex = Math.min(offset + limit, total);
+    const granteeIds = Array.from(
+      { length: endIndex - offset },
+      (_, i) => offset + i + 1, // Grantee IDs are 1-indexed
+    );
 
-    for (let i = offset; i < endIndex; i++) {
-      try {
-        const granteeInfo = (await this.context.publicClient.readContract({
-          address: DataPortabilityGranteesAddress,
-          abi: DataPortabilityGranteesAbi,
-          functionName: "grantees",
-          args: [BigInt(i + 1)], // Grantee IDs are 1-indexed
-        })) as {
-          owner: Address;
-          granteeAddress: Address;
-          publicKey: string;
-          permissionIds: readonly bigint[];
-        };
+    // Fetch all grantees in parallel
+    const granteePromises = granteeIds.map((granteeId) =>
+      this.getGranteeById(granteeId),
+    );
 
-        grantees.push({
-          id: i + 1,
-          owner: granteeInfo.owner,
-          address: granteeInfo.granteeAddress,
-          publicKey: granteeInfo.publicKey,
-          permissionIds: granteeInfo.permissionIds.map((id) => Number(id)),
-        });
-      } catch (error) {
-        console.warn(`Failed to fetch grantee ${i + 1}:`, error);
-      }
-    }
+    const granteeResults = await Promise.all(granteePromises);
+
+    // Filter out null results
+    const grantees = granteeResults.filter(
+      (grantee): grantee is Grantee => grantee !== null,
+    );
 
     return {
       grantees,
@@ -3557,15 +3545,16 @@ export class PermissionsController extends BaseController {
   }
 
   /**
-   * Retrieves a specific grantee by their Ethereum address from the DataPortabilityGrantees contract.
+   * Retrieves a specific grantee by their Ethereum wallet address.
    *
+   * @remarks
    * Looks up a registered grantee (application) using their Ethereum address
-   * and returns their complete registration information including permissions.
+   * and returns their complete registration information including all associated permissions.
    *
-   * @param granteeAddress - The Ethereum address of the grantee to look up
-   * @returns Promise resolving to the grantee information, or null if not found
-   * @throws {BlockchainError} When contract read operation fails
-   * @throws {NetworkError} When unable to connect to the blockchain network
+   * Returns `null` if the address is not registered as a grantee or if an error occurs.
+   *
+   * @param granteeAddress - Ethereum wallet address of the grantee to query
+   * @returns Grantee information including ID, addresses, public key, and permission IDs, or `null` if not found
    *
    * @example
    * ```typescript
@@ -3591,19 +3580,7 @@ export class PermissionsController extends BaseController {
     const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
 
     try {
-      const granteeInfo = (await this.context.publicClient.readContract({
-        address: DataPortabilityGranteesAddress,
-        abi: DataPortabilityGranteesAbi,
-        functionName: "granteeByAddress",
-        args: [granteeAddress],
-      })) as {
-        owner: Address;
-        granteeAddress: Address;
-        publicKey: string;
-        permissionIds: readonly bigint[];
-      };
-
-      // Get the grantee ID
+      // Get the grantee ID from the address
       const granteeId = await this.context.publicClient.readContract({
         address: DataPortabilityGranteesAddress,
         abi: DataPortabilityGranteesAbi,
@@ -3611,13 +3588,13 @@ export class PermissionsController extends BaseController {
         args: [granteeAddress],
       });
 
-      return {
-        id: Number(granteeId),
-        owner: granteeInfo.owner,
-        address: granteeInfo.granteeAddress,
-        publicKey: granteeInfo.publicKey,
-        permissionIds: granteeInfo.permissionIds.map((id) => Number(id)),
-      };
+      // If granteeId is 0, the address is not registered
+      if (granteeId === 0n) {
+        return null;
+      }
+
+      // Use getGranteeById to fetch the complete grantee information with permissions
+      return await this.getGranteeById(Number(granteeId));
     } catch (error) {
       console.warn(`Failed to fetch grantee ${granteeAddress}:`, error);
       return null;
@@ -3625,15 +3602,16 @@ export class PermissionsController extends BaseController {
   }
 
   /**
-   * Retrieves a specific grantee by their unique ID from the DataPortabilityGrantees contract.
+   * Retrieves a specific grantee by their unique ID.
    *
+   * @remarks
    * Looks up a registered grantee (application) using their numeric ID assigned during
-   * registration and returns their complete information including permissions.
+   * registration and returns their complete information including all associated permissions.
    *
-   * @param granteeId - The unique numeric ID of the grantee (1-indexed)
-   * @returns Promise resolving to the grantee information, or null if not found
-   * @throws {BlockchainError} When contract read operation fails
-   * @throws {NetworkError} When unable to connect to the blockchain network
+   * Returns `null` if the grantee is not found or if an error occurs during fetching.
+   *
+   * @param granteeId - Unique numeric ID of the grantee (1-indexed)
+   * @returns Grantee information including ID, addresses, public key, and permission IDs, or `null` if not found
    *
    * @example
    * ```typescript
@@ -3641,7 +3619,7 @@ export class PermissionsController extends BaseController {
    *
    * if (grantee) {
    *   console.log(`Grantee ID: ${grantee.id}`);
-   *   console.log(`Address: ${grantee.granteeAddress}`);
+   *   console.log(`Address: ${grantee.address}`);
    *   console.log(`Owner: ${grantee.owner}`);
    *   console.log(`Total permissions: ${grantee.permissionIds.length}`);
    * } else {
@@ -3658,24 +3636,37 @@ export class PermissionsController extends BaseController {
     const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
 
     try {
-      const granteeInfo = (await this.context.publicClient.readContract({
-        address: DataPortabilityGranteesAddress,
-        abi: DataPortabilityGranteesAbi,
-        functionName: "grantees",
-        args: [BigInt(granteeId)],
-      })) as {
+      // Define contract return type for granteesV2
+      type GranteeV2Info = {
         owner: Address;
         granteeAddress: Address;
         publicKey: string;
-        permissionIds: readonly bigint[];
+        permissionsCount: bigint;
       };
+
+      // First, get the grantee info (now with permissionsCount instead of permissionIds)
+      const granteeInfoResult = await this.context.publicClient.readContract({
+        address: DataPortabilityGranteesAddress,
+        abi: DataPortabilityGranteesAbi,
+        functionName: "granteesV2",
+        args: [BigInt(granteeId)],
+      });
+
+      const granteeInfo = granteeInfoResult as GranteeV2Info;
+
+      // Fetch all permission IDs using pagination
+      const allPermissionIdsResult = await this.getGranteePermissionsPaginated(
+        BigInt(granteeId),
+      );
+
+      const allPermissionIds = allPermissionIdsResult as bigint[];
 
       return {
         id: granteeId,
         owner: granteeInfo.owner,
         address: granteeInfo.granteeAddress,
         publicKey: granteeInfo.publicKey,
-        permissionIds: granteeInfo.permissionIds.map((id) => Number(id)),
+        permissionIds: allPermissionIds.map((id) => Number(id)),
       };
     } catch (error) {
       console.warn(`Failed to fetch grantee ${granteeId}:`, error);
@@ -4154,28 +4145,38 @@ export class PermissionsController extends BaseController {
   // ===========================
 
   /**
-   * Get grantee information by grantee ID
+   * Retrieves detailed grantee information including all associated permissions.
    *
-   * @param granteeId - Grantee ID to get info for
-   * @returns Promise resolving to grantee info
+   * @remarks
+   * Returns grantee metadata and associated permission IDs. Uses the newer
+   * paginated contract method internally for efficient permission fetching.
+   *
+   * @param granteeId - Unique grantee identifier as bigint
+   * @returns Grantee information containing owner address, grantee address, public key, and permission IDs
+   * @throws {BlockchainError} When grantee ID is not found or contract read fails
+   *
+   * @example
+   * ```typescript
+   * const granteeInfo = await vana.permissions.getGranteeInfo(BigInt(1));
+   * console.log(`Grantee ${granteeInfo.granteeAddress} has ${granteeInfo.permissionIds.length} permissions`);
+   * ```
    */
   async getGranteeInfo(granteeId: bigint): Promise<GranteeInfo> {
     try {
-      const chainId = await this.context.publicClient.getChainId();
-      const DataPortabilityGranteesAddress = getContractAddress(
-        chainId,
-        "DataPortabilityGrantees",
-      );
-      const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
+      // Use getGranteeById to fetch the complete grantee information
+      const grantee = await this.getGranteeById(Number(granteeId));
 
-      const granteeInfo = await this.context.publicClient.readContract({
-        address: DataPortabilityGranteesAddress,
-        abi: DataPortabilityGranteesAbi,
-        functionName: "granteeInfo",
-        args: [granteeId],
-      });
+      if (!grantee) {
+        throw new Error("Grantee not found");
+      }
 
-      return granteeInfo;
+      // Return as GranteeInfo (without the id field)
+      return {
+        owner: grantee.owner,
+        granteeAddress: grantee.address,
+        publicKey: grantee.publicKey,
+        permissionIds: grantee.permissionIds.map((id) => BigInt(id)),
+      };
     } catch (error) {
       throw new BlockchainError(
         `Failed to get grantee info: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -4185,10 +4186,21 @@ export class PermissionsController extends BaseController {
   }
 
   /**
-   * Get grantee information by grantee address
+   * Retrieves detailed grantee information by wallet address.
    *
-   * @param granteeAddress - Grantee address to get info for
-   * @returns Promise resolving to grantee info
+   * @remarks
+   * Looks up the grantee ID from the provided address, then fetches complete
+   * grantee information including all associated permissions.
+   *
+   * @param granteeAddress - Ethereum wallet address of the grantee to query
+   * @returns Grantee information containing owner address, grantee address, public key, and permission IDs
+   * @throws {BlockchainError} When grantee address is not registered or contract read fails
+   *
+   * @example
+   * ```typescript
+   * const granteeInfo = await vana.permissions.getGranteeInfoByAddress("0x742d35Cc6634c0532925a3b844Bc9e8e1ee3b2De");
+   * console.log(`Found grantee with ${granteeInfo.permissionIds.length} permissions`);
+   * ```
    */
   async getGranteeInfoByAddress(granteeAddress: Address): Promise<GranteeInfo> {
     try {
@@ -4199,14 +4211,35 @@ export class PermissionsController extends BaseController {
       );
       const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
 
-      const granteeInfo = await this.context.publicClient.readContract({
+      // Get the grantee ID from the address
+      const granteeIdResult = await this.context.publicClient.readContract({
         address: DataPortabilityGranteesAddress,
         abi: DataPortabilityGranteesAbi,
-        functionName: "granteeByAddress",
+        functionName: "granteeAddressToId",
         args: [granteeAddress],
       });
 
-      return granteeInfo;
+      const granteeId = granteeIdResult as bigint;
+
+      // If granteeId is 0, the address is not registered
+      if (granteeId === 0n) {
+        throw new Error("Grantee not found");
+      }
+
+      // Use getGranteeById to fetch the complete grantee information
+      const grantee = await this.getGranteeById(Number(granteeId));
+
+      if (!grantee) {
+        throw new Error("Grantee not found");
+      }
+
+      // Return as GranteeInfo (without the id field)
+      return {
+        owner: grantee.owner,
+        granteeAddress: grantee.address,
+        publicKey: grantee.publicKey,
+        permissionIds: grantee.permissionIds.map((id) => BigInt(id)),
+      };
     } catch (error) {
       throw new BlockchainError(
         `Failed to get grantee info by address: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -4269,6 +4302,159 @@ export class PermissionsController extends BaseController {
       });
 
       return [...permissions];
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get grantee permissions: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Retrieves permission IDs for a specific grantee with flexible pagination.
+   *
+   * @remarks
+   * **Pagination Behavior:**
+   * Returns different types based on parameters:
+   * - Without offset/limit: Returns `bigint[]` of all permissions using batched multicall
+   * - With offset/limit: Returns paginated object with `permissionIds`, `totalCount`, and `hasMore`
+   *
+   * Uses gas-aware multicall for efficient batch fetching when retrieving all permissions.
+   *
+   * @param granteeId - Grantee ID to get permissions for
+   * @param options - Optional pagination parameters
+   * @param options.offset - Zero-based starting index for pagination. Defaults to 0 when fetching all permissions. Required for single-page requests.
+   * @param options.limit - Maximum number of permission IDs to return per page. Defaults to 100 when fetching all permissions. Required for single-page requests.
+   * @returns When called without options: Array of all permission IDs as `bigint[]`.
+   *   When called with offset and limit: Paginated result object containing `permissionIds` array,
+   *   `totalCount`, and `hasMore` boolean.
+   * @throws {BlockchainError} When contract read operation fails
+   *
+   * @example
+   * ```typescript
+   * // Fetch all permissions (no pagination params)
+   * const allPermissions = await vana.permissions.getGranteePermissionsPaginated(BigInt(1));
+   * console.log(`Total permissions: ${allPermissions.length}`);
+   *
+   * // Fetch a specific page (with pagination params)
+   * const page = await vana.permissions.getGranteePermissionsPaginated(BigInt(1), {
+   *   offset: BigInt(0),
+   *   limit: BigInt(100)
+   * });
+   * console.log(`Fetched ${page.permissionIds.length} permissions`);
+   * console.log(`Total: ${page.totalCount}, Has more: ${page.hasMore}`);
+   *
+   * // Fetch next page
+   * if (page.hasMore) {
+   *   const nextPage = await vana.permissions.getGranteePermissionsPaginated(BigInt(1), {
+   *     offset: BigInt(100),
+   *     limit: BigInt(100)
+   *   });
+   * }
+   * ```
+   */
+  async getGranteePermissionsPaginated(
+    granteeId: bigint,
+    options?: {
+      offset?: bigint;
+      limit?: bigint;
+    },
+  ): Promise<
+    | bigint[] // When fetching all (no options)
+    | {
+        // When fetching a specific page (with options)
+        permissionIds: bigint[];
+        totalCount: bigint;
+        hasMore: boolean;
+      }
+  > {
+    // Define contract return type once for all uses
+    type PaginatedResult = readonly [
+      permissionIds: readonly bigint[],
+      totalCount: bigint,
+      hasMore: boolean,
+    ];
+
+    try {
+      const chainId = await this.context.publicClient.getChainId();
+      const DataPortabilityGranteesAddress = getContractAddress(
+        chainId,
+        "DataPortabilityGrantees",
+      );
+      const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
+
+      // If both offset and limit are provided, fetch just that page
+      const fetchOnlyOnePage =
+        options?.offset !== undefined && options?.limit !== undefined;
+
+      if (fetchOnlyOnePage) {
+        // For single page requests, make a direct contract call
+        const result = await this.context.publicClient.readContract({
+          address: DataPortabilityGranteesAddress,
+          abi: DataPortabilityGranteesAbi,
+          functionName: "granteePermissionsPaginated",
+          args: [granteeId, options.offset!, options.limit!],
+        });
+
+        const [permissionIds, totalCount, hasMore] = result as PaginatedResult;
+
+        return {
+          permissionIds: [...permissionIds],
+          totalCount,
+          hasMore,
+        };
+      }
+
+      // For fetching all permissions, use gasAwareMulticall to batch pagination calls
+      // First, make an initial call to get the total count
+      const countResult = await this.context.publicClient.readContract({
+        address: DataPortabilityGranteesAddress,
+        abi: DataPortabilityGranteesAbi,
+        functionName: "granteePermissionsPaginated",
+        args: [granteeId, BigInt(0), BigInt(1)],
+      });
+
+      const [, totalCount] = countResult as PaginatedResult;
+
+      // If no permissions exist, return early
+      if (totalCount === BigInt(0)) {
+        return [];
+      }
+
+      // Build multicall contracts for all pages
+      const batchSize = options?.limit ?? BigInt(100);
+      const startOffset = options?.offset ?? BigInt(0);
+      const endOffset = totalCount;
+      const numBatches = Math.ceil(
+        Number(endOffset - startOffset) / Number(batchSize),
+      );
+      const paginationCalls = Array.from({ length: numBatches }, (_, i) => ({
+        address: DataPortabilityGranteesAddress,
+        abi: DataPortabilityGranteesAbi,
+        functionName: "granteePermissionsPaginated" as const,
+        args: [
+          granteeId,
+          startOffset + BigInt(i) * batchSize,
+          batchSize,
+        ] as const,
+      }));
+
+      // Execute all pagination calls in parallel using gasAwareMulticall
+      const results = await gasAwareMulticall<typeof paginationCalls, false>(
+        this.context.publicClient,
+        {
+          contracts: paginationCalls,
+        },
+      );
+
+      // Flatten all permission IDs from all pages
+      const allPermissionIds: bigint[] = [];
+      for (const result of results) {
+        const [permissionIds] = result as PaginatedResult;
+        allPermissionIds.push(...permissionIds);
+      }
+
+      return allPermissionIds;
     } catch (error) {
       throw new BlockchainError(
         `Failed to get grantee permissions: ${error instanceof Error ? error.message : "Unknown error"}`,

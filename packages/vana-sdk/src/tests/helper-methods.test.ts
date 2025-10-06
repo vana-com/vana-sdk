@@ -21,16 +21,35 @@ vi.mock("viem", () => ({
   keccak256: vi.fn(),
   toHex: vi.fn(),
   encodePacked: vi.fn(),
+  encodeFunctionData: vi.fn().mockReturnValue("0x1234"),
+  size: vi.fn().mockReturnValue(100),
 }));
 
 vi.mock("../config/addresses", () => ({
   getContractAddress: vi
     .fn()
     .mockReturnValue("0x1234567890123456789012345678901234567890"),
+  getUtilityAddress: vi.fn().mockReturnValue("0xMulticall3"),
 }));
 
 vi.mock("../generated/abi", () => ({
-  getAbi: vi.fn().mockReturnValue([]),
+  getAbi: vi.fn().mockReturnValue([
+    {
+      inputs: [
+        { name: "granteeId", type: "uint256" },
+        { name: "offset", type: "uint256" },
+        { name: "limit", type: "uint256" },
+      ],
+      name: "granteePermissionsPaginated",
+      outputs: [
+        { name: "permissionIds", type: "uint256[]" },
+        { name: "totalCount", type: "uint256" },
+        { name: "hasMore", type: "bool" },
+      ],
+      stateMutability: "view",
+      type: "function",
+    },
+  ]),
 }));
 
 interface MockWalletClient {
@@ -49,9 +68,11 @@ interface MockWalletClient {
 
 interface MockPublicClient {
   readContract: ReturnType<typeof vi.fn>;
+  multicall: ReturnType<typeof vi.fn>;
   waitForTransactionReceipt: ReturnType<typeof vi.fn>;
   getTransactionReceipt: ReturnType<typeof vi.fn>;
   getChainId: ReturnType<typeof vi.fn>;
+  estimateGas: ReturnType<typeof vi.fn>;
 }
 
 describe("PermissionsController - Helper Methods", () => {
@@ -88,6 +109,7 @@ describe("PermissionsController - Helper Methods", () => {
     // Create a mock publicClient
     mockPublicClient = {
       readContract: vi.fn(),
+      multicall: vi.fn(),
       waitForTransactionReceipt: vi.fn().mockResolvedValue({ logs: [] }),
       getTransactionReceipt: vi.fn().mockResolvedValue({
         transactionHash: "0xTransactionHash",
@@ -97,6 +119,7 @@ describe("PermissionsController - Helper Methods", () => {
         logs: [],
       }),
       getChainId: vi.fn().mockResolvedValue(14800),
+      estimateGas: vi.fn().mockResolvedValue(1000000n),
     };
 
     // Set up the context with all required mocks
@@ -123,7 +146,7 @@ describe("PermissionsController - Helper Methods", () => {
         expect(result).toEqual([BigInt(1), BigInt(2), BigInt(3)]);
         expect(mockPublicClient.readContract).toHaveBeenCalledWith({
           address: "0x1234567890123456789012345678901234567890",
-          abi: [],
+          abi: expect.any(Array),
           functionName: "userServerIdsValues",
           args: ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
         });
@@ -152,7 +175,7 @@ describe("PermissionsController - Helper Methods", () => {
         expect(result).toBe(BigInt(123));
         expect(mockPublicClient.readContract).toHaveBeenCalledWith({
           address: "0x1234567890123456789012345678901234567890",
-          abi: [],
+          abi: expect.any(Array),
           functionName: "userServerIdsAt",
           args: ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", BigInt(0)],
         });
@@ -168,7 +191,7 @@ describe("PermissionsController - Helper Methods", () => {
         expect(result).toBe(BigInt(5));
         expect(mockPublicClient.readContract).toHaveBeenCalledWith({
           address: "0x1234567890123456789012345678901234567890",
-          abi: [],
+          abi: expect.any(Array),
           functionName: "userServerIdsLength",
           args: ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
         });
@@ -195,7 +218,7 @@ describe("PermissionsController - Helper Methods", () => {
         expect(result).toEqual(mockServers);
         expect(mockPublicClient.readContract).toHaveBeenCalledWith({
           address: "0x1234567890123456789012345678901234567890",
-          abi: [],
+          abi: expect.any(Array),
           functionName: "userServerValues",
           args: ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
         });
@@ -223,7 +246,7 @@ describe("PermissionsController - Helper Methods", () => {
         expect(result).toEqual(mockServer);
         expect(mockPublicClient.readContract).toHaveBeenCalledWith({
           address: "0x1234567890123456789012345678901234567890",
-          abi: [],
+          abi: expect.any(Array),
           functionName: "userServers",
           args: ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", BigInt(1)],
         });
@@ -246,7 +269,7 @@ describe("PermissionsController - Helper Methods", () => {
         expect(result).toEqual(mockServerInfo);
         expect(mockPublicClient.readContract).toHaveBeenCalledWith({
           address: "0x1234567890123456789012345678901234567890",
-          abi: [],
+          abi: expect.any(Array),
           functionName: "servers",
           args: [BigInt(1)],
         });
@@ -269,7 +292,7 @@ describe("PermissionsController - Helper Methods", () => {
         expect(result).toEqual(mockServerInfo);
         expect(mockPublicClient.readContract).toHaveBeenCalledWith({
           address: "0x1234567890123456789012345678901234567890",
-          abi: [],
+          abi: expect.any(Array),
           functionName: "serverByAddress",
           args: ["0xserver1"],
         });
@@ -288,7 +311,7 @@ describe("PermissionsController - Helper Methods", () => {
         expect(result).toEqual([BigInt(1), BigInt(2), BigInt(3)]);
         expect(mockPublicClient.readContract).toHaveBeenCalledWith({
           address: "0x1234567890123456789012345678901234567890",
-          abi: [],
+          abi: expect.any(Array),
           functionName: "userPermissionIdsValues",
           args: ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
         });
@@ -307,7 +330,7 @@ describe("PermissionsController - Helper Methods", () => {
         expect(result).toBe(BigInt(456));
         expect(mockPublicClient.readContract).toHaveBeenCalledWith({
           address: "0x1234567890123456789012345678901234567890",
-          abi: [],
+          abi: expect.any(Array),
           functionName: "userPermissionIdsAt",
           args: ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", BigInt(1)],
         });
@@ -323,7 +346,7 @@ describe("PermissionsController - Helper Methods", () => {
         expect(result).toBe(BigInt(10));
         expect(mockPublicClient.readContract).toHaveBeenCalledWith({
           address: "0x1234567890123456789012345678901234567890",
-          abi: [],
+          abi: expect.any(Array),
           functionName: "userPermissionIdsLength",
           args: ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
         });
@@ -350,7 +373,7 @@ describe("PermissionsController - Helper Methods", () => {
         expect(result).toEqual(mockPermissionInfo);
         expect(mockPublicClient.readContract).toHaveBeenCalledWith({
           address: "0x1234567890123456789012345678901234567890",
-          abi: [],
+          abi: expect.any(Array),
           functionName: "permissions",
           args: [BigInt(123)],
         });
@@ -367,7 +390,7 @@ describe("PermissionsController - Helper Methods", () => {
         expect(result).toEqual([BigInt(10), BigInt(20), BigInt(30)]);
         expect(mockPublicClient.readContract).toHaveBeenCalledWith({
           address: "0x1234567890123456789012345678901234567890",
-          abi: [],
+          abi: expect.any(Array),
           functionName: "filePermissionIds",
           args: [BigInt(456)],
         });
@@ -384,7 +407,7 @@ describe("PermissionsController - Helper Methods", () => {
         expect(result).toEqual([BigInt(100), BigInt(200)]);
         expect(mockPublicClient.readContract).toHaveBeenCalledWith({
           address: "0x1234567890123456789012345678901234567890",
-          abi: [],
+          abi: expect.any(Array),
           functionName: "permissionFileIds",
           args: [BigInt(789)],
         });
@@ -401,7 +424,7 @@ describe("PermissionsController - Helper Methods", () => {
         expect(result).toEqual([BigInt(111), BigInt(222)]);
         expect(mockPublicClient.readContract).toHaveBeenCalledWith({
           address: "0x1234567890123456789012345678901234567890",
-          abi: [],
+          abi: expect.any(Array),
           functionName: "filePermissions",
           args: [BigInt(333)],
         });
@@ -412,44 +435,111 @@ describe("PermissionsController - Helper Methods", () => {
   describe("DataPortabilityGrantees Helper Methods", () => {
     describe("getGranteeInfo", () => {
       it("should successfully get grantee info", async () => {
-        const mockGranteeInfo = {
+        // Mock granteesV2 call
+        mockPublicClient.readContract.mockResolvedValueOnce({
+          owner: "0xowner" as `0x${string}`,
+          granteeAddress: "0xgrantee" as `0x${string}`,
+          publicKey: "0xpubkey",
+          permissionsCount: 2n,
+        });
+
+        // Mock getGranteePermissionsPaginated flow
+        // First: initial readContract call to get totalCount
+        mockPublicClient.readContract.mockResolvedValueOnce([
+          [], // Empty results for initial call
+          2n, // totalCount
+          true, // hasMore
+        ]);
+
+        // Second: multicall response
+        mockPublicClient.multicall.mockResolvedValueOnce([
+          [[BigInt(1), BigInt(2)], 2n, false], // Single batch with all permissions
+        ]);
+
+        const result = await controller.getGranteeInfo(BigInt(1));
+
+        expect(result).toEqual({
           owner: "0xowner" as `0x${string}`,
           granteeAddress: "0xgrantee" as `0x${string}`,
           publicKey: "0xpubkey",
           permissionIds: [BigInt(1), BigInt(2)],
-        };
-        mockPublicClient.readContract.mockResolvedValue(mockGranteeInfo);
+        });
 
-        const result = await controller.getGranteeInfo(BigInt(1));
-
-        expect(result).toEqual(mockGranteeInfo);
-        expect(mockPublicClient.readContract).toHaveBeenCalledWith({
+        // First call should be to granteesV2
+        expect(mockPublicClient.readContract).toHaveBeenNthCalledWith(1, {
           address: "0x1234567890123456789012345678901234567890",
-          abi: [],
-          functionName: "granteeInfo",
+          abi: expect.any(Array),
+          functionName: "granteesV2",
           args: [BigInt(1)],
+        });
+
+        // Second call should be to granteePermissionsPaginated (initial count call)
+        expect(mockPublicClient.readContract).toHaveBeenNthCalledWith(2, {
+          address: "0x1234567890123456789012345678901234567890",
+          abi: expect.any(Array),
+          functionName: "granteePermissionsPaginated",
+          args: [BigInt(1), BigInt(0), BigInt(1)],
         });
       });
     });
 
     describe("getGranteeInfoByAddress", () => {
       it("should successfully get grantee info by address", async () => {
-        const mockGranteeInfo = {
+        // Mock granteeAddressToId call
+        mockPublicClient.readContract.mockResolvedValueOnce(BigInt(1));
+
+        // Mock granteesV2 call
+        mockPublicClient.readContract.mockResolvedValueOnce({
+          owner: "0xowner" as `0x${string}`,
+          granteeAddress: "0xgrantee" as `0x${string}`,
+          publicKey: "0xpubkey",
+          permissionsCount: 2n,
+        });
+
+        // Mock getGranteePermissionsPaginated flow
+        // First: initial readContract call to get totalCount
+        mockPublicClient.readContract.mockResolvedValueOnce([
+          [], // Empty results for initial call
+          2n, // totalCount
+          true, // hasMore
+        ]);
+
+        // Second: multicall response
+        mockPublicClient.multicall.mockResolvedValueOnce([
+          [[BigInt(1), BigInt(2)], 2n, false], // Single batch with all permissions
+        ]);
+
+        const result = await controller.getGranteeInfoByAddress("0xgrantee");
+
+        expect(result).toEqual({
           owner: "0xowner" as `0x${string}`,
           granteeAddress: "0xgrantee" as `0x${string}`,
           publicKey: "0xpubkey",
           permissionIds: [BigInt(1), BigInt(2)],
-        };
-        mockPublicClient.readContract.mockResolvedValue(mockGranteeInfo);
+        });
 
-        const result = await controller.getGranteeInfoByAddress("0xgrantee");
-
-        expect(result).toEqual(mockGranteeInfo);
-        expect(mockPublicClient.readContract).toHaveBeenCalledWith({
+        // First call should be to granteeAddressToId
+        expect(mockPublicClient.readContract).toHaveBeenNthCalledWith(1, {
           address: "0x1234567890123456789012345678901234567890",
-          abi: [],
-          functionName: "granteeByAddress",
+          abi: expect.any(Array),
+          functionName: "granteeAddressToId",
           args: ["0xgrantee"],
+        });
+
+        // Second call should be to granteesV2
+        expect(mockPublicClient.readContract).toHaveBeenNthCalledWith(2, {
+          address: "0x1234567890123456789012345678901234567890",
+          abi: expect.any(Array),
+          functionName: "granteesV2",
+          args: [BigInt(1)],
+        });
+
+        // Third call should be to granteePermissionsPaginated (initial count call)
+        expect(mockPublicClient.readContract).toHaveBeenNthCalledWith(3, {
+          address: "0x1234567890123456789012345678901234567890",
+          abi: expect.any(Array),
+          functionName: "granteePermissionsPaginated",
+          args: [BigInt(1), BigInt(0), BigInt(1)],
         });
       });
     });
@@ -464,7 +554,7 @@ describe("PermissionsController - Helper Methods", () => {
         expect(result).toEqual([BigInt(100), BigInt(200), BigInt(300)]);
         expect(mockPublicClient.readContract).toHaveBeenCalledWith({
           address: "0x1234567890123456789012345678901234567890",
-          abi: [],
+          abi: expect.any(Array),
           functionName: "granteePermissionIds",
           args: [BigInt(5)],
         });
@@ -481,7 +571,7 @@ describe("PermissionsController - Helper Methods", () => {
         expect(result).toEqual([BigInt(111), BigInt(222), BigInt(333)]);
         expect(mockPublicClient.readContract).toHaveBeenCalledWith({
           address: "0x1234567890123456789012345678901234567890",
-          abi: [],
+          abi: expect.any(Array),
           functionName: "granteePermissions",
           args: [BigInt(7)],
         });

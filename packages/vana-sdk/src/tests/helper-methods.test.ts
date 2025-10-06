@@ -21,6 +21,8 @@ vi.mock("viem", () => ({
   keccak256: vi.fn(),
   toHex: vi.fn(),
   encodePacked: vi.fn(),
+  encodeFunctionData: vi.fn().mockReturnValue("0x1234"),
+  size: vi.fn().mockReturnValue(100),
 }));
 
 vi.mock("../config/addresses", () => ({
@@ -70,6 +72,7 @@ interface MockPublicClient {
   waitForTransactionReceipt: ReturnType<typeof vi.fn>;
   getTransactionReceipt: ReturnType<typeof vi.fn>;
   getChainId: ReturnType<typeof vi.fn>;
+  estimateGas: ReturnType<typeof vi.fn>;
 }
 
 describe("PermissionsController - Helper Methods", () => {
@@ -116,6 +119,7 @@ describe("PermissionsController - Helper Methods", () => {
         logs: [],
       }),
       getChainId: vi.fn().mockResolvedValue(14800),
+      estimateGas: vi.fn().mockResolvedValue(1000000n),
     };
 
     // Set up the context with all required mocks

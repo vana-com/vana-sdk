@@ -1305,9 +1305,10 @@ describe("PermissionsController - Grantee Methods", () => {
       const result = await controller.getGranteePermissionsPaginated(granteeId);
 
       // Should return array of all permission IDs
+      expect(Array.isArray(result)).toBe(true);
       expect(result).toHaveLength(150);
-      expect(result[0]).toBe(1n);
-      expect(result[149]).toBe(150n);
+      expect((result as bigint[])[0]).toBe(1n);
+      expect((result as bigint[])[149]).toBe(150n);
 
       // Should make one readContract call to get total count
       expect(mockPublicClient.readContract).toHaveBeenCalledTimes(1);
@@ -1383,9 +1384,10 @@ describe("PermissionsController - Grantee Methods", () => {
       );
 
       // Should return all 120 permission IDs
+      expect(Array.isArray(result)).toBe(true);
       expect(result).toHaveLength(120);
-      expect(result[0]).toBe(1n);
-      expect(result[119]).toBe(120n);
+      expect((result as bigint[])[0]).toBe(1n);
+      expect((result as bigint[])[119]).toBe(120n);
 
       // Should make one readContract call to get total count
       expect(mockPublicClient.readContract).toHaveBeenCalledTimes(1);

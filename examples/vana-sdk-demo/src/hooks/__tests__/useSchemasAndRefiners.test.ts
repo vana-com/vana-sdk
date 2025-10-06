@@ -104,6 +104,7 @@ describe("useSchemasAndRefiners", () => {
     });
 
     mockVana.schemas.count.mockResolvedValue(2);
+    mockVana.schemas.list.mockResolvedValue(mockSchemas);
     mockVana.schemas.get.mockImplementation((id: number) =>
       Promise.resolve(mockSchemas.find((s) => s.id === id)),
     );
@@ -251,14 +252,11 @@ describe("useSchemasAndRefiners", () => {
       consoleSpy.mockRestore();
     });
 
-    it("handles individual schema loading failures gracefully", async () => {
-      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-      mockVana.schemas.get.mockImplementation((id: number) => {
-        if (id === 2) {
-          return Promise.reject(new Error("Schema not found"));
-        }
-        return Promise.resolve(mockSchemas.find((s) => s.id === id));
-      });
+    it("handles schema list loading failures gracefully", async () => {
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      mockVana.schemas.list.mockRejectedValue(new Error("List failed"));
 
       const { result } = renderHook(() => useSchemasAndRefiners());
 
@@ -266,10 +264,9 @@ describe("useSchemasAndRefiners", () => {
         await result.current.loadSchemas();
       });
 
-      expect(result.current.schemas).toHaveLength(1);
-      expect(result.current.schemas[0].id).toBe(1);
+      expect(result.current.schemas).toHaveLength(0);
       expect(consoleSpy).toHaveBeenCalledWith(
-        "Failed to load schema 2:",
+        "Failed to load schemas:",
         expect.any(Error),
       );
 
@@ -278,6 +275,9 @@ describe("useSchemasAndRefiners", () => {
 
     it("limits to 10 schemas when more are available", async () => {
       mockVana.schemas.count.mockResolvedValue(15);
+      // Return only 10 schemas even though count is 15
+      const limitedSchemas = mockSchemas.slice(0, 10);
+      mockVana.schemas.list.mockResolvedValue(limitedSchemas);
 
       const { result } = renderHook(() => useSchemasAndRefiners());
 
@@ -289,12 +289,16 @@ describe("useSchemasAndRefiners", () => {
       // Clear mocks to count only the explicit call
       vi.clearAllMocks();
       mockVana.schemas.count.mockResolvedValue(15);
+      mockVana.schemas.list.mockResolvedValue(limitedSchemas);
 
       await act(async () => {
         await result.current.loadSchemas();
       });
 
-      expect(mockVana.schemas.get).toHaveBeenCalledTimes(10);
+      expect(mockVana.schemas.list).toHaveBeenCalledWith({
+        limit: 10,
+        offset: 0,
+      });
       expect(result.current.schemasCount).toBe(15);
     });
 

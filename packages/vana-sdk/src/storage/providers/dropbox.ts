@@ -107,8 +107,14 @@ export class DropboxStorage implements StorageProvider {
       const result = (await response.json()) as DropboxUploadResponse;
       const sharedLinkUrl = await this.createSharedLink(result.path_lower);
 
+      // Convert the shareable URL to a direct download URL before returning.
+      // This ensures the correct, raw-content URL is stored on-chain.
+      const directDownloadUrl = sharedLinkUrl
+        .replace("www.dropbox.com", "dl.dropboxusercontent.com")
+        .replace("?dl=1", "");
+
       return {
-        url: sharedLinkUrl,
+        url: directDownloadUrl,
         size: file.size,
         contentType: file.type || "application/octet-stream",
         metadata: {
@@ -127,8 +133,9 @@ export class DropboxStorage implements StorageProvider {
   }
 
   async download(url: string): Promise<Blob> {
-    // Dropbox shared links for direct download need to be modified
-    const downloadUrl = url.replace("www.dropbox.com", "dl.dropboxusercontent.com").split('?')[0];
+    // URL to force a direct download instead of showing the preview page.
+    // This is done by changing the hostname from 'www.dropbox.com' to 'dl.dropboxusercontent.com'.
+    const downloadUrl = url.replace("www.dropbox.com", "dl.dropboxusercontent.com");
     try {
       const response = await fetch(downloadUrl);
 

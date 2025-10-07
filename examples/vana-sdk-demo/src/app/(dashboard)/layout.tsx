@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import {
@@ -77,21 +77,41 @@ export default function DashboardLayout({
     useGaslessTransactions: true,
   });
 
+  // Listen for successful Google Drive authentication from the popup window
+  useEffect(() => {
+    const handleAuthMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) {
+        return;
+      }
+
+      const { type, tokens } = event.data;
+
+      if (type === "GOOGLE_DRIVE_AUTH_SUCCESS" && tokens) {
+        console.info("✅ Google Drive authentication successful, updating state.");
+        setSdkConfig((prev) => ({
+          ...prev,
+          googleDriveAccessToken: tokens.accessToken,
+          googleDriveRefreshToken: tokens.refreshToken,
+          googleDriveExpiresAt: tokens.expiresAt,
+          defaultStorageProvider: "google-drive",
+        }));
+      }
+    };
+
+    window.addEventListener("message", handleAuthMessage);
+
+    return () => {
+      window.removeEventListener("message", handleAuthMessage);
+    };
+  }, []); // Empty dependency array ensures this runs only once
+
   // Google Drive authentication handlers
   const handleGoogleDriveAuth = () => {
-    const authWindow = window.open(
+    window.open(
       "/api/auth/google-drive/authorize",
       "google-drive-auth",
       "width=600,height=700,scrollbars=yes,resizable=yes",
     );
-
-    // Monitor auth window closure
-    const checkClosed = setInterval(() => {
-      if (authWindow?.closed) {
-        clearInterval(checkClosed);
-        console.info("Google Drive auth window closed");
-      }
-    }, 1000);
   };
 
   const handleGoogleDriveDisconnect = () => {

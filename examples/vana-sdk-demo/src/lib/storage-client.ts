@@ -15,6 +15,7 @@ import {
   CallbackStorage,
   PinataStorage,
   GoogleDriveStorage,
+  DropboxStorage,
   type StorageCallbacks,
   type StorageProvider,
 } from "@opendatalabs/vana-sdk/browser";
@@ -31,6 +32,10 @@ export interface StorageConfig {
   googleDriveAccessToken?: string;
   /** Google Drive refresh token */
   googleDriveRefreshToken?: string;
+  /** Dropbox access token */
+  dropboxAccessToken?: string;
+  /** Dropbox refresh token */
+  dropboxRefreshToken?: string;
   /** Default provider to use */
   defaultProvider?: string;
 }
@@ -105,6 +110,14 @@ export function createClientStorageManager(
     providers["google-drive"] = new GoogleDriveStorage({
       accessToken: config.googleDriveAccessToken,
       refreshToken: config.googleDriveRefreshToken,
+    });
+  }
+
+  // Add user-provided Dropbox if configured
+  if (config.dropboxAccessToken) {
+    providers["dropbox"] = new DropboxStorage({
+      accessToken: config.dropboxAccessToken,
+      refreshToken: config.dropboxRefreshToken,
     });
   }
 

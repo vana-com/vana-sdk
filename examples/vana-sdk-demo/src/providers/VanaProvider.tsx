@@ -195,7 +195,7 @@ export function VanaProvider({
   enableReadOnlyMode = false,
   readOnlyAddress,
 }: VanaProviderProps) {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chainId } = useAccount();
   const { data: walletClient } = useWalletClient();
   const [vana, setVana] = useState<VanaInstance | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -268,7 +268,7 @@ export function VanaProvider({
               const response = await fetch(`${baseUrl}/api/relay`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(request, (_key, value) =>
+                body: JSON.stringify({ ...request, chainId }, (_key, value) =>
                   typeof value === "bigint" ? value.toString() : value,
                 ),
               });
@@ -338,9 +338,8 @@ export function VanaProvider({
     isConnected,
     walletClient,
     address,
-    config.relayerUrl,
-    config.subgraphUrl,
-    config.defaultStorageProvider,
+    chainId,
+    config,
     useGaslessTransactions,
     enableReadOnlyMode,
     readOnlyAddress,

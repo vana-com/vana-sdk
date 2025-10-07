@@ -11,6 +11,8 @@ import {
   Vana,
   RedisAtomicStore,
   handleRelayerOperation,
+  mokshaTestnet,
+  vanaMainnet,
 } from "@opendatalabs/vana-sdk/node";
 import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -65,6 +67,7 @@ export async function GET(request: NextRequest) {
 
     const account = privateKeyToAccount(privateKey as `0x${string}`);
     const chainId = process.env.NEXT_PUBLIC_MOKSHA === "true" ? 14800 : 1480;
+    const chain = chainId === 14800 ? mokshaTestnet : vanaMainnet;
     const rpcUrl =
       chainId === 14800
         ? (process.env.RPC_URL_VANA_MOKSHA ?? "https://rpc.moksha.vana.org")
@@ -72,11 +75,13 @@ export async function GET(request: NextRequest) {
 
     // Create clients
     const publicClient = createPublicClient({
+      chain,
       transport: http(rpcUrl),
     });
 
     const walletClient = createWalletClient({
       account,
+      chain,
       transport: http(rpcUrl),
     });
 

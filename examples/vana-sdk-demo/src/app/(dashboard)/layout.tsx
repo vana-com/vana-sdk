@@ -63,6 +63,9 @@ export default function DashboardLayout({
     googleDriveAccessToken: "",
     googleDriveRefreshToken: "",
     googleDriveExpiresAt: null as number | null,
+    dropboxAccessToken: "",
+    dropboxRefreshToken: "",
+    dropboxExpiresAt: null as number | null,
     defaultPersonalServerUrl:
       process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL ??
       (() => {
@@ -96,6 +99,17 @@ export default function DashboardLayout({
           defaultStorageProvider: "google-drive",
         }));
       }
+
+      if (type === "DROPBOX_AUTH_SUCCESS" && tokens) {
+        console.info("✅ Dropbox authentication successful, updating state.");
+        setSdkConfig((prev) => ({
+          ...prev,
+          dropboxAccessToken: tokens.accessToken,
+          dropboxRefreshToken: tokens.refreshToken,
+          dropboxExpiresAt: tokens.expiresAt,
+          defaultStorageProvider: "dropbox",
+        }));
+      }
     };
 
     window.addEventListener("message", handleAuthMessage);
@@ -126,6 +140,29 @@ export default function DashboardLayout({
           : prev.defaultStorageProvider,
     }));
     console.info("Google Drive disconnected");
+  };
+
+  // Dropbox authentication handlers
+  const handleDropboxAuth = () => {
+    window.open(
+      "/api/auth/dropbox/authorize",
+      "dropbox-auth",
+      "width=600,height=700,scrollbars=yes,resizable=yes",
+    );
+  };
+
+  const handleDropboxDisconnect = () => {
+    setSdkConfig((prev) => ({
+      ...prev,
+      dropboxAccessToken: "",
+      dropboxRefreshToken: "",
+      dropboxExpiresAt: null,
+      defaultStorageProvider:
+        prev.defaultStorageProvider === "dropbox"
+          ? "app-ipfs"
+          : prev.defaultStorageProvider,
+    }));
+    console.info("Dropbox disconnected");
   };
 
   // Grant modal handlers (these will be used by pages via context if needed)
@@ -213,6 +250,8 @@ export default function DashboardLayout({
               }}
               onGoogleDriveAuth={handleGoogleDriveAuth}
               onGoogleDriveDisconnect={handleGoogleDriveDisconnect}
+              onDropboxAuth={handleDropboxAuth}
+              onDropboxDisconnect={handleDropboxDisconnect}
             />
           </div>
         </div>

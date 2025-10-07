@@ -16,6 +16,7 @@ import {
   CallbackStorage,
   PinataStorage,
   GoogleDriveStorage,
+  DropboxStorage,
   type VanaChain,
   type VanaInstance,
   type StorageProvider,

@@ -34,6 +34,9 @@ interface VanaConfig {
   googleDriveAccessToken?: string;
   googleDriveRefreshToken?: string;
   googleDriveExpiresAt?: number | null;
+  dropboxAccessToken?: string;
+  dropboxRefreshToken?: string;
+  dropboxExpiresAt?: number | null;
   defaultPersonalServerUrl?: string;
 }
 
@@ -138,12 +141,29 @@ const setupGoogleDriveStorage = async (
   }
 };
 
+// Helper to setup Dropbox storage
+const setupDropboxStorage = (
+  config: VanaConfig,
+  providers: Record<string, StorageProvider>,
+) => {
+  if (!config.dropboxAccessToken) return;
+
+  console.info("🔗 Adding Dropbox storage");
+  providers["dropbox"] = new DropboxStorage({
+    accessToken: config.dropboxAccessToken,
+    refreshToken: config.dropboxRefreshToken,
+    clientId: process.env.NEXT_PUBLIC_DROPBOX_CLIENT_ID,
+    clientSecret: process.env.DROPBOX_CLIENT_SECRET,
+  });
+};
+
 // Helper to determine default storage provider
 const getDefaultProvider = (config: VanaConfig): string => {
   const requested = config.defaultStorageProvider ?? "app-ipfs";
   if (requested === "user-ipfs" && !config.pinataJwt) return "app-ipfs";
   if (requested === "google-drive" && !config.googleDriveAccessToken)
     return "app-ipfs";
+  if (requested === "dropbox" && !config.dropboxAccessToken) return "app-ipfs";
   return requested;
 };
 
@@ -237,6 +257,7 @@ export function VanaProvider({
         console.info("🏢 Setting up app-managed IPFS storage");
         const storageProviders = createStorageProviders(config);
         await setupGoogleDriveStorage(config, storageProviders);
+        setupDropboxStorage(config, storageProviders);
         const actualDefaultProvider = getDefaultProvider(config);
 
         // Create unified relayer callback - demonstrates the proper pattern

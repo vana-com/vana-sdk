@@ -60,6 +60,7 @@ export { StorageError } from "../types/storage";
 
 // Export storage providers
 export { GoogleDriveStorage } from "./providers/google-drive";
+export { DropboxStorage } from "./providers/dropbox";
 export { IpfsStorage } from "./providers/ipfs";
 export { PinataStorage } from "./providers/pinata";
 export { CallbackStorage } from "./providers/callback-storage";

@@ -283,13 +283,6 @@ export type {
   TimeRange,
 } from "./utils";
 
-// Operation types
-export type {
-  TransactionOptions,
-  TransactionReceipt,
-  TransactionResult,
-} from "./operations";
-
 // Operation store types
 export type {
   IOperationStore,

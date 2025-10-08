@@ -1214,7 +1214,9 @@ describe("Server Relayer Handler", () => {
         },
       };
 
-      await handleRelayerOperation(mockSdk, request, { value: 123456789n });
+      await handleRelayerOperation(mockSdk, request, {
+        value: 123456789n,
+      } as TransactionOptions);
 
       expect(mockSdk.data.addFileWithPermissions).toHaveBeenCalledWith(
         "https://storage.example/file",
@@ -1234,7 +1236,9 @@ describe("Server Relayer Handler", () => {
         },
       };
 
-      await handleRelayerOperation(mockSdk, request, { gasPrice: 5000000000n });
+      await handleRelayerOperation(mockSdk, request, {
+        gasPrice: 5000000000n,
+      } as TransactionOptions);
 
       expect(mockSdk.data.addFileWithPermissions).toHaveBeenCalledWith(
         "https://storage.example/file",
@@ -1256,7 +1260,7 @@ describe("Server Relayer Handler", () => {
 
       await handleRelayerOperation(mockSdk, request, {
         maxFeePerGas: 30000000000n,
-      });
+      } as TransactionOptions);
 
       expect(mockSdk.data.addFileWithPermissions).toHaveBeenCalledWith(
         "https://storage.example/file",

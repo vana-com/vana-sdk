@@ -1,0 +1,328 @@
+/**
+ * @file Tests for data consistency with subgraph lag
+ */
+
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { DataController } from "../data";
+import type { ControllerContext } from "../../types/controller-context";
+import { StaleDataError } from "../../utils/subgraphConsistency";
+import { createMockControllerContext } from "../../tests/factories/mockFactory";
+
+// Mock the subgraphConsistency module
+vi.mock("../../utils/subgraphConsistency", () => ({
+  checkSubgraphConsistency: vi.fn(),
+  fetchSubgraphMeta: vi.fn(),
+  StaleDataError: class StaleDataError extends Error {
+    constructor(
+      public readonly requiredBlock: number,
+      public readonly currentBlock: number,
+      message?: string,
+    ) {
+      super(
+        message ??
+          `Subgraph data is stale. Required block: ${requiredBlock}, Current block: ${currentBlock}`,
+      );
+      this.name = "StaleDataError";
+    }
+  },
+}));
+
+// Mock the subgraphPagination module  
+vi.mock("../../utils/subgraphPagination", () => ({
+  executePaginatedQuery: vi.fn(),
+  mapOrderByToEnum: vi.fn((orderBy, enumMap, defaultValue) => {
+    if (!orderBy) return defaultValue;
+    return enumMap[orderBy] ?? defaultValue;
+  }),
+  mapOrderDirection: vi.fn((direction, ascValue, descValue, defaultValue) => {
+    if (!direction) return defaultValue ?? descValue;
+    return direction === 'asc' ? ascValue : descValue;
+  }),
+}));
+
+// Mock GraphQL print
+vi.mock("graphql", () => ({
+  print: vi.fn(() => "mocked-query"),
+}));
+
+describe("DataController - Consistency", () => {
+  let controller: DataController;
+  let context: ControllerContext;
+  let mockFetch: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    
+    // Create test context with mocked fetch
+    context = createMockControllerContext({
+      subgraphUrl: "https://test-subgraph.com",
+    });
+    
+    // Mock global fetch
+    mockFetch = vi.fn();
+    global.fetch = mockFetch;
+    
+    controller = new DataController(context);
+  });
+
+  describe("getUserFiles with consistency options", () => {
+
+    it("should check consistency when minBlock is specified", async () => {
+      const { checkSubgraphConsistency } = await import("../../utils/subgraphConsistency");
+      const { executePaginatedQuery } = await import("../../utils/subgraphPagination");
+      const mockCheck = checkSubgraphConsistency as ReturnType<typeof vi.fn>;
+      const mockPaginate = executePaginatedQuery as ReturnType<typeof vi.fn>;
+      
+      // Setup mock to resolve successfully
+      mockCheck.mockResolvedValueOnce({
+        blockNumber: 1200,
+        deployment: "test",
+        hasIndexingErrors: false,
+      });
+
+      // Mock the paginated query to return files
+      mockPaginate.mockResolvedValueOnce([
+        { id: 1, url: "ipfs://Qm123", ownerAddress: "0x123", schemaId: 42, addedAtBlock: 1000n },
+        { id: 2, url: "ipfs://Qm456", ownerAddress: "0x123", schemaId: 43, addedAtBlock: 1100n },
+      ]);
+
+      // Call with minBlock option
+      await controller.getUserFiles(
+        { owner: "0x123" as any },
+        { minBlock: 1150 }
+      );
+
+      // Verify consistency was checked
+      expect(mockCheck).toHaveBeenCalledWith(
+        "https://test-subgraph.com",
+        { minBlock: 1150 }
+      );
+    });
+
+    it("should wait for sync when waitForSync is specified", async () => {
+      const { checkSubgraphConsistency } = await import("../../utils/subgraphConsistency");
+      const { executePaginatedQuery } = await import("../../utils/subgraphPagination");
+      const mockCheck = checkSubgraphConsistency as ReturnType<typeof vi.fn>;
+      const mockPaginate = executePaginatedQuery as ReturnType<typeof vi.fn>;
+      
+      // Setup mock to simulate waiting then succeeding
+      mockCheck.mockImplementation(async () => {
+        // Simulate a delay
+        await new Promise(resolve => setTimeout(resolve, 100));
+        return {
+          blockNumber: 1200,
+          deployment: "test",
+          hasIndexingErrors: false,
+        };
+      });
+
+      // Mock the paginated query
+      mockPaginate.mockResolvedValueOnce([
+        { id: 1, url: "ipfs://Qm123", ownerAddress: "0x123", schemaId: 42, addedAtBlock: 1000n },
+      ]);
+
+      // Call with waitForSync option
+      const startTime = Date.now();
+      await controller.getUserFiles(
+        { owner: "0x123" as any },
+        { minBlock: 1200, waitForSync: 5000 }
+      );
+      const elapsed = Date.now() - startTime;
+
+      // Verify it waited
+      expect(elapsed).toBeGreaterThanOrEqual(100);
+      expect(mockCheck).toHaveBeenCalledWith(
+        "https://test-subgraph.com",
+        { minBlock: 1200, waitForSync: 5000 }
+      );
+    });
+
+    it("should throw StaleDataError when subgraph is behind without waitForSync", async () => {
+      const { checkSubgraphConsistency } = await import("../../utils/subgraphConsistency");
+      const mockCheck = checkSubgraphConsistency as ReturnType<typeof vi.fn>;
+      
+      // Setup mock to throw StaleDataError
+      mockCheck.mockRejectedValueOnce(
+        new StaleDataError(1200, 1100, "Subgraph is behind")
+      );
+
+      // Attempt to get files with minBlock requirement
+      await expect(
+        controller.getUserFiles(
+          { owner: "0x123" as any },
+          { minBlock: 1200 }
+        )
+      ).rejects.toThrow(StaleDataError);
+    });
+
+    it("should apply pagination with default limit of 100", async () => {
+      const { executePaginatedQuery } = await import("../../utils/subgraphPagination");
+      const mockPaginate = executePaginatedQuery as ReturnType<typeof vi.fn>;
+      
+      // Create a large response with 150 files
+      const manyFiles = Array.from({ length: 100 }, (_, i) => ({
+        id: i + 1,
+        url: `ipfs://Qm${i}`,
+        ownerAddress: "0x123" as any,
+        schemaId: 42,
+        addedAtBlock: BigInt(1000 + i),
+        addedAtTimestamp: BigInt(1700000000 + i * 1000),
+        transactionHash: `0x${i.toString(16).padStart(64, '0')}` as any,
+      }));
+
+      // Mock to return exactly 100 files (default limit)
+      mockPaginate.mockResolvedValueOnce(manyFiles);
+
+      // Call without pagination options (should use default limit)
+      const result = await controller.getUserFiles({ owner: "0x123" as any });
+
+      // Should return only 100 files (default limit)
+      expect(result).toHaveLength(100);
+    });
+
+    it("should fetch all files when fetchAll is true", async () => {
+      const { executePaginatedQuery } = await import("../../utils/subgraphPagination");
+      const mockPaginate = executePaginatedQuery as ReturnType<typeof vi.fn>;
+      
+      // Create a large response with 150 files
+      const manyFiles = Array.from({ length: 150 }, (_, i) => ({
+        id: i + 1,
+        url: `ipfs://Qm${i}`,
+        ownerAddress: "0x123" as any,
+        schemaId: 42,
+        addedAtBlock: BigInt(1000 + i),
+        addedAtTimestamp: BigInt(1700000000 + i * 1000),
+        transactionHash: `0x${i.toString(16).padStart(64, '0')}` as any,
+      }));
+
+      // Mock to return all 150 files when fetchAll is true
+      mockPaginate.mockResolvedValueOnce(manyFiles);
+
+      // Call with fetchAll option
+      const result = await controller.getUserFiles(
+        { owner: "0x123" as any },
+        { fetchAll: true }
+      );
+
+      // Should return all 150 files
+      expect(result).toHaveLength(150);
+    });
+
+    it("should respect custom limit and offset", async () => {
+      const { executePaginatedQuery } = await import("../../utils/subgraphPagination");
+      const mockPaginate = executePaginatedQuery as ReturnType<typeof vi.fn>;
+      
+      // Mock to return only the second file
+      mockPaginate.mockResolvedValueOnce([
+        { id: 2, url: "ipfs://Qm456", ownerAddress: "0x123" as any, schemaId: 43, addedAtBlock: 1100n },
+      ]);
+
+      // Call with custom pagination
+      const result = await controller.getUserFiles(
+        { owner: "0x123" as any },
+        { limit: 1, offset: 1 }
+      );
+
+      // Should return only 1 file (the second one due to offset)
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe(2);
+    });
+
+    it("should sort by addedAtBlock descending by default", async () => {
+      const { executePaginatedQuery } = await import("../../utils/subgraphPagination");
+      const mockPaginate = executePaginatedQuery as ReturnType<typeof vi.fn>;
+      
+      // Mock returns files already sorted descending
+      mockPaginate.mockResolvedValueOnce([
+        { id: 2, url: "ipfs://Qm456", ownerAddress: "0x123" as any, schemaId: 43, addedAtBlock: 1100n },
+        { id: 1, url: "ipfs://Qm123", ownerAddress: "0x123" as any, schemaId: 42, addedAtBlock: 1000n },
+      ]);
+
+      const result = await controller.getUserFiles(
+        { owner: "0x123" as any },
+        { orderBy: 'addedAtBlock', orderDirection: 'desc' }
+      );
+
+      // Files should be sorted by block number descending
+      expect(result[0].addedAtBlock).toBe(1100n);
+      expect(result[1].addedAtBlock).toBe(1000n);
+    });
+
+    it("should handle ascending order", async () => {
+      const { executePaginatedQuery } = await import("../../utils/subgraphPagination");
+      const mockPaginate = executePaginatedQuery as ReturnType<typeof vi.fn>;
+      
+      // Mock returns files sorted ascending by ID
+      mockPaginate.mockResolvedValueOnce([
+        { id: 1, url: "ipfs://Qm123", ownerAddress: "0x123" as any, schemaId: 42, addedAtBlock: 1000n },
+        { id: 2, url: "ipfs://Qm456", ownerAddress: "0x123" as any, schemaId: 43, addedAtBlock: 1100n },
+      ]);
+
+      const result = await controller.getUserFiles(
+        { owner: "0x123" as any },
+        { orderBy: 'id', orderDirection: 'asc' }
+      );
+
+      // Files should be sorted by ID ascending
+      expect(result[0].id).toBe(1);
+      expect(result[1].id).toBe(2);
+    });
+  });
+
+  describe("XP Verification Scenario", () => {
+    it("should successfully verify a file after waiting for subgraph sync", async () => {
+      const { checkSubgraphConsistency } = await import("../../utils/subgraphConsistency");
+      const mockCheck = checkSubgraphConsistency as ReturnType<typeof vi.fn>;
+      
+      // Simulate a file that was just uploaded
+      const newFileId = 123;
+      const schemaId = 42;
+      const blockNumber = 1500;
+
+      // Setup consistency check to succeed after "waiting"
+      mockCheck.mockResolvedValueOnce({
+        blockNumber,
+        deployment: "test",
+        hasIndexingErrors: false,
+      });
+
+      // Mock response includes the new file
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: {
+            user: {
+              id: "0x123",
+              files: [
+                {
+                  id: String(newFileId),
+                  url: "ipfs://QmNewFile",
+                  owner: { id: "0x123" },
+                  schemaId: String(schemaId),
+                  addedAtBlock: String(blockNumber),
+                  addedAtTimestamp: "1700002000",
+                  transactionHash: "0xnew",
+                },
+              ],
+            },
+          },
+        }),
+      });
+
+      // Simulate the XP verification flow
+      const files = await controller.getUserFiles(
+        { owner: "0x123" as any },
+        { 
+          minBlock: blockNumber,
+          waitForSync: 30000,
+        }
+      );
+
+      // Verify the file can be found
+      const file = files.find(f => f.id === newFileId && f.schemaId === schemaId);
+      expect(file).toBeDefined();
+      expect(file?.id).toBe(newFileId);
+      expect(file?.schemaId).toBe(schemaId);
+    });
+  });
+});

@@ -431,7 +431,6 @@ describe("SchemaController", () => {
       expect(mockStorageManager.upload).toHaveBeenCalledWith(
         expect.any(Blob),
         "Test_Schema.json",
-        "ipfs",
       );
 
       expect(mockContext.walletClient?.writeContract).toHaveBeenCalledWith({
@@ -726,7 +725,6 @@ describe("SchemaController", () => {
       expect(mockStorageManager.upload).toHaveBeenCalledWith(
         expect.any(Blob),
         "Test_Schema_With__Special_Chars.json",
-        "ipfs",
       );
     });
   });

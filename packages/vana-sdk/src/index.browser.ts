@@ -165,6 +165,7 @@ export { DataController } from "./controllers/data";
 export { ServerController } from "./controllers/server";
 export { ProtocolController } from "./controllers/protocol";
 export { SchemaController } from "./controllers/schemas";
+export { OperationsController } from "./controllers/operations";
 
 // Contract controller
 export * from "./contracts/contractController";

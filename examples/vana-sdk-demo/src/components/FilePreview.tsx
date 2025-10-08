@@ -1,18 +1,21 @@
 import React from "react";
-import { Card, CardBody } from "@heroui/react";
-import { FileText, Image, FileJson } from "lucide-react";
+import { Card, CardBody, Button } from "@heroui/react";
+import { FileText, Image, FileJson, Maximize2 } from "lucide-react";
 import NextImage from "next/image";
 
 interface FilePreviewProps {
   content: string;
   fileName?: string;
   className?: string;
+  /** Callback to open full content modal */
+  onViewFull?: () => void;
 }
 
 export function FilePreview({
   content,
   fileName,
   className,
+  onViewFull,
 }: FilePreviewProps) {
   // Determine file type based on content or filename
   const getFileType = () => {
@@ -53,15 +56,29 @@ export function FilePreview({
       case "json":
         try {
           const parsed = JSON.parse(content);
+          const jsonString = JSON.stringify(parsed, null, 2);
+          const isTruncated = jsonString.length > 500;
           return (
             <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                <FileJson className="h-4 w-4" />
-                <span>JSON Preview</span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                  <FileJson className="h-4 w-4" />
+                  <span>JSON Preview</span>
+                </div>
+                {isTruncated && onViewFull && (
+                  <Button
+                    size="sm"
+                    variant="flat"
+                    onPress={onViewFull}
+                    startContent={<Maximize2 className="h-3 w-3" />}
+                  >
+                    View Full
+                  </Button>
+                )}
               </div>
               <pre className="text-xs bg-gray-50 dark:bg-gray-900 p-2 rounded overflow-auto max-h-32">
-                {JSON.stringify(parsed, null, 2).slice(0, 500)}
-                {JSON.stringify(parsed).length > 500 && "..."}
+                {jsonString.slice(0, 500)}
+                {isTruncated && "..."}
               </pre>
             </div>
           );

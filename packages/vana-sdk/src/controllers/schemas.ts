@@ -212,7 +212,6 @@ export class SchemaController extends BaseController {
       const uploadResult = await this.context.storageManager.upload(
         schemaBlob,
         `${name.replace(/[^a-zA-Z0-9]/g, "_")}.json`,
-        "ipfs", // Use IPFS for public schema storage
       );
 
       // Step 4: Register on blockchain
@@ -435,10 +434,26 @@ export class SchemaController extends BaseController {
       offset?: number;
       subgraphUrl?: string;
       includeDefinitions?: boolean;
+      minBlock?: number;
+      waitForSync?: number;
     } = {},
   ): Promise<Schema[]> {
-    const { limit = 100, offset = 0, includeDefinitions = false } = options;
+    const {
+      limit = 100,
+      offset = 0,
+      includeDefinitions = false,
+      minBlock,
+      waitForSync,
+    } = options;
     const subgraphUrl = options.subgraphUrl ?? this.context.subgraphUrl;
+
+    // Check consistency requirements if using subgraph
+    if (subgraphUrl && (minBlock || waitForSync)) {
+      const { checkSubgraphConsistency } = await import(
+        "../utils/subgraphConsistency"
+      );
+      await checkSubgraphConsistency(subgraphUrl, { minBlock, waitForSync });
+    }
 
     // Try subgraph first if available
     if (subgraphUrl) {

@@ -244,7 +244,7 @@ describe("Permissions Revoke via Relayer", () => {
       await expect(
         permissionsController.submitSignedRevoke(typedData, signature),
       ).rejects.toThrow(
-        "Invalid response from relayer: expected signed transaction",
+        "Invalid response from relayer: unexpected response type",
       );
     });
   });

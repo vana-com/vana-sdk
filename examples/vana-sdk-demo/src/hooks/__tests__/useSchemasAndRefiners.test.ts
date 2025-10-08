@@ -32,6 +32,7 @@ describe("useSchemasAndRefiners", () => {
     schemas: {
       count: vi.fn(),
       get: vi.fn(),
+      list: vi.fn(),
       create: vi.fn(),
     },
     data: {
@@ -103,6 +104,7 @@ describe("useSchemasAndRefiners", () => {
     });
 
     mockVana.schemas.count.mockResolvedValue(2);
+    mockVana.schemas.list.mockResolvedValue(mockSchemas);
     mockVana.schemas.get.mockImplementation((id: number) =>
       Promise.resolve(mockSchemas.find((s) => s.id === id)),
     );
@@ -120,9 +122,9 @@ describe("useSchemasAndRefiners", () => {
     it("returns default state when initialized", async () => {
       const { result } = renderHook(() => useSchemasAndRefiners());
 
-      // Initially loading should be true since the hook auto-loads when vana and address are available
+      // Initially loading refiners should be true, but schemas loading is handled by page component
       expect(result.current.schemas).toEqual([]);
-      expect(result.current.isLoadingSchemas).toBe(true);
+      expect(result.current.isLoadingSchemas).toBe(false);
       expect(result.current.schemasCount).toBe(0);
       expect(result.current.schemaName).toBe("");
       expect(result.current.schemaType).toBe("");
@@ -147,32 +149,27 @@ describe("useSchemasAndRefiners", () => {
       expect(result.current.isUpdatingSchema).toBe(false);
       expect(result.current.updateSchemaStatus).toBe("");
 
-      // Wait for auto-loading to complete
+      // Wait for auto-loading to complete (only refiners and schema count, not schemas themselves)
       await waitFor(() => {
-        expect(result.current.isLoadingSchemas).toBe(false);
         expect(result.current.isLoadingRefiners).toBe(false);
-        expect(result.current.schemas).toHaveLength(2);
         expect(result.current.refiners).toHaveLength(2);
+        expect(result.current.schemasCount).toBe(2);
       });
     });
 
-    it("loads schemas and refiners automatically when vana and address are available", async () => {
+    it("loads schema count and refiners automatically when vana and address are available", async () => {
       const { result } = renderHook(() => useSchemasAndRefiners());
 
       await waitFor(() => {
-        expect(result.current.schemas).toHaveLength(2);
+        expect(result.current.schemasCount).toBe(2);
         expect(result.current.refiners).toHaveLength(2);
       });
 
+      // Should load schema count but not individual schemas
       expect(mockVana.schemas.count).toHaveBeenCalled();
-      expect(mockVana.schemas.get).toHaveBeenCalledWith(1);
-      expect(mockVana.schemas.get).toHaveBeenCalledWith(2);
-      expect(result.current.schemasCount).toBe(2);
-      expect(result.current.schemas[0]).toEqual({
-        ...mockSchemas[0],
-        source: "discovered",
-      });
+      expect(mockVana.schemas.get).not.toHaveBeenCalled();
 
+      // Should still auto-load refiners
       expect(mockVana.data.getRefinersCount).toHaveBeenCalled();
       expect(mockVana.data.getRefiner).toHaveBeenCalledWith(1);
       expect(mockVana.data.getRefiner).toHaveBeenCalledWith(2);
@@ -255,14 +252,11 @@ describe("useSchemasAndRefiners", () => {
       consoleSpy.mockRestore();
     });
 
-    it("handles individual schema loading failures gracefully", async () => {
-      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-      mockVana.schemas.get.mockImplementation((id: number) => {
-        if (id === 2) {
-          return Promise.reject(new Error("Schema not found"));
-        }
-        return Promise.resolve(mockSchemas.find((s) => s.id === id));
-      });
+    it("handles schema list loading failures gracefully", async () => {
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      mockVana.schemas.list.mockRejectedValue(new Error("List failed"));
 
       const { result } = renderHook(() => useSchemasAndRefiners());
 
@@ -270,10 +264,9 @@ describe("useSchemasAndRefiners", () => {
         await result.current.loadSchemas();
       });
 
-      expect(result.current.schemas).toHaveLength(1);
-      expect(result.current.schemas[0].id).toBe(1);
+      expect(result.current.schemas).toHaveLength(0);
       expect(consoleSpy).toHaveBeenCalledWith(
-        "Failed to load schema 2:",
+        "Failed to load schemas:",
         expect.any(Error),
       );
 
@@ -282,6 +275,9 @@ describe("useSchemasAndRefiners", () => {
 
     it("limits to 10 schemas when more are available", async () => {
       mockVana.schemas.count.mockResolvedValue(15);
+      // Return only 10 schemas even though count is 15
+      const limitedSchemas = mockSchemas.slice(0, 10);
+      mockVana.schemas.list.mockResolvedValue(limitedSchemas);
 
       const { result } = renderHook(() => useSchemasAndRefiners());
 
@@ -293,12 +289,16 @@ describe("useSchemasAndRefiners", () => {
       // Clear mocks to count only the explicit call
       vi.clearAllMocks();
       mockVana.schemas.count.mockResolvedValue(15);
+      mockVana.schemas.list.mockResolvedValue(limitedSchemas);
 
       await act(async () => {
         await result.current.loadSchemas();
       });
 
-      expect(mockVana.schemas.get).toHaveBeenCalledTimes(10);
+      expect(mockVana.schemas.list).toHaveBeenCalledWith({
+        limit: 10,
+        offset: 0,
+      });
       expect(result.current.schemasCount).toBe(15);
     });
 

@@ -1,6 +1,12 @@
 import type { Address, Hash } from "viem";
 import { getAddress } from "viem";
+import type {
+  TransactionOptions,
+  TransactionResult,
+} from "../types/operations";
+
 import { gasAwareMulticall } from "../utils/multicall";
+import { PollingManager } from "../core/pollingManager";
 import type {
   GrantPermissionParams,
   RevokePermissionParams,
@@ -34,14 +40,12 @@ import type {
   ServerFilesAndPermissionParams,
   ServerFilesAndPermissionTypedData,
   Permission,
-  TransactionOptions,
 } from "../types/index";
 import type {
   PermissionGrantResult,
   PermissionRevokeResult,
   ServerTrustResult,
 } from "../types/transactionResults";
-import type { TransactionResult } from "../types/operations";
 import type { PermissionInfo } from "../types/permissions";
 import type { UnifiedRelayerRequest } from "../types/relayer";
 import {
@@ -173,11 +177,18 @@ export class PermissionsController extends BaseController {
    * await vana.permissions.revoke({ permissionId: result.permissionId });
    * ```
    */
-  async grant(params: GrantPermissionParams): Promise<PermissionGrantResult> {
+  async grant(
+    params: GrantPermissionParams,
+    options?: TransactionOptions,
+  ): Promise<PermissionGrantResult> {
     this.assertWallet();
     // Submit the transaction and wait for events internally
     const { typedData, signature } = await this.createAndSign(params);
-    const result = await this.submitSignedGrantWithEvents(typedData, signature);
+    const result = await this.submitSignedGrantWithEvents(
+      typedData,
+      signature,
+      options,
+    );
     return result;
   }
 
@@ -208,10 +219,11 @@ export class PermissionsController extends BaseController {
    */
   async submitPermissionGrant(
     params: GrantPermissionParams,
+    options?: TransactionOptions,
   ): Promise<TransactionResult<"DataPortabilityPermissions", "addPermission">> {
     this.assertWallet();
     const { typedData, signature } = await this.createAndSign(params);
-    return await this.submitSignedGrant(typedData, signature);
+    return await this.submitSignedGrant(typedData, signature, options);
   }
 
   /**
@@ -239,7 +251,10 @@ export class PermissionsController extends BaseController {
    * const transactionHash = await confirm();
    * ```
    */
-  async prepareGrant(params: GrantPermissionParams): Promise<{
+  async prepareGrant(
+    params: GrantPermissionParams,
+    options?: TransactionOptions,
+  ): Promise<{
     preview: GrantFile;
     confirm: () => Promise<PermissionGrantResult>;
   }> {
@@ -256,7 +271,11 @@ export class PermissionsController extends BaseController {
         preview: grantFile,
         confirm: async (): Promise<PermissionGrantResult> => {
           // Phase 2: Now we upload, sign, and submit
-          return await this.confirmGrantInternalWithEvents(params, grantFile);
+          return await this.confirmGrantInternalWithEvents(
+            params,
+            grantFile,
+            options,
+          );
         },
       };
     } catch (error) {
@@ -301,6 +320,7 @@ export class PermissionsController extends BaseController {
   private async confirmGrantInternal(
     params: GrantPermissionParams,
     grantFile: GrantFile,
+    options?: TransactionOptions,
   ): Promise<TransactionResult<"DataPortabilityPermissions", "addPermission">> {
     try {
       // Step 1: Use provided grantUrl or store grant file in IPFS
@@ -332,6 +352,7 @@ export class PermissionsController extends BaseController {
           if (
             response.type === "direct" &&
             typeof response.result === "object" &&
+            response.result !== null &&
             "url" in response.result
           ) {
             grantUrl = response.result.url as string;
@@ -376,7 +397,7 @@ export class PermissionsController extends BaseController {
       const signature = await this.signTypedData(typedData);
 
       // Step 5: Submit the signed grant
-      return await this.submitSignedGrant(typedData, signature);
+      return await this.submitSignedGrant(typedData, signature, options);
     } catch (error) {
       if (error instanceof Error) {
         // Re-throw known Vana errors directly
@@ -471,6 +492,7 @@ export class PermissionsController extends BaseController {
           if (
             response.type === "direct" &&
             typeof response.result === "object" &&
+            response.result !== null &&
             "url" in response.result
           ) {
             grantUrl = response.result.url as string;
@@ -564,6 +586,7 @@ export class PermissionsController extends BaseController {
   async submitSignedGrant(
     typedData: PermissionGrantTypedData,
     signature: Hash,
+    options?: TransactionOptions,
   ): Promise<TransactionResult<"DataPortabilityPermissions", "addPermission">> {
     try {
       console.debug(
@@ -586,14 +609,32 @@ export class PermissionsController extends BaseController {
           expectedUserAddress: this.context.userAddress,
         });
 
-        let hash: Hash;
-        if (response.type === "signed") {
-          hash = response.hash;
-        } else if (response.type === "error") {
+        // Handle different response types
+        if (response.type === "error") {
           throw new Error(`Relayer error: ${response.error}`);
+        }
+
+        let finalHash: Hash;
+
+        if (response.type === "submitted") {
+          // --- SIMPLE RELAYER PATH ---
+          finalHash = response.hash;
+        } else if (response.type === "pending") {
+          // --- ROBUST RELAYER PATH ---
+          const pollResult = await this.pollRelayerForConfirmation(
+            response.operationId,
+            options,
+          );
+          finalHash = pollResult.hash;
+        } else if (response.type === "confirmed") {
+          // Transaction confirmed immediately
+          finalHash = response.hash;
+        } else if (response.type === "signed") {
+          // Legacy response format
+          finalHash = response.hash;
         } else {
           throw new Error(
-            "Invalid response from relayer: expected signed transaction",
+            "Invalid response from relayer: unexpected response type",
           );
         }
 
@@ -601,13 +642,17 @@ export class PermissionsController extends BaseController {
           this.context.walletClient?.account ?? this.context.userAddress;
         const { tx } = await import("../utils/transactionHelpers");
         return tx({
-          hash,
+          hash: finalHash,
           from: typeof account === "string" ? account : account.address,
           contract: "DataPortabilityPermissions",
           fn: "addPermission",
         });
       } else {
-        return await this.submitDirectTransaction(typedData, signature);
+        return await this.submitDirectTransaction(
+          typedData,
+          signature,
+          options,
+        );
       }
     } catch (error) {
       // Re-throw known Vana errors directly to preserve error types
@@ -651,6 +696,7 @@ export class PermissionsController extends BaseController {
   async submitSignedTrustServer(
     typedData: TrustServerTypedData,
     signature: Hash,
+    options?: TransactionOptions,
   ): Promise<
     TransactionResult<"DataPortabilityServers", "trustServerWithSignature">
   > {
@@ -663,6 +709,7 @@ export class PermissionsController extends BaseController {
       const hash = await this.submitTrustServerTransaction(
         trustServerInput,
         signature,
+        options,
       );
       const account = this.context.userAddress;
       const { tx } = await import("../utils/transactionHelpers");
@@ -734,6 +781,7 @@ export class PermissionsController extends BaseController {
   async submitSignedAddAndTrustServer(
     typedData: AddAndTrustServerTypedData,
     signature: Hash,
+    options?: TransactionOptions,
   ): Promise<
     TransactionResult<
       "DataPortabilityServers",
@@ -751,6 +799,7 @@ export class PermissionsController extends BaseController {
       const hash = await this.submitAddAndTrustServerTransaction(
         addAndTrustServerInput,
         signature,
+        options,
       );
       const account =
         this.context.walletClient?.account ?? this.context.userAddress;
@@ -791,8 +840,13 @@ export class PermissionsController extends BaseController {
   private async submitSignedGrantWithEvents(
     typedData: PermissionGrantTypedData,
     signature: Hash,
+    options?: TransactionOptions,
   ): Promise<PermissionGrantResult> {
-    const txResult = await this.submitSignedGrant(typedData, signature);
+    const txResult = await this.submitSignedGrant(
+      typedData,
+      signature,
+      options,
+    );
 
     if (!this.context.waitForTransactionEvents) {
       throw new BlockchainError("waitForTransactionEvents not configured");
@@ -836,8 +890,13 @@ export class PermissionsController extends BaseController {
   private async confirmGrantInternalWithEvents(
     params: GrantPermissionParams,
     grantFile: GrantFile,
+    options?: TransactionOptions,
   ): Promise<PermissionGrantResult> {
-    const txResult = await this.confirmGrantInternal(params, grantFile);
+    const txResult = await this.confirmGrantInternal(
+      params,
+      grantFile,
+      options,
+    );
 
     if (!this.context.waitForTransactionEvents) {
       throw new BlockchainError("waitForTransactionEvents not configured");
@@ -871,6 +930,33 @@ export class PermissionsController extends BaseController {
   }
 
   /**
+   * Polls the relayer for confirmation of a pending operation.
+   *
+   * @param operationId - The operation ID to poll
+   * @param options - Polling configuration including status updates and cancellation
+   * @returns Promise resolving to the confirmed hash and receipt
+   * @throws {TransactionPendingError} When the operation times out
+   * @throws {Error} When the operation fails or is cancelled
+   * @internal
+   */
+  private async pollRelayerForConfirmation(
+    operationId: string,
+    options?: TransactionOptions,
+  ): Promise<{ hash: Hash; receipt?: unknown }> {
+    if (!this.context.relayer) {
+      throw new Error("Relayer not configured for polling");
+    }
+
+    const pollingManager = new PollingManager(this.context.relayer);
+
+    return await pollingManager.startPolling(operationId, {
+      signal: options?.signal,
+      onStatusUpdate: options?.onStatusUpdate,
+      ...options?.pollingOptions,
+    });
+  }
+
+  /**
    * Submits an already-signed permission revoke transaction to the blockchain.
    *
    * @remarks
@@ -894,6 +980,7 @@ export class PermissionsController extends BaseController {
   async submitSignedRevoke(
     typedData: GenericTypedData,
     signature: Hash,
+    options?: TransactionOptions,
   ): Promise<
     TransactionResult<
       "DataPortabilityPermissions",
@@ -912,19 +999,37 @@ export class PermissionsController extends BaseController {
           expectedUserAddress: this.context.userAddress,
         });
 
-        if (response.type === "signed") {
-          hash = response.hash;
-        } else if (response.type === "error") {
+        // Handle different response types
+        if (response.type === "error") {
           throw new Error(`Relayer error: ${response.error}`);
+        }
+
+        if (response.type === "submitted") {
+          // --- SIMPLE RELAYER PATH ---
+          hash = response.hash;
+        } else if (response.type === "pending") {
+          // --- ROBUST RELAYER PATH ---
+          const pollResult = await this.pollRelayerForConfirmation(
+            response.operationId,
+            options,
+          );
+          hash = pollResult.hash;
+        } else if (response.type === "confirmed") {
+          // Transaction confirmed immediately
+          hash = response.hash;
+        } else if (response.type === "signed") {
+          // Legacy response format
+          hash = response.hash;
         } else {
           throw new Error(
-            "Invalid response from relayer: expected signed transaction",
+            "Invalid response from relayer: unexpected response type",
           );
         }
       } else {
         hash = await this.submitDirectRevokeTransaction(
           typedData as RevokePermissionTypedData,
           signature,
+          options,
         );
       }
       const account =
@@ -977,6 +1082,7 @@ export class PermissionsController extends BaseController {
   async submitSignedUntrustServer(
     typedData: GenericTypedData,
     signature: Hash,
+    options?: TransactionOptions,
   ): Promise<
     TransactionResult<"DataPortabilityServers", "untrustServerWithSignature">
   > {
@@ -992,7 +1098,10 @@ export class PermissionsController extends BaseController {
           expectedUserAddress: this.context.userAddress,
         });
 
-        if (response.type === "signed") {
+        if (response.type === "submitted") {
+          hash = response.hash;
+        } else if (response.type === "signed") {
+          // Legacy response format
           hash = response.hash;
         } else if (response.type === "error") {
           throw new Error(`Relayer error: ${response.error}`);
@@ -1005,6 +1114,7 @@ export class PermissionsController extends BaseController {
         hash = await this.submitSignedUntrustTransaction(
           typedData as UntrustServerTypedData,
           signature,
+          options,
         );
       }
       const account =
@@ -1048,6 +1158,7 @@ export class PermissionsController extends BaseController {
   private async submitDirectTransaction(
     typedData: PermissionGrantTypedData,
     signature: Hash,
+    options?: TransactionOptions,
   ): Promise<TransactionResult<"DataPortabilityPermissions", "addPermission">> {
     this.assertWallet();
     const chainId = await this.context.publicClient.getChainId();
@@ -1090,6 +1201,7 @@ export class PermissionsController extends BaseController {
       args: [permissionInput, formattedSignature],
       account,
       chain: this.context.walletClient?.chain ?? null,
+      ...this.spreadTransactionOptions(options),
     });
 
     const { tx } = await import("../utils/transactionHelpers");
@@ -1212,7 +1324,7 @@ export class PermissionsController extends BaseController {
         args: [params.permissionId],
         account,
         chain: this.context.walletClient?.chain ?? null,
-        ...(options?.gasLimit && { gas: options.gasLimit }),
+        ...(options?.gas && { gas: options.gas }),
         ...(options?.nonce && { nonce: options.nonce }),
         // Use EIP-1559 if available, otherwise fall back to legacy gasPrice
         ...(options?.maxFeePerGas || options?.maxPriorityFeePerGas
@@ -1283,6 +1395,7 @@ export class PermissionsController extends BaseController {
    */
   async submitRevokeWithSignature(
     params: RevokePermissionParams,
+    options?: TransactionOptions,
   ): Promise<
     TransactionResult<
       "DataPortabilityPermissions",
@@ -1330,7 +1443,10 @@ export class PermissionsController extends BaseController {
           expectedUserAddress: this.context.userAddress,
         });
 
-        if (response.type === "signed") {
+        if (response.type === "submitted") {
+          hash = response.hash;
+        } else if (response.type === "signed") {
+          // Legacy response format
           hash = response.hash;
         } else if (response.type === "error") {
           throw new Error(`Relayer error: ${response.error}`);
@@ -1343,6 +1459,7 @@ export class PermissionsController extends BaseController {
         hash = await this.submitDirectRevokeTransaction(
           typedData as RevokePermissionTypedData,
           signature,
+          options,
         );
       }
 
@@ -1729,7 +1846,9 @@ export class PermissionsController extends BaseController {
   async getUserPermissionGrantsOnChain(
     options: GetUserPermissionsOptions = {},
   ): Promise<OnChainPermissionGrant[]> {
-    const { limit = 50, subgraphUrl } = options;
+    const { limit = 50, fetchAll = false, subgraphUrl } = options;
+    const pageSize = fetchAll ? 100 : limit; // Query efficiently based on mode
+    const maxResults = fetchAll ? 10000 : limit; // Reasonable max for fetchAll
 
     try {
       const userAddress = this.context.userAddress;
@@ -1743,12 +1862,12 @@ export class PermissionsController extends BaseController {
         );
       }
 
-      // Query the subgraph for user's permissions - SINGLE QUERY, NO LOOPS
+      // Query the subgraph for user's permissions with pagination
       const query = `
-        query GetUserPermissions($userId: ID!) {
+        query GetUserPermissions($userId: ID!, $first: Int!, $skip: Int!) {
           user(id: $userId) {
             id
-            permissions {
+            permissions(first: $first, skip: $skip, orderBy: addedAtBlock, orderDirection: desc) {
               id
               grant
               nonce
@@ -1767,56 +1886,121 @@ export class PermissionsController extends BaseController {
         }
       `;
 
-      const response = await fetch(graphqlEndpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          query,
-          variables: {
-            userId: userAddress.toLowerCase(),
+      const allPermissions: any[] = [];
+      let currentOffset = 0;
+
+      // If not fetching all, just get the requested limit in one query
+      if (!fetchAll) {
+        const response = await fetch(graphqlEndpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
           },
-        }),
-      });
-
-      if (!response.ok) {
-        throw new BlockchainError(
-          `Subgraph request failed: ${response.status} ${response.statusText}`,
-        );
-      }
-
-      const result = (await response.json()) as SubgraphPermissionsResponse;
-
-      if (result.errors) {
-        throw new BlockchainError(
-          `Subgraph errors: ${result.errors.map((e: { message: string }) => e.message).join(", ")}`,
-        );
-      }
-
-      const userData = result.data?.user;
-      if (!userData?.permissions?.length) {
-        return [];
-      }
-
-      // Process permissions without expensive network calls - FAST PATH
-      const onChainGrants: OnChainPermissionGrant[] = userData.permissions
-        .slice(0, limit)
-        .map(
-          (permission: NonNullable<typeof userData.permissions>[number]) => ({
-            id: BigInt(permission.id),
-            grantUrl: permission.grant,
-            grantSignature: permission.signature,
-            nonce: BigInt(permission.nonce),
-            startBlock: BigInt(permission.startBlock),
-            addedAtBlock: BigInt(permission.addedAtBlock),
-            addedAtTimestamp: BigInt(permission.addedAtTimestamp ?? "0"),
-            transactionHash: permission.transactionHash ?? "",
-            grantor: userAddress,
-            grantee: permission.grantee,
-            active: !permission.endBlock || BigInt(permission.endBlock) === 0n, // Active if no end block or end block is 0
+          body: JSON.stringify({
+            query,
+            variables: {
+              userId: userAddress.toLowerCase(),
+              first: limit,
+              skip: 0,
+            },
           }),
-        );
+        });
+
+        if (!response.ok) {
+          throw new BlockchainError(
+            `Subgraph request failed: ${response.status} ${response.statusText}`,
+          );
+        }
+
+        const result = (await response.json()) as SubgraphPermissionsResponse;
+
+        if (result.errors) {
+          throw new BlockchainError(
+            `Subgraph errors: ${result.errors.map((e: { message: string }) => e.message).join(", ")}`,
+          );
+        }
+
+        const userData = result.data?.user;
+
+        // If no permissions found, return empty array
+        if (!userData?.permissions?.length) {
+          return [];
+        }
+
+        allPermissions.push(...userData.permissions);
+      } else {
+        // Fetch permissions in batches for fetchAll
+        while (allPermissions.length < maxResults) {
+          const currentLimit = Math.min(
+            pageSize,
+            maxResults - allPermissions.length,
+          );
+
+          const response = await fetch(graphqlEndpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              query,
+              variables: {
+                userId: userAddress.toLowerCase(),
+                first: currentLimit,
+                skip: currentOffset,
+              },
+            }),
+          });
+
+          if (!response.ok) {
+            throw new BlockchainError(
+              `Subgraph request failed: ${response.status} ${response.statusText}`,
+            );
+          }
+
+          const result = (await response.json()) as SubgraphPermissionsResponse;
+
+          if (result.errors) {
+            throw new BlockchainError(
+              `Subgraph errors: ${result.errors.map((e: { message: string }) => e.message).join(", ")}`,
+            );
+          }
+
+          const userData = result.data?.user;
+
+          // If no permissions found in this batch, we're done
+          if (!userData?.permissions?.length) {
+            break;
+          }
+
+          // Add permissions from this batch
+          allPermissions.push(...userData.permissions);
+
+          // If we got fewer permissions than requested, we've reached the end
+          if (userData.permissions.length < currentLimit) {
+            break;
+          }
+
+          // Move to next batch
+          currentOffset += userData.permissions.length;
+        }
+      }
+
+      // Process all permissions without expensive network calls - FAST PATH
+      const onChainGrants: OnChainPermissionGrant[] = allPermissions.map(
+        (permission: any) => ({
+          id: BigInt(permission.id),
+          grantUrl: permission.grant,
+          grantSignature: permission.signature,
+          nonce: BigInt(permission.nonce),
+          startBlock: BigInt(permission.startBlock),
+          addedAtBlock: BigInt(permission.addedAtBlock),
+          addedAtTimestamp: BigInt(permission.addedAtTimestamp ?? "0"),
+          transactionHash: permission.transactionHash ?? "",
+          grantor: userAddress,
+          grantee: permission.grantee,
+          active: !permission.endBlock || BigInt(permission.endBlock) === 0n, // Active if no end block or end block is 0
+        }),
+      );
 
       return onChainGrants.sort((a, b) => {
         // Sort by ID - most recent first
@@ -2006,6 +2190,7 @@ export class PermissionsController extends BaseController {
    */
   async submitAddAndTrustServerWithSignature(
     params: AddAndTrustServerParams,
+    options?: TransactionOptions,
   ): Promise<
     TransactionResult<
       "DataPortabilityServers",
@@ -2058,7 +2243,10 @@ export class PermissionsController extends BaseController {
         if (response.type === "error") {
           throw new RelayerError(response.error);
         }
-        if (response.type === "signed") {
+        if (response.type === "submitted") {
+          hash = response.hash;
+        } else if (response.type === "signed") {
+          // Legacy response format
           hash = response.hash;
         } else {
           throw new Error("Unexpected response type from relayer");
@@ -2067,6 +2255,7 @@ export class PermissionsController extends BaseController {
         hash = await this.submitAddAndTrustServerTransaction(
           addAndTrustServerInput,
           signature,
+          options,
         );
       }
 
@@ -2118,6 +2307,7 @@ export class PermissionsController extends BaseController {
    */
   async submitTrustServerWithSignature(
     params: TrustServerParams,
+    options?: TransactionOptions,
   ): Promise<
     TransactionResult<"DataPortabilityServers", "trustServerWithSignature">
   > {
@@ -2150,7 +2340,10 @@ export class PermissionsController extends BaseController {
         if (response.type === "error") {
           throw new RelayerError(response.error);
         }
-        if (response.type === "signed") {
+        if (response.type === "submitted") {
+          hash = response.hash;
+        } else if (response.type === "signed") {
+          // Legacy response format
           hash = response.hash;
         } else {
           throw new Error("Unexpected response type from relayer");
@@ -2159,6 +2352,7 @@ export class PermissionsController extends BaseController {
         hash = await this.submitTrustServerTransaction(
           trustServerInput,
           signature,
+          options,
         );
       }
 
@@ -2234,7 +2428,7 @@ export class PermissionsController extends BaseController {
         args: [BigInt(params.serverId)],
         account,
         chain: this.context.walletClient?.chain ?? null,
-        ...(options?.gasLimit && { gas: options.gasLimit }),
+        ...(options?.gas && { gas: options.gas }),
         ...(options?.nonce && { nonce: options.nonce }),
         // Use EIP-1559 if available, otherwise fall back to legacy gasPrice
         ...(options?.maxFeePerGas || options?.maxPriorityFeePerGas
@@ -2361,7 +2555,10 @@ export class PermissionsController extends BaseController {
         if (response.type === "error") {
           throw new RelayerError(response.error);
         }
-        if (response.type === "signed") {
+        if (response.type === "submitted") {
+          hash = response.hash;
+        } else if (response.type === "signed") {
+          // Legacy response format
           hash = response.hash;
         } else {
           throw new Error("Unexpected response type from relayer");
@@ -2921,6 +3118,7 @@ export class PermissionsController extends BaseController {
   private async submitAddAndTrustServerTransaction(
     addAndTrustServerInput: AddAndTrustServerInput,
     signature: Hash,
+    options?: TransactionOptions,
   ): Promise<Hash> {
     this.assertWallet();
     const chainId = await this.context.walletClient.getChainId();
@@ -2960,6 +3158,19 @@ export class PermissionsController extends BaseController {
       ],
       account: this.context.walletClient?.account ?? this.context.userAddress,
       chain: this.context.walletClient?.chain ?? null,
+      ...(options && {
+        gas: options.gas,
+        nonce: options.nonce,
+        // Use EIP-1559 gas pricing if available, otherwise legacy
+        ...(options.maxFeePerGas || options.maxPriorityFeePerGas
+          ? {
+              maxFeePerGas: options.maxFeePerGas,
+              maxPriorityFeePerGas: options.maxPriorityFeePerGas,
+            }
+          : options.gasPrice
+            ? { gasPrice: options.gasPrice }
+            : {}),
+      }),
     });
 
     return txHash;
@@ -2975,6 +3186,7 @@ export class PermissionsController extends BaseController {
   private async submitTrustServerTransaction(
     trustServerInput: TrustServerInput,
     signature: Hash,
+    options?: TransactionOptions,
   ): Promise<Hash> {
     this.assertWallet();
     const chainId = await this.context.walletClient.getChainId();
@@ -3000,6 +3212,7 @@ export class PermissionsController extends BaseController {
       ],
       account: this.context.walletClient?.account ?? this.context.userAddress,
       chain: this.context.walletClient?.chain ?? null,
+      ...this.spreadTransactionOptions(options),
     });
 
     return txHash;
@@ -3015,6 +3228,7 @@ export class PermissionsController extends BaseController {
   private async submitDirectRevokeTransaction(
     typedData: RevokePermissionTypedData,
     signature: Hash,
+    options?: TransactionOptions,
   ): Promise<Hash> {
     this.assertWallet();
     const chainId = await this.context.walletClient.getChainId();
@@ -3034,6 +3248,19 @@ export class PermissionsController extends BaseController {
       args: [typedData.message, formattedSignature],
       account: this.context.walletClient?.account ?? this.context.userAddress,
       chain: this.context.walletClient?.chain ?? null,
+      ...(options && {
+        gas: options.gas,
+        nonce: options.nonce,
+        // Use EIP-1559 gas pricing if available, otherwise legacy
+        ...(options.maxFeePerGas || options.maxPriorityFeePerGas
+          ? {
+              maxFeePerGas: options.maxFeePerGas,
+              maxPriorityFeePerGas: options.maxPriorityFeePerGas,
+            }
+          : options.gasPrice
+            ? { gasPrice: options.gasPrice }
+            : {}),
+      }),
     });
 
     return txHash;
@@ -3049,6 +3276,7 @@ export class PermissionsController extends BaseController {
   private async submitSignedUntrustTransaction(
     typedData: UntrustServerTypedData,
     signature: Hash,
+    options?: TransactionOptions,
   ): Promise<Hash> {
     this.assertWallet();
     const chainId = await this.context.walletClient.getChainId();
@@ -3075,6 +3303,19 @@ export class PermissionsController extends BaseController {
       args: [contractMessage, formattedSignature],
       account: this.context.walletClient?.account ?? this.context.userAddress,
       chain: this.context.walletClient?.chain ?? null,
+      ...(options && {
+        gas: options.gas,
+        nonce: options.nonce,
+        // Use EIP-1559 gas pricing if available, otherwise legacy
+        ...(options.maxFeePerGas || options.maxPriorityFeePerGas
+          ? {
+              maxFeePerGas: options.maxFeePerGas,
+              maxPriorityFeePerGas: options.maxPriorityFeePerGas,
+            }
+          : options.gasPrice
+            ? { gasPrice: options.gasPrice }
+            : {}),
+      }),
     });
 
     return txHash;
@@ -3090,6 +3331,9 @@ export class PermissionsController extends BaseController {
    * A grantee is an entity (like an application) that can receive data permissions
    * from users. Once registered, users can grant the grantee access to their data.
    *
+   * This method supports gasless transactions via relayer when configured.
+   * If no relayer is available, it falls back to direct wallet transactions.
+   *
    * @param params - Parameters for registering the grantee
    * @param params.owner - The Ethereum address that will own this grantee registration
    * @param params.granteeAddress - The Ethereum address of the grantee (application)
@@ -3098,7 +3342,7 @@ export class PermissionsController extends BaseController {
    * @returns Promise resolving to the transaction hash
    * @throws {BlockchainError} When the grantee registration transaction fails
    * @throws {UserRejectedRequestError} When user rejects the transaction
-   * @throws {ContractError} When grantee is already registered
+   * @throws {RelayerError} When gasless transaction submission fails
    *
    * @example
    * ```typescript
@@ -3114,51 +3358,110 @@ export class PermissionsController extends BaseController {
     params: RegisterGranteeParams,
     options?: TransactionOptions,
   ): Promise<TransactionResult<"DataPortabilityGrantees", "registerGrantee">> {
-    this.assertWallet();
-    const chainId = await this.context.walletClient.getChainId();
-    const DataPortabilityGranteesAddress = getContractAddress(
-      chainId,
-      "DataPortabilityGrantees",
-    );
-    const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
+    try {
+      // Submit via unified relayer callback or direct transaction
+      let hash: Hash;
+      if (this.context.relayer) {
+        const request: UnifiedRelayerRequest = {
+          type: "direct",
+          operation: "submitRegisterGrantee",
+          params: {
+            owner: params.owner,
+            granteeAddress: params.granteeAddress,
+            publicKey: params.publicKey,
+          },
+        };
+        const response = await this.context.relayer(request);
+        if (response.type === "error") {
+          throw new RelayerError(response.error);
+        }
+        if (response.type === "submitted") {
+          hash = response.hash;
+        } else if (response.type === "direct") {
+          const result = response.result as { transactionHash: Hash };
+          hash = result.transactionHash;
+        } else {
+          throw new Error("Unexpected response type from relayer");
+        }
+      } else {
+        // Fall back to direct wallet transaction
+        this.assertWallet();
+        const chainId = await this.context.walletClient.getChainId();
+        const DataPortabilityGranteesAddress = getContractAddress(
+          chainId,
+          "DataPortabilityGrantees",
+        );
+        const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
 
-    const ownerAddress = getAddress(params.owner);
-    const granteeAddress = getAddress(params.granteeAddress);
-    const account =
-      this.context.walletClient?.account ?? this.context.userAddress;
+        const ownerAddress = getAddress(params.owner);
+        const granteeAddress = getAddress(params.granteeAddress);
+        const account =
+          this.context.walletClient?.account ?? this.context.userAddress;
 
-    const txHash = await this.context.walletClient.writeContract({
-      address: DataPortabilityGranteesAddress,
-      abi: DataPortabilityGranteesAbi,
-      functionName: "registerGrantee",
-      args: [ownerAddress, granteeAddress, params.publicKey],
-      account,
-      chain: this.context.walletClient?.chain ?? null,
-      ...(options?.gasLimit && { gas: options.gasLimit }),
-      ...(options?.nonce && { nonce: options.nonce }),
-      // Use EIP-1559 if available, otherwise fall back to legacy gasPrice
-      ...(options?.maxFeePerGas || options?.maxPriorityFeePerGas
-        ? {
-            ...(options.maxFeePerGas && { maxFeePerGas: options.maxFeePerGas }),
-            ...(options.maxPriorityFeePerGas && {
-              maxPriorityFeePerGas: options.maxPriorityFeePerGas,
-            }),
-          }
-        : options?.gasPrice && { gasPrice: options.gasPrice }),
-    });
+        hash = await this.context.walletClient.writeContract({
+          address: DataPortabilityGranteesAddress,
+          abi: DataPortabilityGranteesAbi,
+          functionName: "registerGrantee",
+          args: [ownerAddress, granteeAddress, params.publicKey],
+          account,
+          chain: this.context.walletClient?.chain ?? null,
+          ...this.spreadTransactionOptions(options),
+        });
+      }
 
-    const { tx } = await import("../utils/transactionHelpers");
-    return tx({
-      hash: txHash,
-      from: typeof account === "string" ? account : account.address,
-      contract: "DataPortabilityGrantees",
-      fn: "registerGrantee",
-    });
+      const account =
+        this.context.walletClient?.account ?? this.context.userAddress;
+      const { tx } = await import("../utils/transactionHelpers");
+      return tx({
+        hash,
+        from: typeof account === "string" ? account : account.address,
+        contract: "DataPortabilityGrantees",
+        fn: "registerGrantee",
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        // Re-throw known Vana errors directly
+        if (
+          error instanceof RelayerError ||
+          error instanceof UserRejectedRequestError ||
+          error instanceof SerializationError ||
+          error instanceof SignatureError ||
+          error instanceof BlockchainError
+        ) {
+          throw error;
+        }
+
+        // Handle viem contract errors
+        if (error.name === "ContractFunctionExecutionError") {
+          throw new BlockchainError(
+            `Grantee registration failed: ${error.message}`,
+            error,
+          );
+        }
+
+        // Handle user rejection
+        if (error.name === "UserRejectedRequestError") {
+          throw new UserRejectedRequestError(
+            "User rejected the grantee registration transaction",
+          );
+        }
+
+        // Handle other blockchain errors
+        throw new BlockchainError(
+          `Failed to register grantee: ${error.message}`,
+          error,
+        );
+      }
+
+      // Handle non-Error objects
+      throw new BlockchainError(`Failed to register grantee: ${String(error)}`);
+    }
   }
 
   // TODO: When DataPortabilityGrantees contract adds registerGranteeWithSignature function,
   // implement submitRegisterGranteeWithSignature and submitSignedRegisterGrantee methods
-  // to support gasless transactions via relayer
+  // to support EIP-712 signed gasless transactions via relayer.
+  // Current implementation above supports direct gasless transactions (relayer pays gas directly).
 
   /**
    * Retrieves all registered grantees from the DataPortabilityGrantees contract.
@@ -3213,36 +3516,24 @@ export class PermissionsController extends BaseController {
     const limit = options.limit ?? 50;
     const offset = options.offset ?? 0;
 
-    const grantees: Grantee[] = [];
-
     // Fetch grantees in the requested range
     const endIndex = Math.min(offset + limit, total);
+    const granteeIds = Array.from(
+      { length: endIndex - offset },
+      (_, i) => offset + i + 1, // Grantee IDs are 1-indexed
+    );
 
-    for (let i = offset; i < endIndex; i++) {
-      try {
-        const granteeInfo = (await this.context.publicClient.readContract({
-          address: DataPortabilityGranteesAddress,
-          abi: DataPortabilityGranteesAbi,
-          functionName: "grantees",
-          args: [BigInt(i + 1)], // Grantee IDs are 1-indexed
-        })) as {
-          owner: Address;
-          granteeAddress: Address;
-          publicKey: string;
-          permissionIds: readonly bigint[];
-        };
+    // Fetch all grantees in parallel
+    const granteePromises = granteeIds.map((granteeId) =>
+      this.getGranteeById(granteeId),
+    );
 
-        grantees.push({
-          id: i + 1,
-          owner: granteeInfo.owner,
-          address: granteeInfo.granteeAddress,
-          publicKey: granteeInfo.publicKey,
-          permissionIds: granteeInfo.permissionIds.map((id) => Number(id)),
-        });
-      } catch (error) {
-        console.warn(`Failed to fetch grantee ${i + 1}:`, error);
-      }
-    }
+    const granteeResults = await Promise.all(granteePromises);
+
+    // Filter out null results
+    const grantees = granteeResults.filter(
+      (grantee): grantee is Grantee => grantee !== null,
+    );
 
     return {
       grantees,
@@ -3254,15 +3545,16 @@ export class PermissionsController extends BaseController {
   }
 
   /**
-   * Retrieves a specific grantee by their Ethereum address from the DataPortabilityGrantees contract.
+   * Retrieves a specific grantee by their Ethereum wallet address.
    *
+   * @remarks
    * Looks up a registered grantee (application) using their Ethereum address
-   * and returns their complete registration information including permissions.
+   * and returns their complete registration information including all associated permissions.
    *
-   * @param granteeAddress - The Ethereum address of the grantee to look up
-   * @returns Promise resolving to the grantee information, or null if not found
-   * @throws {BlockchainError} When contract read operation fails
-   * @throws {NetworkError} When unable to connect to the blockchain network
+   * Returns `null` if the address is not registered as a grantee or if an error occurs.
+   *
+   * @param granteeAddress - Ethereum wallet address of the grantee to query
+   * @returns Grantee information including ID, addresses, public key, and permission IDs, or `null` if not found
    *
    * @example
    * ```typescript
@@ -3288,19 +3580,7 @@ export class PermissionsController extends BaseController {
     const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
 
     try {
-      const granteeInfo = (await this.context.publicClient.readContract({
-        address: DataPortabilityGranteesAddress,
-        abi: DataPortabilityGranteesAbi,
-        functionName: "granteeByAddress",
-        args: [granteeAddress],
-      })) as {
-        owner: Address;
-        granteeAddress: Address;
-        publicKey: string;
-        permissionIds: readonly bigint[];
-      };
-
-      // Get the grantee ID
+      // Get the grantee ID from the address
       const granteeId = await this.context.publicClient.readContract({
         address: DataPortabilityGranteesAddress,
         abi: DataPortabilityGranteesAbi,
@@ -3308,13 +3588,13 @@ export class PermissionsController extends BaseController {
         args: [granteeAddress],
       });
 
-      return {
-        id: Number(granteeId),
-        owner: granteeInfo.owner,
-        address: granteeInfo.granteeAddress,
-        publicKey: granteeInfo.publicKey,
-        permissionIds: granteeInfo.permissionIds.map((id) => Number(id)),
-      };
+      // If granteeId is 0, the address is not registered
+      if (granteeId === 0n) {
+        return null;
+      }
+
+      // Use getGranteeById to fetch the complete grantee information with permissions
+      return await this.getGranteeById(Number(granteeId));
     } catch (error) {
       console.warn(`Failed to fetch grantee ${granteeAddress}:`, error);
       return null;
@@ -3322,15 +3602,16 @@ export class PermissionsController extends BaseController {
   }
 
   /**
-   * Retrieves a specific grantee by their unique ID from the DataPortabilityGrantees contract.
+   * Retrieves a specific grantee by their unique ID.
    *
+   * @remarks
    * Looks up a registered grantee (application) using their numeric ID assigned during
-   * registration and returns their complete information including permissions.
+   * registration and returns their complete information including all associated permissions.
    *
-   * @param granteeId - The unique numeric ID of the grantee (1-indexed)
-   * @returns Promise resolving to the grantee information, or null if not found
-   * @throws {BlockchainError} When contract read operation fails
-   * @throws {NetworkError} When unable to connect to the blockchain network
+   * Returns `null` if the grantee is not found or if an error occurs during fetching.
+   *
+   * @param granteeId - Unique numeric ID of the grantee (1-indexed)
+   * @returns Grantee information including ID, addresses, public key, and permission IDs, or `null` if not found
    *
    * @example
    * ```typescript
@@ -3338,7 +3619,7 @@ export class PermissionsController extends BaseController {
    *
    * if (grantee) {
    *   console.log(`Grantee ID: ${grantee.id}`);
-   *   console.log(`Address: ${grantee.granteeAddress}`);
+   *   console.log(`Address: ${grantee.address}`);
    *   console.log(`Owner: ${grantee.owner}`);
    *   console.log(`Total permissions: ${grantee.permissionIds.length}`);
    * } else {
@@ -3355,24 +3636,37 @@ export class PermissionsController extends BaseController {
     const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
 
     try {
-      const granteeInfo = (await this.context.publicClient.readContract({
-        address: DataPortabilityGranteesAddress,
-        abi: DataPortabilityGranteesAbi,
-        functionName: "grantees",
-        args: [BigInt(granteeId)],
-      })) as {
+      // Define contract return type for granteesV2
+      type GranteeV2Info = {
         owner: Address;
         granteeAddress: Address;
         publicKey: string;
-        permissionIds: readonly bigint[];
+        permissionsCount: bigint;
       };
+
+      // First, get the grantee info (now with permissionsCount instead of permissionIds)
+      const granteeInfoResult = await this.context.publicClient.readContract({
+        address: DataPortabilityGranteesAddress,
+        abi: DataPortabilityGranteesAbi,
+        functionName: "granteesV2",
+        args: [BigInt(granteeId)],
+      });
+
+      const granteeInfo = granteeInfoResult as GranteeV2Info;
+
+      // Fetch all permission IDs using pagination
+      const allPermissionIdsResult = await this.getGranteePermissionsPaginated(
+        BigInt(granteeId),
+      );
+
+      const allPermissionIds = allPermissionIdsResult as bigint[];
 
       return {
         id: granteeId,
         owner: granteeInfo.owner,
         address: granteeInfo.granteeAddress,
         publicKey: granteeInfo.publicKey,
-        permissionIds: granteeInfo.permissionIds.map((id) => Number(id)),
+        permissionIds: allPermissionIds.map((id) => Number(id)),
       };
     } catch (error) {
       console.warn(`Failed to fetch grantee ${granteeId}:`, error);
@@ -3851,28 +4145,38 @@ export class PermissionsController extends BaseController {
   // ===========================
 
   /**
-   * Get grantee information by grantee ID
+   * Retrieves detailed grantee information including all associated permissions.
    *
-   * @param granteeId - Grantee ID to get info for
-   * @returns Promise resolving to grantee info
+   * @remarks
+   * Returns grantee metadata and associated permission IDs. Uses the newer
+   * paginated contract method internally for efficient permission fetching.
+   *
+   * @param granteeId - Unique grantee identifier as bigint
+   * @returns Grantee information containing owner address, grantee address, public key, and permission IDs
+   * @throws {BlockchainError} When grantee ID is not found or contract read fails
+   *
+   * @example
+   * ```typescript
+   * const granteeInfo = await vana.permissions.getGranteeInfo(BigInt(1));
+   * console.log(`Grantee ${granteeInfo.granteeAddress} has ${granteeInfo.permissionIds.length} permissions`);
+   * ```
    */
   async getGranteeInfo(granteeId: bigint): Promise<GranteeInfo> {
     try {
-      const chainId = await this.context.publicClient.getChainId();
-      const DataPortabilityGranteesAddress = getContractAddress(
-        chainId,
-        "DataPortabilityGrantees",
-      );
-      const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
+      // Use getGranteeById to fetch the complete grantee information
+      const grantee = await this.getGranteeById(Number(granteeId));
 
-      const granteeInfo = await this.context.publicClient.readContract({
-        address: DataPortabilityGranteesAddress,
-        abi: DataPortabilityGranteesAbi,
-        functionName: "granteeInfo",
-        args: [granteeId],
-      });
+      if (!grantee) {
+        throw new Error("Grantee not found");
+      }
 
-      return granteeInfo;
+      // Return as GranteeInfo (without the id field)
+      return {
+        owner: grantee.owner,
+        granteeAddress: grantee.address,
+        publicKey: grantee.publicKey,
+        permissionIds: grantee.permissionIds.map((id) => BigInt(id)),
+      };
     } catch (error) {
       throw new BlockchainError(
         `Failed to get grantee info: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -3882,10 +4186,21 @@ export class PermissionsController extends BaseController {
   }
 
   /**
-   * Get grantee information by grantee address
+   * Retrieves detailed grantee information by wallet address.
    *
-   * @param granteeAddress - Grantee address to get info for
-   * @returns Promise resolving to grantee info
+   * @remarks
+   * Looks up the grantee ID from the provided address, then fetches complete
+   * grantee information including all associated permissions.
+   *
+   * @param granteeAddress - Ethereum wallet address of the grantee to query
+   * @returns Grantee information containing owner address, grantee address, public key, and permission IDs
+   * @throws {BlockchainError} When grantee address is not registered or contract read fails
+   *
+   * @example
+   * ```typescript
+   * const granteeInfo = await vana.permissions.getGranteeInfoByAddress("0x742d35Cc6634c0532925a3b844Bc9e8e1ee3b2De");
+   * console.log(`Found grantee with ${granteeInfo.permissionIds.length} permissions`);
+   * ```
    */
   async getGranteeInfoByAddress(granteeAddress: Address): Promise<GranteeInfo> {
     try {
@@ -3896,14 +4211,35 @@ export class PermissionsController extends BaseController {
       );
       const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
 
-      const granteeInfo = await this.context.publicClient.readContract({
+      // Get the grantee ID from the address
+      const granteeIdResult = await this.context.publicClient.readContract({
         address: DataPortabilityGranteesAddress,
         abi: DataPortabilityGranteesAbi,
-        functionName: "granteeByAddress",
+        functionName: "granteeAddressToId",
         args: [granteeAddress],
       });
 
-      return granteeInfo;
+      const granteeId = granteeIdResult as bigint;
+
+      // If granteeId is 0, the address is not registered
+      if (granteeId === 0n) {
+        throw new Error("Grantee not found");
+      }
+
+      // Use getGranteeById to fetch the complete grantee information
+      const grantee = await this.getGranteeById(Number(granteeId));
+
+      if (!grantee) {
+        throw new Error("Grantee not found");
+      }
+
+      // Return as GranteeInfo (without the id field)
+      return {
+        owner: grantee.owner,
+        granteeAddress: grantee.address,
+        publicKey: grantee.publicKey,
+        permissionIds: grantee.permissionIds.map((id) => BigInt(id)),
+      };
     } catch (error) {
       throw new BlockchainError(
         `Failed to get grantee info by address: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -3966,6 +4302,159 @@ export class PermissionsController extends BaseController {
       });
 
       return [...permissions];
+    } catch (error) {
+      throw new BlockchainError(
+        `Failed to get grantee permissions: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Retrieves permission IDs for a specific grantee with flexible pagination.
+   *
+   * @remarks
+   * **Pagination Behavior:**
+   * Returns different types based on parameters:
+   * - Without offset/limit: Returns `bigint[]` of all permissions using batched multicall
+   * - With offset/limit: Returns paginated object with `permissionIds`, `totalCount`, and `hasMore`
+   *
+   * Uses gas-aware multicall for efficient batch fetching when retrieving all permissions.
+   *
+   * @param granteeId - Grantee ID to get permissions for
+   * @param options - Optional pagination parameters
+   * @param options.offset - Zero-based starting index for pagination. Defaults to 0 when fetching all permissions. Required for single-page requests.
+   * @param options.limit - Maximum number of permission IDs to return per page. Defaults to 100 when fetching all permissions. Required for single-page requests.
+   * @returns When called without options: Array of all permission IDs as `bigint[]`.
+   *   When called with offset and limit: Paginated result object containing `permissionIds` array,
+   *   `totalCount`, and `hasMore` boolean.
+   * @throws {BlockchainError} When contract read operation fails
+   *
+   * @example
+   * ```typescript
+   * // Fetch all permissions (no pagination params)
+   * const allPermissions = await vana.permissions.getGranteePermissionsPaginated(BigInt(1));
+   * console.log(`Total permissions: ${allPermissions.length}`);
+   *
+   * // Fetch a specific page (with pagination params)
+   * const page = await vana.permissions.getGranteePermissionsPaginated(BigInt(1), {
+   *   offset: BigInt(0),
+   *   limit: BigInt(100)
+   * });
+   * console.log(`Fetched ${page.permissionIds.length} permissions`);
+   * console.log(`Total: ${page.totalCount}, Has more: ${page.hasMore}`);
+   *
+   * // Fetch next page
+   * if (page.hasMore) {
+   *   const nextPage = await vana.permissions.getGranteePermissionsPaginated(BigInt(1), {
+   *     offset: BigInt(100),
+   *     limit: BigInt(100)
+   *   });
+   * }
+   * ```
+   */
+  async getGranteePermissionsPaginated(
+    granteeId: bigint,
+    options?: {
+      offset?: bigint;
+      limit?: bigint;
+    },
+  ): Promise<
+    | bigint[] // When fetching all (no options)
+    | {
+        // When fetching a specific page (with options)
+        permissionIds: bigint[];
+        totalCount: bigint;
+        hasMore: boolean;
+      }
+  > {
+    // Define contract return type once for all uses
+    type PaginatedResult = readonly [
+      permissionIds: readonly bigint[],
+      totalCount: bigint,
+      hasMore: boolean,
+    ];
+
+    try {
+      const chainId = await this.context.publicClient.getChainId();
+      const DataPortabilityGranteesAddress = getContractAddress(
+        chainId,
+        "DataPortabilityGrantees",
+      );
+      const DataPortabilityGranteesAbi = getAbi("DataPortabilityGrantees");
+
+      // If both offset and limit are provided, fetch just that page
+      const fetchOnlyOnePage =
+        options?.offset !== undefined && options?.limit !== undefined;
+
+      if (fetchOnlyOnePage) {
+        // For single page requests, make a direct contract call
+        const result = await this.context.publicClient.readContract({
+          address: DataPortabilityGranteesAddress,
+          abi: DataPortabilityGranteesAbi,
+          functionName: "granteePermissionsPaginated",
+          args: [granteeId, options.offset!, options.limit!],
+        });
+
+        const [permissionIds, totalCount, hasMore] = result as PaginatedResult;
+
+        return {
+          permissionIds: [...permissionIds],
+          totalCount,
+          hasMore,
+        };
+      }
+
+      // For fetching all permissions, use gasAwareMulticall to batch pagination calls
+      // First, make an initial call to get the total count
+      const countResult = await this.context.publicClient.readContract({
+        address: DataPortabilityGranteesAddress,
+        abi: DataPortabilityGranteesAbi,
+        functionName: "granteePermissionsPaginated",
+        args: [granteeId, BigInt(0), BigInt(1)],
+      });
+
+      const [, totalCount] = countResult as PaginatedResult;
+
+      // If no permissions exist, return early
+      if (totalCount === BigInt(0)) {
+        return [];
+      }
+
+      // Build multicall contracts for all pages
+      const batchSize = options?.limit ?? BigInt(100);
+      const startOffset = options?.offset ?? BigInt(0);
+      const endOffset = totalCount;
+      const numBatches = Math.ceil(
+        Number(endOffset - startOffset) / Number(batchSize),
+      );
+      const paginationCalls = Array.from({ length: numBatches }, (_, i) => ({
+        address: DataPortabilityGranteesAddress,
+        abi: DataPortabilityGranteesAbi,
+        functionName: "granteePermissionsPaginated" as const,
+        args: [
+          granteeId,
+          startOffset + BigInt(i) * batchSize,
+          batchSize,
+        ] as const,
+      }));
+
+      // Execute all pagination calls in parallel using gasAwareMulticall
+      const results = await gasAwareMulticall<typeof paginationCalls, false>(
+        this.context.publicClient,
+        {
+          contracts: paginationCalls,
+        },
+      );
+
+      // Flatten all permission IDs from all pages
+      const allPermissionIds: bigint[] = [];
+      for (const result of results) {
+        const [permissionIds] = result as PaginatedResult;
+        allPermissionIds.push(...permissionIds);
+      }
+
+      return allPermissionIds;
     } catch (error) {
       throw new BlockchainError(
         `Failed to get grantee permissions: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -4221,7 +4710,7 @@ export class PermissionsController extends BaseController {
         args: [serverId, url],
         chain: this.context.walletClient?.chain,
         account,
-        ...(options?.gasLimit && { gas: options.gasLimit }),
+        ...(options?.gas && { gas: options.gas }),
         ...(options?.nonce && { nonce: options.nonce }),
         // Use EIP-1559 if available, otherwise fall back to legacy gasPrice
         ...(options?.maxFeePerGas || options?.maxPriorityFeePerGas
@@ -4468,6 +4957,7 @@ export class PermissionsController extends BaseController {
   async submitSignedAddPermission(
     typedData: GenericTypedData,
     signature: Hash,
+    options?: TransactionOptions,
   ): Promise<TransactionResult<"DataPortabilityPermissions", "addPermission">> {
     this.assertWallet();
     try {
@@ -4484,7 +4974,10 @@ export class PermissionsController extends BaseController {
         if (response.type === "error") {
           throw new RelayerError(response.error);
         }
-        if (response.type === "signed") {
+        if (response.type === "submitted") {
+          hash = response.hash;
+        } else if (response.type === "signed") {
+          // Legacy response format
           hash = response.hash;
         } else {
           throw new Error("Unexpected response type from relayer");
@@ -4493,6 +4986,7 @@ export class PermissionsController extends BaseController {
         hash = await this.submitDirectAddPermissionTransaction(
           typedData,
           signature,
+          options,
         );
       }
 
@@ -4710,7 +5204,10 @@ export class PermissionsController extends BaseController {
         if (response.type === "error") {
           throw new RelayerError(response.error);
         }
-        if (response.type === "signed") {
+        if (response.type === "submitted") {
+          hash = response.hash;
+        } else if (response.type === "signed") {
+          // Legacy response format
           hash = response.hash;
         } else {
           throw new Error("Unexpected response type from relayer");
@@ -4789,7 +5286,7 @@ export class PermissionsController extends BaseController {
         args: [permissionId],
         chain: this.context.walletClient?.chain,
         account,
-        ...(options?.gasLimit && { gas: options.gasLimit }),
+        ...(options?.gas && { gas: options.gas }),
         ...(options?.nonce && { nonce: options.nonce }),
         // Use EIP-1559 if available, otherwise fall back to legacy gasPrice
         ...(options?.maxFeePerGas || options?.maxPriorityFeePerGas
@@ -4830,6 +5327,7 @@ export class PermissionsController extends BaseController {
   private async submitDirectAddPermissionTransaction(
     typedData: GenericTypedData,
     signature: Hash,
+    options?: TransactionOptions,
   ): Promise<Hash> {
     this.assertWallet();
     const chainId = await this.context.walletClient.getChainId();
@@ -4857,6 +5355,7 @@ export class PermissionsController extends BaseController {
       args: [permissionInput, formattedSignature],
       account: this.context.walletClient?.account ?? this.context.userAddress,
       chain: this.context.walletClient?.chain ?? null,
+      ...this.spreadTransactionOptions(options),
     });
 
     return hash;
@@ -4902,24 +5401,11 @@ export class PermissionsController extends BaseController {
       address: DataPortabilityPermissionsAddress,
       abi: DataPortabilityPermissionsAbi,
       functionName: "addServerFilesAndPermissions",
-      // @ts-expect-error - Viem's type inference for nested Permission[][] arrays is incompatible with our Permission type
       args: [serverFilesAndPermissionInput, formattedSignature],
       account: this.context.walletClient?.account ?? this.context.userAddress,
       chain: this.context.walletClient?.chain ?? null,
-      ...(options?.gasLimit && { gas: options.gasLimit }),
-      ...(options?.nonce && { nonce: options.nonce }),
       ...(options?.value && { value: options.value }),
-      // Use EIP-1559 if available, otherwise fall back to legacy gasPrice
-      ...(options?.maxFeePerGas || options?.maxPriorityFeePerGas
-        ? {
-            ...(options.maxFeePerGas && {
-              maxFeePerGas: options.maxFeePerGas,
-            }),
-            ...(options.maxPriorityFeePerGas && {
-              maxPriorityFeePerGas: options.maxPriorityFeePerGas,
-            }),
-          }
-        : options?.gasPrice && { gasPrice: options.gasPrice }),
+      ...this.spreadTransactionOptions(options),
     });
 
     return hash;

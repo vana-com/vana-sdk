@@ -7,6 +7,7 @@ import type {
 } from "./storage";
 
 import type { RelayerConfig } from "./relayer";
+import type { IOperationStore, IRelayerStateStore } from "./operationStore";
 
 /**
  * Marker interface to indicate that a Vana instance has storage configured.
@@ -307,6 +308,7 @@ export interface BaseConfig {
    *   See StorageConfig for provider selection guidance.
    */
   storage?: StorageConfig;
+
   /**
    * Optional subgraph URL for querying user files and permissions.
    * If not provided, defaults to the built-in subgraph URL for the current chain.
@@ -330,6 +332,22 @@ export interface BaseConfig {
    * @example 'https://my-personal-server.example.com'
    */
   defaultPersonalServerUrl?: string;
+
+  /**
+   * Optional operation store for tracking async relayed transactions.
+   * When provided with a relayer, enables resilient transaction management
+   * with polling support for pending operations.
+   *
+   * @example
+   * ```typescript
+   * const vana = createVana({
+   *   walletClient,
+   *   relayer: '/api/relay',
+   *   operationStore: myOperationStore
+   * });
+   * ```
+   */
+  operationStore?: IOperationStore | IRelayerStateStore;
 }
 
 /**
@@ -388,6 +406,13 @@ export interface BaseConfigWithStorage {
    * @example 'https://my-personal-server.example.com'
    */
   defaultPersonalServerUrl?: string;
+
+  /**
+   * Optional operation store for tracking async relayed transactions.
+   * When provided with a relayer, enables resilient transaction management
+   * with polling support for pending operations.
+   */
+  operationStore?: IOperationStore | IRelayerStateStore;
 }
 
 /**
@@ -774,4 +799,15 @@ export interface ConfigValidationResult {
   errors: string[];
   /** List of validation warnings */
   warnings: string[];
+}
+
+/**
+ * Marker interface to enforce the presence of operationStore at compile time.
+ * This interface is used to ensure that certain operations requiring a relayer
+ * can only be called when the SDK has been properly configured with an operation store.
+ *
+ * @category Configuration
+ */
+export interface RelayerRequiredMarker {
+  readonly __relayerConfigured: true;
 }

@@ -128,6 +128,13 @@ export interface UploadParams {
   providerName?: string;
   /** Optional owner address (defaults to current wallet address). */
   owner?: Address;
+  /**
+   * Schema validation mode when schemaId is provided:
+   * - 'strict': Throw error on validation failure (default)
+   * - 'warn': Log warning and continue on validation failure
+   * - 'skip': Skip validation entirely
+   */
+  schemaValidation?: "strict" | "warn" | "skip";
 }
 
 /**
@@ -792,8 +799,4 @@ export interface GetUserTrustedServersParams {
   user: Address;
   /** Optional subgraph URL to override default */
   subgraphUrl?: string;
-  /** Maximum number of results */
-  limit?: number;
-  /** Number of results to skip */
-  offset?: number;
 }

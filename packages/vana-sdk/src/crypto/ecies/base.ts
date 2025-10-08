@@ -302,10 +302,25 @@ export abstract class BaseECIESUint8 implements ECIESProvider {
         throw new ECIESError("Invalid private key", "INVALID_KEY");
       }
 
-      // Normalize ephemeral public key to uncompressed format
-      const ephemeralPublicKey = this.normalizePublicKey(
-        encrypted.ephemPublicKey,
-      );
+      // Strict validation: ephemeral keys must be 65-byte uncompressed (eccrypto standard)
+      if (
+        encrypted.ephemPublicKey.length !== CURVE.UNCOMPRESSED_PUBLIC_KEY_LENGTH
+      ) {
+        throw new ECIESError(
+          `Invalid ephemeral public key: expected ${CURVE.UNCOMPRESSED_PUBLIC_KEY_LENGTH} bytes (uncompressed), got ${encrypted.ephemPublicKey.length} bytes`,
+          "INVALID_KEY",
+        );
+      }
+      if (encrypted.ephemPublicKey[0] !== CURVE.PREFIX.UNCOMPRESSED) {
+        throw new ECIESError(
+          "Invalid ephemeral public key: must be uncompressed format with 0x04 prefix (eccrypto standard)",
+          "INVALID_KEY",
+        );
+      }
+      if (!this.validatePublicKey(encrypted.ephemPublicKey)) {
+        throw new ECIESError("Invalid ephemeral public key", "INVALID_KEY");
+      }
+      const ephemeralPublicKey = encrypted.ephemPublicKey;
 
       // Perform ECDH to recover shared secret
       const sharedSecret = this.performECDH(ephemeralPublicKey, privateKey);

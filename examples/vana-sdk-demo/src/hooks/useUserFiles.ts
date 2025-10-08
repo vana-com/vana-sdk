@@ -26,7 +26,7 @@ export interface UseUserFilesReturn {
   uploadResult: { fileId: number; transactionHash: string } | null;
 
   // Actions
-  loadUserFiles: () => Promise<void>;
+  loadUserFiles: (ensureFresh?: boolean) => Promise<void>;
   handleFileSelection: (fileId: number, selected: boolean) => void;
   handleDecryptFile: (file: UserFile) => Promise<void>;
   handleDownloadDecryptedFile: (file: UserFile) => void;
@@ -84,23 +84,32 @@ export function useUserFiles(): UseUserFilesReturn {
     transactionHash: string;
   } | null>(null);
 
-  const loadUserFiles = useCallback(async () => {
-    if (!vana || !address) return;
+  const loadUserFiles = useCallback(
+    async (ensureFresh = false) => {
+      if (!vana || !address) return;
 
-    setIsLoadingFiles(true);
-    try {
-      const files = await vana.data.getUserFiles({ owner: address });
-      const discoveredFiles = files.map((file: UserFile) => ({
-        ...file,
-        source: "discovered" as const,
-      }));
-      setUserFiles(discoveredFiles);
-    } catch (error) {
-      console.error("Failed to load user files:", error);
-    } finally {
-      setIsLoadingFiles(false);
-    }
-  }, [vana, address]);
+      setIsLoadingFiles(true);
+      try {
+        // Load all files (with consistency guarantee if needed)
+        // For apps with many files, consider using pagination:
+        // { limit: 50, offset: 0 } to load in batches
+        const files = await vana.data.getUserFiles(
+          { owner: address },
+          ensureFresh ? { waitForSync: 30000 } : {},
+        );
+        const discoveredFiles = files.map((file: UserFile) => ({
+          ...file,
+          source: "discovered" as const,
+        }));
+        setUserFiles(discoveredFiles);
+      } catch (error) {
+        console.error("Failed to load user files:", error);
+      } finally {
+        setIsLoadingFiles(false);
+      }
+    },
+    [vana, address],
+  );
 
   const handleFileSelection = useCallback(
     (fileId: number, selected: boolean) => {
@@ -292,10 +301,9 @@ export function useUserFiles(): UseUserFilesReturn {
             // Clear the text field after successful upload
             setNewTextData("");
 
-            // Refresh the files list to include the new file
-            setTimeout(() => {
-              void loadUserFiles();
-            }, 2000);
+            // Immediately refresh with consistency guarantee
+            // This ensures the new file appears without delay
+            void loadUserFiles(true);
           },
         },
       );

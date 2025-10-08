@@ -445,6 +445,47 @@ export const DataPortabilityGranteesABI = [
   {
     inputs: [
       {
+        internalType: "address",
+        name: "granteeAddress",
+        type: "address",
+      },
+    ],
+    name: "granteeByAddressV2",
+    outputs: [
+      {
+        components: [
+          {
+            internalType: "address",
+            name: "owner",
+            type: "address",
+          },
+          {
+            internalType: "address",
+            name: "granteeAddress",
+            type: "address",
+          },
+          {
+            internalType: "string",
+            name: "publicKey",
+            type: "string",
+          },
+          {
+            internalType: "uint256",
+            name: "permissionsCount",
+            type: "uint256",
+          },
+        ],
+        internalType: "struct IDataPortabilityGrantees.GranteeInfoV2",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
         internalType: "uint256",
         name: "granteeId",
         type: "uint256",
@@ -491,6 +532,47 @@ export const DataPortabilityGranteesABI = [
         type: "uint256",
       },
     ],
+    name: "granteeInfoV2",
+    outputs: [
+      {
+        components: [
+          {
+            internalType: "address",
+            name: "owner",
+            type: "address",
+          },
+          {
+            internalType: "address",
+            name: "granteeAddress",
+            type: "address",
+          },
+          {
+            internalType: "string",
+            name: "publicKey",
+            type: "string",
+          },
+          {
+            internalType: "uint256",
+            name: "permissionsCount",
+            type: "uint256",
+          },
+        ],
+        internalType: "struct IDataPortabilityGrantees.GranteeInfoV2",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "granteeId",
+        type: "uint256",
+      },
+    ],
     name: "granteePermissionIds",
     outputs: [
       {
@@ -516,6 +598,45 @@ export const DataPortabilityGranteesABI = [
         internalType: "uint256[]",
         name: "",
         type: "uint256[]",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "granteeId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "offset",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "limit",
+        type: "uint256",
+      },
+    ],
+    name: "granteePermissionsPaginated",
+    outputs: [
+      {
+        internalType: "uint256[]",
+        name: "permissionIds",
+        type: "uint256[]",
+      },
+      {
+        internalType: "uint256",
+        name: "totalCount",
+        type: "uint256",
+      },
+      {
+        internalType: "bool",
+        name: "hasMore",
+        type: "bool",
       },
     ],
     stateMutability: "view",
@@ -570,6 +691,47 @@ export const DataPortabilityGranteesABI = [
         internalType: "uint256",
         name: "",
         type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "granteeId",
+        type: "uint256",
+      },
+    ],
+    name: "granteesV2",
+    outputs: [
+      {
+        components: [
+          {
+            internalType: "address",
+            name: "owner",
+            type: "address",
+          },
+          {
+            internalType: "address",
+            name: "granteeAddress",
+            type: "address",
+          },
+          {
+            internalType: "string",
+            name: "publicKey",
+            type: "string",
+          },
+          {
+            internalType: "uint256",
+            name: "permissionsCount",
+            type: "uint256",
+          },
+        ],
+        internalType: "struct IDataPortabilityGrantees.GranteeInfoV2",
+        name: "",
+        type: "tuple",
       },
     ],
     stateMutability: "view",

@@ -1,5 +1,10 @@
 import type { Address, Hash } from "viem";
 import { getContract } from "viem";
+import type {
+  TransactionOptions,
+  TransactionResult,
+} from "../types/operations";
+
 import type { StorageUploadResult } from "../types/storage";
 
 import type {
@@ -24,27 +29,44 @@ import type {
   DecryptFileWithPermissionOptions,
 } from "../types/index";
 // import { FilePermissionResult } from "../types/transactionResults";
-import type { TransactionResult } from "../types/operations";
 import type { UnifiedRelayerRequest } from "../types/relayer";
 import type { ControllerContext } from "./permissions";
+import { PollingManager } from "../core/pollingManager";
 import { BaseController } from "./base";
 import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../generated/abi";
 import type {
-  GetUserFilesQuery,
+  GetUserFilesPaginatedQuery,
   GetFileProofsQuery,
   GetDlpQuery,
-  GetUserPermissionsQuery,
-  GetUserTrustedServersQuery,
+  GetUserPermissionsPaginatedQuery,
+  GetUserTrustedServersPaginatedQuery,
+  File_OrderBy as File_OrderByType,
+  Permission_OrderBy as Permission_OrderByType,
+  UserServer_OrderBy as UserServer_OrderByType,
 } from "../generated/subgraph";
 import {
-  GetUserFilesDocument,
+  GetUserFilesPaginatedDocument,
   GetFileProofsDocument,
   GetDlpDocument,
-  GetUserPermissionsDocument,
-  GetUserTrustedServersDocument,
+  GetUserPermissionsPaginatedDocument,
+  GetUserTrustedServersPaginatedDocument,
 } from "../generated/subgraph";
 import { print } from "graphql";
+import type { ConsistencyOptions, PaginationOptions } from "../types/options";
+import {
+  checkSubgraphConsistency,
+  fetchSubgraphMeta,
+} from "../utils/subgraphConsistency";
+import {
+  executePaginatedQuery,
+  mapOrderByToEnum,
+  mapOrderDirection,
+} from "../utils/subgraphPagination";
+import {
+  getUserFilesFromChain,
+  determineDataSource,
+} from "../utils/chainQuery";
 import {
   generateEncryptionKey,
   decryptBlobWithSignedKey,
@@ -240,6 +262,7 @@ export class DataController extends BaseController {
       encrypt = true,
       providerName,
       owner,
+      schemaValidation = "strict",
     } = params;
 
     try {
@@ -247,7 +270,7 @@ export class DataController extends BaseController {
       let validationErrors: string[] = [];
 
       // Step 1: Schema validation if provided
-      if (schemaId !== undefined) {
+      if (schemaId !== undefined && schemaValidation !== "skip") {
         try {
           // Use SchemaController to get complete schema with definition
           const { SchemaController } = await import("./schemas");
@@ -277,22 +300,32 @@ export class DataController extends BaseController {
           // Validate against schema (Schema is compatible with DataSchema)
           validateDataAgainstSchema(parsedContent, schema);
         } catch (error) {
-          isValid = false;
-          // Provide detailed error message
-          if (error instanceof Error) {
-            // Check if it's a SchemaValidationError with details
-            // Using type guard to safely check for errors property
-            if (
-              typeof error === "object" &&
-              "errors" in error &&
-              Array.isArray(error.errors)
-            ) {
-              validationErrors = error.errors;
-            } else {
-              validationErrors = [error.message];
+          // Handle validation failure based on mode
+          if (schemaValidation === "strict") {
+            // Re-throw the error to maintain backward compatibility
+            throw error;
+          } else if (schemaValidation === "warn") {
+            // Log warning and continue
+            console.warn(
+              '[Vana SDK] Schema validation failed, but continuing due to validation mode "warn"',
+            );
+            if (error instanceof Error) {
+              console.warn("  Validation error:", error.message);
+              // Check if it's a SchemaValidationError with details
+              if (
+                typeof error === "object" &&
+                "errors" in error &&
+                Array.isArray(error.errors)
+              ) {
+                console.warn("  Detailed errors:", error.errors);
+              }
             }
-          } else {
-            validationErrors = ["Schema validation failed"];
+            // Mark as invalid but don't block upload
+            isValid = false;
+            validationErrors =
+              error instanceof Error
+                ? [error.message]
+                : ["Schema validation failed"];
           }
         }
       }
@@ -354,10 +387,23 @@ export class DataController extends BaseController {
         if (response.type === "error") {
           throw new Error(response.error);
         }
-        if (response.type !== "direct" || !("fileId" in response.result)) {
+
+        // Handle pending response (stateful relayer)
+        if (response.type === "pending") {
+          result = await this.pollRelayerForConfirmation(
+            response.operationId,
+            undefined, // TODO: Add TransactionOptions to upload method signature
+          );
+        } else if (
+          response.type === "direct" &&
+          typeof response.result === "object" &&
+          response.result !== null &&
+          "fileId" in response.result
+        ) {
+          result = response.result as { fileId: number; transactionHash: Hash };
+        } else {
           throw new Error("Invalid response from relayer");
         }
-        result = response.result as { fileId: number; transactionHash: Hash };
 
         // Fallback: No relay support, use a direct transaction
       } else {
@@ -719,13 +765,68 @@ export class DataController extends BaseController {
    * });
    * ```
    */
-  async getUserFiles(params: {
-    owner: Address;
-    subgraphUrl?: string;
-  }): Promise<UserFile[]> {
+  async getUserFiles(
+    params: {
+      owner: Address;
+      subgraphUrl?: string;
+    },
+    options?: ConsistencyOptions & PaginationOptions,
+  ): Promise<UserFile[]> {
     const { owner, subgraphUrl } = params;
 
-    // Use provided subgraph URL or default from context
+    // Determine data source based on options
+    let dataSource: "subgraph" | "chain" =
+      options?.source === "chain" ? "chain" : "subgraph";
+
+    // If auto mode, determine based on staleness
+    if (options?.source === "auto" || (!options?.source && options?.minBlock)) {
+      const endpoint = subgraphUrl ?? this.context.subgraphUrl;
+
+      // Get current chain block
+      const currentBlock = await this.context.publicClient.getBlockNumber();
+
+      // Get subgraph block if using subgraph
+      let subgraphBlock: number | undefined;
+      if (endpoint) {
+        try {
+          const meta = await fetchSubgraphMeta(endpoint);
+          subgraphBlock = meta.blockNumber;
+        } catch {
+          // If subgraph is unavailable, fall back to chain
+          subgraphBlock = undefined;
+        }
+      }
+
+      dataSource = determineDataSource(
+        options?.source,
+        options?.minBlock,
+        currentBlock,
+        subgraphBlock,
+      );
+    }
+
+    // Use chain query if selected
+    if (dataSource === "chain") {
+      const publicClient = this.context.publicClient;
+      const chainId = await publicClient.getChainId();
+      const contractAddress = getContractAddress(chainId, "DataRegistry");
+
+      // Query directly from chain
+      const files = await getUserFilesFromChain(
+        publicClient,
+        contractAddress,
+        owner,
+        options?.minBlock ? BigInt(options.minBlock) : undefined,
+      );
+
+      // Apply pagination if needed (chain query returns all, so we paginate in memory)
+      const limit = options?.fetchAll ? files.length : (options?.limit ?? 100);
+      const offset = options?.offset ?? 0;
+
+      return files.slice(offset, offset + limit);
+    }
+
+    // Use subgraph query (existing logic)
     const endpoint = subgraphUrl ?? this.context.subgraphUrl;
 
     if (!endpoint) {
@@ -734,81 +835,64 @@ export class DataController extends BaseController {
       );
     }
 
+    // Check consistency requirements before querying
+    if (options?.minBlock || options?.waitForSync) {
+      await checkSubgraphConsistency(endpoint, options);
+    }
+
     try {
-      // Query the subgraph for user's files using the generated query
+      // Map orderBy string to GraphQL enum values (string literals)
+      const orderByMap: Record<string, File_OrderByType> = {
+        id: "id",
+        addedAtBlock: "addedAtBlock",
+        addedAtTimestamp: "addedAtTimestamp",
+        url: "url",
+        schemaId: "schemaId",
+      };
 
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      // Define the raw file type from the GraphQL response
+      type RawFile = NonNullable<
+        GetUserFilesPaginatedQuery["user"]
+      >["files"][0];
+
+      // Use the generic pagination utility
+      const allFiles = await executePaginatedQuery<
+        GetUserFilesPaginatedQuery,
+        UserFile,
+        RawFile
+      >({
+        endpoint,
+        document: GetUserFilesPaginatedDocument,
+        baseVariables: {
+          userId: owner.toLowerCase(), // Subgraph requires lowercase addresses
+          orderBy: mapOrderByToEnum(
+            options?.orderBy,
+            orderByMap,
+            "addedAtBlock",
+          ),
+          orderDirection: mapOrderDirection(
+            options?.orderDirection,
+            "asc",
+            "desc",
+          ),
         },
-        body: JSON.stringify({
-          query: print(GetUserFilesDocument),
-          variables: {
-            userId: owner.toLowerCase(), // Subgraph requires lowercase addresses
-          },
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          `Subgraph request failed: ${response.status} ${response.statusText}`,
-        );
-      }
-
-      const result =
-        (await response.json()) as SubgraphResponse<GetUserFilesQuery>;
-
-      if (result.errors) {
-        throw new Error(
-          `Subgraph errors: ${result.errors.map((e) => e.message).join(", ")}`,
-        );
-      }
-
-      const user = result.data?.user;
-      if (!user?.files?.length) {
-        console.warn("No files found for user:", owner);
-        return [];
-      }
-
-      // TODO: Investigate why this is necessary.
-      // Convert subgraph data to UserFile format and deduplicate by file ID
-      // Keep the latest entry for each unique file ID (highest timestamp)
-      const fileMap = new Map<number, UserFile>();
-
-      user.files.forEach((file) => {
-        const fileId = parseInt(file.id);
-        const userFile: UserFile = {
-          id: fileId,
+        options,
+        extractItems: (data) => data?.user?.files,
+        transformItem: (file) => ({
+          id: parseInt(file.id),
           url: file.url,
           ownerAddress: file.owner.id as Address,
           addedAtBlock: BigInt(file.addedAtBlock),
           schemaId: parseInt(file.schemaId),
           addedAtTimestamp: BigInt(file.addedAtTimestamp),
           transactionHash: file.transactionHash as Hash,
-        };
-
-        // Keep the file with the latest timestamp for each ID
-        const existing = fileMap.get(fileId);
-        if (
-          !existing ||
-          (userFile.addedAtTimestamp &&
-            existing.addedAtTimestamp &&
-            userFile.addedAtTimestamp > existing.addedAtTimestamp)
-        ) {
-          fileMap.set(fileId, userFile);
-        }
+        }),
       });
 
-      // Convert to array and sort by latest timestamp first
-      const userFiles: UserFile[] = Array.from(fileMap.values()).sort((a, b) =>
-        Number((b.addedAtTimestamp ?? 0n) - (a.addedAtTimestamp ?? 0n)),
-      );
-
       // Fetch proofs for all files to get DLP associations
-      if (userFiles.length > 0) {
+      if (allFiles.length > 0) {
         try {
-          const fileIds = userFiles.map((f) => f.id);
+          const fileIds = allFiles.map((f) => f.id);
           let proofMap: Map<number, number[]>;
 
           try {
@@ -824,7 +908,7 @@ export class DataController extends BaseController {
           }
 
           // Add dlpIds to each file
-          for (const file of userFiles) {
+          for (const file of allFiles) {
             const dlpIds = proofMap.get(file.id);
             if (dlpIds && dlpIds.length > 0) {
               file.dlpIds = dlpIds;
@@ -836,8 +920,8 @@ export class DataController extends BaseController {
         }
       }
 
-      // Successfully retrieved user files
-      return userFiles;
+      // Successfully retrieved user files (already paginated and sorted by GraphQL)
+      return allFiles;
     } catch (error) {
       console.error("Failed to fetch user files from subgraph:", error);
       throw new Error(
@@ -1000,7 +1084,11 @@ export class DataController extends BaseController {
    */
   async getDLP(
     dlpId: number,
-    options: { subgraphUrl?: string } = {},
+    options: {
+      subgraphUrl?: string;
+      minBlock?: number;
+      waitForSync?: number;
+    } = {},
   ): Promise<{
     id: number;
     name: string;
@@ -1010,6 +1098,11 @@ export class DataController extends BaseController {
     owner?: Address;
   }> {
     const subgraphUrl = options.subgraphUrl ?? this.context.subgraphUrl;
+
+    // Check consistency requirements if using subgraph
+    if (subgraphUrl && (options.minBlock || options.waitForSync)) {
+      await checkSubgraphConsistency(subgraphUrl, options);
+    }
 
     // Try subgraph first if available
     if (subgraphUrl) {
@@ -1334,10 +1427,13 @@ export class DataController extends BaseController {
    * @returns Promise resolving to an array of permission objects
    * @throws Error if both subgraph and RPC queries fail
    */
-  async getUserPermissions(params: {
-    user: Address;
-    subgraphUrl?: string;
-  }): Promise<
+  async getUserPermissions(
+    params: {
+      user: Address;
+      subgraphUrl?: string;
+    },
+    options?: ConsistencyOptions & PaginationOptions,
+  ): Promise<
     Array<{
       id: string;
       grant: string;
@@ -1352,13 +1448,21 @@ export class DataController extends BaseController {
     const { user, subgraphUrl } = params;
     const endpoint = subgraphUrl ?? this.context.subgraphUrl;
 
+    // Check consistency requirements if using subgraph
+    if (endpoint && (options?.minBlock || options?.waitForSync)) {
+      await checkSubgraphConsistency(endpoint, options);
+    }
+
     // Try subgraph first if available
     if (endpoint) {
       try {
-        const permissions = await this._getUserPermissionsViaSubgraph({
-          user,
-          subgraphUrl: endpoint,
-        });
+        const permissions = await this._getUserPermissionsViaSubgraph(
+          {
+            user,
+            subgraphUrl: endpoint,
+          },
+          options,
+        );
 
         return permissions;
       } catch (error) {
@@ -1368,7 +1472,17 @@ export class DataController extends BaseController {
     }
 
     // Use RPC (as fallback or primary method)
-    return await this._getUserPermissionsViaRpc({ user });
+    // Note: RPC doesn't support pagination, so we get all and slice
+    const allPermissions = await this._getUserPermissionsViaRpc({ user });
+
+    // Apply pagination to RPC results if needed
+    if (options && !options.fetchAll) {
+      const limit = options.limit ?? 100;
+      const offset = options.offset ?? 0;
+      return allPermissions.slice(offset, offset + limit);
+    }
+
+    return allPermissions;
   }
 
   /**
@@ -1379,10 +1493,13 @@ export class DataController extends BaseController {
    * @param params.subgraphUrl - The subgraph URL endpoint to query
    * @returns Promise resolving to an array of permission objects
    */
-  private async _getUserPermissionsViaSubgraph(params: {
-    user: Address;
-    subgraphUrl: string;
-  }): Promise<
+  private async _getUserPermissionsViaSubgraph(
+    params: {
+      user: Address;
+      subgraphUrl: string;
+    },
+    options?: PaginationOptions,
+  ): Promise<
     Array<{
       id: string;
       grant: string;
@@ -1397,44 +1514,55 @@ export class DataController extends BaseController {
     const { user, subgraphUrl } = params;
 
     try {
-      // Query the subgraph for user's permissions using the generated query
+      // Map orderBy string to GraphQL enum values
+      const orderByMap: Record<string, Permission_OrderByType> = {
+        id: "id",
+        addedAtBlock: "addedAtBlock",
+        addedAtTimestamp: "addedAtTimestamp",
+        grant: "grant",
+        nonce: "nonce",
+        startBlock: "startBlock",
+        endBlock: "endBlock",
+      };
 
-      const response = await fetch(subgraphUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      // Define the raw permission type from the GraphQL response
+      type RawPermission = NonNullable<
+        GetUserPermissionsPaginatedQuery["user"]
+      >["permissions"][0];
+
+      // Use the generic pagination utility
+      const permissions = await executePaginatedQuery<
+        GetUserPermissionsPaginatedQuery,
+        {
+          id: string;
+          grant: string;
+          nonce: bigint;
+          signature: string;
+          addedAtBlock: bigint;
+          addedAtTimestamp: bigint;
+          transactionHash: Address;
+          user: Address;
         },
-        body: JSON.stringify({
-          query: print(GetUserPermissionsDocument),
-          variables: {
-            userId: user.toLowerCase(),
-          },
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          `Subgraph request failed: ${response.status} ${response.statusText}`,
-        );
-      }
-
-      const result =
-        (await response.json()) as SubgraphResponse<GetUserPermissionsQuery>;
-
-      if (result.errors) {
-        throw new Error(
-          `Subgraph query errors: ${result.errors.map((e) => e.message).join(", ")}`,
-        );
-      }
-
-      const userData = result.data?.user;
-      if (!userData?.permissions?.length) {
-        return [];
-      }
-
-      // Convert subgraph data directly to permission format
-      return userData.permissions
-        .map((permission) => ({
+        RawPermission
+      >({
+        endpoint: subgraphUrl,
+        document: GetUserPermissionsPaginatedDocument,
+        baseVariables: {
+          userId: user.toLowerCase(),
+          orderBy: mapOrderByToEnum(
+            options?.orderBy,
+            orderByMap,
+            "addedAtTimestamp",
+          ),
+          orderDirection: mapOrderDirection(
+            options?.orderDirection,
+            "desc",
+            "asc",
+          ),
+        },
+        options,
+        extractItems: (data) => data?.user?.permissions,
+        transformItem: (permission) => ({
           id: permission.id,
           grant: permission.grant,
           nonce: BigInt(permission.nonce),
@@ -1443,8 +1571,10 @@ export class DataController extends BaseController {
           addedAtTimestamp: BigInt(permission.addedAtTimestamp),
           transactionHash: permission.transactionHash as Hash,
           user,
-        }))
-        .sort((a, b) => Number(b.addedAtTimestamp - a.addedAtTimestamp)); // Latest first
+        }),
+      });
+
+      return permissions;
     } catch (error) {
       console.error("Failed to query user permissions from subgraph:", error);
       throw error;
@@ -1632,20 +1762,28 @@ export class DataController extends BaseController {
    */
   async getUserTrustedServers(
     params: GetUserTrustedServersParams,
+    options?: ConsistencyOptions & PaginationOptions,
   ): Promise<TrustedServer[]> {
-    const { user, limit = 50, offset = 0 } = params;
+    const { user } = params;
     const subgraphUrl = params.subgraphUrl ?? this.context.subgraphUrl;
+
+    // Check consistency requirements if using subgraph
+    if (subgraphUrl && (options?.minBlock || options?.waitForSync)) {
+      await checkSubgraphConsistency(subgraphUrl, options);
+    }
 
     // Try subgraph first if available
     if (subgraphUrl) {
       try {
-        const servers = await this._getUserTrustedServersViaSubgraph({
-          user,
-          subgraphUrl,
-        });
+        const servers = await this._getUserTrustedServersViaSubgraph(
+          {
+            user,
+            subgraphUrl,
+          },
+          options,
+        );
 
-        // Apply pagination if provided
-        return limit ? servers.slice(offset, offset + limit) : servers;
+        return servers;
       } catch (error) {
         console.warn("Subgraph query failed, falling back to RPC:", error);
         // Fall through to RPC
@@ -1653,6 +1791,12 @@ export class DataController extends BaseController {
     }
 
     // Use RPC (as fallback or primary method)
+    // Note: RPC doesn't support consistency options, so we just paginate
+    const limit = options?.fetchAll
+      ? Number.MAX_SAFE_INTEGER
+      : (options?.limit ?? 100);
+    const offset = options?.offset ?? 0;
+
     const rpcResult = await this._getUserTrustedServersViaRpc({
       user,
       limit,
@@ -1670,10 +1814,13 @@ export class DataController extends BaseController {
    * @param params.subgraphUrl - The subgraph URL endpoint to query
    * @returns Promise resolving to an array of trusted server objects
    */
-  private async _getUserTrustedServersViaSubgraph(params: {
-    user: Address;
-    subgraphUrl?: string;
-  }): Promise<TrustedServer[]> {
+  private async _getUserTrustedServersViaSubgraph(
+    params: {
+      user: Address;
+      subgraphUrl?: string;
+    },
+    options?: PaginationOptions,
+  ): Promise<TrustedServer[]> {
     const { user, subgraphUrl } = params;
 
     const graphqlEndpoint = subgraphUrl;
@@ -1684,52 +1831,58 @@ export class DataController extends BaseController {
     }
 
     try {
-      // Query the subgraph for user's trusted servers using the generated query
+      // Map orderBy string to GraphQL enum values
+      const orderByMap: Record<string, UserServer_OrderByType> = {
+        id: "id",
+        trustedAt: "trustedAt",
+        trustedAtBlock: "trustedAtBlock",
+        server: "server",
+        user: "user",
+      };
 
-      const response = await fetch(graphqlEndpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      // Define the raw server trust type from the GraphQL response
+      type RawServerTrust = NonNullable<
+        GetUserTrustedServersPaginatedQuery["user"]
+      >["serverTrusts"][0];
+
+      // Use the generic pagination utility
+      const serverTrusts = await executePaginatedQuery<
+        GetUserTrustedServersPaginatedQuery,
+        TrustedServer,
+        RawServerTrust
+      >({
+        endpoint: graphqlEndpoint,
+        document: GetUserTrustedServersPaginatedDocument,
+        baseVariables: {
+          userId: user.toLowerCase(), // Subgraph requires lowercase addresses
+          orderBy: mapOrderByToEnum(
+            options?.orderBy,
+            orderByMap,
+            "trustedAtBlock",
+          ),
+          orderDirection: mapOrderDirection(
+            options?.orderDirection,
+            "desc",
+            "asc",
+          ),
         },
-        body: JSON.stringify({
-          query: print(GetUserTrustedServersDocument),
-          variables: {
-            userId: user.toLowerCase(), // Subgraph requires lowercase addresses
-          },
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          `Subgraph request failed: ${response.status} ${response.statusText}`,
-        );
-      }
-
-      const result =
-        (await response.json()) as SubgraphResponse<GetUserTrustedServersQuery>;
-
-      if (result.errors) {
-        throw new Error(
-          `Subgraph query errors: ${result.errors.map((e) => e.message).join(", ")}`,
-        );
-      }
-
-      if (!result.data?.user) {
-        // User not found in subgraph, return empty array
-        return [];
-      }
-
-      // Map subgraph results to TrustedServer format
-      return (result.data.user.serverTrusts ?? [])
-        .filter((trust) => !trust.untrustedAtBlock) // Only include trusted servers (not untrusted)
-        .map((trust) => ({
+        options,
+        extractItems: (data) => {
+          // Filter out untrusted servers at extraction time
+          const trusts = data?.user?.serverTrusts ?? [];
+          return trusts.filter((trust) => !trust.untrustedAtBlock);
+        },
+        transformItem: (trust) => ({
           id: trust.server.id,
           serverAddress: trust.server.serverAddress as Address,
           serverUrl: trust.server.url,
           trustedAt: BigInt(trust.trustedAt),
           user,
           name: "", // Not available in new schema, will be empty
-        }));
+        }),
+      });
+
+      return serverTrusts;
     } catch (error) {
       console.error("Failed to query trusted servers from subgraph:", error);
       throw error;
@@ -2044,6 +2197,7 @@ export class DataController extends BaseController {
   async registerFileWithSchema(
     url: string,
     schemaId: number,
+    options?: TransactionOptions,
   ): Promise<TransactionResult<"DataRegistry", "addFileWithSchema">> {
     this.assertWallet();
 
@@ -2067,6 +2221,7 @@ export class DataController extends BaseController {
         args: [url, BigInt(schemaId)],
         account,
         chain: this.context.walletClient.chain ?? null,
+        ...this.spreadTransactionOptions(options),
       });
 
       const { tx } = await import("../utils/transactionHelpers");
@@ -2111,6 +2266,7 @@ export class DataController extends BaseController {
     url: string,
     ownerAddress: Address,
     permissions: Array<{ account: Address; key: string }> = [],
+    options?: TransactionOptions,
   ): Promise<TransactionResult<"DataRegistry", "addFileWithPermissions">> {
     this.assertWallet();
 
@@ -2134,6 +2290,7 @@ export class DataController extends BaseController {
         args: [url, ownerAddress, permissions],
         account,
         chain: this.context.walletClient.chain ?? null,
+        ...this.spreadTransactionOptions(options),
       });
 
       const { tx } = await import("../utils/transactionHelpers");
@@ -2195,6 +2352,7 @@ export class DataController extends BaseController {
     ownerAddress: Address,
     permissions: Array<{ account: Address; publicKey: string }> = [],
     schemaId: number = 0,
+    options?: TransactionOptions,
   ): Promise<
     TransactionResult<"DataRegistry", "addFileWithPermissionsAndSchema">
   > {
@@ -2241,6 +2399,7 @@ export class DataController extends BaseController {
         ownerAddress,
         encryptedPermissions,
         schemaId,
+        options,
       );
     } catch (error) {
       console.error("Failed to add file with permissions and schema:", error);
@@ -2293,6 +2452,7 @@ export class DataController extends BaseController {
     ownerAddress: Address,
     permissions: Array<{ account: Address; key: string }> = [],
     schemaId: number = 0,
+    options?: TransactionOptions,
   ): Promise<
     TransactionResult<"DataRegistry", "addFileWithPermissionsAndSchema">
   > {
@@ -2316,6 +2476,7 @@ export class DataController extends BaseController {
         args: [url, ownerAddress, permissions, BigInt(schemaId)],
         account,
         chain: this.context.walletClient.chain ?? null,
+        ...this.spreadTransactionOptions(options),
       });
 
       const { tx } = await import("../utils/transactionHelpers");
@@ -2365,7 +2526,10 @@ export class DataController extends BaseController {
    * console.log(`Refiner ${result.refinerId} created`);
    * ```
    */
-  async addRefiner(params: AddRefinerParams): Promise<AddRefinerResult> {
+  async addRefiner(
+    params: AddRefinerParams,
+    options?: TransactionOptions,
+  ): Promise<AddRefinerResult> {
     this.assertWallet();
 
     try {
@@ -2396,6 +2560,7 @@ export class DataController extends BaseController {
         ],
         account,
         chain: this.context.walletClient.chain ?? null,
+        ...this.spreadTransactionOptions(options),
       });
 
       // Create TransactionResult POJO
@@ -2618,6 +2783,7 @@ export class DataController extends BaseController {
    */
   async updateSchemaId(
     params: UpdateSchemaIdParams,
+    options?: TransactionOptions,
   ): Promise<UpdateSchemaIdResult> {
     this.assertWallet();
 
@@ -2643,6 +2809,7 @@ export class DataController extends BaseController {
         args: [BigInt(params.refinerId), BigInt(params.newSchemaId)],
         account,
         chain: this.context.walletClient.chain ?? null,
+        ...this.spreadTransactionOptions(options),
       });
 
       // Wait for transaction confirmation
@@ -2729,13 +2896,27 @@ export class DataController extends BaseController {
         if (response.type === "error") {
           throw new Error(response.error);
         }
-        if (response.type !== "direct" || !("fileId" in response.result)) {
+
+        // Handle pending response (stateful relayer)
+        let result: { fileId: number; transactionHash: Hash };
+        if (response.type === "pending") {
+          result = await this.pollRelayerForConfirmation(
+            response.operationId,
+            undefined, // TODO: Add TransactionOptions to upload method signature
+          );
+        } else if (
+          response.type === "direct" &&
+          typeof response.result === "object" &&
+          response.result !== null &&
+          "fileId" in response.result
+        ) {
+          result = response.result as {
+            fileId: number;
+            transactionHash: Hash;
+          };
+        } else {
           throw new Error("Invalid response from relayer");
         }
-        const result = response.result as {
-          fileId: number;
-          transactionHash: Hash;
-        };
         return {
           fileId: result.fileId,
           url: uploadResult.url,
@@ -2851,8 +3032,21 @@ export class DataController extends BaseController {
         }
       }
 
-      // Generate default filename if not provided
-      const finalFilename = filename ?? `upload-${Date.now()}.dat`;
+      // Determine final filename with proper .enc extension handling
+      const finalFilename = (() => {
+        if (filename) {
+          // If encrypting and filename doesn't already have .enc extension, add it
+          if (encrypt && !filename.endsWith(".enc")) {
+            return `${filename}.enc`;
+          }
+          // Otherwise use filename as provided
+          return filename;
+        }
+        // No filename provided - generate one based on encryption status
+        return encrypt
+          ? `upload-${Date.now()}.enc`
+          : `upload-${Date.now()}.dat`;
+      })();
 
       const uploadResult = await this.context.storageManager.upload(
         finalBlob,
@@ -2902,11 +3096,12 @@ export class DataController extends BaseController {
    */
   async addPermissionToFile(
     params: AddFilePermissionParams,
+    options?: TransactionOptions,
   ): Promise<TransactionResult<"DataRegistry", "addFilePermission">> {
     this.assertWallet();
 
     const { fileId, account, publicKey } = params;
-    return await this.submitFilePermission(fileId, account, publicKey);
+    return await this.submitFilePermission(fileId, account, publicKey, options);
   }
 
   /**
@@ -2941,6 +3136,7 @@ export class DataController extends BaseController {
     fileId: number,
     account: Address,
     publicKey: string,
+    options?: TransactionOptions,
   ): Promise<TransactionResult<"DataRegistry", "addFilePermission">> {
     this.assertWallet();
 
@@ -2979,6 +3175,7 @@ export class DataController extends BaseController {
         args: [BigInt(fileId), account, encryptedKey],
         account: walletAccount,
         chain: this.context.walletClient.chain ?? null,
+        ...this.spreadTransactionOptions(options),
       });
 
       const { tx } = await import("../utils/transactionHelpers");
@@ -3396,5 +3593,34 @@ export class DataController extends BaseController {
    */
   async fetchAndValidateSchema(url: string): Promise<DataSchema> {
     return fetchAndValidateSchema(url);
+  }
+
+  /**
+   * Polls for confirmation of a relayer operation.
+   * @internal
+   */
+  private async pollRelayerForConfirmation(
+    operationId: string,
+    options?: TransactionOptions,
+  ): Promise<{ fileId: number; transactionHash: Hash }> {
+    if (!this.context.relayer) {
+      throw new Error("Relayer not configured for polling");
+    }
+
+    const pollingManager = new PollingManager(this.context.relayer);
+
+    const result = await pollingManager.startPolling(operationId, {
+      signal: options?.signal,
+      onStatusUpdate: options?.onStatusUpdate,
+      ...options?.pollingOptions,
+    });
+
+    // For data operations, we need to extract the fileId from the transaction
+    // This would typically come from parsing transaction logs
+    // For now, we'll return a placeholder that would need proper implementation
+    return {
+      fileId: 0, // This would need to be extracted from transaction events
+      transactionHash: result.hash,
+    };
   }
 }

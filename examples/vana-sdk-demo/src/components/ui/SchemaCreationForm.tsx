@@ -6,6 +6,8 @@ import {
   Button,
   Input,
   Textarea,
+  Select,
+  SelectItem,
 } from "@heroui/react";
 import { Plus, CheckCircle, AlertCircle, Database, Shield } from "lucide-react";
 import type { VanaInstance } from "@opendatalabs/vana-sdk/browser";
@@ -86,17 +88,28 @@ export const SchemaCreationForm: React.FC<SchemaCreationFormProps> = ({
       return;
     }
 
+    if (!schemaType || (schemaType !== "json" && schemaType !== "sqlite")) {
+      setValidationResult({
+        isValid: false,
+        errors: ["Please select a valid schema dialect (JSON or SQLite)"],
+      });
+      return;
+    }
+
     setIsValidating(true);
     setValidationResult(null);
 
     try {
-      // Parse the schema definition
-      const parsedSchema = JSON.parse(schemaDefinition);
+      // For JSON schemas, parse first; for SQLite, use string directly
+      const parsedSchema =
+        schemaType === "json" ? JSON.parse(schemaDefinition) : schemaDefinition;
 
-      // Validate using our schema validation utility
+      // Validate using our schema validation utility - wraps user input with
+      // name/version/dialect and validates against metaschema
       const result = validateSchemaDefinition(
         parsedSchema,
         schemaName || "Untitled Schema",
+        schemaType as "json" | "sqlite",
       );
       setValidationResult(result);
     } catch (error) {
@@ -143,16 +156,20 @@ export const SchemaCreationForm: React.FC<SchemaCreationFormProps> = ({
               description="A descriptive name for your schema"
               isRequired
             />
-            <Input
-              label="Schema Type"
-              placeholder="user_profile"
-              value={schemaType}
-              onChange={(e) => {
-                onSchemaTypeChange(e.target.value);
+            <Select
+              label="Schema Dialect"
+              placeholder="Select a schema dialect"
+              selectedKeys={schemaType ? [schemaType] : []}
+              onSelectionChange={(keys) => {
+                const selected = Array.from(keys)[0] as string;
+                onSchemaTypeChange(selected || "");
               }}
-              description="The type identifier for this schema"
+              description="The format of your schema (JSON or SQLite)"
               isRequired
-            />
+            >
+              <SelectItem key="json">JSON Schema</SelectItem>
+              <SelectItem key="sqlite">SQLite DDL</SelectItem>
+            </Select>
           </div>
 
           {/* Schema Definition */}

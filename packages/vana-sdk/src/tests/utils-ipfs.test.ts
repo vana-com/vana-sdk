@@ -82,7 +82,7 @@ describe("IPFS Utilities", () => {
       const hash = "QmTestHash123";
       const urls = getGatewayUrls(hash);
 
-      expect(urls).toHaveLength(5);
+      expect(urls).toHaveLength(4);
       expect(urls).toContain("https://gateway.pinata.cloud/ipfs/QmTestHash123");
       expect(urls).toContain("https://ipfs.io/ipfs/QmTestHash123");
       expect(urls).toContain("https://dweb.link/ipfs/QmTestHash123");
@@ -94,7 +94,7 @@ describe("IPFS Utilities", () => {
       const ipfsUrl = "ipfs://QmTestHash123";
       const urls = convertIpfsUrlWithFallbacks(ipfsUrl);
 
-      expect(urls).toHaveLength(5);
+      expect(urls).toHaveLength(4);
       expect(urls).toContain("https://gateway.pinata.cloud/ipfs/QmTestHash123");
       expect(urls).toContain("https://ipfs.io/ipfs/QmTestHash123");
       expect(urls).toContain("https://dweb.link/ipfs/QmTestHash123");

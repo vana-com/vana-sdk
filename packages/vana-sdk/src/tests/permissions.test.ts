@@ -791,7 +791,7 @@ describe("PermissionsController", () => {
     it("should handle permissions with limit parameter", async () => {
       const mockFetch = fetch as Mock;
 
-      // Mock subgraph response with 5 permissions but we'll limit to 2
+      // Mock subgraph response - GraphQL would respect the limit in first parameter
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () =>
@@ -834,24 +834,7 @@ describe("PermissionsController", () => {
                       id: mockWalletClient.account.address.toLowerCase(),
                     },
                   },
-                  // We include more than 2 to test the limit
-                  {
-                    id: "3",
-                    grant: "https://ipfs.io/ipfs/Qm3",
-                    nonce: "3",
-                    signature: "0xsig3",
-                    startBlock: "123452",
-                    addedAtBlock: "123458",
-                    addedAtTimestamp: "1640995400",
-                    transactionHash: "0x789...",
-                    grantee: {
-                      id: "7",
-                      address: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd38",
-                    },
-                    user: {
-                      id: mockWalletClient.account.address.toLowerCase(),
-                    },
-                  },
+                  // GraphQL would only return 2 items when first: 2 is specified
                 ],
               },
             },
@@ -864,6 +847,110 @@ describe("PermissionsController", () => {
       });
 
       expect(result).toHaveLength(2);
+
+      // Verify the request included the correct limit
+      expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toMatchObject({
+        variables: {
+          first: 2,
+          skip: 0,
+        },
+      });
+    });
+
+    it("should fetch all permissions with fetchAll option", async () => {
+      const mockFetch = fetch as Mock;
+
+      // Create 150 mock permissions to test pagination
+      const createMockPermission = (id: number) => ({
+        id: String(id),
+        grant: `https://ipfs.io/ipfs/Qm${id}`,
+        nonce: String(id),
+        signature: `0xsig${id}`,
+        startBlock: String(123450 + id),
+        addedAtBlock: String(123456 + id),
+        addedAtTimestamp: String(1640995200 + id * 100),
+        transactionHash: `0x${id.toString(16).padStart(64, "0")}`,
+        grantee: {
+          id: String(5 + id),
+          address: `0x742d35Cc6558Fd4D9e9E0E888F0462ef6919B${id.toString(16).padStart(3, "0")}`,
+        },
+        user: {
+          id: mockWalletClient.account.address.toLowerCase(),
+        },
+      });
+
+      // Mock first batch (100 permissions)
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              user: {
+                id: mockWalletClient.account.address.toLowerCase(),
+                permissions: Array.from({ length: 100 }, (_, i) =>
+                  createMockPermission(i + 1),
+                ),
+              },
+            },
+          }),
+      });
+
+      // Mock second batch (50 permissions)
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              user: {
+                id: mockWalletClient.account.address.toLowerCase(),
+                permissions: Array.from({ length: 50 }, (_, i) =>
+                  createMockPermission(i + 101),
+                ),
+              },
+            },
+          }),
+      });
+
+      // Mock third batch (empty - indicating we've fetched all)
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              user: {
+                id: mockWalletClient.account.address.toLowerCase(),
+                permissions: [],
+              },
+            },
+          }),
+      });
+
+      const result = await controller.getUserPermissionGrantsOnChain({
+        fetchAll: true,
+        subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+      });
+
+      // Should have fetched all 150 permissions
+      expect(result).toHaveLength(150);
+
+      // Verify that fetch was called 2 times (2 batches, second one returns less than requested)
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+
+      // Check first call had correct pagination params
+      expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toMatchObject({
+        variables: {
+          first: 100,
+          skip: 0,
+        },
+      });
+
+      // Check second call had correct pagination params
+      expect(JSON.parse(mockFetch.mock.calls[1][1].body)).toMatchObject({
+        variables: {
+          first: 100,
+          skip: 100,
+        },
+      });
     });
 
     it("should handle missing subgraph URL error", async () => {
@@ -1984,7 +2071,7 @@ describe("PermissionsController", () => {
         const options = {
           maxFeePerGas: 150n * 10n ** 9n, // 150 gwei
           maxPriorityFeePerGas: 10n * 10n ** 9n, // 10 gwei
-          gasLimit: 800000n,
+          gas: 800000n,
         };
 
         await controller.submitPermissionRevoke(params, options);
@@ -2006,7 +2093,7 @@ describe("PermissionsController", () => {
         const params = { permissionId: 789n };
         const options = {
           gasPrice: 80n * 10n ** 9n, // 80 gwei
-          gasLimit: 400000n,
+          gas: 400000n,
           nonce: 15,
         };
 
@@ -2052,7 +2139,7 @@ describe("PermissionsController", () => {
         const permissionId = 321n;
         const options = {
           maxFeePerGas: 110n * 10n ** 9n,
-          gasLimit: 300000n,
+          gas: 300000n,
         };
 
         await controller.submitRevokePermission(permissionId, options);

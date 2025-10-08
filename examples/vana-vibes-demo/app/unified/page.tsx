@@ -62,13 +62,15 @@ export default function UnifiedPage() {
   );
   const [result, setResult] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const [useGeminiAgent, setUseGeminiAgent] = useState<boolean>(false);
+  const [agentType, setAgentType] = useState<"none" | "gemini" | "qwen">(
+    "none",
+  );
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [operationId, setOperationId] = useState<string | undefined>();
 
   // Prompts
   const defaultLLMPrompt = "Based on this: {{data}}, what is Vana?";
-  const defaultGeminiGoal = `Analyze my digital footprint across all available data sources and create:
+  const defaultAgentGoal = `Analyze my digital footprint across all available data sources and create:
 
 1. A comprehensive "Digital Mirror" report showing:
    - My interests, habits, and behavioral patterns across platforms
@@ -111,10 +113,12 @@ Create visually appealing outputs with charts, timelines, and summaries that I c
   const [isLoadingFiles, setIsLoadingFiles] = useState<boolean>(false);
   const [filesError, setFilesError] = useState<string | null>(null);
 
-  // Update prompt when mode changes
+  // Update prompt when agent type changes
   useEffect(() => {
-    setUnifiedPrompt(useGeminiAgent ? defaultGeminiGoal : defaultLLMPrompt);
-  }, [useGeminiAgent, defaultGeminiGoal, defaultLLMPrompt]);
+    setUnifiedPrompt(
+      agentType !== "none" ? defaultAgentGoal : defaultLLMPrompt,
+    );
+  }, [agentType, defaultAgentGoal, defaultLLMPrompt]);
 
   // Update status message
   useEffect(() => {
@@ -390,15 +394,29 @@ Create visually appealing outputs with charts, timelines, and summaries that I c
         },
       );
 
+      const getOperationConfig = () => {
+        if (agentType === "gemini") {
+          return {
+            operation: "prompt_gemini_agent",
+            parameters: { goal: unifiedPrompt },
+          };
+        } else if (agentType === "qwen") {
+          return {
+            operation: "prompt_qwen_agent",
+            parameters: { goal: unifiedPrompt },
+          };
+        } else {
+          return {
+            operation: "llm_inference",
+            parameters: { prompt: unifiedPrompt },
+          };
+        }
+      };
+
       await flow.executeFlow(
         walletAddress,
         userData,
-        {
-          operation: useGeminiAgent ? "prompt_gemini_agent" : "llm_inference",
-          parameters: useGeminiAgent
-            ? { goal: unifiedPrompt }
-            : { prompt: unifiedPrompt },
-        },
+        getOperationConfig(),
         schemaId,
       );
     } catch (error) {
@@ -474,12 +492,29 @@ Create visually appealing outputs with charts, timelines, and summaries that I c
         platformAdapter,
       );
 
+      const getOperationConfig = () => {
+        if (agentType === "gemini") {
+          return {
+            operation: "prompt_gemini_agent",
+            parameters: { goal: unifiedPrompt },
+          };
+        } else if (agentType === "qwen") {
+          return {
+            operation: "prompt_qwen_agent",
+            parameters: { goal: unifiedPrompt },
+          };
+        } else {
+          return {
+            operation: "llm_inference",
+            parameters: { prompt: unifiedPrompt },
+          };
+        }
+      };
+
+      const operationConfig = getOperationConfig();
       const grantData = {
         grantee: appAddress,
-        operation: useGeminiAgent ? "prompt_gemini_agent" : "llm_inference",
-        parameters: useGeminiAgent
-          ? { goal: unifiedPrompt }
-          : { prompt: unifiedPrompt },
+        ...operationConfig,
       };
 
       const grantBlob = new Blob([JSON.stringify(grantData, null, 2)], {
@@ -667,23 +702,63 @@ Create visually appealing outputs with charts, timelines, and summaries that I c
           (wallet?.address || address) &&
           googleDriveConnected && (
             <Card className="p-4 space-y-4">
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="useGemini"
-                  checked={useGeminiAgent}
-                  onChange={(e) => {
-                    setUseGeminiAgent(e.target.checked);
-                  }}
-                  disabled={isProcessing}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                />
-                <Label
-                  htmlFor="useGemini"
-                  className="text-sm font-medium text-gray-700"
-                >
-                  Use Gemini Agent for Comprehensive Analysis
+              <div className="space-y-3">
+                <Label className="text-sm font-medium text-gray-700">
+                  Select Operation Type
                 </Label>
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      id="llm"
+                      name="agentType"
+                      value="none"
+                      checked={agentType === "none"}
+                      onChange={(e) => {
+                        setAgentType(e.target.value as "none");
+                      }}
+                      disabled={isProcessing}
+                      className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                    />
+                    <Label htmlFor="llm" className="text-sm text-gray-700">
+                      Standard LLM (llm_inference)
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      id="gemini"
+                      name="agentType"
+                      value="gemini"
+                      checked={agentType === "gemini"}
+                      onChange={(e) => {
+                        setAgentType(e.target.value as "gemini");
+                      }}
+                      disabled={isProcessing}
+                      className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                    />
+                    <Label htmlFor="gemini" className="text-sm text-gray-700">
+                      Gemini Agent (prompt_gemini_agent)
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      id="qwen"
+                      name="agentType"
+                      value="qwen"
+                      checked={agentType === "qwen"}
+                      onChange={(e) => {
+                        setAgentType(e.target.value as "qwen");
+                      }}
+                      disabled={isProcessing}
+                      className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                    />
+                    <Label htmlFor="qwen" className="text-sm text-gray-700">
+                      Qwen Agent (prompt_qwen_agent)
+                    </Label>
+                  </div>
+                </div>
               </div>
 
               <div>
@@ -691,7 +766,7 @@ Create visually appealing outputs with charts, timelines, and summaries that I c
                   htmlFor="prompt"
                   className="text-sm font-medium text-gray-700 mb-2 block"
                 >
-                  {useGeminiAgent ? "Analysis Goal" : "AI Prompt"}
+                  {agentType !== "none" ? "Analysis Goal" : "AI Prompt"}
                 </Label>
                 <Textarea
                   id="prompt"
@@ -699,18 +774,18 @@ Create visually appealing outputs with charts, timelines, and summaries that I c
                   onChange={(e) => {
                     setUnifiedPrompt(e.target.value);
                   }}
-                  rows={useGeminiAgent ? 8 : 2}
+                  rows={agentType !== "none" ? 8 : 2}
                   className="resize-none font-mono text-xs"
                   placeholder={
-                    useGeminiAgent
-                      ? "What should the Gemini agent analyze?"
+                    agentType !== "none"
+                      ? `What should the ${agentType === "gemini" ? "Gemini" : "Qwen"} agent analyze?`
                       : "Enter your prompt..."
                   }
                   disabled={isProcessing}
                 />
                 <div className="mt-1 text-xs text-gray-500">
-                  {useGeminiAgent
-                    ? "Gemini will analyze your entire data footprint based on this goal"
+                  {agentType !== "none"
+                    ? `${agentType === "gemini" ? "Gemini" : "Qwen"} will analyze your ${mode === "manual" ? "data" : "entire data footprint"} based on this goal`
                     : mode === "manual"
                       ? "Use {{data}} to reference your uploaded data"
                       : "Use {{data}} to reference your file content"}

@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useModal, useAccount as useParaAccount } from "@getpara/react-sdk";
 import {
   Card,
   CardHeader,
@@ -46,7 +47,18 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const useRainbow =
+    process.env.NEXT_PUBLIC_WALLET_PROVIDER === "rainbow" ||
+    !process.env.NEXT_PUBLIC_WALLET_PROVIDER;
+
+  // Wagmi hooks (work with both Rainbow and Para)
   const { isConnected } = useAccount();
+
+  // Para wallet hooks
+  const { openModal } = useModal?.() || {};
+  const paraAccount = useParaAccount?.() as
+    | { isConnected?: boolean }
+    | undefined;
 
   // Layout-level state for grant preview modal
   const [grantPreview, setGrantPreview] = useState<GrantPreview | null>(null);
@@ -120,20 +132,40 @@ export default function DashboardLayout({
     setGrantPreview(null);
   };
 
+  // Determine connection status (works for both Rainbow and Para)
+  const walletConnected = isConnected || paraAccount?.isConnected;
+
+  // Render connect button based on provider
+  const renderConnectButton = () => {
+    if (useRainbow) {
+      return <ConnectButton />;
+    } else {
+      return (
+        <button
+          onClick={() => {
+            openModal?.();
+          }}
+          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+        >
+          {walletConnected ? "Connected" : "Connect Para Wallet"}
+        </button>
+      );
+    }
+  };
+
   // If not connected, show wallet connection prompt
-  if (!isConnected) {
+  if (!walletConnected) {
     return (
       <div className="min-h-screen bg-background">
         <Navbar isBordered>
           <NavbarBrand>
             <h1 className="text-xl font-bold text-foreground">
-              Vana SDK Demo {isConnected ? "(✅ Full Mode)" : "(🔒 Read-Only)"}
+              Vana SDK Demo{" "}
+              {walletConnected ? "(✅ Full Mode)" : "(🔒 Read-Only)"}
             </h1>
           </NavbarBrand>
           <NavbarContent justify="end">
-            <NavbarItem>
-              <ConnectButton />
-            </NavbarItem>
+            <NavbarItem>{renderConnectButton()}</NavbarItem>
           </NavbarContent>
         </Navbar>
 
@@ -161,13 +193,12 @@ export default function DashboardLayout({
         <Navbar isBordered>
           <NavbarBrand>
             <h1 className="text-xl font-bold text-foreground">
-              Vana SDK Demo {isConnected ? "(✅ Full Mode)" : "(🔒 Read-Only)"}
+              Vana SDK Demo{" "}
+              {walletConnected ? "(✅ Full Mode)" : "(🔒 Read-Only)"}
             </h1>
           </NavbarBrand>
           <NavbarContent justify="end">
-            <NavbarItem>
-              <ConnectButton />
-            </NavbarItem>
+            <NavbarItem>{renderConnectButton()}</NavbarItem>
           </NavbarContent>
         </Navbar>
 

@@ -31,6 +31,7 @@ import { useVana, isVanaInitialized } from "../../providers/vana-provider";
 import type {
   CompleteSchema,
   VanaInstance,
+  Artifact,
 } from "@opendatalabs/vana-sdk/browser";
 import {
   generateEncryptionKey,
@@ -40,13 +41,16 @@ import {
 } from "@opendatalabs/vana-sdk/browser";
 import Link from "next/link";
 import type { Address } from "viem";
+import { ArtifactDisplay } from "../../lib/components/artifact-display";
 
-// Define artifact type
+// Artifact type is now imported from SDK
+/*
 interface Artifact {
   name: string;
   artifact_path: string;
   size: number;
 }
+*/
 
 // Extend Window interface for operation ID storage
 
@@ -136,11 +140,13 @@ function SchemaExplorerContent() {
   );
   const [result, setResult] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const [useGeminiAgent, setUseGeminiAgent] = useState<boolean>(false);
+  const [agentType, setAgentType] = useState<"none" | "gemini" | "qwen">(
+    "none",
+  );
 
   // Unified prompt that switches based on mode
   const defaultLLMPrompt = "Based on this data: {{data}}, provide insights";
-  const defaultGeminiGoal = `Analyze my digital footprint across all available data sources and create:
+  const defaultAgentGoal = `Analyze my digital footprint across all available data sources and create:
 
 1. A comprehensive "Digital Mirror" report showing:
    - My interests, habits, and behavioral patterns across platforms
@@ -164,16 +170,14 @@ Create visually appealing outputs with charts, timelines, and summaries that I c
 
   const [unifiedPrompt, setUnifiedPrompt] = useState<string>(defaultLLMPrompt);
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
-  const [expandedArtifact, setExpandedArtifact] = useState<string | null>(null);
-  const [artifactContents, setArtifactContents] = useState<
-    Record<string, string>
-  >({});
   const [operationId, setOperationId] = useState<string | undefined>();
 
-  // Switch prompt when mode changes
+  // Switch prompt when agent type changes
   useEffect(() => {
-    setUnifiedPrompt(useGeminiAgent ? defaultGeminiGoal : defaultLLMPrompt);
-  }, [useGeminiAgent, defaultGeminiGoal, defaultLLMPrompt]);
+    setUnifiedPrompt(
+      agentType !== "none" ? defaultAgentGoal : defaultLLMPrompt,
+    );
+  }, [agentType, defaultAgentGoal, defaultLLMPrompt]);
 
   // Core filtering logic: Files can be filtered by schema, DLP, or both
   // This enables precise data selection for AI processing
@@ -476,23 +480,6 @@ Create visually appealing outputs with charts, timelines, and summaries that I c
     }
   };
 
-  const handleToggleArtifact = async (artifact: Artifact) => {
-    if (expandedArtifact === artifact.artifact_path) {
-      setExpandedArtifact(null);
-    } else {
-      setExpandedArtifact(artifact.artifact_path);
-
-      // Fetch content if not cached
-      if (!artifactContents[artifact.artifact_path]) {
-        const content = await fetchArtifactContent(artifact);
-        setArtifactContents((prev) => ({
-          ...prev,
-          [artifact.artifact_path]: content,
-        }));
-      }
-    }
-  };
-
   const handleDownloadArtifact = async (artifact: Artifact) => {
     try {
       setStatus(`Downloading ${artifact.name}...`);
@@ -553,9 +540,7 @@ Create visually appealing outputs with charts, timelines, and summaries that I c
     setIsProcessing(true);
     setResult("");
     setArtifacts([]);
-    setExpandedArtifact(null);
     setOperationId(undefined);
-    setArtifactContents({});
 
     try {
       setStatus("Preparing permission grant for existing file...");
@@ -605,12 +590,29 @@ Create visually appealing outputs with charts, timelines, and summaries that I c
       );
 
       // Create grant data for the AI operation
+      const getOperationConfig = () => {
+        if (agentType === "gemini") {
+          return {
+            operation: "prompt_gemini_agent",
+            parameters: { goal: unifiedPrompt },
+          };
+        } else if (agentType === "qwen") {
+          return {
+            operation: "prompt_qwen_agent",
+            parameters: { goal: unifiedPrompt },
+          };
+        } else {
+          return {
+            operation: "llm_inference",
+            parameters: { prompt: unifiedPrompt },
+          };
+        }
+      };
+
+      const operationConfig = getOperationConfig();
       const grantData = {
         grantee: appAddress,
-        operation: useGeminiAgent ? "prompt_gemini_agent" : "llm_inference",
-        parameters: useGeminiAgent
-          ? { goal: unifiedPrompt }
-          : { prompt: unifiedPrompt },
+        ...operationConfig,
       };
 
       // Create grant file blob
@@ -982,23 +984,69 @@ Create visually appealing outputs with charts, timelines, and summaries that I c
         {/* Operation Mode & Prompt Configuration */}
         {state.selectedFileId && (
           <div className="space-y-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="useGemini"
-                checked={useGeminiAgent}
-                onChange={(e) => {
-                  setUseGeminiAgent(e.target.checked);
-                }}
-                disabled={isProcessing}
-                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-              />
-              <Label
-                htmlFor="useGemini"
-                className="text-sm font-medium text-gray-700"
-              >
-                Use Gemini Agent for Comprehensive Analysis
+            <div className="space-y-3">
+              <Label className="text-sm font-medium text-gray-700">
+                Select Operation Type
               </Label>
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    id="llm-schema"
+                    name="agentType"
+                    value="none"
+                    checked={agentType === "none"}
+                    onChange={(e) => {
+                      setAgentType(e.target.value as "none");
+                    }}
+                    disabled={isProcessing}
+                    className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                  />
+                  <Label htmlFor="llm-schema" className="text-sm text-gray-700">
+                    Standard LLM (llm_inference)
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    id="gemini-schema"
+                    name="agentType"
+                    value="gemini"
+                    checked={agentType === "gemini"}
+                    onChange={(e) => {
+                      setAgentType(e.target.value as "gemini");
+                    }}
+                    disabled={isProcessing}
+                    className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                  />
+                  <Label
+                    htmlFor="gemini-schema"
+                    className="text-sm text-gray-700"
+                  >
+                    Gemini Agent (prompt_gemini_agent)
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    id="qwen-schema"
+                    name="agentType"
+                    value="qwen"
+                    checked={agentType === "qwen"}
+                    onChange={(e) => {
+                      setAgentType(e.target.value as "qwen");
+                    }}
+                    disabled={isProcessing}
+                    className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                  />
+                  <Label
+                    htmlFor="qwen-schema"
+                    className="text-sm text-gray-700"
+                  >
+                    Qwen Agent (prompt_qwen_agent)
+                  </Label>
+                </div>
+              </div>
             </div>
 
             <div>
@@ -1006,7 +1054,7 @@ Create visually appealing outputs with charts, timelines, and summaries that I c
                 htmlFor="prompt"
                 className="text-sm font-medium text-gray-700 mb-2 block"
               >
-                {useGeminiAgent ? "Analysis Goal" : "AI Prompt"}
+                {agentType !== "none" ? "Analysis Goal" : "AI Prompt"}
               </Label>
               <Textarea
                 id="prompt"
@@ -1014,18 +1062,18 @@ Create visually appealing outputs with charts, timelines, and summaries that I c
                 onChange={(e) => {
                   setUnifiedPrompt(e.target.value);
                 }}
-                rows={useGeminiAgent ? 8 : 2}
+                rows={agentType !== "none" ? 8 : 2}
                 className="resize-none font-mono text-xs"
                 placeholder={
-                  useGeminiAgent
-                    ? "What should the Gemini agent analyze?"
+                  agentType !== "none"
+                    ? `What should the ${agentType === "gemini" ? "Gemini" : "Qwen"} agent analyze?`
                     : "Enter your prompt..."
                 }
                 disabled={isProcessing}
               />
               <div className="mt-1 text-xs text-gray-500">
-                {useGeminiAgent
-                  ? "Gemini will analyze your selected file and related data based on this goal"
+                {agentType !== "none"
+                  ? `${agentType === "gemini" ? "Gemini" : "Qwen"} will analyze your selected file and related data based on this goal`
                   : "Use {{data}} to reference your file content"}
               </div>
             </div>
@@ -1076,61 +1124,12 @@ Create visually appealing outputs with charts, timelines, and summaries that I c
         </div>
 
         {/* Artifacts Display */}
-        {artifacts.length > 0 && (
-          <div>
-            <Label className="text-sm font-medium text-gray-700 mb-2 block">
-              Generated Artifacts
-            </Label>
-            <div className="space-y-2">
-              {artifacts.map((artifact, index) => (
-                <div
-                  key={index}
-                  className="bg-gray-100 border border-gray-300 rounded-lg overflow-hidden"
-                >
-                  <div className="p-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="font-medium text-sm">
-                          {artifact.name}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          Size: {artifact.size} bytes
-                        </div>
-                      </div>
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => handleToggleArtifact(artifact)}
-                          className="px-3 py-1 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 cursor-pointer"
-                          type="button"
-                        >
-                          {expandedArtifact === artifact.artifact_path
-                            ? "Hide"
-                            : "View"}
-                        </button>
-                        <button
-                          onClick={() => handleDownloadArtifact(artifact)}
-                          className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
-                          type="button"
-                        >
-                          Download
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {expandedArtifact === artifact.artifact_path && (
-                    <div className="border-t border-gray-300 bg-white p-4">
-                      <pre className="text-xs font-mono whitespace-pre-wrap overflow-x-auto max-h-96 overflow-y-auto">
-                        {artifactContents[artifact.artifact_path] ||
-                          "Loading..."}
-                      </pre>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        <ArtifactDisplay
+          artifacts={artifacts}
+          operationId={operationId}
+          onDownload={handleDownloadArtifact}
+          onFetchContent={fetchArtifactContent}
+        />
       </div>
     </div>
   );

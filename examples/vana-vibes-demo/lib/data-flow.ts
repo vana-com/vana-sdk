@@ -331,10 +331,14 @@ export class DataPortabilityFlow {
       // Step 4: Submit AI inference request and wait for result
       await this.submitInferenceRequest(permissionId);
 
-      const isGemini = grantConfig.operation === "prompt_gemini_agent";
+      const isAgent =
+        grantConfig.operation === "prompt_gemini_agent" ||
+        grantConfig.operation === "prompt_qwen_agent";
+      const agentName =
+        grantConfig.operation === "prompt_gemini_agent" ? "Gemini" : "Qwen";
       this.callbacks.onStatusUpdate(
-        isGemini
-          ? "Gemini agent analysis completed successfully!"
+        isAgent
+          ? `${agentName} agent analysis completed successfully!`
           : "Data portability flow completed successfully!",
       );
     } catch (error) {
@@ -371,6 +375,20 @@ export class DataPortabilityFlow {
       userAddress,
       userData,
       { operation: "prompt_gemini_agent", parameters: { goal } },
+      schemaId,
+    );
+  }
+
+  async executeQwenAgentFlow(
+    userAddress: string,
+    userData: string,
+    goal: string,
+    schemaId?: number | null,
+  ): Promise<void> {
+    return this.executeFlow(
+      userAddress,
+      userData,
+      { operation: "prompt_qwen_agent", parameters: { goal } },
       schemaId,
     );
   }

@@ -9,7 +9,8 @@
  * - Monitoring and debugging capabilities
  */
 
-import Redis, { type RedisOptions } from "ioredis";
+import type Redis from "ioredis";
+import type { RedisOptions } from "ioredis";
 import type {
   IRelayerStateStore,
   OperationState,

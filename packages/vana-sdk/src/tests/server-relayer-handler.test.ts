@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { handleRelayerOperation } from "../server/relayerHandler";
 import type { VanaInstance } from "../index.node";
 import type { UnifiedRelayerRequest } from "../types/relayer";
-import type { TransactionOptions } from "../types";
+import type { TransactionOptions } from "../types/operations";
 import type { Address, Hash } from "viem";
 
 // Mock viem for signature recovery (not testing actual crypto here)

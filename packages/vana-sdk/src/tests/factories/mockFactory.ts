@@ -43,8 +43,8 @@ import type {
   Chain,
   Hash,
   Address,
-  TransactionReceipt,
 } from "../../types";
+import type { TransactionReceipt } from "../../types/operations";
 import type { ControllerContext } from "../../types/controller-context";
 import type { VanaPlatformAdapter } from "../../platform/interface";
 import type { StorageManager } from "../../storage/manager";

@@ -1279,7 +1279,7 @@ describe("Server Relayer Handler", () => {
       const controller = new AbortController();
       const onStatusUpdate = vi.fn();
 
-      const optionsWithCallbacks = {
+      const optionsWithCallbacks: TransactionOptions = {
         signal: controller.signal,
         onStatusUpdate,
         value: 1000000000000000n,
@@ -1310,7 +1310,7 @@ describe("Server Relayer Handler", () => {
       };
 
       const onStatusUpdate = vi.fn();
-      const optionsWithCallback = { onStatusUpdate };
+      const optionsWithCallback: TransactionOptions = { onStatusUpdate };
 
       await handleRelayerOperation(mockSdk, request, optionsWithCallback);
 
@@ -1333,7 +1333,9 @@ describe("Server Relayer Handler", () => {
       };
 
       const controller = new AbortController();
-      const optionsWithSignal = { signal: controller.signal };
+      const optionsWithSignal: TransactionOptions = {
+        signal: controller.signal,
+      };
 
       await handleRelayerOperation(mockSdk, request, optionsWithSignal);
 

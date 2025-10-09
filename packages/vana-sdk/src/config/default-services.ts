@@ -20,8 +20,7 @@ export interface ServiceEndpoints {
  * Default service endpoints for Vana Mainnet (chain ID: 1480)
  */
 export const mainnetServices: ServiceEndpoints = {
-  subgraphUrl:
-    "https://api.goldsky.com/api/public/project_cm168cz887zva010j39il7a6p/subgraphs/vana/prod/gn",
+  subgraphUrl: "https://vanagraph.io/prod",
   blockExplorerUrl: "https://vanascan.io",
   personalServerUrl: "https://server.vana.com",
   rpcUrl: "https://rpc.vana.org",
@@ -31,8 +30,7 @@ export const mainnetServices: ServiceEndpoints = {
  * Default service endpoints for Moksha Testnet (chain ID: 14800)
  */
 export const mokshaServices: ServiceEndpoints = {
-  subgraphUrl:
-    "https://api.goldsky.com/api/public/project_cm168cz887zva010j39il7a6p/subgraphs/vana/prod/gn",
+  subgraphUrl: "https://moksha.vanagraph.io/v7",
   blockExplorerUrl: "https://moksha.vanascan.io",
   personalServerUrl: "https://test.server.vana.com",
   rpcUrl: "https://rpc.moksha.vana.org",

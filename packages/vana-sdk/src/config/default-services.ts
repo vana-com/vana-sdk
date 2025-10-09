@@ -30,7 +30,7 @@ export const mainnetServices: ServiceEndpoints = {
  * Default service endpoints for Moksha Testnet (chain ID: 14800)
  */
 export const mokshaServices: ServiceEndpoints = {
-  subgraphUrl: "https://moksha.vanagraph.io/v7",
+  subgraphUrl: "https://moksha.vanagraph.io/prod",
   blockExplorerUrl: "https://moksha.vanascan.io",
   personalServerUrl: "https://test.server.vana.com",
   rpcUrl: "https://rpc.moksha.vana.org",

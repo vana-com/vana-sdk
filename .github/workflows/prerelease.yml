@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/data-portability-sdk-v1
+      - feature/test-goldsky-prod
 
 jobs:
   publish-prerelease:

@@ -35,6 +35,7 @@ import { PollingManager } from "../core/pollingManager";
 import { BaseController } from "./base";
 import { getContractAddress } from "../config/addresses";
 import { getAbi } from "../generated/abi";
+import { InvalidConfigurationError } from "../errors";
 import type {
   GetUserFilesPaginatedQuery,
   GetFileProofsQuery,
@@ -173,6 +174,12 @@ export class DataController extends BaseController {
    * - File permissions (here): Decryption access only
    * - Operation permissions: Use `vana.permissions.grant()` separately
    *
+   * **Owner/Encryption Constraint:**
+   * When encryption is enabled (default), the `owner` parameter must match
+   * the connected wallet address. This ensures only the wallet that performs
+   * encryption can decrypt the file. For delegation scenarios where the owner
+   * differs from the connected wallet, set `encrypt: false`.
+   *
    * @param params - Upload configuration object
    * @param params.content - Data to upload (string, object, or Blob)
    * @param params.filename - Name for the uploaded file
@@ -180,13 +187,17 @@ export class DataController extends BaseController {
    *   Each requires `account` and `publicKey` for encryption.
    * @param params.schemaId - Schema for validation.
    *   Obtain via `vana.schemas.list()`.
-   * @param params.owner - Owner address for delegation scenarios.
+   * @param params.owner - Owner address for blockchain registration.
+   *   Must match connected wallet when encryption is enabled.
+   *   For delegation scenarios, disable encryption with `encrypt: false`.
    *   Defaults to connected wallet address.
    * @param params.encrypt - Enable encryption (default: `true`)
    * @param params.providerName - Storage provider override
    *
    * @returns Upload result with file ID, URL, and transaction hash
    *
+   * @throws {InvalidConfigurationError} When encryption is enabled and owner differs from wallet.
+   *   Set `encrypt: false` for delegation scenarios, or omit `owner` to use connected wallet.
    * @throws {Error} Storage not configured.
    *   Configure storage providers in `VanaConfig`.
    * @throws {Error} No wallet addresses available.
@@ -236,15 +247,12 @@ export class DataController extends BaseController {
    *   encrypt: false
    * } as const);  // 'as const' ensures TypeScript infers encrypt: false literally
    *
-   * // Upload on behalf of another user (delegation)
+   * // Upload on behalf of another user (delegation without encryption)
    * const result = await vana.data.upload({
    *   content: "User's data",
    *   filename: "delegated.txt",
-   *   owner: "0x5678...", // Different from connected wallet
-   *   permissions: [{
-   *     account: "0x1234...",   // Address that can decrypt
-   *     publicKey: "0x04..."    // Their public key for encryption
-   *   }]
+   *   owner: "0x5678...",  // Different from connected wallet
+   *   encrypt: false        // Required when owner differs from wallet
    * });
    * ```
    */
@@ -264,6 +272,19 @@ export class DataController extends BaseController {
       owner,
       schemaValidation = "strict",
     } = params;
+
+    // Validate that if encryption is enabled and owner is specified,
+    // the owner must match the connected wallet address
+    if (
+      encrypt &&
+      owner &&
+      owner.toLowerCase() !== this.context.userAddress.toLowerCase()
+    ) {
+      throw new InvalidConfigurationError(
+        "The 'owner' parameter cannot be different from the connected wallet's address when encryption is enabled. " +
+          "This would create an un-decryptable file.",
+      );
+    }
 
     try {
       let isValid = true;

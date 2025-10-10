@@ -4,6 +4,8 @@ import {
   handleRelayerOperation,
   RedisAtomicStore,
   type UnifiedRelayerRequest,
+  mokshaTestnet,
+  vanaMainnet,
 } from "@opendatalabs/vana-sdk/node";
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -11,14 +13,21 @@ import { RedisOperationStore } from "@/lib/operationStore";
 
 export async function POST(request: NextRequest) {
   try {
-    // Just pass the entire request body to the unified handler!
-    const body: UnifiedRelayerRequest = await request.json();
+    // Read the chainId from the request body, along with the relay request
+    // Then pass the entire request body to the unified handler!
+    const body: UnifiedRelayerRequest & { chainId?: number } =
+      await request.json();
+    const { chainId, ...relayerRequest } = body;
 
-    console.info("🔄 Processing relayer operation...");
+    if (!chainId) {
+      throw new Error("chainId is required in the relayer request");
+    }
+
+    console.info(`🔄 Processing relayer operation for chainId: ${chainId}...`);
     console.debug(
       "🔍 Debug - Received request:",
       JSON.stringify(
-        body,
+        relayerRequest,
         (_key, value) => (typeof value === "bigint" ? value.toString() : value),
         2,
       ),
@@ -56,7 +65,7 @@ export async function POST(request: NextRequest) {
     }
 
     const account = privateKeyToAccount(privateKey as `0x${string}`);
-    const chainId = process.env.NEXT_PUBLIC_MOKSHA === "true" ? 14800 : 1480;
+    const chain = chainId === 14800 ? mokshaTestnet : vanaMainnet;
     const rpcUrl =
       chainId === 14800
         ? (process.env.RPC_URL_VANA_MOKSHA ?? "https://rpc.moksha.vana.org")
@@ -64,6 +73,7 @@ export async function POST(request: NextRequest) {
 
     const walletClient = createWalletClient({
       account,
+      chain,
       transport: http(rpcUrl),
     });
 
@@ -77,7 +87,7 @@ export async function POST(request: NextRequest) {
     // - Use distributed nonce management if atomicStore is provided
     // - Store operation state if operationStore is provided
     // - Return pending responses for async polling
-    const result = await handleRelayerOperation(vana, body);
+    const result = await handleRelayerOperation(vana, relayerRequest);
 
     // With atomicStore, nonce conflicts should be rare
     // But log if they occur for debugging

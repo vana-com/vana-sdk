@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import {
@@ -63,6 +63,9 @@ export default function DashboardLayout({
     googleDriveAccessToken: "",
     googleDriveRefreshToken: "",
     googleDriveExpiresAt: null as number | null,
+    dropboxAccessToken: "",
+    dropboxRefreshToken: "",
+    dropboxExpiresAt: null as number | null,
     defaultPersonalServerUrl:
       process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL ??
       (() => {
@@ -77,21 +80,52 @@ export default function DashboardLayout({
     useGaslessTransactions: true,
   });
 
+  // Listen for successful Google Drive authentication from the popup window
+  useEffect(() => {
+    const handleAuthMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) {
+        return;
+      }
+
+      const { type, tokens } = event.data;
+
+      if (type === "GOOGLE_DRIVE_AUTH_SUCCESS" && tokens) {
+        console.info("✅ Google Drive authentication successful, updating state.");
+        setSdkConfig((prev) => ({
+          ...prev,
+          googleDriveAccessToken: tokens.accessToken,
+          googleDriveRefreshToken: tokens.refreshToken,
+          googleDriveExpiresAt: tokens.expiresAt,
+          defaultStorageProvider: "google-drive",
+        }));
+      }
+
+      if (type === "DROPBOX_AUTH_SUCCESS" && tokens) {
+        console.info("✅ Dropbox authentication successful, updating state.");
+        setSdkConfig((prev) => ({
+          ...prev,
+          dropboxAccessToken: tokens.accessToken,
+          dropboxRefreshToken: tokens.refreshToken,
+          dropboxExpiresAt: tokens.expiresAt,
+          defaultStorageProvider: "dropbox",
+        }));
+      }
+    };
+
+    window.addEventListener("message", handleAuthMessage);
+
+    return () => {
+      window.removeEventListener("message", handleAuthMessage);
+    };
+  }, []); // Empty dependency array ensures this runs only once
+
   // Google Drive authentication handlers
   const handleGoogleDriveAuth = () => {
-    const authWindow = window.open(
+    window.open(
       "/api/auth/google-drive/authorize",
       "google-drive-auth",
       "width=600,height=700,scrollbars=yes,resizable=yes",
     );
-
-    // Monitor auth window closure
-    const checkClosed = setInterval(() => {
-      if (authWindow?.closed) {
-        clearInterval(checkClosed);
-        console.info("Google Drive auth window closed");
-      }
-    }, 1000);
   };
 
   const handleGoogleDriveDisconnect = () => {
@@ -106,6 +140,29 @@ export default function DashboardLayout({
           : prev.defaultStorageProvider,
     }));
     console.info("Google Drive disconnected");
+  };
+
+  // Dropbox authentication handlers
+  const handleDropboxAuth = () => {
+    window.open(
+      "/api/auth/dropbox/authorize",
+      "dropbox-auth",
+      "width=600,height=700,scrollbars=yes,resizable=yes",
+    );
+  };
+
+  const handleDropboxDisconnect = () => {
+    setSdkConfig((prev) => ({
+      ...prev,
+      dropboxAccessToken: "",
+      dropboxRefreshToken: "",
+      dropboxExpiresAt: null,
+      defaultStorageProvider:
+        prev.defaultStorageProvider === "dropbox"
+          ? "app-ipfs"
+          : prev.defaultStorageProvider,
+    }));
+    console.info("Dropbox disconnected");
   };
 
   // Grant modal handlers (these will be used by pages via context if needed)
@@ -193,6 +250,8 @@ export default function DashboardLayout({
               }}
               onGoogleDriveAuth={handleGoogleDriveAuth}
               onGoogleDriveDisconnect={handleGoogleDriveDisconnect}
+              onDropboxAuth={handleDropboxAuth}
+              onDropboxDisconnect={handleDropboxDisconnect}
             />
           </div>
         </div>

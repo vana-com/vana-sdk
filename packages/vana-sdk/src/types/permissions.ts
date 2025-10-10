@@ -101,6 +101,8 @@ export interface GrantPermissionParams {
   files: number[];
   /** The full, off-chain parameters (e.g., LLM prompt) */
   parameters: Record<string, unknown>;
+  /** Optional JSONPath filters to apply to files, keyed by file ID */
+  filters?: Record<string, string>;
   /** Optional pre-stored grant URL to avoid duplicate IPFS storage */
   grantUrl?: string;
   /** Optional nonce for the permission */

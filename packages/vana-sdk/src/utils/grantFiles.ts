@@ -33,8 +33,13 @@ export function createGrantFile(params: GrantPermissionParams): GrantFile {
   const grantFile: GrantFile = {
     grantee: params.grantee,
     operation: params.operation,
-    parameters: params.parameters,
+    parameters: { ...params.parameters },
   };
+
+  // Add filters to parameters if provided
+  if (params.filters) {
+    grantFile.parameters.filters = params.filters;
+  }
 
   // Add expiration if provided
   if (params.expiresAt) {

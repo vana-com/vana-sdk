@@ -105,6 +105,34 @@ describe("Grant Files Utils", () => {
 
       expect(grantFile.expires).toBeUndefined();
     });
+
+    it("should include filters in parameters when provided", () => {
+      const params = {
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        operation: "llm_inference",
+        files: [1, 2, 3],
+        parameters: { prompt: "test" },
+        filters: { "1": "$.data.field", "2": "$.other.path" },
+      };
+
+      const grantFile = createGrantFile(params);
+
+      expect(grantFile.parameters.filters).toEqual(params.filters);
+      expect(grantFile.parameters.prompt).toBe("test");
+    });
+
+    it("should not include filters when not provided", () => {
+      const params = {
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        operation: "llm_inference",
+        files: [1, 2, 3],
+        parameters: { prompt: "test" },
+      };
+
+      const grantFile = createGrantFile(params);
+
+      expect(grantFile.parameters.filters).toBeUndefined();
+    });
   });
 
   describe("getGrantFileHash", () => {

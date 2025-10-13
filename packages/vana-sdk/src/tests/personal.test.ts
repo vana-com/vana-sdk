@@ -29,10 +29,12 @@ describe("ServerController", () => {
   let mockWalletClient: {
     account: unknown;
     getAddresses: ReturnType<typeof vi.fn>;
+    signMessage: ReturnType<typeof vi.fn>;
   };
   let mockApplicationClient: {
     account: unknown;
     getAddresses: ReturnType<typeof vi.fn>;
+    signMessage: ReturnType<typeof vi.fn>;
   };
   let mockAccount: {
     type: string;
@@ -56,12 +58,14 @@ describe("ServerController", () => {
     mockWalletClient = {
       account: mockAccount,
       getAddresses: vi.fn().mockResolvedValue([mockAccount.address]),
+      signMessage: vi.fn().mockResolvedValue(`0x${"0".repeat(130)}`),
     };
 
     // Create mock application client
     mockApplicationClient = {
       account: mockAccount,
       getAddresses: vi.fn().mockResolvedValue([mockAccount.address]),
+      signMessage: vi.fn().mockResolvedValue(`0x${"0".repeat(130)}`),
     };
 
     // Create mock context
@@ -123,7 +127,7 @@ describe("ServerController", () => {
       const result = await serverController.createOperation(validParams);
 
       expect(result.id).toEqual(mockOperationResponse.id);
-      expect(mockAccount.signMessage).toHaveBeenCalled();
+      expect(mockApplicationClient.signMessage).toHaveBeenCalled();
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/operations"),
         expect.objectContaining({

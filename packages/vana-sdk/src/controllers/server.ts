@@ -700,16 +700,11 @@ export class ServerController extends BaseController {
         throw new SignatureError("No account available for signing");
       }
 
-      // Only allow local accounts for signing
-      if (account.type !== "local") {
-        throw new SignatureError(
-          "Only local accounts are supported for signing",
-        );
-      }
-
       console.debug("🔍 Debug - createSignature account", account);
-      // Sign locally using the account's signMessage method
-      const signature = await account.signMessage({
+      // Sign message using the wallet client's signMessage method
+      // This works with both local accounts (private key) and JSON-RPC accounts (MetaMask, WalletConnect)
+      const signature = await client.signMessage({
+        account,
         message: requestJson,
       });
 

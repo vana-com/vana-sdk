@@ -14,6 +14,12 @@ import {
   Divider,
   RadioGroup,
   Radio,
+  Table,
+  TableHeader,
+  TableColumn,
+  TableBody,
+  TableRow,
+  TableCell,
 } from "@heroui/react";
 import { Lock, Key, Database, TestTube, Wrench } from "lucide-react";
 import type { WalletClient } from "viem";
@@ -109,6 +115,21 @@ export const AdvancedToolsTab: React.FC<AdvancedToolsTabProps> = ({
     url: string;
     size: number;
   } | null>(null);
+
+  // Artifacts testing state
+  const [artifactsOperationId, setArtifactsOperationId] = useState("");
+  const [isListingArtifacts, setIsListingArtifacts] = useState(false);
+  const [artifactsList, setArtifactsList] = useState<
+    Array<{
+      path: string;
+      size: number;
+      content_type: string;
+    }>
+  >([]);
+  const [artifactsError, setArtifactsError] = useState("");
+  const [downloadingArtifact, setDownloadingArtifact] = useState<string | null>(
+    null,
+  );
 
   /**
    * Generates an encryption key using the SDK
@@ -305,6 +326,69 @@ export const AdvancedToolsTab: React.FC<AdvancedToolsTabProps> = ({
       );
     } finally {
       setIsDecryptingFile(false);
+    }
+  };
+
+  /**
+   * Lists artifacts for an operation
+   */
+  const listOperationArtifacts = async () => {
+    if (!artifactsOperationId.trim()) {
+      setArtifactsError("Please enter an operation ID");
+      return;
+    }
+
+    setIsListingArtifacts(true);
+    setArtifactsError("");
+    setArtifactsList([]);
+
+    try {
+      const artifacts = await vana.server.listArtifacts(
+        artifactsOperationId.trim(),
+      );
+      setArtifactsList(artifacts);
+
+      if (artifacts.length === 0) {
+        setArtifactsError("No artifacts found for this operation");
+      }
+    } catch (error) {
+      setArtifactsError(
+        error instanceof Error ? error.message : "Failed to list artifacts",
+      );
+    } finally {
+      setIsListingArtifacts(false);
+    }
+  };
+
+  /**
+   * Downloads a specific artifact
+   */
+  const downloadArtifact = async (artifactPath: string) => {
+    if (!artifactsOperationId.trim()) return;
+
+    setDownloadingArtifact(artifactPath);
+
+    try {
+      const blob = await vana.server.downloadArtifact({
+        operationId: artifactsOperationId.trim(),
+        artifactPath,
+      });
+
+      // Create download link
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = artifactPath.split("/").pop() ?? "artifact";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setArtifactsError(
+        error instanceof Error
+          ? error.message
+          : `Failed to download ${artifactPath}`,
+      );
+    } finally {
+      setDownloadingArtifact(null);
     }
   };
 
@@ -732,6 +816,137 @@ export const AdvancedToolsTab: React.FC<AdvancedToolsTabProps> = ({
   );
 
   /**
+   * Renders the artifacts tab
+   */
+  const renderArtifactsTab = () => (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Database className="h-5 w-5" />
+            <h4 className="text-lg font-semibold">Operations & Artifacts</h4>
+          </div>
+        </CardHeader>
+        <CardBody>
+          <div className="space-y-4">
+            {/* Operation ID Input */}
+            <Input
+              label="Operation ID"
+              placeholder="Enter operation ID"
+              value={artifactsOperationId}
+              onChange={(e) => {
+                setArtifactsOperationId(e.target.value);
+              }}
+              description="The CUID of the operation whose artifacts you want to list"
+            />
+
+            {/* List Artifacts Button */}
+            <Button
+              onPress={listOperationArtifacts}
+              isLoading={isListingArtifacts}
+              color="primary"
+              isDisabled={!artifactsOperationId.trim()}
+              startContent={<Database className="h-4 w-4" />}
+            >
+              List Artifacts
+            </Button>
+
+            {/* Error Display */}
+            {artifactsError && (
+              <div className="p-3 bg-danger/10 rounded-lg">
+                <p className="text-sm text-danger">{artifactsError}</p>
+              </div>
+            )}
+
+            {/* Artifacts List */}
+            {artifactsList.length > 0 && (
+              <div className="space-y-4">
+                <h5 className="font-medium text-success">
+                  Found {artifactsList.length} artifact(s):
+                </h5>
+
+                <Table aria-label="Artifacts table" removeWrapper>
+                  <TableHeader>
+                    <TableColumn>Path</TableColumn>
+                    <TableColumn>Size</TableColumn>
+                    <TableColumn>Content Type</TableColumn>
+                    <TableColumn>Actions</TableColumn>
+                  </TableHeader>
+                  <TableBody>
+                    {artifactsList.map((artifact) => (
+                      <TableRow key={artifact.path}>
+                        <TableCell>
+                          <span className="font-mono text-sm">
+                            {artifact.path}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          {(artifact.size / 1024).toFixed(2)} KB
+                        </TableCell>
+                        <TableCell>
+                          <Chip size="sm" variant="flat">
+                            {artifact.content_type}
+                          </Chip>
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            size="sm"
+                            variant="flat"
+                            onPress={() => downloadArtifact(artifact.path)}
+                            isLoading={downloadingArtifact === artifact.path}
+                            isDisabled={downloadingArtifact !== null}
+                          >
+                            Download
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+
+                {/* Usage Example */}
+                <details className="group">
+                  <summary className="cursor-pointer text-sm font-medium text-default-600 hover:text-default-900">
+                    View Code Example
+                  </summary>
+                  <div className="mt-2">
+                    <CodeDisplay
+                      code={`// List all artifacts for an operation
+const artifacts = await vana.server.listArtifacts(operationId);
+console.log(artifacts);
+// [
+//   { path: "report.md", size: 5678, content_type: "text/markdown" },
+//   { path: "data.json", size: 12345, content_type: "application/json" }
+// ]
+
+// Download a specific artifact
+const blob = await vana.server.downloadArtifact({
+  operationId: operationId,
+  artifactPath: "report.md"
+});
+
+// Create download link
+const url = URL.createObjectURL(blob);
+const a = document.createElement("a");
+a.href = url;
+a.download = "report.md";
+a.click();
+URL.revokeObjectURL(url);`}
+                      showCopy={true}
+                      language="typescript"
+                      maxHeight="max-h-64"
+                    />
+                  </div>
+                </details>
+              </div>
+            )}
+          </div>
+        </CardBody>
+      </Card>
+    </div>
+  );
+
+  /**
    * Renders the storage testing tab
    */
   const renderStorageTab = () => (
@@ -855,6 +1070,9 @@ export const AdvancedToolsTab: React.FC<AdvancedToolsTabProps> = ({
         </Tab>
         <Tab key="storage" title="Storage Testing">
           {renderStorageTab()}
+        </Tab>
+        <Tab key="artifacts" title="Operations & Artifacts">
+          {renderArtifactsTab()}
         </Tab>
       </Tabs>
     </div>

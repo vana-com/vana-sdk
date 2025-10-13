@@ -150,4 +150,310 @@ describe("ServerController - Additional Methods", () => {
       );
     });
   });
+
+  describe("downloadArtifact", () => {
+    beforeEach(() => {
+      // Mock createSignature to return predictable signature
+      vi.spyOn(controller as any, "createSignature").mockResolvedValue(
+        "0xmocksignature123",
+      );
+    });
+
+    it("should successfully download an artifact", async () => {
+      const operationId = "test-op-123";
+      const artifactPath = "report.json";
+      const mockBlob = new Blob(['{"result": "data"}'], {
+        type: "application/json",
+      });
+
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        blob: async () => mockBlob,
+      });
+
+      const result = await controller.downloadArtifact({
+        operationId,
+        artifactPath,
+      });
+
+      expect(result).toBe(mockBlob);
+      expect(fetchMock).toHaveBeenCalledWith(
+        "https://personal-server.example.com/artifacts/download",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            operation_id: operationId,
+            artifact_path: artifactPath,
+            signature: "0xmocksignature123",
+          }),
+        },
+      );
+
+      // Verify signature was created with simplified scheme (operation_id only)
+      expect(controller["createSignature"]).toHaveBeenCalledWith(
+        JSON.stringify({ operation_id: operationId }),
+      );
+    });
+
+    it("should throw PersonalServerError when artifact not found (404)", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+        text: async () => "Artifact not found",
+      });
+
+      await expect(
+        controller.downloadArtifact({
+          operationId: "test-op-123",
+          artifactPath: "missing.json",
+        }),
+      ).rejects.toThrow(PersonalServerError);
+
+      // Check the error message with a second mock
+      fetchMock.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+        text: async () => "Artifact not found",
+      });
+
+      await expect(
+        controller.downloadArtifact({
+          operationId: "test-op-123",
+          artifactPath: "missing.json",
+        }),
+      ).rejects.toThrow("404 Not Found");
+    });
+
+    it("should throw PersonalServerError when signature verification fails (401)", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        statusText: "Unauthorized",
+        text: async () => "Authentication failed",
+      });
+
+      await expect(
+        controller.downloadArtifact({
+          operationId: "test-op-123",
+          artifactPath: "report.json",
+        }),
+      ).rejects.toThrow(PersonalServerError);
+    });
+
+    it("should throw PersonalServerError when access denied (403)", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        statusText: "Forbidden",
+        text: async () => "Access denied - not authorized grantor or grantee",
+      });
+
+      await expect(
+        controller.downloadArtifact({
+          operationId: "test-op-123",
+          artifactPath: "report.json",
+        }),
+      ).rejects.toThrow(PersonalServerError);
+
+      // Check the error message with a second mock
+      fetchMock.mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        statusText: "Forbidden",
+        text: async () => "Access denied - not authorized grantor or grantee",
+      });
+
+      await expect(
+        controller.downloadArtifact({
+          operationId: "test-op-123",
+          artifactPath: "report.json",
+        }),
+      ).rejects.toThrow("403 Forbidden");
+    });
+
+    it("should handle network errors gracefully", async () => {
+      fetchMock.mockRejectedValueOnce(new Error("Network failure"));
+
+      await expect(
+        controller.downloadArtifact({
+          operationId: "test-op-123",
+          artifactPath: "report.json",
+        }),
+      ).rejects.toThrow(PersonalServerError);
+    });
+  });
+
+  describe("listArtifacts", () => {
+    beforeEach(() => {
+      // Mock createSignature to return predictable signature
+      vi.spyOn(controller as any, "createSignature").mockResolvedValue(
+        "0xmocksignature123",
+      );
+    });
+
+    it("should successfully list artifacts", async () => {
+      const operationId = "test-op-123";
+      const mockArtifacts = [
+        {
+          path: "report.md",
+          size: 5678,
+          content_type: "text/markdown",
+        },
+        {
+          path: "data.json",
+          size: 12345,
+          content_type: "application/json",
+        },
+      ];
+
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          operation_id: operationId,
+          artifacts: mockArtifacts,
+        }),
+      });
+
+      const result = await controller.listArtifacts(operationId);
+
+      expect(result).toEqual(mockArtifacts);
+      expect(fetchMock).toHaveBeenCalledWith(
+        `https://personal-server.example.com/artifacts/${operationId}/list`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            operation_id: operationId,
+            signature: "0xmocksignature123",
+          }),
+        },
+      );
+
+      // Verify signature was created with simplified scheme (operation_id only)
+      expect(controller["createSignature"]).toHaveBeenCalledWith(
+        JSON.stringify({ operation_id: operationId }),
+      );
+    });
+
+    it("should return empty array when no artifacts exist", async () => {
+      const operationId = "test-op-123";
+
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          operation_id: operationId,
+          artifacts: [],
+        }),
+      });
+
+      const result = await controller.listArtifacts(operationId);
+
+      expect(result).toEqual([]);
+    });
+
+    it("should handle missing artifacts field in response", async () => {
+      const operationId = "test-op-123";
+
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          operation_id: operationId,
+          // Missing artifacts field
+        }),
+      });
+
+      const result = await controller.listArtifacts(operationId);
+
+      expect(result).toEqual([]);
+    });
+
+    it("should throw PersonalServerError when operation not found (404)", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+        text: async () => "Operation not found",
+      });
+
+      await expect(controller.listArtifacts("test-op-123")).rejects.toThrow(
+        PersonalServerError,
+      );
+
+      // Check the error message with a second mock
+      fetchMock.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+        text: async () => "Operation not found",
+      });
+
+      await expect(controller.listArtifacts("test-op-123")).rejects.toThrow(
+        "404 Not Found",
+      );
+    });
+
+    it("should throw PersonalServerError when signature verification fails (401)", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        statusText: "Unauthorized",
+        text: async () => "Authentication failed",
+      });
+
+      await expect(controller.listArtifacts("test-op-123")).rejects.toThrow(
+        PersonalServerError,
+      );
+    });
+
+    it("should throw PersonalServerError when access denied (403)", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        statusText: "Forbidden",
+        text: async () => "Access denied - not authorized grantor or grantee",
+      });
+
+      await expect(controller.listArtifacts("test-op-123")).rejects.toThrow(
+        PersonalServerError,
+      );
+
+      // Check the error message with a second mock
+      fetchMock.mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        statusText: "Forbidden",
+        text: async () => "Access denied - not authorized grantor or grantee",
+      });
+
+      await expect(controller.listArtifacts("test-op-123")).rejects.toThrow(
+        "403 Forbidden",
+      );
+    });
+
+    it("should handle network errors gracefully", async () => {
+      fetchMock.mockRejectedValueOnce(new Error("Network failure"));
+
+      await expect(controller.listArtifacts("test-op-123")).rejects.toThrow(
+        PersonalServerError,
+      );
+    });
+
+    it("should handle malformed JSON response gracefully", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => {
+          throw new Error("Invalid JSON");
+        },
+      });
+
+      await expect(controller.listArtifacts("test-op-123")).rejects.toThrow();
+    });
+  });
 });

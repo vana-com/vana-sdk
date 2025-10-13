@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { useAccount } from "wagmi";
+import { useAccount, useChainId } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useModal, useAccount as useParaAccount } from "@getpara/react-sdk";
 import {
@@ -53,12 +53,25 @@ export default function DashboardLayout({
 
   // Wagmi hooks (work with both Rainbow and Para)
   const { isConnected } = useAccount();
+  const chainId = useChainId();
 
   // Para wallet hooks
   const { openModal } = useModal?.() || {};
   const paraAccount = useParaAccount?.() as
     | { isConnected?: boolean }
     | undefined;
+
+  // Helper to get network name from chain ID
+  const getNetworkName = (id: number) => {
+    switch (id) {
+      case 1480:
+        return "Mainnet";
+      case 14800:
+        return "Moksha";
+      default:
+        return `Chain ${id}`;
+    }
+  };
 
   // Layout-level state for grant preview modal
   const [grantPreview, setGrantPreview] = useState<GrantPreview | null>(null);
@@ -147,7 +160,9 @@ export default function DashboardLayout({
           }}
           className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
         >
-          {walletConnected ? "Connected" : "Connect Para Wallet"}
+          {walletConnected
+            ? `Connected • ${getNetworkName(chainId)}`
+            : "Connect Para Wallet"}
         </button>
       );
     }

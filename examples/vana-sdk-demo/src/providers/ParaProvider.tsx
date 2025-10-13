@@ -18,8 +18,6 @@ const PARA_API_KEY =
 export const ParaProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
-  const chain = process.env.NEXT_PUBLIC_MOKSHA ? mokshaTestnet : vanaMainnet;
-
   return (
     <ParaProviderBase
       paraClientConfig={{
@@ -37,7 +35,7 @@ export const ParaProvider: React.FC<{ children: ReactNode }> = ({
         wallets: ["METAMASK", "COINBASE", "WALLETCONNECT", "RAINBOW"],
         evmConnector: {
           config: {
-            chains: [chain],
+            chains: [mokshaTestnet, vanaMainnet],
           },
         },
         walletConnect: {

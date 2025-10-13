@@ -28,6 +28,12 @@ export const ParaProvider: React.FC<{ children: ReactNode }> = ({
       }}
       externalWalletConfig={{
         includeWalletVerification: true,
+        createLinkedEmbeddedForExternalWallets: [
+          "METAMASK",
+          "COINBASE",
+          "WALLETCONNECT",
+          "RAINBOW",
+        ],
         wallets: ["METAMASK", "COINBASE", "WALLETCONNECT", "RAINBOW"],
         evmConnector: {
           config: {

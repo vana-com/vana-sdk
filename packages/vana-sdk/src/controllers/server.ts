@@ -376,6 +376,12 @@ export class ServerController extends BaseController {
    * The download requires authentication using the application's signature.
    * This method returns the artifact as a Blob that can be saved or processed.
    *
+   * **Simplified Signature Scheme:**
+   * The signature is generated over the operation ID only, allowing a single signature
+   * to be reused for listing and downloading multiple artifacts from the same operation.
+   * This simplifies client implementation while maintaining security - access to the
+   * operation ID grants access to all artifacts.
+   *
    * @param params - The download parameters
    * @param params.operationId - The operation ID that generated the artifact
    * @param params.artifactPath - The path to the artifact file to download
@@ -407,16 +413,19 @@ export class ServerController extends BaseController {
     this.assertWallet();
 
     try {
-      const requestData = {
+      // Simplified signature scheme: sign only operation_id
+      // This allows the same signature to be reused for all artifacts
+      const signatureData = {
         operation_id: params.operationId,
-        artifact_path: params.artifactPath,
       };
 
-      const requestJson = JSON.stringify(requestData);
+      const requestJson = JSON.stringify(signatureData);
       const signature = await this.createSignature(requestJson);
 
+      // Request body still includes artifact_path for the API
       const requestBody = {
-        ...requestData,
+        operation_id: params.operationId,
+        artifact_path: params.artifactPath,
         signature,
       };
 

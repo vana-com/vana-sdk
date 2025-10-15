@@ -4,6 +4,8 @@ import {
   handleRelayerOperation,
   RedisAtomicStore,
   type UnifiedRelayerRequest,
+  vanaMainnet,
+  moksha,
 } from "@opendatalabs/vana-sdk/node";
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -11,7 +13,6 @@ import { RedisOperationStore } from "@/lib/operationStore";
 
 export async function POST(request: NextRequest) {
   try {
-    // Just pass the entire request body to the unified handler!
     const body: UnifiedRelayerRequest = await request.json();
 
     console.info("🔄 Processing relayer operation...");
@@ -23,6 +24,19 @@ export async function POST(request: NextRequest) {
         2,
       ),
     );
+
+    let chainId: number;
+    if (body.type === "signed" && body.typedData?.domain?.chainId) {
+      chainId = body.typedData.domain.chainId;
+    } else if (body.type === "direct") {
+      const defaultChainId =
+        process.env.NEXT_PUBLIC_MOKSHA === "true" ? 14800 : 1480;
+      chainId = body.chainId ?? defaultChainId;
+    } else {
+      chainId = process.env.NEXT_PUBLIC_MOKSHA === "true" ? 14800 : 1480;
+    }
+
+    console.info(`🔗 [Relayer] Using chainId from request: ${chainId}`);
 
     // Initialize stores if Redis is configured
     let operationStore;
@@ -56,15 +70,19 @@ export async function POST(request: NextRequest) {
     }
 
     const account = privateKeyToAccount(privateKey as `0x${string}`);
-    const chainId = process.env.NEXT_PUBLIC_MOKSHA === "true" ? 14800 : 1480;
-    const rpcUrl =
-      chainId === 14800
-        ? (process.env.RPC_URL_VANA_MOKSHA ?? "https://rpc.moksha.vana.org")
-        : (process.env.RPC_URL_VANA ?? "https://rpc.vana.org");
+    const chain = chainId === 14800 ? moksha : vanaMainnet;
 
     const walletClient = createWalletClient({
       account,
-      transport: http(rpcUrl),
+      chain,
+      transport: http(chain.rpcUrls.default.http[0]),
+    });
+
+    console.info("🔍 [Relayer] WalletClient created:", {
+      hasAccount: !!walletClient.account,
+      hasChain: !!walletClient.chain,
+      chainId: walletClient.chain?.id,
+      chainName: walletClient.chain?.name,
     });
 
     const vana = Vana({

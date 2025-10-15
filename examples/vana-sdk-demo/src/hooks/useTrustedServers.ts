@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useVana } from "@/providers/VanaProvider";
-import { useAccount } from "wagmi";
+import { useSDKConfig } from "@/providers/SDKConfigProvider";
 import { addToast } from "@heroui/react";
 
 interface TrustedServer {
@@ -57,7 +57,7 @@ export interface UseTrustedServersReturn {
 
 export function useTrustedServers(): UseTrustedServersReturn {
   const { vana } = useVana();
-  const { address } = useAccount();
+  const { effectiveAddress: address } = useSDKConfig();
 
   // Trusted servers state
   const [trustedServers, setTrustedServers] = useState<TrustedServer[]>([]);
@@ -82,7 +82,7 @@ export function useTrustedServers(): UseTrustedServersReturn {
     try {
       const servers = await vana.data.getUserTrustedServers(
         {
-          user: address,
+          user: address as `0x${string}`,
           subgraphUrl: process.env.NEXT_PUBLIC_SUBGRAPH_URL,
         },
         {
@@ -337,13 +337,6 @@ export function useTrustedServers(): UseTrustedServersReturn {
       setIsDiscoveringServer(false);
     }
   }, [vana, address]);
-
-  // Load trusted servers when Vana is initialized
-  useEffect(() => {
-    if (vana && address) {
-      void loadUserTrustedServers();
-    }
-  }, [vana, address, loadUserTrustedServers]);
 
   // Clear state when wallet disconnects
   useEffect(() => {

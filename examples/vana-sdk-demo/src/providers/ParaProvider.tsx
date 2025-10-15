@@ -12,12 +12,19 @@ import {
   vanaMainnet,
 } from "@opendatalabs/vana-sdk/browser";
 
-const PARA_API_KEY =
-  process.env.NEXT_PUBLIC_PARA_KEY ?? "f78f3c305f0f27e9d7b8bd28fbb456db";
-
 export const ParaProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
+  const PARA_API_KEY = process.env.NEXT_PUBLIC_PARA_KEY;
+
+  // Only enforce this requirement when Para is actually being used
+  if (!PARA_API_KEY) {
+    throw new Error(
+      "NEXT_PUBLIC_PARA_KEY is required when using Para wallet provider. " +
+        "Either set this variable or use NEXT_PUBLIC_WALLET_PROVIDER=rainbow to use Rainbow Kit instead.",
+    );
+  }
+
   return (
     <ParaProviderBase
       paraClientConfig={{
@@ -38,11 +45,9 @@ export const ParaProvider: React.FC<{ children: ReactNode }> = ({
             chains: [mokshaTestnet, vanaMainnet],
           },
         },
-        walletConnect: {
-          projectId:
-            process.env.NEXT_PUBLIC_REOWN_PROJECT ??
-            "6210bc10b6ce68f0d583d322842cc313",
-        },
+        ...(process.env.NEXT_PUBLIC_REOWN_PROJECT && {
+          walletConnect: { projectId: process.env.NEXT_PUBLIC_REOWN_PROJECT },
+        }),
       }}
       config={{ appName: "Vana SDK Demo" }}
     >

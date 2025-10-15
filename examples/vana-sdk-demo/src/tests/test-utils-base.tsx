@@ -3,34 +3,6 @@ import { render, type RenderOptions } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HeroUIProvider, ToastProvider } from "@heroui/react";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
-import { vi } from "vitest";
-
-// Mock wagmi hooks
-vi.mock("wagmi", () => ({
-  useAccount: vi.fn(() => ({
-    address: "0x123" as `0x${string}`,
-    isConnected: true,
-    chain: { id: 14800 },
-  })),
-  useWalletClient: vi.fn(() => ({
-    data: undefined,
-  })),
-  useConfig: vi.fn(() => ({})),
-  useChainId: vi.fn(() => 14800),
-}));
-
-// Mock VanaProvider to provide test values
-vi.mock("@/providers/VanaProvider", () => ({
-  useVana: vi.fn(() => ({
-    vana: null,
-    isInitialized: false,
-    error: null,
-    applicationAddress: "",
-  })),
-  VanaProvider: ({ children }: { children: React.ReactNode }) => children,
-}));
-
-import { SDKConfigProvider } from "@/providers/SDKConfigProvider";
 
 // Re-export commonly used testing-library utilities
 export {
@@ -61,8 +33,8 @@ interface AllTheProvidersProps {
   children: React.ReactNode;
 }
 
-// Component that wraps children with all necessary providers
-const AllTheProviders = ({ children }: AllTheProvidersProps) => {
+// Component that wraps children with all necessary providers (without SDKConfigProvider)
+const AllTheProvidersBase = ({ children }: AllTheProvidersProps) => {
   const queryClient = createTestQueryClient();
 
   return (
@@ -75,17 +47,17 @@ const AllTheProviders = ({ children }: AllTheProvidersProps) => {
       >
         <HeroUIProvider>
           <ToastProvider placement="bottom-right" />
-          <SDKConfigProvider>{children}</SDKConfigProvider>
+          {children}
         </HeroUIProvider>
       </NextThemesProvider>
     </QueryClientProvider>
   );
 };
 
-// Custom render function that wraps components with providers
-export const renderWithProviders = (
+// Custom render function that wraps components with providers (without SDKConfigProvider)
+export const renderWithBaseProviders = (
   ui: ReactElement,
   options?: Omit<RenderOptions, "wrapper">,
 ) => {
-  return render(ui, { wrapper: AllTheProviders, ...options });
+  return render(ui, { wrapper: AllTheProvidersBase, ...options });
 };

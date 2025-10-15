@@ -17,6 +17,7 @@ import {
   Chip,
   Pagination,
   Tooltip,
+  useDisclosure,
   type SortDescriptor,
 } from "@heroui/react";
 import {
@@ -38,6 +39,7 @@ import { StatusDisplay } from "@/components/ui/StatusDisplay";
 import { CopyButton } from "@/components/ui/CopyButton";
 import { FileIdDisplay } from "@/components/ui/FileIdDisplay";
 import { PermissionDisplay } from "@/components/ui/PermissionDisplay";
+import { PermissionDetailsModal } from "@/components/ui/PermissionDetailsModal";
 
 interface PermissionsTabProps {
   // Fast on-chain permission data - loads instantly
@@ -51,6 +53,7 @@ interface PermissionsTabProps {
   // Actions
   onResolvePermissionDetails: (permissionId: string) => Promise<void>;
   isRevoking: boolean;
+  isReadOnly: boolean;
 
   // Permission lookup
   permissionLookupId: string;
@@ -83,6 +86,7 @@ export function PermissionsTab({
   resolvingPermissions,
   onResolvePermissionDetails,
   isRevoking,
+  isReadOnly,
   permissionLookupId,
   isLookingUpPermission,
   permissionLookupStatus,
@@ -99,6 +103,14 @@ export function PermissionsTab({
   setPermissionsCurrentPage,
   setPermissionsSortDescriptor,
 }: PermissionsTabProps) {
+  // Modal state for permission details
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const [selectedPermissionForModal, setSelectedPermissionForModal] =
+    React.useState<{
+      id: string;
+      grantUrl: string;
+    } | null>(null);
+
   // Calculate paginated permissions
   const sortedPermissions = [...userPermissions];
 
@@ -159,27 +171,23 @@ export function PermissionsTab({
     if (!resolved)
       return <span className="text-danger text-sm">Error loading</span>;
 
-    const paramStr = JSON.stringify(resolved.parameters, null, 2);
-
     return (
       <div className="flex gap-2">
-        <Tooltip
-          content={
-            <pre className="text-xs max-w-sm max-h-40 overflow-auto">
-              {paramStr}
-            </pre>
-          }
-          placement="left"
+        <Button
+          size="sm"
+          variant="flat"
+          startContent={<Eye className="h-3 w-3" />}
+          className="text-xs"
+          onPress={() => {
+            setSelectedPermissionForModal({
+              id: permission.id.toString(),
+              grantUrl: permission.grantUrl,
+            });
+            onOpen();
+          }}
         >
-          <Button
-            size="sm"
-            variant="flat"
-            startContent={<Eye className="h-3 w-3" />}
-            className="text-xs"
-          >
-            View Details
-          </Button>
-        </Tooltip>
+          View Details
+        </Button>
         <Tooltip content="View grant file on IPFS">
           <Button
             as="a"
@@ -473,18 +481,24 @@ export function PermissionsTab({
                       <TableCell>{renderFiles(permission)}</TableCell>
                       <TableCell>{renderParameters(permission)}</TableCell>
                       <TableCell>
-                        <Button
-                          color="danger"
-                          variant="flat"
-                          size="sm"
-                          onPress={() => {
-                            onRevokePermission(permission.id.toString());
-                          }}
-                          isLoading={isRevoking}
-                          isDisabled={isRevoking || !permission.active}
-                        >
-                          Revoke
-                        </Button>
+                        {isReadOnly ? (
+                          <span className="text-sm text-default-400">
+                            Read-only
+                          </span>
+                        ) : (
+                          <Button
+                            color="danger"
+                            variant="flat"
+                            size="sm"
+                            onPress={() => {
+                              onRevokePermission(permission.id.toString());
+                            }}
+                            isLoading={isRevoking}
+                            isDisabled={isRevoking || !permission.active}
+                          >
+                            Revoke
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -507,6 +521,19 @@ export function PermissionsTab({
           )}
         </CardBody>
       </Card>
+
+      {/* Permission Details Modal */}
+      {selectedPermissionForModal && (
+        <PermissionDetailsModal
+          isOpen={isOpen}
+          onClose={() => {
+            onClose();
+            setSelectedPermissionForModal(null);
+          }}
+          permissionId={selectedPermissionForModal.id}
+          grantUrl={selectedPermissionForModal.grantUrl}
+        />
+      )}
     </div>
   );
 }

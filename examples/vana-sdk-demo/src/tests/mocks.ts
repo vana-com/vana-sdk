@@ -11,6 +11,7 @@ import type {
   VanaInstance,
 } from "@opendatalabs/vana-sdk/browser";
 import type { VanaContextValue } from "@/providers/VanaProvider";
+import type { SDKConfigContextValue } from "@/providers/SDKConfigProvider";
 
 /**
  * Create a mock Vana SDK instance
@@ -303,7 +304,43 @@ export function createMockUseVana(
     isInitialized: overrides.isInitialized ?? true,
     error: overrides.error ?? null,
     applicationAddress: overrides.applicationAddress ?? "0xapp123",
-    isReadOnly: overrides.isReadOnly ?? false,
+  };
+}
+
+/**
+ * Factory function to create a mock useSDKConfig hook return object
+ * @param overrides - Partial object to override default mock values
+ * @returns Complete mock useSDKConfig return object
+ */
+export function createMockUseSDKConfig(
+  overrides: Partial<SDKConfigContextValue> = {},
+): SDKConfigContextValue {
+  return {
+    sdkConfig: {
+      relayerUrl: "https://relayer.example.com",
+      subgraphUrl: "https://subgraph.example.com",
+      rpcUrl: "https://rpc.example.com",
+      pinataJwt: "",
+      pinataGateway: "https://gateway.pinata.cloud",
+      defaultStorageProvider: "app-ipfs",
+      googleDriveAccessToken: "",
+      googleDriveRefreshToken: "",
+      googleDriveExpiresAt: null,
+      defaultPersonalServerUrl: "https://personal-server.example.com",
+      readOnlyAddress: "",
+      ...overrides.sdkConfig,
+    },
+    appConfig: {
+      useGaslessTransactions: true,
+      enableReadOnlyMode: false,
+      ...overrides.appConfig,
+    },
+    effectiveAddress: overrides.effectiveAddress ?? "0x123",
+    updateSdkConfig: overrides.updateSdkConfig ?? vi.fn(),
+    updateAppConfig: overrides.updateAppConfig ?? vi.fn(),
+    handleGoogleDriveAuth: overrides.handleGoogleDriveAuth ?? vi.fn(),
+    handleGoogleDriveDisconnect:
+      overrides.handleGoogleDriveDisconnect ?? vi.fn(),
   };
 }
 
@@ -410,6 +447,7 @@ export function setupHookMocks(
     usePermissions?: Partial<UsePermissionsReturn>;
     useTrustedServers?: Partial<UseTrustedServersReturn>;
     useVana?: Partial<VanaContextValue>;
+    useSDKConfig?: Partial<SDKConfigContextValue>;
     useAccount?: Partial<UseAccountReturnType>;
   } = {},
 ) {
@@ -418,6 +456,7 @@ export function setupHookMocks(
     usePermissions: createMockUsePermissions(hookMocks.usePermissions),
     useTrustedServers: createMockUseTrustedServers(hookMocks.useTrustedServers),
     useVana: createMockUseVana(hookMocks.useVana),
+    useSDKConfig: createMockUseSDKConfig(hookMocks.useSDKConfig),
     useAccount: createMockUseAccount(hookMocks.useAccount),
   };
 }

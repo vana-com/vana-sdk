@@ -24,7 +24,6 @@ import {
   Database,
   CheckCircle,
   AlertCircle,
-  Loader2,
   Activity,
 } from "lucide-react";
 import { GrantPermissionModal } from "@/components/ui/GrantPermissionModal";
@@ -99,14 +98,20 @@ const ServerConfig = ({
           }}
           size="sm"
         >
-          {trustedServers.map((server) => (
-            <SelectItem
-              key={server.serverAddress}
-              textValue={server.name ?? server.serverAddress}
-            >
-              {server.name ?? server.serverAddress}
-            </SelectItem>
-          ))}
+          {trustedServers.map((server) => {
+            const displayText =
+              server.name ??
+              server.serverUrl ??
+              server.serverAddress ??
+              server.id ??
+              "Unknown Server";
+            console.log("🔍 Rendering server:", { server, displayText });
+            return (
+              <SelectItem key={server.serverAddress} textValue={displayText}>
+                {displayText}
+              </SelectItem>
+            );
+          })}
         </Select>
       )}
       {trustServerError && (
@@ -334,7 +339,7 @@ interface ActivityEntry {
   details?: string;
 }
 
-export default function DemoExperiencePage() {
+export default function PersonalServerOperationsPage() {
   const { address } = useAccount();
   const chainId = useChainId();
   const { vana, applicationAddress } = useVana();
@@ -344,11 +349,12 @@ export default function DemoExperiencePage() {
     isDiscoveringServer,
     isTrustingServer,
     trustServerError,
+    loadUserTrustedServers,
     handleDiscoverHostedServer,
     handleTrustServerGasless,
   } = useTrustedServers();
 
-  const { grantees } = useGrantees();
+  const { grantees, loadGrantees } = useGrantees();
 
   const {
     userFiles,
@@ -356,6 +362,7 @@ export default function DemoExperiencePage() {
     newTextData,
     isUploadingText,
     uploadResult,
+    loadUserFiles,
     handleFileSelection,
     setNewTextData,
     handleUploadText,
@@ -629,6 +636,7 @@ export default function DemoExperiencePage() {
         },
       });
 
+      void loadGrantees();
       onOpenGrant();
       return;
     }
@@ -692,16 +700,24 @@ export default function DemoExperiencePage() {
     }
   }, [lastGrantedPermissionId, addActivity]);
 
+  useEffect(() => {
+    if (vana) {
+      console.log(
+        "🔄 [PersonalServerOps] Loading trusted servers and files...",
+      );
+      void loadUserTrustedServers();
+      void loadUserFiles();
+    }
+  }, [vana, loadUserTrustedServers, loadUserFiles]);
+
   const buttonState = getButtonState();
 
   return (
     <div className="max-w-7xl mx-auto p-6">
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold mb-2">AI Profile Sandbox</h1>
+        <h1 className="text-3xl font-bold mb-2">Personal Server Operations</h1>
         <p className="text-lg text-default-600 max-w-2xl mx-auto">
-          Configure your parameters and watch as the intelligent sandbox
-          orchestrates the entire flow of user-owned data and privacy-preserving
-          AI processing.
+          Trust servers and process your data
         </p>
       </div>
 
@@ -742,17 +758,7 @@ export default function DemoExperiencePage() {
               isGranting ||
               isRunningLLM
             }
-            startContent={
-              isDiscoveringServer ||
-              isTrustingServer ||
-              isUploadingText ||
-              isGranting ||
-              isRunningLLM ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                buttonState.icon
-              )
-            }
+            startContent={buttonState.icon}
           >
             {buttonState.text}
           </Button>
@@ -783,16 +789,6 @@ export default function DemoExperiencePage() {
             chainId={chainId}
           />
         </div>
-      </div>
-
-      <div className="text-center text-sm text-default-500 mt-12">
-        <p>
-          This sandbox demonstrates the Vana network's privacy-preserving data
-          processing.
-          <br />
-          Your data remains encrypted, permissions are explicit, and you
-          maintain full control.
-        </p>
       </div>
 
       <GrantPermissionModal

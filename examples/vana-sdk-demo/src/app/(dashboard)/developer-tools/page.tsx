@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { useChainId, useWalletClient } from "wagmi";
+import { useChainId } from "wagmi";
 import {
   Card,
   CardHeader,
@@ -25,22 +25,21 @@ import {
   RefreshCw,
   RotateCcw,
   ExternalLink,
-  Copy,
 } from "lucide-react";
 import { FormBuilder } from "@/components/ui/FormBuilder";
-import type { VanaContractName } from "@opendatalabs/vana-sdk/browser";
-import { convertIpfsUrl } from "@opendatalabs/vana-sdk/browser";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SchemaIdDisplay } from "@/components/ui/SchemaIdDisplay";
 import { RefinerIdDisplay } from "@/components/ui/RefinerIdDisplay";
 import { DlpIdDisplay } from "@/components/ui/DlpIdDisplay";
 import { SchemaCreationForm } from "@/components/ui/SchemaCreationForm";
 import { SchemaValidationTab } from "@/components/ui/SchemaValidationTab";
-import { AdvancedToolsTab } from "@/components/ui/AdvancedToolsTab";
 import { SchemaDefinitionModal } from "@/components/ui/SchemaDefinitionModal";
+import { RefinerInstructionsModal } from "@/components/ui/RefinerInstructionsModal";
+import { TransactionOptionsDemo } from "@/components/demo/TransactionOptionsDemo";
+import { GranteesTab } from "./components/GranteesTab";
 import { useSchemasAndRefiners } from "@/hooks/useSchemasAndRefiners";
+import { useGrantees } from "@/hooks/useGrantees";
 import { useVana } from "@/providers/VanaProvider";
-import { getContractUrl } from "@/lib/explorer";
 
 /**
  * Developer Tools page - Manage protocol-level entities and server integrations
@@ -51,7 +50,6 @@ import { getContractUrl } from "@/lib/explorer";
  */
 export default function DeveloperToolsPage() {
   const chainId = useChainId();
-  const { data: walletClient } = useWalletClient();
   const { vana } = useVana();
 
   // Use custom hook for schemas and refiners management
@@ -72,7 +70,6 @@ export default function DeveloperToolsPage() {
     // Refiners state
     refiners,
     isLoadingRefiners,
-    refinersCount,
 
     // Refiner creation state
     refinerName,
@@ -108,6 +105,25 @@ export default function DeveloperToolsPage() {
     setUpdateSchemaId,
   } = useSchemasAndRefiners();
 
+  // Use custom hook for grantees management
+  const {
+    grantees,
+    granteesTotal,
+    isLoadingGrantees,
+    isAddingGrantee,
+    isRemoving,
+    addGranteeError,
+    ownerAddress,
+    granteeAddress,
+    granteePublicKey,
+    loadGrantees,
+    handleAddGrantee,
+    handleRemoveGrantee,
+    setOwnerAddress,
+    setGranteeAddress,
+    setGranteePublicKey,
+  } = useGrantees();
+
   const [activeTab, setActiveTab] = React.useState("schemas");
 
   // Schema definition modal state
@@ -118,6 +134,14 @@ export default function DeveloperToolsPage() {
     definitionUrl: string;
   } | null>(null);
 
+  // Refiner instructions modal state
+  const [refinerModalOpen, setRefinerModalOpen] = React.useState(false);
+  const [selectedRefinerForModal, setSelectedRefinerForModal] = React.useState<{
+    id: number;
+    name: string;
+    instructionUrl: string;
+  } | null>(null);
+
   // Schemas pagination state
   const [schemasCurrentPage, setSchemasCurrentPage] = React.useState(1);
   const SCHEMAS_PER_PAGE = 10;
@@ -126,12 +150,41 @@ export default function DeveloperToolsPage() {
   const [refinersCurrentPage, setRefinersCurrentPage] = React.useState(1);
   const REFINERS_PER_PAGE = 10;
 
-  // Load schemas when page changes or count changes (new schema created)
+  // Grantees pagination state
+  const [granteesCurrentPage, setGranteesCurrentPage] = React.useState(1);
+  const GRANTEES_PER_PAGE = 10;
+
   React.useEffect(() => {
-    if (schemasCount > 0) {
-      void loadSchemas(schemasCurrentPage, SCHEMAS_PER_PAGE);
+    console.log("🟢 [DeveloperTools] useEffect FIRED", {
+      activeTab,
+      hasVana: !!vana,
+      schemasCurrentPage,
+      granteesCurrentPage,
+    });
+
+    if (vana) {
+      if (activeTab === "schemas") {
+        console.log("🟢 [DeveloperTools] Loading schemas");
+        void loadSchemas(schemasCurrentPage, SCHEMAS_PER_PAGE);
+      } else if (activeTab === "refiners") {
+        console.log("🟢 [DeveloperTools] Loading refiners");
+        void loadRefiners();
+      } else if (activeTab === "grantees") {
+        console.log("🟢 [DeveloperTools] Loading grantees");
+        void loadGrantees(granteesCurrentPage, GRANTEES_PER_PAGE);
+      }
     }
-  }, [schemasCurrentPage, schemasCount, loadSchemas, SCHEMAS_PER_PAGE]);
+  }, [
+    activeTab,
+    vana,
+    schemasCurrentPage,
+    granteesCurrentPage,
+    loadSchemas,
+    loadRefiners,
+    loadGrantees,
+    SCHEMAS_PER_PAGE,
+    GRANTEES_PER_PAGE,
+  ]);
 
   // Calculate paginated refiners
   const paginatedRefiners = useMemo(() => {
@@ -142,6 +195,7 @@ export default function DeveloperToolsPage() {
 
   const schemaTotalPages = Math.ceil(schemasCount / SCHEMAS_PER_PAGE);
   const refinersTotalPages = Math.ceil(refiners.length / REFINERS_PER_PAGE);
+  const granteesTotalPages = Math.ceil(granteesTotal / GRANTEES_PER_PAGE);
 
   // Reset to first page when count changes
   React.useEffect(() => {
@@ -151,6 +205,10 @@ export default function DeveloperToolsPage() {
   React.useEffect(() => {
     setRefinersCurrentPage(1);
   }, [refiners.length]);
+
+  React.useEffect(() => {
+    setGranteesCurrentPage(1);
+  }, [granteesTotal]);
 
   // Renders the schemas tab content
   const renderSchemasTab = () => (
@@ -286,97 +344,6 @@ export default function DeveloperToolsPage() {
                   />
                 </div>
               )}
-            </div>
-          )}
-        </CardBody>
-      </Card>
-    </div>
-  );
-
-  // Renders the contracts tab content
-  const renderContractsTab = () => (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Database className="h-5 w-5" />
-            <h3 className="text-lg font-semibold">Smart Contracts</h3>
-          </div>
-        </CardHeader>
-        <CardBody>
-          {vana ? (
-            <div className="space-y-4">
-              <Table aria-label="Smart contracts table" removeWrapper>
-                <TableHeader>
-                  <TableColumn>Contract Name</TableColumn>
-                  <TableColumn>Address</TableColumn>
-                  <TableColumn>Actions</TableColumn>
-                </TableHeader>
-                <TableBody>
-                  {vana.protocol
-                    .getAvailableContracts()
-                    .filter((contractName: string) => {
-                      try {
-                        vana.protocol.getContract(
-                          contractName as VanaContractName,
-                        );
-                        return true;
-                      } catch {
-                        return false;
-                      }
-                    })
-                    .map((contractName: string) => {
-                      const contract = vana.protocol.getContract(
-                        contractName as VanaContractName,
-                      );
-                      return (
-                        <TableRow key={contractName}>
-                          <TableCell>{contractName}</TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-sm">
-                                {contract.address}
-                              </span>
-                              <Button
-                                size="sm"
-                                variant="flat"
-                                isIconOnly
-                                onPress={() =>
-                                  navigator.clipboard.writeText(
-                                    contract.address,
-                                  )
-                                }
-                              >
-                                <Copy className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              as="a"
-                              href={getContractUrl(chainId, contract.address, {
-                                tab: "contract",
-                              })}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              size="sm"
-                              variant="flat"
-                              startContent={
-                                <ExternalLink className="h-3 w-3" />
-                              }
-                            >
-                              View on Explorer
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                </TableBody>
-              </Table>
-            </div>
-          ) : (
-            <div className="text-center p-8">
-              <p>Loading Vana SDK...</p>
             </div>
           )}
         </CardBody>
@@ -605,14 +572,16 @@ export default function DeveloperToolsPage() {
                       </TableCell>
                       <TableCell>
                         <Button
-                          as="a"
-                          href={convertIpfsUrl(
-                            refiner.refinementInstructionUrl,
-                          )}
-                          target="_blank"
-                          rel="noopener noreferrer"
                           size="sm"
                           variant="flat"
+                          onPress={() => {
+                            setSelectedRefinerForModal({
+                              id: refiner.id,
+                              name: refiner.name,
+                              instructionUrl: refiner.refinementInstructionUrl,
+                            });
+                            setRefinerModalOpen(true);
+                          }}
                           startContent={<ExternalLink className="h-3 w-3" />}
                         >
                           View Instructions
@@ -650,31 +619,7 @@ export default function DeveloperToolsPage() {
         <h1 className="text-3xl font-bold text-foreground mb-2">
           Developer Tools
         </h1>
-        <p className="text-lg text-default-600">
-          Manage protocol-level entities and server integrations
-        </p>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-        <Card>
-          <CardBody className="text-center">
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <Database className="h-5 w-5 text-primary" />
-              <span className="text-2xl font-bold">{schemasCount}</span>
-            </div>
-            <p className="text-sm text-default-500">Schemas</p>
-          </CardBody>
-        </Card>
-        <Card>
-          <CardBody className="text-center">
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <Brain className="h-5 w-5 text-success" />
-              <span className="text-2xl font-bold">{refinersCount}</span>
-            </div>
-            <p className="text-sm text-default-500">Refiners</p>
-          </CardBody>
-        </Card>
+        <p className="text-lg text-default-600">Build on Vana</p>
       </div>
 
       {/* Tabs */}
@@ -688,27 +633,42 @@ export default function DeveloperToolsPage() {
       >
         <Tab key="schemas" title="Schemas">
           {renderSchemasTab()}
-        </Tab>
-        <Tab key="validation" title="Schema Validation">
           {vana && (
-            <SchemaValidationTab vana={vana} chainId={chainId || 14800} />
-          )}
-        </Tab>
-        <Tab key="advanced" title="Advanced Tools">
-          {walletClient && vana && (
-            <AdvancedToolsTab
-              vana={vana}
-              schemas={schemas}
-              walletClient={walletClient}
-              chainId={chainId || 14800}
-            />
+            <div className="mt-6">
+              <SchemaValidationTab vana={vana} chainId={chainId || 14800} />
+            </div>
           )}
         </Tab>
         <Tab key="refiners" title="Refiners">
           {renderRefinersTab()}
         </Tab>
-        <Tab key="contracts" title="Contracts">
-          {renderContractsTab()}
+        <Tab key="grantees" title="Grantees">
+          <GranteesTab
+            grantees={grantees}
+            granteesTotal={granteesTotal}
+            isLoadingGrantees={isLoadingGrantees}
+            isAddingGrantee={isAddingGrantee}
+            isRemoving={isRemoving}
+            addGranteeError={addGranteeError}
+            ownerAddress={ownerAddress}
+            granteeAddress={granteeAddress}
+            granteePublicKey={granteePublicKey}
+            currentPage={granteesCurrentPage}
+            totalPages={granteesTotalPages}
+            perPage={GRANTEES_PER_PAGE}
+            onOwnerAddressChange={setOwnerAddress}
+            onGranteeAddressChange={setGranteeAddress}
+            onGranteePublicKeyChange={setGranteePublicKey}
+            onAddGrantee={handleAddGrantee}
+            onRefreshGrantees={() =>
+              loadGrantees(granteesCurrentPage, GRANTEES_PER_PAGE)
+            }
+            onRemoveGrantee={handleRemoveGrantee}
+            onPageChange={setGranteesCurrentPage}
+          />
+        </Tab>
+        <Tab key="transaction-options" title="Transaction Options">
+          <TransactionOptionsDemo />
         </Tab>
       </Tabs>
 
@@ -723,6 +683,20 @@ export default function DeveloperToolsPage() {
           schemaId={selectedSchemaForModal.id}
           schemaName={selectedSchemaForModal.name}
           definitionUrl={selectedSchemaForModal.definitionUrl}
+        />
+      )}
+
+      {/* Refiner Instructions Modal */}
+      {selectedRefinerForModal && (
+        <RefinerInstructionsModal
+          isOpen={refinerModalOpen}
+          onClose={() => {
+            setRefinerModalOpen(false);
+            setSelectedRefinerForModal(null);
+          }}
+          refinerId={selectedRefinerForModal.id}
+          refinerName={selectedRefinerForModal.name}
+          instructionUrl={selectedRefinerForModal.instructionUrl}
         />
       )}
     </div>

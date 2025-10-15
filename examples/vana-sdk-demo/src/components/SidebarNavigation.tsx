@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@heroui/react";
-import { Database, Settings, Zap, Eye } from "lucide-react";
+import { Database, Settings, Zap, FileCode } from "lucide-react";
 
 /**
  * Represents a navigation view in the sidebar
@@ -39,28 +39,28 @@ const navigationViews: NavigationView[] = [
     href: "/my-data",
     label: "My Data",
     icon: Database,
-    description: "Your personal data control panel",
+    description: "Manage data & permissions",
+  },
+  {
+    id: "personal-server-operations",
+    href: "/personal-server-operations",
+    label: "Personal Server Operations",
+    icon: Zap,
+    description: "Process data with servers",
+  },
+  {
+    id: "contracts",
+    href: "/contracts",
+    label: "Contracts",
+    icon: FileCode,
+    description: "View network contracts",
   },
   {
     id: "developer-tools",
     href: "/developer-tools",
     label: "Developer Tools",
     icon: Settings,
-    description: "Schema and server management",
-  },
-  {
-    id: "demo-experience",
-    href: "/demo-experience",
-    label: "AI Profile Demo",
-    icon: Zap,
-    description: "Generate AI insights from your data",
-  },
-  {
-    id: "read-only-demo",
-    href: "/read-only-demo",
-    label: "Read-Only Mode",
-    icon: Eye,
-    description: "Explore SDK without wallet connection",
+    description: "Build with schemas & refiners",
   },
 ];
 
@@ -107,10 +107,10 @@ export function SidebarNavigation({ className = "" }: SidebarNavigationProps) {
               >
                 <div className="flex items-center gap-3 w-full">
                   <Icon className="h-5 w-5 flex-shrink-0" />
-                  <div className="flex-1 text-left">
-                    <div className="font-medium">{view.label}</div>
+                  <div className="flex-1 text-left min-w-0">
+                    <div className="font-medium break-words">{view.label}</div>
                     {view.description && (
-                      <div className="text-xs opacity-70 mt-1 leading-tight">
+                      <div className="text-xs opacity-70 mt-1 leading-tight break-words">
                         {view.description}
                       </div>
                     )}

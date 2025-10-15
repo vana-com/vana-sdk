@@ -556,6 +556,88 @@ export class SchemaController extends BaseController {
   }
 
   /**
+   * Retrieves schema definition content directly from a URL.
+   *
+   * @remarks
+   * Use this method to fetch and format schema definitions from IPFS or HTTP URLs.
+   * Automatically uses the SDK's configured download proxy to bypass CORS restrictions.
+   * Returns formatted JSON string if content is valid JSON, otherwise raw content.
+   *
+   * @param url - The definition URL (typically from schema.definitionUrl)
+   * @returns Promise resolving to the formatted definition content
+   * @throws {Error} When the content cannot be fetched or network errors occur
+   * @example
+   * ```typescript
+   * const schema = await vana.schemas.get(1);
+   * const definition = await vana.schemas.retrieveDefinition(schema.definitionUrl);
+   * console.log(definition); // Pretty-printed JSON
+   * ```
+   */
+  async retrieveDefinition(url: string): Promise<string> {
+    try {
+      const { universalFetch } = await import("../utils/download");
+      const response = await universalFetch(url, this.context.downloadRelayer);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const text = await response.text();
+
+      // Try to parse and format as JSON for better readability
+      try {
+        const json = JSON.parse(text);
+        return JSON.stringify(json, null, 2);
+      } catch {
+        // Not JSON, return as-is
+        return text;
+      }
+    } catch (error) {
+      throw new Error(
+        `Failed to retrieve schema definition: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Retrieves refinement instruction content from a URL.
+   *
+   * @remarks
+   * Use this method to fetch refinement instructions from IPFS or HTTP URLs.
+   * Temporarily housed in SchemaController since refiners use schemas and we don't
+   * have a dedicated RefinerController yet. Uses the SDK's configured download proxy.
+   *
+   * @param url - The instruction URL (typically from refiner.refinementInstructionUrl)
+   * @returns Promise resolving to the formatted instruction content
+   * @throws {Error} When the content cannot be fetched or network errors occur
+   * @example
+   * ```typescript
+   * const instructions = await vana.schemas.retrieveRefinementInstructions(
+   *   refiner.refinementInstructionUrl
+   * );
+   * console.log(instructions);
+   * ```
+   */
+  async retrieveRefinementInstructions(url: string): Promise<string> {
+    try {
+      // Reuse the same logic as retrieveDefinition
+      return await this.retrieveDefinition(url);
+    } catch (error) {
+      // Re-throw with more specific error message
+      throw new Error(
+        `Failed to retrieve refinement instructions: ${
+          error instanceof Error
+            ? error.message.replace(
+                "Failed to retrieve schema definition: ",
+                "",
+              )
+            : "Unknown error"
+        }`,
+      );
+    }
+  }
+
+  /**
    * Adds a schema using the legacy method (low-level API).
    *
    * @deprecated Use create() instead for the high-level API with automatic IPFS upload

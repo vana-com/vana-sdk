@@ -10,7 +10,7 @@ import type {
   UpdateSchemaIdParams,
 } from "@opendatalabs/vana-sdk/browser";
 import { useVana } from "@/providers/VanaProvider";
-import { useAccount } from "wagmi";
+import { useSDKConfig } from "@/providers/SDKConfigProvider";
 import { createApiHandler } from "./utils";
 
 interface ExtendedSchema extends Schema {
@@ -76,7 +76,7 @@ export interface UseSchemasAndRefinersReturn {
 
 export function useSchemasAndRefiners(): UseSchemasAndRefinersReturn {
   const { vana } = useVana();
-  const { address } = useAccount();
+  const { effectiveAddress: address } = useSDKConfig();
 
   // Schema state
   const [schemas, setSchemas] = useState<ExtendedSchema[]>([]);
@@ -342,15 +342,6 @@ export function useSchemasAndRefiners(): UseSchemasAndRefinersReturn {
 
     await handler();
   }, [vana, updateRefinerId, updateSchemaId, loadRefiners]);
-
-  // Load only count on init (page component handles actual schema loading with pagination)
-  useEffect(() => {
-    if (vana && address) {
-      void loadRefiners();
-      // Load schema count only
-      vana.schemas.count().then(setSchemasCount).catch(console.error);
-    }
-  }, [vana, address, loadRefiners]);
 
   // Clear state when wallet disconnects
   useEffect(() => {

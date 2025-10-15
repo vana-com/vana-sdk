@@ -1,6 +1,8 @@
 import React from "react";
-import { screen, waitFor } from "@testing-library/react";
-import { renderWithProviders } from "../../tests/test-utils";
+import { screen, waitFor, render } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { HeroUIProvider, ToastProvider } from "@heroui/react";
+import { ThemeProvider as NextThemesProvider } from "next-themes";
 
 import {
   describe,
@@ -24,10 +26,22 @@ import {
   type GoogleDriveStorage as _GoogleDriveStorage,
 } from "@opendatalabs/vana-sdk/browser";
 
+// Use vi.hoisted to ensure mock functions are available before module imports
+const mocks = vi.hoisted(() => {
+  return {
+    mockUseSDKConfig: vi.fn(),
+  };
+});
+
 // Mock wagmi hooks
 vi.mock("wagmi", () => ({
   useAccount: vi.fn(),
   useWalletClient: vi.fn(),
+}));
+
+// Mock SDKConfigProvider - must be before imports that use it
+vi.mock("@/providers/SDKConfigProvider", () => ({
+  useSDKConfig: mocks.mockUseSDKConfig,
 }));
 
 // Mock Vana SDK
@@ -119,6 +133,32 @@ function createMockUseWalletClientReturn(
   } as UseWalletClientReturnType; // TODO: Consider creating a proper fake implementation
 }
 
+// Custom render for VanaProvider tests that doesn't include SDKConfigProvider
+const renderVanaTest = (ui: React.ReactElement) => {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, staleTime: 0, gcTime: 0 },
+      mutations: { retry: false },
+    },
+  });
+
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <NextThemesProvider
+        attribute="class"
+        defaultTheme="dark"
+        enableSystem={false}
+        storageKey="test-theme"
+      >
+        <HeroUIProvider>
+          <ToastProvider placement="bottom-right" />
+          {ui}
+        </HeroUIProvider>
+      </NextThemesProvider>
+    </QueryClientProvider>,
+  );
+};
+
 // Test component that uses the VanaProvider context
 function TestComponent() {
   const { vana, isInitialized, error, applicationAddress } = useVana();
@@ -204,9 +244,38 @@ describe("VanaProvider", () => {
     googleDriveAccessToken: undefined,
   };
 
+  const createDefaultSDKConfig = (overrides?: Record<string, any>) => ({
+    sdkConfig: {
+      relayerUrl: "http://localhost:3000",
+      subgraphUrl: "http://localhost:8000/subgraphs/name/vana",
+      rpcUrl: "",
+      pinataJwt: "",
+      pinataGateway: "https://gateway.pinata.cloud",
+      defaultStorageProvider: "app-ipfs",
+      googleDriveAccessToken: "",
+      googleDriveRefreshToken: "",
+      googleDriveExpiresAt: null,
+      defaultPersonalServerUrl: "https://personal-server.example.com",
+      readOnlyAddress: "",
+      ...overrides,
+    },
+    appConfig: {
+      useGaslessTransactions: true,
+      enableReadOnlyMode: false,
+    },
+    effectiveAddress: "0x123",
+    updateSdkConfig: vi.fn(),
+    updateAppConfig: vi.fn(),
+    handleGoogleDriveAuth: vi.fn(),
+    handleGoogleDriveDisconnect: vi.fn(),
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetch.mockClear();
+
+    // Set up default SDK config mock
+    mocks.mockUseSDKConfig.mockReturnValue(createDefaultSDKConfig());
 
     // Default mock implementations with complete types
     useAccountMock.mockReturnValue(
@@ -232,7 +301,7 @@ describe("VanaProvider", () => {
     // Mock console.error to prevent error output in tests
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    expect(() => renderWithProviders(<TestComponent />)).toThrow(
+    expect(() => renderVanaTest(<TestComponent />)).toThrow(
       "useVana must be used within a VanaProvider",
     );
 
@@ -249,8 +318,8 @@ describe("VanaProvider", () => {
       }),
     );
 
-    renderWithProviders(
-      <VanaProvider config={defaultConfig}>
+    renderVanaTest(
+      <VanaProvider>
         <TestComponent />
       </VanaProvider>,
     );
@@ -277,8 +346,8 @@ describe("VanaProvider", () => {
       }),
     );
 
-    renderWithProviders(
-      <VanaProvider config={defaultConfig}>
+    renderVanaTest(
+      <VanaProvider>
         <TestComponent />
       </VanaProvider>,
     );
@@ -322,8 +391,8 @@ describe("VanaProvider", () => {
         }),
     });
 
-    renderWithProviders(
-      <VanaProvider config={defaultConfig}>
+    renderVanaTest(
+      <VanaProvider>
         <TestComponent />
       </VanaProvider>,
     );
@@ -358,12 +427,14 @@ describe("VanaProvider", () => {
   });
 
   it("initializes with Pinata storage when pinataJwt is provided", async () => {
-    const configWithPinata = {
-      ...defaultConfig,
-      pinataJwt: "test-jwt",
-      pinataGateway: "https://test-gateway.com",
-      defaultStorageProvider: "user-ipfs",
-    };
+    // Override SDK config for this test
+    mocks.mockUseSDKConfig.mockReturnValue(
+      createDefaultSDKConfig({
+        pinataJwt: "test-jwt",
+        pinataGateway: "https://test-gateway.com",
+        defaultStorageProvider: "user-ipfs",
+      }),
+    );
 
     useAccountMock.mockReturnValue(
       createMockUseAccountReturn({
@@ -396,8 +467,8 @@ describe("VanaProvider", () => {
         }),
     });
 
-    renderWithProviders(
-      <VanaProvider config={configWithPinata}>
+    renderVanaTest(
+      <VanaProvider>
         <TestComponent />
       </VanaProvider>,
     );
@@ -426,12 +497,14 @@ describe("VanaProvider", () => {
   });
 
   it("initializes with Google Drive storage when access token is provided", async () => {
-    const configWithGoogleDrive = {
-      ...defaultConfig,
-      googleDriveAccessToken: "test-access-token",
-      googleDriveRefreshToken: "test-refresh-token",
-      defaultStorageProvider: "google-drive",
-    };
+    // Override SDK config for this test
+    mocks.mockUseSDKConfig.mockReturnValue(
+      createDefaultSDKConfig({
+        googleDriveAccessToken: "test-access-token",
+        googleDriveRefreshToken: "test-refresh-token",
+        defaultStorageProvider: "google-drive",
+      }),
+    );
 
     useAccountMock.mockReturnValue(
       createMockUseAccountReturn({
@@ -464,8 +537,8 @@ describe("VanaProvider", () => {
         }),
     });
 
-    renderWithProviders(
-      <VanaProvider config={configWithGoogleDrive}>
+    renderVanaTest(
+      <VanaProvider>
         <TestComponent />
       </VanaProvider>,
     );
@@ -494,11 +567,13 @@ describe("VanaProvider", () => {
   });
 
   it("falls back to app-ipfs when user-ipfs is default but no pinataJwt provided", async () => {
-    const configWithoutPinata = {
-      ...defaultConfig,
-      defaultStorageProvider: "user-ipfs",
-      pinataJwt: undefined,
-    };
+    // Override SDK config for this test - user-ipfs requested but no JWT
+    mocks.mockUseSDKConfig.mockReturnValue(
+      createDefaultSDKConfig({
+        defaultStorageProvider: "user-ipfs",
+        pinataJwt: "", // empty string means no JWT
+      }),
+    );
 
     useAccountMock.mockReturnValue(
       createMockUseAccountReturn({
@@ -531,8 +606,8 @@ describe("VanaProvider", () => {
         }),
     });
 
-    renderWithProviders(
-      <VanaProvider config={configWithoutPinata}>
+    renderVanaTest(
+      <VanaProvider>
         <TestComponent />
       </VanaProvider>,
     );
@@ -556,6 +631,15 @@ describe("VanaProvider", () => {
   });
 
   it("disables gasless transactions when useGaslessTransactions is false", async () => {
+    // Override SDK config for this test - disable gasless transactions
+    mocks.mockUseSDKConfig.mockReturnValue({
+      ...createDefaultSDKConfig(),
+      appConfig: {
+        useGaslessTransactions: false, // Disable gasless
+        enableReadOnlyMode: false,
+      },
+    });
+
     useAccountMock.mockReturnValue(
       createMockUseAccountReturn({
         address: "0x123" as `0x${string}`,
@@ -587,8 +671,8 @@ describe("VanaProvider", () => {
         }),
     });
 
-    renderWithProviders(
-      <VanaProvider config={defaultConfig} useGaslessTransactions={false}>
+    renderVanaTest(
+      <VanaProvider>
         <TestComponent />
       </VanaProvider>,
     );
@@ -643,8 +727,8 @@ describe("VanaProvider", () => {
       throw new Error("Vana initialization failed");
     });
 
-    renderWithProviders(
-      <VanaProvider config={defaultConfig}>
+    renderVanaTest(
+      <VanaProvider>
         <TestComponent />
       </VanaProvider>,
     );
@@ -687,8 +771,8 @@ describe("VanaProvider", () => {
     // Mock failed application address fetch
     mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
-    renderWithProviders(
-      <VanaProvider config={defaultConfig}>
+    renderVanaTest(
+      <VanaProvider>
         <TestComponent />
       </VanaProvider>,
     );
@@ -708,8 +792,8 @@ describe("VanaProvider", () => {
   });
 
   it("reinitializes when wallet connection changes", async () => {
-    const { rerender } = renderWithProviders(
-      <VanaProvider config={defaultConfig}>
+    const { rerender } = renderVanaTest(
+      <VanaProvider>
         <TestComponent />
       </VanaProvider>,
     );
@@ -750,7 +834,7 @@ describe("VanaProvider", () => {
     });
 
     rerender(
-      <VanaProvider config={defaultConfig}>
+      <VanaProvider>
         <TestComponent />
       </VanaProvider>,
     );
@@ -778,7 +862,7 @@ describe("VanaProvider", () => {
     );
 
     rerender(
-      <VanaProvider config={defaultConfig}>
+      <VanaProvider>
         <TestComponent />
       </VanaProvider>,
     );
@@ -793,12 +877,14 @@ describe("VanaProvider", () => {
   });
 
   it("handles Google Drive folder creation failure gracefully", async () => {
-    const configWithGoogleDrive = {
-      ...defaultConfig,
-      googleDriveAccessToken: "test-access-token",
-      googleDriveRefreshToken: "test-refresh-token",
-      defaultStorageProvider: "google-drive",
-    };
+    // Override SDK config for this test
+    mocks.mockUseSDKConfig.mockReturnValue(
+      createDefaultSDKConfig({
+        googleDriveAccessToken: "test-access-token",
+        googleDriveRefreshToken: "test-refresh-token",
+        defaultStorageProvider: "google-drive",
+      }),
+    );
 
     useAccountMock.mockReturnValue(
       createMockUseAccountReturn({
@@ -844,8 +930,8 @@ describe("VanaProvider", () => {
         }),
     });
 
-    renderWithProviders(
-      <VanaProvider config={configWithGoogleDrive}>
+    renderVanaTest(
+      <VanaProvider>
         <TestComponent />
       </VanaProvider>,
     );

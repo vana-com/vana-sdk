@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useVana } from "@/providers/VanaProvider";
-import { useAccount } from "wagmi";
+import { useSDKConfig } from "@/providers/SDKConfigProvider";
 import { addToast } from "@heroui/react";
 import type {
   Grantee,
@@ -12,6 +12,7 @@ import type {
 export interface UseGranteesReturn {
   // State
   grantees: Grantee[];
+  granteesTotal: number;
   isLoadingGrantees: boolean;
   isAddingGrantee: boolean;
   isRemoving: boolean;
@@ -23,7 +24,11 @@ export interface UseGranteesReturn {
   granteePublicKey: string;
 
   // Actions
-  loadGrantees: (mode?: "subgraph" | "rpc" | "auto") => Promise<void>;
+  loadGrantees: (
+    page?: number,
+    perPage?: number,
+    mode?: "subgraph" | "rpc" | "auto",
+  ) => Promise<void>;
   handleAddGrantee: () => Promise<void>;
   handleAddGranteeGasless: (
     clearFieldsOnSuccess?: boolean,
@@ -38,10 +43,11 @@ export interface UseGranteesReturn {
 
 export function useGrantees(): UseGranteesReturn {
   const { vana } = useVana();
-  const { address } = useAccount();
+  const { effectiveAddress: address } = useSDKConfig();
 
   // Grantees state
   const [grantees, setGrantees] = useState<Grantee[]>([]);
+  const [granteesTotal, setGranteesTotal] = useState<number>(0);
   const [isLoadingGrantees, setIsLoadingGrantees] = useState(false);
   const [isAddingGrantee, setIsAddingGrantee] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
@@ -53,17 +59,31 @@ export function useGrantees(): UseGranteesReturn {
   const [granteePublicKey, setGranteePublicKey] = useState<string>("");
 
   const loadGrantees = useCallback(
-    async (_mode: "subgraph" | "rpc" | "auto" = "auto") => {
+    async (
+      page: number = 1,
+      perPage: number = 10,
+      _mode: "subgraph" | "rpc" | "auto" = "auto",
+    ) => {
       if (!vana || !address) return;
 
+      console.log("🔴 [useGrantees] loadGrantees() CALLED", { page, perPage });
       setIsLoadingGrantees(true);
       try {
+        console.log(
+          "🔴 [useGrantees] Making API call to vana.permissions.getGrantees()",
+        );
         const result = await vana.permissions.getGrantees({
-          limit: 50, // For demo purposes, limit to 50 grantees
-          offset: 0,
+          limit: perPage,
+          offset: (page - 1) * perPage,
+          includePermissions: false, // Don't fetch permission IDs - major performance optimization
         });
 
-        console.info("Loaded grantees:", result);
+        console.log(
+          "🔴 [useGrantees] API call completed, grantees count:",
+          result.grantees.length,
+          "total:",
+          result.total,
+        );
 
         addToast({
           color: "success",
@@ -72,6 +92,7 @@ export function useGrantees(): UseGranteesReturn {
         });
 
         setGrantees(result.grantees);
+        setGranteesTotal(result.total);
       } catch (error) {
         console.error("Failed to load grantees:", error);
         addToast({
@@ -81,10 +102,15 @@ export function useGrantees(): UseGranteesReturn {
           color: "danger",
         });
       } finally {
+        console.log("🔴 [useGrantees] Setting isLoadingGrantees to false");
         setIsLoadingGrantees(false);
       }
     },
     [vana, address],
+  );
+
+  console.log(
+    "🟡 [useGrantees] Hook rendered, loadGrantees callback created/recreated",
   );
 
   const handleAddGrantee = useCallback(async () => {
@@ -215,13 +241,6 @@ export function useGrantees(): UseGranteesReturn {
     [vana, address, loadGrantees],
   );
 
-  // Load grantees when Vana is initialized
-  useEffect(() => {
-    if (vana && address) {
-      void loadGrantees();
-    }
-  }, [vana, address, loadGrantees]);
-
   // Clear state when wallet disconnects
   useEffect(() => {
     if (!address) {
@@ -236,6 +255,7 @@ export function useGrantees(): UseGranteesReturn {
   return {
     // State
     grantees,
+    granteesTotal,
     isLoadingGrantees,
     isAddingGrantee,
     isRemoving,

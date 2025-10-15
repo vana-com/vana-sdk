@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import {
   Modal,
   ModalContent,
@@ -21,32 +21,53 @@ export interface ContentPreviewModalProps {
   subtitle?: string;
   /** Icon to display in header */
   icon?: React.ReactNode;
-  /** URL to fetch content from (mutually exclusive with content) */
-  url?: string;
-  /** Direct content to display (mutually exclusive with url) */
-  content?: string;
+  /** Content to display */
+  content: string;
+  /** Whether content is loading */
+  isLoading?: boolean;
+  /** Error message if content failed to load */
+  error?: string;
+  /** Optional URL for "Open in New Tab" button */
+  sourceUrl?: string;
   /** Language for syntax highlighting */
   language?: "json" | "text" | "javascript" | "typescript";
 }
 
 /**
- * Generic modal for previewing content - either from a URL or direct content.
- * Handles IPFS URL conversion, loading states, and JSON formatting.
+ * Dumb presentation component for previewing content in a modal.
+ * Handles loading states, errors, and content display.
+ *
+ * The parent component is responsible for fetching content using appropriate SDK methods.
  *
  * @example
  * ```tsx
- * // From URL
+ * // With loading state
  * <ContentPreviewModal
- *   url="ipfs://QmHash..."
+ *   isOpen={isOpen}
+ *   onClose={onClose}
  *   title="Schema Definition"
+ *   content=""
+ *   isLoading={true}
  *   language="json"
  * />
  *
- * // Direct content
+ * // With content
  * <ContentPreviewModal
- *   content={jsonString}
- *   title="File Content"
+ *   isOpen={isOpen}
+ *   onClose={onClose}
+ *   title="Grant File"
+ *   content={grantContent}
+ *   sourceUrl={grantUrl}
  *   language="json"
+ * />
+ *
+ * // With error
+ * <ContentPreviewModal
+ *   isOpen={isOpen}
+ *   onClose={onClose}
+ *   title="Schema Definition"
+ *   content=""
+ *   error="Failed to load schema"
  * />
  * ```
  */
@@ -56,60 +77,13 @@ export const ContentPreviewModal: React.FC<ContentPreviewModalProps> = ({
   title,
   subtitle,
   icon,
-  url,
-  content: directContent,
+  content,
+  isLoading = false,
+  error,
+  sourceUrl,
   language = "json",
 }) => {
-  const [fetchedContent, setFetchedContent] = useState<string>("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string>("");
-
-  // Fetch content when modal opens and URL is provided
-  useEffect(() => {
-    if (!isOpen || !url) {
-      return;
-    }
-
-    setIsLoading(true);
-    setError("");
-    setFetchedContent("");
-
-    const httpUrl = convertIpfsUrl(url);
-
-    fetch(httpUrl)
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error(`HTTP error ${response.status}`);
-        }
-        return response.text();
-      })
-      .then((text) => {
-        // Try to parse and format as JSON if it's JSON
-        if (language === "json") {
-          try {
-            const parsed = JSON.parse(text);
-            setFetchedContent(JSON.stringify(parsed, null, 2));
-          } catch {
-            // Not valid JSON, use as-is
-            setFetchedContent(text);
-          }
-        } else {
-          setFetchedContent(text);
-        }
-      })
-      .catch((err) => {
-        setError(
-          err instanceof Error ? err.message : "Failed to fetch content",
-        );
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
-  }, [isOpen, url, language]);
-
-  // Use direct content or fetched content
-  const displayContent = directContent ?? fetchedContent;
-  const httpUrl = url ? convertIpfsUrl(url) : undefined;
+  const httpUrl = sourceUrl ? convertIpfsUrl(sourceUrl) : undefined;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="3xl" scrollBehavior="inside">
@@ -145,9 +119,9 @@ export const ContentPreviewModal: React.FC<ContentPreviewModalProps> = ({
             </div>
           )}
 
-          {!isLoading && !error && displayContent && (
+          {!isLoading && !error && content && (
             <CodeDisplay
-              code={displayContent}
+              code={content}
               language={language}
               maxHeight="max-h-[60vh]"
               showCopy={true}

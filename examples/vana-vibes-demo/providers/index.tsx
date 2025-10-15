@@ -1,8 +1,9 @@
 "use client";
 
-import React, { ReactNode, useEffect, useState } from "react";
+import type { ReactNode } from "react";
+import React, { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ParaProvider } from "./para-provider";
+import { ParaProvider } from "./ParaProvider";
 import { RainbowProvider } from "./rainbow-provider";
 import { VanaProvider } from "./vana-provider";
 import { GoogleDriveOAuthProvider } from "./google-drive-oauth";
@@ -41,7 +42,7 @@ export function Providers({ children }: ProvidersProps) {
 
   return (
     <GoogleDriveOAuthProvider
-      clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""}
+      clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? ""}
     >
       {useRainbow ? (
         // RainbowProvider includes its own QueryClientProvider

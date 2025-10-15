@@ -19,11 +19,9 @@ import {
   NavbarItem,
 } from "@heroui/react";
 import { Eye } from "lucide-react";
-import {
-  SDKConfigurationSidebar,
-  type AppConfig,
-} from "@/components/SDKConfigurationSidebar";
+import { SDKConfigurationSidebar } from "@/components/SDKConfigurationSidebar";
 import { SidebarNavigation } from "@/components/SidebarNavigation";
+import { SDKConfigProvider, useSDKConfig } from "@/providers/SDKConfigProvider";
 import { VanaProvider } from "@/providers/VanaProvider";
 import { GrantPreviewModalContent } from "@/components/GrantPreviewModalContent";
 import type { GrantPermissionParams } from "@opendatalabs/vana-sdk/browser";
@@ -42,11 +40,8 @@ interface GrantPreview {
   signature?: string | null;
 }
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+// Inner component that consumes SDKConfigContext
+function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   const useRainbow =
     process.env.NEXT_PUBLIC_WALLET_PROVIDER === "rainbow" ||
     !process.env.NEXT_PUBLIC_WALLET_PROVIDER;
@@ -60,6 +55,9 @@ export default function DashboardLayout({
   const paraAccount = useParaAccount?.() as
     | { isConnected?: boolean }
     | undefined;
+
+  // Consume configuration from SDKConfigProvider
+  const { appConfig } = useSDKConfig();
 
   // Helper to get network name from chain ID
   const getNetworkName = (id: number) => {
@@ -76,62 +74,6 @@ export default function DashboardLayout({
   // Layout-level state for grant preview modal
   const [grantPreview, setGrantPreview] = useState<GrantPreview | null>(null);
   const { isOpen: showGrantPreview, onClose: onCloseGrant } = useDisclosure();
-
-  // SDK Configuration state (layout-level since it affects entire app)
-  const [sdkConfig, setSdkConfig] = useState(() => ({
-    relayerUrl: typeof window !== "undefined" ? window.location.origin : "",
-    subgraphUrl: "",
-    rpcUrl: "",
-    pinataJwt: "",
-    pinataGateway: "https://gateway.pinata.cloud",
-    defaultStorageProvider: "app-ipfs",
-    googleDriveAccessToken: "",
-    googleDriveRefreshToken: "",
-    googleDriveExpiresAt: null as number | null,
-    defaultPersonalServerUrl:
-      process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL ??
-      (() => {
-        throw new Error(
-          "NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL environment variable is required",
-        );
-      })(),
-  }));
-
-  // App Configuration state
-  const [appConfig, setAppConfig] = useState<AppConfig>({
-    useGaslessTransactions: true,
-  });
-
-  // Google Drive authentication handlers
-  const handleGoogleDriveAuth = () => {
-    const authWindow = window.open(
-      "/api/auth/google-drive/authorize",
-      "google-drive-auth",
-      "width=600,height=700,scrollbars=yes,resizable=yes",
-    );
-
-    // Monitor auth window closure
-    const checkClosed = setInterval(() => {
-      if (authWindow?.closed) {
-        clearInterval(checkClosed);
-        console.info("Google Drive auth window closed");
-      }
-    }, 1000);
-  };
-
-  const handleGoogleDriveDisconnect = () => {
-    setSdkConfig((prev) => ({
-      ...prev,
-      googleDriveAccessToken: "",
-      googleDriveRefreshToken: "",
-      googleDriveExpiresAt: null,
-      defaultStorageProvider:
-        prev.defaultStorageProvider === "google-drive"
-          ? "app-ipfs"
-          : prev.defaultStorageProvider,
-    }));
-    console.info("Google Drive disconnected");
-  };
 
   // Grant modal handlers (these will be used by pages via context if needed)
   const handleConfirmGrant = () => {
@@ -175,8 +117,7 @@ export default function DashboardLayout({
         <Navbar isBordered>
           <NavbarBrand>
             <h1 className="text-xl font-bold text-foreground">
-              Vana SDK Demo{" "}
-              {walletConnected ? "(✅ Full Mode)" : "(🔒 Read-Only)"}
+              Vana SDK Demo{walletConnected ? "" : " (🔒 Read-Only)"}
             </h1>
           </NavbarBrand>
           <NavbarContent justify="end">
@@ -203,13 +144,17 @@ export default function DashboardLayout({
 
   // Main dashboard layout with VanaProvider
   return (
-    <VanaProvider config={sdkConfig}>
+    <VanaProvider>
       <div className="min-h-screen bg-background">
         <Navbar isBordered>
           <NavbarBrand>
             <h1 className="text-xl font-bold text-foreground">
-              Vana SDK Demo{" "}
-              {walletConnected ? "(✅ Full Mode)" : "(🔒 Read-Only)"}
+              Vana SDK Demo
+              {appConfig.enableReadOnlyMode
+                ? " (📖 Read-Only)"
+                : walletConnected
+                  ? ""
+                  : " (🔒 Disconnected)"}
             </h1>
           </NavbarBrand>
           <NavbarContent justify="end">
@@ -228,18 +173,7 @@ export default function DashboardLayout({
 
           {/* Right Sidebar - SDK Configuration */}
           <div id="configuration">
-            <SDKConfigurationSidebar
-              sdkConfig={sdkConfig}
-              onConfigChange={(config) => {
-                setSdkConfig((prev) => ({ ...prev, ...config }));
-              }}
-              appConfig={appConfig}
-              onAppConfigChange={(config) => {
-                setAppConfig((prev) => ({ ...prev, ...config }));
-              }}
-              onGoogleDriveAuth={handleGoogleDriveAuth}
-              onGoogleDriveDisconnect={handleGoogleDriveDisconnect}
-            />
+            <SDKConfigurationSidebar />
           </div>
         </div>
 
@@ -266,5 +200,18 @@ export default function DashboardLayout({
         </Modal>
       </div>
     </VanaProvider>
+  );
+}
+
+// Main export wraps everything with SDKConfigProvider
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <SDKConfigProvider>
+      <DashboardLayoutInner>{children}</DashboardLayoutInner>
+    </SDKConfigProvider>
   );
 }

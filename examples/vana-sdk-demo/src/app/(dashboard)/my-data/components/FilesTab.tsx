@@ -29,7 +29,7 @@ import {
   Users,
   FileJson,
 } from "lucide-react";
-import type { Schema } from "@opendatalabs/vana-sdk/browser";
+import type { Schema, VanaInstance } from "@opendatalabs/vana-sdk/browser";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusDisplay } from "@/components/ui/StatusDisplay";
@@ -38,6 +38,7 @@ import { ContentPreviewModal } from "@/components/ui/ContentPreviewModal";
 import { FileIdDisplay } from "@/components/ui/FileIdDisplay";
 import { AddressDisplay } from "@/components/ui/AddressDisplay";
 import { ErrorMessage } from "@/components/ui/ErrorMessage";
+import { DataUploadForm } from "@/components/ui/DataUploadForm";
 import type { ExtendedUserFile } from "@/hooks/useUserFiles";
 
 interface FilesTabProps {
@@ -69,6 +70,33 @@ interface FilesTabProps {
   // Grant permission state
   applicationAddress: string;
   isGranting: boolean;
+  isReadOnly: boolean;
+
+  // Upload props
+  vana: VanaInstance | null;
+  inputMode: "text" | "file";
+  onInputModeChange: (mode: "text" | "file") => void;
+  textData: string;
+  onTextDataChange: (text: string) => void;
+  selectedFile: File | null;
+  onFileSelect: (file: File | null) => void;
+  selectedSchemaId: number | null;
+  onSchemaChange: (schemaId: number | null) => void;
+  onUpload: (data: {
+    content: string;
+    filename?: string;
+    schemaId?: number;
+    isValid?: boolean;
+    validationErrors?: string[];
+  }) => Promise<void>;
+  isUploading: boolean;
+  uploadResult: {
+    fileId: number;
+    transactionHash: string;
+    isValid?: boolean;
+    validationErrors?: string[];
+  } | null;
+  uploadError: string | null;
 
   // Callbacks
   onRefreshFiles: () => void;
@@ -101,6 +129,20 @@ export function FilesTab({
   chainId,
   applicationAddress,
   isGranting,
+  isReadOnly,
+  vana,
+  inputMode,
+  onInputModeChange,
+  textData,
+  onTextDataChange,
+  selectedFile,
+  onFileSelect,
+  selectedSchemaId,
+  onSchemaChange,
+  onUpload,
+  isUploading,
+  uploadResult,
+  uploadError,
   onRefreshFiles,
   onFileSelection,
   onDecryptFile,
@@ -230,7 +272,7 @@ export function FilesTab({
           ) : (
             <div className="space-y-4">
               {/* Bulk Actions Toolbar */}
-              {selectedFiles.length > 0 && (
+              {selectedFiles.length > 0 && !isReadOnly && (
                 <div className="flex items-center justify-between p-3 bg-primary/10 rounded-lg">
                   <div className="flex items-center gap-2">
                     <Users className="h-4 w-4 text-primary" />
@@ -280,37 +322,39 @@ export function FilesTab({
               >
                 <TableHeader>
                   <TableColumn key="select" allowsSorting={false}>
-                    <Checkbox
-                      isSelected={
-                        paginatedFiles.length > 0 &&
-                        paginatedFiles.every((file) =>
-                          selectedFiles.includes(file.id),
-                        )
-                      }
-                      isIndeterminate={
-                        paginatedFiles.some((file) =>
-                          selectedFiles.includes(file.id),
-                        ) &&
-                        !paginatedFiles.every((file) =>
-                          selectedFiles.includes(file.id),
-                        )
-                      }
-                      onValueChange={(selected) => {
-                        if (selected) {
-                          paginatedFiles.forEach((file) => {
-                            if (!selectedFiles.includes(file.id)) {
-                              onFileSelection(file.id, true);
-                            }
-                          });
-                        } else {
-                          paginatedFiles.forEach((file) => {
-                            if (selectedFiles.includes(file.id)) {
-                              onFileSelection(file.id, false);
-                            }
-                          });
+                    {!isReadOnly && (
+                      <Checkbox
+                        isSelected={
+                          paginatedFiles.length > 0 &&
+                          paginatedFiles.every((file) =>
+                            selectedFiles.includes(file.id),
+                          )
                         }
-                      }}
-                    />
+                        isIndeterminate={
+                          paginatedFiles.some((file) =>
+                            selectedFiles.includes(file.id),
+                          ) &&
+                          !paginatedFiles.every((file) =>
+                            selectedFiles.includes(file.id),
+                          )
+                        }
+                        onValueChange={(selected) => {
+                          if (selected) {
+                            paginatedFiles.forEach((file) => {
+                              if (!selectedFiles.includes(file.id)) {
+                                onFileSelection(file.id, true);
+                              }
+                            });
+                          } else {
+                            paginatedFiles.forEach((file) => {
+                              if (selectedFiles.includes(file.id)) {
+                                onFileSelection(file.id, false);
+                              }
+                            });
+                          }
+                        }}
+                      />
+                    )}
                   </TableColumn>
                   <TableColumn key="id" allowsSorting>
                     File ID
@@ -340,12 +384,14 @@ export function FilesTab({
                     return (
                       <TableRow key={file.id}>
                         <TableCell>
-                          <Checkbox
-                            isSelected={isSelected}
-                            onValueChange={(selected) => {
-                              onFileSelection(file.id, selected);
-                            }}
-                          />
+                          {!isReadOnly && (
+                            <Checkbox
+                              isSelected={isSelected}
+                              onValueChange={(selected) => {
+                                onFileSelection(file.id, selected);
+                              }}
+                            />
+                          )}
                         </TableCell>
                         <TableCell>
                           <FileIdDisplay
@@ -433,58 +479,64 @@ export function FilesTab({
                           })()}
                         </TableCell>
                         <TableCell>
-                          <div className="flex gap-2">
-                            {!decryptedContent ? (
-                              <Button
-                                size="sm"
-                                variant="flat"
-                                onPress={() => {
-                                  onDecryptFile(file);
-                                }}
-                                isLoading={isDecrypting}
-                                isDisabled={isDecrypting}
-                                startContent={
-                                  !isDecrypting ? (
-                                    <Key className="h-3 w-3" />
-                                  ) : undefined
-                                }
-                              >
-                                {isDecrypting ? "Decrypting..." : "Decrypt"}
-                              </Button>
-                            ) : (
-                              <>
+                          {isReadOnly ? (
+                            <span className="text-sm text-default-400">
+                              Read-only
+                            </span>
+                          ) : (
+                            <div className="flex gap-2">
+                              {!decryptedContent ? (
                                 <Button
                                   size="sm"
                                   variant="flat"
                                   onPress={() => {
-                                    setSelectedContentForModal({
-                                      content: decryptedContent,
-                                      url: file.url,
-                                      fileId: file.id,
-                                    });
-                                    setContentModalOpen(true);
+                                    onDecryptFile(file);
                                   }}
+                                  isLoading={isDecrypting}
+                                  isDisabled={isDecrypting}
                                   startContent={
-                                    <FileJson className="h-3 w-3" />
+                                    !isDecrypting ? (
+                                      <Key className="h-3 w-3" />
+                                    ) : undefined
                                   }
                                 >
-                                  JSON Preview
+                                  {isDecrypting ? "Decrypting..." : "Decrypt"}
                                 </Button>
-                                <Button
-                                  size="sm"
-                                  variant="flat"
-                                  onPress={() => {
-                                    onDownloadDecryptedFile(file);
-                                  }}
-                                  startContent={
-                                    <Download className="h-3 w-3" />
-                                  }
-                                >
-                                  Download
-                                </Button>
-                              </>
-                            )}
-                          </div>
+                              ) : (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="flat"
+                                    onPress={() => {
+                                      setSelectedContentForModal({
+                                        content: decryptedContent,
+                                        url: file.url,
+                                        fileId: file.id,
+                                      });
+                                      setContentModalOpen(true);
+                                    }}
+                                    startContent={
+                                      <FileJson className="h-3 w-3" />
+                                    }
+                                  >
+                                    JSON Preview
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="flat"
+                                    onPress={() => {
+                                      onDownloadDecryptedFile(file);
+                                    }}
+                                    startContent={
+                                      <Download className="h-3 w-3" />
+                                    }
+                                  >
+                                    Download
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          )}
                           {fileDecryptErrors.has(file.id) && (
                             <div className="mt-2">
                               <ErrorMessage
@@ -519,6 +571,31 @@ export function FilesTab({
           )}
         </CardBody>
       </Card>
+
+      {/* Upload Data Form */}
+      {vana && !isReadOnly && (
+        <DataUploadForm
+          vana={vana}
+          inputMode={inputMode}
+          onInputModeChange={onInputModeChange}
+          textData={textData}
+          onTextDataChange={onTextDataChange}
+          selectedFile={selectedFile}
+          onFileSelect={onFileSelect}
+          selectedSchemaId={selectedSchemaId}
+          onSchemaChange={onSchemaChange}
+          onUpload={onUpload}
+          isUploading={isUploading}
+          uploadResult={uploadResult}
+          uploadError={uploadError}
+          chainId={chainId}
+          showSchemaSelector={true}
+          showValidation={true}
+          allowWithoutSchema={true}
+          title="Upload Your Data"
+          description="Upload text or file data to the Vana network with optional schema validation"
+        />
+      )}
 
       {/* File Content Modal */}
       {selectedContentForModal && (

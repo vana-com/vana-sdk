@@ -22,6 +22,9 @@ const mocks = vi.hoisted(() => {
         googleDriveAccessToken: "",
         googleDriveRefreshToken: "",
         googleDriveExpiresAt: null,
+        dropboxAccessToken: "",
+        dropboxRefreshToken: "",
+        dropboxExpiresAt: null,
         defaultPersonalServerUrl: "https://personal-server.example.com",
         readOnlyAddress: "",
       },
@@ -34,6 +37,8 @@ const mocks = vi.hoisted(() => {
       updateAppConfig: vi.fn(),
       handleGoogleDriveAuth: vi.fn(),
       handleGoogleDriveDisconnect: vi.fn(),
+      handleDropboxAuth: vi.fn(),
+      handleDropboxDisconnect: vi.fn(),
     }),
   };
 });

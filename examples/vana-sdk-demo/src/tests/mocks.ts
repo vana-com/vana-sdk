@@ -328,6 +328,9 @@ export function createMockUseSDKConfig(
       googleDriveAccessToken: "",
       googleDriveRefreshToken: "",
       googleDriveExpiresAt: null,
+      dropboxAccessToken: "",
+      dropboxRefreshToken: "",
+      dropboxExpiresAt: null,
       defaultPersonalServerUrl: "https://personal-server.example.com",
       readOnlyAddress: "",
       ...overrides.sdkConfig,
@@ -343,6 +346,8 @@ export function createMockUseSDKConfig(
     handleGoogleDriveAuth: overrides.handleGoogleDriveAuth ?? vi.fn(),
     handleGoogleDriveDisconnect:
       overrides.handleGoogleDriveDisconnect ?? vi.fn(),
+    handleDropboxAuth: overrides.handleDropboxAuth ?? vi.fn(),
+    handleDropboxDisconnect: overrides.handleDropboxDisconnect ?? vi.fn(),
   };
 }
 

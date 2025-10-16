@@ -16,6 +16,7 @@ import {
   CallbackStorage,
   PinataStorage,
   GoogleDriveStorage,
+  DropboxStorage,
   type VanaChain,
   type VanaInstance,
   type StorageProvider,
@@ -134,16 +135,37 @@ const setupGoogleDriveStorage = async (
   }
 };
 
+// Helper to setup Dropbox storage
+const setupDropboxStorage = (
+  config: {
+    dropboxAccessToken?: string;
+    dropboxRefreshToken?: string;
+  },
+  providers: Record<string, StorageProvider>,
+) => {
+  if (!config.dropboxAccessToken) return;
+
+  console.info("🔗 Adding Dropbox storage");
+  providers["dropbox"] = new DropboxStorage({
+    accessToken: config.dropboxAccessToken,
+    refreshToken: config.dropboxRefreshToken,
+    clientId: process.env.NEXT_PUBLIC_DROPBOX_CLIENT_ID,
+    clientSecret: process.env.DROPBOX_CLIENT_SECRET,
+  });
+};
+
 // Helper to determine default storage provider
 const getDefaultProvider = (config: {
   defaultStorageProvider?: string;
   pinataJwt?: string;
   googleDriveAccessToken?: string;
+  dropboxAccessToken?: string;
 }): string => {
   const requested = config.defaultStorageProvider ?? "app-ipfs";
   if (requested === "user-ipfs" && !config.pinataJwt) return "app-ipfs";
   if (requested === "google-drive" && !config.googleDriveAccessToken)
     return "app-ipfs";
+  if (requested === "dropbox" && !config.dropboxAccessToken) return "app-ipfs";
   return requested;
 };
 
@@ -234,6 +256,7 @@ export function VanaProvider({ children }: VanaProviderProps) {
         console.info("🔗 WalletClient chain:", walletClient.chain);
         const storageProviders = createStorageProviders(sdkConfig);
         await setupGoogleDriveStorage(sdkConfig, storageProviders);
+        setupDropboxStorage(sdkConfig, storageProviders);
         const actualDefaultProvider = getDefaultProvider(sdkConfig);
 
         // Create unified relayer callback - demonstrates the proper pattern
@@ -244,8 +267,10 @@ export function VanaProvider({ children }: VanaProviderProps) {
                 const response = await fetch(`${baseUrl}/api/relay`, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify(request, (_key, value) =>
-                    typeof value === "bigint" ? value.toString() : value,
+                  body: JSON.stringify(
+                    { ...request, chainId },
+                    (_key, value) =>
+                      typeof value === "bigint" ? value.toString() : value,
                   ),
                 });
                 if (!response.ok) {
@@ -313,6 +338,7 @@ export function VanaProvider({ children }: VanaProviderProps) {
     isConnected,
     walletClient,
     address,
+    chainId,
     sdkConfig,
     appConfig,
     // Note: Other config changes (Pinata, Google Drive) don't require full re-init

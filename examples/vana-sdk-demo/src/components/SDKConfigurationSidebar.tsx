@@ -24,6 +24,8 @@ export const SDKConfigurationSidebar: React.FC = () => {
     updateAppConfig,
     handleGoogleDriveAuth,
     handleGoogleDriveDisconnect,
+    handleDropboxAuth,
+    handleDropboxDisconnect,
   } = useSDKConfig();
   return (
     <div className="w-80 border-l border-divider bg-content1 sticky top-0 self-start max-h-screen overflow-y-auto">
@@ -225,6 +227,47 @@ export const SDKConfigurationSidebar: React.FC = () => {
                 )}
               </div>
 
+              {/* Dropbox Configuration */}
+              <div className="space-y-3">
+                <div className="text-sm font-medium">Dropbox Integration</div>
+                {sdkConfig.dropboxAccessToken ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm text-green-600">✅ Connected</div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        color="danger"
+                        onPress={handleDropboxDisconnect}
+                      >
+                        Disconnect
+                      </Button>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Token expires:{" "}
+                      {sdkConfig.dropboxExpiresAt
+                        ? new Date(sdkConfig.dropboxExpiresAt).toLocaleString()
+                        : "Unknown"}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="text-sm text-gray-500">Not connected</div>
+                    <Button
+                      size="sm"
+                      color="primary"
+                      onPress={handleDropboxAuth}
+                      className="w-full"
+                    >
+                      Connect Dropbox
+                    </Button>
+                    <div className="text-xs text-gray-500">
+                      Requires OAuth authentication
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <Select
                 label="Default Storage Provider"
                 selectedKeys={[sdkConfig.defaultStorageProvider]}
@@ -256,6 +299,17 @@ export const SDKConfigurationSidebar: React.FC = () => {
                   }
                 >
                   Google Drive
+                </SelectItem>
+                <SelectItem
+                  key="dropbox"
+                  isDisabled={!sdkConfig.dropboxAccessToken}
+                  description={
+                    !sdkConfig.dropboxAccessToken
+                      ? "Requires Dropbox authentication"
+                      : undefined
+                  }
+                >
+                  Dropbox
                 </SelectItem>
               </Select>
             </div>

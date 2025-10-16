@@ -4,6 +4,7 @@ import React, {
   createContext,
   useContext,
   useState,
+  useEffect,
   useMemo,
   type ReactNode,
 } from "react";
@@ -22,6 +23,9 @@ export interface SDKConfig {
   googleDriveAccessToken: string;
   googleDriveRefreshToken: string;
   googleDriveExpiresAt: number | null;
+  dropboxAccessToken: string;
+  dropboxRefreshToken: string;
+  dropboxExpiresAt: number | null;
   defaultPersonalServerUrl: string;
   readOnlyAddress: string;
 }
@@ -56,6 +60,8 @@ export interface SDKConfigContextValue {
   updateAppConfig: (config: Partial<AppConfig>) => void;
   handleGoogleDriveAuth: () => void;
   handleGoogleDriveDisconnect: () => void;
+  handleDropboxAuth: () => void;
+  handleDropboxDisconnect: () => void;
 }
 
 const SDKConfigContext = createContext<SDKConfigContextValue | undefined>(
@@ -97,6 +103,9 @@ export function SDKConfigProvider({ children }: SDKConfigProviderProps) {
     googleDriveAccessToken: "",
     googleDriveRefreshToken: "",
     googleDriveExpiresAt: null,
+    dropboxAccessToken: "",
+    dropboxRefreshToken: "",
+    dropboxExpiresAt: null,
     readOnlyAddress: "",
     defaultPersonalServerUrl:
       process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL ??
@@ -112,6 +121,47 @@ export function SDKConfigProvider({ children }: SDKConfigProviderProps) {
     useGaslessTransactions: true,
     enableReadOnlyMode: false,
   });
+
+  // Listen for OAuth authentication messages from popup windows
+  useEffect(() => {
+    const handleAuthMessage = (event: MessageEvent) => {
+      // Only accept messages from same origin
+      if (event.origin !== window.location.origin) {
+        return;
+      }
+
+      const { type, tokens } = event.data;
+
+      // Handle Google Drive authentication success
+      if (type === "GOOGLE_DRIVE_AUTH_SUCCESS" && tokens) {
+        console.info("✅ Google Drive authentication successful");
+        setSdkConfig((prev) => ({
+          ...prev,
+          googleDriveAccessToken: tokens.accessToken,
+          googleDriveRefreshToken: tokens.refreshToken,
+          googleDriveExpiresAt: tokens.expiresAt,
+          defaultStorageProvider: "google-drive",
+        }));
+      }
+
+      // Handle Dropbox authentication success
+      if (type === "DROPBOX_AUTH_SUCCESS" && tokens) {
+        console.info("✅ Dropbox authentication successful");
+        setSdkConfig((prev) => ({
+          ...prev,
+          dropboxAccessToken: tokens.accessToken,
+          dropboxRefreshToken: tokens.refreshToken,
+          dropboxExpiresAt: tokens.expiresAt,
+          defaultStorageProvider: "dropbox",
+        }));
+      }
+    };
+
+    window.addEventListener("message", handleAuthMessage);
+    return () => {
+      window.removeEventListener("message", handleAuthMessage);
+    };
+  }, []);
 
   // Compute effective address: read-only override takes precedence
   const effectiveAddress = useMemo(() => {
@@ -165,6 +215,37 @@ export function SDKConfigProvider({ children }: SDKConfigProviderProps) {
     console.info("Google Drive disconnected");
   };
 
+  // Dropbox authentication handlers
+  const handleDropboxAuth = () => {
+    const authWindow = window.open(
+      "/api/auth/dropbox/authorize",
+      "dropbox-auth",
+      "width=600,height=700,scrollbars=yes,resizable=yes",
+    );
+
+    // Monitor auth window closure
+    const checkClosed = setInterval(() => {
+      if (authWindow?.closed) {
+        clearInterval(checkClosed);
+        console.info("Dropbox auth window closed");
+      }
+    }, 1000);
+  };
+
+  const handleDropboxDisconnect = () => {
+    setSdkConfig((prev) => ({
+      ...prev,
+      dropboxAccessToken: "",
+      dropboxRefreshToken: "",
+      dropboxExpiresAt: null,
+      defaultStorageProvider:
+        prev.defaultStorageProvider === "dropbox"
+          ? "app-ipfs"
+          : prev.defaultStorageProvider,
+    }));
+    console.info("Dropbox disconnected");
+  };
+
   const value = useMemo<SDKConfigContextValue>(
     () => ({
       sdkConfig,
@@ -174,6 +255,8 @@ export function SDKConfigProvider({ children }: SDKConfigProviderProps) {
       updateAppConfig,
       handleGoogleDriveAuth,
       handleGoogleDriveDisconnect,
+      handleDropboxAuth,
+      handleDropboxDisconnect,
     }),
     [sdkConfig, appConfig, effectiveAddress],
   );

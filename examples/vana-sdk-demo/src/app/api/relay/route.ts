@@ -5,7 +5,7 @@ import {
   RedisAtomicStore,
   type UnifiedRelayerRequest,
   vanaMainnet,
-  moksha,
+  mokshaTestnet,
   PinataStorage,
 } from "@opendatalabs/vana-sdk/node";
 import { createWalletClient, http } from "viem";
@@ -14,27 +14,24 @@ import { RedisOperationStore } from "@/lib/operationStore";
 
 export async function POST(request: NextRequest) {
   try {
-    const body: UnifiedRelayerRequest = await request.json();
+    // Read the chainId from the request body, along with the relay request
+    const body: UnifiedRelayerRequest & { chainId?: number } =
+      await request.json();
+    const { chainId, ...relayerRequest } = body;
 
-    console.info("🔄 Processing relayer operation...");
+    if (!chainId) {
+      throw new Error("chainId is required in the relayer request");
+    }
+
+    console.info(`🔄 Processing relayer operation for chainId: ${chainId}...`);
     console.debug(
       "🔍 Debug - Received request:",
       JSON.stringify(
-        body,
+        relayerRequest,
         (_key, value) => (typeof value === "bigint" ? value.toString() : value),
         2,
       ),
     );
-
-    let chainId: number;
-    if (body.type === "signed" && body.typedData?.domain?.chainId) {
-      chainId = body.typedData.domain.chainId;
-    } else {
-      // For direct operations and status checks, use default chain
-      chainId = process.env.NEXT_PUBLIC_MOKSHA === "true" ? 14800 : 1480;
-    }
-
-    console.info(`🔗 [Relayer] Using chainId from request: ${chainId}`);
 
     // Initialize stores if Redis is configured
     let operationStore;
@@ -68,12 +65,16 @@ export async function POST(request: NextRequest) {
     }
 
     const account = privateKeyToAccount(privateKey as `0x${string}`);
-    const chain = chainId === 14800 ? moksha : vanaMainnet;
+    const chain = chainId === 14800 ? mokshaTestnet : vanaMainnet;
+    const rpcUrl =
+      chainId === 14800
+        ? (process.env.RPC_URL_VANA_MOKSHA ?? "https://rpc.moksha.vana.org")
+        : (process.env.RPC_URL_VANA ?? "https://rpc.vana.org");
 
     const walletClient = createWalletClient({
       account,
       chain,
-      transport: http(chain.rpcUrls.default.http[0]),
+      transport: http(rpcUrl),
     });
 
     console.info("🔍 [Relayer] WalletClient created:", {
@@ -119,7 +120,7 @@ export async function POST(request: NextRequest) {
     // - Use distributed nonce management if atomicStore is provided
     // - Store operation state if operationStore is provided
     // - Return pending responses for async polling
-    const result = await handleRelayerOperation(vana, body);
+    const result = await handleRelayerOperation(vana, relayerRequest);
 
     // With atomicStore, nonce conflicts should be rare
     // But log if they occur for debugging

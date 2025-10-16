@@ -109,10 +109,6 @@ export function useGrantees(): UseGranteesReturn {
     [vana, address],
   );
 
-  console.log(
-    "🟡 [useGrantees] Hook rendered, loadGrantees callback created/recreated",
-  );
-
   const handleAddGrantee = useCallback(async () => {
     if (!vana || !address) return;
 

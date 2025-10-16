@@ -4,6 +4,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { promisify } from "util";
 import openapiTS, { astToString } from "openapi-typescript";
+import { mokshaServices } from "../src/config/default-services.js";
 
 const writeFile = promisify(fs.writeFile);
 const mkdir = promisify(fs.mkdir);
@@ -11,7 +12,9 @@ const access = promisify(fs.access);
 
 // Configuration for the personal server OpenAPI spec
 const OPENAPI_CONFIG = {
-  url: "https://raw.githubusercontent.com/vana-com/vana-personal-server/main/openapi.yaml",
+  url:
+    mokshaServices.personalServerUrl.replace(/\/api\/v1\/?$/, "") +
+    "/openapi.json",
   outputPath: "src/generated/server/server.ts",
   exportsPath: "src/generated/server/server-exports.ts",
 } as const;
@@ -23,7 +26,7 @@ const OPENAPI_CONFIG = {
  */
 async function generateTypes(): Promise<string> {
   try {
-    console.log(`🔄 Generating TypeScript types from OpenAPI spec...`);
+    console.log(`🔄 Generating TypeScript types from: ${OPENAPI_CONFIG.url}`);
 
     // Generate AST using openapi-typescript directly from URL
     const ast = await openapiTS(new URL(OPENAPI_CONFIG.url), {

@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import React, { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ParaProvider } from "./ParaProvider";
+import { ParaProvider } from "./para-provider";
 import { RainbowProvider } from "./rainbow-provider";
 import { VanaProvider } from "./vana-provider";
 import { GoogleDriveOAuthProvider } from "./google-drive-oauth";

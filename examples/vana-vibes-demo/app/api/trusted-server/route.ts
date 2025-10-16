@@ -20,9 +20,8 @@ export async function POST(request: NextRequest) {
     });
 
     // Wait for the operation to complete using the SDK's waitForOperation method
-    // Use longer timeout (5 minutes) for Gemini agent operations which can take longer
-    const completedOp = await vana.waitForOperation(operation, {
-      timeout: 300000, // 5 minutes
+    const completedOp = await vana.waitForOperation(operation.id, {
+      timeout: 60000,
       pollingInterval: 500,
     });
 

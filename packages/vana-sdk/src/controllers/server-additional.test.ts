@@ -79,7 +79,7 @@ describe("ServerController - Additional Methods", () => {
       ).resolves.toBeUndefined();
 
       expect(fetchMock).toHaveBeenCalledWith(
-        "https://personal-server.example.com/operations/test-operation-123/cancel",
+        "https://personal-server.example.com/api/v1/operations/test-operation-123/cancel",
         {
           method: "POST",
         },
@@ -178,7 +178,7 @@ describe("ServerController - Additional Methods", () => {
 
       expect(result).toBe(mockBlob);
       expect(fetchMock).toHaveBeenCalledWith(
-        "https://personal-server.example.com/artifacts/download",
+        "https://personal-server.example.com/api/v1/artifacts/download",
         {
           method: "POST",
           headers: {
@@ -323,7 +323,7 @@ describe("ServerController - Additional Methods", () => {
 
       expect(result).toEqual(mockArtifacts);
       expect(fetchMock).toHaveBeenCalledWith(
-        `https://personal-server.example.com/artifacts/${operationId}/list`,
+        `https://personal-server.example.com/api/v1/artifacts/${operationId}/list`,
         {
           method: "POST",
           headers: {

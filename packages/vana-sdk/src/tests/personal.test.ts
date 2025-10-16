@@ -299,6 +299,7 @@ describe("ServerController", () => {
 
   describe("getOperation", () => {
     const mockStatusResponse = {
+      kind: "OperationStatus" as const,
       id: "test-123",
       status: "processing" as const,
       started_at: "2025-01-01T12:00:00.000Z",
@@ -315,12 +316,12 @@ describe("ServerController", () => {
       const result = await serverController.getOperation("test-123");
 
       expect(result).toEqual({
+        kind: "OperationStatus",
         id: "test-123",
         status: "processing",
-        createdAt: expect.any(Number),
-        updatedAt: expect.any(Number),
-        result: undefined,
-        error: undefined,
+        started_at: "2025-01-01T12:00:00.000Z",
+        finished_at: null,
+        result: null,
       });
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/operations/test-123"),
@@ -361,7 +362,7 @@ describe("ServerController", () => {
 
       expect(result.id).toBe("test-123");
       expect(result.status).toBe("processing");
-      expect(result.result).toBeUndefined();
+      expect(result.result).toBeNull();
     });
 
     it("should wrap unknown errors in NetworkError", async () => {

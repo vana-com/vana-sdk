@@ -44,7 +44,7 @@ const navigationViews: NavigationView[] = [
   {
     id: "personal-server-operations",
     href: "/personal-server-operations",
-    label: "Personal Server Operations",
+    label: "Personal Server",
     icon: Zap,
     description: "Process data with servers",
   },

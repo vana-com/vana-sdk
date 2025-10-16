@@ -39,10 +39,10 @@ export type WaitForTransactionEventsFn = <C extends Contract, F extends Fn<C>>(
 /**
  * Type definition for waitForOperation function.
  */
-export type WaitForOperationFn = <T = unknown>(
-  opOrId: Operation<T> | string,
+export type WaitForOperationFn = (
+  opOrId: Operation | string,
   options?: PollingOptions,
-) => Promise<Operation<T>>;
+) => Promise<Operation>;
 
 /**
  * Shared controller context interface.

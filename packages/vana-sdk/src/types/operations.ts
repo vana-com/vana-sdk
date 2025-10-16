@@ -1,5 +1,8 @@
 import type { Hash, TransactionReceipt as ViemReceipt, Address } from "viem";
-import type { GetOperationResponse } from "../generated/server/server-exports";
+import type {
+  GetOperationResponse,
+  ArtifactInfo,
+} from "../generated/server/server-exports";
 import type { Contract, Fn } from "../generated/event-types";
 
 // Re-export TransactionOptions from the new options module
@@ -11,19 +14,11 @@ export type { TransactionOptions } from "./options";
  * @remarks
  * Artifacts are files generated during operations like Gemini agent analysis.
  * These can be downloaded separately using the artifact download API.
+ * This type is imported directly from the server's OpenAPI schema.
  *
  * @category Operations
  */
-export interface Artifact {
-  /** The artifact filename */
-  name: string;
-  /** The storage path for the artifact */
-  artifact_path: string;
-  /** Size of the artifact in bytes */
-  size: number;
-  /** MIME type of the artifact (optional) */
-  contentType?: string;
-}
+export type Artifact = ArtifactInfo;
 
 /**
  * Represents a server-side operation status and result.
@@ -31,27 +26,12 @@ export interface Artifact {
  * @remarks
  * Operations track asynchronous server processes like data refinement or ML inference.
  * Poll operation status using `vana.server.waitForOperation()` until completion.
- * Fully serializable for API responses and cross-process communication.
+ * This type is now directly imported from the server's OpenAPI schema for type safety.
  *
  * @category Operations
  * @see {@link https://docs.vana.org/docs/operations | Operations Guide}
  */
-export interface Operation<T = unknown> {
-  /** Unique operation identifier */
-  id: string;
-  /** Current operation status */
-  status: "starting" | "running" | "succeeded" | "failed" | "canceled";
-  /** Unix timestamp when operation was created */
-  createdAt: number;
-  /** Unix timestamp when operation was last updated */
-  updatedAt?: number;
-  /** Operation result when status is 'succeeded' */
-  result?: T;
-  /** Error message when status is 'failed' */
-  error?: string;
-  /** Additional operation metadata */
-  metadata?: Record<string, unknown>;
-}
+export type Operation = GetOperationResponse;
 
 /**
  * Represents a submitted blockchain transaction as a self-describing POJO.
@@ -151,11 +131,12 @@ export interface TransactionWaitOptions {
 }
 
 /**
- * Validates whether an object conforms to the Operation interface.
+ * Validates whether an object conforms to the Operation (GetOperationResponse) type.
  *
  * @remarks
  * Type guard for runtime validation of operation objects from external sources.
  * Use when deserializing operations from API responses or storage.
+ * Validates against the server's OpenAPI schema structure.
  *
  * @param obj - The object to validate as an Operation
  * @returns `true` if the object has required Operation properties, `false` otherwise
@@ -176,8 +157,10 @@ export function isOperation(obj: unknown): obj is Operation {
   return (
     typeof obj === "object" &&
     obj !== null &&
+    "kind" in obj &&
     "id" in obj &&
     "status" in obj &&
+    (obj as Record<string, unknown>).kind === "OperationStatus" &&
     typeof (obj as Record<string, unknown>).id === "string" &&
     typeof (obj as Record<string, unknown>).status === "string"
   );
@@ -208,40 +191,6 @@ export function isTransactionResult(obj: unknown): obj is TransactionResult {
   }
   const { hash } = obj as Record<string, unknown>;
   return typeof hash === "string" && hash.startsWith("0x");
-}
-
-/**
- * Converts a server response to an Operation POJO.
- *
- * @remarks
- * Normalizes server responses into consistent Operation format.
- * Separates success results from error messages based on status.
- *
- * @param response - The raw server response containing operation status data
- * @returns An Operation object with normalized fields for client consumption
- *
- * @example
- * ```typescript
- * const serverResponse = await api.getOperation('op-123');
- * const operation = toOperation<MLResult>(serverResponse);
- *
- * if (operation.status === 'succeeded') {
- *   console.log('Result:', operation.result);
- * }
- * ```
- *
- * @category Operations
- */
-export function toOperation<T>(response: GetOperationResponse): Operation<T> {
-  return {
-    id: response.id,
-    status: response.status as Operation["status"],
-    createdAt: Date.now(), // Server doesn't provide this, so we use current time
-    result:
-      response.status === "succeeded" ? (response.result as T) : undefined,
-    error:
-      response.status === "failed" ? (response.result ?? undefined) : undefined,
-  };
 }
 
 /**

@@ -31,7 +31,6 @@ import { useVana, isVanaInitialized } from "../../providers/vana-provider";
 import type {
   CompleteSchema,
   VanaInstance,
-  Artifact,
 } from "@opendatalabs/vana-sdk/browser";
 import {
   generateEncryptionKey,
@@ -41,18 +40,6 @@ import {
 } from "@opendatalabs/vana-sdk/browser";
 import Link from "next/link";
 import type { Address } from "viem";
-import { ArtifactDisplay } from "../../lib/components/artifact-display";
-
-// Artifact type is now imported from SDK
-/*
-interface Artifact {
-  name: string;
-  artifact_path: string;
-  size: number;
-}
-*/
-
-// Extend Window interface for operation ID storage
 
 // Type definitions - extending UserFile to include optional properties
 interface UserFile {
@@ -140,44 +127,9 @@ function SchemaExplorerContent() {
   );
   const [result, setResult] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const [agentType, setAgentType] = useState<"none" | "gemini" | "qwen">(
-    "none",
+  const [aiPrompt, setAiPrompt] = useState<string>(
+    "Based on this data: {{data}}, provide insights",
   );
-
-  // Unified prompt that switches based on mode
-  const defaultLLMPrompt = "Based on this data: {{data}}, provide insights";
-  const defaultAgentGoal = `Analyze my digital footprint across all available data sources and create:
-
-1. A comprehensive "Digital Mirror" report showing:
-   - My interests, habits, and behavioral patterns across platforms
-   - Content consumption trends (what I watch, read, listen to)
-   - Communication style and key relationships from chat histories
-   - Professional growth trajectory from LinkedIn/work data
-   - Hidden patterns I might not be aware of
-
-2. A "Personal Intelligence Dashboard" with:
-   - Top insights about my personality and preferences
-   - Data-driven recommendations for personal growth
-   - Potential blind spots or biases in my digital behavior
-   - Unique characteristics that define my digital identity
-
-3. Actionable insights comparing my data across platforms to reveal:
-   - Inconsistencies between my professional and personal personas
-   - Evolution of my interests and values over time
-   - Predictive insights about my future interests or needs
-
-Create visually appealing outputs with charts, timelines, and summaries that I could share or use for self-reflection.`;
-
-  const [unifiedPrompt, setUnifiedPrompt] = useState<string>(defaultLLMPrompt);
-  const [artifacts, setArtifacts] = useState<Artifact[]>([]);
-  const [operationId, setOperationId] = useState<string | undefined>();
-
-  // Switch prompt when agent type changes
-  useEffect(() => {
-    setUnifiedPrompt(
-      agentType !== "none" ? defaultAgentGoal : defaultLLMPrompt,
-    );
-  }, [agentType, defaultAgentGoal, defaultLLMPrompt]);
 
   // Core filtering logic: Files can be filtered by schema, DLP, or both
   // This enables precise data selection for AI processing
@@ -451,81 +403,6 @@ Create visually appealing outputs with charts, timelines, and summaries that I c
   };
 
   // Handle processing with existing file - now uses fixed contract that supports existing files
-  const fetchArtifactContent = async (artifact: Artifact) => {
-    try {
-      if (!operationId) {
-        throw new Error("Operation ID not found");
-      }
-
-      const response = await fetch("/api/artifacts/download", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          operationId,
-          artifactPath: artifact.artifact_path,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch artifact");
-      }
-
-      const blob = await response.blob();
-      const text = await blob.text();
-      return text;
-    } catch (error) {
-      console.error("Error fetching artifact:", error);
-      return "Error loading artifact content";
-    }
-  };
-
-  const handleDownloadArtifact = async (artifact: Artifact) => {
-    try {
-      setStatus(`Downloading ${artifact.name}...`);
-
-      if (!operationId) {
-        throw new Error("Operation ID not found");
-      }
-
-      const response = await fetch("/api/artifacts/download", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          operationId,
-          artifactPath: artifact.artifact_path,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error ?? "Download failed");
-      }
-
-      const blob = await response.blob();
-
-      // Create download link
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = artifact.name;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      setStatus(`Downloaded ${artifact.name}`);
-    } catch (error) {
-      console.error("Download error:", error);
-      setStatus(
-        `Download failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-    }
-  };
-
   const handleStartFlow = async () => {
     const walletAddress = wallet?.address ?? address;
 
@@ -540,8 +417,6 @@ Create visually appealing outputs with charts, timelines, and summaries that I c
 
     setIsProcessing(true);
     setResult("");
-    setArtifacts([]);
-    setOperationId(undefined);
 
     try {
       setStatus("Preparing permission grant for existing file...");
@@ -591,29 +466,12 @@ Create visually appealing outputs with charts, timelines, and summaries that I c
       );
 
       // Create grant data for the AI operation
-      const getOperationConfig = () => {
-        if (agentType === "gemini") {
-          return {
-            operation: "prompt_gemini_agent",
-            parameters: { goal: unifiedPrompt },
-          };
-        } else if (agentType === "qwen") {
-          return {
-            operation: "prompt_qwen_agent",
-            parameters: { goal: unifiedPrompt },
-          };
-        } else {
-          return {
-            operation: "llm_inference",
-            parameters: { prompt: unifiedPrompt },
-          };
-        }
-      };
-
-      const operationConfig = getOperationConfig();
       const grantData = {
         grantee: appAddress,
-        ...operationConfig,
+        operation: "llm_inference",
+        parameters: {
+          prompt: aiPrompt,
+        },
       };
 
       // Create grant file blob
@@ -692,24 +550,14 @@ Create visually appealing outputs with charts, timelines, and summaries that I c
         throw new Error(inferenceResult.error ?? "API request failed");
       }
 
-      // Store operation ID for artifact downloads
-      if (inferenceResult.data?.id) {
-        setOperationId(inferenceResult.data.id);
-      }
-
       setStatus("AI inference completed!");
-      const resultData = inferenceResult.data?.result ?? inferenceResult.data;
-      const resultStr = JSON.stringify(resultData, null, 2);
-      setResult(resultStr);
-
-      // Parse and extract artifacts if present
-      try {
-        if (resultData.artifacts && Array.isArray(resultData.artifacts)) {
-          setArtifacts(resultData.artifacts);
-        }
-      } catch {
-        // Not JSON or no artifacts
-      }
+      setResult(
+        JSON.stringify(
+          inferenceResult.data?.result ?? inferenceResult.data,
+          null,
+          2,
+        ),
+      );
     } catch (error) {
       // Specific error handling based on operation phase
       const errorMessage =
@@ -982,102 +830,26 @@ Create visually appealing outputs with charts, timelines, and summaries that I c
             </Card>
           ))}
 
-        {/* Operation Mode & Prompt Configuration */}
+        {/* AI Prompt */}
         {state.selectedFileId && (
-          <div className="space-y-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <div className="space-y-3">
-              <Label className="text-sm font-medium text-gray-700">
-                Select Operation Type
-              </Label>
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="radio"
-                    id="llm-schema"
-                    name="agentType"
-                    value="none"
-                    checked={agentType === "none"}
-                    onChange={(e) => {
-                      setAgentType(e.target.value as "none");
-                    }}
-                    disabled={isProcessing}
-                    className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-                  />
-                  <Label htmlFor="llm-schema" className="text-sm text-gray-700">
-                    Standard LLM (llm_inference)
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="radio"
-                    id="gemini-schema"
-                    name="agentType"
-                    value="gemini"
-                    checked={agentType === "gemini"}
-                    onChange={(e) => {
-                      setAgentType(e.target.value as "gemini");
-                    }}
-                    disabled={isProcessing}
-                    className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-                  />
-                  <Label
-                    htmlFor="gemini-schema"
-                    className="text-sm text-gray-700"
-                  >
-                    Gemini Agent (prompt_gemini_agent)
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="radio"
-                    id="qwen-schema"
-                    name="agentType"
-                    value="qwen"
-                    checked={agentType === "qwen"}
-                    onChange={(e) => {
-                      setAgentType(e.target.value as "qwen");
-                    }}
-                    disabled={isProcessing}
-                    className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-                  />
-                  <Label
-                    htmlFor="qwen-schema"
-                    className="text-sm text-gray-700"
-                  >
-                    Qwen Agent (prompt_qwen_agent)
-                  </Label>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <Label
-                htmlFor="prompt"
-                className="text-sm font-medium text-gray-700 mb-2 block"
-              >
-                {agentType !== "none" ? "Analysis Goal" : "AI Prompt"}
-              </Label>
-              <Textarea
-                id="prompt"
-                value={unifiedPrompt}
-                onChange={(e) => {
-                  setUnifiedPrompt(e.target.value);
-                }}
-                rows={agentType !== "none" ? 8 : 2}
-                className="resize-none font-mono text-xs"
-                placeholder={
-                  agentType !== "none"
-                    ? `What should the ${agentType === "gemini" ? "Gemini" : "Qwen"} agent analyze?`
-                    : "Enter your prompt..."
-                }
-                disabled={isProcessing}
-              />
-              <div className="mt-1 text-xs text-gray-500">
-                {agentType !== "none"
-                  ? `${agentType === "gemini" ? "Gemini" : "Qwen"} will analyze your selected file and related data based on this goal`
-                  : "Use {{data}} to reference your file content"}
-              </div>
-            </div>
+          <div>
+            <Label
+              htmlFor="aiPrompt"
+              className="text-sm font-medium text-gray-700 mb-2 block"
+            >
+              AI Prompt
+            </Label>
+            <Textarea
+              id="aiPrompt"
+              value={aiPrompt}
+              onChange={(e) => {
+                setAiPrompt(e.target.value);
+              }}
+              rows={2}
+              className="resize-none"
+              placeholder="Enter your AI prompt here..."
+              disabled={isProcessing}
+            />
           </div>
         )}
 
@@ -1123,14 +895,6 @@ Create visually appealing outputs with charts, timelines, and summaries that I c
             placeholder="AI inference results will appear here..."
           />
         </div>
-
-        {/* Artifacts Display */}
-        <ArtifactDisplay
-          artifacts={artifacts}
-          operationId={operationId}
-          onDownload={handleDownloadArtifact}
-          onFetchContent={fetchArtifactContent}
-        />
       </div>
     </div>
   );

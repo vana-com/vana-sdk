@@ -2,7 +2,8 @@
 
 import "@getpara/react-sdk/styles.css";
 
-import React, { type ReactNode } from "react";
+import type { ReactNode } from "react";
+import React from "react";
 import {
   ParaProvider as ParaProviderBase,
   Environment,
@@ -12,18 +13,13 @@ import {
   vanaMainnet,
 } from "@opendatalabs/vana-sdk/browser";
 
+const PARA_API_KEY =
+  process.env.NEXT_PUBLIC_PARA_KEY ?? "f78f3c305f0f27e9d7b8bd28fbb456db";
+
 export const ParaProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
-  const PARA_API_KEY = process.env.NEXT_PUBLIC_PARA_KEY;
-
-  // Only enforce this requirement when Para is actually being used
-  if (!PARA_API_KEY) {
-    throw new Error(
-      "NEXT_PUBLIC_PARA_KEY is required when using Para wallet provider. " +
-        "Either set this variable or use NEXT_PUBLIC_WALLET_PROVIDER=rainbow to use Rainbow Kit instead.",
-    );
-  }
+  const chain = process.env.NEXT_PUBLIC_MOKSHA ? mokshaTestnet : vanaMainnet;
 
   return (
     <ParaProviderBase
@@ -33,21 +29,17 @@ export const ParaProvider: React.FC<{ children: ReactNode }> = ({
       }}
       externalWalletConfig={{
         includeWalletVerification: true,
-        createLinkedEmbeddedForExternalWallets: [
-          "METAMASK",
-          "COINBASE",
-          "WALLETCONNECT",
-          "RAINBOW",
-        ],
         wallets: ["METAMASK", "COINBASE", "WALLETCONNECT", "RAINBOW"],
         evmConnector: {
           config: {
-            chains: [mokshaTestnet, vanaMainnet],
+            chains: [chain],
           },
         },
-        ...(process.env.NEXT_PUBLIC_REOWN_PROJECT && {
-          walletConnect: { projectId: process.env.NEXT_PUBLIC_REOWN_PROJECT },
-        }),
+        walletConnect: {
+          projectId:
+            process.env.NEXT_PUBLIC_REOWN_PROJECT ??
+            "6210bc10b6ce68f0d583d322842cc313",
+        },
       }}
       config={{ appName: "Vana Vibes Demo" }}
     >

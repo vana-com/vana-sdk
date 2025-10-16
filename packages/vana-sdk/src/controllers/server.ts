@@ -9,6 +9,7 @@ import type {
   GetOperationResponse,
   IdentityResponseModel,
 } from "../generated/server/server-exports";
+import { SERVER_PATHS } from "../generated/server/server-exports";
 import {
   NetworkError,
   SerializationError,
@@ -18,6 +19,7 @@ import {
 import type { ControllerContext } from "./permissions";
 import type { Operation, PollingOptions } from "../types/operations";
 import { BaseController } from "./base";
+import { SignatureCache } from "../utils/signatureCache";
 
 // Server types are now auto-imported from the generated exports
 
@@ -80,7 +82,14 @@ export class ServerController extends BaseController {
           "Please configure defaultPersonalServerUrl in your VanaConfig.",
       );
     }
-    return this.context.defaultPersonalServerUrl;
+
+    // Normalize the URL by removing /api/v1 suffix if present
+    // This ensures backward compatibility with old configurations
+    let url = this.context.defaultPersonalServerUrl;
+    if (url.endsWith("/api/v1")) {
+      url = url.slice(0, -7); // Remove '/api/v1'
+    }
+    return url;
   }
 
   /**
@@ -123,7 +132,7 @@ export class ServerController extends BaseController {
   ): Promise<PersonalServerIdentity> {
     try {
       const response = await fetch(
-        `${this.personalServerBaseUrl}/identity?address=${request.userAddress}`,
+        `${this.personalServerBaseUrl}${SERVER_PATHS.identity}?address=${request.userAddress}`,
         {
           method: "GET",
           headers: {
@@ -163,34 +172,34 @@ export class ServerController extends BaseController {
   }
 
   /**
-   * Creates a server operation and returns its details as a plain object.
+   * Creates a server operation and returns its details from the OpenAPI schema.
    *
    * @remarks
    * This method submits a computation request to the personal server and returns
-   * an Operation object that can be serialized and passed across API boundaries.
-   * Use `waitForOperation()` to poll for completion.
+   * the server's CreateOperationResponse. The response contains the operation ID
+   * which can be used with `waitForOperation()` to poll for completion.
    *
    * @param params - The operation request parameters
    * @param params.permissionId - The permission ID authorizing this operation.
    *   Obtain via `vana.permissions.getUserPermissionGrantsOnChain()`.
-   * @returns An Operation object containing the operation ID and status
+   * @returns Server response with operation ID
    * @throws {PersonalServerError} When the server request fails or parameters are invalid
    * @throws {NetworkError} When personal server API communication fails
    * @example
    * ```typescript
-   * const operation = await vana.server.createOperation({
+   * const response = await vana.server.createOperation({
    *   permissionId: 123
    * });
-   * console.log(`Operation ID: ${operation.id}`);
+   * console.log(`Operation ID: ${response.id}`);
    *
    * // Wait for completion
-   * const result = await vana.server.waitForOperation(operation.id);
+   * const result = await vana.server.waitForOperation(response.id);
    * console.log("Result:", result.result);
    * ```
    */
-  async createOperation<T = unknown>(
+  async createOperation(
     params: CreateOperationParams,
-  ): Promise<Operation<T>> {
+  ): Promise<CreateOperationResponse> {
     this.assertWallet();
 
     try {
@@ -211,11 +220,7 @@ export class ServerController extends BaseController {
       console.debug("🔍 Debug - createOperation requestBody", requestBody);
       const response = await this.makeRequest(requestBody);
 
-      return {
-        id: response.id,
-        status: "starting",
-        createdAt: Date.now(),
-      } as Operation<T>;
+      return response;
     } catch (error) {
       if (error instanceof Error) {
         // Re-throw known Vana errors directly
@@ -243,26 +248,29 @@ export class ServerController extends BaseController {
    * Retrieves the current status and result of a server operation.
    *
    * @remarks
-   * Common status values: `starting`, `running`, `succeeded`, `failed`, `canceled`.
+   * Common status values: `starting`, `processing`, `succeeded`, `failed`, `canceled`.
    * When status is `succeeded`, the result field contains the operation output.
+   * Returns the server response directly from the OpenAPI schema.
    *
    * @param operationId - The ID of the operation to query
-   * @returns The operation as a plain object containing status, result, and metadata
+   * @returns The operation status response from the server
    * @throws {NetworkError} When the API request fails or returns invalid data
    * @example
    * ```typescript
    * const operation = await vana.server.getOperation(operationId);
    * if (operation.status === 'succeeded') {
    *   console.log('Result:', operation.result);
+   *   console.log('Started at:', operation.started_at);
+   *   console.log('Finished at:', operation.finished_at);
    * }
    * ```
    */
-  async getOperation<T = unknown>(operationId: string): Promise<Operation<T>> {
+  async getOperation(operationId: string): Promise<Operation> {
     try {
       console.debug("Polling Operation Status:", operationId);
 
       const response = await fetch(
-        `${this.personalServerBaseUrl}/operations/${operationId}`,
+        `${this.personalServerBaseUrl}${SERVER_PATHS.getOperation(operationId)}`,
         {
           method: "GET",
           headers: {
@@ -287,15 +295,7 @@ export class ServerController extends BaseController {
 
       console.debug("Polling Success Response:", data);
 
-      return {
-        id: data.id,
-        status: data.status as Operation["status"],
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        result: data.status === "succeeded" ? (data.result as T) : undefined,
-        error:
-          data.status === "failed" ? (data.result ?? undefined) : undefined,
-      };
+      return data;
     } catch (error) {
       if (error instanceof NetworkError) {
         throw error;
@@ -313,10 +313,11 @@ export class ServerController extends BaseController {
    * This method polls the operation status at regular intervals until it
    * reaches a terminal state (succeeded, failed, or canceled). Supports
    * ergonomic overloads to accept either an Operation object or just the ID.
+   * Returns the server response directly from the OpenAPI schema.
    *
    * @param opOrId - Either an Operation object or operation ID string
    * @param options - Optional polling configuration
-   * @returns The completed operation with result or error
+   * @returns The completed operation with result and timestamp data
    * @throws {PersonalServerError} When the operation fails or times out
    * @example
    * ```typescript
@@ -332,27 +333,43 @@ export class ServerController extends BaseController {
    *   timeout: 60000,
    *   pollingInterval: 1000
    * });
+   *
+   * // Access server-provided timestamps
+   * console.log('Started:', completed.started_at);
+   * console.log('Finished:', completed.finished_at);
    * ```
    */
-  async waitForOperation<T = unknown>(
-    opOrId: Operation<T> | string,
+  async waitForOperation(
+    opOrId: Operation | string,
     options?: PollingOptions,
-  ): Promise<Operation<T>> {
+  ): Promise<Operation> {
     const id = typeof opOrId === "string" ? opOrId : opOrId.id;
     const startTime = Date.now();
     const timeout = options?.timeout ?? 30000;
     const interval = options?.pollingInterval ?? 500;
 
     while (true) {
-      const operation = await this.getOperation<T>(id);
+      const operation = await this.getOperation(id);
 
       if (operation.status === "succeeded") {
         return operation;
       }
 
       if (operation.status === "failed") {
+        // Extract error message from result object when failed
+        let errorMessage = "Unknown error";
+        if (operation.result) {
+          const resultObj = operation.result as Record<string, unknown>;
+          errorMessage =
+            typeof resultObj.error === "string"
+              ? resultObj.error
+              : typeof resultObj.detail === "string"
+                ? resultObj.detail
+                : JSON.stringify(operation.result);
+        }
+
         throw new PersonalServerError(
-          `Operation ${operation.status}: ${operation.error ?? "Unknown error"}`,
+          `Operation ${operation.status}: ${errorMessage}`,
         );
       }
 
@@ -414,13 +431,31 @@ export class ServerController extends BaseController {
 
     try {
       // Simplified signature scheme: sign only operation_id
-      // This allows the same signature to be reused for all artifacts
+      // This allows the same signature to be reused for all artifacts via caching
       const signatureData = {
         operation_id: params.operationId,
       };
 
       const requestJson = JSON.stringify(signatureData);
-      const signature = await this.createSignature(requestJson);
+
+      // Use signature cache to avoid repeated wallet prompts for same operation
+      const messageHash = SignatureCache.hashMessage(signatureData);
+      let signature = SignatureCache.get(
+        this.context.platform.cache,
+        this.getAccountAddress(),
+        messageHash,
+      );
+
+      if (!signature) {
+        signature = await this.createSignature(requestJson);
+        SignatureCache.set(
+          this.context.platform.cache,
+          this.getAccountAddress(),
+          messageHash,
+          signature,
+          24, // Cache for 24 hours since operation_id doesn't change
+        );
+      }
 
       // Request body still includes artifact_path for the API
       const requestBody = {
@@ -430,7 +465,7 @@ export class ServerController extends BaseController {
       };
 
       const response = await fetch(
-        `${this.personalServerBaseUrl}/artifacts/download`,
+        `${this.personalServerBaseUrl}${SERVER_PATHS.downloadArtifact}`,
         {
           method: "POST",
           headers: {
@@ -506,13 +541,32 @@ export class ServerController extends BaseController {
     this.assertWallet();
 
     try {
-      // Use simplified signature scheme: sign only operation_id
+      // Simplified signature scheme: sign only operation_id
+      // This allows the same signature to be reused for all artifacts via caching
       const signatureData = {
         operation_id: operationId,
       };
 
       const requestJson = JSON.stringify(signatureData);
-      const signature = await this.createSignature(requestJson);
+
+      // Use signature cache to avoid repeated wallet prompts for same operation
+      const messageHash = SignatureCache.hashMessage(signatureData);
+      let signature = SignatureCache.get(
+        this.context.platform.cache,
+        this.getAccountAddress(),
+        messageHash,
+      );
+
+      if (!signature) {
+        signature = await this.createSignature(requestJson);
+        SignatureCache.set(
+          this.context.platform.cache,
+          this.getAccountAddress(),
+          messageHash,
+          signature,
+          24, // Cache for 24 hours since operation_id doesn't change
+        );
+      }
 
       const requestBody = {
         operation_id: operationId,
@@ -520,7 +574,7 @@ export class ServerController extends BaseController {
       };
 
       const response = await fetch(
-        `${this.personalServerBaseUrl}/artifacts/${operationId}/list`,
+        `${this.personalServerBaseUrl}${SERVER_PATHS.listArtifacts(operationId)}`,
         {
           method: "POST",
           headers: {
@@ -600,7 +654,7 @@ export class ServerController extends BaseController {
   async cancelOperation(operationId: string): Promise<void> {
     try {
       const response = await fetch(
-        `${this.personalServerBaseUrl}/operations/${operationId}/cancel`,
+        `${this.personalServerBaseUrl}${SERVER_PATHS.cancelOperation(operationId)}`,
         {
           method: "POST",
         },
@@ -633,7 +687,7 @@ export class ServerController extends BaseController {
   ): Promise<CreateOperationResponse> {
     try {
       console.debug("Personal Server Request:", {
-        url: `${this.personalServerBaseUrl}/operations`,
+        url: `${this.personalServerBaseUrl}${SERVER_PATHS.operations}`,
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -641,13 +695,16 @@ export class ServerController extends BaseController {
         body: requestBody,
       });
 
-      const response = await fetch(`${this.personalServerBaseUrl}/operations`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await fetch(
+        `${this.personalServerBaseUrl}${SERVER_PATHS.operations}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
         },
-        body: JSON.stringify(requestBody),
-      });
+      );
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -677,12 +734,33 @@ export class ServerController extends BaseController {
   }
 
   /**
+   * Gets the account address from the wallet client.
+   *
+   * @returns The account address
+   * @throws {Error} When no account is available
+   */
+  private getAccountAddress(): `0x${string}` {
+    const client = this.context.applicationClient ?? this.context.walletClient;
+    if (!client) {
+      throw new Error("No client available for getting account address");
+    }
+
+    const { account } = client;
+    if (!account) {
+      throw new Error("No account available");
+    }
+
+    // Account can be either a string address or an object with an address property
+    return typeof account === "string" ? account : account.address;
+  }
+
+  /**
    * Creates a signature for the request JSON.
    *
    * @param requestJson - The JSON string to sign
    * @returns Promise resolving to the cryptographic signature
    */
-  private async createSignature(requestJson: string): Promise<string> {
+  private async createSignature(requestJson: string): Promise<`0x${string}`> {
     try {
       console.debug("🔍 Debug - createSignature", requestJson);
 

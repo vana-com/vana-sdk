@@ -6,6 +6,7 @@ import {
   type UnifiedRelayerRequest,
   vanaMainnet,
   moksha,
+  PinataStorage,
 } from "@opendatalabs/vana-sdk/node";
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -28,11 +29,8 @@ export async function POST(request: NextRequest) {
     let chainId: number;
     if (body.type === "signed" && body.typedData?.domain?.chainId) {
       chainId = body.typedData.domain.chainId;
-    } else if (body.type === "direct") {
-      const defaultChainId =
-        process.env.NEXT_PUBLIC_MOKSHA === "true" ? 14800 : 1480;
-      chainId = body.chainId ?? defaultChainId;
     } else {
+      // For direct operations and status checks, use default chain
       chainId = process.env.NEXT_PUBLIC_MOKSHA === "true" ? 14800 : 1480;
     }
 
@@ -85,10 +83,36 @@ export async function POST(request: NextRequest) {
       chainName: walletClient.chain?.name,
     });
 
+    // Configure storage for grant file uploads
+    const pinataJwt = process.env.PINATA_JWT;
+    const pinataGateway =
+      process.env.PINATA_GATEWAY ?? "https://gateway.pinata.cloud";
+
+    const storage = pinataJwt
+      ? {
+          providers: {
+            pinata: new PinataStorage({
+              jwt: pinataJwt,
+              gatewayUrl: pinataGateway,
+            }),
+          },
+          defaultProvider: "pinata",
+        }
+      : undefined;
+
+    if (storage) {
+      console.info("✅ [Relayer] Storage configured with Pinata");
+    } else {
+      console.warn(
+        "⚠️ [Relayer] No storage configured - grant file uploads will fail",
+      );
+    }
+
     const vana = Vana({
       walletClient,
       operationStore,
       atomicStore,
+      storage,
     });
 
     // The unified handler will automatically:

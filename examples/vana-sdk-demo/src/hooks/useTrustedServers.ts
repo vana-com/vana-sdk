@@ -22,6 +22,7 @@ export interface UseTrustedServersReturn {
   isUntrusting: boolean;
   isDiscoveringServer: boolean;
   trustServerError: string;
+  isCheckingServerRegistration: boolean;
 
   // Form state
   serverId: string;
@@ -47,6 +48,7 @@ export interface UseTrustedServersReturn {
     name?: string;
     publicKey?: string;
   } | null>;
+  checkServerIsRegistered: (address: string) => Promise<boolean>;
   setServerId: (id: string) => void;
   setServerAddress: (address: string) => void;
   setServerUrl: (url: string) => void;
@@ -65,6 +67,8 @@ export function useTrustedServers(): UseTrustedServersReturn {
   const [isTrustingServer, setIsTrustingServer] = useState(false);
   const [isUntrusting, setIsUntrusting] = useState(false);
   const [isDiscoveringServer, setIsDiscoveringServer] = useState(false);
+  const [isCheckingServerRegistration, setIsCheckingServerRegistration] =
+    useState(false);
   const [trustServerError, setTrustServerError] = useState<string>("");
   // Query mode is now automatic - SDK handles fallback internally
 
@@ -212,11 +216,48 @@ export function useTrustedServers(): UseTrustedServersReturn {
       setTrustServerError("");
 
       try {
-        await vana.permissions.submitAddAndTrustServerWithSignature({
-          serverAddress: actualServerAddress as `0x${string}`,
-          serverUrl: actualServerUrl,
-          publicKey: actualPublicKey,
-        });
+        // Check if server is already registered globally in the contract
+        // (not just in the user's trusted list, but registered by ANY user)
+        let serverIsRegistered = false;
+        let serverId: number | undefined;
+        try {
+          const serverInfo = await vana.permissions.getServerInfoByAddress(
+            actualServerAddress as `0x${string}`,
+          );
+          // If server ID is > 0, the server is registered in the contract
+          serverIsRegistered = serverInfo.id > 0n;
+          serverId = Number(serverInfo.id);
+          console.info(
+            `🔍 Server registration check: id=${serverInfo.id}, registered=${serverIsRegistered}`,
+          );
+        } catch (error) {
+          // If fetching server info fails, assume server is not registered
+          console.warn(
+            "⚠️ Could not fetch server info, assuming not registered:",
+            error,
+          );
+          serverIsRegistered = false;
+        }
+
+        if (serverIsRegistered && serverId) {
+          // Server already registered globally, just trust it
+          console.info(
+            `Server already registered globally (ID: ${serverId}), using trustServerWithSignature...`,
+          );
+          await vana.permissions.submitTrustServerWithSignature({
+            serverId,
+          });
+        } else {
+          // Server not registered, add and trust it
+          console.info(
+            "Server not registered, using addAndTrustServerWithSignature...",
+          );
+          await vana.permissions.submitAddAndTrustServerWithSignature({
+            serverAddress: actualServerAddress as `0x${string}`,
+            serverUrl: actualServerUrl,
+            publicKey: actualPublicKey,
+          });
+        }
 
         console.info("✅ Trust server with signature completed successfully!");
 
@@ -338,6 +379,28 @@ export function useTrustedServers(): UseTrustedServersReturn {
     }
   }, [vana, address]);
 
+  // Helper to check if a server is registered globally
+  const checkServerIsRegistered = useCallback(
+    async (addressToCheck: string): Promise<boolean> => {
+      if (!vana || !addressToCheck) return false;
+
+      setIsCheckingServerRegistration(true);
+      try {
+        const serverInfo = await vana.permissions.getServerInfoByAddress(
+          addressToCheck as `0x${string}`,
+        );
+        // If server ID is > 0, the server is registered in the contract
+        return serverInfo.id > 0n;
+      } catch (error) {
+        console.warn("Could not fetch server info:", error);
+        return false;
+      } finally {
+        setIsCheckingServerRegistration(false);
+      }
+    },
+    [vana],
+  );
+
   // Clear state when wallet disconnects
   useEffect(() => {
     if (!address) {
@@ -358,6 +421,7 @@ export function useTrustedServers(): UseTrustedServersReturn {
     isTrustingServer,
     isUntrusting,
     isDiscoveringServer,
+    isCheckingServerRegistration,
     trustServerError,
 
     // Form state
@@ -373,6 +437,7 @@ export function useTrustedServers(): UseTrustedServersReturn {
     handleTrustServerGasless,
     handleUntrustServer,
     handleDiscoverHostedServer,
+    checkServerIsRegistered,
     setServerId,
     setServerAddress,
     setServerUrl,

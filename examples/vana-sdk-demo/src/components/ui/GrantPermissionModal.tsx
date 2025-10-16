@@ -31,6 +31,7 @@ export interface GrantPermissionModalProps {
   grantees: Grantee[];
   isGranting: boolean;
   existingPermissions?: GrantedPermission[]; // To check for duplicates
+  preselectedGrantee?: string; // If provided, auto-select this grantee and hide dropdown
 }
 
 export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
@@ -40,6 +41,7 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
   selectedFiles,
   grantees,
   isGranting,
+  preselectedGrantee,
 }) => {
   const [operation, setOperation] = useState("llm_inference");
   const [promptText, setPromptText] = useState(
@@ -60,10 +62,24 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
       );
       setExpirationOption("never");
       setCustomExpiration("");
-      setSelectedGranteeId("");
+
+      // If preselectedGrantee is provided, find its ID and auto-select it
+      if (preselectedGrantee) {
+        const matchingGrantee = grantees.find(
+          (g) => g.address.toLowerCase() === preselectedGrantee.toLowerCase(),
+        );
+        if (matchingGrantee) {
+          setSelectedGranteeId(matchingGrantee.id.toString());
+        } else {
+          setSelectedGranteeId("");
+        }
+      } else {
+        setSelectedGranteeId("");
+      }
+
       setValidationErrors([]);
     }
-  }, [isOpen]);
+  }, [isOpen, preselectedGrantee, grantees]);
 
   // Calculate expiration timestamp
   const getExpirationTimestamp = (): number | undefined => {
@@ -371,42 +387,44 @@ export const GrantPermissionModal: React.FC<GrantPermissionModalProps> = ({
               </div>
             </div>
 
-            {/* Grantee Selection */}
-            <Select
-              label="Grantee"
-              placeholder={
-                grantees.length === 0
-                  ? "No grantees available"
-                  : "Select a grantee"
-              }
-              selectedKeys={selectedGranteeId ? [selectedGranteeId] : []}
-              onSelectionChange={(keys) => {
-                const selectedKey = Array.from(keys)[0] as string;
-                setSelectedGranteeId(selectedKey);
-              }}
-              description={
-                grantees.length === 0
-                  ? "Please add grantees in the Grantees tab first"
-                  : "Select the grantee that will receive this permission"
-              }
-              isDisabled={grantees.length === 0}
-            >
-              {grantees.map((grantee) => (
-                <SelectItem
-                  key={grantee.id.toString()}
-                  textValue={`ID: ${grantee.id} - ${grantee.address}`}
-                >
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium">
-                      ID: {grantee.id}
-                    </span>
-                    <span className="text-xs text-default-500">
-                      {grantee.address}
-                    </span>
-                  </div>
-                </SelectItem>
-              ))}
-            </Select>
+            {/* Grantee Selection - hidden when preselected */}
+            {!preselectedGrantee && (
+              <Select
+                label="Grantee"
+                placeholder={
+                  grantees.length === 0
+                    ? "No grantees available"
+                    : "Select a grantee"
+                }
+                selectedKeys={selectedGranteeId ? [selectedGranteeId] : []}
+                onSelectionChange={(keys) => {
+                  const selectedKey = Array.from(keys)[0] as string;
+                  setSelectedGranteeId(selectedKey);
+                }}
+                description={
+                  grantees.length === 0
+                    ? "Please add grantees in the Grantees tab first"
+                    : "Select the grantee that will receive this permission"
+                }
+                isDisabled={grantees.length === 0}
+              >
+                {grantees.map((grantee) => (
+                  <SelectItem
+                    key={grantee.id.toString()}
+                    textValue={`ID: ${grantee.id} - ${grantee.address}`}
+                  >
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium">
+                        ID: {grantee.id}
+                      </span>
+                      <span className="text-xs text-default-500">
+                        {grantee.address}
+                      </span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </Select>
+            )}
 
             {/* Validation Errors */}
             {validationErrors.length > 0 && (

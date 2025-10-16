@@ -9,8 +9,6 @@ import {
 } from "@opendatalabs/vana-sdk/browser";
 import type { WalletClient } from "viem";
 
-// Extend Window interface for operation ID storage
-
 interface FlowStepCallbacks {
   onStatusUpdate: (status: string) => void;
   onResultUpdate: (result: string) => void;
@@ -150,13 +148,16 @@ export class DataPortabilityFlow {
   async executeTransaction(
     fileUrl: string,
     userAddress: string,
-    operation: string,
-    parameters: Record<string, unknown>,
+    grantConfig: {
+      operation: string;
+      parameters: Record<string, unknown>;
+    },
     schemaId?: number | null,
   ): Promise<string> {
     this.callbacks.onStatusUpdate("Preparing data portability transaction...");
 
     try {
+      // First, create and upload the grant file
       const appAddress = process.env.NEXT_PUBLIC_DATA_WALLET_APP_ADDRESS;
       if (!appAddress) {
         throw new Error(
@@ -166,8 +167,8 @@ export class DataPortabilityFlow {
 
       const grantUrl = await this.createAndUploadGrantFile(
         appAddress,
-        operation,
-        parameters,
+        grantConfig.operation,
+        grantConfig.parameters,
       );
 
       const serverInfo = await this.vana.server.getIdentity({
@@ -194,11 +195,31 @@ export class DataPortabilityFlow {
         );
       }
 
+      // Use provided schema ID or fall back to environment variable or 0
       const finalSchemaId =
         schemaId ??
         (process.env.NEXT_PUBLIC_VIBES_SCHEMA_ID
           ? parseInt(process.env.NEXT_PUBLIC_VIBES_SCHEMA_ID, 10)
           : 0);
+
+      // Debug log for transaction parameters
+      // console.log({
+      //   granteeId: BigInt(granteeId),
+      //   grant: grantUrl,
+      //   fileUrls: [fileUrl],
+      //   schemaIds: [finalSchemaId],
+      //   serverAddress: serverInfo.address as `0x${string}`,
+      //   serverUrl: serverInfo.baseUrl,
+      //   serverPublicKey: serverInfo.publicKey,
+      //   filePermissions: [
+      //     [
+      //       {
+      //         account: serverInfo.address as `0x${string}`,
+      //         key: encryptedKey, // Encryption key encrypted with server's public key
+      //       },
+      //     ],
+      //   ],
+      // });
 
       const txHandle =
         await this.vana.permissions.submitAddServerFilesAndPermissions({
@@ -213,18 +234,21 @@ export class DataPortabilityFlow {
             [
               {
                 account: serverInfo.address as `0x${string}`,
-                key: encryptedKey,
+                key: encryptedKey, // Encryption key encrypted with server's public key
               },
             ],
           ],
         });
 
       this.callbacks.onStatusUpdate(`Transaction submitted: ${txHandle.hash}`);
+
+      // Wait for transaction confirmation and extract permission ID from events
       this.callbacks.onStatusUpdate(
         "Waiting for transaction confirmation and permission ID...",
       );
 
       const result = await this.vana.waitForTransactionEvents(txHandle);
+      // Access the PermissionAdded event from expectedEvents
       const permissionId = result.expectedEvents?.PermissionAdded?.permissionId;
 
       if (!permissionId) {
@@ -233,7 +257,9 @@ export class DataPortabilityFlow {
         );
       }
 
+      // Convert bigint to string for API compatibility
       const permissionIdStr = permissionId.toString();
+
       this.callbacks.onStatusUpdate(
         `Permission ID received: ${permissionIdStr}`,
       );
@@ -276,13 +302,7 @@ export class DataPortabilityFlow {
 
       this.callbacks.onStatusUpdate("AI inference completed!");
       const inferenceResult = result.data?.result ?? result.data;
-
-      // Include operation ID in result for artifact downloads
-      const finalResult = result.data?.id
-        ? { ...inferenceResult, id: result.data.id }
-        : inferenceResult;
-
-      this.callbacks.onResultUpdate(JSON.stringify(finalResult, null, 2));
+      this.callbacks.onResultUpdate(JSON.stringify(inferenceResult, null, 2));
       return inferenceResult;
     } catch (error) {
       console.error("Debug - Inference submission failed:", error);
@@ -323,23 +343,15 @@ export class DataPortabilityFlow {
       const permissionId = await this.executeTransaction(
         fileUrl,
         userAddress,
-        grantConfig.operation,
-        grantConfig.parameters,
+        grantConfig,
         schemaId,
       );
 
       // Step 4: Submit AI inference request and wait for result
       await this.submitInferenceRequest(permissionId);
 
-      const isAgent =
-        grantConfig.operation === "prompt_gemini_agent" ||
-        grantConfig.operation === "prompt_qwen_agent";
-      const agentName =
-        grantConfig.operation === "prompt_gemini_agent" ? "Gemini" : "Qwen";
       this.callbacks.onStatusUpdate(
-        isAgent
-          ? `${agentName} agent analysis completed successfully!`
-          : "Data portability flow completed successfully!",
+        "Data portability flow completed successfully!",
       );
     } catch (error) {
       const errorMessage =
@@ -350,7 +362,6 @@ export class DataPortabilityFlow {
     }
   }
 
-  // Convenience methods for backward compatibility
   async executeCompleteFlow(
     userAddress: string,
     userData: string,
@@ -360,35 +371,10 @@ export class DataPortabilityFlow {
     return this.executeFlow(
       userAddress,
       userData,
-      { operation: "llm_inference", parameters: { prompt } },
-      schemaId,
-    );
-  }
-
-  async executeGeminiAgentFlow(
-    userAddress: string,
-    userData: string,
-    goal: string,
-    schemaId?: number | null,
-  ): Promise<void> {
-    return this.executeFlow(
-      userAddress,
-      userData,
-      { operation: "prompt_gemini_agent", parameters: { goal } },
-      schemaId,
-    );
-  }
-
-  async executeQwenAgentFlow(
-    userAddress: string,
-    userData: string,
-    goal: string,
-    schemaId?: number | null,
-  ): Promise<void> {
-    return this.executeFlow(
-      userAddress,
-      userData,
-      { operation: "prompt_qwen_agent", parameters: { goal } },
+      {
+        operation: "llm_inference",
+        parameters: { prompt },
+      },
       schemaId,
     );
   }

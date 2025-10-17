@@ -49,8 +49,6 @@ interface CurrentStateTableProps {
   isLoading?: boolean;
 }
 
-const ITEMS_PER_PAGE = 50;
-
 /**
  * Filter categories for slicing data
  */
@@ -160,7 +158,7 @@ export function CurrentStateTable({
       filtered = filtered.filter(
         (entry) =>
           entry.address.toLowerCase().includes(search) ||
-          entry.label?.toLowerCase().includes(search) ||
+          (entry.label?.toLowerCase().includes(search) ?? false) ||
           entry.role.toLowerCase().includes(search) ||
           entry.contract.toLowerCase().includes(search),
       );
@@ -272,7 +270,9 @@ export function CurrentStateTable({
               variant={activeFilters.has("anomalies") ? "solid" : "flat"}
               color={activeFilters.has("anomalies") ? "warning" : "default"}
               startContent={<AlertTriangle className="h-3 w-3" />}
-              onClick={() => toggleFilter("anomalies")}
+              onClick={() => {
+                toggleFilter("anomalies");
+              }}
               className="cursor-pointer"
             >
               Anomalies ({filterCounts.anomalies})
@@ -284,7 +284,9 @@ export function CurrentStateTable({
               startContent={<HelpCircle className="h-3 w-3" />}
               variant={activeFilters.has("unknown") ? "solid" : "flat"}
               color={activeFilters.has("unknown") ? "danger" : "default"}
-              onClick={() => toggleFilter("unknown")}
+              onClick={() => {
+                toggleFilter("unknown");
+              }}
               className="cursor-pointer"
             >
               Unknown ({filterCounts.unknown})
@@ -296,7 +298,9 @@ export function CurrentStateTable({
               variant={activeFilters.has("deactivated") ? "solid" : "flat"}
               color={activeFilters.has("deactivated") ? "danger" : "default"}
               startContent={<UserX className="h-3 w-3" />}
-              onClick={() => toggleFilter("deactivated")}
+              onClick={() => {
+                toggleFilter("deactivated");
+              }}
               className="cursor-pointer"
             >
               Deactivated ({filterCounts.deactivated})
@@ -308,7 +312,9 @@ export function CurrentStateTable({
               variant={activeFilters.has("deprecated") ? "solid" : "flat"}
               color={activeFilters.has("deprecated") ? "warning" : "default"}
               startContent={<Clock className="h-3 w-3" />}
-              onClick={() => toggleFilter("deprecated")}
+              onClick={() => {
+                toggleFilter("deprecated");
+              }}
               className="cursor-pointer"
             >
               Deprecated ({filterCounts.deprecated})
@@ -322,7 +328,9 @@ export function CurrentStateTable({
               variant={activeFilters.has("core-team") ? "solid" : "flat"}
               color={activeFilters.has("core-team") ? "primary" : "default"}
               startContent={<Users className="h-3 w-3" />}
-              onClick={() => toggleFilter("core-team")}
+              onClick={() => {
+                toggleFilter("core-team");
+              }}
               className="cursor-pointer"
             >
               Core Team ({filterCounts.coreTeam})
@@ -336,7 +344,9 @@ export function CurrentStateTable({
                 activeFilters.has("service-accounts") ? "secondary" : "default"
               }
               startContent={<Bot className="h-3 w-3" />}
-              onClick={() => toggleFilter("service-accounts")}
+              onClick={() => {
+                toggleFilter("service-accounts");
+              }}
               className="cursor-pointer"
             >
               Services ({filterCounts.serviceAccounts})
@@ -350,7 +360,9 @@ export function CurrentStateTable({
               variant={activeFilters.has("admin-roles") ? "solid" : "flat"}
               color={activeFilters.has("admin-roles") ? "success" : "default"}
               startContent={<Shield className="h-3 w-3" />}
-              onClick={() => toggleFilter("admin-roles")}
+              onClick={() => {
+                toggleFilter("admin-roles");
+              }}
               className="cursor-pointer"
             >
               Admin ({filterCounts.adminRoles})
@@ -387,7 +399,7 @@ export function CurrentStateTable({
         >
           {(item) => (
             <TableRow
-              key={`${item.address || "no-addr"}-${item.roleHash}-${item.contractAddress}`}
+              key={`${item.address ?? "no-addr"}-${item.roleHash}-${item.contractAddress}`}
               className={
                 item.isAnomaly ? "bg-warning/10 border-l-4 border-warning" : ""
               }
@@ -396,7 +408,7 @@ export function CurrentStateTable({
                 {item.isAnomaly && (
                   <Tooltip
                     content={
-                      item.anomalyDescription || "Security anomaly detected"
+                      item.anomalyDescription ?? "Security anomaly detected"
                     }
                   >
                     <AlertTriangle className="h-4 w-4 text-warning" />

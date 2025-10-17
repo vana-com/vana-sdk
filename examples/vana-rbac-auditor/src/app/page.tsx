@@ -37,7 +37,7 @@ export default function Home() {
       }
     };
 
-    performAudit();
+    void performAudit();
   }, [network]);
 
   return (
@@ -62,7 +62,9 @@ export default function Home() {
             <div className="flex items-center gap-4">
               <Tabs
                 selectedKey={network}
-                onSelectionChange={(key) => setNetwork(key as Network)}
+                onSelectionChange={(key) => {
+                  setNetwork(key as Network);
+                }}
                 size="sm"
                 classNames={{
                   tabList: "bg-content2/50",
@@ -76,7 +78,9 @@ export default function Home() {
                 variant="flat"
                 color="primary"
                 startContent={<RotateCw className="h-4 w-4" />}
-                onPress={() => setShowBatchModal(true)}
+                onPress={() => {
+                  setShowBatchModal(true);
+                }}
               >
                 Generate Rotation Batch
               </Button>
@@ -102,7 +106,9 @@ export default function Home() {
         {/* Results Tabs */}
         <Tabs
           selectedKey={selectedTab}
-          onSelectionChange={(key) => setSelectedTab(key as string)}
+          onSelectionChange={(key) => {
+            setSelectedTab(key as string);
+          }}
           fullWidth
           classNames={{
             tabList: "bg-content2/30",
@@ -178,7 +184,9 @@ export default function Home() {
       {/* Batch Rotation Modal */}
       <RotationBatchModal
         isOpen={showBatchModal}
-        onClose={() => setShowBatchModal(false)}
+        onClose={() => {
+          setShowBatchModal(false);
+        }}
         network={network}
         auditResults={results ?? undefined}
       />

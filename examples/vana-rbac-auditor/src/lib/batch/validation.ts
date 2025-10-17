@@ -3,7 +3,6 @@
  * V1 Minimal: Only 3 blocking errors, no warnings
  */
 import { isAddress, getAddress } from "viem";
-import type { Address } from "viem";
 import type {
   RotationFormInput,
   ValidationError,
@@ -22,7 +21,7 @@ import type {
  * @returns Validation result with errors array
  */
 export function validateRotationInput(
-  input: RotationFormInput
+  input: RotationFormInput,
 ): ValidationResult {
   const errors: ValidationError[] = [];
 

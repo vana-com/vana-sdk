@@ -31,7 +31,7 @@ function getChainId(network: Network): string {
 function createGrantRoleTransaction(
   contractAddress: Address,
   roleHash: string,
-  account: Address
+  account: Address,
 ): SafeTransaction {
   return {
     to: getAddress(contractAddress), // Ensure checksum
@@ -52,7 +52,7 @@ function createGrantRoleTransaction(
 function createRevokeRoleTransaction(
   contractAddress: Address,
   roleHash: string,
-  account: Address
+  account: Address,
 ): SafeTransaction {
   return {
     to: getAddress(contractAddress), // Ensure checksum
@@ -71,16 +71,22 @@ function createRevokeRoleTransaction(
  */
 function generateBatchName(
   input: RotationFormInput,
-  network: Network
+  _network: Network,
 ): string {
-  const roleName = input.role ? KNOWN_ROLES[input.role] || "Role" : "All Roles";
+  const roleName = input.role
+    ? (KNOWN_ROLES[input.role] ?? "Role")
+    : "All Roles";
 
   // Get labels if available
   const oldLabel = getAddressLabel(input.oldAddress);
   const newLabel = getAddressLabel(input.newAddress);
 
-  const oldDisplay = oldLabel || `${input.oldAddress.slice(0, 6)}...${input.oldAddress.slice(-4)}`;
-  const newDisplay = newLabel || `${input.newAddress.slice(0, 6)}...${input.newAddress.slice(-4)}`;
+  const oldDisplay =
+    oldLabel ??
+    `${input.oldAddress.slice(0, 6)}...${input.oldAddress.slice(-4)}`;
+  const newDisplay =
+    newLabel ??
+    `${input.newAddress.slice(0, 6)}...${input.newAddress.slice(-4)}`;
 
   return `Rotate ${roleName}: ${oldDisplay} → ${newDisplay}`;
 }
@@ -92,7 +98,7 @@ function generateBatchDescription(
   input: RotationFormInput,
   transactionCount: number,
   contractCount: number,
-  network: Network
+  _network: Network,
 ): string {
   const roleName = input.role ? KNOWN_ROLES[input.role] : "all roles";
   const date = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
@@ -110,7 +116,7 @@ function generateBatchDescription(
 function getRolesToRotate(
   roleHash: string | undefined,
   oldAddress: Address,
-  auditResults?: AuditResults
+  auditResults?: AuditResults,
 ): string[] {
   if (roleHash) {
     // Specific role selected - use it
@@ -123,7 +129,8 @@ function getRolesToRotate(
     const normalizedOldAddress = getAddress(oldAddress).toLowerCase();
     const activeRoles = auditResults.currentState
       .filter(
-        (entry) => getAddress(entry.address).toLowerCase() === normalizedOldAddress
+        (entry) =>
+          getAddress(entry.address).toLowerCase() === normalizedOldAddress,
       )
       .map((entry) => entry.roleHash);
 
@@ -162,7 +169,7 @@ function getRolesToRotate(
 export function generateRotationBatch(
   input: RotationFormInput,
   network: Network,
-  auditResults?: AuditResults
+  auditResults?: AuditResults,
 ): BatchGenerationResult {
   // Step 1: Validate inputs
   const validation = validateRotationInput(input);
@@ -179,11 +186,11 @@ export function generateRotationBatch(
   if (input.contractAddresses && input.contractAddresses.length > 0) {
     // Filter to specified contracts
     const selectedAddresses = input.contractAddresses.map((addr) =>
-      getAddress(addr).toLowerCase()
+      getAddress(addr).toLowerCase(),
     );
 
     contracts = contracts.filter((contract) =>
-      selectedAddresses.includes(contract.address.toLowerCase())
+      selectedAddresses.includes(contract.address.toLowerCase()),
     );
   }
 
@@ -210,12 +217,20 @@ export function generateRotationBatch(
     for (const roleHash of roles) {
       // Grant first (safer - prevents permission gaps)
       transactions.push(
-        createGrantRoleTransaction(contract.address, roleHash, input.newAddress)
+        createGrantRoleTransaction(
+          contract.address,
+          roleHash,
+          input.newAddress,
+        ),
       );
 
       // Then revoke
       transactions.push(
-        createRevokeRoleTransaction(contract.address, roleHash, input.oldAddress)
+        createRevokeRoleTransaction(
+          contract.address,
+          roleHash,
+          input.oldAddress,
+        ),
       );
     }
   }
@@ -231,7 +246,7 @@ export function generateRotationBatch(
         input,
         transactions.length,
         contracts.length,
-        network
+        network,
       ),
       txBuilderVersion: "1.16.5",
       createdFromSafeAddress: "",
@@ -260,7 +275,7 @@ export function generateRotationBatch(
 export function discoverRolesToRotate(
   oldAddress: Address,
   roleHash?: string,
-  auditResults?: AuditResults
+  auditResults?: AuditResults,
 ): string[] {
   return getRolesToRotate(roleHash, oldAddress, auditResults);
 }

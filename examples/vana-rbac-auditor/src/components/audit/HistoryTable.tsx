@@ -16,24 +16,20 @@ import {
   Chip,
   type SortDescriptor,
 } from "@heroui/react";
-import { Search, ArrowUp, ArrowDown } from "lucide-react";
+import { Search, ArrowUp, ArrowDown, Shield } from "lucide-react";
 import { useState, useMemo } from "react";
 import type { HistoryEntry } from "../../lib/types";
 import { AddressDisplay } from "../ui/AddressDisplay";
 import { EmptyState } from "../ui/EmptyState";
-import { BlockDisplay } from "../ui/BlockDisplay";
 import { TimestampDisplay } from "../ui/TimestampDisplay";
 import { TransactionDisplay } from "../ui/TransactionDisplay";
 import { RoleBadge } from "../ui/RoleBadge";
-import { Shield } from "lucide-react";
 
 interface HistoryTableProps {
   data: HistoryEntry[];
   network: "mainnet" | "moksha";
   isLoading?: boolean;
 }
-
-const ITEMS_PER_PAGE = 50;
 
 const columns = [
   { key: "timestamp", label: "Time", sortable: true },
@@ -68,9 +64,9 @@ export function HistoryTable({
     return data.filter(
       (entry) =>
         entry.targetAddress.toLowerCase().includes(search) ||
-        entry.targetLabel?.toLowerCase().includes(search) ||
+        (entry.targetLabel?.toLowerCase().includes(search) ?? false) ||
         entry.senderAddress.toLowerCase().includes(search) ||
-        entry.senderLabel?.toLowerCase().includes(search) ||
+        (entry.senderLabel?.toLowerCase().includes(search) ?? false) ||
         entry.role.toLowerCase().includes(search) ||
         entry.txHash.toLowerCase().includes(search) ||
         entry.contract.toLowerCase().includes(search),
@@ -113,7 +109,8 @@ export function HistoryTable({
     return sortedData.slice(start, start + itemsPerPage);
   }, [sortedData, currentPage, itemsPerPage]);
 
-  const totalPages = itemsPerPage === "all" ? 1 : Math.ceil(sortedData.length / itemsPerPage);
+  const totalPages =
+    itemsPerPage === "all" ? 1 : Math.ceil(sortedData.length / itemsPerPage);
 
   // Reset page when search changes
   useMemo(() => {

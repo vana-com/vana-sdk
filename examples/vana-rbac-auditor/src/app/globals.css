@@ -1,0 +1,17 @@
+@import "tailwindcss";
+@plugin "../../hero.mts";
+@source "../../../../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}";
+@custom-variant dark (&:is(.dark *));
+
+@layer base {
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    min-height: 100vh;
+  }
+
+  code,
+  .mono {
+    font-family: ui-monospace, "JetBrains Mono", "Fira Code", Menlo, Consolas,
+      "DejaVu Sans Mono", monospace;
+  }
+}

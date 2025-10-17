@@ -2415,6 +2415,22 @@ export const TOPIC_TO_ABIS = /*#__PURE__*/ new Map<`0x${string}`, readonly AbiEv
     ] as const,
   ],
   [
+    '0x5638b17c6d36df4d34cc61377e2edad4ce8fe16efac2a0ce923121159e585010' as `0x${string}`,
+    [
+      {
+        anonymous: false,
+        inputs: [
+          { indexed: false, internalType: 'uint256', name: 'epochId', type: 'uint256' },
+          { indexed: false, internalType: 'uint256', name: 'dlpId', type: 'uint256' },
+          { indexed: false, internalType: 'uint256', name: 'oldBonusAmount', type: 'uint256' },
+          { indexed: false, internalType: 'uint256', name: 'newBonusAmount', type: 'uint256' },
+        ],
+        name: 'EpochDlpBonusUpdated',
+        type: 'event',
+      },
+    ] as const,
+  ],
+  [
     '0x5915e09309d8c49870559891647e368d0ab0e6d94a0ce7f3c9f39470ccbe03d2' as `0x${string}`,
     [
       {
@@ -2526,24 +2542,6 @@ export const TOPIC_TO_ABIS = /*#__PURE__*/ new Map<`0x${string}`, readonly AbiEv
         anonymous: false,
         inputs: [{ indexed: true, internalType: 'uint256', name: 'jobId', type: 'uint256' }],
         name: 'JobCanceled',
-        type: 'event',
-      },
-    ] as const,
-  ],
-  [
-    '0x6ac6c02c73a1841cb185dff1fe5282ff4499ce709efd387f7fc6de10a5124320' as `0x${string}`,
-    [
-      {
-        anonymous: false,
-        inputs: [
-          { indexed: true, internalType: 'address', name: 'sender', type: 'address' },
-          { indexed: true, internalType: 'address', name: 'recipient', type: 'address' },
-          { indexed: true, internalType: 'address', name: 'tokenIn', type: 'address' },
-          { indexed: false, internalType: 'uint256', name: 'amountIn', type: 'uint256' },
-          { indexed: false, internalType: 'address', name: 'tokenOut', type: 'address' },
-          { indexed: false, internalType: 'uint256', name: 'amountOut', type: 'uint256' },
-        ],
-        name: 'Swap',
         type: 'event',
       },
     ] as const,
@@ -2890,6 +2888,21 @@ export const TOPIC_TO_ABIS = /*#__PURE__*/ new Map<`0x${string}`, readonly AbiEv
     ] as const,
   ],
   [
+    '0xb09856dd7ffa0109b70d8ab9f5adc42d21eb00984cb94c428e75eb9e149911c3' as `0x${string}`,
+    [
+      {
+        anonymous: false,
+        inputs: [
+          { indexed: true, internalType: 'uint256', name: 'epochId', type: 'uint256' },
+          { indexed: false, internalType: 'uint256', name: 'numberOfTranches', type: 'uint256' },
+          { indexed: false, internalType: 'uint256', name: 'remediationWindow', type: 'uint256' },
+        ],
+        name: 'EpochRewardsInitialized',
+        type: 'event',
+      },
+    ] as const,
+  ],
+  [
     '0xb29e1eca99b3296ba4f60344073d5efc326e3d261617fcaeb23d850d61499bd6' as `0x${string}`,
     [
       {
@@ -3052,6 +3065,17 @@ export const TOPIC_TO_ABIS = /*#__PURE__*/ new Map<`0x${string}`, readonly AbiEv
         anonymous: false,
         inputs: [{ indexed: true, internalType: 'address', name: 'teeAddress', type: 'address' }],
         name: 'TeeAdded',
+        type: 'event',
+      },
+    ] as const,
+  ],
+  [
+    '0xce73c17825335ff981a6b1bc04c131fbcfd6ffe1415122c91565e9a1fab057bc' as `0x${string}`,
+    [
+      {
+        anonymous: false,
+        inputs: [{ indexed: false, internalType: 'uint256', name: 'lastEpoch', type: 'uint256' }],
+        name: 'LastEpochSet',
         type: 'event',
       },
     ] as const,

@@ -1,0 +1,60 @@
+# Vana RBAC Auditor Configuration Example
+# Copy this file to config.yaml and customize for your needs
+#
+# For Vercel deployment:
+#   1. Copy this to config.yaml
+#   2. Customize your addresses
+#   3. Run: npm run generate-config-env
+#   4. Paste output into Vercel env var RBAC_CONFIG
+#
+# For local development:
+#   - Just use config.yaml directly (will be loaded as fallback)
+
+# Anomaly detection configuration
+anomalyDetection:
+  # Keywords that indicate admin-level roles
+  adminKeywords:
+    - ADMIN
+    - OWNER
+    - PAUSER
+  # Maximum number of addresses with admin roles per contract before flagging
+  adminThreshold: 3
+
+# Legacy role hashes not in current ABIs
+# These roles are still used on-chain but aren't in the current contract ABIs
+legacyRoles:
+  # Example: Legacy role that was renamed
+  "0x4a9e0bcfdcf4f0a437aa6573b8f27b9835c3d0b1ea993474026f6c41467c1b64": "VANA_POOL_ENTITY"
+
+# Known addresses in the Vana ecosystem
+# Used for labeling addresses in audit results
+knownAddresses:
+  # Core team addresses - Multisigs for operational control
+  "0x2ac93684679a5bda03c6160def908cdb8d46792f":
+    label: "Engineering Owner"
+    description: "Primary engineering owner - typically has DEFAULT_ADMIN_ROLE on protocol contracts"
+    category: "core-team"
+
+  # Service accounts - Automated wallets
+  "0x184b449ce09e6c592586e73fe8049364c9662641":
+    label: "Query Engine Service"
+    description: "Automated wallet with QUERY_ENGINE_ROLE - operates the query engine"
+    category: "service-account"
+
+  # Deactivated users - Should NOT have permissions
+  "0xfd3e61c018ea22cea7cb15f35cc968f39dc2c3f4":
+    label: "Eduard (Likely)"
+    description: "⚠️ Deactivated user - should NOT have any permissions"
+    category: "deactivated"
+
+  # Deprecated addresses - Should be flagged if found
+  "0x2c6a694c3c50f012d8287fd9db4cf98c99680a81":
+    label: "OLD Engineering Owner"
+    description: "⚠️ Deprecated - should no longer have permissions"
+    category: "deprecated"
+
+# Categories explained:
+# - core-team: Multisigs and owner addresses for protocol governance
+# - service-account: Automated wallets that operate services
+# - deactivated: Users who should NOT have any permissions (triggers high severity alerts)
+# - deprecated: Addresses that should no longer be used (triggers warnings)

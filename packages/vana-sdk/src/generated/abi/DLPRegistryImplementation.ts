@@ -98,6 +98,11 @@ export const DLPRegistryABI = [
   },
   {
     inputs: [],
+    name: "InvalidDlpId",
+    type: "error",
+  },
+  {
+    inputs: [],
     name: "InvalidDlpStatus",
     type: "error",
   },
@@ -124,11 +129,6 @@ export const DLPRegistryABI = [
   {
     inputs: [],
     name: "InvalidTokenAddress",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "LastEpochMustBeFinalized",
     type: "error",
   },
   {

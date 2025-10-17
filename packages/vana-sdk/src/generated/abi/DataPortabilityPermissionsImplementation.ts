@@ -565,8 +565,7 @@ export const DataPortabilityPermissionsABI = [
             type: "tuple[][]",
           },
         ],
-        internalType:
-          "struct IDataPortabilityPermissions.ServerFilesAndPermissionInput",
+        internalType: "struct IDataPortabilityPermissions.ServerFilesAndPermissionInput",
         name: "serverFilesAndPermissionInput",
         type: "tuple",
       },
@@ -821,25 +820,6 @@ export const DataPortabilityPermissionsABI = [
     type: "function",
   },
   {
-    inputs: [
-      {
-        internalType: "bytes[]",
-        name: "data",
-        type: "bytes[]",
-      },
-    ],
-    name: "multicall",
-    outputs: [
-      {
-        internalType: "bytes[]",
-        name: "results",
-        type: "bytes[]",
-      },
-    ],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
     inputs: [],
     name: "pause",
     outputs: [],
@@ -1011,8 +991,7 @@ export const DataPortabilityPermissionsABI = [
             type: "uint256",
           },
         ],
-        internalType:
-          "struct IDataPortabilityPermissions.RevokePermissionInput",
+        internalType: "struct IDataPortabilityPermissions.RevokePermissionInput",
         name: "revokePermissionInput",
         type: "tuple",
       },

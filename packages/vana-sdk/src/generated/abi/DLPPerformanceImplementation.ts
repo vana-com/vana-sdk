@@ -54,6 +54,17 @@ export const DLPPerformanceABI = [
   {
     inputs: [
       {
+        internalType: "uint256",
+        name: "dlpId",
+        type: "uint256",
+      },
+    ],
+    name: "DuplicateDlpId",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
         internalType: "address",
         name: "implementation",
         type: "address",
@@ -119,6 +130,11 @@ export const DLPPerformanceABI = [
   },
   {
     inputs: [],
+    name: "InvalidPenaltyScores",
+    type: "error",
+  },
+  {
+    inputs: [],
     name: "InvalidTradingVolumeScore",
     type: "error",
   },
@@ -130,6 +146,32 @@ export const DLPPerformanceABI = [
   {
     inputs: [],
     name: "NotInitializing",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "epochId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "dlpId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "penaltyAmount",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "distributedPenaltyAmount",
+        type: "uint256",
+      },
+    ],
+    name: "PenaltyAmountLessThanPenaltyDistributed",
     type: "error",
   },
   {

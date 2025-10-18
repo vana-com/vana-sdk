@@ -111,10 +111,17 @@ export function VanaProvider({
         // Use unified relayer callback pattern
         const relayer = useGaslessTransactions
           ? async (request: UnifiedRelayerRequest) => {
+              // Convert BigInt values to strings for JSON serialization
+              const serializableRequest = JSON.parse(
+                JSON.stringify(request, (key, value) =>
+                  typeof value === "bigint" ? value.toString() : value,
+                ),
+              );
+
               const response = await fetch("/api/relay", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(request),
+                body: JSON.stringify(serializableRequest),
               });
               if (!response.ok) {
                 throw new Error(
@@ -154,7 +161,7 @@ export function VanaProvider({
       }
     };
 
-    initializeVana();
+    void initializeVana();
   }, [
     walletClient,
     address,

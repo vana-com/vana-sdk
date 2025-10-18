@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { useAccount } from "wagmi";
+import React, { useState } from "react";
+import { useAccount, useChainId } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useModal, useAccount as useParaAccount } from "@getpara/react-sdk";
 import {
   Card,
   CardHeader,
@@ -18,11 +19,9 @@ import {
   NavbarItem,
 } from "@heroui/react";
 import { Eye } from "lucide-react";
-import {
-  SDKConfigurationSidebar,
-  type AppConfig,
-} from "@/components/SDKConfigurationSidebar";
+import { SDKConfigurationSidebar } from "@/components/SDKConfigurationSidebar";
 import { SidebarNavigation } from "@/components/SidebarNavigation";
+import { SDKConfigProvider, useSDKConfig } from "@/providers/SDKConfigProvider";
 import { VanaProvider } from "@/providers/VanaProvider";
 import { GrantPreviewModalContent } from "@/components/GrantPreviewModalContent";
 import type { GrantPermissionParams } from "@opendatalabs/vana-sdk/browser";
@@ -41,129 +40,40 @@ interface GrantPreview {
   signature?: string | null;
 }
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+// Inner component that consumes SDKConfigContext
+function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
+  const useRainbow =
+    process.env.NEXT_PUBLIC_WALLET_PROVIDER === "rainbow" ||
+    !process.env.NEXT_PUBLIC_WALLET_PROVIDER;
+
+  // Wagmi hooks (work with both Rainbow and Para)
   const { isConnected } = useAccount();
+  const chainId = useChainId();
+
+  // Para wallet hooks
+  const { openModal } = useModal?.() || {};
+  const paraAccount = useParaAccount?.() as
+    | { isConnected?: boolean }
+    | undefined;
+
+  // Consume configuration from SDKConfigProvider
+  const { appConfig } = useSDKConfig();
+
+  // Helper to get network name from chain ID
+  const getNetworkName = (id: number) => {
+    switch (id) {
+      case 1480:
+        return "Mainnet";
+      case 14800:
+        return "Moksha";
+      default:
+        return `Chain ${id}`;
+    }
+  };
 
   // Layout-level state for grant preview modal
   const [grantPreview, setGrantPreview] = useState<GrantPreview | null>(null);
   const { isOpen: showGrantPreview, onClose: onCloseGrant } = useDisclosure();
-
-  // SDK Configuration state (layout-level since it affects entire app)
-  const [sdkConfig, setSdkConfig] = useState(() => ({
-    relayerUrl: typeof window !== "undefined" ? window.location.origin : "",
-    subgraphUrl: "",
-    rpcUrl: "",
-    pinataJwt: "",
-    pinataGateway: "https://gateway.pinata.cloud",
-    defaultStorageProvider: "app-ipfs",
-    googleDriveAccessToken: "",
-    googleDriveRefreshToken: "",
-    googleDriveExpiresAt: null as number | null,
-    dropboxAccessToken: "",
-    dropboxRefreshToken: "",
-    dropboxExpiresAt: null as number | null,
-    defaultPersonalServerUrl:
-      process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL ??
-      (() => {
-        throw new Error(
-          "NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL environment variable is required",
-        );
-      })(),
-  }));
-
-  // App Configuration state
-  const [appConfig, setAppConfig] = useState<AppConfig>({
-    useGaslessTransactions: true,
-  });
-
-  // Listen for successful Google Drive authentication from the popup window
-  useEffect(() => {
-    const handleAuthMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) {
-        return;
-      }
-
-      const { type, tokens } = event.data;
-
-      if (type === "GOOGLE_DRIVE_AUTH_SUCCESS" && tokens) {
-        console.info("✅ Google Drive authentication successful, updating state.");
-        setSdkConfig((prev) => ({
-          ...prev,
-          googleDriveAccessToken: tokens.accessToken,
-          googleDriveRefreshToken: tokens.refreshToken,
-          googleDriveExpiresAt: tokens.expiresAt,
-          defaultStorageProvider: "google-drive",
-        }));
-      }
-
-      if (type === "DROPBOX_AUTH_SUCCESS" && tokens) {
-        console.info("✅ Dropbox authentication successful, updating state.");
-        setSdkConfig((prev) => ({
-          ...prev,
-          dropboxAccessToken: tokens.accessToken,
-          dropboxRefreshToken: tokens.refreshToken,
-          dropboxExpiresAt: tokens.expiresAt,
-          defaultStorageProvider: "dropbox",
-        }));
-      }
-    };
-
-    window.addEventListener("message", handleAuthMessage);
-
-    return () => {
-      window.removeEventListener("message", handleAuthMessage);
-    };
-  }, []); // Empty dependency array ensures this runs only once
-
-  // Google Drive authentication handlers
-  const handleGoogleDriveAuth = () => {
-    window.open(
-      "/api/auth/google-drive/authorize",
-      "google-drive-auth",
-      "width=600,height=700,scrollbars=yes,resizable=yes",
-    );
-  };
-
-  const handleGoogleDriveDisconnect = () => {
-    setSdkConfig((prev) => ({
-      ...prev,
-      googleDriveAccessToken: "",
-      googleDriveRefreshToken: "",
-      googleDriveExpiresAt: null,
-      defaultStorageProvider:
-        prev.defaultStorageProvider === "google-drive"
-          ? "app-ipfs"
-          : prev.defaultStorageProvider,
-    }));
-    console.info("Google Drive disconnected");
-  };
-
-  // Dropbox authentication handlers
-  const handleDropboxAuth = () => {
-    window.open(
-      "/api/auth/dropbox/authorize",
-      "dropbox-auth",
-      "width=600,height=700,scrollbars=yes,resizable=yes",
-    );
-  };
-
-  const handleDropboxDisconnect = () => {
-    setSdkConfig((prev) => ({
-      ...prev,
-      dropboxAccessToken: "",
-      dropboxRefreshToken: "",
-      dropboxExpiresAt: null,
-      defaultStorageProvider:
-        prev.defaultStorageProvider === "dropbox"
-          ? "app-ipfs"
-          : prev.defaultStorageProvider,
-    }));
-    console.info("Dropbox disconnected");
-  };
 
   // Grant modal handlers (these will be used by pages via context if needed)
   const handleConfirmGrant = () => {
@@ -177,20 +87,41 @@ export default function DashboardLayout({
     setGrantPreview(null);
   };
 
+  // Determine connection status (works for both Rainbow and Para)
+  const walletConnected = isConnected || paraAccount?.isConnected;
+
+  // Render connect button based on provider
+  const renderConnectButton = () => {
+    if (useRainbow) {
+      return <ConnectButton />;
+    } else {
+      return (
+        <button
+          onClick={() => {
+            openModal?.();
+          }}
+          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+        >
+          {walletConnected
+            ? `Connected • ${getNetworkName(chainId)}`
+            : "Connect Para Wallet"}
+        </button>
+      );
+    }
+  };
+
   // If not connected, show wallet connection prompt
-  if (!isConnected) {
+  if (!walletConnected) {
     return (
       <div className="min-h-screen bg-background">
         <Navbar isBordered>
           <NavbarBrand>
             <h1 className="text-xl font-bold text-foreground">
-              Vana SDK Demo {isConnected ? "(✅ Full Mode)" : "(🔒 Read-Only)"}
+              Vana SDK Demo{walletConnected ? "" : " (🔒 Read-Only)"}
             </h1>
           </NavbarBrand>
           <NavbarContent justify="end">
-            <NavbarItem>
-              <ConnectButton />
-            </NavbarItem>
+            <NavbarItem>{renderConnectButton()}</NavbarItem>
           </NavbarContent>
         </Navbar>
 
@@ -213,18 +144,21 @@ export default function DashboardLayout({
 
   // Main dashboard layout with VanaProvider
   return (
-    <VanaProvider config={sdkConfig}>
+    <VanaProvider>
       <div className="min-h-screen bg-background">
         <Navbar isBordered>
           <NavbarBrand>
             <h1 className="text-xl font-bold text-foreground">
-              Vana SDK Demo {isConnected ? "" : "(🔒 Read-Only)"}
+              Vana SDK Demo
+              {appConfig.enableReadOnlyMode
+                ? " (📖 Read-Only)"
+                : walletConnected
+                  ? ""
+                  : " (🔒 Disconnected)"}
             </h1>
           </NavbarBrand>
           <NavbarContent justify="end">
-            <NavbarItem>
-              <ConnectButton />
-            </NavbarItem>
+            <NavbarItem>{renderConnectButton()}</NavbarItem>
           </NavbarContent>
         </Navbar>
 
@@ -239,20 +173,7 @@ export default function DashboardLayout({
 
           {/* Right Sidebar - SDK Configuration */}
           <div id="configuration">
-            <SDKConfigurationSidebar
-              sdkConfig={sdkConfig}
-              onConfigChange={(config) => {
-                setSdkConfig((prev) => ({ ...prev, ...config }));
-              }}
-              appConfig={appConfig}
-              onAppConfigChange={(config) => {
-                setAppConfig((prev) => ({ ...prev, ...config }));
-              }}
-              onGoogleDriveAuth={handleGoogleDriveAuth}
-              onGoogleDriveDisconnect={handleGoogleDriveDisconnect}
-              onDropboxAuth={handleDropboxAuth}
-              onDropboxDisconnect={handleDropboxDisconnect}
-            />
+            <SDKConfigurationSidebar />
           </div>
         </div>
 
@@ -279,5 +200,18 @@ export default function DashboardLayout({
         </Modal>
       </div>
     </VanaProvider>
+  );
+}
+
+// Main export wraps everything with SDKConfigProvider
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <SDKConfigProvider>
+      <DashboardLayoutInner>{children}</DashboardLayoutInner>
+    </SDKConfigProvider>
   );
 }

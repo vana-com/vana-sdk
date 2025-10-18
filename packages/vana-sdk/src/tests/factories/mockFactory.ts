@@ -43,8 +43,8 @@ import type {
   Chain,
   Hash,
   Address,
-  TransactionReceipt,
 } from "../../types";
+import type { TransactionReceipt } from "../../types/operations";
 import type { ControllerContext } from "../../types/controller-context";
 import type { VanaPlatformAdapter } from "../../platform/interface";
 import type { StorageManager } from "../../storage/manager";
@@ -227,9 +227,9 @@ export function createTypedMockPublicClient(
 
   const defaultReceipt = {
     transactionHash: "0xtxhash" as Hash,
+    transactionIndex: 0,
     blockNumber: 12345n,
     blockHash: "0xblockhash" as Hash,
-    transactionIndex: 0,
     from: "0xfrom",
     to: "0xto",
     cumulativeGasUsed: 100000n,

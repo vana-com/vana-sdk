@@ -29,10 +29,12 @@ describe("ServerController", () => {
   let mockWalletClient: {
     account: unknown;
     getAddresses: ReturnType<typeof vi.fn>;
+    signMessage: ReturnType<typeof vi.fn>;
   };
   let mockApplicationClient: {
     account: unknown;
     getAddresses: ReturnType<typeof vi.fn>;
+    signMessage: ReturnType<typeof vi.fn>;
   };
   let mockAccount: {
     type: string;
@@ -56,12 +58,14 @@ describe("ServerController", () => {
     mockWalletClient = {
       account: mockAccount,
       getAddresses: vi.fn().mockResolvedValue([mockAccount.address]),
+      signMessage: vi.fn().mockResolvedValue(`0x${"0".repeat(130)}`),
     };
 
     // Create mock application client
     mockApplicationClient = {
       account: mockAccount,
       getAddresses: vi.fn().mockResolvedValue([mockAccount.address]),
+      signMessage: vi.fn().mockResolvedValue(`0x${"0".repeat(130)}`),
     };
 
     // Create mock context
@@ -123,7 +127,7 @@ describe("ServerController", () => {
       const result = await serverController.createOperation(validParams);
 
       expect(result.id).toEqual(mockOperationResponse.id);
-      expect(mockAccount.signMessage).toHaveBeenCalled();
+      expect(mockApplicationClient.signMessage).toHaveBeenCalled();
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/operations"),
         expect.objectContaining({
@@ -295,6 +299,7 @@ describe("ServerController", () => {
 
   describe("getOperation", () => {
     const mockStatusResponse = {
+      kind: "OperationStatus" as const,
       id: "test-123",
       status: "processing" as const,
       started_at: "2025-01-01T12:00:00.000Z",
@@ -311,12 +316,12 @@ describe("ServerController", () => {
       const result = await serverController.getOperation("test-123");
 
       expect(result).toEqual({
+        kind: "OperationStatus",
         id: "test-123",
         status: "processing",
-        createdAt: expect.any(Number),
-        updatedAt: expect.any(Number),
-        result: undefined,
-        error: undefined,
+        started_at: "2025-01-01T12:00:00.000Z",
+        finished_at: null,
+        result: null,
       });
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/operations/test-123"),
@@ -357,7 +362,7 @@ describe("ServerController", () => {
 
       expect(result.id).toBe("test-123");
       expect(result.status).toBe("processing");
-      expect(result.result).toBeUndefined();
+      expect(result.result).toBeNull();
     });
 
     it("should wrap unknown errors in NetworkError", async () => {

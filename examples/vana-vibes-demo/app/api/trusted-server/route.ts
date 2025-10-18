@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Wait for the operation to complete using the SDK's waitForOperation method
-    const completedOp = await vana.waitForOperation(operation, {
+    const completedOp = await vana.waitForOperation(operation.id, {
       timeout: 60000,
       pollingInterval: 500,
     });

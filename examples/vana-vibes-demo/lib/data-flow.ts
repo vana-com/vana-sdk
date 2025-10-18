@@ -148,17 +148,16 @@ export class DataPortabilityFlow {
   async executeTransaction(
     fileUrl: string,
     userAddress: string,
-    customPrompt: string,
+    grantConfig: {
+      operation: string;
+      parameters: Record<string, unknown>;
+    },
     schemaId?: number | null,
   ): Promise<string> {
     this.callbacks.onStatusUpdate("Preparing data portability transaction...");
 
     try {
       // First, create and upload the grant file
-      const operation = "llm_inference";
-      const parameters = {
-        prompt: customPrompt,
-      };
       const appAddress = process.env.NEXT_PUBLIC_DATA_WALLET_APP_ADDRESS;
       if (!appAddress) {
         throw new Error(
@@ -168,8 +167,8 @@ export class DataPortabilityFlow {
 
       const grantUrl = await this.createAndUploadGrantFile(
         appAddress,
-        operation,
-        parameters,
+        grantConfig.operation,
+        grantConfig.parameters,
       );
 
       const serverInfo = await this.vana.server.getIdentity({
@@ -315,10 +314,13 @@ export class DataPortabilityFlow {
     }
   }
 
-  async executeCompleteFlow(
+  async executeFlow(
     userAddress: string,
     userData: string,
-    prompt: string,
+    grantConfig: {
+      operation: string;
+      parameters: Record<string, unknown>;
+    },
     schemaId?: number | null,
   ): Promise<void> {
     try {
@@ -341,7 +343,7 @@ export class DataPortabilityFlow {
       const permissionId = await this.executeTransaction(
         fileUrl,
         userAddress,
-        prompt,
+        grantConfig,
         schemaId,
       );
 
@@ -358,5 +360,22 @@ export class DataPortabilityFlow {
       this.callbacks.onStatusUpdate(`Flow failed: ${errorMessage}`);
       throw error;
     }
+  }
+
+  async executeCompleteFlow(
+    userAddress: string,
+    userData: string,
+    prompt: string,
+    schemaId?: number | null,
+  ): Promise<void> {
+    return this.executeFlow(
+      userAddress,
+      userData,
+      {
+        operation: "llm_inference",
+        parameters: { prompt },
+      },
+      schemaId,
+    );
   }
 }

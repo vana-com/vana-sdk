@@ -135,7 +135,10 @@ export class DropboxStorage implements StorageProvider {
   async download(url: string): Promise<Blob> {
     // URL to force a direct download instead of showing the preview page.
     // This is done by changing the hostname from 'www.dropbox.com' to 'dl.dropboxusercontent.com'.
-    const downloadUrl = url.replace("www.dropbox.com", "dl.dropboxusercontent.com");
+    const downloadUrl = url.replace(
+      "www.dropbox.com",
+      "dl.dropboxusercontent.com",
+    );
     try {
       const response = await fetch(downloadUrl);
 
@@ -159,15 +162,19 @@ export class DropboxStorage implements StorageProvider {
 
   async list(options?: StorageListOptions): Promise<StorageFile[]> {
     if (!this.config.accessToken) {
-      throw new StorageError("Access token not provided", "AUTH_ERROR", "dropbox");
+      throw new StorageError(
+        "Access token not provided",
+        "AUTH_ERROR",
+        "dropbox",
+      );
     }
 
     try {
       const response = await fetch(`${this.apiUrl}/files/list_folder`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${this.config.accessToken}`,
-          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.config.accessToken}`,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           path: this.rootPath,
@@ -177,24 +184,32 @@ export class DropboxStorage implements StorageProvider {
       });
 
       if (!response.ok) {
-        throw new StorageError(`Failed to list Dropbox files: ${await response.text()}`, "LIST_FAILED", "dropbox");
+        throw new StorageError(
+          `Failed to list Dropbox files: ${await response.text()}`,
+          "LIST_FAILED",
+          "dropbox",
+        );
       }
 
-      const result = await response.json() as DropboxListResponse;
+      const result = (await response.json()) as DropboxListResponse;
 
       return result.entries
-        .filter(entry => entry['.tag'] === 'file')
-        .map(file => ({
+        .filter((entry) => entry[".tag"] === "file")
+        .map((file) => ({
           id: file.id,
           name: file.name,
           url: `dropbox://${file.path_lower}`, // Placeholder URL
           size: file.size,
-          contentType: 'application/octet-stream', // Dropbox API doesn't provide this in list
+          contentType: "application/octet-stream", // Dropbox API doesn't provide this in list
           createdAt: new Date(file.server_modified),
         }));
     } catch (error) {
       if (error instanceof StorageError) throw error;
-      throw new StorageError(`Dropbox list error: ${error instanceof Error ? error.message : "Unknown error"}`, "LIST_ERROR", "dropbox");
+      throw new StorageError(
+        `Dropbox list error: ${error instanceof Error ? error.message : "Unknown error"}`,
+        "LIST_ERROR",
+        "dropbox",
+      );
     }
   }
 
@@ -265,7 +280,10 @@ export class DropboxStorage implements StorageProvider {
     if (!response.ok) {
       const errorData = await response.json();
       // If link already exists, Dropbox returns a 409 with the existing link
-      if (response.status === 409 && errorData.error?.shared_link_already_exists) {
+      if (
+        response.status === 409 &&
+        errorData.error?.shared_link_already_exists
+      ) {
         return errorData.error.shared_link_already_exists.metadata.url;
       }
       throw new StorageError(

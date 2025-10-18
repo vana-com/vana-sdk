@@ -2,14 +2,13 @@
 
 import { useState, useCallback, useEffect } from "react";
 import {
-  retrieveGrantFile,
   type OnChainPermissionGrant,
   type GrantedPermission,
   type GrantPermissionParams,
   type PermissionGrantTypedData,
 } from "@opendatalabs/vana-sdk/browser";
 import { useVana } from "@/providers/VanaProvider";
-import { useAccount } from "wagmi";
+import { useSDKConfig } from "@/providers/SDKConfigProvider";
 import { addToast } from "@heroui/react";
 import { createApiHandler } from "./utils";
 
@@ -79,7 +78,10 @@ export interface UsePermissionsReturn {
 
 export function usePermissions(): UsePermissionsReturn {
   const { vana, applicationAddress } = useVana();
-  const { address } = useAccount();
+  const { effectiveAddress } = useSDKConfig();
+  // IMPORTANT: Always use effectiveAddress from SDKConfigProvider
+  // Never use useAccount() directly - it doesn't know about read-only mode
+  const address = effectiveAddress;
 
   // Fast on-chain permissions state - loads instantly for immediate UI feedback
   const [userPermissions, setUserPermissions] = useState<
@@ -195,15 +197,14 @@ export function usePermissions(): UsePermissionsReturn {
           return;
         }
 
-        // Step 2: Fetch grant file from IPFS
+        // Step 2: Fetch grant file from IPFS using SDK's configured download proxy
         let grantFile = null;
         try {
-          grantFile = await retrieveGrantFile(onChainPermission.grantUrl);
-        } catch (error) {
-          console.warn(
-            "Failed to retrieve grant file (likely CORS issue):",
-            error,
+          grantFile = await vana.permissions.retrieveGrantFile(
+            onChainPermission.grantUrl,
           );
+        } catch (error) {
+          console.warn("Failed to retrieve grant file:", error);
           // Create a minimal grant file fallback
           grantFile = {
             grantee: "0x0000000000000000000000000000000000000000",
@@ -607,13 +608,6 @@ export function usePermissions(): UsePermissionsReturn {
 
     await handler();
   }, [vana, permissionLookupId, resolvePermissionDetails, resolvedPermissions]);
-
-  // Load permissions when Vana is initialized
-  useEffect(() => {
-    if (vana && address) {
-      void loadUserPermissions();
-    }
-  }, [vana, address, loadUserPermissions]);
 
   // Clear permissions when wallet disconnects
   useEffect(() => {

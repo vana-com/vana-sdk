@@ -9,6 +9,7 @@
  * - Monitoring and debugging capabilities
  */
 
+// @ts-nocheck - ioredis is an optional peer dependency for server-side usage only
 import Redis, { type RedisOptions } from "ioredis";
 import type {
   IRelayerStateStore,

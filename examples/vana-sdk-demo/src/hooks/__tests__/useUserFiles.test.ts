@@ -7,9 +7,53 @@ import {
   afterEach,
   type MockedFunction,
 } from "vitest";
-import { renderHook, act, waitFor } from "@testing-library/react";
+
+// Use vi.hoisted to define mock configuration before all imports
+const mocks = vi.hoisted(() => {
+  return {
+    createSDKConfigMock: () => ({
+      sdkConfig: {
+        relayerUrl: "http://localhost:3000",
+        subgraphUrl: "http://localhost:8000/subgraphs/name/vana",
+        rpcUrl: "",
+        pinataJwt: "",
+        pinataGateway: "https://gateway.pinata.cloud",
+        defaultStorageProvider: "app-ipfs",
+        googleDriveAccessToken: "",
+        googleDriveRefreshToken: "",
+        googleDriveExpiresAt: null,
+        dropboxAccessToken: "",
+        dropboxRefreshToken: "",
+        dropboxExpiresAt: null,
+        defaultPersonalServerUrl: "https://personal-server.example.com",
+        readOnlyAddress: "",
+      },
+      appConfig: {
+        useGaslessTransactions: true,
+        enableReadOnlyMode: false,
+      },
+      effectiveAddress: "0x123",
+      updateSdkConfig: vi.fn(),
+      updateAppConfig: vi.fn(),
+      handleGoogleDriveAuth: vi.fn(),
+      handleGoogleDriveDisconnect: vi.fn(),
+      handleDropboxAuth: vi.fn(),
+      handleDropboxDisconnect: vi.fn(),
+    }),
+  };
+});
+
+// Mock dependencies using the hoisted configuration
+vi.mock("wagmi");
+vi.mock("@/providers/VanaProvider");
+vi.mock("@/providers/SDKConfigProvider", () => ({
+  useSDKConfig: vi.fn(() => mocks.createSDKConfigMock()),
+}));
+
+import { renderHook, act } from "@testing-library/react";
 import { useAccount, type UseAccountReturnType } from "wagmi";
 import { useVana } from "@/providers/VanaProvider";
+import { useSDKConfig } from "@/providers/SDKConfigProvider";
 import { useUserFiles, type ExtendedUserFile } from "../useUserFiles";
 import type { UserFile, VanaInstance } from "@opendatalabs/vana-sdk/browser";
 import {
@@ -17,10 +61,6 @@ import {
   createMockUseVana,
   createMockUserFiles,
 } from "@/tests/mocks";
-
-// Mock dependencies
-vi.mock("wagmi");
-vi.mock("@/providers/VanaProvider");
 
 const useAccountMock = useAccount as MockedFunction<typeof useAccount>;
 const useVanaMock = useVana as MockedFunction<typeof useVana>;
@@ -58,12 +98,12 @@ describe("useUserFiles", () => {
   });
 
   describe("initialization", () => {
-    it("returns default state when initialized", async () => {
+    it("returns default state when initialized", () => {
       const { result } = renderHook(() => useUserFiles());
 
-      // Initially loading should be true since the hook auto-loads when vana and address are available
+      // Hook does not auto-load, so loading should be false initially
       expect(result.current.userFiles).toEqual([]);
-      expect(result.current.isLoadingFiles).toBe(true);
+      expect(result.current.isLoadingFiles).toBe(false);
       expect(result.current.selectedFiles).toEqual([]);
       expect(result.current.decryptingFiles).toEqual(new Set());
       expect(result.current.decryptedFiles).toEqual(new Map());
@@ -74,33 +114,15 @@ describe("useUserFiles", () => {
       expect(result.current.fileLookupId).toBe("");
       expect(result.current.isLookingUpFile).toBe(false);
       expect(result.current.fileLookupStatus).toBe("");
-
-      // Wait for auto-loading to complete
-      await waitFor(() => {
-        expect(result.current.isLoadingFiles).toBe(false);
-        expect(result.current.userFiles).toHaveLength(2);
-      });
     });
 
-    it("loads user files automatically when vana and address are available", async () => {
+    it("does not automatically load user files on initialization", () => {
       const { result } = renderHook(() => useUserFiles());
 
-      await waitFor(() => {
-        expect(result.current.userFiles).toHaveLength(2);
-      });
-
-      expect(mockVana.data.getUserFiles).toHaveBeenCalledWith(
-        { owner: "0x123" },
-        {},
-      );
-      expect(result.current.userFiles[0]).toEqual({
-        ...mockUserFiles[0],
-        source: "discovered",
-      });
-      expect(result.current.userFiles[1]).toEqual({
-        ...mockUserFiles[1],
-        source: "discovered",
-      });
+      // The hook does not auto-load, must be triggered explicitly
+      expect(mockVana.data.getUserFiles).not.toHaveBeenCalled();
+      expect(result.current.userFiles).toEqual([]);
+      expect(result.current.isLoadingFiles).toBe(false);
     });
 
     it("does not load files when vana is not available", () => {
@@ -109,7 +131,6 @@ describe("useUserFiles", () => {
         isInitialized: false,
         error: null,
         applicationAddress: "",
-        isReadOnly: false,
       });
 
       renderHook(() => useUserFiles());
@@ -281,7 +302,6 @@ describe("useUserFiles", () => {
         isInitialized: false,
         error: null,
         applicationAddress: "",
-        isReadOnly: false,
       });
 
       const { result } = renderHook(() => useUserFiles());
@@ -398,7 +418,6 @@ describe("useUserFiles", () => {
         isInitialized: false,
         error: null,
         applicationAddress: "",
-        isReadOnly: false,
       });
 
       const { result } = renderHook(() => useUserFiles());
@@ -461,11 +480,6 @@ describe("useUserFiles", () => {
 
       const { result } = renderHook(() => useUserFiles());
 
-      // Wait for auto-loading to complete first
-      await waitFor(() => {
-        expect(result.current.isLoadingFiles).toBe(false);
-      });
-
       // Set existing file
       act(() => {
         result.current.setUserFiles([existingFile]);
@@ -517,7 +531,6 @@ describe("useUserFiles", () => {
         isInitialized: false,
         error: null,
         applicationAddress: "",
-        isReadOnly: false,
       });
 
       const { result } = renderHook(() => useUserFiles());
@@ -599,7 +612,6 @@ describe("useUserFiles", () => {
         isInitialized: false,
         error: null,
         applicationAddress: "",
-        isReadOnly: false,
       });
 
       const { result } = renderHook(() => useUserFiles());
@@ -699,6 +711,12 @@ describe("useUserFiles", () => {
         isReconnecting: false,
         status: "disconnected",
       } as unknown as UseAccountReturnType);
+
+      // Also update the SDKConfigProvider mock to reflect disconnection
+      vi.mocked(useSDKConfig).mockReturnValue({
+        ...mocks.createSDKConfigMock(),
+        effectiveAddress: undefined as any,
+      });
 
       rerender();
 

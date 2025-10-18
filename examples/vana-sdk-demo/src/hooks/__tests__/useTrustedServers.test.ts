@@ -7,19 +7,59 @@ import {
   afterEach,
   type MockedFunction,
 } from "vitest";
-import { renderHook, act, waitFor } from "@testing-library/react";
-import { useAccount, type UseAccountReturnType } from "wagmi";
-import { useVana } from "@/providers/VanaProvider";
-import { useTrustedServers } from "../useTrustedServers";
-import { addToast } from "@heroui/react";
-import type { VanaInstance } from "@opendatalabs/vana-sdk/browser";
 
-// Mock dependencies
+// Use vi.hoisted to define mock configuration before all imports
+const mocks = vi.hoisted(() => {
+  return {
+    createSDKConfigMock: () => ({
+      sdkConfig: {
+        relayerUrl: "http://localhost:3000",
+        subgraphUrl: "http://localhost:8000/subgraphs/name/vana",
+        rpcUrl: "",
+        pinataJwt: "",
+        pinataGateway: "https://gateway.pinata.cloud",
+        defaultStorageProvider: "app-ipfs",
+        googleDriveAccessToken: "",
+        googleDriveRefreshToken: "",
+        googleDriveExpiresAt: null,
+        dropboxAccessToken: "",
+        dropboxRefreshToken: "",
+        dropboxExpiresAt: null,
+        defaultPersonalServerUrl: "https://personal-server.example.com",
+        readOnlyAddress: "",
+      },
+      appConfig: {
+        useGaslessTransactions: true,
+        enableReadOnlyMode: false,
+      },
+      effectiveAddress: "0x123",
+      updateSdkConfig: vi.fn(),
+      updateAppConfig: vi.fn(),
+      handleGoogleDriveAuth: vi.fn(),
+      handleGoogleDriveDisconnect: vi.fn(),
+      handleDropboxAuth: vi.fn(),
+      handleDropboxDisconnect: vi.fn(),
+    }),
+  };
+});
+
+// Mock dependencies using the hoisted configuration
 vi.mock("wagmi");
 vi.mock("@/providers/VanaProvider");
 vi.mock("@heroui/react", () => ({
   addToast: vi.fn(),
 }));
+vi.mock("@/providers/SDKConfigProvider", () => ({
+  useSDKConfig: vi.fn(() => mocks.createSDKConfigMock()),
+}));
+
+import { renderHook, act } from "@testing-library/react";
+import { useAccount, type UseAccountReturnType } from "wagmi";
+import { useVana } from "@/providers/VanaProvider";
+import { useSDKConfig } from "@/providers/SDKConfigProvider";
+import { useTrustedServers } from "../useTrustedServers";
+import { addToast } from "@heroui/react";
+import type { VanaInstance } from "@opendatalabs/vana-sdk/browser";
 
 // Mock environment variables
 process.env.NEXT_PUBLIC_SUBGRAPH_URL =
@@ -99,7 +139,6 @@ describe("useTrustedServers", () => {
       isInitialized: true,
       error: null,
       applicationAddress: "0xapp123",
-      isReadOnly: false,
     });
 
     mockVana.data.getUserTrustedServers.mockResolvedValue(mockTrustedServers);
@@ -110,49 +149,27 @@ describe("useTrustedServers", () => {
   });
 
   describe("initialization", () => {
-    it("returns default state when initialized", async () => {
+    it("returns default state when initialized", () => {
       const { result } = renderHook(() => useTrustedServers());
 
-      // Initially loading should be true since the hook auto-loads when vana and address are available
+      // Hook does not auto-load, so loading should be false initially
       expect(result.current.trustedServers).toEqual([]);
-      expect(result.current.isLoadingTrustedServers).toBe(true);
+      expect(result.current.isLoadingTrustedServers).toBe(false);
       expect(result.current.isTrustingServer).toBe(false);
       expect(result.current.isUntrusting).toBe(false);
       expect(result.current.isDiscoveringServer).toBe(false);
       expect(result.current.trustServerError).toBe("");
       expect(result.current.serverAddress).toBe("");
       expect(result.current.serverUrl).toBe("");
-
-      // Wait for auto-loading to complete
-      await waitFor(() => {
-        expect(result.current.isLoadingTrustedServers).toBe(false);
-        expect(result.current.trustedServers).toHaveLength(2);
-      });
     });
 
-    it("loads trusted servers automatically when vana and address are available", async () => {
+    it("does not automatically load trusted servers on initialization", () => {
       const { result } = renderHook(() => useTrustedServers());
 
-      await waitFor(() => {
-        expect(result.current.trustedServers).toHaveLength(2);
-        expect(result.current.isLoadingTrustedServers).toBe(false);
-      });
-
-      expect(mockVana.data.getUserTrustedServers).toHaveBeenCalledWith(
-        {
-          user: "0x123",
-          subgraphUrl: "http://localhost:8000/subgraphs/name/vana",
-        },
-        {
-          limit: 10,
-        },
-      );
-      expect(result.current.trustedServers).toEqual(mockTrustedServers);
-      expect(addToastMock).toHaveBeenCalledWith({
-        color: "success",
-        title: "Trusted servers loaded",
-        description: "Found 2 trusted servers",
-      });
+      // The hook does not auto-load, must be triggered explicitly
+      expect(mockVana.data.getUserTrustedServers).not.toHaveBeenCalled();
+      expect(result.current.trustedServers).toEqual([]);
+      expect(result.current.isLoadingTrustedServers).toBe(false);
     });
 
     it("does not load servers when vana is not available", () => {
@@ -161,7 +178,6 @@ describe("useTrustedServers", () => {
         isInitialized: false,
         error: null,
         applicationAddress: "",
-        isReadOnly: false,
       });
 
       renderHook(() => useTrustedServers());
@@ -275,7 +291,6 @@ describe("useTrustedServers", () => {
         isInitialized: false,
         error: null,
         applicationAddress: "",
-        isReadOnly: false,
       });
 
       const { result } = renderHook(() => useTrustedServers());
@@ -377,7 +392,6 @@ describe("useTrustedServers", () => {
         isInitialized: false,
         error: null,
         applicationAddress: "",
-        isReadOnly: false,
       });
 
       const { result } = renderHook(() => useTrustedServers());
@@ -562,7 +576,6 @@ describe("useTrustedServers", () => {
         isInitialized: false,
         error: null,
         applicationAddress: "",
-        isReadOnly: false,
       });
 
       const { result } = renderHook(() => useTrustedServers());
@@ -771,6 +784,12 @@ describe("useTrustedServers", () => {
         isReconnecting: false,
         status: "disconnected",
       } as unknown as UseAccountReturnType);
+
+      // Also update the SDKConfigProvider mock to reflect disconnection
+      vi.mocked(useSDKConfig).mockReturnValue({
+        ...mocks.createSDKConfigMock(),
+        effectiveAddress: undefined as any,
+      });
 
       rerender();
 

@@ -28,6 +28,34 @@ vi.mock("@/providers/VanaProvider", () => ({
   VanaProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
+vi.mock("@/providers/SDKConfigProvider", () => ({
+  useSDKConfig: () => ({
+    sdkConfig: {
+      relayerUrl: "http://localhost:3000",
+      subgraphUrl: "http://localhost:8000/subgraphs/name/vana",
+      rpcUrl: "",
+      pinataJwt: "",
+      pinataGateway: "https://gateway.pinata.cloud",
+      defaultStorageProvider: "app-ipfs",
+      googleDriveAccessToken: "",
+      googleDriveRefreshToken: "",
+      googleDriveExpiresAt: null,
+      defaultPersonalServerUrl: "https://personal-server.example.com",
+      readOnlyAddress: "",
+    },
+    appConfig: {
+      useGaslessTransactions: true,
+      enableReadOnlyMode: false,
+    },
+    effectiveAddress: "0x123",
+    updateSdkConfig: vi.fn(),
+    updateAppConfig: vi.fn(),
+    handleGoogleDriveAuth: vi.fn(),
+    handleGoogleDriveDisconnect: vi.fn(),
+  }),
+  SDKConfigProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 // Mock components that might have complex dependencies
 vi.mock("@/components/FilePreview", () => ({
   FilePreview: ({ children }: { children: React.ReactNode }) => (
@@ -108,7 +136,6 @@ describe("MyDataPage Integration Test", () => {
       expect(
         screen.getByRole("tab", { name: /permissions/i }),
       ).toBeInTheDocument();
-      expect(screen.getByRole("tab", { name: /servers/i })).toBeInTheDocument();
     });
   });
 

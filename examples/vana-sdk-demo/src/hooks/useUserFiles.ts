@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import type { UserFile } from "@opendatalabs/vana-sdk/browser";
 import { useVana } from "@/providers/VanaProvider";
-import { useAccount } from "wagmi";
+import { useSDKConfig } from "@/providers/SDKConfigProvider";
 import { createApiHandler } from "./utils";
 
 export interface ExtendedUserFile extends UserFile {
@@ -53,7 +53,10 @@ export interface UseUserFilesReturn {
 
 export function useUserFiles(): UseUserFilesReturn {
   const { vana } = useVana();
-  const { address } = useAccount();
+  const { effectiveAddress } = useSDKConfig();
+  // IMPORTANT: Always use effectiveAddress from SDKConfigProvider
+  // Never use useAccount() directly - it doesn't know about read-only mode
+  const address = effectiveAddress;
 
   // User files state
   const [userFiles, setUserFiles] = useState<ExtendedUserFile[]>([]);
@@ -94,7 +97,7 @@ export function useUserFiles(): UseUserFilesReturn {
         // For apps with many files, consider using pagination:
         // { limit: 50, offset: 0 } to load in batches
         const files = await vana.data.getUserFiles(
-          { owner: address },
+          { owner: address as `0x${string}` },
           ensureFresh ? { waitForSync: 30000 } : {},
         );
         const discoveredFiles = files.map((file: UserFile) => ({
@@ -312,13 +315,6 @@ export function useUserFiles(): UseUserFilesReturn {
     },
     [vana, newTextData, loadUserFiles, address],
   );
-
-  // Load user files when Vana is initialized
-  useEffect(() => {
-    if (vana && address) {
-      void loadUserFiles();
-    }
-  }, [vana, address, loadUserFiles]);
 
   // Clear selected files when wallet disconnects
   useEffect(() => {

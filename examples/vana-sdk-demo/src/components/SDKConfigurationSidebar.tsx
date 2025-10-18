@@ -1,52 +1,32 @@
 import React from "react";
-import { Input, Select, SelectItem, Switch, Button } from "@heroui/react";
-
-interface SDKConfig {
-  relayerUrl: string;
-  subgraphUrl: string;
-  rpcUrl: string;
-  pinataJwt: string;
-  pinataGateway: string;
-  defaultStorageProvider: string;
-  googleDriveAccessToken: string;
-  googleDriveRefreshToken: string;
-  googleDriveExpiresAt: number | null;
-  dropboxAccessToken: string;
-  dropboxRefreshToken: string;
-  dropboxExpiresAt: number | null;
-}
-
-export interface AppConfig {
-  useGaslessTransactions: boolean;
-}
-
-interface SDKConfigurationSidebarProps {
-  sdkConfig: SDKConfig;
-  onConfigChange: (config: Partial<SDKConfig>) => void;
-  appConfig: AppConfig;
-  onAppConfigChange: (config: Partial<AppConfig>) => void;
-  onGoogleDriveAuth: () => void;
-  onGoogleDriveDisconnect: () => void;
-  onDropboxAuth: () => void;
-  onDropboxDisconnect: () => void;
-}
+import {
+  Input,
+  Select,
+  SelectItem,
+  Switch,
+  Button,
+  Tooltip,
+} from "@heroui/react";
+import { Info } from "lucide-react";
+import { useSDKConfig } from "@/providers/SDKConfigProvider";
 
 /**
  * SDKConfigurationSidebar component - Right sidebar for configuring the SDK
  * Network, storage, and other configuration options
+ *
+ * Now consumes SDKConfigContext directly instead of receiving props.
  */
-export const SDKConfigurationSidebar: React.FC<
-  SDKConfigurationSidebarProps
-> = ({
-  sdkConfig,
-  onConfigChange,
-  appConfig,
-  onAppConfigChange,
-  onGoogleDriveAuth,
-  onGoogleDriveDisconnect,
-  onDropboxAuth,
-  onDropboxDisconnect,
-}) => {
+export const SDKConfigurationSidebar: React.FC = () => {
+  const {
+    sdkConfig,
+    appConfig,
+    updateSdkConfig,
+    updateAppConfig,
+    handleGoogleDriveAuth,
+    handleGoogleDriveDisconnect,
+    handleDropboxAuth,
+    handleDropboxDisconnect,
+  } = useSDKConfig();
   return (
     <div className="w-80 border-l border-divider bg-content1 sticky top-0 self-start max-h-screen overflow-y-auto">
       <div className="p-4">
@@ -56,6 +36,83 @@ export const SDKConfigurationSidebar: React.FC<
 
         <div className="space-y-4">
           <div className="space-y-6">
+            {/* Read-Only Mode Configuration */}
+            <div className="space-y-4 pb-4 border-b border-divider">
+              <div className="flex items-center gap-2">
+                <h4 className="font-medium text-sm text-gray-700 dark:text-gray-300">
+                  Read-Only Mode
+                </h4>
+                <Tooltip
+                  content={
+                    <div className="p-2">
+                      <div className="font-medium mb-1 text-xs">In code:</div>
+                      <code className="text-xs">
+                        {`const vana = Vana({ address: '0x...' })`}
+                      </code>
+                    </div>
+                  }
+                  placement="right"
+                >
+                  <Info className="h-3.5 w-3.5 text-default-400 cursor-help" />
+                </Tooltip>
+              </div>
+
+              <Input
+                label="Address Override"
+                placeholder="0x742d35Cc6634C0532925a3b844Bc9e7595f0bEd1"
+                value={sdkConfig.readOnlyAddress || ""}
+                onValueChange={(value) => {
+                  updateSdkConfig({ readOnlyAddress: value });
+                }}
+                description="Explore any address without connecting a wallet"
+                size="sm"
+                classNames={{
+                  input: "font-mono text-xs",
+                }}
+              />
+
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  color="primary"
+                  onPress={() => {
+                    if (sdkConfig.readOnlyAddress?.trim()) {
+                      updateAppConfig({ enableReadOnlyMode: true });
+                    }
+                  }}
+                  isDisabled={!sdkConfig.readOnlyAddress?.trim()}
+                  className="flex-1"
+                >
+                  Apply
+                </Button>
+                <Button
+                  size="sm"
+                  variant="flat"
+                  onPress={() => {
+                    updateSdkConfig({ readOnlyAddress: "" });
+                    updateAppConfig({ enableReadOnlyMode: false });
+                  }}
+                  isDisabled={
+                    !sdkConfig.readOnlyAddress && !appConfig.enableReadOnlyMode
+                  }
+                >
+                  Clear
+                </Button>
+              </div>
+
+              {appConfig.enableReadOnlyMode && sdkConfig.readOnlyAddress && (
+                <div className="text-xs text-primary bg-primary/10 p-2 rounded">
+                  <div className="font-medium mb-1">
+                    📖 Read-only mode active
+                  </div>
+                  <div className="text-default-600">
+                    Exploring {sdkConfig.readOnlyAddress.slice(0, 6)}...
+                    {sdkConfig.readOnlyAddress.slice(-4)}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Network Configuration */}
             <div className="space-y-4">
               <h4 className="font-medium text-sm text-gray-700 dark:text-gray-300">
@@ -67,7 +124,7 @@ export const SDKConfigurationSidebar: React.FC<
                 placeholder="https://relayer.example.com"
                 value={sdkConfig.relayerUrl}
                 onValueChange={(value) => {
-                  onConfigChange({ relayerUrl: value });
+                  updateSdkConfig({ relayerUrl: value });
                 }}
                 description="URL for gasless transaction relayer"
                 size="sm"
@@ -78,7 +135,7 @@ export const SDKConfigurationSidebar: React.FC<
                 placeholder="https://moksha.vanagraph.io/v7"
                 value={sdkConfig.subgraphUrl}
                 onValueChange={(value) => {
-                  onConfigChange({ subgraphUrl: value });
+                  updateSdkConfig({ subgraphUrl: value });
                 }}
                 description="Custom subgraph endpoint (optional)"
                 size="sm"
@@ -89,7 +146,7 @@ export const SDKConfigurationSidebar: React.FC<
                 placeholder="https://rpc.example.com"
                 value={sdkConfig.rpcUrl}
                 onValueChange={(value) => {
-                  onConfigChange({ rpcUrl: value });
+                  updateSdkConfig({ rpcUrl: value });
                 }}
                 description="Custom RPC endpoint (optional)"
                 size="sm"
@@ -107,7 +164,7 @@ export const SDKConfigurationSidebar: React.FC<
                 placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                 value={sdkConfig.pinataJwt}
                 onValueChange={(value) => {
-                  onConfigChange({ pinataJwt: value });
+                  updateSdkConfig({ pinataJwt: value });
                 }}
                 description="JWT for user-managed Pinata IPFS"
                 size="sm"
@@ -119,7 +176,7 @@ export const SDKConfigurationSidebar: React.FC<
                 placeholder="https://gateway.pinata.cloud"
                 value={sdkConfig.pinataGateway}
                 onValueChange={(value) => {
-                  onConfigChange({ pinataGateway: value });
+                  updateSdkConfig({ pinataGateway: value });
                 }}
                 description="Gateway URL for Pinata IPFS"
                 size="sm"
@@ -138,7 +195,7 @@ export const SDKConfigurationSidebar: React.FC<
                         size="sm"
                         variant="ghost"
                         color="danger"
-                        onPress={onGoogleDriveDisconnect}
+                        onPress={handleGoogleDriveDisconnect}
                       >
                         Disconnect
                       </Button>
@@ -158,7 +215,7 @@ export const SDKConfigurationSidebar: React.FC<
                     <Button
                       size="sm"
                       color="primary"
-                      onPress={onGoogleDriveAuth}
+                      onPress={handleGoogleDriveAuth}
                       className="w-full"
                     >
                       Connect Google Drive
@@ -172,9 +229,7 @@ export const SDKConfigurationSidebar: React.FC<
 
               {/* Dropbox Configuration */}
               <div className="space-y-3">
-                <div className="text-sm font-medium">
-                  Dropbox Integration
-                </div>
+                <div className="text-sm font-medium">Dropbox Integration</div>
                 {sdkConfig.dropboxAccessToken ? (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
@@ -183,7 +238,7 @@ export const SDKConfigurationSidebar: React.FC<
                         size="sm"
                         variant="ghost"
                         color="danger"
-                        onPress={onDropboxDisconnect}
+                        onPress={handleDropboxDisconnect}
                       >
                         Disconnect
                       </Button>
@@ -191,9 +246,7 @@ export const SDKConfigurationSidebar: React.FC<
                     <div className="text-xs text-gray-500">
                       Token expires:{" "}
                       {sdkConfig.dropboxExpiresAt
-                        ? new Date(
-                            sdkConfig.dropboxExpiresAt,
-                          ).toLocaleString()
+                        ? new Date(sdkConfig.dropboxExpiresAt).toLocaleString()
                         : "Unknown"}
                     </div>
                   </div>
@@ -203,7 +256,7 @@ export const SDKConfigurationSidebar: React.FC<
                     <Button
                       size="sm"
                       color="primary"
-                      onPress={onDropboxAuth}
+                      onPress={handleDropboxAuth}
                       className="w-full"
                     >
                       Connect Dropbox
@@ -220,7 +273,7 @@ export const SDKConfigurationSidebar: React.FC<
                 selectedKeys={[sdkConfig.defaultStorageProvider]}
                 onSelectionChange={(keys) => {
                   const selected = Array.from(keys)[0] as string;
-                  onConfigChange({ defaultStorageProvider: selected });
+                  updateSdkConfig({ defaultStorageProvider: selected });
                 }}
                 size="sm"
               >
@@ -279,7 +332,7 @@ export const SDKConfigurationSidebar: React.FC<
                 <Switch
                   isSelected={appConfig.useGaslessTransactions}
                   onValueChange={(value) => {
-                    onAppConfigChange({ useGaslessTransactions: value });
+                    updateAppConfig({ useGaslessTransactions: value });
                   }}
                   size="sm"
                 />

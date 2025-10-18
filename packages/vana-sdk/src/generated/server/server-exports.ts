@@ -5,6 +5,33 @@
 // Re-export all types with original names
 export * from "./server";
 
+/**
+ * Personal Server API endpoint paths.
+ *
+ * @remarks
+ * These paths are extracted from the OpenAPI spec to ensure consistency
+ * between the SDK and the server implementation. All paths are relative
+ * to the personal server base URL.
+ *
+ * @category Server
+ */
+export const SERVER_PATHS = {
+  /** Create a new operation */
+  operations: "/api/v1/operations",
+  /** Get operation status by ID */
+  getOperation: (operationId: string) => `/api/v1/operations/${operationId}`,
+  /** Cancel a running operation */
+  cancelOperation: (operationId: string) =>
+    `/api/v1/operations/${operationId}/cancel`,
+  /** Get user identity */
+  identity: "/api/v1/identity",
+  /** Download an artifact file */
+  downloadArtifact: "/api/v1/artifacts/download",
+  /** List artifacts for an operation */
+  listArtifacts: (operationId: string) =>
+    `/api/v1/artifacts/${operationId}/list`,
+} as const;
+
 // Namespace all server types for clearer usage
 export type {
   paths as ServerPaths,
@@ -30,25 +57,10 @@ export type IdentityResponseModel =
   components["schemas"]["IdentityResponseModel"];
 export type PersonalServerModel = components["schemas"]["PersonalServerModel"];
 
+// Artifact types
+export type ArtifactInfo = components["schemas"]["ArtifactInfo"];
+
 // Error types
 export type ErrorResponse = components["schemas"]["ErrorResponse"];
-export type ValidationErrorResponse =
-  components["schemas"]["ValidationErrorResponse"];
-export type AuthenticationErrorResponse =
-  components["schemas"]["AuthenticationErrorResponse"];
-export type NotFoundErrorResponse =
-  components["schemas"]["NotFoundErrorResponse"];
-export type BlockchainErrorResponse =
-  components["schemas"]["BlockchainErrorResponse"];
-export type FileAccessErrorResponse =
-  components["schemas"]["FileAccessErrorResponse"];
-export type ComputeErrorResponse =
-  components["schemas"]["ComputeErrorResponse"];
-export type DecryptionErrorResponse =
-  components["schemas"]["DecryptionErrorResponse"];
-export type GrantValidationErrorResponse =
-  components["schemas"]["GrantValidationErrorResponse"];
-export type OperationErrorResponse =
-  components["schemas"]["OperationErrorResponse"];
-export type InternalServerErrorResponse =
-  components["schemas"]["InternalServerErrorResponse"];
+export type HTTPValidationError = components["schemas"]["HTTPValidationError"];
+export type ValidationError = components["schemas"]["ValidationError"];

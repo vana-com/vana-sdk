@@ -3515,25 +3515,69 @@ export class PermissionsController extends BaseController {
     const total = Number(totalCount);
     const limit = options.limit ?? 50;
     const offset = options.offset ?? 0;
+    const includePermissions = options.includePermissions ?? true; // Default to true for backward compatibility
 
-    // Fetch grantees in the requested range
-    const endIndex = Math.min(offset + limit, total);
+    const startId = total - offset;
+    const endId = Math.max(startId - limit + 1, 1);
     const granteeIds = Array.from(
-      { length: endIndex - offset },
-      (_, i) => offset + i + 1, // Grantee IDs are 1-indexed
+      { length: startId - endId + 1 },
+      (_, i) => startId - i, // Generate IDs in descending order
     );
 
-    // Fetch all grantees in parallel
-    const granteePromises = granteeIds.map((granteeId) =>
-      this.getGranteeById(granteeId),
-    );
+    let grantees: Grantee[];
 
-    const granteeResults = await Promise.all(granteePromises);
+    if (includePermissions) {
+      const granteePromises = granteeIds.map((granteeId) =>
+        this.getGranteeById(granteeId),
+      );
 
-    // Filter out null results
-    const grantees = granteeResults.filter(
-      (grantee): grantee is Grantee => grantee !== null,
-    );
+      const granteeResults = await Promise.all(granteePromises);
+
+      // Filter out null results
+      grantees = granteeResults.filter(
+        (grantee): grantee is Grantee => grantee !== null,
+      );
+    } else {
+      type GranteeV2Info = {
+        owner: Address;
+        granteeAddress: Address;
+        publicKey: string;
+        permissionsCount: bigint;
+      };
+
+      const granteeInfoPromises = granteeIds.map(
+        async (granteeId): Promise<Grantee | null> => {
+          try {
+            const granteeInfo = (await this.context.publicClient.readContract({
+              address: DataPortabilityGranteesAddress,
+              abi: DataPortabilityGranteesAbi,
+              functionName: "granteesV2",
+              args: [BigInt(granteeId)],
+            })) as GranteeV2Info;
+
+            const grantee: Grantee = {
+              id: granteeId,
+              owner: granteeInfo.owner,
+              address: granteeInfo.granteeAddress,
+              publicKey: granteeInfo.publicKey,
+              permissionIds: [], // TypeScript infers number[] from Grantee type
+            };
+
+            return grantee;
+          } catch (error) {
+            console.warn(`Failed to fetch grantee ${granteeId}:`, error);
+            return null;
+          }
+        },
+      );
+
+      const granteeInfoResults = await Promise.all(granteeInfoPromises);
+
+      // Filter out null results
+      grantees = granteeInfoResults.filter(
+        (grantee): grantee is Grantee => grantee !== null,
+      );
+    }
 
     return {
       grantees,
@@ -4114,6 +4158,34 @@ export class PermissionsController extends BaseController {
         error as Error,
       );
     }
+  }
+
+  /**
+   * Retrieves detailed grant file data from IPFS or HTTP storage.
+   *
+   * @remarks
+   * This method automatically uses the SDK's configured downloadRelayer to bypass CORS restrictions.
+   * Use this instead of importing the standalone `retrieveGrantFile` utility.
+   *
+   * @param grantUrl - The grant file URL (from OnChainPermissionGrant.grantUrl)
+   * @returns Promise resolving to the complete grant file with operation details
+   * @throws {NetworkError} When all retrieval attempts fail
+   * @example
+   * ```typescript
+   * const grants = await vana.permissions.getUserPermissionGrantsOnChain();
+   * const grantFile = await vana.permissions.retrieveGrantFile(grants[0].grantUrl);
+   * console.log(`Operation: ${grantFile.operation}`);
+   * ```
+   */
+  async retrieveGrantFile(grantUrl: string): Promise<GrantFile> {
+    const { retrieveGrantFile: retrieveGrantFileUtil } = await import(
+      "../utils/grantFiles"
+    );
+    return retrieveGrantFileUtil(
+      grantUrl,
+      undefined,
+      this.context.downloadRelayer,
+    );
   }
 
   /**

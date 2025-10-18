@@ -24,46 +24,36 @@ import {
   type WalletClient,
   type Address,
 } from "@opendatalabs/vana-sdk/browser";
+import { useSDKConfig } from "./SDKConfigProvider";
 
-interface VanaConfig {
-  relayerUrl?: string;
-  subgraphUrl?: string;
-  rpcUrl?: string;
-  pinataJwt?: string;
-  pinataGateway?: string;
-  defaultStorageProvider?: string;
-  googleDriveAccessToken?: string;
-  googleDriveRefreshToken?: string;
-  googleDriveExpiresAt?: number | null;
-  dropboxAccessToken?: string;
-  dropboxRefreshToken?: string;
-  dropboxExpiresAt?: number | null;
-  defaultPersonalServerUrl?: string;
-}
-
+/**
+ * Vana Provider Context Value
+ *
+ * This provider is a thin wrapper around the Vana SDK instance.
+ * It handles SDK initialization and exposes the SDK instance.
+ *
+ * For configuration and effectiveAddress, use useSDKConfig() instead.
+ */
 export interface VanaContextValue {
   vana: VanaInstance | null;
   isInitialized: boolean;
   error: Error | null;
   applicationAddress: string;
-  isReadOnly: boolean;
-  readOnlyAddress?: string;
 }
 
 const VanaContext = createContext<VanaContextValue | undefined>(undefined);
 
 interface VanaProviderProps {
   children: ReactNode;
-  config: VanaConfig;
-  useGaslessTransactions?: boolean;
-  enableReadOnlyMode?: boolean;
-  readOnlyAddress?: string;
 }
 
 // Helper to create storage providers
-const createStorageProviders = (
-  config: VanaConfig,
-): Record<string, StorageProvider> => {
+const createStorageProviders = (config: {
+  pinataJwt?: string;
+  pinataGateway?: string;
+  googleDriveAccessToken?: string;
+  googleDriveRefreshToken?: string;
+}): Record<string, StorageProvider> => {
   // Create callback-based storage for app-managed IPFS
   const appIpfsCallbacks: StorageCallbacks = {
     async upload(blob: Blob, filename?: string) {
@@ -117,7 +107,10 @@ const createStorageProviders = (
 
 // Helper to setup Google Drive storage
 const setupGoogleDriveStorage = async (
-  config: VanaConfig,
+  config: {
+    googleDriveAccessToken?: string;
+    googleDriveRefreshToken?: string;
+  },
   providers: Record<string, StorageProvider>,
 ) => {
   if (!config.googleDriveAccessToken) return;
@@ -144,7 +137,10 @@ const setupGoogleDriveStorage = async (
 
 // Helper to setup Dropbox storage
 const setupDropboxStorage = (
-  config: VanaConfig,
+  config: {
+    dropboxAccessToken?: string;
+    dropboxRefreshToken?: string;
+  },
   providers: Record<string, StorageProvider>,
 ) => {
   if (!config.dropboxAccessToken) return;
@@ -159,7 +155,12 @@ const setupDropboxStorage = (
 };
 
 // Helper to determine default storage provider
-const getDefaultProvider = (config: VanaConfig): string => {
+const getDefaultProvider = (config: {
+  defaultStorageProvider?: string;
+  pinataJwt?: string;
+  googleDriveAccessToken?: string;
+  dropboxAccessToken?: string;
+}): string => {
   const requested = config.defaultStorageProvider ?? "app-ipfs";
   if (requested === "user-ipfs" && !config.pinataJwt) return "app-ipfs";
   if (requested === "google-drive" && !config.googleDriveAccessToken)
@@ -188,40 +189,37 @@ const fetchApplicationAddress = async (): Promise<string | null> => {
   return null;
 };
 
-export function VanaProvider({
-  children,
-  config,
-  useGaslessTransactions = true,
-  enableReadOnlyMode = false,
-  readOnlyAddress,
-}: VanaProviderProps) {
+export function VanaProvider({ children }: VanaProviderProps) {
+  // Consume configuration from SDKConfigProvider
+  const { sdkConfig, appConfig } = useSDKConfig();
+
   const { address, isConnected, chainId } = useAccount();
-  const { data: walletClient } = useWalletClient();
+  const { data: walletClient } = useWalletClient({ chainId });
   const [vana, setVana] = useState<VanaInstance | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [applicationAddress, setApplicationAddress] = useState<string>("");
-  const [isReadOnly, setIsReadOnly] = useState(false);
 
   // Initialize Vana SDK when wallet is connected OR in read-only mode
   useEffect(() => {
     // Handle read-only mode
-    if (enableReadOnlyMode && readOnlyAddress) {
+    if (appConfig.enableReadOnlyMode && sdkConfig.readOnlyAddress) {
       const initializeReadOnlyVana = async () => {
         try {
           console.info("📖 Initializing Vana SDK in read-only mode");
 
           // Initialize with just an address for read-only operations
           const vanaInstance = Vana({
-            address: readOnlyAddress as Address,
+            address: sdkConfig.readOnlyAddress as Address,
             chain: walletClient?.chain, // Use chain from wallet if available, otherwise defaults to mainnet
-            ...(config.subgraphUrl && { subgraphUrl: config.subgraphUrl }),
-            defaultPersonalServerUrl: config.defaultPersonalServerUrl,
+            ...(sdkConfig.subgraphUrl && {
+              subgraphUrl: sdkConfig.subgraphUrl,
+            }),
+            defaultPersonalServerUrl: sdkConfig.defaultPersonalServerUrl,
           });
 
           setVana(vanaInstance);
           setIsInitialized(true);
-          setIsReadOnly(true);
           console.info("✅ Vana SDK initialized in read-only mode");
 
           // Fetch application address for display purposes
@@ -245,41 +243,44 @@ export function VanaProvider({
       return;
     }
 
-    // Handle full mode (requires wallet)
-    if (!isConnected || !walletClient?.account) {
+    // Handle full mode (requires wallet with chain configured)
+    if (!isConnected || !walletClient?.account || !walletClient?.chain) {
       setVana(null);
       setIsInitialized(false);
-      setIsReadOnly(false);
       return;
     }
 
     const initializeVana = async () => {
       try {
         console.info("🏢 Setting up app-managed IPFS storage");
-        const storageProviders = createStorageProviders(config);
-        await setupGoogleDriveStorage(config, storageProviders);
-        setupDropboxStorage(config, storageProviders);
-        const actualDefaultProvider = getDefaultProvider(config);
+        console.info("🔗 WalletClient chain:", walletClient.chain);
+        const storageProviders = createStorageProviders(sdkConfig);
+        await setupGoogleDriveStorage(sdkConfig, storageProviders);
+        setupDropboxStorage(sdkConfig, storageProviders);
+        const actualDefaultProvider = getDefaultProvider(sdkConfig);
 
         // Create unified relayer callback - demonstrates the proper pattern
-        const baseUrl = config.relayerUrl ?? window.location.origin;
-        const relayer: RelayerConfig | undefined = useGaslessTransactions
-          ? async (request: UnifiedRelayerRequest) => {
-              const response = await fetch(`${baseUrl}/api/relay`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ ...request, chainId }, (_key, value) =>
-                  typeof value === "bigint" ? value.toString() : value,
-                ),
-              });
-              if (!response.ok) {
-                throw new Error(
-                  `Relayer request failed: ${response.statusText}`,
-                );
+        const baseUrl = sdkConfig.relayerUrl ?? window.location.origin;
+        const relayer: RelayerConfig | undefined =
+          appConfig.useGaslessTransactions
+            ? async (request: UnifiedRelayerRequest) => {
+                const response = await fetch(`${baseUrl}/api/relay`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(
+                    { ...request, chainId },
+                    (_key, value) =>
+                      typeof value === "bigint" ? value.toString() : value,
+                  ),
+                });
+                if (!response.ok) {
+                  throw new Error(
+                    `Relayer request failed: ${response.statusText}`,
+                  );
+                }
+                return response.json();
               }
-              return response.json();
-            }
-          : undefined;
+            : undefined;
 
         // Create download relayer for CORS bypass
         const downloadRelayer: DownloadRelayerCallbacks = {
@@ -303,8 +304,8 @@ export function VanaProvider({
           walletClient: walletClient as WalletClient & { chain: VanaChain },
           relayer,
           downloadRelayer,
-          ...(config.subgraphUrl && { subgraphUrl: config.subgraphUrl }),
-          defaultPersonalServerUrl: config.defaultPersonalServerUrl,
+          ...(sdkConfig.subgraphUrl && { subgraphUrl: sdkConfig.subgraphUrl }),
+          defaultPersonalServerUrl: sdkConfig.defaultPersonalServerUrl,
           storage: {
             providers: storageProviders,
             defaultProvider: actualDefaultProvider,
@@ -313,7 +314,6 @@ export function VanaProvider({
 
         setVana(vanaInstance);
         setIsInitialized(true);
-        setIsReadOnly(false);
         console.info(
           "✅ Vana SDK initialized in full mode:",
           vanaInstance.getConfig(),
@@ -339,10 +339,8 @@ export function VanaProvider({
     walletClient,
     address,
     chainId,
-    config,
-    useGaslessTransactions,
-    enableReadOnlyMode,
-    readOnlyAddress,
+    sdkConfig,
+    appConfig,
     // Note: Other config changes (Pinata, Google Drive) don't require full re-init
     // They can be handled by the storage provider setup
   ]);
@@ -354,8 +352,6 @@ export function VanaProvider({
         isInitialized,
         error,
         applicationAddress,
-        isReadOnly,
-        readOnlyAddress,
       }}
     >
       {children}

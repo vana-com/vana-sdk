@@ -23,7 +23,10 @@ export function GET(request: NextRequest) {
     authUrl.searchParams.set("redirect_uri", redirectUri);
     authUrl.searchParams.set("response_type", "code");
     authUrl.searchParams.set("token_access_type", "offline"); // To get a refresh token
-    authUrl.searchParams.set("scope", "files.content.write files.content.read sharing.write");
+    authUrl.searchParams.set(
+      "scope",
+      "files.content.write files.content.read sharing.write",
+    );
 
     // Redirect to Dropbox OAuth
     return NextResponse.redirect(authUrl.toString());

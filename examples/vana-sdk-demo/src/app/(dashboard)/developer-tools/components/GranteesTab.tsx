@@ -13,7 +13,7 @@ import {
   TableBody,
   TableRow,
   TableCell,
-  Alert,
+  Pagination,
 } from "@heroui/react";
 import { RefreshCw, Users, Trash2, Plus } from "lucide-react";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -25,10 +25,16 @@ import type { Grantee } from "@opendatalabs/vana-sdk/browser";
 interface GranteesTabProps {
   // Grantee data
   grantees: Grantee[];
+  granteesTotal: number;
   isLoadingGrantees: boolean;
   isAddingGrantee: boolean;
   isRemoving: boolean;
   addGranteeError: string;
+
+  // Pagination
+  currentPage: number;
+  totalPages: number;
+  perPage: number;
 
   // Input state
   ownerAddress: string;
@@ -42,14 +48,19 @@ interface GranteesTabProps {
   onAddGrantee: () => void;
   onRefreshGrantees: () => void;
   onRemoveGrantee: (granteeId: number) => void;
+  onPageChange: (page: number) => void;
 }
 
 export function GranteesTab({
   grantees,
+  granteesTotal,
   isLoadingGrantees,
   isAddingGrantee,
   isRemoving,
   addGranteeError,
+  currentPage,
+  totalPages,
+  perPage,
   ownerAddress,
   granteeAddress,
   granteePublicKey,
@@ -59,18 +70,10 @@ export function GranteesTab({
   onAddGrantee,
   onRefreshGrantees,
   onRemoveGrantee,
+  onPageChange,
 }: GranteesTabProps) {
   return (
     <div className="space-y-6">
-      {/* Info Banner */}
-      <Alert
-        variant="bordered"
-        color="primary"
-        title="Application Section"
-        description="This is a section only for applications to define grantee"
-        startContent={<Users className="h-5 w-5" />}
-      />
-
       {/* Add Grantee */}
       <Card>
         <CardHeader>
@@ -133,8 +136,8 @@ export function GranteesTab({
               <div>
                 <h3 className="text-lg font-semibold">All Grantees</h3>
                 <p className="text-sm text-default-500">
-                  {grantees.length} grantee{grantees.length !== 1 ? "s" : ""}{" "}
-                  registered
+                  Showing {grantees.length} of {granteesTotal} total grantee
+                  {granteesTotal !== 1 ? "s" : ""}
                 </p>
               </div>
             </div>
@@ -235,6 +238,17 @@ export function GranteesTab({
                 ))}
               </TableBody>
             </Table>
+          )}
+          {granteesTotal > perPage && (
+            <div className="flex justify-center mt-4">
+              <Pagination
+                total={totalPages}
+                page={currentPage}
+                onChange={onPageChange}
+                showControls={true}
+                size="sm"
+              />
+            </div>
           )}
         </CardBody>
       </Card>

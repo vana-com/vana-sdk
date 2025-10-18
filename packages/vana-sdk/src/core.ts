@@ -833,10 +833,10 @@ export class VanaCore {
    * });
    * ```
    */
-  public async waitForOperation<T = unknown>(
-    opOrId: Operation<T> | string,
+  public async waitForOperation(
+    opOrId: Operation | string,
     options?: PollingOptions,
-  ): Promise<Operation<T>> {
+  ): Promise<Operation> {
     return this.server.waitForOperation(opOrId, options);
   }
 

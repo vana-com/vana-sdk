@@ -2,7 +2,8 @@
 
 import "@getpara/react-sdk/styles.css";
 
-import React, { ReactNode } from "react";
+import type { ReactNode } from "react";
+import React from "react";
 import {
   ParaProvider as ParaProviderBase,
   Environment,
@@ -13,7 +14,7 @@ import {
 } from "@opendatalabs/vana-sdk/browser";
 
 const PARA_API_KEY =
-  process.env.NEXT_PUBLIC_PARA_KEY || "f78f3c305f0f27e9d7b8bd28fbb456db";
+  process.env.NEXT_PUBLIC_PARA_KEY ?? "f78f3c305f0f27e9d7b8bd28fbb456db";
 
 export const ParaProvider: React.FC<{ children: ReactNode }> = ({
   children,
@@ -36,7 +37,7 @@ export const ParaProvider: React.FC<{ children: ReactNode }> = ({
         },
         walletConnect: {
           projectId:
-            process.env.NEXT_PUBLIC_REOWN_PROJECT ||
+            process.env.NEXT_PUBLIC_REOWN_PROJECT ??
             "6210bc10b6ce68f0d583d322842cc313",
         },
       }}

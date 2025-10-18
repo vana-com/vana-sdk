@@ -11,11 +11,17 @@ export async function GET(request: NextRequest) {
     const error = searchParams.get("error");
 
     if (error) {
-      return NextResponse.json({ error: `OAuth denied: ${error}` }, { status: 400 });
+      return NextResponse.json(
+        { error: `OAuth denied: ${error}` },
+        { status: 400 },
+      );
     }
 
     if (!authorizationCode) {
-      return NextResponse.json({ error: "OAuth missing authorization code" }, { status: 400 });
+      return NextResponse.json(
+        { error: "OAuth missing authorization code" },
+        { status: 400 },
+      );
     }
 
     const clientId = process.env.DROPBOX_CLIENT_ID;
@@ -25,7 +31,10 @@ export async function GET(request: NextRequest) {
       `${request.nextUrl.origin}/api/auth/dropbox/callback`;
 
     if (!clientId || !clientSecret) {
-      return NextResponse.json({ error: "Dropbox credentials not configured" }, { status: 500 });
+      return NextResponse.json(
+        { error: "Dropbox credentials not configured" },
+        { status: 500 },
+      );
     }
 
     const tokenResponse = await fetch("https://api.dropbox.com/oauth2/token", {
@@ -45,7 +54,10 @@ export async function GET(request: NextRequest) {
     if (!tokenResponse.ok) {
       const errorData = await tokenResponse.text();
       console.error("Dropbox token exchange failed:", errorData);
-      return NextResponse.json({ error: "Dropbox token exchange failed" }, { status: 500 });
+      return NextResponse.json(
+        { error: "Dropbox token exchange failed" },
+        { status: 500 },
+      );
     }
 
     const tokenData = await tokenResponse.json();
@@ -60,10 +72,10 @@ export async function GET(request: NextRequest) {
       <body>
         <script>
           const tokens = ${JSON.stringify({
-      accessToken: tokenData.access_token,
-      refreshToken: tokenData.refresh_token,
-      expiresAt,
-    })};
+            accessToken: tokenData.access_token,
+            refreshToken: tokenData.refresh_token,
+            expiresAt,
+          })};
           
           if (window.opener) {
             window.opener.postMessage({ type: 'DROPBOX_AUTH_SUCCESS', tokens }, '*');
@@ -80,6 +92,9 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Dropbox OAuth callback error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

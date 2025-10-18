@@ -12,7 +12,7 @@ import {
   Code,
   addToast,
 } from "@heroui/react";
-import type { TransactionOptions } from "@opendatalabs/vana-sdk/browser";
+import type { TransactionOptions } from "@opendatalabs/vana-sdk/types/operations";
 
 /**
  * Demonstrates how to use transaction options with the Vana SDK.

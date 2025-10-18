@@ -206,9 +206,20 @@ export type {
 export type {
   PostRequestParams,
   CreateOperationParams,
+  DownloadArtifactParams,
   InitPersonalServerParams,
   PersonalServerIdentity,
 } from "./personal";
+
+// Operations types
+export type {
+  Operation,
+  Artifact,
+  PollingOptions,
+  TransactionResult,
+  TransactionReceipt as OperationTransactionReceipt,
+  TransactionWaitOptions,
+} from "./operations";
 
 // Server API types (auto-generated via fetch-server-types.ts)
 export type * from "../generated/server/server-exports";
@@ -271,13 +282,6 @@ export type {
   GasEstimate,
   TimeRange,
 } from "./utils";
-
-// Operation types
-export type {
-  TransactionOptions,
-  TransactionReceipt,
-  TransactionResult,
-} from "./operations";
 
 // Operation store types
 export type {

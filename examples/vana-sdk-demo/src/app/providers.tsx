@@ -12,6 +12,7 @@ import { mokshaTestnet, vanaMainnet } from "@opendatalabs/vana-sdk/browser";
 import "@rainbow-me/rainbowkit/styles.css";
 import { HeroUIProvider, ToastProvider } from "@heroui/react";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
+import { ParaProvider } from "../providers/ParaProvider";
 
 // Configure wagmi with SSR support
 const config = getDefaultConfig({
@@ -24,6 +25,17 @@ const config = getDefaultConfig({
 
 const queryClient = new QueryClient();
 
+// Rainbow provider wrapper
+function RainbowProvider({ children }: { children: React.ReactNode }) {
+  return (
+    <WagmiProvider config={config}>
+      <QueryClientProvider client={queryClient}>
+        <RainbowKitProvider theme={darkTheme()}>{children}</RainbowKitProvider>
+      </QueryClientProvider>
+    </WagmiProvider>
+  );
+}
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
 
@@ -35,22 +47,25 @@ export function Providers({ children }: { children: React.ReactNode }) {
     return null;
   }
 
+  // Determine which wallet provider to use
+  const useRainbow =
+    process.env.NEXT_PUBLIC_WALLET_PROVIDER === "rainbow" ||
+    !process.env.NEXT_PUBLIC_WALLET_PROVIDER;
+  const WalletProvider = useRainbow ? RainbowProvider : ParaProvider;
+
   return (
-    <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>
-        <NextThemesProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-        >
-          <HeroUIProvider>
-            <ToastProvider placement="bottom-right" />
-            <RainbowKitProvider theme={darkTheme()}>
-              {children}
-            </RainbowKitProvider>
-          </HeroUIProvider>
-        </NextThemesProvider>
-      </QueryClientProvider>
-    </WagmiProvider>
+    <NextThemesProvider attribute="class" defaultTheme="system" enableSystem>
+      <HeroUIProvider>
+        <ToastProvider placement="bottom-right" />
+        {useRainbow ? (
+          <WalletProvider>{children}</WalletProvider>
+        ) : (
+          // Para needs external QueryClientProvider
+          <QueryClientProvider client={queryClient}>
+            <WalletProvider>{children}</WalletProvider>
+          </QueryClientProvider>
+        )}
+      </HeroUIProvider>
+    </NextThemesProvider>
   );
 }

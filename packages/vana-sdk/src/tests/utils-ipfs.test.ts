@@ -110,7 +110,7 @@ describe("IPFS Utilities", () => {
   });
 
   describe("DEFAULT_IPFS_GATEWAY", () => {
-    it("should be set to ipfs.io gateway", () => {
+    it("should be set to dweb.link gateway", () => {
       expect(DEFAULT_IPFS_GATEWAY).toBe("https://dweb.link/ipfs/");
     });
   });

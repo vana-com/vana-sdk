@@ -1,10 +1,10 @@
 // Vana Personal Server API Types
 // Generated automatically from OpenAPI specification - do not edit manually
-// Source: https://raw.githubusercontent.com/vana-com/vana-personal-server/main/openapi.yaml
-// Generated on: 2025-08-28T03:43:46.312Z
+// Source: https://vana-personal-server-test-432753364585.europe-west1.run.app/openapi.json
+// Generated on: 2025-10-16T03:35:12.349Z
 
 export interface paths {
-  "/operations": {
+  "/api/v1/operations": {
     parameters: {
       query?: never;
       header?: never;
@@ -14,270 +14,17 @@ export interface paths {
     get?: never;
     put?: never;
     /**
-     * Start an operation (asynchronous)
-     * @description Creates a new operation with the provided request data and signature.
-     *
-     *     **How it works:**
-     *     1. The `permission_id` in the request references a blockchain permission
-     *     2. The permission contains a link to a grant file (stored on IPFS)
-     *     3. The grant file defines the operation type and parameters
-     *     4. The grant file is cryptographically signed by the grantee
-     *
-     *     **Grant File Examples:**
-     *
-     *     *LLM Inference with JSON mode:*
-     *     ```json
-     *     {
-     *       "grantee": "0x123...",
-     *       "operation": "llm_inference",
-     *       "parameters": {
-     *         "prompt": "Analyze this data: {{data}}",
-     *         "response_format": {"type": "json_object"}
-     *       }
-     *     }
-     *     ```
-     *
-     *     *LLM Inference with text mode (default):*
-     *     ```json
-     *     {
-     *       "grantee": "0x123...",
-     *       "operation": "llm_inference",
-     *       "parameters": {
-     *         "prompt": "Summarize this content: {{data}}"
-     *       }
-     *     }
-     *     ```
-     *
-     *     **Possible Errors:**
-     *     - `400 VALIDATION_ERROR`: Invalid request format or missing required fields
-     *     - `400 VALIDATION_ERROR_PERMISSION_ID`: Invalid or missing permission ID
-     *     - `400 VALIDATION_ERROR_OPERATION_REQUEST_JSON`: Invalid JSON format in operation request
-     *     - `400 GRANT_VALIDATION_ERROR`: Grant validation failed
-     *     - `401 AUTHENTICATION_ERROR`: Invalid signature or unable to recover app address
-     *     - `404 NOT_FOUND_ERROR`: Permission, file, or grant not found
-     *     - `500 BLOCKCHAIN_ERROR`: Blockchain communication failed
-     *     - `500 FILE_ACCESS_ERROR`: Failed to access or download files
-     *     - `500 DECRYPTION_ERROR`: Failed to decrypt file content
-     *     - `500 COMPUTE_ERROR`: Compute operation failed
-     *     - `500 OPERATION_ERROR`: General operation processing error
-     *     - `500 INTERNAL_SERVER_ERROR`: Unexpected server error
-     *
+     * Create a new operation
+     * @description Submit a new operation for asynchronous processing. Operations are validated against blockchain permissions before execution. The operation type (LLM inference, vector search, etc.) and parameters are determined by the grant file referenced in the blockchain permission.
      */
-    post: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path?: never;
-        cookie?: never;
-      };
-      requestBody: {
-        content: {
-          "application/json": components["schemas"]["CreateOperationRequest"];
-        };
-      };
-      responses: {
-        /** @description Accepted — operation handle returned. */
-        202: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["CreateOperationResponse"];
-          };
-        };
-        /** @description Validation or grant validation error */
-        400: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json":
-              | components["schemas"]["ValidationErrorResponse"]
-              | components["schemas"]["GrantValidationErrorResponse"];
-          };
-        };
-        /** @description Authentication error (invalid signature) */
-        401: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["AuthenticationErrorResponse"];
-          };
-        };
-        /** @description Resource not found (permission, file, or grant) */
-        404: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["NotFoundErrorResponse"];
-          };
-        };
-        /** @description Server error during operation processing */
-        500: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json":
-              | components["schemas"]["BlockchainErrorResponse"]
-              | components["schemas"]["FileAccessErrorResponse"]
-              | components["schemas"]["DecryptionErrorResponse"]
-              | components["schemas"]["ComputeErrorResponse"]
-              | components["schemas"]["OperationErrorResponse"]
-              | components["schemas"]["InternalServerErrorResponse"];
-          };
-        };
-      };
-    };
+    post: operations["create_operation_api_v1_operations_post"];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/operations/{operation_id}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description The operation ID */
-        operation_id: components["parameters"]["OpId"];
-      };
-      cookie?: never;
-    };
-    /**
-     * Poll operation status / result
-     * @description Retrieves the current status and result of an operation.
-     *
-     *     **Possible Errors:**
-     *     - `404 NOT_FOUND_ERROR`: Operation not found
-     *     - `500 COMPUTE_ERROR`: Failed to get prediction status
-     *     - `500 INTERNAL_SERVER_ERROR`: Unexpected server error
-     *
-     */
-    get: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path: {
-          /** @description The operation ID */
-          operation_id: components["parameters"]["OpId"];
-        };
-        cookie?: never;
-      };
-      requestBody?: never;
-      responses: {
-        /** @description Operation status retrieved successfully */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["GetOperationResponse"];
-          };
-        };
-        /** @description Operation not found */
-        404: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["NotFoundErrorResponse"];
-          };
-        };
-        /** @description Server error during status retrieval */
-        500: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json":
-              | components["schemas"]["ComputeErrorResponse"]
-              | components["schemas"]["InternalServerErrorResponse"];
-          };
-        };
-      };
-    };
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/operations/{operation_id}/cancel": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description The operation ID */
-        operation_id: components["parameters"]["OpId"];
-      };
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /**
-     * Cancel a running operation
-     * @description Cancels a running operation.
-     *
-     *     **Possible Errors:**
-     *     - `404 NOT_FOUND_ERROR`: Operation not found
-     *     - `500 COMPUTE_ERROR`: Failed to cancel prediction
-     *     - `500 INTERNAL_SERVER_ERROR`: Unexpected server error
-     *
-     */
-    post: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path: {
-          /** @description The operation ID */
-          operation_id: components["parameters"]["OpId"];
-        };
-        cookie?: never;
-      };
-      requestBody?: never;
-      responses: {
-        /** @description Operation cancelled or already finished */
-        204: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content?: never;
-        };
-        /** @description Operation not found */
-        404: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["NotFoundErrorResponse"];
-          };
-        };
-        /** @description Server error during cancellation */
-        500: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json":
-              | components["schemas"]["ComputeErrorResponse"]
-              | components["schemas"]["InternalServerErrorResponse"];
-          };
-        };
-      };
-    };
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/identity": {
+  "/api/v1/operations/{operation_id}": {
     parameters: {
       query?: never;
       header?: never;
@@ -285,60 +32,92 @@ export interface paths {
       cookie?: never;
     };
     /**
-     * Derive deterministic server identity for a user
-     * @description Derives a deterministic server identity (address and public key) for a user based on their Ethereum address.
-     *
-     *     **Possible Errors:**
-     *     - `400 VALIDATION_ERROR_USER_ADDRESS`: Invalid user address format
-     *     - `500 OPERATION_ERROR`: Address derivation failed
-     *     - `500 INTERNAL_SERVER_ERROR`: Unexpected server error
-     *
+     * Get operation status
+     * @description Retrieve the current status and result of an operation. Poll this endpoint to track operation progress from 'starting' through 'processing' to terminal states ('succeeded', 'failed', 'canceled').
      */
-    get: {
-      parameters: {
-        query: {
-          /** @description Caller's wallet address (EIP-55). */
-          address: components["schemas"]["EthereumAddress"];
-        };
-        header?: never;
-        path?: never;
-        cookie?: never;
-      };
-      requestBody?: never;
-      responses: {
-        /** @description Server identity retrieved successfully */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["IdentityResponseModel"];
-          };
-        };
-        /** @description Invalid address format */
-        400: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["ValidationErrorResponse"];
-          };
-        };
-        /** @description Server error during identity derivation */
-        500: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json":
-              | components["schemas"]["OperationErrorResponse"]
-              | components["schemas"]["InternalServerErrorResponse"];
-          };
-        };
-      };
-    };
+    get: operations["get_operation_api_v1_operations__operation_id__get"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operations/{operation_id}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Cancel an operation
+     * @description Cancel a running operation. Only operations in 'starting' or 'processing' states can be canceled. Completed operations cannot be canceled.
+     */
+    post: operations["cancel_operation_api_v1_operations__operation_id__cancel_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/identity": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get user identity
+     * @description Retrieve identity information for a user including their personal server details. The personal server address and public key are deterministically derived from the user's address.
+     */
+    get: operations["get_identity_api_v1_identity_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/artifacts/download": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Download operation artifact
+     * @description Download an artifact file produced by an operation. Requires ECDSA signature authentication - the grantee (app) that created the operation must sign the download request.
+     */
+    post: operations["download_artifact_api_v1_artifacts_download_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/artifacts/{operation_id}/list": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * List operation artifacts
+     * @description List all artifacts produced by an operation. Requires ECDSA signature authentication from the grantee (app) that created the operation.
+     */
+    post: operations["list_artifacts_api_v1_artifacts__operation_id__list_post"];
     delete?: never;
     options?: never;
     head?: never;
@@ -350,222 +129,784 @@ export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
     /**
-     * @description EIP-55 checksum address, 20 bytes, 0x-prefixed.
-     * @example 0xf0ebD65BEaDacD191dc96D8EC69bbA4ABCf621D4
+     * ArtifactDownloadRequest
+     * @description Request model for authenticated artifact downloads.
+     * @example {
+     *       "artifact_path": "outputs/result.json",
+     *       "operation_id": "cm4xp9qkw0001qj0g8xqg8xqg",
+     *       "signature": "0x3cffa64411a02d4a257663848df70fd445f513edcbb78a2e94495af45987e2de6144efdafd37a3d2b95e4e535c4a84fbcfb088d8052d435c382e7ca9a5ac57801c"
+     *     }
      */
-    EthereumAddress: string;
+    ArtifactDownloadRequest: {
+      /**
+       * Operation Id
+       * @description Unique operation identifier
+       * @example cm4xp9qkw0001qj0g8xqg8xqg
+       */
+      operation_id: string;
+      /**
+       * Artifact Path
+       * @description Path to the artifact file to download
+       * @example outputs/result.json
+       */
+      artifact_path: string;
+      /**
+       * Signature
+       * @description Ethereum signature of the request for authentication
+       * @example 0x3cffa64411a02d4a257663848df70fd445f513edcbb78a2e94495af45987e2de6144efdafd37a3d2b95e4e535c4a84fbcfb088d8052d435c382e7ca9a5ac57801c
+       */
+      signature: string;
+    };
     /**
-     * @description Uncompressed secp256k1 public key, 128 hex characters.
-     * @example 0x04bcdf3e…
+     * ArtifactInfo
+     * @description Information about a single artifact file.
      */
-    PublicKey: string;
+    ArtifactInfo: {
+      /**
+       * Path
+       * @description Relative path to the artifact file
+       * @example outputs/analysis.json
+       */
+      path: string;
+      /**
+       * Size
+       * @description File size in bytes
+       * @example 4096
+       */
+      size: number;
+      /**
+       * Content Type
+       * @description MIME type of the artifact
+       * @example application/json
+       */
+      content_type: string;
+    };
+    /**
+     * ArtifactListRequest
+     * @description Request model for listing artifacts (no artifact_path needed).
+     * @example {
+     *       "operation_id": "cm4xp9qkw0001qj0g8xqg8xqg",
+     *       "signature": "0x3cffa64411a02d4a257663848df70fd445f513edcbb78a2e94495af45987e2de6144efdafd37a3d2b95e4e535c4a84fbcfb088d8052d435c382e7ca9a5ac57801c"
+     *     }
+     */
+    ArtifactListRequest: {
+      /**
+       * Operation Id
+       * @description Unique operation identifier
+       * @example cm4xp9qkw0001qj0g8xqg8xqg
+       */
+      operation_id: string;
+      /**
+       * Signature
+       * @description Ethereum signature of the request for authentication
+       * @example 0x3cffa64411a02d4a257663848df70fd445f513edcbb78a2e94495af45987e2de6144efdafd37a3d2b95e4e535c4a84fbcfb088d8052d435c382e7ca9a5ac57801c
+       */
+      signature: string;
+    };
+    /**
+     * ArtifactListResponse
+     * @description Response containing list of available artifacts for an operation.
+     * @example {
+     *       "artifacts": [
+     *         {
+     *           "content_type": "application/json",
+     *           "path": "outputs/analysis.json",
+     *           "size": 4096
+     *         },
+     *         {
+     *           "content_type": "text/markdown",
+     *           "path": "outputs/report.md",
+     *           "size": 2048
+     *         }
+     *       ],
+     *       "kind": "ArtifactList",
+     *       "operation_id": "cm4xp9qkw0001qj0g8xqg8xqg"
+     *     }
+     */
+    ArtifactListResponse: {
+      /**
+       * Kind
+       * @description Resource type identifier for response routing
+       * @default ArtifactList
+       * @example ArtifactList
+       * @constant
+       */
+      kind: "ArtifactList";
+      /**
+       * Operation Id
+       * @description Unique operation identifier
+       * @example cm4xp9qkw0001qj0g8xqg8xqg
+       */
+      operation_id: string;
+      /**
+       * Artifacts
+       * @description List of available artifacts for this operation
+       * @default []
+       */
+      artifacts: components["schemas"]["ArtifactInfo"][];
+    };
+    /**
+     * CreateOperationRequest
+     * @description Request payload for creating a new operation.
+     * @example {
+     *       "app_signature": "0x3cffa64411a02d4a257663848df70fd445f513edcbb78a2e94495af45987e2de6144efdafd37a3d2b95e4e535c4a84fbcfb088d8052d435c382e7ca9a5ac57801c",
+     *       "operation_request_json": "{\"permission_id\": 1024}"
+     *     }
+     */
     CreateOperationRequest: {
       /**
-       * @description The signature over the operation_request_json
+       * App Signature
+       * @description ECDSA signature over operation_request_json using app's private key. Must be hex-encoded with 0x prefix (132 chars total)
        * @example 0x3cffa64411a02d4a257663848df70fd445f513edcbb78a2e94495af45987e2de6144efdafd37a3d2b95e4e535c4a84fbcfb088d8052d435c382e7ca9a5ac57801c
        */
       app_signature: string;
       /**
-       * @description The request JSON which contains permission_id.
-       *     The operation type and parameters are defined in the grant file
-       *     referenced by the blockchain permission.
-       *
-       * @example {"permission_id": 1024}
+       * Operation Request Json
+       * @description JSON-encoded operation request. Must contain permission_id. Can optionally include operation (for verification) and parameters (runtime values). Runtime parameters are merged with grant parameters (grant takes precedence).
+       * @example {"permission_id": 1024, "parameters": {"goal": "analyze trends"}}
        */
       operation_request_json: string;
     };
+    /**
+     * CreateOperationResponse
+     * @description Response after successfully creating an operation.
+     * @example {
+     *       "created_at": "2024-01-01T00:00:00Z",
+     *       "id": "cm4xp9qkw0001qj0g8xqg8xqg",
+     *       "kind": "OperationCreated"
+     *     }
+     */
     CreateOperationResponse: {
       /**
-       * @description Resource type identifier
+       * Kind
+       * @description Resource type identifier for response routing
        * @default OperationCreated
        * @example OperationCreated
+       * @constant
        */
-      kind: string;
+      kind: "OperationCreated";
       /**
-       * @description The operation ID for tracking the computation
-       * @example test-prediction-id-123
+       * Id
+       * @description Unique operation identifier for tracking and status queries
+       * @example cm4xp9qkw0001qj0g8xqg8xqg
        */
       id: string;
       /**
-       * Format: date-time
-       * @description The timestamp when the operation was created
+       * Created At
+       * @description ISO 8601 timestamp when operation was created
        * @example 2024-01-01T00:00:00Z
        */
       created_at: string;
     };
-    GetOperationResponse: {
-      /**
-       * @description Resource type identifier
-       * @default OperationStatus
-       * @example OperationStatus
-       */
-      kind: string;
-      /**
-       * @description The operation ID
-       * @example test-prediction-id-123
-       */
-      id: string;
-      /**
-       * @description The status of the operation
-       * @enum {string}
-       */
-      status: "pending" | "running" | "succeeded" | "failed" | "cancelled";
-      /**
-       * Format: date-time
-       * @description Optional timestamp when the operation started
-       * @example 2024-01-01T00:00:00Z
-       */
-      started_at?: string | null;
-      /**
-       * Format: date-time
-       * @description Optional timestamp when the operation finished
-       * @example 2024-01-01T00:00:00Z
-       */
-      finished_at?: string | null;
-      /** @description Optional result data if operation completed successfully */
-      result?: string | null;
-    };
-    PersonalServerModel: {
-      /**
-       * @description Resource type identifier
-       * @default PersonalServer
-       * @example PersonalServer
-       */
-      kind: string;
-      address: components["schemas"]["EthereumAddress"];
-      public_key: components["schemas"]["PublicKey"];
-    };
-    IdentityResponseModel: {
-      /**
-       * @description Resource type identifier
-       * @default Identity
-       * @example Identity
-       */
-      kind: string;
-      user_address: components["schemas"]["EthereumAddress"];
-      personal_server: components["schemas"]["PersonalServerModel"];
-    };
+    /**
+     * ErrorResponse
+     * @description Standardized error response format.
+     * @example {
+     *       "detail": "Signature verification failed",
+     *       "error_code": "INVALID_SIGNATURE",
+     *       "field": "app_signature",
+     *       "hint": "Ensure signature is hex-encoded with 0x prefix",
+     *       "kind": "Error"
+     *     }
+     */
     ErrorResponse: {
       /**
-       * @description Resource type identifier
+       * Kind
+       * @description Resource type identifier for error responses
        * @default Error
        * @example Error
+       * @constant
        */
-      kind: string;
+      kind: "Error";
       /**
-       * @description Human-readable error message
-       * @example Operation not found
+       * Detail
+       * @description Human-readable error message explaining what went wrong
+       * @example Signature verification failed
        */
       detail: string;
       /**
-       * @description Machine-readable error code
-       * @example NOT_FOUND_ERROR
+       * Error Code
+       * @description Machine-readable error code for programmatic handling. Common codes: INVALID_SIGNATURE, PERMISSION_DENIED, NOT_FOUND, RATE_LIMIT_EXCEEDED, INTERNAL_SERVER_ERROR
+       * @example INVALID_SIGNATURE
        */
       error_code: string;
       /**
-       * @description Field name when error is related to a specific input field
-       * @example permission_id
+       * Field
+       * @description Specific field that caused the error, if applicable
+       * @example app_signature
        */
       field?: string | null;
     };
-    /** @description Response format specification for LLM operations */
-    ResponseFormat: {
+    /**
+     * GetOperationResponse
+     * @description Operation status and result information.
+     * @example {
+     *       "finished_at": "2024-01-01T00:00:05Z",
+     *       "id": "cm4xp9qkw0001qj0g8xqg8xqg",
+     *       "kind": "OperationStatus",
+     *       "result": {
+     *         "output": "The analysis of your data indicates positive trends..."
+     *       },
+     *       "started_at": "2024-01-01T00:00:01Z",
+     *       "status": "succeeded"
+     *     }
+     */
+    GetOperationResponse: {
       /**
-       * @description The response format type
-       * @example json_object
+       * Kind
+       * @description Resource type identifier for response routing
+       * @default OperationStatus
+       * @example OperationStatus
+       * @constant
+       */
+      kind: "OperationStatus";
+      /**
+       * Id
+       * @description Unique operation identifier
+       * @example cm4xp9qkw0001qj0g8xqg8xqg
+       */
+      id: string;
+      /**
+       * Status
+       * @description Current operation status. Transitions: starting → processing → (succeeded|failed|canceled)
+       * @example processing
        * @enum {string}
        */
-      type: "text" | "json_object";
-    };
-    BaseGrantFile: {
-      grantee: components["schemas"]["EthereumAddress"];
-      /** @description The type of operation to perform */
-      operation: string;
-      /** @description Operation-specific parameters */
-      parameters: Record<string, never>;
+      status: "starting" | "processing" | "succeeded" | "failed" | "canceled";
       /**
-       * @description Optional Unix timestamp when grant expires
-       * @example 1736467579
+       * Started At
+       * @description ISO 8601 timestamp when operation began processing
+       * @example 2024-01-01T00:00:01Z
        */
-      expires?: number;
-    };
-    LLMInferenceGrantFile: Omit<
-      components["schemas"]["BaseGrantFile"],
-      "operation"
-    > & {
+      started_at?: string | null;
       /**
-       * @example llm_inference
-       * @enum {string}
+       * Finished At
+       * @description ISO 8601 timestamp when operation completed (succeeded, failed, or canceled)
+       * @example 2024-01-01T00:00:05Z
        */
-      operation?: "llm_inference";
-      /** @description LLM inference parameters */
-      parameters?: {
-        /**
-         * @description The prompt template with {{data}} placeholder
-         * @example Analyze this data: {{data}}
-         */
-        prompt: string;
-        response_format?: components["schemas"]["ResponseFormat"];
-      } & {
+      finished_at?: string | null;
+      /**
+       * Result
+       * @description Operation result data as a dictionary. Format depends on operation type. For LLM inference: {'output': 'generated text'} or parsed JSON object. For JSON mode: parsed JSON object structure.
+       * @example {
+       *       "output": "The analysis of your data indicates positive trends in engagement metrics..."
+       *     }
+       */
+      result?: {
         [key: string]: unknown;
-      };
-    } & {
-      /**
-       * @description discriminator enum property added by openapi-typescript
-       * @enum {string}
-       */
-      operation: "LLMInferenceGrantFile";
-    } & {
-      /**
-       * @description discriminator enum property added by openapi-typescript
-       * @enum {string}
-       */
-      operation: "llm_inference";
+      } | null;
     };
-    /** @description Grant file structure that defines the operation and its parameters.
-     *     The grant file is cryptographically signed and contains the user's intent.
-     *
-     *     **Currently Supported Operations:**
-     *     - `llm_inference`: Large Language Model inference with optional JSON mode
-     *
-     *     **Future Operations:**
-     *     Additional operation types will be added as the platform expands.
-     *
-     *     **JSON Mode (LLM only):**
-     *     When `response_format.type` is `json_object`, the LLM will output valid JSON.
-     *      */
-    GrantFile: components["schemas"]["LLMInferenceGrantFile"];
-    ValidationErrorResponse: components["schemas"]["ErrorResponse"] &
-      Record<string, never>;
-    AuthenticationErrorResponse: components["schemas"]["ErrorResponse"] &
-      Record<string, never>;
-    AuthorizationErrorResponse: components["schemas"]["ErrorResponse"] &
-      Record<string, never>;
-    NotFoundErrorResponse: components["schemas"]["ErrorResponse"] &
-      Record<string, never>;
-    BlockchainErrorResponse: components["schemas"]["ErrorResponse"] &
-      Record<string, never>;
-    FileAccessErrorResponse: components["schemas"]["ErrorResponse"] &
-      Record<string, never>;
-    ComputeErrorResponse: components["schemas"]["ErrorResponse"] &
-      Record<string, never>;
-    DecryptionErrorResponse: components["schemas"]["ErrorResponse"] &
-      Record<string, never>;
-    GrantValidationErrorResponse: components["schemas"]["ErrorResponse"] &
-      Record<string, never>;
-    OperationErrorResponse: components["schemas"]["ErrorResponse"] &
-      Record<string, never>;
-    InternalServerErrorResponse: components["schemas"]["ErrorResponse"] &
-      Record<string, never>;
+    /** HTTPValidationError */
+    HTTPValidationError: {
+      /** Detail */
+      detail?: components["schemas"]["ValidationError"][];
+    };
+    /**
+     * IdentityResponseModel
+     * @description Identity response containing user and personal server information.
+     * @example {
+     *       "kind": "Identity",
+     *       "personal_server": {
+     *         "address": "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+     *         "kind": "PersonalServer",
+     *         "public_key": "0x04bcdf3e094f5c9a7819baedfabe81c235b8e6c8a5b26b62a98fa685deaac1e488090fa3c6b2667c1bf3a6e593bc0fb3e670f78a72e9fe0b1c40e2f9dda957f61a"
+     *       },
+     *       "user_address": "0xf0ebD65BEaDacD191dc96D8EC69bbA4ABCf621D4"
+     *     }
+     */
+    IdentityResponseModel: {
+      /**
+       * Kind
+       * @description Resource type identifier for response routing
+       * @default Identity
+       * @example Identity
+       * @constant
+       */
+      kind: "Identity";
+      /**
+       * User Address
+       * @description User's EVM wallet address
+       * @example 0xf0ebD65BEaDacD191dc96D8EC69bbA4ABCf621D4
+       */
+      user_address: string;
+      /** @description Personal server details for this user */
+      personal_server: components["schemas"]["PersonalServerModel"];
+    };
+    /**
+     * PersonalServerModel
+     * @description Personal server identity information.
+     * @example {
+     *       "address": "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+     *       "kind": "PersonalServer",
+     *       "public_key": "0x04bcdf3e094f5c9a7819baedfabe81c235b8e6c8a5b26b62a98fa685deaac1e488090fa3c6b2667c1bf3a6e593bc0fb3e670f78a72e9fe0b1c40e2f9dda957f61a"
+     *     }
+     */
+    PersonalServerModel: {
+      /**
+       * Kind
+       * @description Resource type identifier for response routing
+       * @default PersonalServer
+       * @example PersonalServer
+       * @constant
+       */
+      kind: "PersonalServer";
+      /**
+       * Address
+       * @description Personal server's EVM wallet address
+       * @example 0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36
+       */
+      address: string;
+      /**
+       * Public Key
+       * @description Personal server's public key for encryption (SEC1 uncompressed format)
+       * @example 0x04bcdf3e094f5c9a7819baedfabe81c235b8e6c8a5b26b62a98fa685deaac1e488090fa3c6b2667c1bf3a6e593bc0fb3e670f78a72e9fe0b1c40e2f9dda957f61a
+       */
+      public_key: string;
+    };
+    /** ValidationError */
+    ValidationError: {
+      /** Location */
+      loc: (string | number)[];
+      /** Message */
+      msg: string;
+      /** Error Type */
+      type: string;
+    };
   };
   responses: never;
-  parameters: {
-    /** @description The operation ID */
-    OpId: string;
-  };
+  parameters: never;
   requestBodies: never;
   headers: never;
   pathItems: never;
 }
 export type $defs = Record<string, never>;
-export type operations = Record<string, never>;
+export interface operations {
+  create_operation_api_v1_operations_post: {
+    parameters: {
+      query?: never;
+      header?: {
+        "x-request-id"?: string | null;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateOperationRequest"];
+      };
+    };
+    responses: {
+      /** @description Operation accepted and queued for processing */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          /** @example {
+           *       "kind": "OperationCreated",
+           *       "id": "cm4xp9qkw0001qj0g8xqg8xqg",
+           *       "created_at": "2024-01-01T00:00:00Z"
+           *     } */
+          "application/json": components["schemas"]["CreateOperationResponse"];
+        };
+      };
+      /** @description Invalid request format or malformed JSON in operation_request_json */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Signature verification failed or invalid authentication */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description No valid blockchain permission for requested operation */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Referenced permission or grant file not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Rate limit exceeded - retry with exponential backoff */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Internal server error or backend service unavailable */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  get_operation_api_v1_operations__operation_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Unique operation identifier from create operation */
+        operation_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Operation status retrieved successfully */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          /** @example {
+           *       "kind": "OperationStatus",
+           *       "id": "cm4xp9qkw0001qj0g8xqg8xqg",
+           *       "status": "succeeded",
+           *       "started_at": "2024-01-01T00:00:01Z",
+           *       "finished_at": "2024-01-01T00:00:05Z",
+           *       "result": "The analysis indicates positive trends..."
+           *     } */
+          "application/json": components["schemas"]["GetOperationResponse"];
+        };
+      };
+      /** @description Operation not found - ID may be invalid or expired */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error retrieving operation status */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  cancel_operation_api_v1_operations__operation_id__cancel_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Unique operation identifier to cancel */
+        operation_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Operation canceled successfully */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Operation not found or already completed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Rate limit exceeded for cancellation requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Internal server error during cancellation */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  get_identity_api_v1_identity_get: {
+    parameters: {
+      query: {
+        /**
+         * @description User's EVM wallet address (EIP-55 checksum format)
+         * @example 0xf0ebD65BEaDacD191dc96D8EC69bbA4ABCf621D4
+         */
+        address: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Identity information retrieved successfully */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          /** @example {
+           *       "kind": "Identity",
+           *       "user_address": "0xf0ebD65BEaDacD191dc96D8EC69bbA4ABCf621D4",
+           *       "personal_server": {
+           *         "kind": "PersonalServer",
+           *         "address": "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+           *         "public_key": "0x04bcdf3e094f5c9a7819baedfabe81c235b8e6c8a5b26b62a98fa685deaac1e488090fa3c6b2667c1bf3a6e593bc0fb3e670f78a72e9fe0b1c40e2f9dda957f61a"
+           *       }
+           *     } */
+          "application/json": components["schemas"]["IdentityResponseModel"];
+        };
+      };
+      /** @description Invalid EVM address format */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Rate limit exceeded - retry with exponential backoff */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Internal server error during identity derivation */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  download_artifact_api_v1_artifacts_download_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ArtifactDownloadRequest"];
+      };
+    };
+    responses: {
+      /** @description Artifact file content with appropriate content type */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          /** @example {
+           *       "result": "analysis data"
+           *     } */
+          "application/json": unknown;
+          /** @example Text file content */
+          "text/plain": unknown;
+          /** @example # Report
+           *     Content here */
+          "text/markdown": unknown;
+        };
+      };
+      /** @description Signature verification failed or invalid authentication */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Access denied - not the authorized grantee for this operation */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Operation or artifact not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error retrieving artifact */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  list_artifacts_api_v1_artifacts__operation_id__list_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        operation_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ArtifactListRequest"];
+      };
+    };
+    responses: {
+      /** @description List of available artifacts retrieved successfully */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ArtifactListResponse"];
+        };
+      };
+      /** @description Signature verification failed or invalid authentication */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Access denied - not the authorized grantee for this operation */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Operation not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error retrieving artifact list */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+}

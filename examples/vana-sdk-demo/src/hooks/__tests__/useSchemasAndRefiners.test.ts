@@ -7,9 +7,53 @@ import {
   afterEach,
   type MockedFunction,
 } from "vitest";
-import { renderHook, act, waitFor } from "@testing-library/react";
+
+// Use vi.hoisted to define mock configuration before all imports
+const mocks = vi.hoisted(() => {
+  return {
+    createSDKConfigMock: () => ({
+      sdkConfig: {
+        relayerUrl: "http://localhost:3000",
+        subgraphUrl: "http://localhost:8000/subgraphs/name/vana",
+        rpcUrl: "",
+        pinataJwt: "",
+        pinataGateway: "https://gateway.pinata.cloud",
+        defaultStorageProvider: "app-ipfs",
+        googleDriveAccessToken: "",
+        googleDriveRefreshToken: "",
+        googleDriveExpiresAt: null,
+        dropboxAccessToken: "",
+        dropboxRefreshToken: "",
+        dropboxExpiresAt: null,
+        defaultPersonalServerUrl: "https://personal-server.example.com",
+        readOnlyAddress: "",
+      },
+      appConfig: {
+        useGaslessTransactions: true,
+        enableReadOnlyMode: false,
+      },
+      effectiveAddress: "0x123",
+      updateSdkConfig: vi.fn(),
+      updateAppConfig: vi.fn(),
+      handleGoogleDriveAuth: vi.fn(),
+      handleGoogleDriveDisconnect: vi.fn(),
+      handleDropboxAuth: vi.fn(),
+      handleDropboxDisconnect: vi.fn(),
+    }),
+  };
+});
+
+// Mock dependencies using the hoisted configuration
+vi.mock("wagmi");
+vi.mock("@/providers/VanaProvider");
+vi.mock("@/providers/SDKConfigProvider", () => ({
+  useSDKConfig: vi.fn(() => mocks.createSDKConfigMock()),
+}));
+
+import { renderHook, act } from "@testing-library/react";
 import { useAccount, type UseAccountReturnType } from "wagmi";
 import { useVana } from "@/providers/VanaProvider";
+import { useSDKConfig } from "@/providers/SDKConfigProvider";
 import { useSchemasAndRefiners } from "../useSchemasAndRefiners";
 import type {
   Schema,
@@ -19,10 +63,6 @@ import type {
   UpdateSchemaIdParams,
   VanaInstance,
 } from "@opendatalabs/vana-sdk/browser";
-
-// Mock dependencies
-vi.mock("wagmi");
-vi.mock("@/providers/VanaProvider");
 
 const useAccountMock = useAccount as MockedFunction<typeof useAccount>;
 const useVanaMock = useVana as MockedFunction<typeof useVana>;
@@ -100,7 +140,6 @@ describe("useSchemasAndRefiners", () => {
       isInitialized: true,
       error: null,
       applicationAddress: "0xapp123",
-      isReadOnly: false,
     });
 
     mockVana.schemas.count.mockResolvedValue(2);
@@ -119,10 +158,10 @@ describe("useSchemasAndRefiners", () => {
   });
 
   describe("initialization", () => {
-    it("returns default state when initialized", async () => {
+    it("returns default state when initialized", () => {
       const { result } = renderHook(() => useSchemasAndRefiners());
 
-      // Initially loading refiners should be true, but schemas loading is handled by page component
+      // Hook does not auto-load, all loading states should be false initially
       expect(result.current.schemas).toEqual([]);
       expect(result.current.isLoadingSchemas).toBe(false);
       expect(result.current.schemasCount).toBe(0);
@@ -134,7 +173,7 @@ describe("useSchemasAndRefiners", () => {
       expect(result.current.lastCreatedSchemaId).toBe(null);
 
       expect(result.current.refiners).toEqual([]);
-      expect(result.current.isLoadingRefiners).toBe(true);
+      expect(result.current.isLoadingRefiners).toBe(false);
       expect(result.current.refinersCount).toBe(0);
       expect(result.current.refinerName).toBe("");
       expect(result.current.refinerDlpId).toBe("");
@@ -148,36 +187,20 @@ describe("useSchemasAndRefiners", () => {
       expect(result.current.updateSchemaId).toBe("");
       expect(result.current.isUpdatingSchema).toBe(false);
       expect(result.current.updateSchemaStatus).toBe("");
-
-      // Wait for auto-loading to complete (only refiners and schema count, not schemas themselves)
-      await waitFor(() => {
-        expect(result.current.isLoadingRefiners).toBe(false);
-        expect(result.current.refiners).toHaveLength(2);
-        expect(result.current.schemasCount).toBe(2);
-      });
     });
 
-    it("loads schema count and refiners automatically when vana and address are available", async () => {
+    it("does not automatically load schemas or refiners on initialization", () => {
       const { result } = renderHook(() => useSchemasAndRefiners());
 
-      await waitFor(() => {
-        expect(result.current.schemasCount).toBe(2);
-        expect(result.current.refiners).toHaveLength(2);
-      });
-
-      // Should load schema count but not individual schemas
-      expect(mockVana.schemas.count).toHaveBeenCalled();
+      // The hook does not auto-load, must be triggered explicitly
+      expect(mockVana.schemas.count).not.toHaveBeenCalled();
       expect(mockVana.schemas.get).not.toHaveBeenCalled();
+      expect(mockVana.data.getRefinersCount).not.toHaveBeenCalled();
+      expect(mockVana.data.getRefiner).not.toHaveBeenCalled();
 
-      // Should still auto-load refiners
-      expect(mockVana.data.getRefinersCount).toHaveBeenCalled();
-      expect(mockVana.data.getRefiner).toHaveBeenCalledWith(1);
-      expect(mockVana.data.getRefiner).toHaveBeenCalledWith(2);
-      expect(result.current.refinersCount).toBe(2);
-      expect(result.current.refiners[0]).toEqual({
-        ...mockRefiners[0],
-        source: "discovered",
-      });
+      expect(result.current.schemasCount).toBe(0);
+      expect(result.current.refiners).toHaveLength(0);
+      expect(result.current.refinersCount).toBe(0);
     });
 
     it("does not load when vana is not available", () => {
@@ -186,7 +209,6 @@ describe("useSchemasAndRefiners", () => {
         isInitialized: false,
         error: null,
         applicationAddress: "",
-        isReadOnly: false,
       });
 
       renderHook(() => useSchemasAndRefiners());
@@ -281,16 +303,6 @@ describe("useSchemasAndRefiners", () => {
 
       const { result } = renderHook(() => useSchemasAndRefiners());
 
-      // Wait for auto-loading to complete first
-      await waitFor(() => {
-        expect(result.current.isLoadingSchemas).toBe(false);
-      });
-
-      // Clear mocks to count only the explicit call
-      vi.clearAllMocks();
-      mockVana.schemas.count.mockResolvedValue(15);
-      mockVana.schemas.list.mockResolvedValue(limitedSchemas);
-
       await act(async () => {
         await result.current.loadSchemas();
       });
@@ -308,7 +320,6 @@ describe("useSchemasAndRefiners", () => {
         isInitialized: false,
         error: null,
         applicationAddress: "",
-        isReadOnly: false,
       });
 
       const { result } = renderHook(() => useSchemasAndRefiners());
@@ -512,7 +523,6 @@ describe("useSchemasAndRefiners", () => {
         isInitialized: false,
         error: null,
         applicationAddress: "",
-        isReadOnly: false,
       });
 
       const { result } = renderHook(() => useSchemasAndRefiners());
@@ -789,6 +799,12 @@ describe("useSchemasAndRefiners", () => {
         isReconnecting: false,
         status: "disconnected",
       } as unknown as UseAccountReturnType);
+
+      // Also update the SDKConfigProvider mock to reflect disconnection
+      vi.mocked(useSDKConfig).mockReturnValue({
+        ...mocks.createSDKConfigMock(),
+        effectiveAddress: undefined as any,
+      });
 
       rerender();
 

@@ -77,6 +77,10 @@ vi.mock("../generated/abi", () => ({
   getAbi: vi.fn().mockReturnValue([]),
 }));
 
+vi.mock("../utils/download", () => ({
+  universalFetch: vi.fn(),
+}));
+
 describe("SchemaController", () => {
   let controller: SchemaController;
   let mockContext: ControllerContext;
@@ -796,6 +800,146 @@ describe("SchemaController", () => {
           definitionUrl: "https://example.com/schema.json",
         }),
       ).rejects.toThrow("Failed to add schema: Transaction failed");
+    });
+  });
+
+  describe("retrieveDefinition()", () => {
+    it("should fetch and format JSON content", async () => {
+      const { universalFetch } = await import("../utils/download");
+      vi.mocked(universalFetch).mockResolvedValueOnce({
+        ok: true,
+        text: () => Promise.resolve('{"name":"Test","version":"1.0.0"}'),
+      } as any);
+
+      const result = await controller.retrieveDefinition(
+        "ipfs://QmTestHash123",
+      );
+
+      expect(result).toBe(
+        JSON.stringify({ name: "Test", version: "1.0.0" }, null, 2),
+      );
+      expect(universalFetch).toHaveBeenCalledWith(
+        "ipfs://QmTestHash123",
+        mockContext.downloadRelayer,
+      );
+    });
+
+    it("should return non-JSON content as-is", async () => {
+      const { universalFetch } = await import("../utils/download");
+      vi.mocked(universalFetch).mockResolvedValueOnce({
+        ok: true,
+        text: () => Promise.resolve("Plain text content"),
+      } as any);
+
+      const result = await controller.retrieveDefinition(
+        "https://example.com/text.txt",
+      );
+
+      expect(result).toBe("Plain text content");
+    });
+
+    it("should handle HTTP errors", async () => {
+      const { universalFetch } = await import("../utils/download");
+      vi.mocked(universalFetch).mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+      } as any);
+
+      await expect(
+        controller.retrieveDefinition("https://example.com/missing.json"),
+      ).rejects.toThrow(
+        "Failed to retrieve schema definition: HTTP 404: Not Found",
+      );
+    });
+
+    it("should handle network errors", async () => {
+      const { universalFetch } = await import("../utils/download");
+      vi.mocked(universalFetch).mockRejectedValueOnce(
+        new Error("Network error"),
+      );
+
+      await expect(
+        controller.retrieveDefinition("https://example.com/schema.json"),
+      ).rejects.toThrow("Failed to retrieve schema definition: Network error");
+    });
+
+    it("should handle non-Error exceptions", async () => {
+      const { universalFetch } = await import("../utils/download");
+      vi.mocked(universalFetch).mockRejectedValueOnce("String error");
+
+      await expect(
+        controller.retrieveDefinition("https://example.com/schema.json"),
+      ).rejects.toThrow("Failed to retrieve schema definition: Unknown error");
+    });
+  });
+
+  describe("retrieveRefinementInstructions()", () => {
+    it("should fetch refinement instructions", async () => {
+      const { universalFetch } = await import("../utils/download");
+      vi.mocked(universalFetch).mockResolvedValueOnce({
+        ok: true,
+        text: () =>
+          Promise.resolve('{"instruction":"Process data","version":"1.0"}'),
+      } as any);
+
+      const result = await controller.retrieveRefinementInstructions(
+        "ipfs://QmInstructions",
+      );
+
+      expect(result).toBe(
+        JSON.stringify(
+          { instruction: "Process data", version: "1.0" },
+          null,
+          2,
+        ),
+      );
+      expect(universalFetch).toHaveBeenCalledWith(
+        "ipfs://QmInstructions",
+        mockContext.downloadRelayer,
+      );
+    });
+
+    it("should handle errors with appropriate message", async () => {
+      const { universalFetch } = await import("../utils/download");
+      vi.mocked(universalFetch).mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: "Internal Server Error",
+      } as any);
+
+      await expect(
+        controller.retrieveRefinementInstructions(
+          "https://example.com/instructions.json",
+        ),
+      ).rejects.toThrow(
+        "Failed to retrieve refinement instructions: HTTP 500: Internal Server Error",
+      );
+    });
+
+    it("should reuse retrieveDefinition logic", async () => {
+      // Spy on retrieveDefinition to verify it's called
+      const retrieveDefinitionSpy = vi.spyOn(controller, "retrieveDefinition");
+      retrieveDefinitionSpy.mockResolvedValueOnce("test content");
+
+      const result =
+        await controller.retrieveRefinementInstructions("ipfs://QmTest");
+
+      expect(result).toBe("test content");
+      expect(retrieveDefinitionSpy).toHaveBeenCalledWith("ipfs://QmTest");
+    });
+
+    it("should handle network errors", async () => {
+      const retrieveDefinitionSpy = vi.spyOn(controller, "retrieveDefinition");
+      retrieveDefinitionSpy.mockRejectedValueOnce(
+        new Error("Failed to retrieve schema definition: Network timeout"),
+      );
+
+      await expect(
+        controller.retrieveRefinementInstructions("ipfs://QmTest"),
+      ).rejects.toThrow(
+        "Failed to retrieve refinement instructions: Network timeout",
+      );
     });
   });
 

@@ -29,9 +29,24 @@ export async function POST(request: NextRequest) {
     );
 
     // Use the SDK's chain configuration approach
+    const defaultPersonalServerUrl =
+      process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL;
+    if (!defaultPersonalServerUrl) {
+      throw new Error(
+        "NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL environment variable is required",
+      );
+    }
+
     const vana = Vana({
       chainId,
       account: applicationAccount,
+      defaultPersonalServerUrl,
+    });
+
+    console.debug("🔍 [Poll] Polling operation:", {
+      operationId,
+      personalServerUrl: defaultPersonalServerUrl,
+      fullUrl: `${defaultPersonalServerUrl}/operations/${operationId}`,
     });
 
     // Poll the status

@@ -8,14 +8,20 @@ export async function POST(request: NextRequest) {
     const { refreshToken } = await request.json();
 
     if (!refreshToken) {
-      return NextResponse.json({ error: "Refresh token is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Refresh token is required" },
+        { status: 400 },
+      );
     }
 
     const clientId = process.env.DROPBOX_CLIENT_ID;
     const clientSecret = process.env.DROPBOX_CLIENT_SECRET;
 
     if (!clientId || !clientSecret) {
-      return NextResponse.json({ error: "Dropbox client credentials not configured" }, { status: 500 });
+      return NextResponse.json(
+        { error: "Dropbox client credentials not configured" },
+        { status: 500 },
+      );
     }
 
     const tokenResponse = await fetch("https://api.dropbox.com/oauth2/token", {
@@ -32,7 +38,10 @@ export async function POST(request: NextRequest) {
     if (!tokenResponse.ok) {
       const errorData = await tokenResponse.text();
       console.error("Dropbox token refresh failed:", errorData);
-      return NextResponse.json({ error: "Failed to refresh Dropbox token" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Failed to refresh Dropbox token" },
+        { status: 401 },
+      );
     }
 
     const tokenData = await tokenResponse.json();
@@ -45,6 +54,9 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Dropbox token refresh error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

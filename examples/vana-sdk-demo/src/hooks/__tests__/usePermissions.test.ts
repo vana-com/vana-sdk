@@ -7,9 +7,53 @@ import {
   afterEach,
   type MockedFunction,
 } from "vitest";
+
+// Use vi.hoisted to define mock configuration before all imports
+const mocks = vi.hoisted(() => {
+  return {
+    createSDKConfigMock: () => ({
+      sdkConfig: {
+        relayerUrl: "http://localhost:3000",
+        subgraphUrl: "http://localhost:8000/subgraphs/name/vana",
+        rpcUrl: "",
+        pinataJwt: "",
+        pinataGateway: "https://gateway.pinata.cloud",
+        defaultStorageProvider: "app-ipfs",
+        googleDriveAccessToken: "",
+        googleDriveRefreshToken: "",
+        googleDriveExpiresAt: null,
+        dropboxAccessToken: "",
+        dropboxRefreshToken: "",
+        dropboxExpiresAt: null,
+        defaultPersonalServerUrl: "https://personal-server.example.com",
+        readOnlyAddress: "",
+      },
+      appConfig: {
+        useGaslessTransactions: true,
+        enableReadOnlyMode: false,
+      },
+      effectiveAddress: "0x123",
+      updateSdkConfig: vi.fn(),
+      updateAppConfig: vi.fn(),
+      handleGoogleDriveAuth: vi.fn(),
+      handleGoogleDriveDisconnect: vi.fn(),
+      handleDropboxAuth: vi.fn(),
+      handleDropboxDisconnect: vi.fn(),
+    }),
+  };
+});
+
+// Mock dependencies using the hoisted configuration
+vi.mock("wagmi");
+vi.mock("@/providers/VanaProvider");
+vi.mock("@/providers/SDKConfigProvider", () => ({
+  useSDKConfig: vi.fn(() => mocks.createSDKConfigMock()),
+}));
+
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { useAccount } from "wagmi";
 import { useVana, type VanaContextValue } from "@/providers/VanaProvider";
+import { useSDKConfig } from "@/providers/SDKConfigProvider";
 import { usePermissions } from "../usePermissions";
 import {
   retrieveGrantFile,
@@ -22,10 +66,6 @@ import {
   createMockUseVana,
   createMockPermissions,
 } from "@/tests/mocks";
-
-// Mock dependencies
-vi.mock("wagmi");
-vi.mock("@/providers/VanaProvider");
 // Mock SDK explicitly for this test file - need to define the mock inline due to hoisting
 vi.mock("@opendatalabs/vana-sdk/browser", () => ({
   Vana: vi.fn(() => ({
@@ -116,12 +156,12 @@ describe("usePermissions", () => {
   });
 
   describe("initialization", () => {
-    it("returns default state when initialized", async () => {
+    it("returns default state when initialized", () => {
       const { result } = renderHook(() => usePermissions());
 
-      // Initially loading should be true since the hook auto-loads when vana and address are available
+      // Hook does not auto-load, so loading should be false initially
       expect(result.current.userPermissions).toEqual([]);
-      expect(result.current.isLoadingPermissions).toBe(true);
+      expect(result.current.isLoadingPermissions).toBe(false);
       expect(result.current.isGranting).toBe(false);
       expect(result.current.isRevoking).toBe(false);
       expect(result.current.grantStatus).toBe("");
@@ -132,27 +172,16 @@ describe("usePermissions", () => {
       expect(result.current.isLookingUpPermission).toBe(false);
       expect(result.current.permissionLookupStatus).toBe("");
       expect(result.current.lookedUpPermission).toBe(null);
-
-      // Wait for auto-loading to complete
-      await waitFor(() => {
-        expect(result.current.isLoadingPermissions).toBe(false);
-        expect(result.current.userPermissions).toHaveLength(2);
-      });
     });
 
-    it("loads user permissions automatically when vana and address are available", async () => {
+    it("does not automatically load permissions on initialization", () => {
       const { result } = renderHook(() => usePermissions());
 
-      await waitFor(() => {
-        expect(result.current.userPermissions).toHaveLength(2);
-      });
-
+      // The hook does not auto-load, permissions must be loaded explicitly
       expect(
         mockVana.permissions.getUserPermissionGrantsOnChain,
-      ).toHaveBeenCalledWith({
-        fetchAll: true,
-      });
-      expect(result.current.userPermissions).toEqual(mockPermissions);
+      ).not.toHaveBeenCalled();
+      expect(result.current.userPermissions).toEqual([]);
     });
 
     it("does not load permissions when vana is not available", () => {
@@ -420,11 +449,6 @@ describe("usePermissions", () => {
 
       const { result } = renderHook(() => usePermissions());
 
-      // Wait for auto-loading to complete and set up grant preview
-      await waitFor(() => {
-        expect(result.current.isLoadingPermissions).toBe(false);
-      });
-
       // Update the getUserPermissionGrantsOnChain mock to return the new permission after grant
       mockVana.permissions.getUserPermissionGrantsOnChain.mockResolvedValue([
         ...mockPermissions,
@@ -495,11 +519,6 @@ describe("usePermissions", () => {
 
       const { result } = renderHook(() => usePermissions());
 
-      // Wait for auto-loading to complete and set up grant preview
-      await waitFor(() => {
-        expect(result.current.isLoadingPermissions).toBe(false);
-      });
-
       act(() => {
         result.current.setGrantPreview({
           grantFile: null,
@@ -532,11 +551,6 @@ describe("usePermissions", () => {
       );
 
       const { result } = renderHook(() => usePermissions());
-
-      // Wait for auto-loading to complete and set up grant preview
-      await waitFor(() => {
-        expect(result.current.isLoadingPermissions).toBe(false);
-      });
 
       act(() => {
         result.current.setGrantPreview({
@@ -842,12 +856,18 @@ describe("usePermissions", () => {
         });
       });
 
-      // Simulate wallet disconnection
+      // Simulate wallet disconnection - need to update both mocks
       useAccountMock.mockReturnValue(
         createMockUseAccount({
           address: undefined,
         }),
       );
+
+      // Also update the SDKConfigProvider mock to reflect disconnection
+      vi.mocked(useSDKConfig).mockReturnValue({
+        ...mocks.createSDKConfigMock(),
+        effectiveAddress: undefined as any,
+      });
 
       rerender();
 

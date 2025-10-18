@@ -31,6 +31,13 @@ const nextConfig = {
       config.externals.push("pino-pretty", "lokijs", "encoding");
     }
 
+    // Exclude Para's optional dependencies (not needed for basic functionality)
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      "@getpara/cosmos-wallet-connectors": false,
+      "@farcaster/miniapp-sdk": false,
+    };
+
     return config;
   },
 };

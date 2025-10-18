@@ -12,6 +12,7 @@ import {
   Spinner,
   Pagination,
   type SortDescriptor,
+  useDisclosure,
 } from "@heroui/react";
 import {
   convertIpfsUrl,
@@ -21,6 +22,7 @@ import { Shield, ExternalLink, Eye, RefreshCw } from "lucide-react";
 import { PermissionDisplay } from "./ui/PermissionDisplay";
 import { CopyButton } from "./ui/CopyButton";
 import { FileIdDisplay } from "./ui/FileIdDisplay";
+import { ParameterDetailsModal } from "./ui/ParameterDetailsModal";
 import { useChainId } from "wagmi";
 
 interface PermissionsTableProps {
@@ -67,6 +69,13 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
   });
   const ITEMS_PER_PAGE = 10;
 
+  // Modal state for parameter details
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const [selectedParametersForModal, setSelectedParametersForModal] = useState<{
+    parameters: unknown;
+    permissionId: string | number;
+  } | null>(null);
+
   // Calculate sorted and paginated items
   const paginatedPermissions = useMemo(() => {
     const sortedPermissions = [...userPermissions];
@@ -107,31 +116,27 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
     onRevoke(permission.id.toString());
   };
 
-  const renderParameters = (parameters: unknown) => {
+  const renderParameters = (
+    parameters: unknown,
+    permissionId: string | number,
+  ) => {
     if (parameters === null) return "None";
 
-    const paramStr =
-      typeof parameters === "string"
-        ? parameters
-        : JSON.stringify(parameters, null, 2);
-
     return (
-      <Tooltip
-        content={
-          <pre className="text-xs max-w-sm max-h-40 overflow-auto">
-            {paramStr}
-          </pre>
-        }
-        placement="left"
+      <Button
+        size="sm"
+        variant="flat"
+        startContent={<Eye className="h-3 w-3" />}
+        onPress={() => {
+          setSelectedParametersForModal({
+            parameters,
+            permissionId,
+          });
+          onOpen();
+        }}
       >
-        <Button
-          size="sm"
-          variant="flat"
-          startContent={<Eye className="h-3 w-3" />}
-        >
-          View Details
-        </Button>
-      </Tooltip>
+        View Details
+      </Button>
     );
   };
 
@@ -274,7 +279,10 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
 
               <TableCell>
                 <div className="flex gap-2">
-                  {renderParameters(permission.parameters)}
+                  {renderParameters(
+                    permission.parameters,
+                    permission.id.toString(),
+                  )}
                   <Tooltip content="View grant file on IPFS">
                     <Button
                       as="a"
@@ -334,6 +342,19 @@ export const PermissionsTable: React.FC<PermissionsTableProps> = ({
             </span>
           )}
         </div>
+      )}
+
+      {/* Parameter Details Modal */}
+      {selectedParametersForModal && (
+        <ParameterDetailsModal
+          isOpen={isOpen}
+          onClose={() => {
+            onClose();
+            setSelectedParametersForModal(null);
+          }}
+          parameters={selectedParametersForModal.parameters}
+          permissionId={selectedParametersForModal.permissionId}
+        />
       )}
     </div>
   );

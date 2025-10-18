@@ -4,8 +4,9 @@ import {
   handleRelayerOperation,
   RedisAtomicStore,
   type UnifiedRelayerRequest,
-  mokshaTestnet,
   vanaMainnet,
+  mokshaTestnet,
+  PinataStorage,
 } from "@opendatalabs/vana-sdk/node";
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -14,7 +15,6 @@ import { RedisOperationStore } from "@/lib/operationStore";
 export async function POST(request: NextRequest) {
   try {
     // Read the chainId from the request body, along with the relay request
-    // Then pass the entire request body to the unified handler!
     const body: UnifiedRelayerRequest & { chainId?: number } =
       await request.json();
     const { chainId, ...relayerRequest } = body;
@@ -77,10 +77,43 @@ export async function POST(request: NextRequest) {
       transport: http(rpcUrl),
     });
 
+    console.info("🔍 [Relayer] WalletClient created:", {
+      hasAccount: !!walletClient.account,
+      hasChain: !!walletClient.chain,
+      chainId: walletClient.chain?.id,
+      chainName: walletClient.chain?.name,
+    });
+
+    // Configure storage for grant file uploads
+    const pinataJwt = process.env.PINATA_JWT;
+    const pinataGateway =
+      process.env.PINATA_GATEWAY ?? "https://gateway.pinata.cloud";
+
+    const storage = pinataJwt
+      ? {
+          providers: {
+            pinata: new PinataStorage({
+              jwt: pinataJwt,
+              gatewayUrl: pinataGateway,
+            }),
+          },
+          defaultProvider: "pinata",
+        }
+      : undefined;
+
+    if (storage) {
+      console.info("✅ [Relayer] Storage configured with Pinata");
+    } else {
+      console.warn(
+        "⚠️ [Relayer] No storage configured - grant file uploads will fail",
+      );
+    }
+
     const vana = Vana({
       walletClient,
       operationStore,
       atomicStore,
+      storage,
     });
 
     // The unified handler will automatically:

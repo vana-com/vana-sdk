@@ -5,11 +5,11 @@ import type {
   UnifiedRelayerResponse,
   DirectRelayerRequest,
 } from "../types/relayer";
+import type { TransactionResult } from "../types";
 import type {
-  TransactionResult,
   TransactionOptions,
   TransactionReceipt,
-} from "../types";
+} from "../types/operations";
 import type { OperationState } from "../types/operationStore";
 import type { Contract, Fn } from "../generated/event-types";
 import type {

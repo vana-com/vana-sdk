@@ -585,9 +585,12 @@ describe("VanaCore Extended Tests", () => {
         mockServerController.waitForOperation.mockResolvedValue(mockOperation);
 
         const operation = {
+          kind: "OperationStatus" as const,
           id: "op_123",
           status: "starting" as const,
-          createdAt: Date.now(),
+          started_at: new Date().toISOString(),
+          finished_at: null,
+          result: null,
         };
 
         const result = await vanaCore.waitForOperation(operation);
@@ -629,15 +632,13 @@ describe("VanaCore Extended Tests", () => {
         );
       });
 
-      it("should preserve type parameter for operation result", async () => {
-        interface CustomResult {
-          processedData: string;
-          metadata: { count: number };
-        }
-
+      it("should preserve type safety for operation result", async () => {
         const typedOperation = {
+          kind: "OperationStatus" as const,
           id: "op_456",
           status: "succeeded" as const,
+          started_at: new Date().toISOString(),
+          finished_at: new Date().toISOString(),
           result: {
             processedData: "test data",
             metadata: { count: 5 },
@@ -647,12 +648,15 @@ describe("VanaCore Extended Tests", () => {
         mockServerController.waitForOperation.mockResolvedValue(typedOperation);
 
         const operation = {
+          kind: "OperationStatus" as const,
           id: "op_456",
           status: "starting" as const,
-          createdAt: Date.now(),
+          started_at: new Date().toISOString(),
+          finished_at: null,
+          result: null,
         };
 
-        const result = await vanaCore.waitForOperation<CustomResult>(operation);
+        const result = await vanaCore.waitForOperation(operation);
 
         expect(result).toEqual(typedOperation);
       });
@@ -698,8 +702,11 @@ describe("VanaCore Extended Tests", () => {
 
       it("should work with server operation results", async () => {
         const mockCompletedOp = {
+          kind: "OperationStatus" as const,
           id: "op_789",
           status: "succeeded" as const,
+          started_at: new Date().toISOString(),
+          finished_at: new Date().toISOString(),
           result: { fileContent: "encrypted data" },
         };
 
@@ -709,9 +716,12 @@ describe("VanaCore Extended Tests", () => {
 
         // Simulate a server operation that returns a POJO
         const operationResult = {
+          kind: "OperationStatus" as const,
           id: "op_789",
           status: "starting" as const,
-          createdAt: Date.now(),
+          started_at: new Date().toISOString(),
+          finished_at: null,
+          result: null,
         };
 
         // User can directly pass the result to waitForOperation

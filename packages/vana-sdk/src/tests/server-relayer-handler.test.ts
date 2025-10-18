@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { handleRelayerOperation } from "../server/relayerHandler";
 import type { VanaInstance } from "../index.node";
 import type { UnifiedRelayerRequest } from "../types/relayer";
-import type { TransactionOptions } from "../types";
+import type { TransactionOptions } from "../types/operations";
 import type { Address, Hash } from "viem";
 
 // Mock viem for signature recovery (not testing actual crypto here)
@@ -1214,7 +1214,9 @@ describe("Server Relayer Handler", () => {
         },
       };
 
-      await handleRelayerOperation(mockSdk, request, { value: 123456789n });
+      await handleRelayerOperation(mockSdk, request, {
+        value: 123456789n,
+      } as TransactionOptions);
 
       expect(mockSdk.data.addFileWithPermissions).toHaveBeenCalledWith(
         "https://storage.example/file",
@@ -1234,7 +1236,9 @@ describe("Server Relayer Handler", () => {
         },
       };
 
-      await handleRelayerOperation(mockSdk, request, { gasPrice: 5000000000n });
+      await handleRelayerOperation(mockSdk, request, {
+        gasPrice: 5000000000n,
+      } as TransactionOptions);
 
       expect(mockSdk.data.addFileWithPermissions).toHaveBeenCalledWith(
         "https://storage.example/file",
@@ -1256,7 +1260,7 @@ describe("Server Relayer Handler", () => {
 
       await handleRelayerOperation(mockSdk, request, {
         maxFeePerGas: 30000000000n,
-      });
+      } as TransactionOptions);
 
       expect(mockSdk.data.addFileWithPermissions).toHaveBeenCalledWith(
         "https://storage.example/file",
@@ -1279,7 +1283,7 @@ describe("Server Relayer Handler", () => {
       const controller = new AbortController();
       const onStatusUpdate = vi.fn();
 
-      const optionsWithCallbacks = {
+      const optionsWithCallbacks: TransactionOptions = {
         signal: controller.signal,
         onStatusUpdate,
         value: 1000000000000000n,
@@ -1310,7 +1314,7 @@ describe("Server Relayer Handler", () => {
       };
 
       const onStatusUpdate = vi.fn();
-      const optionsWithCallback = { onStatusUpdate };
+      const optionsWithCallback: TransactionOptions = { onStatusUpdate };
 
       await handleRelayerOperation(mockSdk, request, optionsWithCallback);
 
@@ -1333,7 +1337,9 @@ describe("Server Relayer Handler", () => {
       };
 
       const controller = new AbortController();
-      const optionsWithSignal = { signal: controller.signal };
+      const optionsWithSignal: TransactionOptions = {
+        signal: controller.signal,
+      };
 
       await handleRelayerOperation(mockSdk, request, optionsWithSignal);
 

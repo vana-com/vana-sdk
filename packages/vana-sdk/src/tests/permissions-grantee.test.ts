@@ -399,14 +399,15 @@ describe("PermissionsController - Grantee Methods", () => {
 
       const result = await controller.getGrantees();
 
+      // The implementation fetches grantees in descending order (newest first)
       expect(result).toEqual({
         grantees: [
           {
-            id: 1,
-            owner: "0xOwner1" as `0x${string}`,
-            address: "0xGrantee1",
-            publicKey: "0xKey1",
-            permissionIds: [1, 2],
+            id: 3,
+            owner: "0xOwner3" as `0x${string}`,
+            address: "0xGrantee3",
+            publicKey: "0xKey3",
+            permissionIds: [],
           },
           {
             id: 2,
@@ -416,11 +417,11 @@ describe("PermissionsController - Grantee Methods", () => {
             permissionIds: [3],
           },
           {
-            id: 3,
-            owner: "0xOwner3" as `0x${string}`,
-            address: "0xGrantee3",
-            publicKey: "0xKey3",
-            permissionIds: [],
+            id: 1,
+            owner: "0xOwner1" as `0x${string}`,
+            address: "0xGrantee1",
+            publicKey: "0xKey1",
+            permissionIds: [1, 2],
           },
         ],
         total: 3,
@@ -515,6 +516,171 @@ describe("PermissionsController - Grantee Methods", () => {
       );
 
       consoleWarnSpy.mockRestore();
+    });
+
+    it("should NOT fetch permissions when includePermissions is false", async () => {
+      // Set up mocks for parallel calls WITHOUT permission fetching
+      vi.mocked(mockPublicClient.readContract).mockImplementation(
+        async (args: any) => {
+          // Handle granteesCount call
+          if (args.functionName === "granteesCount") {
+            return 3n;
+          }
+
+          // Handle granteesV2 calls
+          if (args.functionName === "granteesV2") {
+            const granteeId = Number(args.args[0]);
+            if (granteeId === 1) {
+              return {
+                owner: "0xOwner1" as `0x${string}`,
+                granteeAddress: "0xGrantee1" as `0x${string}`,
+                publicKey: "0xKey1",
+                permissionsCount: 2n,
+              };
+            } else if (granteeId === 2) {
+              return {
+                owner: "0xOwner2" as `0x${string}`,
+                granteeAddress: "0xGrantee2" as `0x${string}`,
+                publicKey: "0xKey2",
+                permissionsCount: 1n,
+              };
+            } else if (granteeId === 3) {
+              return {
+                owner: "0xOwner3" as `0x${string}`,
+                granteeAddress: "0xGrantee3" as `0x${string}`,
+                publicKey: "0xKey3",
+                permissionsCount: 0n,
+              };
+            }
+          }
+
+          // Should NOT be called for granteePermissionsPaginated
+          if (args.functionName === "granteePermissionsPaginated") {
+            throw new Error(
+              "granteePermissionsPaginated should not be called when includePermissions is false",
+            );
+          }
+
+          return null;
+        },
+      );
+
+      // Multicall should NOT be called
+      const multicallSpy = vi.spyOn(mockPublicClient, "multicall");
+
+      const result = await controller.getGrantees({
+        includePermissions: false,
+      });
+
+      // The implementation fetches grantees in descending order (newest first)
+      expect(result).toEqual({
+        grantees: [
+          {
+            id: 3,
+            owner: "0xOwner3" as `0x${string}`,
+            address: "0xGrantee3",
+            publicKey: "0xKey3",
+            permissionIds: [], // Empty when includePermissions is false
+          },
+          {
+            id: 2,
+            owner: "0xOwner2" as `0x${string}`,
+            address: "0xGrantee2",
+            publicKey: "0xKey2",
+            permissionIds: [], // Empty when includePermissions is false
+          },
+          {
+            id: 1,
+            owner: "0xOwner1" as `0x${string}`,
+            address: "0xGrantee1",
+            publicKey: "0xKey1",
+            permissionIds: [], // Empty when includePermissions is false
+          },
+        ],
+        total: 3,
+        limit: 50,
+        offset: 0,
+        hasMore: false,
+      });
+
+      // Verify multicall was NOT called (no permission fetching)
+      expect(multicallSpy).not.toHaveBeenCalled();
+
+      // Verify only granteesCount and granteesV2 calls were made (no permission calls)
+      const readContractCalls = vi.mocked(mockPublicClient.readContract).mock
+        .calls;
+      const permissionCalls = readContractCalls.filter(
+        (call) => call[0].functionName === "granteePermissionsPaginated",
+      );
+      expect(permissionCalls).toHaveLength(0);
+    });
+
+    it("should fetch permissions when includePermissions is true (explicit)", async () => {
+      // Same setup as default test, but explicitly pass includePermissions: true
+      vi.mocked(mockPublicClient.readContract).mockImplementation(
+        async (args: any) => {
+          if (args.functionName === "granteesCount") {
+            return 2n;
+          }
+
+          if (args.functionName === "granteesV2") {
+            const granteeId = Number(args.args[0]);
+            if (granteeId === 1) {
+              return {
+                owner: "0xOwner1" as `0x${string}`,
+                granteeAddress: "0xGrantee1" as `0x${string}`,
+                publicKey: "0xKey1",
+                permissionsCount: 2n,
+              };
+            } else if (granteeId === 2) {
+              return {
+                owner: "0xOwner2" as `0x${string}`,
+                granteeAddress: "0xGrantee2" as `0x${string}`,
+                publicKey: "0xKey2",
+                permissionsCount: 1n,
+              };
+            }
+          } else if (args.functionName === "granteePermissionsPaginated") {
+            const granteeId = Number(args.args[0]);
+            const offset = args.args[1];
+            const limit = args.args[2];
+
+            if (offset === 0n && limit === 1n) {
+              // Initial count call
+              if (granteeId === 1) return [[], 2n, true];
+              if (granteeId === 2) return [[], 1n, true];
+            }
+          }
+          return null;
+        },
+      );
+
+      vi.mocked(mockPublicClient.multicall).mockImplementation(
+        async (args: any) => {
+          const contracts = args.contracts;
+          if (!contracts || contracts.length === 0) return [];
+
+          const granteeId = Number(contracts[0].args[0]);
+
+          if (granteeId === 1) {
+            return [[[1n, 2n], 2n, false]];
+          } else if (granteeId === 2) {
+            return [[[3n], 1n, false]];
+          }
+
+          return [];
+        },
+      );
+
+      const result = await controller.getGrantees({ includePermissions: true });
+
+      expect(result.grantees).toHaveLength(2);
+      // Grantees are fetched in descending order (newest first)
+      expect(result.grantees[0].permissionIds).toEqual([3]); // Grantee 2 comes first
+      expect(result.grantees[1].permissionIds).toEqual([1, 2]); // Grantee 1 comes second
+
+      // Verify multicall WAS called (permission fetching happened)
+      expect(mockPublicClient.multicall).toHaveBeenCalled();
     });
   });
 

@@ -78,5 +78,5 @@ A minimal demonstration of data portability using the Vana SDK. This app shows h
 
 ## References
 
-- Main SDK examples: `vana-sdk/examples/vana-sdk-demo`
+- Main SDK examples: `vana-sdk/examples/vana-console`
 - Vibes integration: `datawallet/apps/vibes.vana.com`

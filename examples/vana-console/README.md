@@ -1,4 +1,4 @@
-# Vana SDK Demo
+# Vana Console
 
 <div align="center">
   <h3>Complete Reference Implementation</h3>
@@ -12,7 +12,7 @@
 
 ---
 
-## 🎯 What This Demo Demonstrates
+## 🎯 What This Console Demonstrates
 
 This is **not a toy example**—it's a comprehensive reference implementation that showcases every major Vana SDK feature with real production infrastructure:
 
@@ -388,22 +388,22 @@ npm run lint
 
 ### Testing Local SDK Changes
 
-To test local SDK changes in the demo:
+To test local SDK changes in the console:
 
 ```bash
 # 1. In the SDK package directory
 cd ../../packages/vana-sdk
 npm link
 
-# 2. In the demo directory
-cd ../../examples/vana-sdk-demo
+# 2. In the console directory
+cd ../../examples/vana-console
 npm link @opendatalabs/vana-sdk
 
-# 3. Start the demo
+# 3. Start the console
 npm run dev
 ```
 
-This creates a symlink so the demo uses your local SDK instead of the published version.
+This creates a symlink so the console uses your local SDK instead of the published version.
 
 **To revert:**
 
@@ -416,7 +416,7 @@ npm install  # Reinstall published version
 
 #### **Option 1: Quick Start (Minimal Setup)**
 
-Use the demo with app-managed IPFS and default relayer:
+Use the console with app-managed IPFS and default relayer:
 
 ```bash
 # Minimum required configuration
@@ -459,7 +459,7 @@ NEXT_PUBLIC_SUBGRAPH_URL=your_subgraph_endpoint
 
 ### API Endpoints
 
-The demo includes a complete backend implementation:
+The console includes a complete backend implementation:
 
 | Endpoint                                 | Purpose               | Description                                     |
 | ---------------------------------------- | --------------------- | ----------------------------------------------- |
@@ -546,7 +546,7 @@ console.log("Service status:", healthTest);
 ```
 
 **Console Logging**
-The demo includes comprehensive console logging:
+The app includes comprehensive console logging:
 
 - SDK initialization status
 - Transaction progress
@@ -616,7 +616,7 @@ curl -X POST -H "Content-Type: application/json" \
 
 ## 🤝 Contributing
 
-Found a bug or want to improve the demo?
+Found a bug or want to improve the console?
 
 1. **Report Issues**: [GitHub Issues](https://github.com/vana-com/vana-sdk/issues)
 2. **Suggest Features**: Use the "Enhancement" label
@@ -627,13 +627,13 @@ Found a bug or want to improve the demo?
 ```bash
 # Fork the repository
 git clone https://github.com/your-username/vana-sdk.git
-cd vana-sdk/examples/vana-sdk-demo
+cd vana-sdk/examples/vana-console
 
 # Install dependencies
 npm install
 
 # Create feature branch
-git checkout -b feature/improve-demo
+git checkout -b feature/improve-console
 
 # Make changes and test
 npm run dev

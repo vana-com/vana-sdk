@@ -5,9 +5,9 @@ dlp-ui-template/
 tasks.md
 TEST_DEVELOPMENT_PROTOCOL.md
 
-# Only deploy the demo
-examples/vana-sdk-demo/.next
-examples/vana-sdk-demo/node_modules
+# Only deploy the console
+examples/vana-console/.next
+examples/vana-console/node_modules
 
 # Ensure packages are available
 !packages/

@@ -26,7 +26,7 @@
       "path": "./packages/vana-sdk"
     },
     {
-      "path": "./examples/vana-sdk-demo"
+      "path": "./examples/vana-console"
     }
   ]
 }

@@ -270,49 +270,6 @@ export const SwapHelperABI = [
       {
         indexed: true,
         internalType: "address",
-        name: "sender",
-        type: "address",
-      },
-      {
-        indexed: true,
-        internalType: "address",
-        name: "recipient",
-        type: "address",
-      },
-      {
-        indexed: true,
-        internalType: "address",
-        name: "tokenIn",
-        type: "address",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "amountIn",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "address",
-        name: "tokenOut",
-        type: "address",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "amountOut",
-        type: "uint256",
-      },
-    ],
-    name: "Swap",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "address",
         name: "implementation",
         type: "address",
       },

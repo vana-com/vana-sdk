@@ -68,6 +68,11 @@ export const DLPRewardDeployerABI = [
   },
   {
     inputs: [],
+    name: "EpochRewardsNotInitialized",
+    type: "error",
+  },
+  {
+    inputs: [],
     name: "ExpectedPause",
     type: "error",
   },
@@ -100,6 +105,58 @@ export const DLPRewardDeployerABI = [
   {
     inputs: [],
     name: "NothingToWithdraw",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "dlpId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "trancheCount",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "nextTrancheMinBlock",
+        type: "uint256",
+      },
+    ],
+    name: "NumberOfBlocksBetweenTranchesNotPassed",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "ReentrancyGuardReentrantCall",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "RolloverNotPossible",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "dlpId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "trancheCount",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "trancheMinBlock",
+        type: "uint256",
+      },
+    ],
+    name: "TrancheIntervalNotStarted",
     type: "error",
   },
   {
@@ -202,6 +259,31 @@ export const DLPRewardDeployerABI = [
       },
     ],
     name: "EpochDlpRewardDistributed",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "epochId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "numberOfTranches",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "remediationWindow",
+        type: "uint256",
+      },
+    ],
+    name: "EpochRewardsInitialized",
     type: "event",
   },
   {
@@ -507,11 +589,52 @@ export const DLPRewardDeployerABI = [
           },
           {
             internalType: "uint256",
+            name: "distributedPenaltyAmount",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
             name: "tranchesCount",
             type: "uint256",
           },
         ],
         internalType: "struct IDLPRewardDeployer.EpochDlpRewardInfo",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "epochId",
+        type: "uint256",
+      },
+    ],
+    name: "epochRewards",
+    outputs: [
+      {
+        components: [
+          {
+            internalType: "uint256",
+            name: "distributionInterval",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "numberOfTranches",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "remediationWindow",
+            type: "uint256",
+          },
+        ],
+        internalType: "struct IDLPRewardDeployer.EpochRewardInfo",
         name: "",
         type: "tuple",
       },
@@ -604,7 +727,7 @@ export const DLPRewardDeployerABI = [
       },
       {
         internalType: "uint256",
-        name: "newNumberOfTranches",
+        name: "newNumberOfBlocksBetweenTranches",
         type: "uint256",
       },
       {
@@ -624,6 +747,34 @@ export const DLPRewardDeployerABI = [
     type: "function",
   },
   {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "epochId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "distributionInterval",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "numberOfTranches",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "remediationWindow",
+        type: "uint256",
+      },
+    ],
+    name: "initializeEpochRewards",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
     inputs: [],
     name: "maximumSlippagePercentage",
     outputs: [
@@ -638,7 +789,7 @@ export const DLPRewardDeployerABI = [
   },
   {
     inputs: [],
-    name: "numberOfTranches",
+    name: "numberOfBlocksBetweenTranches",
     outputs: [
       {
         internalType: "uint256",
@@ -805,6 +956,19 @@ export const DLPRewardDeployerABI = [
       },
     ],
     name: "updateMaximumSlippagePercentage",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "newNumberOfBlocksBetweenTranches",
+        type: "uint256",
+      },
+    ],
+    name: "updateNumberOfBlocksBetweenTranches",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",

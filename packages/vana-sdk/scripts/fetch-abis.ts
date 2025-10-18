@@ -75,7 +75,27 @@ async function getImplementationAddress(
   if (!contractInfo.implementations?.[0]?.address) {
     throw new Error(`No implementation found for proxy ${proxyAddress}`);
   }
-  return contractInfo.implementations[0].address;
+
+  // ASSUMPTION: Blockscout returns implementations in chronological order (oldest first)
+  // Therefore, the LAST element ([length-1]) is the newest/current implementation.
+  //
+  // Evidence:
+  // - All current Vana contracts (as of 2025-01) have only 1 implementation
+  // - Blockscout docs say contract lists are "ascending order by time indexed"
+  // - Standard array append pattern suggests newest = last
+  //
+  // Verification: If ABIs suddenly break after a proxy upgrade, verify the API response:
+  //   curl "https://vanascan.io/api/v2/smart-contracts/<PROXY_ADDRESS>"
+  //   curl "https://moksha.vanascan.io/api/v2/smart-contracts/<PROXY_ADDRESS>"
+  // Check if implementations[0] or implementations[length-1] matches the current impl.
+  const latestImplementation = contractInfo.implementations[contractInfo.implementations.length - 1].address;
+
+  // Log when multiple implementations exist (helps detect future upgrades)
+  if (contractInfo.implementations.length > 1) {
+    console.log(`   ⚠️  ${contractInfo.implementations.length} implementations found - using latest (${latestImplementation})`);
+  }
+
+  return latestImplementation;
 }
 
 /**

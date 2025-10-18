@@ -1014,6 +1014,12 @@ export interface EventArgs {
   EpochDayUpdated: {
     newDaySize: bigint;
   };
+  EpochDlpBonusUpdated: {
+    epochId: bigint;
+    dlpId: bigint;
+    oldBonusAmount: bigint;
+    newBonusAmount: bigint;
+  };
   EpochDlpPenaltyDistributed: {
     epochId: bigint;
     dlpId: bigint;
@@ -1075,6 +1081,11 @@ export interface EventArgs {
   EpochRewardAmountUpdated: {
     newEpochRewardAmount: bigint;
   };
+  EpochRewardsInitialized: {
+    epochId: bigint;
+    numberOfTranches: bigint;
+    remediationWindow: bigint;
+  };
   EpochSizeUpdated: {
     newEpochSize: bigint;
   };
@@ -1127,6 +1138,9 @@ export interface EventArgs {
     fileId: bigint;
     teeAddress: `0x${string}`;
     bidAmount: bigint;
+  };
+  LastEpochSet: {
+    lastEpoch: bigint;
   };
   MetricWeightsUpdated: {
     tradingVolume: bigint;
@@ -1258,14 +1272,6 @@ export interface EventArgs {
     staker: `0x${string}`;
     amount: bigint;
     sharesIssued: bigint;
-  };
-  Swap: {
-    sender: `0x${string}`;
-    recipient: `0x${string}`;
-    tokenIn: `0x${string}`;
-    amountIn: bigint;
-    tokenOut: `0x${string}`;
-    amountOut: bigint;
   };
   TeeAdded: {
     teeAddress: `0x${string}`;

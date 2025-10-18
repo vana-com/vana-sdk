@@ -1,0 +1,23 @@
+{
+  "name": "Vana RBAC Auditor",
+  "short_name": "RBAC Auditor",
+  "description": "Smart Contract Permission Audit Tool for Vana Network",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1a237e",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

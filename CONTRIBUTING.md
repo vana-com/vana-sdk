@@ -1,5 +1,7 @@
 # Contributing to Vana SDK
 
+Thank you for contributing to the Vana SDK! This guide covers the contribution workflow. For comprehensive development documentation including architecture, testing strategies, and detailed commands, see [CLAUDE.md](./CLAUDE.md).
+
 ## Development Setup
 
 ```bash
@@ -21,20 +23,34 @@ npm test
 
 ### Two-Terminal Setup
 
-**Terminal 1: SDK Development**
+For active SDK development with hot reload:
+
+**Terminal 1: SDK Watch Mode**
 
 ```bash
 cd packages/vana-sdk
 npm run dev
 ```
 
-**Terminal 2: Demo Application**
+**Terminal 2: Example Application**
 
 ```bash
-npm run dev:demo
+npm run dev:console  # Comprehensive SDK demo
+npm run dev:vibes    # Social features demo
 ```
 
-Changes to SDK source will automatically rebuild and reflect in the demo app.
+Changes to SDK source will automatically rebuild and reflect in the example app.
+
+### Code Generation
+
+The SDK includes auto-generated code from smart contracts and APIs. See [CLAUDE.md](./CLAUDE.md) for detailed information on:
+
+- Fetching contract ABIs (`npm run fetch-abis`)
+- Generating TypeScript types from ABIs
+- Fetching server API types
+- Subgraph code generation
+
+Generated files are in `packages/vana-sdk/src/generated/` and should never be edited manually.
 
 ### Before Submitting
 
@@ -59,7 +75,7 @@ npm run validate  # Runs lint, typecheck, and tests
 - Write tests for new features
 - Include both success and error cases
 - Mock external dependencies
-- Maintain >95% coverage
+- Coverage targets: 76% statements, 83% branches, 87% functions (enforced in CI)
 
 ### Commits
 

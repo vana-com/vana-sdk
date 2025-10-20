@@ -39,9 +39,9 @@ See the [SDK package README](./packages/vana-sdk/README.md) for usage details.
 - [API Reference](https://vana-com.github.io/vana-sdk)
 - [Discord Community](https://discord.gg/vanabuilders)
 
-## Development
+## Contributing
 
-See project documentation files for development guidelines and setup instructions.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup and contribution guidelines.
 
 ## License
 

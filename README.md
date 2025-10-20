@@ -6,6 +6,8 @@ TypeScript SDK for building user-owned data applications on the Vana Network.
 [![Downloads](https://img.shields.io/npm/dm/@opendatalabs/vana-sdk)](https://www.npmjs.com/package/@opendatalabs/vana-sdk)
 [![License](https://img.shields.io/npm/l/@opendatalabs/vana-sdk)](./LICENSE)
 
+> Production-ready and stable. APIs may evolve in minor versions as we gather feedback and expand functionality.
+
 ## Installation
 
 ```bash
@@ -75,54 +77,45 @@ const vana = Vana({ walletClient });
 
 ## Example: Grant Data Access
 
-Permission granting with automatic gas handling:
-
 ```typescript
-// Grant permission for data analysis
 const result = await vana.permissions.grant({
-  grantee: "0x742d35Cc6634C0532925a3b8D84C20CEed3F89B7", // DataDAO address
+  grantee: "0x742d35Cc6634C0532925a3b8D84C20CEed3F89B7",
   operation: "llm_inference",
-  files: [12, 15, 28], // User's file IDs
+  files: [12, 15, 28],
   parameters: {
     prompt: "Analyze my transaction patterns for insights",
     model: "gpt-4",
     maxTokens: 1000,
   },
 });
-
-console.log("Permission granted! Transaction:", result.transactionHash);
 ```
 
-## Running Example Applications
+## Example Applications
 
-This monorepo includes two example applications demonstrating SDK usage:
+This monorepo includes example applications demonstrating SDK usage:
 
 ```bash
-# Install dependencies (from root directory)
+# Install dependencies
 npm install
 
-# Run the main SDK demo (includes data permissions, file management, and more)
-npm run dev:demo
+# Run the SDK console (comprehensive demo)
+npm run dev:console
 
-# Run the Vana Vibes demo (social features demonstration)
+# Run the Vibes demo (social features)
 npm run dev:vibes
 ```
 
-The demos will start on:
+The demos start on http://localhost:3000 and http://localhost:3001 respectively.
 
-- SDK Demo: http://localhost:3000
-- Vibes Demo: http://localhost:3001
+## Documentation
 
-## Resources
-
-- **[Complete Documentation](https://docs.vana.org/sdk)** - Comprehensive guides and API reference
-- **[Console Application](./examples/vana-console)** - Full-featured example implementation
-- **[API Reference](https://vana-com.github.io/vana-sdk)** - Auto-generated TypeScript docs
-- **[Discord Community](https://discord.gg/vanabuilders)** - Get help and share feedback
+- [Complete Documentation](https://docs.vana.org/sdk)
+- [API Reference](https://vana-com.github.io/vana-sdk)
+- [Discord Community](https://discord.gg/vanabuilders)
 
 ## Development
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup and workflow.
+See [CLAUDE.md](./CLAUDE.md) for development setup and workflow.
 
 ## License
 

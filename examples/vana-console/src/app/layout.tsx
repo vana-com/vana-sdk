@@ -7,8 +7,8 @@ import { ClientProviders } from "./client-providers";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Vana SDK Demo",
-  description: "Demonstrate usage of the Vana SDK",
+  title: "Vana Console",
+  description: "Production-quality console for the Vana SDK",
 };
 
 export const viewport = {

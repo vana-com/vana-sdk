@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
         <h1 class="success">✅ Google Drive Authorization Successful</h1>
         <p class="loading">Redirecting back to the application...</p>
         <script>
-          // Post tokens to parent window (demo app)
+          // Post tokens to parent window (console)
           const tokens = ${JSON.stringify({
             accessToken: tokenData.access_token,
             refreshToken: tokenData.refresh_token,

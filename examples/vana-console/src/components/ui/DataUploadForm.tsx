@@ -84,7 +84,7 @@ export interface DataUploadFormProps {
  *
  * @remarks
  * This component provides a unified interface for uploading data across different contexts
- * (My Data tab, Demo Experience, etc.). It supports text/file input modes, schema selection,
+ * (My Data tab, Developer Tools, etc.). It supports text/file input modes, schema selection,
  * and data validation.
  */
 export const DataUploadForm: React.FC<DataUploadFormProps> = ({

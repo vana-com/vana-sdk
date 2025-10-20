@@ -16,7 +16,7 @@ import { ParaProvider } from "../providers/ParaProvider";
 
 // Configure wagmi with SSR support
 const config = getDefaultConfig({
-  appName: "Vana SDK Next.js Demo",
+  appName: "Vana Console",
   projectId:
     process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID ?? "demo-project-id",
   chains: [mokshaTestnet, vanaMainnet],

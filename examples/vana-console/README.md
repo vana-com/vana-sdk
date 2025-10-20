@@ -111,26 +111,36 @@ REPLICATE_API_TOKEN=your_replicate_api_token_here  # Only needed for server-side
 ```
 src/
 ├── app/                    # Next.js App Router
+│   ├── (dashboard)/       # Main dashboard pages
+│   │   ├── my-data/       # File & permission management
+│   │   ├── developer-tools/ # SDK features & examples
+│   │   ├── contracts/     # Direct contract interactions
+│   │   └── personal-server-operations/ # Server integration
 │   ├── api/               # Backend API routes
 │   │   ├── health/        # Relayer health check
 │   │   ├── ipfs/          # IPFS upload endpoint
 │   │   ├── relay/         # Gasless transaction relay
-│   │   └── v1/            # Vana protocol endpoints
-│   ├── demo-page.tsx      # Main demo application
+│   │   └── trusted-server/ # Personal server endpoints
+│   ├── layout.tsx         # Root layout with metadata
+│   ├── page.tsx           # Redirect to dashboard
 │   └── providers.tsx      # React context providers
 ├── components/            # UI components
-│   ├── ui/                # HeroUI-based custom components
+│   ├── ui/                # Reusable UI components
+│   ├── demo/              # Feature demonstration components
 │   ├── FileCard.tsx       # Interactive file management
 │   ├── PermissionsTable.tsx # Permission management
-│   ├── EncryptionTestCard.tsx # Encryption testing
-│   ├── YourDataCard.tsx   # User data display
-│   └── TrustedServerManagementCard.tsx # Server management
+│   └── SidebarNavigation.tsx # App navigation
+├── hooks/                 # Custom React hooks
+│   ├── useUserFiles.ts    # File data management
+│   ├── usePermissions.ts  # Permission management
+│   └── useTrustedServers.ts # Server trust management
+├── providers/             # React context providers
+│   ├── VanaProvider.tsx   # Vana SDK integration
+│   └── ParaProvider.tsx   # Para wallet integration
 └── lib/                   # Utility libraries
-    ├── blockchain.ts      # Blockchain helper functions
-    ├── chains.ts          # Network configurations
-    ├── explorer.ts        # Block explorer integration
-    ├── relayer.ts         # Relayer service integration
-    └── utils.ts           # General utilities
+    ├── storage-client.ts  # Client-side storage
+    ├── storage-server.ts  # Server-side storage
+    └── explorer.ts        # Block explorer integration
 ```
 
 ### Key Design Patterns
@@ -196,7 +206,7 @@ const storageProviders = {
 - Network validation and chain switching
 - Relayer service health monitoring
 
-**Code location:** `src/app/demo-page.tsx`
+**Code location:** `src/app/(dashboard)/layout.tsx`, `src/providers/VanaProvider.tsx`
 
 **Key features:**
 
@@ -219,7 +229,7 @@ const storageProviders = {
 - Real blockchain data display
 - Interactive file selection interface
 
-**Code location:** `src/app/demo-page.tsx`
+**Code location:** `src/app/(dashboard)/my-data/page.tsx`, `src/hooks/useUserFiles.ts`
 
 **Key features:**
 
@@ -242,7 +252,7 @@ const storageProviders = {
 - Live blockchain transaction submission
 - Transaction status monitoring
 
-**Code location:** `src/app/demo-page.tsx`
+**Code location:** `src/app/(dashboard)/my-data/page.tsx`, `src/hooks/usePermissions.ts`
 
 **Key features:**
 
@@ -266,7 +276,7 @@ const storageProviders = {
 - File and text encryption/decryption
 - Storage provider integration
 
-**Code location:** `src/app/demo-page.tsx`
+**Code location:** `src/app/(dashboard)/developer-tools/page.tsx`
 
 **Key features:**
 
@@ -290,7 +300,7 @@ const storageProviders = {
 - File upload to blockchain registration
 - Storage provider configuration
 
-**Code location:** `src/app/demo-page.tsx`
+**Code location:** `src/lib/storage-client.ts`, `src/lib/storage-server.ts`
 
 **Key features:**
 
@@ -369,7 +379,7 @@ const storageProviders = {
 
 ## 🛠️ Development
 
-### Running the Demo
+### Running the Console
 
 ```bash
 # Development mode with hot reload
@@ -585,12 +595,19 @@ curl -X POST -H "Content-Type: application/json" \
 
 ### Code Study Guide
 
-**🎯 Start here:** `src/app/demo-page.tsx`
+**🎯 Start here:** `src/app/(dashboard)/my-data/page.tsx`
 
-- Complete application logic
+- Complete data management implementation
 - SDK usage patterns
 - Error handling examples
-- State management patterns
+- State management with custom hooks
+
+**📱 Dashboard pages:** `src/app/(dashboard)/`
+
+- `my-data/` - File & permission management
+- `developer-tools/` - SDK features & examples
+- `contracts/` - Direct contract interactions
+- `personal-server-operations/` - Server integration
 
 **🔧 Backend integration:** `src/app/api/`
 

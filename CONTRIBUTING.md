@@ -75,7 +75,7 @@ npm run validate  # Runs lint, typecheck, and tests
 - Write tests for new features
 - Include both success and error cases
 - Mock external dependencies
-- Coverage targets: 76% statements, 83% branches, 87% functions (enforced in CI)
+- Coverage thresholds are enforced in CI (see `vitest.config.ts`)
 
 ### Commits
 

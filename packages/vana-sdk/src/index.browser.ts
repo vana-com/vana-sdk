@@ -156,6 +156,13 @@ export {
 // VanaContract is exported from abi to avoid circular dependencies
 export type { VanaContract } from "./generated/abi";
 
+// Enhanced response pattern for improved developer experience
+export {
+  EnhancedTransactionResponse,
+  canEnhanceResponse,
+  enhanceResponse,
+} from "./client/enhancedResponse";
+
 // Error classes
 export * from "./errors";
 

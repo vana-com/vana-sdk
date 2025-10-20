@@ -128,7 +128,7 @@ const vana = Vana({
 
 ## Learn More
 
-- [Documentation](https://docs.vana.org/sdk) - Comprehensive guides and tutorials
+- [Documentation](https://docs.vana.org/docs/sdk) - Comprehensive guides and tutorials
 - [API Reference](https://vana-com.github.io/vana-sdk) - Complete TypeScript documentation
 - [Examples](https://github.com/vana-com/vana-sdk/tree/main/examples) - Full demo applications
 - [Discord](https://discord.gg/vanabuilders) - Community support

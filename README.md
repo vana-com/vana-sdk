@@ -35,7 +35,7 @@ See the [SDK package README](./packages/vana-sdk/README.md) for usage details.
 
 ## Documentation
 
-- [Complete SDK Documentation](https://docs.vana.org/sdk)
+- [Complete SDK Documentation](https://docs.vana.org/docs/sdk)
 - [API Reference](https://vana-com.github.io/vana-sdk)
 - [Discord Community](https://discord.gg/vanabuilders)
 

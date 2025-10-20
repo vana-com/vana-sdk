@@ -1,6 +1,6 @@
 # Contributing to Vana SDK
 
-Thank you for contributing to the Vana SDK! This guide covers the contribution workflow. For comprehensive development documentation including architecture, testing strategies, and detailed commands, see [CLAUDE.md](./CLAUDE.md).
+Thank you for contributing to the Vana SDK!
 
 ## Development Setup
 
@@ -43,12 +43,12 @@ Changes to SDK source will automatically rebuild and reflect in the example app.
 
 ### Code Generation
 
-The SDK includes auto-generated code from smart contracts and APIs. See [CLAUDE.md](./CLAUDE.md) for detailed information on:
+The SDK includes auto-generated code from smart contracts and APIs:
 
-- Fetching contract ABIs (`npm run fetch-abis`)
-- Generating TypeScript types from ABIs
-- Fetching server API types
-- Subgraph code generation
+- `npm run fetch-abis` - Fetch contract ABIs from deployed contracts
+- `npm run generate:types` - Generate TypeScript types from ABIs
+- `npm run fetch-server-types` - Generate server API types
+- `npm run codegen:subgraph` - Generate subgraph types
 
 Generated files are in `packages/vana-sdk/src/generated/` and should never be edited manually.
 

@@ -117,7 +117,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
         <Navbar isBordered>
           <NavbarBrand>
             <h1 className="text-xl font-bold text-foreground">
-              Vana SDK Demo{walletConnected ? "" : " (🔒 Read-Only)"}
+              Vana Console{walletConnected ? "" : " (🔒 Read-Only)"}
             </h1>
           </NavbarBrand>
           <NavbarContent justify="end">
@@ -149,7 +149,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
         <Navbar isBordered>
           <NavbarBrand>
             <h1 className="text-xl font-bold text-foreground">
-              Vana SDK Demo
+              Vana Console
               {appConfig.enableReadOnlyMode
                 ? " (📖 Read-Only)"
                 : walletConnected

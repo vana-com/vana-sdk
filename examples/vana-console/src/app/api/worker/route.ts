@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Process pending operations
-    // Note: The demo app uses IRelayerStateStore (simpler interface) rather than
+    // Note: This app uses IRelayerStateStore (simpler interface) rather than
     // IOperationStore (required by SDK's processQueue), so we process manually
     const allPendingOps = (await operationStore.getByStatus?.("pending")) || [];
     const pendingOps = allPendingOps.slice(0, MAX_OPERATIONS);

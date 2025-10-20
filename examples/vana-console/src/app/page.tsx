@@ -18,7 +18,7 @@ export default function HomePage() {
   return (
     <div className="flex items-center justify-center min-h-screen">
       <div className="text-center">
-        <div className="text-lg font-semibold mb-2">Vana SDK Demo</div>
+        <div className="text-lg font-semibold mb-2">Vana Console</div>
         <div className="text-default-500">Redirecting to dashboard...</div>
       </div>
     </div>

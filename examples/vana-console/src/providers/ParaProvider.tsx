@@ -49,7 +49,7 @@ export const ParaProvider: React.FC<{ children: ReactNode }> = ({
           walletConnect: { projectId: process.env.NEXT_PUBLIC_REOWN_PROJECT },
         }),
       }}
-      config={{ appName: "Vana SDK Demo" }}
+      config={{ appName: "Vana Console" }}
     >
       {children}
     </ParaProviderBase>

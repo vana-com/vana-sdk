@@ -116,7 +116,7 @@ The demos will start on:
 ## Resources
 
 - **[Complete Documentation](https://docs.vana.org/sdk)** - Comprehensive guides and API reference
-- **[Demo Application](./examples/vana-sdk-demo)** - Full-featured example implementation
+- **[Console Application](./examples/vana-console)** - Full-featured example implementation
 - **[API Reference](https://vana-com.github.io/vana-sdk)** - Auto-generated TypeScript docs
 - **[Discord Community](https://discord.gg/vanabuilders)** - Get help and share feedback
 

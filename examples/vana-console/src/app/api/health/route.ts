@@ -23,7 +23,7 @@ export function GET() {
     chain: chainId,
     chainRpcUrl,
     timestamp: new Date().toISOString(),
-    service: "Vana SDK Demo Relayer (Next.js + HeroUI)",
+    service: "Vana Console Relayer (Next.js + HeroUI)",
     storage: {
       ipfs: {
         enabled: storageEnabled,

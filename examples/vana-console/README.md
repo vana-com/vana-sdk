@@ -1,4 +1,4 @@
-# Vana SDK Demo
+# Vana Console
 
 <div align="center">
   <h3>Complete Reference Implementation</h3>
@@ -12,7 +12,7 @@
 
 ---
 
-## 🎯 What This Demo Demonstrates
+## 🎯 What This Console Demonstrates
 
 This is **not a toy example**—it's a comprehensive reference implementation that showcases every major Vana SDK feature with real production infrastructure:
 
@@ -111,26 +111,36 @@ REPLICATE_API_TOKEN=your_replicate_api_token_here  # Only needed for server-side
 ```
 src/
 ├── app/                    # Next.js App Router
+│   ├── (dashboard)/       # Main dashboard pages
+│   │   ├── my-data/       # File & permission management
+│   │   ├── developer-tools/ # SDK features & examples
+│   │   ├── contracts/     # Direct contract interactions
+│   │   └── personal-server-operations/ # Server integration
 │   ├── api/               # Backend API routes
 │   │   ├── health/        # Relayer health check
 │   │   ├── ipfs/          # IPFS upload endpoint
 │   │   ├── relay/         # Gasless transaction relay
-│   │   └── v1/            # Vana protocol endpoints
-│   ├── demo-page.tsx      # Main demo application
+│   │   └── trusted-server/ # Personal server endpoints
+│   ├── layout.tsx         # Root layout with metadata
+│   ├── page.tsx           # Redirect to dashboard
 │   └── providers.tsx      # React context providers
 ├── components/            # UI components
-│   ├── ui/                # HeroUI-based custom components
+│   ├── ui/                # Reusable UI components
+│   ├── demo/              # Feature demonstration components
 │   ├── FileCard.tsx       # Interactive file management
 │   ├── PermissionsTable.tsx # Permission management
-│   ├── EncryptionTestCard.tsx # Encryption testing
-│   ├── YourDataCard.tsx   # User data display
-│   └── TrustedServerManagementCard.tsx # Server management
+│   └── SidebarNavigation.tsx # App navigation
+├── hooks/                 # Custom React hooks
+│   ├── useUserFiles.ts    # File data management
+│   ├── usePermissions.ts  # Permission management
+│   └── useTrustedServers.ts # Server trust management
+├── providers/             # React context providers
+│   ├── VanaProvider.tsx   # Vana SDK integration
+│   └── ParaProvider.tsx   # Para wallet integration
 └── lib/                   # Utility libraries
-    ├── blockchain.ts      # Blockchain helper functions
-    ├── chains.ts          # Network configurations
-    ├── explorer.ts        # Block explorer integration
-    ├── relayer.ts         # Relayer service integration
-    └── utils.ts           # General utilities
+    ├── storage-client.ts  # Client-side storage
+    ├── storage-server.ts  # Server-side storage
+    └── explorer.ts        # Block explorer integration
 ```
 
 ### Key Design Patterns
@@ -196,7 +206,7 @@ const storageProviders = {
 - Network validation and chain switching
 - Relayer service health monitoring
 
-**Code location:** `src/app/demo-page.tsx`
+**Code location:** `src/app/(dashboard)/layout.tsx`, `src/providers/VanaProvider.tsx`
 
 **Key features:**
 
@@ -219,7 +229,7 @@ const storageProviders = {
 - Real blockchain data display
 - Interactive file selection interface
 
-**Code location:** `src/app/demo-page.tsx`
+**Code location:** `src/app/(dashboard)/my-data/page.tsx`, `src/hooks/useUserFiles.ts`
 
 **Key features:**
 
@@ -242,7 +252,7 @@ const storageProviders = {
 - Live blockchain transaction submission
 - Transaction status monitoring
 
-**Code location:** `src/app/demo-page.tsx`
+**Code location:** `src/app/(dashboard)/my-data/page.tsx`, `src/hooks/usePermissions.ts`
 
 **Key features:**
 
@@ -266,7 +276,7 @@ const storageProviders = {
 - File and text encryption/decryption
 - Storage provider integration
 
-**Code location:** `src/app/demo-page.tsx`
+**Code location:** `src/app/(dashboard)/developer-tools/page.tsx`
 
 **Key features:**
 
@@ -290,7 +300,7 @@ const storageProviders = {
 - File upload to blockchain registration
 - Storage provider configuration
 
-**Code location:** `src/app/demo-page.tsx`
+**Code location:** `src/lib/storage-client.ts`, `src/lib/storage-server.ts`
 
 **Key features:**
 
@@ -369,7 +379,7 @@ const storageProviders = {
 
 ## 🛠️ Development
 
-### Running the Demo
+### Running the Console
 
 ```bash
 # Development mode with hot reload
@@ -388,22 +398,22 @@ npm run lint
 
 ### Testing Local SDK Changes
 
-To test local SDK changes in the demo:
+To test local SDK changes in the console:
 
 ```bash
 # 1. In the SDK package directory
 cd ../../packages/vana-sdk
 npm link
 
-# 2. In the demo directory
-cd ../../examples/vana-sdk-demo
+# 2. In the console directory
+cd ../../examples/vana-console
 npm link @opendatalabs/vana-sdk
 
-# 3. Start the demo
+# 3. Start the console
 npm run dev
 ```
 
-This creates a symlink so the demo uses your local SDK instead of the published version.
+This creates a symlink so the console uses your local SDK instead of the published version.
 
 **To revert:**
 
@@ -416,7 +426,7 @@ npm install  # Reinstall published version
 
 #### **Option 1: Quick Start (Minimal Setup)**
 
-Use the demo with app-managed IPFS and default relayer:
+Use the console with app-managed IPFS and default relayer:
 
 ```bash
 # Minimum required configuration
@@ -459,7 +469,7 @@ NEXT_PUBLIC_SUBGRAPH_URL=your_subgraph_endpoint
 
 ### API Endpoints
 
-The demo includes a complete backend implementation:
+The console includes a complete backend implementation:
 
 | Endpoint                                 | Purpose               | Description                                     |
 | ---------------------------------------- | --------------------- | ----------------------------------------------- |
@@ -546,7 +556,7 @@ console.log("Service status:", healthTest);
 ```
 
 **Console Logging**
-The demo includes comprehensive console logging:
+The app includes comprehensive console logging:
 
 - SDK initialization status
 - Transaction progress
@@ -585,12 +595,19 @@ curl -X POST -H "Content-Type: application/json" \
 
 ### Code Study Guide
 
-**🎯 Start here:** `src/app/demo-page.tsx`
+**🎯 Start here:** `src/app/(dashboard)/my-data/page.tsx`
 
-- Complete application logic
+- Complete data management implementation
 - SDK usage patterns
 - Error handling examples
-- State management patterns
+- State management with custom hooks
+
+**📱 Dashboard pages:** `src/app/(dashboard)/`
+
+- `my-data/` - File & permission management
+- `developer-tools/` - SDK features & examples
+- `contracts/` - Direct contract interactions
+- `personal-server-operations/` - Server integration
 
 **🔧 Backend integration:** `src/app/api/`
 
@@ -616,7 +633,7 @@ curl -X POST -H "Content-Type: application/json" \
 
 ## 🤝 Contributing
 
-Found a bug or want to improve the demo?
+Found a bug or want to improve the console?
 
 1. **Report Issues**: [GitHub Issues](https://github.com/vana-com/vana-sdk/issues)
 2. **Suggest Features**: Use the "Enhancement" label
@@ -627,13 +644,13 @@ Found a bug or want to improve the demo?
 ```bash
 # Fork the repository
 git clone https://github.com/your-username/vana-sdk.git
-cd vana-sdk/examples/vana-sdk-demo
+cd vana-sdk/examples/vana-console
 
 # Install dependencies
 npm install
 
 # Create feature branch
-git checkout -b feature/improve-demo
+git checkout -b feature/improve-console
 
 # Make changes and test
 npm run dev

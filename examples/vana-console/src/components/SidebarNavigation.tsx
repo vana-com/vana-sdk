@@ -69,7 +69,7 @@ const navigationViews: NavigationView[] = [
  *
  * @remarks
  * This component provides clean navigation between the three main views of the
- * Vana SDK demo application using Next.js routing. It automatically detects
+ * Vana Console application using Next.js routing. It automatically detects
  * the active route and provides clear visual feedback to the user.
  *
  * @param props - The component props
@@ -84,7 +84,7 @@ export function SidebarNavigation({ className = "" }: SidebarNavigationProps) {
     >
       <div className="p-4">
         <h2 className="text-lg font-semibold mb-6 text-foreground">
-          Vana SDK Demo
+          Vana Console
         </h2>
 
         <nav className="space-y-2">

@@ -11,11 +11,11 @@
   "scripts": {
     "build": "turbo run build",
     "build:sdk": "turbo run build --filter='@opendatalabs/vana-sdk'",
-    "build:demo": "turbo run build --filter='vana-sdk-demo'",
+    "build:console": "turbo run build --filter='vana-console'",
     "build:vibes": "turbo run build --filter='vana-vibes-demo'",
     "build:rbac": "turbo run build --filter='vana-rbac-auditor'",
     "dev": "turbo run dev",
-    "dev:demo": "turbo run dev --filter='vana-sdk-demo'",
+    "dev:console": "turbo run dev --filter='vana-console'",
     "dev:vibes": "turbo run dev --filter='vana-vibes-demo'",
     "dev:rbac": "turbo run dev --filter='vana-rbac-auditor'",
     "lint": "turbo run lint",

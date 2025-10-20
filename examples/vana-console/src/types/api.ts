@@ -1,5 +1,5 @@
 /**
- * API response types for the Vana SDK demo application
+ * API response types for the Vana Console application
  * These types ensure type safety for internal API routes
  */
 

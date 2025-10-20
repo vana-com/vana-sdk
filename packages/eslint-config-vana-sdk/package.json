@@ -1,0 +1,14 @@
+{
+  "name": "@vana/eslint-config-sdk",
+  "version": "1.0.0",
+  "description": "ESLint config for Vana SDK - strict rules for public API",
+  "main": "index.js",
+  "type": "module",
+  "dependencies": {
+    "@vana/eslint-config-base": "file:../eslint-config-vana-base",
+    "eslint-plugin-tsdoc": "^0.3.0"
+  },
+  "peerDependencies": {
+    "eslint": "^9.0.0"
+  }
+}

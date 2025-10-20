@@ -1,268 +1,129 @@
 # Vana SDK
 
-A TypeScript library for interacting with Vana Network smart contracts, enabling data contributions, validations, and queries in a simple way.
+TypeScript SDK for building user-owned data applications on the Vana Network.
 
-## 📦 Installation
+[![npm version](https://img.shields.io/npm/v/@opendatalabs/vana-sdk)](https://www.npmjs.com/package/@opendatalabs/vana-sdk)
+[![Downloads](https://img.shields.io/npm/dm/@opendatalabs/vana-sdk)](https://www.npmjs.com/package/@opendatalabs/vana-sdk)
+[![License](https://img.shields.io/npm/l/@opendatalabs/vana-sdk)](./LICENSE)
+
+## Installation
 
 ```bash
-npm install vana-sdk
+npm install @opendatalabs/vana-sdk
 ```
 
-[![npm version](https://img.shields.io/npm/v/vana-sdk)](https://www.npmjs.com/package/vana-sdk)
-
-➡️ [View on npm](https://www.npmjs.com/package/vana-sdk)
-
-
-## Features (Current & Planned)
-
-- **Wallet and Network Integration:** Connect to Vana networks (supports Vana Mainnet `1480` and Moksha Testnet `14800` out of the box) with easy provider configuration.
-- **Data Contribution Workflow:** Submit data to a DLP and request validation:
-  - Register encrypted data files on-chain (DataRegistry) and give the DLP access.
-  - Trigger the Satya TEE network to validate your contribution (TeePool).
-  - Claim your reward tokens from the DLP after successful validation.
-- **Data Liquidity Pool Management:** _(Upcoming)_ For DLP owners:
-  - Create a new DLP (via factory or registry) and configure its parameters.
-  - Register the validation logic (refiner) for your DLP in the DataRefinerRegistry.
-  - Update DLP settings (pause/unpause contracts, update trusted forwarder or public key, etc.).
-- **Data Query & Access:** _(Upcoming)_ Enable data buyers to run queries on contributed data securely:
-  - Set query permissions with prices (through QueryEngine).
-  - Approve or revoke query requests (for DLP/refiner owners).
-  - Automatically handle payments and result retrieval via TEE ComputeEngine.
-- **Utilities:** Helper functions for encryption, key management, and result decoding to abstract away the cryptographic details of interacting with the Vana network.
-
-## Quick Start Example
+## Quick Start
 
 ```typescript
-import { VanaProvider } from "vana-sdk";
-import { privateKeyToAccount } from "viem/accounts";
-import { createPublicClient, createWalletClient, http } from "viem";
-import { mokshaTestnet } from "vana-sdk/chains";
+import { Vana } from "@opendatalabs/vana-sdk/browser";
+import { createWalletClient, custom } from "viem";
+import { mokshaTestnet } from "@opendatalabs/vana-sdk/browser";
 
-// Create your viem clients
-const publicClient = createPublicClient({
-  chain: mokshaTestnet,
-  transport: http("https://rpc.moksha.vana.org"),
-});
-
-const signer = privateKeyToAccount("0x..."); // Your private key
+// Initialize with wallet
 const walletClient = createWalletClient({
   chain: mokshaTestnet,
-  transport: http("https://rpc.moksha.vana.org"),
-  account: signer,
+  transport: custom(window.ethereum),
 });
 
-// Connect to Vana
-const vana = new VanaProvider({
-  chainId: mokshaTestnet.id,
-  rpcUrl: "https://rpc.moksha.vana.org",
-  signer,
+const vana = Vana({ walletClient });
+
+// Grant data access permission
+const result = await vana.permissions.grant({
+  grantee: "0x742d35Cc6634C0532925a3b8D84C20CEed3F89B7", // App address
+  operation: "llm_inference",
+  files: [12, 15, 28],
+  parameters: { prompt: "Analyze my data: {{data}}" },
 });
-
-// Example file URL and encryption key
-const fileUrl = "https://example.com/mydata.csv";
-const dlpAddress = vana.getContractAddress("DataLiquidityPoolProxy");
-const encryptedKey = await encryptFileKey(myFileEncryptionKey, dlpPublicKey);
-const signerAddress = await vana.signerAddress();
-
-// Register file in the DataRegistry with permissions
-await walletClient.writeContract({
-  address: vana.contracts.dataRegistry.address,
-  abi: vana.contracts.dataRegistry.abi,
-  functionName: "addFileWithPermissions",
-  args: [
-    fileUrl,
-    signerAddress,
-    dlpAddress,
-    [{ account: dlpAddress, key: encryptedKey }],
-  ],
-});
-
-// Get file ID from DataRegistry
-const fileId = await publicClient.readContract({
-  address: vana.contracts.dataRegistry.address,
-  abi: vana.contracts.dataRegistry.abi,
-  functionName: "fileIdByUrl",
-  args: [fileUrl],
-});
-
-// Request TEE validation
-await walletClient.writeContract({
-  address: vana.contracts.teePool.address,
-  abi: vana.contracts.teePool.abi,
-  functionName: "requestContributionProof",
-  args: [fileId],
-});
-
-// Wait for validation (in a real app, listen for events)
-// ...wait for ProofAdded event...
-
-// Claim reward for contribution
-await walletClient.writeContract({
-  address: vana.contracts.dataLiquidityPool.address,
-  abi: vana.contracts.dataLiquidityPool.abi,
-  functionName: "claimReward",
-  args: [fileId],
-});
+console.log("Permission granted! ID:", result.permissionId);
 ```
 
-## Interacting with Contracts
-
-The SDK provides a streamlined way to interact with Vana smart contracts through the `VanaProvider` class, which gives you access to contract addresses and ABIs, while leveraging viem's client interface for actual blockchain interactions.
-
-### Using Contracts with Viem Clients
-
-The Vana SDK uses a simple pattern for contract interaction:
-
-1. Use the `VanaProvider` to access contract information (address and ABI)
-2. Use viem's `publicClient` for read operations and `walletClient` for write operations
+## Import Guide
 
 ```typescript
-import { VanaProvider } from "vana-sdk";
+// Browser/React applications
+import { Vana } from "@opendatalabs/vana-sdk/browser";
+
+// Node.js/Backend applications
+import { Vana } from "@opendatalabs/vana-sdk/node";
+```
+
+## Authentication
+
+Complete setup with wallet configuration:
+
+```typescript
+import { createWalletClient, custom, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { createPublicClient, createWalletClient, http } from "viem";
-import { mokshaTestnet } from "vana-sdk/chains";
+import { Vana, mokshaTestnet } from "@opendatalabs/vana-sdk/browser";
 
-// Create viem clients
-const publicClient = createPublicClient({
-  chain: mokshaTestnet,
-  transport: http("https://rpc.moksha.vana.org"),
-});
-
-const signer = privateKeyToAccount("0x...");
+// Browser with MetaMask
 const walletClient = createWalletClient({
   chain: mokshaTestnet,
-  transport: http("https://rpc.moksha.vana.org"),
-  account: signer,
+  transport: custom(window.ethereum),
 });
 
-// Initialize Vana provider
-const vana = new VanaProvider({
-  chainId: mokshaTestnet.id,
-  rpcUrl: "https://rpc.moksha.vana.org",
-  signer,
+// Node.js with private key
+const account = privateKeyToAccount("0x...");
+const walletClient = createWalletClient({
+  account,
+  chain: mokshaTestnet,
+  transport: http(),
 });
 
-// Read operations
-const fileId = await publicClient.readContract({
-  address: vana.contracts.dataRegistry.address,
-  abi: vana.contracts.dataRegistry.abi,
-  functionName: "fileIdByUrl",
-  args: [fileUrl],
-});
-
-// Write operations
-await walletClient.writeContract({
-  address: vana.contracts.dataRegistry.address,
-  abi: vana.contracts.dataRegistry.abi,
-  functionName: "addFile",
-  args: [fileUrl, owner],
-});
-
-await walletClient.writeContract({
-  address: vana.contracts.teePool.address,
-  abi: vana.contracts.teePool.abi,
-  functionName: "requestContributionProof",
-  args: [fileId],
-});
+const vana = Vana({ walletClient });
 ```
 
-### Available Contracts
+## Example: Grant Data Access
 
-The `VanaProvider` gives you access to the following contracts:
-
-- `dataRegistry`: For registering and managing data files
-- `teePool`: For managing TEE computation and validation
-- `dataLiquidityPool`: For managing token rewards
-- `computeEngine`: For execution of data analytics
-
-## TypeScript ABI Pattern
-
-The SDK uses a type-safe approach for contract ABIs:
-
-1. **Contract ABI Definitions**: All contract ABIs are defined as TypeScript files in the `src/abi` directory.
-
-2. **Central Registry**: The `abi/index.ts` file provides a central registry of all available contract ABIs.
-
-3. **Type Safety**: The SDK leverages TypeScript's type system to ensure you can only request ABIs for supported contracts:
+Permission granting with automatic gas handling:
 
 ```typescript
-// Access a contract's ABI
-import { getAbi } from "vana-sdk";
-const dataRegistryAbi = getAbi("DataRegistry");
+// Grant permission for data analysis
+const result = await vana.permissions.grant({
+  grantee: "0x742d35Cc6634C0532925a3b8D84C20CEed3F89B7", // DataDAO address
+  operation: "llm_inference",
+  files: [12, 15, 28], // User's file IDs
+  parameters: {
+    prompt: "Analyze my transaction patterns for insights",
+    model: "gpt-4",
+    maxTokens: 1000,
+  },
+});
+
+console.log("Permission granted! Transaction:", result.transactionHash);
 ```
 
-This pattern makes it easy to extend the SDK with new contracts while maintaining full type safety.
+## Running Example Applications
 
-## Extending the SDK
+This monorepo includes two example applications demonstrating SDK usage:
 
-You can extend the SDK with custom contract wrappers using the `BaseContractClient` if needed:
+```bash
+# Install dependencies (from root directory)
+npm install
 
-```typescript
-import { BaseContractClient, VanaProvider } from "vana-sdk";
-import { privateKeyToAccount } from "viem/accounts";
-import { createPublicClient, createWalletClient, http } from "viem";
+# Run the main SDK demo (includes data permissions, file management, and more)
+npm run dev:demo
 
-// Create a custom client for a contract
-export class MyCustomContractClient extends BaseContractClient<"DataRegistry"> {
-  constructor(provider: VanaProvider) {
-    super("DataRegistry", provider);
-  }
-
-  // Use with a provider
-  static withProvider(privateKey: string, rpcUrl: string) {
-    const signer = privateKeyToAccount(privateKey);
-    const provider = new VanaProvider({
-      chainId: 14800,
-      rpcUrl,
-      signer,
-    });
-    return new MyCustomContractClient(provider);
-  }
-
-  // Add custom methods
-  async addFileWithNotification(fileUrl: string, owner: string): Promise<any> {
-    const walletClient = createWalletClient({
-      transport: http(this.provider.rpcUrl),
-      account: this.provider.signer,
-    });
-
-    // Call a write function on the contract
-    const hash = await walletClient.writeContract({
-      address: this.contract.address,
-      abi: this.contract.abi,
-      functionName: "addFile",
-      args: [fileUrl, owner],
-    });
-
-    // Custom logic, like sending a notification
-    console.log(`File added with transaction: ${hash}`);
-    return hash;
-  }
-}
+# Run the Vana Vibes demo (social features demonstration)
+npm run dev:vibes
 ```
 
-## Project Structure
+The demos will start on:
 
-- **`src/abi`** – TypeScript definitions of contract ABIs for type-safe interaction.
-- **`src/config`** – Network configuration (contract addresses, chains).
-- **`src/core`** – Core SDK classes (provider setup, client configuration).
-- **`src/contracts`** – Base contract interfaces and controllers.
-- **`src/utils`** – Utility functions (encryption helpers, formatters).
+- SDK Demo: http://localhost:3000
+- Vibes Demo: http://localhost:3001
 
-## Contributing
+## Resources
 
-We welcome contributions! If you want to add support for a new feature or contract:
+- **[Complete Documentation](https://docs.vana.org/sdk)** - Comprehensive guides and API reference
+- **[Console Application](./examples/vana-console)** - Full-featured example implementation
+- **[API Reference](https://vana-com.github.io/vana-sdk)** - Auto-generated TypeScript docs
+- **[Discord Community](https://discord.gg/vanabuilders)** - Get help and share feedback
 
-- **Open an issue** or **draft a proposal** for discussion if it's a significant addition.
-- Follow the coding style (run `npm run lint` to ensure ESLint passes).
-- Add unit tests for any new modules if possible.
+## Development
 
-## TODOs and Future Plans
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup and workflow.
 
-- [ ] **Implement specialized contract client classes** for common operations.
-- [ ] **Implement DataRefinerRegistry module:** allow DLP owners to register and update data refiners.
-- [ ] **Implement QueryEngine and ComputeEngine modules:** enabling the data query flow (permissions, payments, result handling).
-- [ ] **Event listening utilities:** e.g. a helper to wait for a `ProofAdded` event or query completion events instead of manual polling.
-- [ ] **DLP Factory support:** add functions to create new DLPs via the DLP root contract, and to look up existing DLPs by ID or owner.
-- [ ] **Comprehensive Testing:** create a suite of tests (using Hardhat or Foundry scripts with Moksha testnet or local fork).
-- [ ] **Documentation Site:** expand the README into a full documentation site with guides.
+## License
+
+[ISC](./LICENSE)

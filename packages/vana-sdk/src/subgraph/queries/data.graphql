@@ -1,0 +1,45 @@
+query GetUserPermissions($userId: ID!) {
+  user(id: $userId) {
+    id
+    permissions {
+      id
+      grant
+      nonce
+      signature
+      startBlock
+      endBlock
+      addedAtBlock
+      addedAtTimestamp
+      transactionHash
+      grantee {
+        id
+        address
+      }
+      filePermissions {
+        file {
+          id
+          url
+        }
+      }
+    }
+  }
+}
+
+query GetUserTrustedServers($userId: ID!) {
+  user(id: $userId) {
+    id
+    serverTrusts {
+      id
+      server {
+        id
+        serverAddress
+        url
+        publicKey
+      }
+      trustedAt
+      trustedAtBlock
+      untrustedAtBlock
+      transactionHash
+    }
+  }
+}

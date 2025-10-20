@@ -1,0 +1,2179 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Mock } from "vitest";
+import type { Hash, PublicClient } from "viem";
+import { PermissionsController } from "../controllers/permissions";
+import type { ControllerContext } from "../controllers/permissions";
+import {
+  RelayerError,
+  UserRejectedRequestError,
+  NonceError,
+  NetworkError,
+  BlockchainError,
+  SignatureError,
+  PermissionError,
+} from "../errors";
+import { mockPlatformAdapter } from "./mocks/platformAdapter";
+
+// Mock ALL external dependencies to ensure pure unit tests
+vi.mock("viem", async () => {
+  const actual = await vi.importActual("viem");
+  return {
+    ...actual,
+    getAddress: vi.fn((address) => address),
+    createPublicClient: vi.fn(() => ({
+      readContract: vi.fn(),
+      waitForTransactionReceipt: vi.fn(),
+      getTransactionReceipt: vi.fn().mockResolvedValue({
+        transactionHash: "0xTransactionHash",
+        blockNumber: 12345n,
+        gasUsed: 100000n,
+        status: "success" as const,
+        logs: [],
+      }),
+    })),
+    getContract: vi.fn(() => ({
+      read: {
+        userPermissionIdsLength: vi.fn(),
+        userPermissionIdsAt: vi.fn(),
+        permissions: vi.fn(),
+      },
+    })),
+    http: vi.fn(),
+    createWalletClient: vi.fn(),
+    parseEventLogs: vi.fn(() => []),
+  };
+});
+
+vi.mock("viem/accounts", () => ({
+  privateKeyToAccount: vi.fn(() => ({
+    address: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  })),
+}));
+
+vi.mock("../config/chains", () => ({
+  mokshaTestnet: {
+    id: 14800,
+    name: "Moksha Testnet",
+  },
+}));
+
+vi.mock("../config/addresses", () => ({
+  getContractAddress: vi
+    .fn()
+    .mockReturnValue("0x1234567890123456789012345678901234567890"),
+}));
+
+vi.mock("../generated/abi", () => ({
+  getAbi: vi.fn().mockReturnValue([
+    {
+      name: "userNonce",
+      type: "function",
+      inputs: [{ name: "user", type: "address" }],
+      outputs: [{ name: "", type: "uint256" }],
+    },
+    {
+      name: "addPermission",
+      type: "function",
+      inputs: [
+        { name: "permission", type: "tuple" },
+        { name: "signature", type: "bytes" },
+      ],
+      outputs: [],
+    },
+  ]),
+}));
+
+// Mock fetch globally - no real network calls
+global.fetch = vi.fn();
+
+// Mock grant file utilities - no real IPFS operations
+vi.mock("../utils/grantFiles", () => ({
+  createGrantFile: vi.fn(),
+  submit: vi.fn().mockResolvedValue("https://ipfs.io/ipfs/Qm..."),
+  getGrantFileHash: vi.fn().mockReturnValue("0xgrantfilehash"),
+}));
+
+// Import the mocked functions for configuration
+import { createGrantFile } from "../utils/grantFiles";
+
+interface MockWalletClient {
+  account: {
+    address: string;
+  };
+  chain: {
+    id: number;
+    name: string;
+  };
+  getChainId: ReturnType<typeof vi.fn>;
+  getAddresses: ReturnType<typeof vi.fn>;
+  signTypedData: ReturnType<typeof vi.fn>;
+  writeContract: ReturnType<typeof vi.fn>;
+}
+
+interface MockPublicClient {
+  readContract: ReturnType<typeof vi.fn>;
+  waitForTransactionReceipt: ReturnType<typeof vi.fn>;
+  getTransactionReceipt: ReturnType<typeof vi.fn>;
+  getChainId: ReturnType<typeof vi.fn>;
+}
+
+describe("PermissionsController", () => {
+  let controller: PermissionsController;
+  let mockContext: ControllerContext;
+  let mockWalletClient: MockWalletClient;
+  let mockPublicClient: MockPublicClient;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+
+    // Setup parseEventLogs mock - will be configured per test
+    const { parseEventLogs } = await import("viem");
+    vi.mocked(parseEventLogs).mockImplementation((params) => {
+      // Return appropriate event based on the event name
+      if ((params as any).eventName === "PermissionAdded") {
+        return [
+          {
+            eventName: "PermissionAdded",
+            args: {
+              permissionId: 75n,
+              user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+              grant: "https://mock-grant-url.com",
+              fileIds: [],
+            },
+          },
+        ] as any;
+      } else if ((params as any).eventName === "PermissionRevoked") {
+        return [
+          {
+            eventName: "PermissionRevoked",
+            args: {
+              permissionId: 123n,
+            },
+          },
+        ] as any;
+      }
+      return [];
+    });
+
+    // Set up default mock for createGrantFile to return valid grant files
+    const mockCreateGrantFile = createGrantFile as Mock;
+    mockCreateGrantFile.mockImplementation(
+      (params: Record<string, unknown>) => ({
+        grantee: params.grantee,
+        operation: params.operation,
+        parameters: params.parameters,
+        expires: params.expiresAt ?? Math.floor(Date.now() / 1000) + 3600,
+      }),
+    );
+
+    // Reset fetch mock to a working state
+    const mockFetch = fetch as Mock;
+    mockFetch.mockReset();
+
+    // Create a fully mocked wallet client - no real viem objects
+    mockWalletClient = {
+      account: {
+        address: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      },
+      chain: {
+        id: 14800,
+        name: "Moksha Testnet",
+      },
+      getChainId: vi.fn().mockResolvedValue(14800),
+      getAddresses: vi
+        .fn()
+        .mockResolvedValue(["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"]),
+      signTypedData: vi.fn().mockResolvedValue(`0x${"0".repeat(130)}` as Hash),
+      writeContract: vi.fn().mockResolvedValue("0xtxhash" as Hash),
+    };
+
+    // Create a mock publicClient
+    mockPublicClient = {
+      readContract: vi.fn().mockResolvedValue(BigInt(0)),
+      waitForTransactionReceipt: vi.fn().mockResolvedValue({
+        blockNumber: 12345n,
+        gasUsed: 100000n,
+        logs: [],
+      }),
+      getTransactionReceipt: vi.fn().mockResolvedValue({
+        transactionHash: "0xTransactionHash",
+        blockNumber: 12345n,
+        gasUsed: 100000n,
+        status: "success" as const,
+        logs: [],
+      }),
+      getChainId: vi.fn().mockResolvedValue(14800),
+    };
+
+    mockContext = {
+      walletClient:
+        mockWalletClient as unknown as ControllerContext["walletClient"],
+      publicClient:
+        mockPublicClient as unknown as ControllerContext["publicClient"],
+      relayer: vi.fn().mockImplementation(async (request) => {
+        // Handle different request types
+        if (
+          request.type === "direct" &&
+          request.operation === "storeGrantFile"
+        ) {
+          return {
+            type: "direct",
+            result: { url: "https://mock-grant-url.com" },
+          };
+        }
+        if (request.type === "signed") {
+          return { type: "signed", hash: "0xtxhash" };
+        }
+        return { type: "error", error: "Unknown request" };
+      }),
+      platform: mockPlatformAdapter,
+      userAddress:
+        "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+      waitForTransactionEvents: vi.fn().mockResolvedValue({
+        hash: "0xtxhash",
+        from: "0xfrom",
+        contract: "DataPortabilityPermissions",
+        fn: "addPermission",
+        expectedEvents: {
+          PermissionAdded: {
+            permissionId: 1n,
+          },
+        },
+        allEvents: [],
+        hasExpectedEvents: true,
+      }),
+    };
+
+    controller = new PermissionsController(mockContext);
+  });
+
+  describe("grant", () => {
+    const mockGrantParams = {
+      grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+      operation: "llm_inference",
+      files: [],
+      parameters: {
+        prompt: "Test prompt",
+        maxTokens: 100,
+      },
+    };
+
+    it("should successfully grant permission with complete flow", async () => {
+      const result = await controller.grant(mockGrantParams);
+
+      expect(result).toMatchObject({
+        transactionHash: "0xtxhash",
+        permissionId: 1n,
+      });
+      expect(mockWalletClient.signTypedData).toHaveBeenCalled();
+      // Should use relayer pattern - check it was called with correct requests
+      expect(mockContext.relayer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "direct",
+          operation: "storeGrantFile",
+        }),
+      );
+      expect(mockContext.relayer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "signed",
+          operation: "submitAddPermission",
+        }),
+      );
+    });
+
+    it("should handle user rejection gracefully", async () => {
+      // Mock nonce retrieval
+      const { createPublicClient } = await import("viem");
+      vi.mocked(createPublicClient).mockReturnValueOnce({
+        readContract: vi.fn().mockResolvedValue(BigInt(0)),
+      } as unknown as PublicClient);
+
+      // Mock user rejection
+      mockWalletClient.signTypedData.mockRejectedValue(
+        new Error("User rejected request"),
+      );
+
+      await expect(controller.grant(mockGrantParams)).rejects.toThrow(
+        UserRejectedRequestError,
+      );
+    });
+
+    it("should handle relayer errors", async () => {
+      // Mock relayer callbacks to fail
+      const failingContext = {
+        ...mockContext,
+        relayer: vi.fn().mockRejectedValue(new RelayerError("Relayer failed")),
+      };
+
+      const failingController = new PermissionsController(failingContext);
+
+      await expect(failingController.grant(mockGrantParams)).rejects.toThrow(
+        RelayerError,
+      );
+    });
+
+    it("should handle network errors gracefully", async () => {
+      // Mock relayer callbacks to fail with network error
+      const failingContext = {
+        ...mockContext,
+        relayer: vi.fn().mockRejectedValue(new NetworkError("Network error")),
+      };
+
+      const failingController = new PermissionsController(failingContext);
+
+      await expect(failingController.grant(mockGrantParams)).rejects.toThrow(
+        NetworkError,
+      );
+    });
+  });
+
+  describe("revoke", () => {
+    const mockRevokeParams = {
+      permissionId: BigInt(123),
+    };
+
+    it("should successfully revoke permission", async () => {
+      const { createPublicClient } = await import("viem");
+      const mockPublicClient = createPublicClient({
+        chain: mockWalletClient.chain,
+        transport: () => ({}),
+      } as unknown as Parameters<typeof createPublicClient>[0]);
+      vi.mocked(mockPublicClient.readContract).mockResolvedValue(BigInt(1));
+
+      // Mock writeContract to return the expected hash
+      mockWalletClient.writeContract = vi
+        .fn()
+        .mockResolvedValue("0xrevokehash");
+
+      // Mock waitForTransactionEvents to return PermissionRevoked event
+      if (mockContext.waitForTransactionEvents) {
+        vi.mocked(mockContext.waitForTransactionEvents).mockResolvedValueOnce({
+          hash: "0xrevokehash",
+          from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          contract: "DataPortabilityPermissions",
+          fn: "revokePermission",
+          expectedEvents: {
+            PermissionRevoked: {
+              permissionId: BigInt(123),
+            },
+          },
+          allEvents: [],
+          hasExpectedEvents: true,
+        });
+      }
+
+      const result = await controller.revoke(mockRevokeParams);
+
+      expect(result).toMatchObject({
+        transactionHash: "0xrevokehash",
+        permissionId: BigInt(123),
+      });
+      expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          address: "0x1234567890123456789012345678901234567890",
+          abi: expect.any(Array),
+          functionName: "revokePermission",
+          args: [mockRevokeParams.permissionId],
+        }),
+      );
+    });
+
+    it("should handle revoke errors", async () => {
+      const { createPublicClient } = await import("viem");
+      const mockPublicClient = createPublicClient({
+        chain: mockWalletClient.chain,
+        transport: () => ({}),
+      } as unknown as Parameters<typeof createPublicClient>[0]);
+      vi.mocked(mockPublicClient.readContract).mockResolvedValue(BigInt(1));
+
+      // Mock writeContract to throw an error
+      mockWalletClient.writeContract = vi
+        .fn()
+        .mockRejectedValue(new Error("Transaction failed"));
+
+      await expect(controller.revoke(mockRevokeParams)).rejects.toThrow(
+        BlockchainError,
+      );
+    });
+  });
+
+  describe("EIP-712 message composition", () => {
+    it("should compose correct EIP-712 typed data", async () => {
+      const { createPublicClient } = await import("viem");
+      const mockPublicClient = createPublicClient({
+        chain: mockWalletClient.chain,
+        transport: () => ({}),
+      } as unknown as Parameters<typeof createPublicClient>[0]);
+      vi.mocked(mockPublicClient.readContract).mockResolvedValue(BigInt(0));
+
+      // Access private method for testing
+      const compose = (
+        controller as unknown as {
+          composePermissionGrantMessage: (
+            params: Record<string, unknown>,
+          ) => Promise<Record<string, unknown>>;
+        }
+      ).composePermissionGrantMessage.bind(controller);
+
+      const params = {
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        operation: "test_operation",
+        files: [1, 2, 3],
+        grantUrl: "https://example.com/grant",
+        serializedParameters: "0xparamshash" as Hash,
+        nonce: BigInt(5),
+      };
+
+      const typedData = (await compose(params)) as unknown as {
+        domain: { name: string; version: string; chainId: number };
+        primaryType: string;
+        message: { nonce: bigint; grant: string };
+      };
+
+      expect(typedData.domain.name).toBe("VanaDataPortabilityPermissions");
+      expect(typedData.domain.version).toBe("1");
+      expect(typedData.domain.chainId).toBe(14800);
+      expect(typedData.primaryType).toBe("Permission");
+      expect(typedData.message.nonce).toBe(params.nonce);
+      expect(typedData.message.grant).toBe(params.grantUrl);
+      // Files are now only in message.fileIds, not at the top level
+    });
+  });
+
+  describe("Direct Transaction Path", () => {
+    let directController: PermissionsController;
+
+    beforeEach(() => {
+      // Create controller without relayer URL for direct transactions
+      directController = new PermissionsController({
+        walletClient:
+          mockWalletClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        waitForTransactionEvents: vi.fn().mockResolvedValue({
+          hash: "0xdirecttxhash",
+          from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          contract: "DataPortabilityPermissions",
+          fn: "addPermission",
+          expectedEvents: {
+            PermissionAdded: {
+              permissionId: 1n,
+              user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+              grantee:
+                "0x1234567890123456789012345678901234567890" as `0x${string}`,
+              grant: "https://example.com/grant.json",
+              fileIds: [1, 2, 3],
+            },
+          },
+          allEvents: [],
+          hasExpectedEvents: true,
+        }),
+        // No relayerUrl - forces direct transaction path
+      });
+    });
+
+    it("should throw error when no grantUrl provided and no relayer configured", async () => {
+      const mockParams = {
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        operation: "llm_inference",
+        files: [],
+        parameters: { prompt: "Test prompt" },
+        // No grantUrl and no relayer
+      };
+
+      await expect(directController.grant(mockParams)).rejects.toThrow(
+        "No storage available. Provide a grantUrl, configure relayer, or storageManager.",
+      );
+    });
+
+    it("should execute direct transaction when grantUrl is provided", async () => {
+      const mockParams = {
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        operation: "llm_inference",
+        files: [1, 2, 3],
+        parameters: { prompt: "Test prompt" },
+        grantUrl: "https://example.com/grant.json",
+      };
+
+      // Mock nonce retrieval
+      const { createPublicClient } = await import("viem");
+      vi.mocked(createPublicClient).mockReturnValueOnce({
+        readContract: vi.fn().mockResolvedValue(BigInt(5)),
+      } as unknown as PublicClient);
+
+      // Mock direct transaction
+      mockWalletClient.writeContract = vi
+        .fn()
+        .mockResolvedValue("0xdirecttxhash");
+
+      const result = await directController.grant(mockParams);
+
+      expect(result).toMatchObject({
+        transactionHash: "0xdirecttxhash",
+        permissionId: 1n,
+      });
+      expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          address: "0x1234567890123456789012345678901234567890",
+          abi: expect.any(Array),
+          functionName: "addPermission",
+        }),
+      );
+    });
+  });
+
+  describe("Error handling", () => {
+    it("should handle nonce retrieval errors", async () => {
+      // Mock fetch to allow grant file storage to succeed first
+      const mockFetch = fetch as Mock;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            success: true,
+            url: "https://ipfs.io/ipfs/QmGrantFile123",
+          }),
+      });
+
+      // Mock the publicClient to fail on readContract (nonce retrieval)
+      mockPublicClient.readContract.mockRejectedValueOnce(
+        new Error("Contract call failed"),
+      );
+
+      const params = {
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        operation: "test",
+        files: [],
+        parameters: { test: "value" },
+      };
+
+      await expect(controller.grant(params)).rejects.toThrow(NonceError);
+    });
+
+    it("should handle blockchain errors during grant", async () => {
+      // Mock publicClient.readContract to fail during nonce retrieval
+      mockPublicClient.readContract.mockRejectedValueOnce(
+        new Error("Blockchain connection failed"),
+      );
+
+      const mockParams = {
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        operation: "test",
+        files: [],
+        parameters: { test: "value" },
+      };
+
+      await expect(controller.grant(mockParams)).rejects.toThrow(NonceError);
+    });
+
+    it("should handle signature errors with specific messages", async () => {
+      const mockParams = {
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        operation: "test",
+        files: [],
+        parameters: { test: "value" },
+      };
+
+      // Mock grant file storage
+      const mockFetch = fetch as Mock;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            success: true,
+            grantUrl: "https://ipfs.io/ipfs/QmTest",
+          }),
+      });
+
+      // Mock nonce retrieval
+      const { createPublicClient } = await import("viem");
+      const mockPublicClient = createPublicClient({
+        chain: mockWalletClient.chain,
+        transport: () => ({}),
+      } as unknown as Parameters<typeof createPublicClient>[0]);
+      vi.mocked(mockPublicClient.readContract).mockResolvedValue(BigInt(0));
+
+      // Mock signature failure with specific error
+      mockWalletClient.signTypedData.mockRejectedValue(
+        new Error("Signature verification failed"),
+      );
+
+      await expect(controller.grant(mockParams)).rejects.toThrow(
+        SignatureError,
+      );
+    });
+  });
+
+  describe("Grant File Handling", () => {
+    it("should create and store grant file when no grantUrl provided", async () => {
+      const mockParams = {
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        operation: "llm_inference",
+        files: [1, 2, 3],
+        parameters: { prompt: "Test prompt", maxTokens: 100 },
+      };
+
+      // Create controller with unified relayer configured
+      const mockRelayer = vi
+        .fn()
+        .mockResolvedValueOnce({
+          // First call: store grant file
+          type: "direct",
+          result: { url: "https://ipfs.io/ipfs/QmGrantFile" },
+        })
+        .mockResolvedValueOnce({
+          // Second call: submit signed transaction
+          type: "signed",
+          hash: "0xtxhash" as Hash,
+        });
+      const contextWithStorage = {
+        ...mockContext,
+        relayer: mockRelayer,
+        userAddress: "0xuser" as `0x${string}`,
+        waitForTransactionEvents: vi.fn().mockResolvedValue({
+          hash: "0xtxhash" as Hash,
+          expectedEvents: {
+            PermissionAdded: {
+              permissionId: 1n,
+              user: "0xuser",
+              grant: "https://ipfs.io/ipfs/QmGrantFile",
+              fileIds: [1n, 2n, 3n],
+            },
+          },
+        }),
+      };
+      const controllerWithStorage = new PermissionsController(
+        contextWithStorage,
+      );
+
+      // Mock other dependencies
+      const { createPublicClient } = await import("viem");
+      vi.mocked(createPublicClient).mockReturnValueOnce({
+        readContract: vi.fn().mockResolvedValue(BigInt(0)),
+        getTransactionReceipt: vi.fn().mockResolvedValue({
+          blockNumber: 12345n,
+          gasUsed: 100000n,
+        }),
+      } as unknown as PublicClient);
+
+      // Mock walletClient signTypedData
+      mockWalletClient.signTypedData.mockResolvedValue("0xsignature" as Hash);
+
+      const result = await controllerWithStorage.grant(mockParams);
+
+      // Check that relayer was called to store grant file
+      expect(mockRelayer).toHaveBeenCalledWith({
+        type: "direct",
+        operation: "storeGrantFile",
+        params: expect.objectContaining({
+          grantee: mockParams.grantee,
+          operation: mockParams.operation,
+          parameters: mockParams.parameters,
+        }),
+      });
+
+      // Check the result
+      expect(result).toMatchObject({
+        transactionHash: "0xtxhash",
+        permissionId: 1n,
+        grant: "https://ipfs.io/ipfs/QmGrantFile",
+      });
+    });
+  });
+
+  describe("getUserPermissionGrantsOnChain", () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it("should get user permissions successfully", async () => {
+      const mockFetch = fetch as Mock;
+
+      // Mock subgraph response
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              user: {
+                id: mockWalletClient.account.address.toLowerCase(),
+                permissions: [
+                  {
+                    id: "1",
+                    grant: "https://ipfs.io/ipfs/Qm1",
+                    nonce: "1",
+                    signature: "0xsig1",
+                    startBlock: "123450",
+                    addedAtBlock: "123456",
+                    addedAtTimestamp: "1640995200",
+                    transactionHash: "0x123...",
+                    grantee: {
+                      id: "5",
+                      address: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+                    },
+                    user: {
+                      id: mockWalletClient.account.address.toLowerCase(),
+                    },
+                  },
+                  {
+                    id: "2",
+                    grant: "https://ipfs.io/ipfs/Qm2",
+                    nonce: "2",
+                    signature: "0xsig2",
+                    startBlock: "123451",
+                    addedAtBlock: "123457",
+                    addedAtTimestamp: "1640995300",
+                    transactionHash: "0x456...",
+                    grantee: {
+                      id: "6",
+                      address: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd37",
+                    },
+                    user: {
+                      id: mockWalletClient.account.address.toLowerCase(),
+                    },
+                  },
+                ],
+              },
+            },
+          }),
+      });
+
+      const result = await controller.getUserPermissionGrantsOnChain({
+        subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+      });
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual(
+        expect.objectContaining({
+          id: 2n,
+          grantUrl: "https://ipfs.io/ipfs/Qm2",
+          nonce: 2n,
+          addedAtBlock: 123457n,
+        }),
+      );
+      expect(result[1]).toEqual(
+        expect.objectContaining({
+          id: 1n,
+          grantUrl: "https://ipfs.io/ipfs/Qm1",
+          nonce: 1n,
+          addedAtBlock: 123456n,
+        }),
+      );
+    });
+
+    it("should return empty array when user has no permissions", async () => {
+      const mockFetch = fetch as Mock;
+
+      // Mock subgraph response with no permissions
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              user: {
+                id: mockWalletClient.account.address.toLowerCase(),
+                permissions: [],
+              },
+            },
+          }),
+      });
+
+      const result = await controller.getUserPermissionGrantsOnChain({
+        subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+      });
+
+      expect(result).toEqual([]);
+    });
+
+    it("should handle permissions with limit parameter", async () => {
+      const mockFetch = fetch as Mock;
+
+      // Mock subgraph response - GraphQL would respect the limit in first parameter
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              user: {
+                id: mockWalletClient.account.address.toLowerCase(),
+                permissions: [
+                  {
+                    id: "1",
+                    grant: "https://ipfs.io/ipfs/Qm1",
+                    nonce: "1",
+                    signature: "0xsig1",
+                    startBlock: "123450",
+                    addedAtBlock: "123456",
+                    addedAtTimestamp: "1640995200",
+                    transactionHash: "0x123...",
+                    grantee: {
+                      id: "5",
+                      address: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+                    },
+                    user: {
+                      id: mockWalletClient.account.address.toLowerCase(),
+                    },
+                  },
+                  {
+                    id: "2",
+                    grant: "https://ipfs.io/ipfs/Qm2",
+                    nonce: "2",
+                    signature: "0xsig2",
+                    startBlock: "123451",
+                    addedAtBlock: "123457",
+                    addedAtTimestamp: "1640995300",
+                    transactionHash: "0x456...",
+                    grantee: {
+                      id: "6",
+                      address: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd37",
+                    },
+                    user: {
+                      id: mockWalletClient.account.address.toLowerCase(),
+                    },
+                  },
+                  // GraphQL would only return 2 items when first: 2 is specified
+                ],
+              },
+            },
+          }),
+      });
+
+      const result = await controller.getUserPermissionGrantsOnChain({
+        limit: 2,
+        subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+      });
+
+      expect(result).toHaveLength(2);
+
+      // Verify the request included the correct limit
+      expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toMatchObject({
+        variables: {
+          first: 2,
+          skip: 0,
+        },
+      });
+    });
+
+    it("should fetch all permissions with fetchAll option", async () => {
+      const mockFetch = fetch as Mock;
+
+      // Create 150 mock permissions to test pagination
+      const createMockPermission = (id: number) => ({
+        id: String(id),
+        grant: `https://ipfs.io/ipfs/Qm${id}`,
+        nonce: String(id),
+        signature: `0xsig${id}`,
+        startBlock: String(123450 + id),
+        addedAtBlock: String(123456 + id),
+        addedAtTimestamp: String(1640995200 + id * 100),
+        transactionHash: `0x${id.toString(16).padStart(64, "0")}`,
+        grantee: {
+          id: String(5 + id),
+          address: `0x742d35Cc6558Fd4D9e9E0E888F0462ef6919B${id.toString(16).padStart(3, "0")}`,
+        },
+        user: {
+          id: mockWalletClient.account.address.toLowerCase(),
+        },
+      });
+
+      // Mock first batch (100 permissions)
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              user: {
+                id: mockWalletClient.account.address.toLowerCase(),
+                permissions: Array.from({ length: 100 }, (_, i) =>
+                  createMockPermission(i + 1),
+                ),
+              },
+            },
+          }),
+      });
+
+      // Mock second batch (50 permissions)
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              user: {
+                id: mockWalletClient.account.address.toLowerCase(),
+                permissions: Array.from({ length: 50 }, (_, i) =>
+                  createMockPermission(i + 101),
+                ),
+              },
+            },
+          }),
+      });
+
+      // Mock third batch (empty - indicating we've fetched all)
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              user: {
+                id: mockWalletClient.account.address.toLowerCase(),
+                permissions: [],
+              },
+            },
+          }),
+      });
+
+      const result = await controller.getUserPermissionGrantsOnChain({
+        fetchAll: true,
+        subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+      });
+
+      // Should have fetched all 150 permissions
+      expect(result).toHaveLength(150);
+
+      // Verify that fetch was called 2 times (2 batches, second one returns less than requested)
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+
+      // Check first call had correct pagination params
+      expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toMatchObject({
+        variables: {
+          first: 100,
+          skip: 0,
+        },
+      });
+
+      // Check second call had correct pagination params
+      expect(JSON.parse(mockFetch.mock.calls[1][1].body)).toMatchObject({
+        variables: {
+          first: 100,
+          skip: 100,
+        },
+      });
+    });
+
+    it("should handle missing subgraph URL error", async () => {
+      const controllerWithoutSubgraph = new PermissionsController({
+        walletClient:
+          mockWalletClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        relayer: vi
+          .fn()
+          .mockResolvedValue({ type: "signed", hash: "0xtxhash" }),
+        // No subgraphUrl provided
+      });
+
+      await expect(
+        controllerWithoutSubgraph.getUserPermissionGrantsOnChain(),
+      ).rejects.toThrow("subgraphUrl is required");
+    });
+
+    it("should handle subgraph errors gracefully", async () => {
+      const mockFetch = fetch as Mock;
+
+      // Mock subgraph error response
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            errors: [
+              {
+                message: "Subgraph indexing error",
+              },
+            ],
+          }),
+      });
+
+      await expect(
+        controller.getUserPermissionGrantsOnChain({
+          subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+        }),
+      ).rejects.toThrow(BlockchainError);
+    });
+
+    it("should handle permission reading errors at specific indices", async () => {
+      const mockFetch = fetch as Mock;
+
+      // Mock subgraph response with one permission that will have retrieveGrantFile error
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              user: {
+                id: mockWalletClient.account.address.toLowerCase(),
+                permissions: [
+                  {
+                    id: "1",
+                    grant: "https://ipfs.io/ipfs/QmInvalidGrant", // This will fail in retrieveGrantFile
+                    nonce: "1",
+                    signature: "0xsig1",
+                    startBlock: "123450",
+                    addedAtBlock: "123456",
+                    addedAtTimestamp: "1640995200",
+                    transactionHash: "0x123...",
+                    grantee: {
+                      id: "5",
+                      address: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd36",
+                    },
+                    user: {
+                      id: mockWalletClient.account.address.toLowerCase(),
+                    },
+                  },
+                ],
+              },
+            },
+          }),
+      });
+
+      const result = await controller.getUserPermissionGrantsOnChain({
+        subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+      });
+
+      // Should still return the one permission even with grant file retrieval error
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual(
+        expect.objectContaining({
+          id: 1n,
+          grantUrl: "https://ipfs.io/ipfs/QmInvalidGrant",
+          nonce: 1n,
+          addedAtBlock: 123456n,
+        }),
+      );
+    });
+  });
+
+  describe("Additional Error Handling", () => {
+    it("should handle relayer callback errors", async () => {
+      // Create controller with failing relayer
+      const failingController = new PermissionsController({
+        walletClient:
+          mockWalletClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        relayer: vi.fn().mockRejectedValue(new NetworkError("Network timeout")),
+      });
+
+      // Mock nonce retrieval
+      const { createPublicClient } = await import("viem");
+      vi.mocked(createPublicClient).mockReturnValueOnce({
+        readContract: vi.fn().mockResolvedValue(BigInt(0)),
+      } as unknown as PublicClient);
+
+      const mockParams = {
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        operation: "test",
+        files: [],
+        parameters: { test: "value" },
+      };
+
+      await expect(failingController.grant(mockParams)).rejects.toThrow(
+        NetworkError,
+      );
+    });
+
+    it("should handle relayer callback generic errors", async () => {
+      // Create controller with failing relayer
+      const failingRelayer = vi.fn().mockResolvedValue({
+        type: "error",
+        error: "Generic relayer error",
+      });
+      const failingController = new PermissionsController({
+        walletClient:
+          mockWalletClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        relayer: failingRelayer,
+      });
+
+      // Mock nonce retrieval
+      const { createPublicClient } = await import("viem");
+      vi.mocked(createPublicClient).mockReturnValueOnce({
+        readContract: vi.fn().mockResolvedValue(BigInt(0)),
+      } as unknown as PublicClient);
+
+      const mockParams = {
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        operation: "test",
+        files: [],
+        parameters: { test: "value" },
+      };
+
+      await expect(failingController.grant(mockParams)).rejects.toThrow(
+        "Permission grant preparation failed",
+      );
+    });
+
+    it("should handle direct transaction blockchain errors", async () => {
+      const directController = new PermissionsController({
+        walletClient:
+          mockWalletClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        // No relayerUrl - forces direct transaction path
+      });
+
+      const mockParams = {
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        operation: "test",
+        files: [1, 2, 3],
+        parameters: { test: "value" },
+        grantUrl: "https://example.com/grant.json",
+      };
+
+      // Mock nonce retrieval
+      const { createPublicClient } = await import("viem");
+      vi.mocked(createPublicClient).mockReturnValueOnce({
+        readContract: vi.fn().mockResolvedValue(BigInt(5)),
+      } as unknown as PublicClient);
+
+      // Mock direct transaction failure
+      mockWalletClient.writeContract = vi
+        .fn()
+        .mockRejectedValue(new Error("Transaction failed"));
+
+      await expect(directController.grant(mockParams)).rejects.toThrow(
+        BlockchainError,
+      );
+    });
+
+    it("should handle missing chain ID in direct transaction", async () => {
+      const noChainPublicClient = {
+        ...mockPublicClient,
+        getChainId: vi
+          .fn()
+          .mockRejectedValue(new Error("Chain ID not available")),
+      };
+
+      const directController = new PermissionsController({
+        walletClient:
+          mockWalletClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          noChainPublicClient as unknown as ControllerContext["publicClient"],
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        platform: mockPlatformAdapter,
+        // No relayerUrl - forces direct transaction path
+      });
+
+      const mockParams = {
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        operation: "test",
+        files: [1, 2, 3],
+        parameters: { test: "value" },
+        grantUrl: "https://example.com/grant.json",
+      };
+
+      await expect(directController.grant(mockParams)).rejects.toThrow(
+        NonceError,
+      );
+    });
+
+    it("should handle missing wallet account in direct transaction", async () => {
+      const noAccountWallet = {
+        ...mockWalletClient,
+        account: undefined,
+      };
+      const directController = new PermissionsController({
+        walletClient:
+          noAccountWallet as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        platform: mockPlatformAdapter,
+        waitForTransactionEvents: vi.fn().mockResolvedValue({
+          hash: "0xtxhash",
+          from: undefined,
+          contract: "DataPortabilityPermissions",
+          fn: "submitPermission",
+          expectedEvents: {
+            PermissionAdded: {
+              permissionId: 1n,
+              user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+              grantee:
+                "0x1234567890123456789012345678901234567890" as `0x${string}`,
+              grant: "https://example.com/grant.json",
+              fileIds: [],
+            },
+          },
+          allEvents: [],
+          hasExpectedEvents: true,
+        }),
+        // No relayerUrl - forces direct transaction path
+      });
+
+      const mockParams = {
+        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        operation: "test",
+        files: [1, 2, 3],
+        parameters: { test: "value" },
+        grantUrl: "https://example.com/grant.json",
+      };
+
+      // With our enhanced assertWallet, this should throw an error
+      // because the wallet doesn't have an account
+      await expect(directController.grant(mockParams)).rejects.toThrow(
+        "No wallet account connected",
+      );
+    });
+
+    it("should handle revoke with missing chain ID", async () => {
+      const noChainWallet = {
+        ...mockWalletClient,
+        chain: null,
+      };
+
+      const noChainController = new PermissionsController({
+        walletClient:
+          noChainWallet as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        relayer: vi
+          .fn()
+          .mockResolvedValue({ type: "signed", hash: "0xtxhash" }),
+      });
+
+      const mockRevokeParams = {
+        permissionId: 1n,
+      };
+
+      await expect(noChainController.revoke(mockRevokeParams)).rejects.toThrow(
+        BlockchainError,
+      );
+    });
+
+    it("should handle submitToRelayer network errors", async () => {
+      // Create controller with failing relayer to test network error
+      const failingController = new PermissionsController({
+        walletClient:
+          mockWalletClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        relayer: vi.fn().mockRejectedValue(new NetworkError("Network timeout")),
+      });
+
+      const mockParams = {
+        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        operation: "read",
+        files: [],
+        parameters: { someKey: "someValue" },
+      };
+
+      // Mock nonce retrieval
+      const { createPublicClient } = await import("viem");
+      vi.mocked(createPublicClient).mockReturnValueOnce({
+        readContract: vi.fn().mockResolvedValue(BigInt(0)),
+      } as unknown as PublicClient);
+
+      await expect(failingController.grant(mockParams)).rejects.toThrow(
+        NetworkError,
+      );
+    });
+
+    it("should handle getUserPermissions with non-Error exceptions", async () => {
+      const controller = new PermissionsController({
+        walletClient:
+          mockWalletClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+        relayer: vi.fn().mockImplementation(async (request) => {
+          if (request.type === "signed") {
+            return { type: "signed", hash: "0xtxhash" as `0x${string}` };
+          }
+          return { type: "error", error: "Unknown request" };
+        }),
+      });
+
+      // Mock fetch to throw non-Error object (string)
+      const mockFetch = fetch as Mock;
+      mockFetch.mockRejectedValueOnce("Network error string");
+
+      await expect(controller.getUserPermissionGrantsOnChain()).rejects.toThrow(
+        "Failed to fetch user permission grants: Unknown error",
+      );
+    });
+
+    it("should handle grant with non-Error exceptions", async () => {
+      // Create controller with storage
+      const controller = new PermissionsController({
+        walletClient:
+          mockWalletClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        relayer: vi.fn().mockImplementation(async (request) => {
+          if (
+            request.type === "direct" &&
+            request.operation === "storeGrantFile"
+          ) {
+            return {
+              type: "direct",
+              result: { url: "https://ipfs.io/ipfs/QmGrantFile" },
+            };
+          }
+          return { type: "signed", hash: "0xtxhash" };
+        }),
+      });
+
+      // Mock publicClient.readContract to throw non-Error object during nonce retrieval
+      mockPublicClient.readContract.mockRejectedValueOnce("string error");
+
+      const mockParams = {
+        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        operation: "read",
+        files: [],
+        parameters: { someKey: "someValue" },
+      };
+
+      await expect(controller.grant(mockParams)).rejects.toThrow(
+        "Failed to retrieve permissions nonce: Unknown error",
+      );
+    });
+
+    it("should handle revoke with non-Error exceptions", async () => {
+      // Create a mock wallet client that throws non-Error object early in the process
+      const faultyWalletClient = {
+        ...mockWalletClient,
+        chain: {
+          get id() {
+            throw "string error"; // Non-Error thrown
+          },
+        },
+      };
+
+      const controller = new PermissionsController({
+        walletClient:
+          faultyWalletClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        relayer: vi.fn().mockImplementation(async (request) => {
+          if (request.type === "signed") {
+            return { type: "signed", hash: "0xtxhash" as `0x${string}` };
+          }
+          return { type: "error", error: "Unknown request" };
+        }),
+      });
+
+      const mockRevokeParams = {
+        permissionId: 1n,
+      };
+
+      await expect(controller.revoke(mockRevokeParams)).rejects.toThrow(
+        "Permission revoke failed with unknown error",
+      );
+    });
+
+    it("should handle direct revoke transaction path", async () => {
+      const controller = new PermissionsController({
+        walletClient:
+          mockWalletClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        waitForTransactionEvents: vi.fn().mockResolvedValue({
+          hash: "0xmockabcdef1234567890abcdef1234567890abcdef1234567890abcdef123456",
+          from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          contract: "DataPortabilityPermissions",
+          fn: "revokePermission",
+          expectedEvents: {
+            PermissionRevoked: {
+              permissionId: 1n,
+            },
+          },
+          allEvents: [],
+          hasExpectedEvents: true,
+        }),
+        // No relayer callbacks to force direct transaction path
+      });
+
+      const mockRevokeParams = {
+        permissionId: 1n,
+      };
+
+      // Mock writeContract to return the expected hash
+      mockWalletClient.writeContract = vi
+        .fn()
+        .mockResolvedValue(
+          "0xmockabcdef1234567890abcdef1234567890abcdef1234567890abcdef123456",
+        );
+
+      const result = await controller.revoke(mockRevokeParams);
+
+      // Should return revoke result
+      expect(result).toMatchObject({
+        transactionHash:
+          "0xmockabcdef1234567890abcdef1234567890abcdef1234567890abcdef123456",
+        permissionId: 1n,
+      });
+    });
+
+    it("should handle relayTransaction with missing relayer URL", async () => {
+      const controller = new PermissionsController({
+        walletClient:
+          mockWalletClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        // No relayer callbacks
+      });
+
+      const mockParams = {
+        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        operation: "read",
+        files: [1, 2, 3],
+        parameters: { someKey: "someValue" },
+        // No grantUrl provided to trigger the error we want to test
+      };
+
+      await expect(controller.grant(mockParams)).rejects.toThrow(
+        "No storage available. Provide a grantUrl, configure relayer, or storageManager.",
+      );
+    });
+
+    it("should handle submitToRelayer with missing relayer URL", async () => {
+      const mockRevokeParams = {
+        permissionId: 1n,
+      };
+
+      // Mock chain to be available but still no relayer URL
+      const mockWalletClientWithChain = {
+        ...mockWalletClient,
+        chain: mockWalletClient.chain, // Use existing chain
+      };
+
+      const controllerWithChain = new PermissionsController({
+        walletClient:
+          mockWalletClientWithChain as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        waitForTransactionEvents: vi.fn().mockResolvedValue({
+          hash: "0xmockdirecttxhash",
+          from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          contract: "DataPortabilityPermissions",
+          fn: "revokePermission",
+          expectedEvents: {
+            PermissionRevoked: {
+              permissionId: 1n,
+            },
+          },
+          allEvents: [],
+          hasExpectedEvents: true,
+        }),
+        // No relayer callbacks
+      });
+
+      // Mock writeContract to return a mock hash
+      mockWalletClientWithChain.writeContract = vi
+        .fn()
+        .mockResolvedValue("0xmockdirecttxhash");
+
+      // This should trigger the submitToRelayer path with missing relayer URL
+      // Since we're mocking, we need to test this indirectly through revoke
+      const result = await controllerWithChain.revoke(mockRevokeParams);
+
+      // Should return revoke result
+      expect(result).toMatchObject({
+        transactionHash: "0xmockdirecttxhash",
+        permissionId: 1n,
+      });
+    });
+
+    it("should handle failed relayer response in submitToRelayer", async () => {
+      const failingContext = {
+        ...mockContext,
+        relayer: vi
+          .fn()
+          .mockRejectedValue(new RelayerError("Relayer internal error")),
+      };
+
+      const failingController = new PermissionsController(failingContext);
+
+      const mockRevokeParams = {
+        permissionId: 1n,
+      };
+
+      await expect(
+        failingController.submitRevokeWithSignature(mockRevokeParams),
+      ).rejects.toThrow(PermissionError);
+    });
+
+    it("should handle network errors in submitToRelayer", async () => {
+      const failingContext = {
+        ...mockContext,
+        relayer: vi.fn().mockRejectedValue(new NetworkError("Failed to fetch")),
+      };
+
+      const failingController = new PermissionsController(failingContext);
+
+      const mockRevokeParams = {
+        permissionId: 1n,
+      };
+
+      await expect(
+        failingController.submitRevokeWithSignature(mockRevokeParams),
+      ).rejects.toThrow(PermissionError);
+    });
+
+    // Note: Lines 372-373, 427-428 in permissions.ts are defensive checks in relayTransaction/submitToRelayer
+    // These are difficult to test as they would require a context where relayerUrl is undefined
+    // after the method decision logic has already chosen to use the relayer path.
+    // In practice, these would only be hit if the context object is modified during execution.
+
+    it("should handle submitToRelayer with undefined relayerUrl context", async () => {
+      const controller = new PermissionsController({
+        walletClient:
+          mockWalletClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        // No relayer callbacks
+      });
+
+      const mockParams = {
+        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        operation: "read",
+        files: [1, 2, 3],
+        parameters: { someKey: "someValue" },
+      };
+
+      // This should trigger direct transaction path
+      await expect(controller.grant(mockParams)).rejects.toThrow(
+        "No storage available. Provide a grantUrl, configure relayer, or storageManager.",
+      );
+    });
+
+    it("should handle relayTransaction with real relayer URL", async () => {
+      const controller = new PermissionsController({
+        walletClient:
+          mockWalletClient as unknown as ControllerContext["walletClient"],
+        publicClient:
+          mockPublicClient as unknown as ControllerContext["publicClient"],
+        platform: mockPlatformAdapter,
+        userAddress:
+          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        waitForTransactionEvents: vi.fn().mockResolvedValue({
+          hash: "0xtxhash",
+          from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          contract: "DataPortabilityPermissions",
+          fn: "submitPermission",
+          expectedEvents: {
+            PermissionAdded: {
+              permissionId: 1n,
+              user: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+              grantee:
+                "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+              grant: "https://ipfs.io/ipfs/QmGrantFile",
+            },
+          },
+          allEvents: [],
+          hasExpectedEvents: true,
+        }),
+        relayer: vi.fn().mockImplementation(async (request) => {
+          if (
+            request.type === "direct" &&
+            request.operation === "storeGrantFile"
+          ) {
+            return {
+              type: "direct",
+              result: { url: "https://ipfs.io/ipfs/QmGrantFile" },
+            };
+          }
+          if (request.type === "signed") {
+            return { type: "signed", hash: "0xtxhash" as `0x${string}` };
+          }
+          return { type: "error", error: "Unknown request" };
+        }),
+      });
+
+      // Mock nonce retrieval
+      const { createPublicClient } = await import("viem");
+      vi.mocked(createPublicClient).mockReturnValueOnce({
+        readContract: vi.fn().mockResolvedValue(BigInt(0)),
+      } as unknown as PublicClient);
+
+      const mockParams = {
+        grantee: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
+        operation: "read",
+        files: [1, 2, 3],
+        parameters: { someKey: "someValue" },
+      };
+
+      const result = await controller.grant(mockParams);
+      expect(result).toMatchObject({
+        permissionId: 1n,
+        transactionHash: "0xtxhash",
+      });
+    });
+  });
+
+  describe("submitRevokeWithSignature", () => {
+    beforeEach(() => {
+      // Mock getPermissionsUserNonce for typed data creation
+      vi.spyOn(
+        controller as unknown as {
+          getPermissionsUserNonce: () => Promise<bigint>;
+        },
+        "getPermissionsUserNonce",
+      ).mockResolvedValue(123n);
+
+      // Mock getPermissionDomain
+      vi.spyOn(
+        controller as unknown as {
+          getPermissionDomain: () => Promise<Record<string, unknown>>;
+        },
+        "getPermissionDomain",
+      ).mockResolvedValue({
+        name: "VanaDataPortabilityPermissions",
+        version: "1",
+        chainId: 14800,
+        verifyingContract:
+          "0x1234567890123456789012345678901234567890" as `0x${string}`,
+      });
+
+      // Mock signTypedData
+      vi.spyOn(
+        controller as unknown as {
+          signTypedData: () => Promise<string>;
+        },
+        "signTypedData",
+      ).mockResolvedValue(`0x${"0".repeat(130)}` as `0x${string}`);
+    });
+
+    it("should successfully revoke permission with signature via relayer", async () => {
+      // Remove the spy on relayRevokeTransaction as it doesn't exist
+      vi.spyOn(
+        controller as unknown as {
+          signTypedData: () => Promise<string>;
+        },
+        "signTypedData",
+      ).mockResolvedValue(`0x${"0".repeat(130)}` as `0x${string}`);
+
+      const params = {
+        permissionId: 42n,
+      };
+
+      const result = await controller.submitRevokeWithSignature(params);
+
+      expect(result.hash).toBe("0xtxhash");
+    });
+
+    it("should successfully revoke permission with signature via direct transaction", async () => {
+      const testContext = {
+        ...mockContext,
+        relayer: undefined, // No relayer
+        walletClient: {
+          ...mockWalletClient,
+          chain: { id: 14800 },
+        } as unknown as ControllerContext["walletClient"],
+      } as unknown as ControllerContext;
+
+      const controller = new PermissionsController(testContext);
+
+      // Mock submitDirectRevokeTransaction
+      vi.spyOn(
+        controller as unknown as {
+          submitDirectRevokeTransaction: () => Promise<string>;
+        },
+        "submitDirectRevokeTransaction",
+      ).mockResolvedValue(
+        "0xhash123456789012345678901234567890123456789012345678901234567890",
+      );
+
+      const params = {
+        permissionId: 42n,
+      };
+
+      const result = await controller.submitRevokeWithSignature(params);
+
+      expect(result.hash).toBe(
+        "0xhash123456789012345678901234567890123456789012345678901234567890",
+      );
+    });
+
+    it("should handle missing chain ID error", async () => {
+      const testContext = {
+        ...mockContext,
+        walletClient: {
+          ...mockWalletClient,
+          chain: undefined, // No chain
+        } as unknown as ControllerContext["walletClient"],
+      } as unknown as ControllerContext;
+
+      const controller = new PermissionsController(testContext);
+
+      const params = {
+        permissionId: 42n,
+      };
+
+      await expect(
+        controller.submitRevokeWithSignature(params),
+      ).rejects.toThrow(PermissionError);
+    });
+
+    it("should handle getPermissionsUserNonce errors", async () => {
+      const testContext = {
+        ...mockContext,
+        walletClient: {
+          ...mockWalletClient,
+          chain: { id: 14800 },
+        } as unknown as ControllerContext["walletClient"],
+      } as unknown as ControllerContext;
+
+      const controller = new PermissionsController(testContext);
+
+      vi.spyOn(
+        controller as unknown as {
+          getPermissionsUserNonce: () => Promise<bigint>;
+        },
+        "getPermissionsUserNonce",
+      ).mockRejectedValue(new Error("Nonce retrieval failed"));
+
+      const params = {
+        permissionId: 42n,
+      };
+
+      await expect(
+        controller.submitRevokeWithSignature(params),
+      ).rejects.toThrow(
+        "Failed to revoke permission with signature: Nonce retrieval failed",
+      );
+    });
+
+    it("should handle signature errors", async () => {
+      const testContext = {
+        ...mockContext,
+        walletClient: {
+          ...mockWalletClient,
+          chain: { id: 14800 },
+        } as unknown as ControllerContext["walletClient"],
+      } as unknown as ControllerContext;
+
+      const controller = new PermissionsController(testContext);
+
+      vi.spyOn(
+        controller as unknown as {
+          signTypedData: () => Promise<string>;
+        },
+        "signTypedData",
+      ).mockRejectedValue(new Error("Signature failed"));
+
+      const params = {
+        permissionId: 42n,
+      };
+
+      await expect(
+        controller.submitRevokeWithSignature(params),
+      ).rejects.toThrow(
+        "Failed to revoke permission with signature: Signature failed",
+      );
+    });
+  });
+
+  describe("getPermissionsUserNonce", () => {
+    it("should read nonce from DataPortabilityPermissions contract", async () => {
+      const expectedNonce = 5n;
+
+      // Import getContractAddress locally to avoid affecting other tests
+      const addresses = await import("../config/addresses");
+      const originalGetContractAddress = addresses.getContractAddress;
+
+      // Track which contracts are requested
+      const contractRequests: string[] = [];
+
+      // Temporarily replace getContractAddress for this test only
+      (addresses as any).getContractAddress = (
+        chainId: number,
+        contractName: any,
+      ) => {
+        contractRequests.push(contractName);
+        return originalGetContractAddress(chainId, contractName);
+      };
+
+      try {
+        // Create a fresh controller instance for this test
+        const { PermissionsController: TestPermissionsController } =
+          await import("../controllers/permissions");
+        const testController = new TestPermissionsController(mockContext);
+
+        // Mock readContract to return the nonce
+        mockPublicClient.readContract.mockResolvedValueOnce(expectedNonce);
+
+        // Call getPermissionsUserNonce (private method, so we need to use type assertion)
+        const getPermissionsUserNonce = (
+          testController as any
+        ).getPermissionsUserNonce.bind(testController);
+        const nonce = await getPermissionsUserNonce();
+
+        // Verify the correct contract was requested
+        expect(contractRequests).toContain("DataPortabilityPermissions");
+        expect(contractRequests).not.toContain("DataPortabilityServers");
+
+        expect(nonce).toBe(expectedNonce);
+      } finally {
+        // Restore original function
+        (addresses as any).getContractAddress = originalGetContractAddress;
+      }
+    });
+  });
+
+  describe("New Permission Query Methods", () => {
+    beforeEach(() => {
+      // Mock the public client for contract reads
+      mockPublicClient.readContract = vi.fn();
+    });
+
+    describe("getFilePermissionIds", () => {
+      it("should successfully get permission IDs for a file", async () => {
+        const mockPermissionIds = [1n, 2n, 3n];
+        vi.mocked(mockPublicClient.readContract).mockResolvedValue(
+          mockPermissionIds,
+        );
+
+        const result = await controller.getFilePermissionIds(123n);
+
+        expect(result).toEqual(mockPermissionIds);
+        expect(mockPublicClient.readContract).toHaveBeenCalledWith({
+          address: "0x1234567890123456789012345678901234567890",
+          abi: expect.any(Array),
+          functionName: "filePermissionIds",
+          args: [123n],
+        });
+      });
+
+      it("should handle contract read errors", async () => {
+        vi.mocked(mockPublicClient.readContract).mockRejectedValue(
+          new Error("Contract read failed"),
+        );
+
+        await expect(controller.getFilePermissionIds(123n)).rejects.toThrow(
+          "Failed to get file permission IDs: Contract read failed",
+        );
+      });
+    });
+
+    describe("getPermissionFileIds", () => {
+      it("should successfully get file IDs for a permission", async () => {
+        const mockFileIds = [10n, 20n, 30n];
+        vi.mocked(mockPublicClient.readContract).mockResolvedValue(mockFileIds);
+
+        const result = await controller.getPermissionFileIds(456n);
+
+        expect(result).toEqual(mockFileIds);
+        expect(mockPublicClient.readContract).toHaveBeenCalledWith({
+          address: "0x1234567890123456789012345678901234567890",
+          abi: expect.any(Array),
+          functionName: "permissionFileIds",
+          args: [456n],
+        });
+      });
+
+      it("should handle contract read errors", async () => {
+        vi.mocked(mockPublicClient.readContract).mockRejectedValue(
+          new Error("Contract read failed"),
+        );
+
+        await expect(controller.getPermissionFileIds(456n)).rejects.toThrow(
+          "Failed to get permission file IDs: Contract read failed",
+        );
+      });
+    });
+
+    describe("getPermissionInfo", () => {
+      it("should successfully get permission info", async () => {
+        const mockPermissionInfo = {
+          id: 111n,
+          grantor: "0xabcdef1234567890123456789012345678901234",
+          nonce: 55n,
+          grant: "ipfs://Qm...",
+          signature: "0xsig123" as `0x${string}`,
+          isActive: true,
+          fileIds: [1n, 2n, 3n],
+        };
+
+        vi.mocked(mockPublicClient.readContract).mockResolvedValue(
+          mockPermissionInfo,
+        );
+
+        const result = await controller.getPermissionInfo(111n);
+
+        expect(result).toEqual(mockPermissionInfo);
+        expect(mockPublicClient.readContract).toHaveBeenCalledWith({
+          address: "0x1234567890123456789012345678901234567890",
+          abi: expect.any(Array),
+          functionName: "permissions",
+          args: [111n],
+        });
+      });
+
+      it("should handle contract read errors", async () => {
+        vi.mocked(mockPublicClient.readContract).mockRejectedValue(
+          new Error("Contract read failed"),
+        );
+
+        await expect(controller.getPermissionInfo(111n)).rejects.toThrow(
+          "Failed to get permission info: Contract read failed",
+        );
+      });
+    });
+  });
+
+  describe("Direct Transaction Methods", () => {
+    beforeEach(() => {
+      // Mock writeContract
+      mockWalletClient.writeContract = vi
+        .fn()
+        .mockResolvedValue(
+          "0xhash123456789012345678901234567890123456789012345678901234567890",
+        );
+
+      // Set userAddress in context
+      (controller as any).context.userAddress =
+        "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
+    });
+
+    describe("submitDirectRevokeTransaction", () => {
+      it("should successfully submit direct revoke transaction", async () => {
+        const typedData = {
+          domain: {
+            name: "VanaDataPortabilityPermissions",
+            version: "1",
+            chainId: 14800,
+            verifyingContract: "0x1234567890123456789012345678901234567890",
+          },
+          types: {
+            RevokePermission: [
+              { name: "nonce", type: "uint256" },
+              { name: "permissionId", type: "uint256" },
+            ],
+          },
+          primaryType: "RevokePermission" as const,
+          message: {
+            nonce: 123n,
+            permissionId: 42n,
+          },
+        };
+
+        const signature = `0x${"0".repeat(130)}` as `0x${string}`;
+        // The formatSignatureForContract function will modify the last byte to 1b (27 in decimal)
+        const formattedSignature = `0x${"0".repeat(128)}1b` as `0x${string}`;
+
+        const result = await (
+          controller as unknown as {
+            submitDirectRevokeTransaction: (
+              typedData: Record<string, unknown>,
+              signature: string,
+            ) => Promise<string>;
+          }
+        ).submitDirectRevokeTransaction(typedData, signature);
+
+        expect(result).toBe(
+          "0xhash123456789012345678901234567890123456789012345678901234567890",
+        );
+
+        expect(mockWalletClient.writeContract).toHaveBeenCalledWith({
+          address: "0x1234567890123456789012345678901234567890",
+          abi: expect.any(Array),
+          functionName: "revokePermissionWithSignature",
+          args: [typedData.message, formattedSignature],
+          account: expect.any(Object),
+          chain: mockWalletClient.chain,
+        });
+      });
+
+      it("should handle blockchain errors", async () => {
+        (mockWalletClient.writeContract as Mock).mockRejectedValue(
+          new Error("Transaction failed"),
+        );
+
+        const typedData = {
+          domain: {
+            name: "VanaDataPortabilityPermissions",
+            version: "1",
+            chainId: 14800,
+            verifyingContract: "0x1234567890123456789012345678901234567890",
+          },
+          types: {
+            RevokePermission: [
+              { name: "nonce", type: "uint256" },
+              { name: "permissionId", type: "uint256" },
+            ],
+          },
+          primaryType: "RevokePermission" as const,
+          message: {
+            nonce: 123n,
+            permissionId: 42n,
+          },
+        };
+
+        const signature = `0x${"0".repeat(130)}` as `0x${string}`;
+
+        await expect(
+          (
+            controller as unknown as {
+              submitDirectRevokeTransaction: (
+                typedData: Record<string, unknown>,
+                signature: string,
+              ) => Promise<string>;
+            }
+          ).submitDirectRevokeTransaction(typedData, signature),
+        ).rejects.toThrow("Transaction failed");
+      });
+    });
+  });
+
+  describe("TransactionOptions support for permission operations", () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    describe("submitPermissionRevoke with TransactionOptions", () => {
+      it("should pass EIP-1559 gas parameters to writeContract", async () => {
+        const params = { permissionId: 456n };
+        const options = {
+          maxFeePerGas: 150n * 10n ** 9n, // 150 gwei
+          maxPriorityFeePerGas: 10n * 10n ** 9n, // 10 gwei
+          gas: 800000n,
+        };
+
+        await controller.submitPermissionRevoke(params, options);
+
+        expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
+          expect.objectContaining({
+            address: "0x1234567890123456789012345678901234567890",
+            abi: expect.any(Array),
+            functionName: "revokePermission",
+            args: [456n],
+            gas: 800000n,
+            maxFeePerGas: 150n * 10n ** 9n,
+            maxPriorityFeePerGas: 10n * 10n ** 9n,
+          }),
+        );
+      });
+
+      it("should pass legacy gas parameters to writeContract", async () => {
+        const params = { permissionId: 789n };
+        const options = {
+          gasPrice: 80n * 10n ** 9n, // 80 gwei
+          gas: 400000n,
+          nonce: 15,
+        };
+
+        await controller.submitPermissionRevoke(params, options);
+
+        expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
+          expect.objectContaining({
+            functionName: "revokePermission",
+            args: [789n],
+            gas: 400000n,
+            gasPrice: 80n * 10n ** 9n,
+            nonce: 15,
+          }),
+        );
+      });
+
+      it("should not mix EIP-1559 and legacy gas parameters", async () => {
+        const params = { permissionId: 999n };
+        const options = {
+          gasPrice: 40n * 10n ** 9n, // Should be ignored
+          maxFeePerGas: 100n * 10n ** 9n, // Should be used
+          maxPriorityFeePerGas: 2n * 10n ** 9n, // Should be used
+        };
+
+        await controller.submitPermissionRevoke(params, options);
+
+        const writeContractCall =
+          mockWalletClient.writeContract.mock.calls[0][0];
+        expect(writeContractCall).toHaveProperty(
+          "maxFeePerGas",
+          100n * 10n ** 9n,
+        );
+        expect(writeContractCall).toHaveProperty(
+          "maxPriorityFeePerGas",
+          2n * 10n ** 9n,
+        );
+        expect(writeContractCall).not.toHaveProperty("gasPrice");
+      });
+    });
+
+    describe("submitRevokePermission with TransactionOptions", () => {
+      it("should pass gas parameters to writeContract", async () => {
+        const permissionId = 321n;
+        const options = {
+          maxFeePerGas: 110n * 10n ** 9n,
+          gas: 300000n,
+        };
+
+        await controller.submitRevokePermission(permissionId, options);
+
+        expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
+          expect.objectContaining({
+            functionName: "revokePermission",
+            args: [permissionId],
+            gas: 300000n,
+            maxFeePerGas: 110n * 10n ** 9n,
+          }),
+        );
+
+        const writeContractCall =
+          mockWalletClient.writeContract.mock.calls[0][0];
+        expect(writeContractCall).not.toHaveProperty("maxPriorityFeePerGas");
+        expect(writeContractCall).not.toHaveProperty("gasPrice");
+      });
+
+      it("should work without options", async () => {
+        const permissionId = 654n;
+
+        await controller.submitRevokePermission(permissionId);
+
+        const writeContractCall =
+          mockWalletClient.writeContract.mock.calls[0][0];
+        expect(writeContractCall).toHaveProperty(
+          "functionName",
+          "revokePermission",
+        );
+        expect(writeContractCall).not.toHaveProperty("gas");
+        expect(writeContractCall).not.toHaveProperty("gasPrice");
+        expect(writeContractCall).not.toHaveProperty("maxFeePerGas");
+      });
+    });
+  });
+});

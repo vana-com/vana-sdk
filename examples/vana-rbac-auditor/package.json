@@ -1,0 +1,53 @@
+{
+  "name": "vana-rbac-auditor",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --noEmit",
+    "generate-config-env": "tsx scripts/generate-config-env.ts"
+  },
+  "dependencies": {
+    "@heroui/react": "^2.8.0-beta.13",
+    "@heroui/theme": "^2.4.18-beta.5",
+    "@opendatalabs/vana-sdk": "*",
+    "clsx": "^2.1.1",
+    "framer-motion": "^12.23.0",
+    "js-yaml": "^4.1.0",
+    "lucide-react": "^0.541.0",
+    "next-themes": "^0.4.6",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwind-merge": "^2.6.0"
+  },
+  "peerDependencies": {
+    "viem": "^2.35.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@next/eslint-plugin-next": "^15.5.0",
+    "@tailwindcss/postcss": "^4.1.11",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^24.5.2",
+    "@types/react": "^19.1.11",
+    "@types/react-dom": "^19",
+    "autoprefixer": "^10.4.16",
+    "eslint": "^9.34.0",
+    "eslint-config-next": "^15.5.0",
+    "globals": "^15.14.0",
+    "next": "^15.5.0",
+    "postcss": "^8.4.33",
+    "tailwindcss": "^4.1.11",
+    "tailwindcss-animate": "^1.0.7",
+    "tsx": "^4.20.6",
+    "typescript": "^5",
+    "typescript-eslint": "^8.21.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

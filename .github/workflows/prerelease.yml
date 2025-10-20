@@ -1,0 +1,40 @@
+name: Vana SDK Pre-release
+
+on:
+  push:
+    branches:
+      - feature/data-portability-sdk-v1
+      - feat/compressed-key-support
+      - tim/pro-526-personal-server-agent-operation-poc
+
+jobs:
+  publish-prerelease:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set pre-release version
+        run: |
+          cd packages/vana-sdk
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          npm version 0.1.0-alpha.${SHORT_SHA} --no-git-tag-version
+
+      - name: Build and Publish alpha pre-release
+        run: |
+          cd packages/vana-sdk
+          NODE_OPTIONS="--max-old-space-size=4096" npm run build && npm publish --tag alpha
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN_TIM }}

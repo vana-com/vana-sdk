@@ -1,54 +1,69 @@
 {
-  "name": "vana-sdk",
-  "version": "1.0.10",
-  "description": "A TypeScript library for interacting with Vana Network smart contracts",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
+  "name": "vana-sdk-monorepo",
+  "private": true,
+  "type": "module",
+  "version": "1.0.9",
+  "description": "Vana SDK monorepo with examples",
+  "workspaces": [
+    "packages/*",
+    "examples/*"
   ],
   "scripts": {
-    "build": "rimraf dist && tsc",
-    "lint": "eslint . --ext .ts",
+    "build": "turbo run build",
+    "build:sdk": "turbo run build --filter='@opendatalabs/vana-sdk'",
+    "build:console": "turbo run build --filter='vana-console'",
+    "build:vibes": "turbo run build --filter='vana-vibes-demo'",
+    "build:rbac": "turbo run build --filter='vana-rbac-auditor'",
+    "dev": "turbo run dev",
+    "dev:console": "turbo run dev --filter='vana-console'",
+    "dev:vibes": "turbo run dev --filter='vana-vibes-demo'",
+    "dev:rbac": "turbo run dev --filter='vana-rbac-auditor'",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint:fix",
+    "lint:ci": "turbo run lint --output-logs=new-only | tee lint-output.txt && echo '\\n=== Lint Summary ===' && grep -c warning lint-output.txt 2>/dev/null | xargs -I {} echo 'Warnings: {}' && grep -c error lint-output.txt 2>/dev/null | xargs -I {} echo 'Errors: {}' || true",
     "format": "prettier --write .",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "prepublishOnly": "npm run build"
-  },
-  "keywords": [
-    "vana",
-    "blockchain",
-    "web3",
-    "sdk"
-  ],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "dependencies": {
-    "abitype": "^1.0.8",
-    "viem": "^2.22.2"
+    "format:check": "prettier --check .",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:watch": "turbo run test:watch",
+    "test:coverage": "turbo run test:coverage",
+    "fetch-abis": "turbo run fetch-abis --filter='@opendatalabs/vana-sdk'",
+    "fetch-server-types": "turbo run fetch-server-types --filter='@opendatalabs/vana-sdk'",
+    "clean": "turbo run clean",
+    "docs": "typedoc",
+    "prepare": "husky",
+    "validate": "turbo run lint typecheck test:coverage"
   },
   "devDependencies": {
-    "@types/node": "^22.15.18",
-    "@typescript-eslint/eslint-plugin": "^8.32.1",
-    "@typescript-eslint/parser": "^8.32.1",
-    "eslint": "^9.26.0",
-    "eslint-config-prettier": "^10.1.5",
-    "eslint-plugin-prettier": "^5.4.0",
+    "eslint-plugin-jsdoc": "^50.8.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.1.2",
+    "npm-run-all": "^4.1.5",
     "prettier": "^3.5.3",
-    "rimraf": "^5.0.10",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.8.3",
-    "vitest": "^1.3.0"
+    "turbo": "^2.5.5",
+    "typedoc": "^0.28.10",
+    "typedoc-plugin-monorepo": "^0.1.0"
   },
+  "packageManager": "npm@10.9.2",
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/vana-sdk.git"
+    "url": "https://github.com/vana-com/vana-sdk.git"
+  },
+  "dependencies": {
+    "next-themes": "^0.4.6",
+    "node-fetch": "^3.3.2"
   }
 }

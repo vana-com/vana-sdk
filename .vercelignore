@@ -1,0 +1,13 @@
+# Ignore root level directories that Vercel doesn't need
+show/
+dlp-ui-template/
+.devcontainer/
+tasks.md
+TEST_DEVELOPMENT_PROTOCOL.md
+
+# Only deploy the console
+examples/vana-console/.next
+examples/vana-console/node_modules
+
+# Ensure packages are available
+!packages/

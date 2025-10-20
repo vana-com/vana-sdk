@@ -1,0 +1,78 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": ["**/.env.*local"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**", ".tsbuildinfo"],
+      "env": [
+        "RELAYER_PRIVATE_KEY",
+        "PINATA_GATEWAY_URL",
+        "PINATA_JWT",
+        "APPLICATION_PRIVATE_KEY",
+        "REPLICATE_API_TOKEN",
+        "NEXT_PUBLIC_PARA_KEY",
+        "NEXT_PUBLIC_REOWN_PROJECT",
+        "NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL",
+        "NEXT_PUBLIC_MOKSHA",
+        "NEXT_PUBLIC_DATA_WALLET_APP_ADDRESS",
+        "NEXT_PUBLIC_DEFAULT_GRANTEE_ID",
+        "GOOGLE_DRIVE_CLIENT_ID",
+        "GOOGLE_DRIVE_CLIENT_SECRET",
+        "GOOGLE_DRIVE_FOLDER"
+      ]
+    },
+    "build:types": {
+      "outputs": ["dist/**/*.d.ts"]
+    },
+    "build:node": {
+      "outputs": ["dist/**/*.node.*"]
+    },
+    "build:browser": {
+      "outputs": ["dist/**/*.browser.*"]
+    },
+    "build:chains": {
+      "outputs": ["dist/chains.*"]
+    },
+    "build:platform": {
+      "outputs": ["dist/platform.*"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "lint:fix": {
+      "outputs": []
+    },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "outputs": [".tsbuildinfo"]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"]
+    },
+    "test:watch": {
+      "cache": false,
+      "persistent": true
+    },
+    "test:coverage": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"]
+    },
+    "fetch-abis": {
+      "outputs": ["src/abi/**"]
+    },
+    "clean": {
+      "cache": false
+    },
+    "docs": {
+      "dependsOn": ["^build"],
+      "outputs": ["docs/**"]
+    }
+  }
+}

@@ -1,0 +1,39 @@
+query GetSchema($id: ID!) {
+  schema(id: $id) {
+    id
+    name
+    dialect
+    definitionUrl
+    createdAt
+    createdAtBlock
+    createdTxHash
+    refiners {
+      id
+      name
+      owner
+    }
+  }
+}
+
+query ListSchemas($first: Int!, $skip: Int!) {
+  schemas(
+    first: $first
+    skip: $skip
+    orderBy: createdAt
+    orderDirection: desc
+  ) {
+    id
+    name
+    dialect
+    definitionUrl
+    createdAt
+    createdAtBlock
+    createdTxHash
+  }
+}
+
+query CountSchemas {
+  schemas(first: 1000) {
+    id
+  }
+}

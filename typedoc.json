@@ -1,0 +1,51 @@
+{
+  "entryPoints": [
+    "packages/vana-sdk/src/index.browser.ts",
+    "packages/vana-sdk/src/index.node.ts"
+  ],
+  "entryPointStrategy": "resolve",
+  "exclude": [
+    "packages/vana-sdk/src/abi/**/*",
+    "packages/vana-sdk/src/contracts/**/*",
+    "packages/vana-sdk/src/types/server.ts",
+    "packages/vana-sdk/src/**/*.test.ts",
+    "packages/vana-sdk/src/__tests__/**/*",
+    "packages/vana-sdk/src/tests/**/*"
+  ],
+  "tsconfig": "packages/vana-sdk/tsconfig.json",
+  "out": "docs",
+  "name": "Vana SDK",
+  "readme": "packages/vana-sdk/README.md",
+  "navigation": {
+    "includeCategories": true,
+    "includeGroups": true
+  },
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "excludeProtected": true,
+  "excludeExternals": true,
+  "excludeNotDocumented": true,
+  "categorizeByGroup": true,
+  "defaultCategory": "Reference",
+  "categoryOrder": [
+    "Core SDK",
+    "Data Management",
+    "Permissions",
+    "Storage",
+    "Configuration",
+    "Advanced",
+    "Reference",
+    "*"
+  ],
+  "sort": ["source-order"],
+  "kindSortOrder": ["Class", "Function", "Variable", "TypeAlias"],
+  "searchInComments": true,
+  "includeVersion": true,
+  "validation": {
+    "notExported": false,
+    "invalidLink": false,
+    "notDocumented": false
+  },
+  "treatWarningsAsErrors": false,
+  "skipErrorChecking": true
+}

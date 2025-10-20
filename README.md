@@ -6,123 +6,42 @@ TypeScript SDK for building user-owned data applications on the Vana Network.
 [![Downloads](https://img.shields.io/npm/dm/@opendatalabs/vana-sdk)](https://www.npmjs.com/package/@opendatalabs/vana-sdk)
 [![License](https://img.shields.io/npm/l/@opendatalabs/vana-sdk)](./LICENSE)
 
-## Installation
-
-```bash
-npm install @opendatalabs/vana-sdk
-```
+This is a monorepo containing the Vana SDK and example applications demonstrating its capabilities.
 
 ## Quick Start
 
-```typescript
-import { Vana } from "@opendatalabs/vana-sdk/browser";
-import { createWalletClient, custom } from "viem";
-import { mokshaTestnet } from "@opendatalabs/vana-sdk/browser";
-
-// Initialize with wallet
-const walletClient = createWalletClient({
-  chain: mokshaTestnet,
-  transport: custom(window.ethereum),
-});
-
-const vana = Vana({ walletClient });
-
-// Grant data access permission
-const result = await vana.permissions.grant({
-  grantee: "0x742d35Cc6634C0532925a3b8D84C20CEed3F89B7", // App address
-  operation: "llm_inference",
-  files: [12, 15, 28],
-  parameters: { prompt: "Analyze my data: {{data}}" },
-});
-console.log("Permission granted! ID:", result.permissionId);
+```bash
+npm install
+npm run dev:console  # SDK console at http://localhost:3000
+npm run dev:vibes    # Vibes demo at http://localhost:3001
 ```
 
-## Import Guide
+## Repository Structure
 
-```typescript
-// Browser/React applications
-import { Vana } from "@opendatalabs/vana-sdk/browser";
+- **packages/vana-sdk** - Core TypeScript SDK with platform-specific builds
+- **examples/vana-console** - Comprehensive demo application
+- **examples/vana-vibes-demo** - Social features demonstration
+- **examples/vana-rbac-auditor** - RBAC auditing tool
 
-// Node.js/Backend applications
-import { Vana } from "@opendatalabs/vana-sdk/node";
-```
+## Using the SDK
 
-## Authentication
-
-Complete setup with wallet configuration:
-
-```typescript
-import { createWalletClient, custom, http } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { Vana, mokshaTestnet } from "@opendatalabs/vana-sdk/browser";
-
-// Browser with MetaMask
-const walletClient = createWalletClient({
-  chain: mokshaTestnet,
-  transport: custom(window.ethereum),
-});
-
-// Node.js with private key
-const account = privateKeyToAccount("0x...");
-const walletClient = createWalletClient({
-  account,
-  chain: mokshaTestnet,
-  transport: http(),
-});
-
-const vana = Vana({ walletClient });
-```
-
-## Example: Grant Data Access
-
-Permission granting with automatic gas handling:
-
-```typescript
-// Grant permission for data analysis
-const result = await vana.permissions.grant({
-  grantee: "0x742d35Cc6634C0532925a3b8D84C20CEed3F89B7", // DataDAO address
-  operation: "llm_inference",
-  files: [12, 15, 28], // User's file IDs
-  parameters: {
-    prompt: "Analyze my transaction patterns for insights",
-    model: "gpt-4",
-    maxTokens: 1000,
-  },
-});
-
-console.log("Permission granted! Transaction:", result.transactionHash);
-```
-
-## Running Example Applications
-
-This monorepo includes two example applications demonstrating SDK usage:
+Install from npm:
 
 ```bash
-# Install dependencies (from root directory)
-npm install
-
-# Run the main SDK demo (includes data permissions, file management, and more)
-npm run dev:demo
-
-# Run the Vana Vibes demo (social features demonstration)
-npm run dev:vibes
+npm install @opendatalabs/vana-sdk viem@^2.31.7
 ```
 
-The demos will start on:
+See the [SDK package README](./packages/vana-sdk/README.md) for usage details.
 
-- SDK Demo: http://localhost:3000
-- Vibes Demo: http://localhost:3001
+## Documentation
 
-## Resources
+- [Complete SDK Documentation](https://docs.vana.org/docs/sdk)
+- [API Reference](https://vana-com.github.io/vana-sdk)
+- [Discord Community](https://discord.gg/vanabuilders)
 
-- **[Complete Documentation](https://docs.vana.org/sdk)** - Comprehensive guides and API reference
-- **[Console Application](./examples/vana-console)** - Full-featured example implementation
-- **[API Reference](https://vana-com.github.io/vana-sdk)** - Auto-generated TypeScript docs
-- **[Discord Community](https://discord.gg/vanabuilders)** - Get help and share feedback
+## Contributing
 
-## Development
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup and workflow.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup and contribution guidelines.
 
 ## License
 

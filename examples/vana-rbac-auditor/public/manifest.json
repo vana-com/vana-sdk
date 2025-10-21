@@ -1,0 +1,9 @@
+{
+  "name": "Vana RBAC Auditor",
+  "description": "Audit and manage role-based access control permissions on Vana Network contracts. Generate batch transactions for Safe multi-sig execution.",
+  "iconPath": "logo.png",
+  "providedBy": {
+    "name": "Open Data Labs",
+    "url": "https://www.opendatalabs.xyz"
+  }
+}

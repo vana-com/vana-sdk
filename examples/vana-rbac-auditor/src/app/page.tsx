@@ -1,15 +1,16 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Shield, AlertCircle, RotateCw } from "lucide-react";
+import { Shield, AlertCircle, Layers } from "lucide-react";
 import { Tabs, Tab, Spinner, Button } from "@heroui/react";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 import Image from "next/image";
 import type { Network, AuditResults } from "../lib/types";
 import { runAudit } from "../lib/audit";
 import { CurrentStateTable } from "../components/audit/CurrentStateTable";
 import { HistoryTable } from "../components/audit/HistoryTable";
 import { ThemeSwitcher } from "../components/ThemeSwitcher";
-import { RotationBatchModal } from "../components/batch/RotationBatchModal";
+import { BatchBuilderModal } from "../components/batch/BatchBuilderModal";
 
 export default function Home() {
   const [network, setNetwork] = useState<Network>("mainnet");
@@ -17,7 +18,7 @@ export default function Home() {
   const [results, setResults] = useState<AuditResults | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedTab, setSelectedTab] = useState<string>("current");
-  const [showBatchModal, setShowBatchModal] = useState(false);
+  const [showBatchBuilderModal, setShowBatchBuilderModal] = useState(false);
 
   // Auto-audit on mount and network change
   useEffect(() => {
@@ -77,13 +78,14 @@ export default function Home() {
                 size="sm"
                 variant="flat"
                 color="primary"
-                startContent={<RotateCw className="h-4 w-4" />}
+                startContent={<Layers className="h-4 w-4" />}
                 onPress={() => {
-                  setShowBatchModal(true);
+                  setShowBatchBuilderModal(true);
                 }}
               >
-                Generate Rotation Batch
+                Batch Builder
               </Button>
+              <ConnectButton showBalance={false} chainStatus="icon" />
               <ThemeSwitcher />
             </div>
           </div>
@@ -181,15 +183,17 @@ export default function Home() {
         </Tabs>
       </main>
 
-      {/* Batch Rotation Modal */}
-      <RotationBatchModal
-        isOpen={showBatchModal}
-        onClose={() => {
-          setShowBatchModal(false);
-        }}
-        network={network}
-        auditResults={results ?? undefined}
-      />
+      {/* Batch Builder Modal */}
+      {results && (
+        <BatchBuilderModal
+          isOpen={showBatchBuilderModal}
+          onClose={() => {
+            setShowBatchBuilderModal(false);
+          }}
+          network={network}
+          auditResults={results}
+        />
+      )}
     </div>
   );
 }

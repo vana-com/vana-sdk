@@ -240,6 +240,16 @@ export function deserializeECIES(hex: string): ECIESEncrypted {
   const hexWithPrefix = hex.startsWith("0x") ? hex : `0x${hex}`;
   const bytes = fromHex(hexWithPrefix as `0x${string}`, "bytes");
 
+  // Check minimum length before accessing prefix byte
+  // Need at least: IV (16 bytes) + 1 byte for prefix check + MAC (32 bytes) + 1 byte ciphertext
+  const absoluteMinLength = FORMAT.IV_LENGTH + 1 + MAC.LENGTH + 1;
+  if (bytes.length < absoluteMinLength) {
+    throw new ECIESError(
+      `Invalid ECIES data: too short (${bytes.length} bytes, minimum ${absoluteMinLength} bytes required)`,
+      "DECRYPTION_FAILED",
+    );
+  }
+
   // Determine ephemPublicKey size based on prefix
   const prefix = bytes[FORMAT.EPHEMERAL_KEY_OFFSET];
   let ephemKeySize: number;
@@ -260,7 +270,10 @@ export function deserializeECIES(hex: string): ECIESEncrypted {
 
   const minLength = FORMAT.IV_LENGTH + ephemKeySize + MAC.LENGTH + 1; // +1 for at least 1 byte of ciphertext
   if (bytes.length < minLength) {
-    throw new ECIESError("Invalid ECIES data: too short", "DECRYPTION_FAILED");
+    throw new ECIESError(
+      `Invalid ECIES data: too short (${bytes.length} bytes, minimum ${minLength} bytes required)`,
+      "DECRYPTION_FAILED",
+    );
   }
 
   return {

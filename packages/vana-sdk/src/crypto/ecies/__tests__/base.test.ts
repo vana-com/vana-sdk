@@ -272,5 +272,50 @@ describe("BaseECIESUint8", () => {
         "Invalid public key",
       );
     });
+
+    it("should reject compressed-length key (33 bytes) with invalid prefix 0x00", () => {
+      const buffer = new Uint8Array(33).fill(0xff);
+      buffer[0] = 0x00; // Invalid prefix for compressed key
+
+      expect(() => testProvider.testNormalizePublicKey(buffer)).toThrow(
+        /Invalid public key length: 33/,
+      );
+    });
+
+    it("should reject compressed-length key (33 bytes) with invalid prefix 0x01", () => {
+      const buffer = new Uint8Array(33).fill(0xff);
+      buffer[0] = 0x01; // Invalid prefix
+
+      expect(() => testProvider.testNormalizePublicKey(buffer)).toThrow(
+        /Invalid public key length: 33/,
+      );
+    });
+
+    it("should reject compressed-length key (33 bytes) with uncompressed prefix 0x04", () => {
+      const buffer = new Uint8Array(33).fill(0xff);
+      buffer[0] = 0x04; // Wrong prefix (uncompressed) for 33-byte key
+
+      expect(() => testProvider.testNormalizePublicKey(buffer)).toThrow(
+        /Invalid public key length: 33/,
+      );
+    });
+
+    it("should reject compressed-length key (33 bytes) with invalid prefix 0x05", () => {
+      const buffer = new Uint8Array(33).fill(0xff);
+      buffer[0] = 0x05; // Invalid prefix
+
+      expect(() => testProvider.testNormalizePublicKey(buffer)).toThrow(
+        /Invalid public key length: 33/,
+      );
+    });
+
+    it("should reject compressed-length key (33 bytes) with invalid prefix 0xff", () => {
+      const buffer = new Uint8Array(33).fill(0xaa);
+      buffer[0] = 0xff; // Invalid prefix
+
+      expect(() => testProvider.testNormalizePublicKey(buffer)).toThrow(
+        /Invalid public key length: 33/,
+      );
+    });
   });
 });

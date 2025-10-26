@@ -135,7 +135,7 @@ export abstract class BaseECIESUint8 implements ECIESProvider {
    */
   protected normalizePublicKey(publicKey: Uint8Array): Uint8Array {
     // Check cache first
-    if (BaseECIESUint8.validatedKeys.has(publicKey)) {
+    if (BaseECIESUint8.validatedKeys.get(publicKey)) {
       return publicKey;
     }
 
@@ -154,7 +154,11 @@ export abstract class BaseECIESUint8 implements ECIESProvider {
       return publicKey;
     }
 
-    if (publicKey.length === CURVE.COMPRESSED_PUBLIC_KEY_LENGTH) {
+    if (
+      publicKey.length === CURVE.COMPRESSED_PUBLIC_KEY_LENGTH &&
+      (publicKey[0] === CURVE.PREFIX.COMPRESSED_EVEN ||
+        publicKey[0] === CURVE.PREFIX.COMPRESSED_ODD)
+    ) {
       const decompressed = this.decompressPublicKey(publicKey);
       if (!decompressed) {
         throw new ECIESError("Failed to decompress public key", "INVALID_KEY");

@@ -241,10 +241,22 @@ export function deserializeECIES(hex: string): ECIESEncrypted {
   const bytes = fromHex(hexWithPrefix as `0x${string}`, "bytes");
 
   // Determine ephemPublicKey size based on prefix
-  const ephemKeySize =
-    bytes[FORMAT.EPHEMERAL_KEY_OFFSET] === CURVE.PREFIX.UNCOMPRESSED
-      ? CURVE.UNCOMPRESSED_PUBLIC_KEY_LENGTH
-      : CURVE.COMPRESSED_PUBLIC_KEY_LENGTH;
+  const prefix = bytes[FORMAT.EPHEMERAL_KEY_OFFSET];
+  let ephemKeySize: number;
+
+  if (prefix === CURVE.PREFIX.UNCOMPRESSED) {
+    ephemKeySize = CURVE.UNCOMPRESSED_PUBLIC_KEY_LENGTH;
+  } else if (
+    prefix === CURVE.PREFIX.COMPRESSED_EVEN ||
+    prefix === CURVE.PREFIX.COMPRESSED_ODD
+  ) {
+    ephemKeySize = CURVE.COMPRESSED_PUBLIC_KEY_LENGTH;
+  } else {
+    throw new ECIESError(
+      `Invalid ephemeral public key prefix: 0x${prefix.toString(16).padStart(2, "0")}`,
+      "DECRYPTION_FAILED",
+    );
+  }
 
   const minLength = FORMAT.IV_LENGTH + ephemKeySize + MAC.LENGTH + 1; // +1 for at least 1 byte of ciphertext
   if (bytes.length < minLength) {

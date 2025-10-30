@@ -79,7 +79,7 @@ describe("contractController", () => {
   describe("getContractController", () => {
     it("should create a new controller when not cached", async () => {
       const { getContract } = await import("viem");
-      const { getContractAddress } = await import("../../config/addresses");
+      const { getContractAddress } = await import("../../generated/addresses");
       const { getAbi } = await import("../../generated/abi");
 
       const controller = getContractController("DataRegistry");
@@ -133,7 +133,7 @@ describe("contractController", () => {
       };
 
       const { getContract } = await import("viem");
-      const { getContractAddress } = await import("../../config/addresses");
+      const { getContractAddress } = await import("../../generated/addresses");
 
       const controller = getContractController(
         "DataRegistry",
@@ -155,7 +155,7 @@ describe("contractController", () => {
 
     it("should fall back to vanaMainnet.id when client.chain is undefined", async () => {
       const { getContract } = await import("viem");
-      const { getContractAddress } = await import("../../config/addresses");
+      const { getContractAddress } = await import("../../generated/addresses");
 
       const controller = getContractController(
         "DataRegistry",
@@ -183,7 +183,7 @@ describe("contractController", () => {
         writeContract: vi.fn(),
       };
 
-      const { getContractAddress } = await import("../../config/addresses");
+      const { getContractAddress } = await import("../../generated/addresses");
 
       const controller = getContractController(
         "DataRegistry",

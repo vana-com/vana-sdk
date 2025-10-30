@@ -8,7 +8,7 @@ import type {
 import type { SchemaAddedResult } from "../types/transactionResults";
 import type { ControllerContext } from "./permissions";
 import { BaseController } from "./base";
-import { getContractAddress } from "../config/addresses";
+import { getContractAddress } from "../generated/addresses";
 import { getAbi } from "../generated/abi";
 import { gasAwareMulticall } from "../utils/multicall";
 import {

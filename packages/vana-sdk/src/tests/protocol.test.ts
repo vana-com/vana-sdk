@@ -44,7 +44,7 @@ vi.mock("../generated/abi", () => ({
 }));
 
 // Import the mocked functions
-import { getContractAddress } from "../config/addresses";
+import { getContractAddress } from "../generated/addresses";
 import { getAbi } from "../generated/abi";
 
 // Type the mocked functions

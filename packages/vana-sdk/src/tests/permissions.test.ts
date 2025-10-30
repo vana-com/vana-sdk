@@ -1813,7 +1813,7 @@ describe("PermissionsController", () => {
       const expectedNonce = 5n;
 
       // Import getContractAddress locally to avoid affecting other tests
-      const addresses = await import("../config/addresses");
+      const addresses = await import("../generated/addresses");
       const originalGetContractAddress = addresses.getContractAddress;
 
       // Track which contracts are requested

@@ -3,7 +3,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { promisify } from "util";
-import { CONTRACTS } from "../src/config/addresses";
+import { CONTRACTS } from "../src/generated/addresses";
 import { mokshaTestnet, vanaMainnet } from "../src/config/chains";
 
 const readFile = promisify(fs.readFile);
@@ -26,11 +26,28 @@ const NETWORK_CONFIG = {
 } as const;
 
 // Utility contracts that don't need ABIs in the SDK (standard interfaces)
-const UTILITY_CONTRACTS = new Set([
-  "Multicall3",
-  "Multisend",
-  "VanaTreasury", // Safe/multisig wallet address
-]);
+const UTILITY_CONTRACTS = new Set(["Multicall3", "Multisend"]);
+
+/**
+ * Build a comprehensive map of all contracts that need ABIs fetched.
+ * Reads from generated/addresses.ts which includes entry points + auto-discovered contracts.
+ *
+ * @param chainId - The chain ID to get addresses for
+ * @returns Map of contract name to address
+ */
+function getAllContractsToFetch(chainId: number): Map<string, string> {
+  const contractsMap = new Map<string, string>();
+
+  // Add all contracts from generated/addresses.ts (entry points + discovered)
+  for (const [name, info] of Object.entries(CONTRACTS)) {
+    const address = info.addresses[chainId as keyof typeof info.addresses];
+    if (address && !UTILITY_CONTRACTS.has(name)) {
+      contractsMap.set(name, address);
+    }
+  }
+
+  return contractsMap;
+}
 
 /**
  * Fetches contract information from the blockchain explorer API
@@ -88,11 +105,15 @@ async function getImplementationAddress(
   //   curl "https://vanascan.io/api/v2/smart-contracts/<PROXY_ADDRESS>"
   //   curl "https://moksha.vanascan.io/api/v2/smart-contracts/<PROXY_ADDRESS>"
   // Check if implementations[0] or implementations[length-1] matches the current impl.
-  const latestImplementation = contractInfo.implementations[contractInfo.implementations.length - 1].address;
+  const latestImplementation =
+    contractInfo.implementations[contractInfo.implementations.length - 1]
+      .address;
 
   // Log when multiple implementations exist (helps detect future upgrades)
   if (contractInfo.implementations.length > 1) {
-    console.log(`   ⚠️  ${contractInfo.implementations.length} implementations found - using latest (${latestImplementation})`);
+    console.log(
+      `   ⚠️  ${contractInfo.implementations.length} implementations found - using latest (${latestImplementation})`,
+    );
   }
 
   return latestImplementation;
@@ -123,9 +144,20 @@ async function fetchABI(
  *
  * @param contractName - The name of the contract for the export
  * @param abi - The ABI array to export
+ * @param metadata - Generation metadata (network, addresses, timestamp)
  * @returns The generated TypeScript file content as a string
  */
-function generateABIFile(contractName: string, abi: unknown[]): string {
+function generateABIFile(
+  contractName: string,
+  abi: unknown[],
+  metadata: {
+    network: string;
+    chainId: number;
+    proxyAddress: string;
+    implementationAddress: string;
+    timestamp: string;
+  },
+): string {
   // Format ABI as JavaScript object literal instead of JSON string
   // This ensures compatibility with Prettier's formatting rules
   const formatValue = (value: unknown, indent = 0): string => {
@@ -156,9 +188,35 @@ function generateABIFile(contractName: string, abi: unknown[]): string {
 
   const formattedABI = formatValue(abi);
 
+  // Build header with generation metadata
+  const isProxy = metadata.proxyAddress !== metadata.implementationAddress;
+  const explorerBase =
+    metadata.chainId === 1480
+      ? "https://vanascan.io"
+      : "https://moksha.vanascan.io";
+
+  const addressInfo = isProxy
+    ? `//
+//   Proxy Address:
+//     ${metadata.proxyAddress}
+//     ${explorerBase}/address/${metadata.proxyAddress}
+//
+//   Implementation Address:
+//     ${metadata.implementationAddress}
+//     ${explorerBase}/address/${metadata.implementationAddress}`
+    : `//
+//   Contract Address:
+//     ${metadata.proxyAddress}
+//     ${explorerBase}/address/${metadata.proxyAddress}`;
+
   return `// THIS FILE IS GENERATED, DO NOT EDIT MANUALLY
 // Run \`npm run fetch-abis\` to regenerate
+//
 // ${contractName} Implementation Contract
+//
+// Generated: ${metadata.timestamp}
+// Network: ${metadata.network} (Chain ID: ${metadata.chainId})
+${addressInfo}
 
 export const ${contractName}ABI = ${formattedABI} as const;
 
@@ -234,32 +292,17 @@ async function fetchAndSaveABIs(
 
   await ensureDirectoryExists(abiDir);
 
+  // Get all contracts to fetch (entry points + discoverable)
+  const allContracts = getAllContractsToFetch(networkConfig.chainId);
+
   console.log(`🔄 Fetching ${networkConfig.name} contract ABIs...`);
+  console.log(`📋 Total contracts to fetch: ${allContracts.size}`);
 
   const processedContracts = new Set<string>();
   const contractNames: string[] = [];
 
-  for (const contractName of Object.keys(
-    CONTRACTS,
-  ) as (keyof typeof CONTRACTS)[]) {
-    if (UTILITY_CONTRACTS.has(contractName)) {
-      console.log(`⏭️  Skipping ${contractName} (utility contract)`);
-      continue;
-    }
-
+  for (const [contractName, contractAddress] of allContracts.entries()) {
     try {
-      const contractInfo = CONTRACTS[contractName];
-      if (!contractInfo) {
-        console.log(`⏭️  Skipping ${contractName} (not found in CONTRACTS)`);
-        continue;
-      }
-
-      const contractAddress = contractInfo.addresses[networkConfig.chainId];
-      if (!contractAddress) {
-        console.log(`⏭️  Skipping ${contractName} (no address for ${network})`);
-        continue;
-      }
-
       // Skip if already processed (for shared implementations)
       const abiFileName = `${contractName}Implementation`;
       if (processedContracts.has(abiFileName)) {
@@ -282,8 +325,14 @@ async function fetchAndSaveABIs(
       // Fetch ABI
       const abi = await fetchABI(implAddress, network);
 
-      // Generate TypeScript file
-      const tsContent = generateABIFile(contractName, abi);
+      // Generate TypeScript file with metadata
+      const tsContent = generateABIFile(contractName, abi, {
+        network: networkConfig.name,
+        chainId: networkConfig.chainId,
+        proxyAddress: contractAddress,
+        implementationAddress: implAddress,
+        timestamp: new Date().toISOString(),
+      });
       const filePath = path.join(abiDir, `${abiFileName}.ts`);
 
       await writeFile(filePath, tsContent);
@@ -309,10 +358,11 @@ async function fetchAndSaveABIs(
  * @returns Promise that resolves when script execution completes
  */
 async function main(): Promise<void> {
-  const network = (process.argv[2] as "moksha" | "mainnet") || "moksha";
+  const network = (process.argv[2] as "moksha" | "mainnet") || "mainnet";
 
   if (!["moksha", "mainnet"].includes(network)) {
     console.error("Usage: npm run fetch-abis [moksha|mainnet]");
+    console.error("Defaults to mainnet if not specified");
     process.exit(1);
   }
 

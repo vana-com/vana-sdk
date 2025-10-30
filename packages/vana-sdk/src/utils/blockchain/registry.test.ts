@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fetchSchemaFromChain, fetchSchemaCountFromChain } from "./registry";
 import { getContract, type PublicClient, type WalletClient } from "viem";
-import { getContractAddress } from "../../config/addresses";
+import { getContractAddress } from "../../generated/addresses";
 import { getAbi } from "../../generated/abi";
 
 // Mock external dependencies

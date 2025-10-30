@@ -33,7 +33,7 @@ import type { UnifiedRelayerRequest } from "../types/relayer";
 import type { ControllerContext } from "./permissions";
 import { PollingManager } from "../core/pollingManager";
 import { BaseController } from "./base";
-import { getContractAddress } from "../config/addresses";
+import { getContractAddress } from "../generated/addresses";
 import { getAbi } from "../generated/abi";
 import { InvalidConfigurationError } from "../errors";
 import type {

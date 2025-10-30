@@ -8,7 +8,7 @@ import type {
   Abi,
 } from "viem";
 import { encodeFunctionData, size } from "viem";
-import { getUtilityAddress } from "../config/addresses";
+import { getUtilityAddress } from "../generated/addresses";
 import type { VanaChainId } from "../types";
 
 /**

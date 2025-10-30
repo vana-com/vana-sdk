@@ -1,6 +1,18 @@
 // THIS FILE IS GENERATED, DO NOT EDIT MANUALLY
 // Run `npm run fetch-abis` to regenerate
+//
 // DATFactory Implementation Contract
+//
+// Generated: 2025-10-30T23:21:17.957Z
+// Network: Vana (Chain ID: 1480)
+//
+//   Proxy Address:
+//     0x40f8bccF35a75ecef63BC3B1B3E06ffEB9220644
+//     https://vanascan.io/address/0x40f8bccF35a75ecef63BC3B1B3E06ffEB9220644
+//
+//   Implementation Address:
+//     0x8CDB4B1130A7B5A74d8512a824CaAe928f2B35Ce
+//     https://vanascan.io/address/0x8CDB4B1130A7B5A74d8512a824CaAe928f2B35Ce
 
 export const DATFactoryABI = [
   {

@@ -250,23 +250,17 @@ export function deserializeECIES(hex: string): ECIESEncrypted {
     );
   }
 
-  // Determine ephemPublicKey size based on prefix
+  // Validate ephemeral public key prefix (must be uncompressed for eccrypto compatibility)
   const prefix = bytes[FORMAT.EPHEMERAL_KEY_OFFSET];
-  let ephemKeySize: number;
 
-  if (prefix === CURVE.PREFIX.UNCOMPRESSED) {
-    ephemKeySize = CURVE.UNCOMPRESSED_PUBLIC_KEY_LENGTH;
-  } else if (
-    prefix === CURVE.PREFIX.COMPRESSED_EVEN ||
-    prefix === CURVE.PREFIX.COMPRESSED_ODD
-  ) {
-    ephemKeySize = CURVE.COMPRESSED_PUBLIC_KEY_LENGTH;
-  } else {
+  if (prefix !== CURVE.PREFIX.UNCOMPRESSED) {
     throw new ECIESError(
-      `Invalid ephemeral public key prefix: 0x${prefix.toString(16).padStart(2, "0")}`,
+      `Invalid ephemeral public key: must be uncompressed format (0x04 prefix), got 0x${prefix.toString(16).padStart(2, "0")}`,
       "DECRYPTION_FAILED",
     );
   }
+
+  const ephemKeySize = CURVE.UNCOMPRESSED_PUBLIC_KEY_LENGTH;
 
   const minLength = FORMAT.IV_LENGTH + ephemKeySize + MAC.LENGTH + 1; // +1 for at least 1 byte of ciphertext
   if (bytes.length < minLength) {

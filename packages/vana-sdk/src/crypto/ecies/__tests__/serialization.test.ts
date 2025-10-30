@@ -80,7 +80,7 @@ describe("ECIES Serialization", () => {
         expect(result.mac).toEqual(mac);
       });
 
-      it("should deserialize data with compressed ephemeral key (0x02 prefix)", () => {
+      it("should reject compressed ephemeral key with 0x02 prefix", () => {
         const iv = new Uint8Array(16).fill(0x01);
         const ephemPubKey = new Uint8Array(33).fill(0x02);
         ephemPubKey[0] = CURVE.PREFIX.COMPRESSED_EVEN; // 0x02
@@ -97,13 +97,12 @@ describe("ECIES Serialization", () => {
           .map((b) => b.toString(16).padStart(2, "0"))
           .join("");
 
-        const result = deserializeECIES(hex);
-
-        expect(result.ephemPublicKey.length).toBe(33);
-        expect(result.ephemPublicKey[0]).toBe(CURVE.PREFIX.COMPRESSED_EVEN);
+        expect(() => deserializeECIES(hex)).toThrow(
+          /Invalid ephemeral public key.*0x04 prefix.*got 0x02/i,
+        );
       });
 
-      it("should deserialize data with compressed ephemeral key (0x03 prefix)", () => {
+      it("should reject compressed ephemeral key with 0x03 prefix", () => {
         const iv = new Uint8Array(16).fill(0x01);
         const ephemPubKey = new Uint8Array(33).fill(0x03);
         ephemPubKey[0] = CURVE.PREFIX.COMPRESSED_ODD; // 0x03
@@ -120,10 +119,9 @@ describe("ECIES Serialization", () => {
           .map((b) => b.toString(16).padStart(2, "0"))
           .join("");
 
-        const result = deserializeECIES(hex);
-
-        expect(result.ephemPublicKey.length).toBe(33);
-        expect(result.ephemPublicKey[0]).toBe(CURVE.PREFIX.COMPRESSED_ODD);
+        expect(() => deserializeECIES(hex)).toThrow(
+          /Invalid ephemeral public key.*0x04 prefix.*got 0x03/i,
+        );
       });
 
       it("should handle hex with 0x prefix", () => {
@@ -171,7 +169,7 @@ describe("ECIES Serialization", () => {
 
         expect(() => deserializeECIES(hex)).toThrow(ECIESError);
         expect(() => deserializeECIES(hex)).toThrow(
-          /Invalid ephemeral public key prefix: 0x00/,
+          /Invalid ephemeral public key.*0x04 prefix.*got 0x00/i,
         );
       });
 
@@ -194,7 +192,7 @@ describe("ECIES Serialization", () => {
 
         expect(() => deserializeECIES(hex)).toThrow(ECIESError);
         expect(() => deserializeECIES(hex)).toThrow(
-          /Invalid ephemeral public key prefix: 0x01/,
+          /Invalid ephemeral public key.*0x04 prefix.*got 0x01/i,
         );
       });
 
@@ -217,7 +215,7 @@ describe("ECIES Serialization", () => {
 
         expect(() => deserializeECIES(hex)).toThrow(ECIESError);
         expect(() => deserializeECIES(hex)).toThrow(
-          /Invalid ephemeral public key prefix: 0x05/,
+          /Invalid ephemeral public key.*0x04 prefix.*got 0x05/i,
         );
       });
 
@@ -240,7 +238,7 @@ describe("ECIES Serialization", () => {
 
         expect(() => deserializeECIES(hex)).toThrow(ECIESError);
         expect(() => deserializeECIES(hex)).toThrow(
-          /Invalid ephemeral public key prefix: 0xff/,
+          /Invalid ephemeral public key.*0x04 prefix.*got 0xff/i,
         );
       });
     });
@@ -340,25 +338,6 @@ describe("ECIES Serialization", () => {
 
         expect(deserialized.iv).toEqual(original.iv);
         expect(deserialized.ephemPublicKey).toEqual(original.ephemPublicKey);
-        expect(deserialized.ciphertext).toEqual(original.ciphertext);
-        expect(deserialized.mac).toEqual(original.mac);
-      });
-
-      it("should handle compressed ephemeral keys in round-trip", () => {
-        const original: ECIESEncrypted = {
-          iv: new Uint8Array(16).fill(0xaa),
-          ephemPublicKey: new Uint8Array(33).fill(0xbb),
-          ciphertext: new Uint8Array(50).fill(0xcc),
-          mac: new Uint8Array(32).fill(0xdd),
-        };
-        original.ephemPublicKey[0] = CURVE.PREFIX.COMPRESSED_EVEN;
-
-        const serialized = serializeECIES(original);
-        const deserialized = deserializeECIES(serialized);
-
-        expect(deserialized.iv).toEqual(original.iv);
-        expect(deserialized.ephemPublicKey).toEqual(original.ephemPublicKey);
-        expect(deserialized.ephemPublicKey.length).toBe(33);
         expect(deserialized.ciphertext).toEqual(original.ciphertext);
         expect(deserialized.mac).toEqual(original.mac);
       });

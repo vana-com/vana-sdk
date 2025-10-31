@@ -19,8 +19,8 @@ vi.mock("viem", async () => {
   };
 });
 
-// Mock config/addresses module
-vi.mock("../../config/addresses", () => ({
+// Mock generated/addresses module
+vi.mock("../../generated/addresses", () => ({
   getUtilityAddress: vi
     .fn()
     .mockReturnValue("0xcA11bde05977b3631167028862bE2a173976CA11"),

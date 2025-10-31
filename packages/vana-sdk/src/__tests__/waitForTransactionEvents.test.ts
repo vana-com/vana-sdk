@@ -203,11 +203,11 @@ describe("waitForTransactionEvents", () => {
   });
 
   it("handles network errors gracefully", async () => {
-    const transactionResult: TransactionResult<"DataRegistry", "deleteFile"> = {
+    const transactionResult: TransactionResult<"DataRegistry", "addFile"> = {
       hash: "0xnetworkerror" as `0x${string}`,
       from: "0xfrom" as `0x${string}`,
       contract: "DataRegistry",
-      fn: "deleteFile",
+      fn: "addFile",
     };
 
     vi.mocked(mockPublicClient.waitForTransactionReceipt).mockRejectedValue(
@@ -227,7 +227,7 @@ describe("waitForTransactionEvents", () => {
       { contract: "DataPortabilityServers", fn: "untrustServer" },
       { contract: "DataPortabilityGrantees", fn: "registerGrantee" },
       { contract: "DataRegistry", fn: "addFile" },
-      { contract: "DataRegistry", fn: "deleteFile" },
+      { contract: "DataRegistry", fn: "addFile" },
       { contract: "ComputeInstructionRegistry", fn: "addComputeInstruction" },
     ] as const;
 

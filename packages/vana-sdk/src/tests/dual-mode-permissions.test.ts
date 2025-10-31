@@ -5,7 +5,7 @@ import { mockPlatformAdapter } from "./mocks/platformAdapter";
 import type { StorageManager } from "../storage/manager";
 
 // Mock dependencies
-vi.mock("../config/addresses", () => ({
+vi.mock("../generated/addresses", () => ({
   getContractAddress: vi.fn().mockReturnValue("0xPermissionsAddress"),
 }));
 

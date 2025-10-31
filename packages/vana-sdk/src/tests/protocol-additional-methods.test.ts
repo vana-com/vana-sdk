@@ -7,7 +7,7 @@ import type { ControllerContext } from "../types/controller-context";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock the config and ABI modules
-vi.mock("../config/addresses", () => ({
+vi.mock("../generated/addresses", () => ({
   getContractAddress: vi.fn(),
   CONTRACT_ADDRESSES: {
     14800: {

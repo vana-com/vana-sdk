@@ -295,7 +295,7 @@ describe("Transaction System Edge Cases", () => {
         | TransactionResult<"DataPortabilityPermissions", "addPermission">
         | TransactionResult<"DataPortabilityPermissions", "revokePermission">
         | TransactionResult<"DataRegistry", "addFile">
-        | TransactionResult<"DataRegistry", "deleteFile">;
+        | TransactionResult<"DataRegistry", "addFile">;
 
       const transactions: PossibleTransaction[] = [
         tx({
@@ -319,7 +319,7 @@ describe("Transaction System Edge Cases", () => {
           expect(["addPermission", "revokePermission"]).toContain(tx.fn);
         } else {
           // TypeScript knows this is a DataRegistry transaction
-          expect(["addFile", "deleteFile"]).toContain(tx.fn);
+          expect(["addFile", "addFile"]).toContain(tx.fn);
         }
       }
     });
@@ -361,7 +361,7 @@ describe("Transaction System Edge Cases", () => {
       const result2 = tx({
         ...shared,
         contract: "DataRegistry",
-        fn: "deleteFile",
+        fn: "addFile",
       });
 
       // Modifying one should not affect the other

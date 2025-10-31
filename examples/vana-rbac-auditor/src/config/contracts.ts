@@ -7,6 +7,7 @@ import {
   type VanaContract,
   vanaMainnet,
   mokshaTestnet,
+  CONTRACTS,
 } from "@opendatalabs/vana-sdk/browser";
 import type { Address, Abi } from "viem";
 import { keccak256, toHex } from "viem";
@@ -17,7 +18,9 @@ import { SPECIAL_ROLE_HASHES, getLegacyRoles } from "./index";
  * Convert network name to chain ID
  */
 function networkToChainId(network: Network): 1480 | 14800 {
-  return (network === "mainnet" ? vanaMainnet.id : mokshaTestnet.id) as 1480 | 14800;
+  return (network === "mainnet" ? vanaMainnet.id : mokshaTestnet.id) as
+    | 1480
+    | 14800;
 }
 
 /**
@@ -29,9 +32,14 @@ function networkToChainId(network: Network): 1480 | 14800 {
  * - revokeRole(bytes32,address)
  */
 function hasAccessControl(abi: Abi): boolean {
-  const requiredFunctions = ["hasRole", "getRoleAdmin", "grantRole", "revokeRole"];
+  const requiredFunctions = [
+    "hasRole",
+    "getRoleAdmin",
+    "grantRole",
+    "revokeRole",
+  ];
   return requiredFunctions.every((fn) =>
-    abi.some((item) => item.type === "function" && item.name === fn)
+    abi.some((item) => item.type === "function" && item.name === fn),
   );
 }
 
@@ -40,34 +48,8 @@ function hasAccessControl(abi: Abi): boolean {
  * This uses the SDK's contract registry and checks ABIs
  */
 function getAccessControlContracts(): VanaContract[] {
-  // All contract names from SDK - discover which have AccessControl
-  const candidateContracts: VanaContract[] = [
-    "DataRegistry",
-    "DataPortabilityPermissions",
-    "DataPortabilityServers",
-    "DataPortabilityGrantees",
-    "TeePoolPhala",
-    "TeePoolEphemeralStandard",
-    "TeePoolPersistentStandard",
-    "TeePoolPersistentGpu",
-    "TeePoolDedicatedStandard",
-    "TeePoolDedicatedGpu",
-    "ComputeEngine",
-    "QueryEngine",
-    "DataRefinerRegistry",
-    "ComputeInstructionRegistry",
-    "DLPRegistry",
-    "DLPPerformance",
-    "DLPRewardDeployer",
-    "DLPRewardSwap",
-    "VanaPoolStaking",
-    "VanaPoolEntity",
-    "VanaEpoch",
-    "DAT",
-    "DATFactory",
-    "DATPausable",
-    "DATVotes",
-  ];
+  // Get all contract names from SDK's CONTRACTS registry
+  const candidateContracts = Object.keys(CONTRACTS) as VanaContract[];
 
   // Filter to only contracts that actually have AccessControl
   return candidateContracts.filter((contractName) => {
@@ -89,9 +71,7 @@ let cachedAccessControlContracts: VanaContract[] | null = null;
  * Get all auditable contracts for a network
  */
 export function getAuditableContracts(network: Network): ContractConfig[] {
-  if (!cachedAccessControlContracts) {
-    cachedAccessControlContracts = getAccessControlContracts();
-  }
+  cachedAccessControlContracts ??= getAccessControlContracts();
 
   const chainId = networkToChainId(network);
 
@@ -110,7 +90,7 @@ export function getAuditableContracts(network: Network): ContractConfig[] {
  */
 export function getContractConfig(
   name: string,
-  network: Network
+  network: Network,
 ): ContractConfig | undefined {
   const contracts = getAuditableContracts(network);
   return contracts.find((c) => c.name === name);
@@ -121,11 +101,11 @@ export function getContractConfig(
  */
 export function getContractName(
   address: Address,
-  network: Network
+  network: Network,
 ): string | undefined {
   const contracts = getAuditableContracts(network);
   const match = contracts.find(
-    (c) => c.address.toLowerCase() === address.toLowerCase()
+    (c) => c.address.toLowerCase() === address.toLowerCase(),
   );
   return match?.name;
 }
@@ -133,10 +113,7 @@ export function getContractName(
 /**
  * Check if address is a known protocol contract
  */
-export function isKnownContract(
-  address: Address,
-  network: Network
-): boolean {
+export function isKnownContract(address: Address, network: Network): boolean {
   return getContractName(address, network) !== undefined;
 }
 
@@ -171,9 +148,7 @@ function discoverRolesFromABIs(): Record<string, string> {
   };
 
   // Use cached AccessControl contracts (already filtered)
-  if (!cachedAccessControlContracts) {
-    cachedAccessControlContracts = getAccessControlContracts();
-  }
+  cachedAccessControlContracts ??= getAccessControlContracts();
   const candidateContracts = cachedAccessControlContracts;
 
   // Scan each contract's ABI for role constants

@@ -1,6 +1,14 @@
 // THIS FILE IS GENERATED, DO NOT EDIT MANUALLY
 // Run `npm run fetch-abis` to regenerate
+//
 // DATPausable Implementation Contract
+//
+// Generated: 2025-10-30T23:21:19.352Z
+// Network: Vana (Chain ID: 1480)
+//
+//   Contract Address:
+//     0xe69FE86f0B95cC2f8416Fe22815c85DC8887e76e
+//     https://vanascan.io/address/0xe69FE86f0B95cC2f8416Fe22815c85DC8887e76e
 
 export const DATPausableABI = [
   {

@@ -1,20 +1,20 @@
 // THIS FILE IS GENERATED, DO NOT EDIT MANUALLY
 // Run `npm run fetch-abis` to regenerate
 //
-// ComputeInstructionRegistry Implementation Contract
+// ComputeEngineTreasury Implementation Contract
 //
-// Generated: 2025-10-30T23:21:12.955Z
+// Generated: 2025-10-31T22:48:11.920Z
 // Network: Vana (Chain ID: 1480)
 //
 //   Proxy Address:
-//     0x5786B12b4c6Ba2bFAF0e77Ed30Bf6d32805563A5
-//     https://vanascan.io/address/0x5786B12b4c6Ba2bFAF0e77Ed30Bf6d32805563A5
+//     0xceB33C501B624D984bD1Ed3298f6D1d8F7CE03d1
+//     https://vanascan.io/address/0xceB33C501B624D984bD1Ed3298f6D1d8F7CE03d1
 //
 //   Implementation Address:
-//     0x6E828824c0308E225080c186662ff3fF951633f4
-//     https://vanascan.io/address/0x6E828824c0308E225080c186662ff3fF951633f4
+//     0xCeCF6742952b5469B01De3381989270129553656
+//     https://vanascan.io/address/0xCeCF6742952b5469B01De3381989270129553656
 
-export const ComputeInstructionRegistryABI = [
+export const ComputeEngineTreasuryABI = [
   {
     inputs: [],
     stateMutability: "nonpayable",
@@ -55,28 +55,12 @@ export const ComputeInstructionRegistryABI = [
   {
     inputs: [
       {
-        internalType: "uint256",
-        name: "instructionId",
-        type: "uint256",
-      },
-    ],
-    name: "ComputeInstructionNotFound",
-    type: "error",
-  },
-  {
-    inputs: [
-      {
         internalType: "address",
-        name: "implementation",
+        name: "account",
         type: "address",
       },
     ],
-    name: "ERC1967InvalidImplementation",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "ERC1967NonPayable",
+    name: "AddressInsufficientBalance",
     type: "error",
   },
   {
@@ -101,85 +85,34 @@ export const ComputeInstructionRegistryABI = [
   },
   {
     inputs: [],
-    name: "NotDlpOwner",
-    type: "error",
-  },
-  {
-    inputs: [],
     name: "NotInitializing",
     type: "error",
   },
   {
     inputs: [],
-    name: "UUPSUnauthorizedCallContext",
+    name: "ReentrancyGuardReentrantCall",
     type: "error",
   },
   {
     inputs: [
       {
-        internalType: "bytes32",
-        name: "slot",
-        type: "bytes32",
-      },
-    ],
-    name: "UUPSUnsupportedProxiableUUID",
-    type: "error",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "uint256",
-        name: "computeInstructionId",
-        type: "uint256",
-      },
-      {
-        indexed: true,
         internalType: "address",
-        name: "owner",
+        name: "token",
         type: "address",
       },
-      {
-        indexed: false,
-        internalType: "string",
-        name: "computeInstructionUrl",
-        type: "string",
-      },
-      {
-        indexed: false,
-        internalType: "bytes32",
-        name: "computeInstructionHash",
-        type: "bytes32",
-      },
     ],
-    name: "ComputeInstructionAdded",
-    type: "event",
+    name: "SafeERC20FailedOperation",
+    type: "error",
   },
   {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "uint256",
-        name: "computeInstructionId",
-        type: "uint256",
-      },
-      {
-        indexed: true,
-        internalType: "uint256",
-        name: "dlpId",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "bool",
-        name: "approved",
-        type: "bool",
-      },
-    ],
-    name: "ComputeInstructionUpdated",
-    type: "event",
+    inputs: [],
+    name: "ZeroAddress",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "ZeroAmount",
+    type: "error",
   },
   {
     anonymous: false,
@@ -286,6 +219,31 @@ export const ComputeInstructionRegistryABI = [
     anonymous: false,
     inputs: [
       {
+        indexed: true,
+        internalType: "address",
+        name: "to",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "token",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "Transfer",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
         indexed: false,
         internalType: "address",
         name: "account",
@@ -296,17 +254,17 @@ export const ComputeInstructionRegistryABI = [
     type: "event",
   },
   {
-    anonymous: false,
-    inputs: [
+    inputs: [],
+    name: "CUSTODIAN_ROLE",
+    outputs: [
       {
-        indexed: true,
-        internalType: "address",
-        name: "implementation",
-        type: "address",
+        internalType: "bytes32",
+        name: "",
+        type: "bytes32",
       },
     ],
-    name: "Upgraded",
-    type: "event",
+    stateMutability: "view",
+    type: "function",
   },
   {
     inputs: [],
@@ -323,12 +281,12 @@ export const ComputeInstructionRegistryABI = [
   },
   {
     inputs: [],
-    name: "MAINTAINER_ROLE",
+    name: "VANA",
     outputs: [
       {
-        internalType: "bytes32",
+        internalType: "address",
         name: "",
-        type: "bytes32",
+        type: "address",
       },
     ],
     stateMutability: "view",
@@ -336,47 +294,10 @@ export const ComputeInstructionRegistryABI = [
   },
   {
     inputs: [],
-    name: "UPGRADE_INTERFACE_VERSION",
+    name: "custodian",
     outputs: [
       {
-        internalType: "string",
-        name: "",
-        type: "string",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "bytes32",
-        name: "hash",
-        type: "bytes32",
-      },
-      {
-        internalType: "string",
-        name: "url",
-        type: "string",
-      },
-    ],
-    name: "addComputeInstruction",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "computeInstructionId",
-        type: "uint256",
-      },
-    ],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "dlpRegistry",
-    outputs: [
-      {
-        internalType: "contract IDLPRegistry",
+        internalType: "address",
         name: "",
         type: "address",
       },
@@ -454,106 +375,13 @@ export const ComputeInstructionRegistryABI = [
       },
       {
         internalType: "address",
-        name: "initDlpRegistryAddress",
+        name: "initCustodian",
         type: "address",
       },
     ],
     name: "initialize",
     outputs: [],
     stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "instructionId",
-        type: "uint256",
-      },
-    ],
-    name: "instructions",
-    outputs: [
-      {
-        components: [
-          {
-            internalType: "bytes32",
-            name: "hash",
-            type: "bytes32",
-          },
-          {
-            internalType: "address",
-            name: "owner",
-            type: "address",
-          },
-          {
-            internalType: "string",
-            name: "url",
-            type: "string",
-          },
-        ],
-        internalType:
-          "struct IComputeInstructionRegistry.ComputeInstructionInfo",
-        name: "",
-        type: "tuple",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "instructionsCount",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "instructionId",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "dlpId",
-        type: "uint256",
-      },
-    ],
-    name: "isApproved",
-    outputs: [
-      {
-        internalType: "bool",
-        name: "",
-        type: "bool",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "instructionId",
-        type: "uint256",
-      },
-    ],
-    name: "isValidInstructionId",
-    outputs: [
-      {
-        internalType: "bool",
-        name: "",
-        type: "bool",
-      },
-    ],
-    stateMutability: "view",
     type: "function",
   },
   {
@@ -571,19 +399,6 @@ export const ComputeInstructionRegistryABI = [
         internalType: "bool",
         name: "",
         type: "bool",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "proxiableUUID",
-    outputs: [
-      {
-        internalType: "bytes32",
-        name: "",
-        type: "bytes32",
       },
     ],
     stateMutability: "view",
@@ -645,6 +460,29 @@ export const ComputeInstructionRegistryABI = [
     type: "function",
   },
   {
+    inputs: [
+      {
+        internalType: "address",
+        name: "to",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "token",
+        type: "address",
+      },
+      {
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "transfer",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
     inputs: [],
     name: "unpause",
     outputs: [],
@@ -654,55 +492,14 @@ export const ComputeInstructionRegistryABI = [
   {
     inputs: [
       {
-        internalType: "uint256",
-        name: "instructionId",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "dlpId",
-        type: "uint256",
-      },
-      {
-        internalType: "bool",
-        name: "approved",
-        type: "bool",
-      },
-    ],
-    name: "updateComputeInstruction",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
         internalType: "address",
-        name: "newDlpRegistryAddress",
+        name: "newCustodian",
         type: "address",
       },
     ],
-    name: "updateDlpRegistry",
+    name: "updateCustodian",
     outputs: [],
     stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "newImplementation",
-        type: "address",
-      },
-      {
-        internalType: "bytes",
-        name: "data",
-        type: "bytes",
-      },
-    ],
-    name: "upgradeToAndCall",
-    outputs: [],
-    stateMutability: "payable",
     type: "function",
   },
   {
@@ -718,6 +515,10 @@ export const ComputeInstructionRegistryABI = [
     stateMutability: "pure",
     type: "function",
   },
+  {
+    stateMutability: "payable",
+    type: "receive",
+  },
 ] as const;
 
-export default ComputeInstructionRegistryABI;
+export default ComputeEngineTreasuryABI;

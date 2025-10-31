@@ -8,7 +8,7 @@ import {
 import { createMockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock external dependencies
-vi.mock("../config/addresses", () => ({
+vi.mock("../generated/addresses", () => ({
   getContractAddress: vi
     .fn()
     .mockReturnValue("0x1234567890123456789012345678901234567890"),

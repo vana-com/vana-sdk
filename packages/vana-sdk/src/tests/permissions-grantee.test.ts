@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ControllerContext } from "../controllers/permissions";
 import { PermissionsController } from "../controllers/permissions";
-import { getContractAddress, getUtilityAddress } from "../config/addresses";
+import { getContractAddress, getUtilityAddress } from "../generated/addresses";
 import type { Hash } from "viem";
 import { UserRejectedRequestError } from "../errors";
 import {
@@ -12,7 +12,7 @@ import {
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock the contract imports
-vi.mock("../config/addresses", () => ({
+vi.mock("../generated/addresses", () => ({
   getContractAddress: vi.fn(),
   getUtilityAddress: vi.fn(),
 }));

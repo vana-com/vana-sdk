@@ -4,7 +4,9 @@ import { useState, useEffect } from "react";
 import { Shield, AlertCircle, Layers } from "lucide-react";
 import { Tabs, Tab, Spinner, Button } from "@heroui/react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useAccount } from "wagmi";
 import Image from "next/image";
+import { mokshaTestnet } from "@opendatalabs/vana-sdk/browser";
 import type { Network, AuditResults } from "../lib/types";
 import { runAudit } from "../lib/audit";
 import { CurrentStateTable } from "../components/audit/CurrentStateTable";
@@ -13,7 +15,11 @@ import { ThemeSwitcher } from "../components/ThemeSwitcher";
 import { BatchBuilderModal } from "../components/batch/BatchBuilderModal";
 
 export default function Home() {
-  const [network, setNetwork] = useState<Network>("mainnet");
+  // Derive network from wallet's connected chain (single source of truth)
+  // Defaults to mainnet when wallet is disconnected
+  const { chain } = useAccount();
+  const network: Network =
+    chain?.id === mokshaTestnet.id ? "moksha" : "mainnet";
   const [isLoading, setIsLoading] = useState(true);
   const [results, setResults] = useState<AuditResults | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -59,21 +65,8 @@ export default function Home() {
               <h1 className="text-xl font-bold">Vana RBAC Auditor</h1>
             </div>
 
-            {/* Network Selector as Tabs */}
+            {/* Wallet determines network (single source of truth) */}
             <div className="flex items-center gap-4">
-              <Tabs
-                selectedKey={network}
-                onSelectionChange={(key) => {
-                  setNetwork(key as Network);
-                }}
-                size="sm"
-                classNames={{
-                  tabList: "bg-content2/50",
-                }}
-              >
-                <Tab key="mainnet" title="Mainnet" />
-                <Tab key="moksha" title="Moksha" />
-              </Tabs>
               <Button
                 size="sm"
                 variant="flat"

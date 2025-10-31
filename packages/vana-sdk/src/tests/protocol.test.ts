@@ -9,7 +9,7 @@ import { ContractNotFoundError } from "../errors";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock the config and ABI modules
-vi.mock("../config/addresses", () => ({
+vi.mock("../generated/addresses", () => ({
   getContractAddress: vi.fn(),
   CONTRACT_ADDRESSES: {
     14800: {
@@ -44,7 +44,7 @@ vi.mock("../generated/abi", () => ({
 }));
 
 // Import the mocked functions
-import { getContractAddress } from "../config/addresses";
+import { getContractAddress } from "../generated/addresses";
 import { getAbi } from "../generated/abi";
 
 // Type the mocked functions

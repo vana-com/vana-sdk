@@ -1,6 +1,18 @@
 // THIS FILE IS GENERATED, DO NOT EDIT MANUALLY
 // Run `npm run fetch-abis` to regenerate
+//
 // SwapHelper Implementation Contract
+//
+// Generated: 2025-10-30T23:21:23.441Z
+// Network: Vana (Chain ID: 1480)
+//
+//   Proxy Address:
+//     0x55D5e6F73326315bF2E091e97F04f0770e5C54e2
+//     https://vanascan.io/address/0x55D5e6F73326315bF2E091e97F04f0770e5C54e2
+//
+//   Implementation Address:
+//     0xee728a6D537f5e90a51Cb8538D1B76A2F2104083
+//     https://vanascan.io/address/0xee728a6D537f5e90a51Cb8538D1B76A2F2104083
 
 export const SwapHelperABI = [
   {

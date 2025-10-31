@@ -1,6 +1,18 @@
 // THIS FILE IS GENERATED, DO NOT EDIT MANUALLY
 // Run `npm run fetch-abis` to regenerate
+//
 // DLPRewardSwap Implementation Contract
+//
+// Generated: 2025-10-30T23:21:22.221Z
+// Network: Vana (Chain ID: 1480)
+//
+//   Proxy Address:
+//     0x7c6862C46830F0fc3bF3FF509EA1bD0EE7267fB0
+//     https://vanascan.io/address/0x7c6862C46830F0fc3bF3FF509EA1bD0EE7267fB0
+//
+//   Implementation Address:
+//     0xffdF229F5502f176968729D528b647b085fd496c
+//     https://vanascan.io/address/0xffdF229F5502f176968729D528b647b085fd496c
 
 export const DLPRewardSwapABI = [
   {

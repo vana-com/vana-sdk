@@ -99,7 +99,7 @@ describe("transactionHelpers", () => {
         { contract: "DataPortabilityServers", fn: "trustServer" },
         { contract: "DataPortabilityServers", fn: "untrustServer" },
         { contract: "DataRegistry", fn: "addFile" },
-        { contract: "DataRegistry", fn: "deleteFile" },
+        { contract: "DataRegistry", fn: "addFile" },
       ] as const;
 
       for (const { contract, fn } of functions) {

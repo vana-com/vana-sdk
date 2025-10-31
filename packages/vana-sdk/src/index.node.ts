@@ -279,7 +279,7 @@ export * from "./utils/signatureCache";
 export * from "./storage";
 
 // Configuration
-export { getContractAddress } from "./config/addresses";
+export { getContractAddress, CONTRACTS } from "./generated/addresses";
 export { chains } from "./config/chains";
 export {
   type ServiceEndpoints,

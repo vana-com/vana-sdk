@@ -19,7 +19,7 @@ import {
 } from "viem";
 import { type ContractAbis, getAbi, type VanaContract } from "../generated/abi";
 import type { VanaChainId, ContractInfo } from "../types/index";
-import { getContractAddress, CONTRACT_ADDRESSES } from "../config/addresses";
+import { getContractAddress, CONTRACT_ADDRESSES } from "../generated/addresses";
 import { createClient } from "../core/client";
 import { vanaMainnet } from "../config/chains";
 

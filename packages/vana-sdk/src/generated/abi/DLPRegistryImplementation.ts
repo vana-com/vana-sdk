@@ -1,6 +1,18 @@
 // THIS FILE IS GENERATED, DO NOT EDIT MANUALLY
 // Run `npm run fetch-abis` to regenerate
+//
 // DLPRegistry Implementation Contract
+//
+// Generated: 2025-10-30T23:21:16.756Z
+// Network: Vana (Chain ID: 1480)
+//
+//   Proxy Address:
+//     0x4D59880a924526d1dD33260552Ff4328b1E18a43
+//     https://vanascan.io/address/0x4D59880a924526d1dD33260552Ff4328b1E18a43
+//
+//   Implementation Address:
+//     0x8c2d4de80a36EfA6936D233EF06D5FBf16C063dB
+//     https://vanascan.io/address/0x8c2d4de80a36EfA6936D233EF06D5FBf16C063dB
 
 export const DLPRegistryABI = [
   {

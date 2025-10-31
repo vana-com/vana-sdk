@@ -35,7 +35,7 @@ vi.mock("viem", async () => {
   };
 });
 
-vi.mock("../config/addresses", () => ({
+vi.mock("../generated/addresses", () => ({
   getContractAddress: vi.fn().mockReturnValue("0x123"),
 }));
 

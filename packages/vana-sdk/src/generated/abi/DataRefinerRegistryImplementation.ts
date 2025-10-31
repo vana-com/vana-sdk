@@ -1,6 +1,18 @@
 // THIS FILE IS GENERATED, DO NOT EDIT MANUALLY
 // Run `npm run fetch-abis` to regenerate
+//
 // DataRefinerRegistry Implementation Contract
+//
+// Generated: 2025-10-30T23:21:12.604Z
+// Network: Vana (Chain ID: 1480)
+//
+//   Proxy Address:
+//     0x93c3EF89369fDcf08Be159D9DeF0F18AB6Be008c
+//     https://vanascan.io/address/0x93c3EF89369fDcf08Be159D9DeF0F18AB6Be008c
+//
+//   Implementation Address:
+//     0x8284aF2C85Abe6B6D2D8D61e4E7381B5dBDe5520
+//     https://vanascan.io/address/0x8284aF2C85Abe6B6D2D8D61e4E7381B5dBDe5520
 
 export const DataRefinerRegistryABI = [
   {

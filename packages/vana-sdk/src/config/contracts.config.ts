@@ -270,20 +270,20 @@ export const CONTRACTS: Record<string, ContractConfig> = {
   // ========================================
   WVANA: {
     addresses: {
-      14800: "0x00EDdD9621Fb08436d0331c149D1690909a5906d",
-      1480: "0xbccc4b4c6530F82FE309c5E845E50b5E9C89f2AD",
+      14800: "0xbccc4b4c6530F82FE309c5E845E50b5E9C89f2AD",
+      1480: "0x00EDdD9621Fb08436d0331c149D1690909a5906d",
     },
   },
   UniswapV3NonfungiblePositionManager: {
     addresses: {
-      14800: "0x45a2992e1bFdCF9b9AcE0a84A238f2E56F481816",
-      1480: "0x48Bd633f4B9128a38Ebb4a48b6975EB3Eaf1931b",
+      14800: "0x48Bd633f4B9128a38Ebb4a48b6975EB3Eaf1931b",
+      1480: "0x45a2992e1bFdCF9b9AcE0a84A238f2E56F481816",
     },
   },
   UniswapV3QuoterV2: {
     addresses: {
-      14800: "0x1b13728ea3C90863990aC0e05987CfeC1888908c",
-      1480: "0x3152246f3CD4dD465292Dd4Ffd792E2Cf602e332",
+      14800: "0x3152246f3CD4dD465292Dd4Ffd792E2Cf602e332",
+      1480: "0x1b13728ea3C90863990aC0e05987CfeC1888908c",
     },
   },
 

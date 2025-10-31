@@ -16,14 +16,24 @@ import * as path from "path";
 import { promisify } from "util";
 import { createPublicClient, http } from "viem";
 import { CONTRACTS, LEGACY_CONTRACTS } from "../src/config/contracts.config";
+import { chains } from "../src/config/chains";
 import { getAbi } from "../src/generated/abi";
 import type { VanaContract } from "../src/generated/abi";
 
 const writeFile = promisify(fs.writeFile);
 const mkdir = promisify(fs.mkdir);
 
-const VANA_MAINNET_RPC = "https://rpc.vana.org";
-const MOKSHA_TESTNET_RPC = "https://rpc.moksha.vana.org";
+/**
+ * Get RPC URL for a chain using canonical chain configuration.
+ * This ensures we use the single source of truth from src/config/chains.ts.
+ */
+function getRpcUrl(chainId: number): string {
+  const chain = chains[chainId];
+  if (!chain) {
+    throw new Error(`Unknown chain ID: ${chainId}`);
+  }
+  return chain.rpcUrls.default.http[0];
+}
 
 interface DiscoveredContract {
   name: string;
@@ -74,7 +84,7 @@ async function discoverContractOnChain(
   chainId: 14800 | 1480,
   parentAddress: string,
 ): Promise<string> {
-  const rpcUrl = chainId === 14800 ? VANA_MAINNET_RPC : MOKSHA_TESTNET_RPC;
+  const rpcUrl = getRpcUrl(chainId);
   const client = createPublicClient({ transport: http(rpcUrl) });
 
   const parentAbi = getAbi(parentName as VanaContract);
@@ -136,7 +146,7 @@ async function discoverAllContracts(): Promise<
     for (const { name: childName, config: childConfig } of children) {
       try {
         // Discover on both chains
-        const [mainnetAddr, testnetAddr] = await Promise.all([
+        const [addr14800, addr1480] = await Promise.all([
           discoverContractOnChain(
             childName,
             parentName,
@@ -154,23 +164,23 @@ async function discoverAllContracts(): Promise<
         ]);
 
         // Validate against expected addresses
-        const expectedMainnet = childConfig.addresses[14800];
-        const expectedTestnet = childConfig.addresses[1480];
+        const expected14800 = childConfig.addresses[14800];
+        const expected1480 = childConfig.addresses[1480];
 
-        if (expectedMainnet.toLowerCase() !== mainnetAddr.toLowerCase()) {
+        if (expected14800.toLowerCase() !== addr14800.toLowerCase()) {
           console.warn(
             `⚠️  ${childName} on chain 14800:\n` +
-              `   Expected: ${expectedMainnet}\n` +
-              `   On-chain: ${mainnetAddr}\n` +
+              `   Expected: ${expected14800}\n` +
+              `   On-chain: ${addr14800}\n` +
               `   Using on-chain value.`,
           );
         }
 
-        if (expectedTestnet.toLowerCase() !== testnetAddr.toLowerCase()) {
+        if (expected1480.toLowerCase() !== addr1480.toLowerCase()) {
           console.warn(
             `⚠️  ${childName} on chain 1480:\n` +
-              `   Expected: ${expectedTestnet}\n` +
-              `   On-chain: ${testnetAddr}\n` +
+              `   Expected: ${expected1480}\n` +
+              `   On-chain: ${addr1480}\n` +
               `   Using on-chain value.`,
           );
         }
@@ -178,8 +188,8 @@ async function discoverAllContracts(): Promise<
         discovered.set(childName, {
           name: childName,
           addresses: {
-            14800: mainnetAddr,
-            1480: testnetAddr,
+            14800: addr14800,
+            1480: addr1480,
           },
           _meta: {
             discoveredFrom: parentName,
@@ -187,7 +197,7 @@ async function discoverAllContracts(): Promise<
           },
         });
 
-        console.log(`   ✅ ${childName}: ${mainnetAddr}`);
+        console.log(`   ✅ ${childName}: ${addr14800}`);
 
         // If this child is also a parent of other contracts, add it to discovery queue
         const hasChildren = Array.from(discoverableContracts.values()).some(
@@ -196,8 +206,8 @@ async function discoverAllContracts(): Promise<
         if (hasChildren && !toDiscover.has(childName)) {
           toDiscover.set(childName, {
             addresses: {
-              14800: mainnetAddr,
-              1480: testnetAddr,
+              14800: addr14800,
+              1480: addr1480,
             },
           });
         }

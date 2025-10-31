@@ -10,10 +10,20 @@
 
 import { createPublicClient, http } from "viem";
 import { getContractAddress } from "../src/generated/addresses";
+import { chains } from "../src/config/chains";
 import { getAbi } from "../src/generated/abi";
 
-const VANA_MAINNET_RPC = "https://rpc.vana.org";
-const MOKSHA_TESTNET_RPC = "https://rpc.moksha.vana.org";
+/**
+ * Get RPC URL for a chain using canonical chain configuration.
+ * This ensures we use the single source of truth from src/config/chains.ts.
+ */
+function getRpcUrl(chainId: number): string {
+  const chain = chains[chainId];
+  if (!chain) {
+    throw new Error(`Unknown chain ID: ${chainId}`);
+  }
+  return chain.rpcUrls.default.http[0];
+}
 
 interface ExternalAddresses {
   WVANA: { 14800: string; 1480: string };
@@ -26,7 +36,7 @@ async function discoverForChain(chainId: 14800 | 1480): Promise<{
   positionManager: string;
   quoterV2: string;
 }> {
-  const rpcUrl = chainId === 14800 ? VANA_MAINNET_RPC : MOKSHA_TESTNET_RPC;
+  const rpcUrl = getRpcUrl(chainId);
 
   const client = createPublicClient({
     transport: http(rpcUrl),
@@ -89,21 +99,21 @@ async function main() {
     "Discovering external dependency addresses from on-chain state...\n",
   );
 
-  const mainnet = await discoverForChain(14800);
-  const testnet = await discoverForChain(1480);
+  const chain14800 = await discoverForChain(14800);
+  const chain1480 = await discoverForChain(1480);
 
   const addresses: ExternalAddresses = {
     WVANA: {
-      14800: mainnet.wvana,
-      1480: testnet.wvana,
+      14800: chain14800.wvana,
+      1480: chain1480.wvana,
     },
     UniswapV3NonfungiblePositionManager: {
-      14800: mainnet.positionManager,
-      1480: testnet.positionManager,
+      14800: chain14800.positionManager,
+      1480: chain1480.positionManager,
     },
     UniswapV3QuoterV2: {
-      14800: mainnet.quoterV2,
-      1480: testnet.quoterV2,
+      14800: chain14800.quoterV2,
+      1480: chain1480.quoterV2,
     },
   };
 

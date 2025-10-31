@@ -57,20 +57,25 @@ export interface IRelayerStateStore {
 
 /**
  * Represents a stored operation in the queue.
+ *
+ * @remarks
+ * Operations are stored with serialized data for recovery and processing.
+ * The metadata field allows storage of arbitrary key-value pairs for tracking
+ * additional context such as gas estimates, retry strategies, or user preferences.
  */
 export interface StoredOperation {
   /** Unique identifier for the operation */
   id: string;
   /** Current status of the operation */
   status: "queued" | "processing" | "submitted" | "completed" | "failed";
-  /** Serialized transaction or operation data */
+  /** Serialized transaction or operation data as JSON string */
   data: string;
   /** Number of retry attempts */
   retryCount?: number;
   /** Timestamp when the operation was created */
   createdAt?: number;
-  /** Additional metadata */
-  metadata?: any;
+  /** Additional metadata as key-value pairs */
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -114,12 +119,15 @@ export interface IOperationStore {
    * Stores a new operation in the queue.
    *
    * @param operation - The operation to store
+   * @param operation.id - Unique identifier for the operation
+   * @param operation.data - Serialized operation data as JSON string
+   * @param operation.metadata - Optional metadata as key-value pairs
    * @returns Promise that resolves when the operation is stored
    */
   storeOperation(operation: {
     id: string;
-    data: any;
-    metadata?: any;
+    data: string;
+    metadata?: Record<string, unknown>;
   }): Promise<void>;
 
   /**
@@ -135,13 +143,13 @@ export interface IOperationStore {
    *
    * @param operationId - The ID of the operation to update
    * @param status - The new status
-   * @param metadata - Optional metadata to store with the update
+   * @param metadata - Optional metadata as key-value pairs to store with the update
    * @returns Promise that resolves when the status is updated
    */
   updateStatus(
     operationId: string,
     status: string,
-    metadata?: any,
+    metadata?: Record<string, unknown>,
   ): Promise<void>;
 
   /**

@@ -85,3 +85,22 @@ export interface ControllerContext {
   /** Tracks async relayed transactions for resilient management. */
   operationStore?: IOperationStore | IRelayerStateStore;
 }
+
+/**
+ * Minimal SDK interface for enhanced response handling.
+ *
+ * @remarks
+ * This interface defines the minimal SDK surface that EnhancedTransactionResponse needs
+ * to avoid circular dependencies while maintaining type safety. It represents a subset
+ * of the full SDK functionality.
+ *
+ * @category Client
+ */
+export interface EnhancedResponseSDK {
+  /** Public client for blockchain queries. */
+  publicClient: PublicClient;
+  /** Waits for transaction confirmation and parses typed events. */
+  waitForTransactionEvents: WaitForTransactionEventsFn;
+  /** Relayer callback for polling pending operations. */
+  relayer?: (request: UnifiedRelayerRequest) => Promise<UnifiedRelayerResponse>;
+}

@@ -12,7 +12,7 @@ import type {
 } from "../types/relayer";
 import type { IOperationStore } from "../types/operationStore";
 import type { IAtomicStore } from "../types/atomicStore";
-import type { WalletClient, PublicClient } from "viem";
+import type { WalletClient, PublicClient, TransactionReceipt } from "viem";
 import { BaseController } from "./base";
 import { PollingManager } from "../core/pollingManager";
 import { DistributedNonceManager } from "../core/nonceManager";
@@ -141,7 +141,7 @@ export class OperationsController extends BaseController {
       initialInterval?: number;
       maxInterval?: number;
     },
-  ): Promise<{ hash: string; receipt?: any }> {
+  ): Promise<{ hash: string; receipt?: TransactionReceipt }> {
     if (!this.context.relayer) {
       throw new Error("Relayer not configured");
     }

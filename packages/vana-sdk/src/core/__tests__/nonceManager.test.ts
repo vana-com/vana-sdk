@@ -155,6 +155,207 @@ describe("DistributedNonceManager", () => {
     });
   });
 
+  describe("assignNonce with atomicAssignNonce support", () => {
+    it("should use store's atomicAssignNonce when available", async () => {
+      const address = "0x1234567890123456789012345678901234567890" as Address;
+      const chainId = 14800;
+
+      // Add atomicAssignNonce support to mock store
+      mockStore.atomicAssignNonce = vi.fn().mockResolvedValue(5);
+
+      mockPublicClient.getTransactionCount.mockResolvedValue(5);
+
+      const nonce = await manager.assignNonce(address, chainId);
+
+      expect(nonce).toBe(5);
+      expect(mockStore.atomicAssignNonce).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `nonce:${chainId}:${address.toLowerCase()}:lastUsed`,
+        ),
+        5,
+      );
+      // Should not acquire lock when using optimized path
+      expect(mockStore.acquireLock).not.toHaveBeenCalled();
+    });
+
+    it("should handle errors in atomicAssignNonce path", async () => {
+      const address = "0x1234567890123456789012345678901234567890" as Address;
+      const chainId = 14800;
+
+      mockStore.atomicAssignNonce = vi
+        .fn()
+        .mockRejectedValue(new Error("Store error"));
+      mockPublicClient.getTransactionCount.mockResolvedValue(5);
+
+      await expect(manager.assignNonce(address, chainId)).rejects.toThrow(
+        "Store error",
+      );
+    });
+  });
+
+  describe("assignNonce with setWithTTL support", () => {
+    it("should store assignment metadata when setWithTTL is available", async () => {
+      const address = "0x1234567890123456789012345678901234567890" as Address;
+      const chainId = 14800;
+
+      mockStore.setWithTTL = vi.fn().mockResolvedValue(undefined);
+      mockPublicClient.getTransactionCount.mockResolvedValue(0);
+      mockStore.get.mockResolvedValue(null);
+      mockStore.incr.mockResolvedValue(0);
+
+      await manager.assignNonce(address, chainId);
+
+      expect(mockStore.setWithTTL).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `nonce:${chainId}:${address.toLowerCase()}:assignment:0`,
+        ),
+        expect.stringContaining('"nonce":0'),
+        3600,
+      );
+    });
+  });
+
+  describe("resetNonce", () => {
+    it("should reset nonce to blockchain state", async () => {
+      const address = "0x1234567890123456789012345678901234567890" as Address;
+      const chainId = 14800;
+
+      mockStore.acquireLock.mockResolvedValue("lock-reset");
+      mockPublicClient.getTransactionCount.mockResolvedValue(10);
+
+      await manager.resetNonce(address, chainId);
+
+      expect(mockStore.set).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `nonce:${chainId}:${address.toLowerCase()}:lastUsed`,
+        ),
+        "9", // confirmedCount - 1
+      );
+      expect(mockStore.releaseLock).toHaveBeenCalled();
+    });
+
+    it("should handle zero confirmed count when resetting", async () => {
+      const address = "0x1234567890123456789012345678901234567890" as Address;
+      const chainId = 14800;
+
+      mockStore.acquireLock.mockResolvedValue("lock-reset");
+      mockPublicClient.getTransactionCount.mockResolvedValue(0);
+
+      await manager.resetNonce(address, chainId);
+
+      expect(mockStore.set).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `nonce:${chainId}:${address.toLowerCase()}:lastUsed`,
+        ),
+        "-1",
+      );
+    });
+
+    it("should throw error if lock acquisition fails", async () => {
+      const address = "0x1234567890123456789012345678901234567890" as Address;
+      const chainId = 14800;
+
+      mockStore.acquireLock.mockResolvedValue(null);
+
+      const quickManager = new DistributedNonceManager({
+        atomicStore: mockStore,
+        publicClient: mockPublicClient,
+        maxLockRetries: 2,
+        lockRetryDelay: 10,
+      });
+
+      await expect(quickManager.resetNonce(address, chainId)).rejects.toThrow(
+        "Failed to acquire lock for nonce reset",
+      );
+    });
+
+    it("should release lock even if reset fails", async () => {
+      const address = "0x1234567890123456789012345678901234567890" as Address;
+      const chainId = 14800;
+
+      mockStore.acquireLock.mockResolvedValue("lock-reset");
+      mockPublicClient.getTransactionCount.mockRejectedValue(
+        new Error("Network error"),
+      );
+
+      await expect(manager.resetNonce(address, chainId)).rejects.toThrow(
+        "Network error",
+      );
+
+      expect(mockStore.releaseLock).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `nonce:${chainId}:${address.toLowerCase()}:lock`,
+        ),
+        "lock-reset",
+      );
+    });
+  });
+
+  describe("burnNonce", () => {
+    it("should burn a stuck nonce with elevated gas", async () => {
+      const address = "0x1234567890123456789012345678901234567890" as Address;
+      const chainId = 14800;
+      const nonceToBurn = 5;
+
+      const mockWalletClient = {
+        account: { address },
+        sendTransaction: vi.fn().mockResolvedValue("0xBurnTxHash"),
+      };
+
+      mockPublicClient.estimateFeesPerGas = vi.fn().mockResolvedValue({
+        maxFeePerGas: 1000000000n,
+        maxPriorityFeePerGas: 100000000n,
+      });
+
+      const txHash = await manager.burnNonce(
+        mockWalletClient as any,
+        nonceToBurn,
+        address,
+        chainId,
+      );
+
+      expect(txHash).toBe("0xBurnTxHash");
+      expect(mockWalletClient.sendTransaction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          nonce: nonceToBurn,
+          maxFeePerGas: 1500000000n, // 1.5x multiplier
+          maxPriorityFeePerGas: 150000000n, // 1.5x multiplier
+        }),
+      );
+    });
+
+    it("should use custom gas multiplier", async () => {
+      const address = "0x1234567890123456789012345678901234567890" as Address;
+      const chainId = 14800;
+      const nonceToBurn = 5;
+
+      const mockWalletClient = {
+        account: { address },
+        sendTransaction: vi.fn().mockResolvedValue("0xBurnTxHash"),
+      };
+
+      mockPublicClient.estimateFeesPerGas = vi.fn().mockResolvedValue({
+        maxFeePerGas: 1000000000n,
+        maxPriorityFeePerGas: 100000000n,
+      });
+
+      await manager.burnNonce(
+        mockWalletClient as any,
+        nonceToBurn,
+        address,
+        chainId,
+        2.0, // Custom multiplier
+      );
+
+      expect(mockWalletClient.sendTransaction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          maxFeePerGas: 2000000000n, // 2.0x multiplier
+          maxPriorityFeePerGas: 200000000n, // 2.0x multiplier
+        }),
+      );
+    });
+  });
+
   describe("getNonceState", () => {
     it("should return current nonce state", async () => {
       const address = "0x1234567890123456789012345678901234567890" as Address;

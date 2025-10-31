@@ -239,6 +239,69 @@ async function ensureDirectoryExists(dirPath: string): Promise<void> {
 }
 
 /**
+ * Recursively sorts object keys for deterministic JSON serialization
+ */
+function sortKeys(obj: any): any {
+  if (Array.isArray(obj)) {
+    return obj.map(sortKeys);
+  }
+  if (obj !== null && typeof obj === "object") {
+    return Object.keys(obj)
+      .sort()
+      .reduce((result: any, key: string) => {
+        result[key] = sortKeys(obj[key]);
+        return result;
+      }, {});
+  }
+  return obj;
+}
+
+/**
+ * Checks if the ABI content has actually changed (ignoring metadata like timestamps)
+ */
+async function hasAbiChanged(
+  filePath: string,
+  newAbi: unknown,
+  metadata: {
+    implementationAddress: string;
+  },
+): Promise<boolean> {
+  try {
+    // Check if file exists
+    await access(filePath);
+
+    // Check if implementation address changed (proxy upgrade)
+    const existingContent = await readFile(filePath, "utf-8");
+    const implMatch = existingContent.match(
+      /Implementation Address:\s+\n\s+\/\/\s+(0x[a-fA-F0-9]{40})/,
+    );
+    if (implMatch && implMatch[1] !== metadata.implementationAddress) {
+      return true;
+    }
+
+    // Import the existing ABI file and extract the ABI constant
+    // Use file:// URL with timestamp to bypass Node's import cache
+    const fileUrl = `file://${path.resolve(filePath)}?t=${Date.now()}`;
+    const module = await import(fileUrl);
+
+    // Find the exported ABI (should be an array)
+    const existingABI = Object.values(module).find((exp) => Array.isArray(exp));
+
+    if (!existingABI) {
+      return true; // Can't find ABI export
+    }
+
+    // Compare with deterministic stringification
+    const existingNormalized = JSON.stringify(sortKeys(existingABI));
+    const newNormalized = JSON.stringify(sortKeys(newAbi));
+
+    return existingNormalized !== newNormalized;
+  } catch {
+    return true; // File doesn't exist or import failed
+  }
+}
+
+/**
  * Updates the index.ts file with exports for the generated ABI files
  *
  * @param contractNames - Array of contract names to add exports for
@@ -324,8 +387,21 @@ async function fetchAndSaveABIs(
 
       // Fetch ABI
       const abi = await fetchABI(implAddress, network);
+      const filePath = path.join(abiDir, `${abiFileName}.ts`);
 
-      // Generate TypeScript file with metadata
+      // Check if ABI has changed before formatting (avoid expensive formatting if unchanged)
+      const abiChanged = await hasAbiChanged(filePath, abi, {
+        implementationAddress: implAddress,
+      });
+
+      if (!abiChanged) {
+        console.log(`⏭️  Skipped ${abiFileName}.ts (ABI unchanged)`);
+        processedContracts.add(abiFileName);
+        contractNames.push(contractName);
+        continue;
+      }
+
+      // Generate TypeScript file with metadata (only if changed)
       const tsContent = generateABIFile(contractName, abi, {
         network: networkConfig.name,
         chainId: networkConfig.chainId,
@@ -333,10 +409,9 @@ async function fetchAndSaveABIs(
         implementationAddress: implAddress,
         timestamp: new Date().toISOString(),
       });
-      const filePath = path.join(abiDir, `${abiFileName}.ts`);
 
       await writeFile(filePath, tsContent);
-      console.log(`✅ Saved ${abiFileName}.ts`);
+      console.log(`✅ Saved ${abiFileName}.ts (ABI changed)`);
 
       processedContracts.add(abiFileName);
       contractNames.push(contractName);

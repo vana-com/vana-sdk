@@ -23,7 +23,7 @@ vi.mock("../utils/transactionHelpers", () => ({
 }));
 
 // Mock the config modules
-vi.mock("../config/addresses", () => ({
+vi.mock("../generated/addresses", () => ({
   getContractAddress: vi.fn(() => "0xDataRegistryAddress"),
 }));
 
@@ -43,10 +43,10 @@ describe("DataController - addFileWithPermissionsAndSchema", () => {
 
     mockContext = {
       publicClient: {
-        chain: { id: 1, name: "Mainnet" },
+        chain: { id: 14800, name: "Moksha Testnet" },
       },
       walletClient: {
-        chain: { id: 1, name: "Mainnet" },
+        chain: { id: 14800, name: "Moksha Testnet" },
         account: "0xUserAddress" as `0x${string}`,
         writeContract: mockWriteContract,
       },

@@ -12,7 +12,7 @@ import {
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock the contract imports
-vi.mock("../config/addresses", () => ({
+vi.mock("../generated/addresses", () => ({
   getContractAddress: vi.fn(),
   getUtilityAddress: vi.fn(),
 }));

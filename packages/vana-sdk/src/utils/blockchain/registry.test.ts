@@ -9,7 +9,7 @@ vi.mock("viem", () => ({
   getContract: vi.fn(),
 }));
 
-vi.mock("../../config/addresses", () => ({
+vi.mock("../../generated/addresses", () => ({
   getContractAddress: vi.fn(),
 }));
 

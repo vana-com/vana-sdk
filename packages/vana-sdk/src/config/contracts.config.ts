@@ -76,6 +76,16 @@ export const CONTRACTS: Record<string, ContractConfig> = {
       1480: "0xb2BFe33FA420c45F1Cf1287542ad81ae935447bd",
     },
   },
+  ComputeEngineTreasury: {
+    addresses: {
+      14800: "0xceB33C501B624D984bD1Ed3298f6D1d8F7CE03d1",
+      1480: "0xceB33C501B624D984bD1Ed3298f6D1d8F7CE03d1",
+    },
+    discovery: {
+      parent: "ComputeEngine",
+      getter: "computeEngineTreasury",
+    },
+  },
   QueryEngine: {
     addresses: {
       14800: "0xd25Eb66EA2452cf3238A2eC6C1FD1B7F5B320490",
@@ -184,6 +194,16 @@ export const CONTRACTS: Record<string, ContractConfig> = {
     addresses: {
       14800: "0xEFD0F9Ba9De70586b7c4189971cF754adC923B04",
       1480: "0xEFD0F9Ba9De70586b7c4189971cF754adC923B04",
+    },
+  },
+  DLPRewardDeployerTreasury: {
+    addresses: {
+      14800: "0xb547ca8Fe4990fe330FeAeb1C2EBb42F925Af5b8",
+      1480: "0xb547ca8Fe4990fe330FeAeb1C2EBb42F925Af5b8",
+    },
+    discovery: {
+      parent: "DLPRewardDeployer",
+      getter: "treasury",
     },
   },
   DLPRewardSwap: {

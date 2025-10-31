@@ -59,7 +59,7 @@ vi.mock("../utils/schemaValidation", () => ({
   },
 }));
 
-vi.mock("../config/addresses", () => ({
+vi.mock("../generated/addresses", () => ({
   getContractAddress: vi.fn().mockReturnValue("0xRegistryAddress"),
   getUtilityAddress: vi
     .fn()

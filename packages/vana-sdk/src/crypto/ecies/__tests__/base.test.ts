@@ -278,7 +278,7 @@ describe("BaseECIESUint8", () => {
       buffer[0] = 0x00; // Invalid prefix for compressed key
 
       expect(() => testProvider.testNormalizePublicKey(buffer)).toThrow(
-        /Invalid public key length: 33/,
+        /Invalid compressed public key prefix: expected 0x02 or 0x03, got 0x00/,
       );
     });
 
@@ -287,7 +287,7 @@ describe("BaseECIESUint8", () => {
       buffer[0] = 0x01; // Invalid prefix
 
       expect(() => testProvider.testNormalizePublicKey(buffer)).toThrow(
-        /Invalid public key length: 33/,
+        /Invalid compressed public key prefix: expected 0x02 or 0x03, got 0x01/,
       );
     });
 
@@ -296,7 +296,7 @@ describe("BaseECIESUint8", () => {
       buffer[0] = 0x04; // Wrong prefix (uncompressed) for 33-byte key
 
       expect(() => testProvider.testNormalizePublicKey(buffer)).toThrow(
-        /Invalid public key length: 33/,
+        /Invalid compressed public key prefix: expected 0x02 or 0x03, got 0x04/,
       );
     });
 
@@ -305,7 +305,7 @@ describe("BaseECIESUint8", () => {
       buffer[0] = 0x05; // Invalid prefix
 
       expect(() => testProvider.testNormalizePublicKey(buffer)).toThrow(
-        /Invalid public key length: 33/,
+        /Invalid compressed public key prefix: expected 0x02 or 0x03, got 0x05/,
       );
     });
 
@@ -314,7 +314,7 @@ describe("BaseECIESUint8", () => {
       buffer[0] = 0xff; // Invalid prefix
 
       expect(() => testProvider.testNormalizePublicKey(buffer)).toThrow(
-        /Invalid public key length: 33/,
+        /Invalid compressed public key prefix: expected 0x02 or 0x03, got 0xff/,
       );
     });
   });

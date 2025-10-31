@@ -154,18 +154,26 @@ export abstract class BaseECIESUint8 implements ECIESProvider {
       return publicKey;
     }
 
-    if (
-      publicKey.length === CURVE.COMPRESSED_PUBLIC_KEY_LENGTH &&
-      (publicKey[0] === CURVE.PREFIX.COMPRESSED_EVEN ||
-        publicKey[0] === CURVE.PREFIX.COMPRESSED_ODD)
-    ) {
-      const decompressed = this.decompressPublicKey(publicKey);
-      if (!decompressed) {
-        throw new ECIESError("Failed to decompress public key", "INVALID_KEY");
+    if (publicKey.length === CURVE.COMPRESSED_PUBLIC_KEY_LENGTH) {
+      if (
+        publicKey[0] === CURVE.PREFIX.COMPRESSED_EVEN ||
+        publicKey[0] === CURVE.PREFIX.COMPRESSED_ODD
+      ) {
+        const decompressed = this.decompressPublicKey(publicKey);
+        if (!decompressed) {
+          throw new ECIESError(
+            "Failed to decompress public key",
+            "INVALID_KEY",
+          );
+        }
+        // Cache the decompressed key
+        BaseECIESUint8.validatedKeys.set(decompressed, true);
+        return decompressed;
       }
-      // Cache the decompressed key
-      BaseECIESUint8.validatedKeys.set(decompressed, true);
-      return decompressed;
+      throw new ECIESError(
+        `Invalid compressed public key prefix: expected 0x02 or 0x03, got 0x${publicKey[0].toString(16).padStart(2, "0")}`,
+        "INVALID_KEY",
+      );
     }
 
     throw new ECIESError(

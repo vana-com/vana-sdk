@@ -135,7 +135,7 @@ export abstract class BaseECIESUint8 implements ECIESProvider {
    */
   protected normalizePublicKey(publicKey: Uint8Array): Uint8Array {
     // Check cache first
-    if (BaseECIESUint8.validatedKeys.has(publicKey)) {
+    if (BaseECIESUint8.validatedKeys.get(publicKey)) {
       return publicKey;
     }
 
@@ -155,13 +155,25 @@ export abstract class BaseECIESUint8 implements ECIESProvider {
     }
 
     if (publicKey.length === CURVE.COMPRESSED_PUBLIC_KEY_LENGTH) {
-      const decompressed = this.decompressPublicKey(publicKey);
-      if (!decompressed) {
-        throw new ECIESError("Failed to decompress public key", "INVALID_KEY");
+      if (
+        publicKey[0] === CURVE.PREFIX.COMPRESSED_EVEN ||
+        publicKey[0] === CURVE.PREFIX.COMPRESSED_ODD
+      ) {
+        const decompressed = this.decompressPublicKey(publicKey);
+        if (!decompressed) {
+          throw new ECIESError(
+            "Failed to decompress public key",
+            "INVALID_KEY",
+          );
+        }
+        // Cache the decompressed key
+        BaseECIESUint8.validatedKeys.set(decompressed, true);
+        return decompressed;
       }
-      // Cache the decompressed key
-      BaseECIESUint8.validatedKeys.set(decompressed, true);
-      return decompressed;
+      throw new ECIESError(
+        `Invalid compressed public key prefix: expected 0x02 or 0x03, got 0x${publicKey[0].toString(16).padStart(2, "0")}`,
+        "INVALID_KEY",
+      );
     }
 
     throw new ECIESError(
@@ -190,6 +202,13 @@ export abstract class BaseECIESUint8 implements ECIESProvider {
     publicKey: Uint8Array,
     message: Uint8Array,
   ): Promise<ECIESEncrypted> {
+    // Declare sensitive variables outside try so finally can access them
+    let ephemeralPrivateKey: Uint8Array | undefined;
+    let sharedSecret: Uint8Array | undefined;
+    let kdf: Uint8Array | undefined;
+    let encryptionKey: Uint8Array | undefined;
+    let macKey: Uint8Array | undefined;
+
     try {
       // Validate inputs
       if (!(publicKey instanceof Uint8Array)) {
@@ -209,7 +228,6 @@ export abstract class BaseECIESUint8 implements ECIESProvider {
       const pubKey = this.normalizePublicKey(publicKey);
 
       // Generate ephemeral key pair
-      let ephemeralPrivateKey: Uint8Array;
       do {
         ephemeralPrivateKey = this.generateRandomBytes(
           CURVE.PRIVATE_KEY_LENGTH,
@@ -228,15 +246,15 @@ export abstract class BaseECIESUint8 implements ECIESProvider {
       }
 
       // Perform ECDH to get shared secret (raw X coordinate)
-      const sharedSecret = this.performECDH(pubKey, ephemeralPrivateKey);
+      sharedSecret = this.performECDH(pubKey, ephemeralPrivateKey);
 
       // Derive keys using SHA-512 (eccrypto-compatible KDF)
-      const kdf = this.sha512(sharedSecret);
-      const encryptionKey = kdf.slice(
+      kdf = this.sha512(sharedSecret);
+      encryptionKey = kdf.slice(
         KDF.ENCRYPTION_KEY_OFFSET,
         KDF.ENCRYPTION_KEY_OFFSET + KDF.ENCRYPTION_KEY_LENGTH,
       );
-      const macKey = kdf.slice(
+      macKey = kdf.slice(
         KDF.MAC_KEY_OFFSET,
         KDF.MAC_KEY_OFFSET + KDF.MAC_KEY_LENGTH,
       );
@@ -248,11 +266,6 @@ export abstract class BaseECIESUint8 implements ECIESProvider {
       // Calculate MAC (Encrypt-then-MAC)
       const macData = concat([iv, ephemeralPublicKey, ciphertext]);
       const mac = this.hmacSha256(macKey, macData);
-
-      // Clear sensitive data
-      this.clearBuffer(ephemeralPrivateKey);
-      this.clearBuffer(sharedSecret);
-      this.clearBuffer(kdf);
 
       return {
         iv,
@@ -267,6 +280,13 @@ export abstract class BaseECIESUint8 implements ECIESProvider {
         "ENCRYPTION_FAILED",
         error instanceof Error ? error : undefined,
       );
+    } finally {
+      // Clear sensitive data on all code paths (success, error, throw)
+      if (ephemeralPrivateKey) this.clearBuffer(ephemeralPrivateKey);
+      if (sharedSecret) this.clearBuffer(sharedSecret);
+      if (kdf) this.clearBuffer(kdf);
+      if (encryptionKey) this.clearBuffer(encryptionKey);
+      if (macKey) this.clearBuffer(macKey);
     }
   }
 
@@ -281,6 +301,12 @@ export abstract class BaseECIESUint8 implements ECIESProvider {
     privateKey: Uint8Array,
     encrypted: ECIESEncrypted,
   ): Promise<Uint8Array> {
+    // Declare sensitive variables outside try so finally can access them
+    let sharedSecret: Uint8Array | undefined;
+    let kdf: Uint8Array | undefined;
+    let encryptionKey: Uint8Array | undefined;
+    let macKey: Uint8Array | undefined;
+
     try {
       // Validate inputs
       if (!(privateKey instanceof Uint8Array)) {
@@ -323,15 +349,15 @@ export abstract class BaseECIESUint8 implements ECIESProvider {
       const ephemeralPublicKey = encrypted.ephemPublicKey;
 
       // Perform ECDH to recover shared secret
-      const sharedSecret = this.performECDH(ephemeralPublicKey, privateKey);
+      sharedSecret = this.performECDH(ephemeralPublicKey, privateKey);
 
       // Derive keys using SHA-512 (eccrypto-compatible KDF)
-      const kdf = this.sha512(sharedSecret);
-      const encryptionKey = kdf.slice(
+      kdf = this.sha512(sharedSecret);
+      encryptionKey = kdf.slice(
         KDF.ENCRYPTION_KEY_OFFSET,
         KDF.ENCRYPTION_KEY_OFFSET + KDF.ENCRYPTION_KEY_LENGTH,
       );
-      const macKey = kdf.slice(
+      macKey = kdf.slice(
         KDF.MAC_KEY_OFFSET,
         KDF.MAC_KEY_OFFSET + KDF.MAC_KEY_LENGTH,
       );
@@ -355,10 +381,6 @@ export abstract class BaseECIESUint8 implements ECIESProvider {
         encrypted.ciphertext,
       );
 
-      // Clear sensitive data
-      this.clearBuffer(sharedSecret);
-      this.clearBuffer(kdf);
-
       return decrypted;
     } catch (error) {
       if (error instanceof ECIESError) throw error;
@@ -367,6 +389,12 @@ export abstract class BaseECIESUint8 implements ECIESProvider {
         "DECRYPTION_FAILED",
         error instanceof Error ? error : undefined,
       );
+    } finally {
+      // Clear sensitive data on all code paths (success, error, throw)
+      if (sharedSecret) this.clearBuffer(sharedSecret);
+      if (kdf) this.clearBuffer(kdf);
+      if (encryptionKey) this.clearBuffer(encryptionKey);
+      if (macKey) this.clearBuffer(macKey);
     }
   }
 

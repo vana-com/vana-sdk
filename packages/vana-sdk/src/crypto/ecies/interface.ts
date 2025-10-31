@@ -240,15 +240,34 @@ export function deserializeECIES(hex: string): ECIESEncrypted {
   const hexWithPrefix = hex.startsWith("0x") ? hex : `0x${hex}`;
   const bytes = fromHex(hexWithPrefix as `0x${string}`, "bytes");
 
-  // Determine ephemPublicKey size based on prefix
-  const ephemKeySize =
-    bytes[FORMAT.EPHEMERAL_KEY_OFFSET] === CURVE.PREFIX.UNCOMPRESSED
-      ? CURVE.UNCOMPRESSED_PUBLIC_KEY_LENGTH
-      : CURVE.COMPRESSED_PUBLIC_KEY_LENGTH;
+  // Check minimum length before accessing prefix byte
+  // Need at least: IV (16 bytes) + 1 byte for prefix check + MAC (32 bytes) + 1 byte ciphertext
+  const absoluteMinLength = FORMAT.IV_LENGTH + 1 + MAC.LENGTH + 1;
+  if (bytes.length < absoluteMinLength) {
+    throw new ECIESError(
+      `Invalid ECIES data: too short (${bytes.length} bytes, minimum ${absoluteMinLength} bytes required)`,
+      "DECRYPTION_FAILED",
+    );
+  }
+
+  // Validate ephemeral public key prefix (must be uncompressed for eccrypto compatibility)
+  const prefix = bytes[FORMAT.EPHEMERAL_KEY_OFFSET];
+
+  if (prefix !== CURVE.PREFIX.UNCOMPRESSED) {
+    throw new ECIESError(
+      `Invalid ephemeral public key: must be uncompressed format (0x04 prefix), got 0x${prefix.toString(16).padStart(2, "0")}`,
+      "DECRYPTION_FAILED",
+    );
+  }
+
+  const ephemKeySize = CURVE.UNCOMPRESSED_PUBLIC_KEY_LENGTH;
 
   const minLength = FORMAT.IV_LENGTH + ephemKeySize + MAC.LENGTH + 1; // +1 for at least 1 byte of ciphertext
   if (bytes.length < minLength) {
-    throw new ECIESError("Invalid ECIES data: too short", "DECRYPTION_FAILED");
+    throw new ECIESError(
+      `Invalid ECIES data: too short (${bytes.length} bytes, minimum ${minLength} bytes required)`,
+      "DECRYPTION_FAILED",
+    );
   }
 
   return {

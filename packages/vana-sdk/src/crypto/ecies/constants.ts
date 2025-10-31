@@ -125,24 +125,3 @@ export const SECURITY = {
     PATTERN_OFFSET: 13,
   },
 } as const;
-
-/**
- * Validation helpers
- */
-export const VALIDATION = {
-  isValidPrivateKey: (key: Uint8Array): boolean =>
-    key.length === CURVE.PRIVATE_KEY_LENGTH,
-
-  isValidPublicKey: (key: Uint8Array): boolean =>
-    key.length === CURVE.COMPRESSED_PUBLIC_KEY_LENGTH ||
-    key.length === CURVE.UNCOMPRESSED_PUBLIC_KEY_LENGTH,
-
-  isCompressedPublicKey: (key: Uint8Array): boolean =>
-    key.length === CURVE.COMPRESSED_PUBLIC_KEY_LENGTH &&
-    (key[0] === CURVE.PREFIX.COMPRESSED_EVEN ||
-      key[0] === CURVE.PREFIX.COMPRESSED_ODD),
-
-  isUncompressedPublicKey: (key: Uint8Array): boolean =>
-    key.length === CURVE.UNCOMPRESSED_PUBLIC_KEY_LENGTH &&
-    key[0] === CURVE.PREFIX.UNCOMPRESSED,
-} as const;

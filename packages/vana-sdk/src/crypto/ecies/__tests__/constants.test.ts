@@ -1,17 +1,9 @@
 /**
- * Tests for ECIES constants and validation helpers
+ * Tests for ECIES constants
  */
 
 import { describe, it, expect } from "vitest";
-import {
-  CURVE,
-  CIPHER,
-  KDF,
-  MAC,
-  FORMAT,
-  SECURITY,
-  VALIDATION,
-} from "../constants";
+import { CURVE, CIPHER, KDF, MAC, FORMAT, SECURITY } from "../constants";
 
 describe("ECIES Constants", () => {
   describe("CURVE constants", () => {
@@ -104,95 +96,6 @@ describe("ECIES Constants", () => {
     });
   });
 
-  describe("VALIDATION helpers", () => {
-    describe("isValidPrivateKey", () => {
-      it("should validate correct private key length", () => {
-        const validKey = new Uint8Array(32).fill(1);
-        expect(VALIDATION.isValidPrivateKey(validKey)).toBe(true);
-      });
-
-      it("should reject invalid private key length", () => {
-        const shortKey = new Uint8Array(31).fill(1);
-        const longKey = new Uint8Array(33).fill(1);
-        expect(VALIDATION.isValidPrivateKey(shortKey)).toBe(false);
-        expect(VALIDATION.isValidPrivateKey(longKey)).toBe(false);
-      });
-    });
-
-    describe("isValidPublicKey", () => {
-      it("should validate compressed public key length", () => {
-        const compressedKey = new Uint8Array(33).fill(1);
-        expect(VALIDATION.isValidPublicKey(compressedKey)).toBe(true);
-      });
-
-      it("should validate uncompressed public key length", () => {
-        const uncompressedKey = new Uint8Array(65).fill(1);
-        expect(VALIDATION.isValidPublicKey(uncompressedKey)).toBe(true);
-      });
-
-      it("should reject invalid public key lengths", () => {
-        const shortKey = new Uint8Array(32).fill(1);
-        const longKey = new Uint8Array(66).fill(1);
-        const middleKey = new Uint8Array(50).fill(1);
-        expect(VALIDATION.isValidPublicKey(shortKey)).toBe(false);
-        expect(VALIDATION.isValidPublicKey(longKey)).toBe(false);
-        expect(VALIDATION.isValidPublicKey(middleKey)).toBe(false);
-      });
-    });
-
-    describe("isCompressedPublicKey", () => {
-      it("should validate compressed public key with correct prefix", () => {
-        const evenKey = new Uint8Array(33);
-        evenKey[0] = CURVE.PREFIX.COMPRESSED_EVEN;
-        expect(VALIDATION.isCompressedPublicKey(evenKey)).toBe(true);
-
-        const oddKey = new Uint8Array(33);
-        oddKey[0] = CURVE.PREFIX.COMPRESSED_ODD;
-        expect(VALIDATION.isCompressedPublicKey(oddKey)).toBe(true);
-      });
-
-      it("should reject compressed key with wrong prefix", () => {
-        const wrongPrefix = new Uint8Array(33);
-        wrongPrefix[0] = CURVE.PREFIX.UNCOMPRESSED;
-        expect(VALIDATION.isCompressedPublicKey(wrongPrefix)).toBe(false);
-
-        const invalidPrefix = new Uint8Array(33);
-        invalidPrefix[0] = 0x01;
-        expect(VALIDATION.isCompressedPublicKey(invalidPrefix)).toBe(false);
-      });
-
-      it("should reject wrong length", () => {
-        const wrongLength = new Uint8Array(65);
-        wrongLength[0] = CURVE.PREFIX.COMPRESSED_EVEN;
-        expect(VALIDATION.isCompressedPublicKey(wrongLength)).toBe(false);
-      });
-    });
-
-    describe("isUncompressedPublicKey", () => {
-      it("should validate uncompressed public key with correct prefix", () => {
-        const uncompressedKey = new Uint8Array(65);
-        uncompressedKey[0] = CURVE.PREFIX.UNCOMPRESSED;
-        expect(VALIDATION.isUncompressedPublicKey(uncompressedKey)).toBe(true);
-      });
-
-      it("should reject uncompressed key with wrong prefix", () => {
-        const wrongPrefix = new Uint8Array(65);
-        wrongPrefix[0] = CURVE.PREFIX.COMPRESSED_EVEN;
-        expect(VALIDATION.isUncompressedPublicKey(wrongPrefix)).toBe(false);
-
-        const invalidPrefix = new Uint8Array(65);
-        invalidPrefix[0] = 0x01;
-        expect(VALIDATION.isUncompressedPublicKey(invalidPrefix)).toBe(false);
-      });
-
-      it("should reject wrong length", () => {
-        const wrongLength = new Uint8Array(33);
-        wrongLength[0] = CURVE.PREFIX.UNCOMPRESSED;
-        expect(VALIDATION.isUncompressedPublicKey(wrongLength)).toBe(false);
-      });
-    });
-  });
-
   describe("Constants integration", () => {
     it("should have consistent format calculations", () => {
       // Test that all format calculations are consistent
@@ -225,23 +128,6 @@ describe("ECIES Constants", () => {
       expect(FORMAT.getTotalLength(largeCiphertext)).toBe(
         FORMAT.MIN_ENCRYPTED_LENGTH + largeCiphertext,
       );
-    });
-
-    it("should verify all validation helpers work correctly together", () => {
-      // Test combinations of validation functions
-      const compressedKey = new Uint8Array(33);
-      compressedKey[0] = CURVE.PREFIX.COMPRESSED_EVEN;
-
-      expect(VALIDATION.isValidPublicKey(compressedKey)).toBe(true);
-      expect(VALIDATION.isCompressedPublicKey(compressedKey)).toBe(true);
-      expect(VALIDATION.isUncompressedPublicKey(compressedKey)).toBe(false);
-
-      const uncompressedKey = new Uint8Array(65);
-      uncompressedKey[0] = CURVE.PREFIX.UNCOMPRESSED;
-
-      expect(VALIDATION.isValidPublicKey(uncompressedKey)).toBe(true);
-      expect(VALIDATION.isCompressedPublicKey(uncompressedKey)).toBe(false);
-      expect(VALIDATION.isUncompressedPublicKey(uncompressedKey)).toBe(true);
     });
 
     it("should validate KDF key derivation lengths", () => {

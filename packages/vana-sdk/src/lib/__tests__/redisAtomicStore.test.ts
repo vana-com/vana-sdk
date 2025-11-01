@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import type { IRedisClient } from "../redisAtomicStore";
 import { RedisAtomicStore } from "../redisAtomicStore";
 
 // Mock ioredis
-const mockRedis = {
+const mockRedis: IRedisClient = {
   incr: vi.fn(),
   set: vi.fn(),
   get: vi.fn(),
@@ -17,7 +18,7 @@ describe("RedisAtomicStore", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     store = new RedisAtomicStore({
-      redis: mockRedis as any,
+      redis: mockRedis,
       keyPrefix: "test",
     });
   });
@@ -126,7 +127,7 @@ describe("RedisAtomicStore", () => {
     it("should validate redis client has required methods", () => {
       expect(() => {
         new RedisAtomicStore({
-          redis: {} as any,
+          redis: {} as unknown as IRedisClient,
         });
       }).toThrow("Invalid Redis client instance");
     });

@@ -481,8 +481,15 @@ export class OperationsController extends BaseController {
     const premiumGasPrice = (gasPrice * 150n) / 100n;
 
     // Send minimal self-transfer
+    const account = walletClient.account;
+    if (!account) {
+      throw new Error(
+        "WalletClient must be configured with an account to burn stuck nonces",
+      );
+    }
+
     const hash = await walletClient.sendTransaction({
-      account: walletClient.account!,
+      account,
       chain: walletClient.chain,
       to: address,
       value: parseEther("0.00001"), // Minimal amount

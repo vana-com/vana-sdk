@@ -126,8 +126,15 @@ export class InMemoryNonceManager {
       );
 
       // Send minimal self-transfer to burn the nonce
+      const account = walletClient.account;
+      if (!account) {
+        throw new Error(
+          "WalletClient must be configured with an account to burn stuck nonces",
+        );
+      }
+
       const burnTx = await walletClient.sendTransaction({
-        account: walletClient.account!,
+        account,
         to: address,
         value: 0n,
         nonce: nonceToBurn,

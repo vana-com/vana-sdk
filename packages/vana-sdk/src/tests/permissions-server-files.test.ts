@@ -466,9 +466,8 @@ describe("Permissions Server Files and Permissions", () => {
       expect(writeContractCall).not.toHaveProperty("gasPrice");
     });
 
-    it("should include value parameter when provided", async () => {
+    it("should include gas parameter when provided", async () => {
       const options = {
-        value: 10n ** 18n, // 1 ETH
         gas: 21000n,
       };
 
@@ -477,9 +476,9 @@ describe("Permissions Server Files and Permissions", () => {
       expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
         expect.objectContaining({
           gas: 21000n,
-          value: 10n ** 18n,
         }),
       );
+      // Note: addServerFilesAndPermissions is not a payable function, so value parameter is not supported
     });
 
     it("should work without any options (backward compatibility)", async () => {

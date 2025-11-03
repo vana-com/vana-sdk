@@ -359,13 +359,11 @@ export type TypedTransactionResult<C extends Contract, F extends Fn<C>> = {
 };
 `;
 
-  // Format with prettier
+  // Format with prettier using project config
+  const prettierConfig = await prettier.resolveConfig(EVENT_TYPES_PATH);
   const formatted = await prettier.format(content, {
+    ...prettierConfig,
     parser: "typescript",
-    singleQuote: true,
-    trailingComma: "es5",
-    printWidth: 100,
-    tabWidth: 2,
   });
 
   return formatted;
@@ -482,12 +480,11 @@ ${topicMapEntries}
 ] as const);
 `;
 
+  // Format with prettier using project config
+  const prettierConfig = await prettier.resolveConfig(EVENT_REGISTRY_PATH);
   const formatted = await prettier.format(content, {
+    ...prettierConfig,
     parser: "typescript",
-    singleQuote: true,
-    trailingComma: "es5",
-    printWidth: 100,
-    tabWidth: 2,
   });
 
   return formatted;

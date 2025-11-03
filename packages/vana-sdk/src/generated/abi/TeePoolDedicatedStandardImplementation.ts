@@ -1,6 +1,18 @@
 // THIS FILE IS GENERATED, DO NOT EDIT MANUALLY
 // Run `npm run fetch-abis` to regenerate
+//
 // TeePoolDedicatedStandard Implementation Contract
+//
+// Generated: 2025-10-30T23:21:15.439Z
+// Network: Vana (Chain ID: 1480)
+//
+//   Proxy Address:
+//     0xf024b7ac5E8417416f53B41ecfa58C8e9396687d
+//     https://vanascan.io/address/0xf024b7ac5E8417416f53B41ecfa58C8e9396687d
+//
+//   Implementation Address:
+//     0x018BA147EA747b4c0299a23c5fd05f72180A83f8
+//     https://vanascan.io/address/0x018BA147EA747b4c0299a23c5fd05f72180A83f8
 
 export const TeePoolDedicatedStandardABI = [
   {

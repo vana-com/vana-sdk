@@ -1,0 +1,381 @@
+// SOURCE CONFIGURATION - Complete contract registry
+// Generated output: src/generated/addresses.ts
+
+/**
+ * Complete contract configuration for the Vana protocol.
+ *
+ * ⚠️ THIS IS A SOURCE FILE - EDIT THIS TO ADD/UPDATE CONTRACTS
+ *
+ * @remarks
+ * This file contains all contract addresses and discovery metadata in one place.
+ *
+ * **Contract Types:**
+ * - Entry Points: Contracts without `discovery` field (must be known externally)
+ * - Discoverable: Contracts with `discovery` field (auto-discovered from parent)
+ *
+ * **Build Process:**
+ * 1. Edit this file to add/update contracts
+ * 2. Run `npm run discover-addresses` to validate and generate complete registry
+ * 3. Run `npm run fetch-abis` to fetch ABIs for all contracts
+ *
+ * @category Configuration
+ * @internal This is a source file - apps should import from src/generated/addresses.ts
+ */
+
+interface DiscoveryMetadata {
+  /** Parent contract to discover this from */
+  parent: string;
+  /** Getter function name on parent contract */
+  getter: string;
+}
+
+interface ContractConfig {
+  addresses: {
+    14800: string;
+    1480: string;
+  };
+  /** If present, this contract can be auto-discovered from parent */
+  discovery?: DiscoveryMetadata;
+}
+
+export const CONTRACTS: Record<string, ContractConfig> = {
+  // ========================================
+  // DATA PORTABILITY CONTRACTS
+  // ========================================
+  DataPortabilityPermissions: {
+    addresses: {
+      14800: "0xD54523048AdD05b4d734aFaE7C68324Ebb7373eF",
+      1480: "0xD54523048AdD05b4d734aFaE7C68324Ebb7373eF",
+    },
+  },
+  DataPortabilityServers: {
+    addresses: {
+      14800: "0x1483B1F634DBA75AeaE60da7f01A679aabd5ee2c",
+      1480: "0x1483B1F634DBA75AeaE60da7f01A679aabd5ee2c",
+    },
+  },
+  DataPortabilityGrantees: {
+    addresses: {
+      14800: "0x8325C0A0948483EdA023A1A2Fd895e62C5131234",
+      1480: "0x8325C0A0948483EdA023A1A2Fd895e62C5131234",
+    },
+  },
+  DataRegistry: {
+    addresses: {
+      14800: "0x8C8788f98385F6ba1adD4234e551ABba0f82Cb7C",
+      1480: "0x8C8788f98385F6ba1adD4234e551ABba0f82Cb7C",
+    },
+  },
+
+  // ========================================
+  // COMPUTING INFRASTRUCTURE
+  // ========================================
+  ComputeEngine: {
+    addresses: {
+      14800: "0xb2BFe33FA420c45F1Cf1287542ad81ae935447bd",
+      1480: "0xb2BFe33FA420c45F1Cf1287542ad81ae935447bd",
+    },
+  },
+  ComputeEngineTreasury: {
+    addresses: {
+      14800: "0xceB33C501B624D984bD1Ed3298f6D1d8F7CE03d1",
+      1480: "0xceB33C501B624D984bD1Ed3298f6D1d8F7CE03d1",
+    },
+    discovery: {
+      parent: "ComputeEngine",
+      getter: "computeEngineTreasury",
+    },
+  },
+  QueryEngine: {
+    addresses: {
+      14800: "0xd25Eb66EA2452cf3238A2eC6C1FD1B7F5B320490",
+      1480: "0xd25Eb66EA2452cf3238A2eC6C1FD1B7F5B320490",
+    },
+  },
+  VanaTreasury: {
+    addresses: {
+      14800: "0x8B32Ef32f22e72cc25D53f6E858f57cAe7E198f9",
+      1480: "0x8B32Ef32f22e72cc25D53f6E858f57cAe7E198f9",
+    },
+    discovery: {
+      parent: "QueryEngine",
+      getter: "queryEngineTreasury",
+    },
+  },
+  DataRefinerRegistry: {
+    addresses: {
+      14800: "0x93c3EF89369fDcf08Be159D9DeF0F18AB6Be008c",
+      1480: "0x93c3EF89369fDcf08Be159D9DeF0F18AB6Be008c",
+    },
+  },
+  ComputeInstructionRegistry: {
+    addresses: {
+      14800: "0x5786B12b4c6Ba2bFAF0e77Ed30Bf6d32805563A5",
+      1480: "0x5786B12b4c6Ba2bFAF0e77Ed30Bf6d32805563A5",
+    },
+  },
+
+  // ========================================
+  // TEE POOLS (Canonical Deployments)
+  // ========================================
+  TeePoolPhala: {
+    addresses: {
+      14800: "0xE8EC6BD73b23Ad40E6B9a6f4bD343FAc411bD99A",
+      1480: "0xE8EC6BD73b23Ad40E6B9a6f4bD343FAc411bD99A",
+    },
+  },
+  TeePoolEphemeralStandard: {
+    addresses: {
+      14800: "0xe124bae846D5ec157f75Bd9e68ca87C4d2AB835A",
+      1480: "0xe124bae846D5ec157f75Bd9e68ca87C4d2AB835A",
+    },
+  },
+  TeePoolPersistentStandard: {
+    addresses: {
+      14800: "0xe8bB8d0629651Cf33e0845d743976Dc1f0971d76",
+      1480: "0xe8bB8d0629651Cf33e0845d743976Dc1f0971d76",
+    },
+  },
+  TeePoolPersistentGpu: {
+    addresses: {
+      14800: "0x1c346Cd74f8551f8fa13f3F4b6b8dAE22338E6a9",
+      1480: "0x1c346Cd74f8551f8fa13f3F4b6b8dAE22338E6a9",
+    },
+  },
+  TeePoolDedicatedStandard: {
+    addresses: {
+      14800: "0xf024b7ac5E8417416f53B41ecfa58C8e9396687d",
+      1480: "0xf024b7ac5E8417416f53B41ecfa58C8e9396687d",
+    },
+  },
+  TeePoolDedicatedGpu: {
+    addresses: {
+      14800: "0xB1686FA9620bBf851714d1cB47b8a4Bf4664644E",
+      1480: "0xB1686FA9620bBf851714d1cB47b8a4Bf4664644E",
+    },
+  },
+
+  // ========================================
+  // DLP REWARD SYSTEM
+  // ========================================
+  VanaEpoch: {
+    addresses: {
+      14800: "0x2063cFF0609D59bCCc196E20Eb58A8696a6b15A0",
+      1480: "0x2063cFF0609D59bCCc196E20Eb58A8696a6b15A0",
+    },
+  },
+  DLPPerformance: {
+    addresses: {
+      14800: "0x847715C7DB37cF286611182Be0bD333cbfa29cc1",
+      1480: "0x847715C7DB37cF286611182Be0bD333cbfa29cc1",
+    },
+    discovery: {
+      parent: "VanaEpoch",
+      getter: "dlpPerformance",
+    },
+  },
+  DLPRegistry: {
+    addresses: {
+      14800: "0x4D59880a924526d1dD33260552Ff4328b1E18a43",
+      1480: "0x4D59880a924526d1dD33260552Ff4328b1E18a43",
+    },
+  },
+  DLPRegistryTreasury: {
+    addresses: {
+      14800: "0xb12ce1d27bEeFe39b6F0110b1AB77C21Aa0c9F9a",
+      1480: "0xb12ce1d27bEeFe39b6F0110b1AB77C21Aa0c9F9a",
+    },
+    discovery: {
+      parent: "DLPRegistry",
+      getter: "treasury",
+    },
+  },
+  DLPRewardDeployer: {
+    addresses: {
+      14800: "0xEFD0F9Ba9De70586b7c4189971cF754adC923B04",
+      1480: "0xEFD0F9Ba9De70586b7c4189971cF754adC923B04",
+    },
+  },
+  DLPRewardDeployerTreasury: {
+    addresses: {
+      14800: "0xb547ca8Fe4990fe330FeAeb1C2EBb42F925Af5b8",
+      1480: "0xb547ca8Fe4990fe330FeAeb1C2EBb42F925Af5b8",
+    },
+    discovery: {
+      parent: "DLPRewardDeployer",
+      getter: "treasury",
+    },
+  },
+  DLPRewardSwap: {
+    addresses: {
+      14800: "0x7c6862C46830F0fc3bF3FF509EA1bD0EE7267fB0",
+      1480: "0x7c6862C46830F0fc3bF3FF509EA1bD0EE7267fB0",
+    },
+    discovery: {
+      parent: "DLPRewardDeployer",
+      getter: "dlpRewardSwap",
+    },
+  },
+  SwapHelper: {
+    addresses: {
+      14800: "0x55D5e6F73326315bF2E091e97F04f0770e5C54e2",
+      1480: "0x55D5e6F73326315bF2E091e97F04f0770e5C54e2",
+    },
+    discovery: {
+      parent: "DLPRewardSwap",
+      getter: "swapHelper",
+    },
+  },
+
+  // ========================================
+  // VANA POOL (STAKING)
+  // ========================================
+  VanaPoolStaking: {
+    addresses: {
+      14800: "0x641C18E2F286c86f96CE95C8ec1EB9fC0415Ca0e",
+      1480: "0x641C18E2F286c86f96CE95C8ec1EB9fC0415Ca0e",
+    },
+  },
+  VanaPoolTreasury: {
+    addresses: {
+      14800: "0x143BE72CF2541604A7691933CAccd6D9cC17c003",
+      1480: "0x143BE72CF2541604A7691933CAccd6D9cC17c003",
+    },
+    discovery: {
+      parent: "VanaPoolStaking",
+      getter: "vanaPoolTreasury",
+    },
+  },
+  VanaPoolEntity: {
+    addresses: {
+      14800: "0x44f20490A82e1f1F1cC25Dd3BA8647034eDdce30",
+      1480: "0x44f20490A82e1f1F1cC25Dd3BA8647034eDdce30",
+    },
+    discovery: {
+      parent: "VanaPoolStaking",
+      getter: "vanaPoolEntity",
+    },
+  },
+
+  // ========================================
+  // DLP DEPLOYMENT & TOKEN SYSTEM
+  // ========================================
+  DATFactory: {
+    addresses: {
+      14800: "0x40f8bccF35a75ecef63BC3B1B3E06ffEB9220644",
+      1480: "0x40f8bccF35a75ecef63BC3B1B3E06ffEB9220644",
+    },
+  },
+  DAT: {
+    addresses: {
+      14800: "0xA706b93ccED89f13340673889e29F0a5cd84212d",
+      1480: "0xA706b93ccED89f13340673889e29F0a5cd84212d",
+    },
+  },
+  DATPausable: {
+    addresses: {
+      14800: "0xe69FE86f0B95cC2f8416Fe22815c85DC8887e76e",
+      1480: "0xe69FE86f0B95cC2f8416Fe22815c85DC8887e76e",
+    },
+  },
+  DATVotes: {
+    addresses: {
+      14800: "0xaE04c8A77E9B27869eb563720524A9aE0baf1831",
+      1480: "0xaE04c8A77E9B27869eb563720524A9aE0baf1831",
+    },
+  },
+
+  // ========================================
+  // EXTERNAL DEPENDENCIES (DeFi)
+  // ========================================
+  WVANA: {
+    addresses: {
+      14800: "0xbccc4b4c6530F82FE309c5E845E50b5E9C89f2AD",
+      1480: "0x00EDdD9621Fb08436d0331c149D1690909a5906d",
+    },
+  },
+  UniswapV3NonfungiblePositionManager: {
+    addresses: {
+      14800: "0x48Bd633f4B9128a38Ebb4a48b6975EB3Eaf1931b",
+      1480: "0x45a2992e1bFdCF9b9AcE0a84A238f2E56F481816",
+    },
+  },
+  UniswapV3QuoterV2: {
+    addresses: {
+      14800: "0x3152246f3CD4dD465292Dd4Ffd792E2Cf602e332",
+      1480: "0x1b13728ea3C90863990aC0e05987CfeC1888908c",
+    },
+  },
+
+  // ========================================
+  // UTILITY CONTRACTS
+  // ========================================
+  Multicall3: {
+    addresses: {
+      14800: "0xD8d2dFca27E8797fd779F8547166A2d3B29d360E",
+      1480: "0xD8d2dFca27E8797fd779F8547166A2d3B29d360E",
+    },
+  },
+  Multisend: {
+    addresses: {
+      14800: "0x8807e8BCDFbaA8c2761760f3FBA37F6f7F2C5b2d",
+      1480: "0x8807e8BCDFbaA8c2761760f3FBA37F6f7F2C5b2d",
+    },
+  },
+} as const;
+
+// Legacy/Deprecated Contracts
+/**
+ * Registry of deprecated Vana protocol contracts maintained for backwards compatibility.
+ *
+ * @remarks
+ * These contracts have been superseded by newer implementations but are maintained
+ * for backwards compatibility with existing applications.
+ *
+ * @deprecated Use the main CONTRACTS registry for new development
+ * @category Configuration
+ */
+export const LEGACY_CONTRACTS = {
+  TeePool: {
+    addresses: {
+      14800: "0x3c92fD91639b41f13338CE62f19131e7d19eaa0D",
+      1480: "0x3c92fD91639b41f13338CE62f19131e7d19eaa0D",
+    },
+  },
+  DLPRootEpoch: {
+    addresses: {
+      14800: "0xc3d176cF6BccFCB9225b53B87a95147218e1537F",
+      1480: "0xc3d176cF6BccFCB9225b53B87a95147218e1537F",
+    },
+  },
+  DLPRootCore: {
+    addresses: {
+      14800: "0x0aBa5e28228c323A67712101d61a54d4ff5720FD",
+      1480: "0x0aBa5e28228c323A67712101d61a54d4ff5720FD",
+    },
+  },
+  DLPRoot: {
+    addresses: {
+      14800: "0xff14346dF2B8Fd0c95BF34f1c92e49417b508AD5",
+      1480: "0xff14346dF2B8Fd0c95BF34f1c92e49417b508AD5",
+    },
+  },
+  DLPRootMetrics: {
+    addresses: {
+      14800: "0xbb532917B6407c060Afd9Cb7d53527eCb91d6662",
+      1480: "0xbb532917B6407c060Afd9Cb7d53527eCb91d6662",
+    },
+  },
+  DLPRootStakesTreasury: {
+    addresses: {
+      14800: "0x52c3260ED5C235fcA43524CF508e29c897318775",
+      1480: "0x52c3260ED5C235fcA43524CF508e29c897318775",
+    },
+  },
+  DLPRootRewardsTreasury: {
+    addresses: {
+      14800: "0xDBFb6B8b9E2eCAEbdE64d665cD553dB81e524479",
+      1480: "0xDBFb6B8b9E2eCAEbdE64d665cD553dB81e524479",
+    },
+  },
+} as const;

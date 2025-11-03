@@ -14,7 +14,7 @@ vi.mock("../../core/client", () => ({
   createClient: vi.fn(),
 }));
 
-vi.mock("../../config/addresses", () => ({
+vi.mock("../../generated/addresses", () => ({
   getContractAddress: vi
     .fn()
     .mockReturnValue("0x1234567890123456789012345678901234567890"),
@@ -79,7 +79,7 @@ describe("contractController", () => {
   describe("getContractController", () => {
     it("should create a new controller when not cached", async () => {
       const { getContract } = await import("viem");
-      const { getContractAddress } = await import("../../config/addresses");
+      const { getContractAddress } = await import("../../generated/addresses");
       const { getAbi } = await import("../../generated/abi");
 
       const controller = getContractController("DataRegistry");
@@ -118,7 +118,7 @@ describe("contractController", () => {
       const { getContract } = await import("viem");
 
       const dataRegistryController = getContractController("DataRegistry");
-      const teePoolController = getContractController("TeePool");
+      const teePoolController = getContractController("TeePoolPhala");
 
       expect(dataRegistryController).not.toBe(teePoolController);
       expect(getContract).toHaveBeenCalledTimes(2);
@@ -133,7 +133,7 @@ describe("contractController", () => {
       };
 
       const { getContract } = await import("viem");
-      const { getContractAddress } = await import("../../config/addresses");
+      const { getContractAddress } = await import("../../generated/addresses");
 
       const controller = getContractController(
         "DataRegistry",
@@ -155,7 +155,7 @@ describe("contractController", () => {
 
     it("should fall back to vanaMainnet.id when client.chain is undefined", async () => {
       const { getContract } = await import("viem");
-      const { getContractAddress } = await import("../../config/addresses");
+      const { getContractAddress } = await import("../../generated/addresses");
 
       const controller = getContractController(
         "DataRegistry",
@@ -183,7 +183,7 @@ describe("contractController", () => {
         writeContract: vi.fn(),
       };
 
-      const { getContractAddress } = await import("../../config/addresses");
+      const { getContractAddress } = await import("../../generated/addresses");
 
       const controller = getContractController(
         "DataRegistry",
@@ -200,7 +200,7 @@ describe("contractController", () => {
     it("should work with all contract types", async () => {
       const contractTypes: VanaContract[] = [
         "DataRegistry",
-        "TeePool",
+        "TeePoolPhala",
         "DataLiquidityPool",
         "DataPortabilityPermissions",
         "DLPRegistry",
@@ -260,9 +260,9 @@ describe("contractController", () => {
       const { getContract } = await import("viem");
 
       const dataRegistry1 = getContractController("DataRegistry");
-      const teePool1 = getContractController("TeePool");
+      const teePool1 = getContractController("TeePoolPhala");
       const dataRegistry2 = getContractController("DataRegistry");
-      const teePool2 = getContractController("TeePool");
+      const teePool2 = getContractController("TeePoolPhala");
 
       expect(dataRegistry1).toBe(dataRegistry2);
       expect(teePool1).toBe(teePool2);
@@ -287,7 +287,7 @@ describe("contractController", () => {
         "DataRegistry",
         vanaClient as unknown as PublicClient,
       );
-      getContractController("TeePool");
+      getContractController("TeePoolPhala");
 
       expect(contractCacheForTesting.size).toBe(3);
 
@@ -300,7 +300,7 @@ describe("contractController", () => {
     it("should clear all instances of a contract across chains", async () => {
       // Setup cache
       getContractController("DataRegistry");
-      getContractController("TeePool");
+      getContractController("TeePoolPhala");
 
       const vanaClient = {
         chain: { id: vanaMainnet.id },
@@ -318,13 +318,13 @@ describe("contractController", () => {
       // Clear all DataRegistry contracts
       clearContractCache("DataRegistry");
 
-      expect(contractCacheForTesting.size).toBe(1); // Only TeePool should remain
+      expect(contractCacheForTesting.size).toBe(1); // Only TeePoolPhala should remain
     });
 
     it("should clear entire cache when no parameters provided", async () => {
       // Setup cache
       getContractController("DataRegistry");
-      getContractController("TeePool");
+      getContractController("TeePoolPhala");
 
       expect(contractCacheForTesting.size).toBe(2);
 

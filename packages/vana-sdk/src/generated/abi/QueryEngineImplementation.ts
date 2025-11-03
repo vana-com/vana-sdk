@@ -1,6 +1,18 @@
 // THIS FILE IS GENERATED, DO NOT EDIT MANUALLY
 // Run `npm run fetch-abis` to regenerate
+//
 // QueryEngine Implementation Contract
+//
+// Generated: 2025-10-30T23:21:12.242Z
+// Network: Vana (Chain ID: 1480)
+//
+//   Proxy Address:
+//     0xd25Eb66EA2452cf3238A2eC6C1FD1B7F5B320490
+//     https://vanascan.io/address/0xd25Eb66EA2452cf3238A2eC6C1FD1B7F5B320490
+//
+//   Implementation Address:
+//     0x0ff5D8D496ea05E65742c5623f17aAc8e3fd9C9b
+//     https://vanascan.io/address/0x0ff5D8D496ea05E65742c5623f17aAc8e3fd9C9b
 
 export const QueryEngineABI = [
   {

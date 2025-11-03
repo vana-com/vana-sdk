@@ -1,6 +1,18 @@
 // THIS FILE IS GENERATED, DO NOT EDIT MANUALLY
 // Run `npm run fetch-abis` to regenerate
+//
 // VanaPoolStaking Implementation Contract
+//
+// Generated: 2025-10-30T23:21:17.540Z
+// Network: Vana (Chain ID: 1480)
+//
+//   Proxy Address:
+//     0x641C18E2F286c86f96CE95C8ec1EB9fC0415Ca0e
+//     https://vanascan.io/address/0x641C18E2F286c86f96CE95C8ec1EB9fC0415Ca0e
+//
+//   Implementation Address:
+//     0x45869CeFA87bfEA07a6cB817687D6C64334c0032
+//     https://vanascan.io/address/0x45869CeFA87bfEA07a6cB817687D6C64334c0032
 
 export const VanaPoolStakingABI = [
   {

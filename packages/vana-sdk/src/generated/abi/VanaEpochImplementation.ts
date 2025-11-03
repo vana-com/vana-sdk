@@ -1,6 +1,18 @@
 // THIS FILE IS GENERATED, DO NOT EDIT MANUALLY
 // Run `npm run fetch-abis` to regenerate
+//
 // VanaEpoch Implementation Contract
+//
+// Generated: 2025-10-30T23:21:16.335Z
+// Network: Vana (Chain ID: 1480)
+//
+//   Proxy Address:
+//     0x2063cFF0609D59bCCc196E20Eb58A8696a6b15A0
+//     https://vanascan.io/address/0x2063cFF0609D59bCCc196E20Eb58A8696a6b15A0
+//
+//   Implementation Address:
+//     0x4642bB0ae9A11c2aFBd858cCEFd3b60C59Efca11
+//     https://vanascan.io/address/0x4642bB0ae9A11c2aFBd858cCEFd3b60C59Efca11
 
 export const VanaEpochABI = [
   {

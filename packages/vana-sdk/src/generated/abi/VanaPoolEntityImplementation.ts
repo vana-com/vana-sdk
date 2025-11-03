@@ -1,6 +1,18 @@
 // THIS FILE IS GENERATED, DO NOT EDIT MANUALLY
 // Run `npm run fetch-abis` to regenerate
+//
 // VanaPoolEntity Implementation Contract
+//
+// Generated: 2025-10-30T23:21:22.979Z
+// Network: Vana (Chain ID: 1480)
+//
+//   Proxy Address:
+//     0x44f20490A82e1f1F1cC25Dd3BA8647034eDdce30
+//     https://vanascan.io/address/0x44f20490A82e1f1F1cC25Dd3BA8647034eDdce30
+//
+//   Implementation Address:
+//     0x150E238c35537715Ec92D551FCE03b756b4bEAf9
+//     https://vanascan.io/address/0x150E238c35537715Ec92D551FCE03b756b4bEAf9
 
 export const VanaPoolEntityABI = [
   {

@@ -1,6 +1,18 @@
 // THIS FILE IS GENERATED, DO NOT EDIT MANUALLY
 // Run `npm run fetch-abis` to regenerate
+//
 // TeePoolDedicatedGpu Implementation Contract
+//
+// Generated: 2025-10-30T23:21:15.874Z
+// Network: Vana (Chain ID: 1480)
+//
+//   Proxy Address:
+//     0xB1686FA9620bBf851714d1cB47b8a4Bf4664644E
+//     https://vanascan.io/address/0xB1686FA9620bBf851714d1cB47b8a4Bf4664644E
+//
+//   Implementation Address:
+//     0x018BA147EA747b4c0299a23c5fd05f72180A83f8
+//     https://vanascan.io/address/0x018BA147EA747b4c0299a23c5fd05f72180A83f8
 
 export const TeePoolDedicatedGpuABI = [
   {

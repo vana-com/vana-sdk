@@ -28,6 +28,7 @@ import { DLPPerformanceABI } from "./DLPPerformanceImplementation";
 import { DLPRewardDeployerABI } from "./DLPRewardDeployerImplementation";
 import { DLPRewardSwapABI } from "./DLPRewardSwapImplementation";
 import { SwapHelperABI } from "./SwapHelperImplementation";
+import { VanaTreasuryABI } from "./VanaTreasuryImplementation";
 import { DLPRootImplementation2Abi } from "./DLPRootImplementation";
 import { DataLiquidityPoolImplementationAbi } from "./DataLiquidityPoolImplementation";
 import { DLPRegistryTreasuryABI as DLPRegistryTreasuryImplementationABI } from "./DLPRegistryTreasuryImplementation";
@@ -73,6 +74,7 @@ const contractAbis = {
   DLPRewardDeployer: DLPRewardDeployerABI,
   DLPRewardSwap: DLPRewardSwapABI,
   SwapHelper: SwapHelperABI,
+  VanaTreasury: VanaTreasuryABI,
   DataLiquidityPool: DataLiquidityPoolImplementationAbi,
 
   // VanaPool (Staking)

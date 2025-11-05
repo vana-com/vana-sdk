@@ -47,6 +47,7 @@ import { WalletKeyEncryptionService } from "../crypto/services/WalletKeyEncrypti
 import {
   processWalletPrivateKey,
   parseEncryptedDataBuffer,
+  processWalletPublicKey,
 } from "../utils/crypto-utils";
 
 // Lazy-loaded dependencies to avoid Turbopack TDZ issues
@@ -106,7 +107,9 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
     publicKeyHex: string,
   ): Promise<string> {
     try {
-      const publicKey = Buffer.from(publicKeyHex, "hex");
+      // Process public key to handle 0x prefix and convert to Buffer
+      const publicKeyBytes = processWalletPublicKey(publicKeyHex);
+      const publicKey = Buffer.from(publicKeyBytes);
       const message = Buffer.from(data, "utf8");
 
       const encrypted = await this.eciesProvider.encrypt(publicKey, message);
@@ -148,7 +151,11 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
   ): Promise<string> {
     try {
       const privateKeyBuffer = processWalletPrivateKey(privateKeyHex);
-      const encryptedBuffer = Buffer.from(encryptedData, "hex");
+      // Handle 0x prefix in encrypted data (e.g., from viem's toHex)
+      const encryptedHex = encryptedData.startsWith("0x")
+        ? encryptedData.slice(2)
+        : encryptedData;
+      const encryptedBuffer = Buffer.from(encryptedHex, "hex");
       const { iv, ephemPublicKey, ciphertext, mac } =
         parseEncryptedDataBuffer(encryptedBuffer);
 

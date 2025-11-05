@@ -992,7 +992,7 @@ describe("DistributedNonceManager", () => {
       mockStore.incr.mockResolvedValue(11);
 
       // Run assignment and reset concurrently
-      const [nonce, _] = await Promise.all([
+      const [nonce] = await Promise.all([
         manager.assignNonce(address, chainId),
         manager.resetNonce(address, chainId),
       ]);

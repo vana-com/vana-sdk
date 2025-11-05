@@ -676,8 +676,9 @@ describe("typeGuards", () => {
     });
 
     it("should work with function return values", () => {
-      const getValue = () => undefined;
-      const result = ensureDefault(getValue(), "fallback");
+      const getValue = (): string | undefined => undefined;
+      const value = getValue();
+      const result = ensureDefault(value, "fallback");
       expect(result).toBe("fallback");
     });
 

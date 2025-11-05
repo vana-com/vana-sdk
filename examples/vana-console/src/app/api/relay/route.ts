@@ -4,6 +4,7 @@ import {
   handleRelayerOperation,
   RedisAtomicStore,
   type UnifiedRelayerRequest,
+  type IRedisClient,
   vanaMainnet,
   mokshaTestnet,
   PinataStorage,
@@ -45,10 +46,12 @@ export async function POST(request: NextRequest) {
         });
 
         // Create Redis client instance for atomic store
-        // ioredis is compatible with IRedisClient at runtime, type cast needed for signature differences
+        // ioredis.Redis is structurally compatible with IRedisClient (duck typing).
+        // Type assertion required because Redis has additional method overloads that IRedisClient doesn't declare.
+        // Runtime validation in RedisAtomicStore constructor ensures compatibility.
         const redisClient = new Redis(process.env.REDIS_URL);
         atomicStore = new RedisAtomicStore({
-          redis: redisClient as any,
+          redis: redisClient as unknown as IRedisClient,
         });
 
         console.info(

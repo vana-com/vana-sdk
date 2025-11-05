@@ -5469,14 +5469,14 @@ export class PermissionsController extends BaseController {
     // Format signature for contract compatibility
     const formattedSignature = formatSignatureForContract(signature);
 
-    // TODO(TYPES): Viem's strict readonly array types conflict with mutable arrays from typed data.
-    // The data is not mutated during the contract call, so this cast is safe.
-    // Proper fix would require making all array properties readonly at the type level.
+    // Type assertion required: viem requires readonly arrays, but typed data produces mutable arrays.
+    // This is safe - the data is immutable after construction and goes directly to the contract call.
+    // TypeScript's strict variance rules prevent direct assignment despite runtime safety.
     const hash = await this.context.walletClient.writeContract({
       address: DataPortabilityPermissionsAddress,
       abi: DataPortabilityPermissionsAbi,
       functionName: "addServerFilesAndPermissions",
-      args: [serverFilesAndPermissionInput as any, formattedSignature],
+      args: [serverFilesAndPermissionInput, formattedSignature] as any,
       account: this.context.walletClient?.account ?? this.context.userAddress,
       chain: this.context.walletClient?.chain ?? null,
       ...this.spreadTransactionOptions(options),

@@ -11,6 +11,7 @@ import {
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { RedisOperationStore } from "@/lib/operationStore";
+import Redis from "ioredis";
 
 export async function POST(request: NextRequest) {
   try {
@@ -43,8 +44,11 @@ export async function POST(request: NextRequest) {
           redis: process.env.REDIS_URL,
         });
 
+        // Create Redis client instance for atomic store
+        // ioredis is compatible with IRedisClient at runtime, type cast needed for signature differences
+        const redisClient = new Redis(process.env.REDIS_URL);
         atomicStore = new RedisAtomicStore({
-          redis: process.env.REDIS_URL,
+          redis: redisClient as any,
         });
 
         console.info(

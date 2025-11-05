@@ -17,6 +17,7 @@ import {
 import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { RedisOperationStore } from "@/lib/operationStore";
+import Redis from "ioredis";
 
 // Configuration from environment
 const MAX_RETRIES = parseInt(process.env.WORKER_MAX_RETRIES ?? "3");
@@ -51,8 +52,11 @@ export async function GET(request: NextRequest) {
       redis: process.env.REDIS_URL!,
     });
 
+    // Create Redis client instance for atomic store
+    // ioredis is compatible with IRedisClient at runtime, type cast needed for signature differences
+    const redisClient = new Redis(process.env.REDIS_URL!);
     const atomicStore = new RedisAtomicStore({
-      redis: process.env.REDIS_URL!,
+      redis: redisClient as any,
     });
 
     // Update worker heartbeat

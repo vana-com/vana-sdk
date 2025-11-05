@@ -3,6 +3,8 @@
  * @module vana-sdk/types/options
  */
 
+import type { TransactionReceipt } from "viem";
+
 /**
  * Transaction options for blockchain write operations.
  *
@@ -134,7 +136,7 @@ export type OperationStatus =
       /** The transaction hash */
       hash: `0x${string}`;
       /** The transaction receipt if available */
-      receipt?: unknown;
+      receipt?: TransactionReceipt;
     }
   | {
       /** Operation failed with an error */

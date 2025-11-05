@@ -11,11 +11,44 @@
 import type { IAtomicStoreWithNonceSupport } from "../types/atomicStore";
 
 /**
+ * Minimal interface for Redis client compatibility.
+ *
+ * @remarks
+ * This interface defines the methods that RedisAtomicStore requires from a Redis client.
+ * It's compatible with ioredis (Redis instance) and other Redis clients that implement
+ * these core methods. Users should pass an already-instantiated Redis client.
+ *
+ * @internal
+ */
+export interface IRedisClient {
+  /** Atomic increment operation */
+  incr(key: string): Promise<number>;
+  /** SET with options (NX, EX, etc.) */
+  set(
+    key: string,
+    value: string,
+    ...args: Array<string | number>
+  ): Promise<string | null>;
+  /** GET operation */
+  get(key: string): Promise<string | null>;
+  /** Delete operation */
+  del(key: string): Promise<number>;
+  /** SETEX operation (SET with TTL) */
+  setex(key: string, seconds: number, value: string): Promise<string>;
+  /** Execute Lua script */
+  eval(
+    script: string,
+    numKeys: number,
+    ...args: Array<string | number>
+  ): Promise<unknown>;
+}
+
+/**
  * Configuration for RedisAtomicStore
  */
 export interface RedisAtomicStoreConfig {
-  /** Redis connection URL or ioredis options */
-  redis: string | any;
+  /** Redis client instance (ioredis.Redis or compatible) */
+  redis: IRedisClient;
   /** Key prefix for all operations (default: 'vana-sdk:atomic') */
   keyPrefix?: string;
 }
@@ -55,7 +88,7 @@ export interface RedisAtomicStoreConfig {
  * @category Storage
  */
 export class RedisAtomicStore implements IAtomicStoreWithNonceSupport {
-  private redis: any; // ioredis instance
+  private redis: IRedisClient;
   private keyPrefix: string;
 
   /**
@@ -200,7 +233,7 @@ export class RedisAtomicStore implements IAtomicStoreWithNonceSupport {
    * @param args - Array of arguments
    * @returns The script's return value
    */
-  async eval(script: string, keys: string[], args: string[]): Promise<any> {
+  async eval(script: string, keys: string[], args: string[]): Promise<unknown> {
     // Apply key prefix to all keys
     const prefixedKeys = keys.map((key) => `${this.keyPrefix}:${key}`);
 

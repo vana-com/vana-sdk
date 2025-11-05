@@ -85,3 +85,44 @@ export interface ControllerContext {
   /** Tracks async relayed transactions for resilient management. */
   operationStore?: IOperationStore | IRelayerStateStore;
 }
+
+/**
+ * Minimal SDK interface for enhanced response handling.
+ *
+ * @remarks
+ * This interface defines the minimal SDK surface that EnhancedTransactionResponse needs
+ * to avoid circular dependencies while maintaining type safety. It represents a subset
+ * of the full SDK functionality.
+ *
+ * @category Client
+ */
+export interface EnhancedResponseSDK {
+  /** Public client for blockchain queries. */
+  publicClient: PublicClient;
+  /** Waits for transaction confirmation and parses typed events. */
+  waitForTransactionEvents: WaitForTransactionEventsFn;
+  /** Relayer callback for polling pending operations. */
+  relayer?: (request: UnifiedRelayerRequest) => Promise<UnifiedRelayerResponse>;
+}
+
+/**
+ * SDK interface for accessing controllers with their context.
+ *
+ * @remarks
+ * This interface defines the minimal SDK surface needed by server-side relayer handlers
+ * to access controller contexts. It provides type-safe access to controllers without
+ * requiring the full SDK interface, avoiding unsafe type assertions.
+ *
+ * Note: The context property is protected on the actual DataController, so we use
+ * this interface as a type bridge to safely access it in server-side contexts where
+ * we know the SDK instance has been properly initialized with storage.
+ *
+ * @category Server
+ */
+export interface RelayerHandlerSDK {
+  /** Data controller for file operations and storage access. */
+  readonly data: {
+    /** Controller context containing storage and client configuration. Protected in actual class but exposed via type bridge. */
+    readonly context: ControllerContext;
+  };
+}

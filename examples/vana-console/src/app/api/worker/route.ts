@@ -10,6 +10,7 @@ import { NextResponse } from "next/server";
 import {
   Vana,
   RedisAtomicStore,
+  type IRedisClient,
   handleRelayerOperation,
   mokshaTestnet,
   vanaMainnet,
@@ -17,6 +18,7 @@ import {
 import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { RedisOperationStore } from "@/lib/operationStore";
+import Redis from "ioredis";
 
 // Configuration from environment
 const MAX_RETRIES = parseInt(process.env.WORKER_MAX_RETRIES ?? "3");
@@ -51,8 +53,13 @@ export async function GET(request: NextRequest) {
       redis: process.env.REDIS_URL!,
     });
 
+    // Create Redis client instance for atomic store
+    // ioredis.Redis is structurally compatible with IRedisClient (duck typing).
+    // Type assertion required because Redis has additional method overloads that IRedisClient doesn't declare.
+    // Runtime validation in RedisAtomicStore constructor ensures compatibility.
+    const redisClient = new Redis(process.env.REDIS_URL!);
     const atomicStore = new RedisAtomicStore({
-      redis: process.env.REDIS_URL!,
+      redis: redisClient as unknown as IRedisClient,
     });
 
     // Update worker heartbeat

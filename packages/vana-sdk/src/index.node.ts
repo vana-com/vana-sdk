@@ -221,7 +221,10 @@ export type {
 
 // Storage implementations
 export { RedisAtomicStore } from "./lib/redisAtomicStore";
-export type { RedisAtomicStoreConfig } from "./lib/redisAtomicStore";
+export type {
+  RedisAtomicStoreConfig,
+  IRedisClient,
+} from "./lib/redisAtomicStore";
 
 // Types - modular exports
 export type * from "./types";

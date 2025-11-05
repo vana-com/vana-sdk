@@ -263,7 +263,15 @@ export function addMetaToQuery(baseQuery: string): string {
     return baseQuery; // Can't parse, return as-is
   }
 
-  const insertPoint = queryMatch.index! + queryMatch[0].length;
+  const insertPoint = (() => {
+    const index = queryMatch.index;
+    if (index === undefined) {
+      throw new Error(
+        "Failed to calculate insertion point for query metadata - regex match index is undefined",
+      );
+    }
+    return index + queryMatch[0].length;
+  })();
   return (
     baseQuery.slice(0, insertPoint) +
     `

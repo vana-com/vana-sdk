@@ -647,6 +647,23 @@ export class VanaCore {
   }
 
   /**
+   * Gets the relayer callback function configured for this SDK instance.
+   *
+   * @remarks
+   * The relayer callback is used by PollingManager for checking operation status
+   * when handling pending responses. This getter exposes the internal callback
+   * for use by EnhancedResponse and other polling-related functionality.
+   *
+   * @returns The relayer callback function, or undefined if no relayer is configured
+   * @internal
+   */
+  get relayer():
+    | ((request: UnifiedRelayerRequest) => Promise<UnifiedRelayerResponse>)
+    | undefined {
+    return this.relayerCallback;
+  }
+
+  /**
    * Retrieves comprehensive runtime configuration information.
    *
    * @returns The current runtime configuration including chain, storage, and relayer settings

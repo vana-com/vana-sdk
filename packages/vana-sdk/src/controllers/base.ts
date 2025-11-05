@@ -123,6 +123,7 @@ export abstract class BaseController {
     const baseOptions: Record<string, bigint | number | undefined> = {
       ...(options.nonce !== undefined && { nonce: options.nonce }),
       ...(options.gas !== undefined && { gas: options.gas }),
+      ...(options.value !== undefined && { value: options.value }),
     };
 
     // EIP-1559 and legacy gasPrice are mutually exclusive in viem

@@ -113,7 +113,7 @@ describe("POJO Serialization and Next.js Compatibility", () => {
         hash: "0x222" as `0x${string}`,
         from: "0xbbb" as `0x${string}`,
         contract: "DataRegistry",
-        fn: "deleteFile",
+        fn: "addFile",
       });
 
       const complexStructure = {
@@ -242,7 +242,7 @@ describe("POJO Serialization and Next.js Compatibility", () => {
           hash: "0x2" as `0x${string}`,
           from: "0xa2" as `0x${string}`,
           contract: "DataRegistry",
-          fn: "deleteFile",
+          fn: "addFile",
         }),
       );
 
@@ -252,7 +252,7 @@ describe("POJO Serialization and Next.js Compatibility", () => {
 
       expect(hydrated.transactions).toHaveLength(2);
       expect(hydrated.transactions[0].fn).toBe("addFile");
-      expect(hydrated.transactions[1].fn).toBe("deleteFile");
+      expect(hydrated.transactions[1].fn).toBe("addFile");
     });
 
     it("contains no circular references", () => {

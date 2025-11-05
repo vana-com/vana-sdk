@@ -1,6 +1,14 @@
 // THIS FILE IS GENERATED, DO NOT EDIT MANUALLY
 // Run `npm run fetch-abis` to regenerate
+//
 // DATVotes Implementation Contract
+//
+// Generated: 2025-10-30T23:21:19.975Z
+// Network: Vana (Chain ID: 1480)
+//
+//   Contract Address:
+//     0xaE04c8A77E9B27869eb563720524A9aE0baf1831
+//     https://vanascan.io/address/0xaE04c8A77E9B27869eb563720524A9aE0baf1831
 
 export const DATVotesABI = [
   {

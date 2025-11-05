@@ -1,6 +1,18 @@
 // THIS FILE IS GENERATED, DO NOT EDIT MANUALLY
 // Run `npm run fetch-abis` to regenerate
+//
 // DataPortabilityPermissions Implementation Contract
+//
+// Generated: 2025-10-30T23:21:10.229Z
+// Network: Vana (Chain ID: 1480)
+//
+//   Proxy Address:
+//     0xD54523048AdD05b4d734aFaE7C68324Ebb7373eF
+//     https://vanascan.io/address/0xD54523048AdD05b4d734aFaE7C68324Ebb7373eF
+//
+//   Implementation Address:
+//     0x1473D4c66E230Fd7F8C3e48a4dFc026e259C1Edf
+//     https://vanascan.io/address/0x1473D4c66E230Fd7F8C3e48a4dFc026e259C1Edf
 
 export const DataPortabilityPermissionsABI = [
   {
@@ -565,7 +577,8 @@ export const DataPortabilityPermissionsABI = [
             type: "tuple[][]",
           },
         ],
-        internalType: "struct IDataPortabilityPermissions.ServerFilesAndPermissionInput",
+        internalType:
+          "struct IDataPortabilityPermissions.ServerFilesAndPermissionInput",
         name: "serverFilesAndPermissionInput",
         type: "tuple",
       },
@@ -991,7 +1004,8 @@ export const DataPortabilityPermissionsABI = [
             type: "uint256",
           },
         ],
-        internalType: "struct IDataPortabilityPermissions.RevokePermissionInput",
+        internalType:
+          "struct IDataPortabilityPermissions.RevokePermissionInput",
         name: "revokePermissionInput",
         type: "tuple",
       },

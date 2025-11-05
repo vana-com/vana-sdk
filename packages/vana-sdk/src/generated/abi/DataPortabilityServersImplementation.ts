@@ -1,6 +1,18 @@
 // THIS FILE IS GENERATED, DO NOT EDIT MANUALLY
 // Run `npm run fetch-abis` to regenerate
+//
 // DataPortabilityServers Implementation Contract
+//
+// Generated: 2025-10-30T23:21:10.618Z
+// Network: Vana (Chain ID: 1480)
+//
+//   Proxy Address:
+//     0x1483B1F634DBA75AeaE60da7f01A679aabd5ee2c
+//     https://vanascan.io/address/0x1483B1F634DBA75AeaE60da7f01A679aabd5ee2c
+//
+//   Implementation Address:
+//     0x4971CfB397D69D6B670baEE8FFa6C9bAb8968066
+//     https://vanascan.io/address/0x4971CfB397D69D6B670baEE8FFa6C9bAb8968066
 
 export const DataPortabilityServersABI = [
   {
@@ -551,7 +563,8 @@ export const DataPortabilityServersABI = [
             type: "string",
           },
         ],
-        internalType: "struct IDataPortabilityServers.AddServerWithSignatureInput",
+        internalType:
+          "struct IDataPortabilityServers.AddServerWithSignatureInput",
         name: "addServerInput",
         type: "tuple",
       },
@@ -591,7 +604,8 @@ export const DataPortabilityServersABI = [
             type: "string",
           },
         ],
-        internalType: "struct IDataPortabilityServers.AddServerWithSignatureInput",
+        internalType:
+          "struct IDataPortabilityServers.AddServerWithSignatureInput",
         name: "addServerInput",
         type: "tuple",
       },

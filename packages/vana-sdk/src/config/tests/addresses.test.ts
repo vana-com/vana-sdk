@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { getContractAddress, getUtilityAddress } from "../addresses";
+import {
+  getContractAddress,
+  getUtilityAddress,
+} from "../../generated/addresses";
 
 describe("addresses", () => {
   describe("getContractAddress", () => {

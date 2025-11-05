@@ -1,6 +1,6 @@
 import { getContract } from "viem";
 import type { PublicClient, WalletClient } from "viem";
-import { getContractAddress } from "../../config/addresses";
+import { getContractAddress } from "../../generated/addresses";
 import { getAbi } from "../../generated/abi";
 import type { SchemaMetadata } from "../../types/index";
 

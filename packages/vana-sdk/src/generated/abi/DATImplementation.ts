@@ -1,6 +1,14 @@
 // THIS FILE IS GENERATED, DO NOT EDIT MANUALLY
 // Run `npm run fetch-abis` to regenerate
+//
 // DAT Implementation Contract
+//
+// Generated: 2025-10-30T23:21:18.703Z
+// Network: Vana (Chain ID: 1480)
+//
+//   Contract Address:
+//     0xA706b93ccED89f13340673889e29F0a5cd84212d
+//     https://vanascan.io/address/0xA706b93ccED89f13340673889e29F0a5cd84212d
 
 export const DATABI = [
   {

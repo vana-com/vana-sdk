@@ -59,7 +59,7 @@ import {
   ServerUrlMismatchError,
   PermissionError,
 } from "../errors";
-import { getContractAddress } from "../config/addresses";
+import { getContractAddress } from "../generated/addresses";
 import { getAbi } from "../generated/abi";
 import { createGrantFile, getGrantFileHash } from "../utils/grantFiles";
 import { validateGrant } from "../utils/grantValidation";

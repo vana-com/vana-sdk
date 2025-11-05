@@ -10,7 +10,11 @@ import { describe, it, expect } from "vitest";
 import { NodeECIESUint8Provider } from "../node";
 import { BrowserECIESUint8Provider } from "../browser";
 import { eccryptoTestVectors, eccryptoFormat } from "./test-vectors";
-import type { ECIESEncrypted } from "../interface";
+import {
+  serializeECIES,
+  deserializeECIES,
+  type ECIESEncrypted,
+} from "../interface";
 
 describe("ECIES eccrypto Compatibility", () => {
   const nodeProvider = new NodeECIESUint8Provider();
@@ -210,6 +214,98 @@ describe("ECIES eccrypto Compatibility", () => {
       ).rejects.toThrow(
         /Invalid ephemeral public key.*expected 65 bytes.*got 33 bytes/i,
       );
+    });
+
+    /**
+     * HashCloak Audit Finding VNA-3 (Oct 2025) - Prefix Tampering Attack
+     *
+     * Tests full encrypt → serialize → tamper → deserialize → decrypt flow
+     * to verify that tampered ephemeral key prefixes are rejected during
+     * deserialization (primary defense) and decrypt (defense-in-depth).
+     *
+     * Resolution: fa76ab4 enforces prefix === 0x04 in deserializeECIES
+     */
+    it("should reject tampered ephemeral key prefix through serialize/deserialize cycle", async () => {
+      // Use matching keypair from test vectors
+      const privateKey = new Uint8Array(
+        Buffer.from(
+          "21796c4692ba9d34b7f273c0099b96625e8dec49ada0390724d23dc35f4986d1",
+          "hex",
+        ),
+      );
+      const publicKey = new Uint8Array(
+        Buffer.from(
+          "04ab33f0e766d672f89c844633eb491e1ce75bce281423c11e1247503374e42f4b3877fab9a5b762ac78c8a639a0277d178280e580ffa992056b6d2ed3679f18ef",
+          "hex",
+        ),
+      );
+      const message = new TextEncoder().encode("Browser to Node test");
+
+      // Happy path: Encrypt and verify round-trip
+      const encrypted = await browserProvider.encrypt(publicKey, message);
+      const data = serializeECIES(encrypted);
+      const ecies = deserializeECIES(data);
+      const decrypted = await nodeProvider.decrypt(privateKey, ecies);
+      expect(decrypted).toEqual(message);
+
+      // Attack: Tamper with ephemeral key prefix (0x04 -> 0xfb)
+      const tamperedEphemKey = new Uint8Array(encrypted.ephemPublicKey);
+      tamperedEphemKey[0] ^= 0xff;
+
+      const tamperedEncrypted: ECIESEncrypted = {
+        ...encrypted,
+        ephemPublicKey: tamperedEphemKey,
+      };
+
+      const serialized = serializeECIES(tamperedEncrypted);
+
+      // Defense layer 1: deserializeECIES validates prefix
+      expect(() => deserializeECIES(serialized)).toThrow(
+        /Invalid ephemeral public key.*must be uncompressed format.*0x04 prefix.*got 0xfb/i,
+      );
+    });
+
+    /**
+     * HashCloak Audit Finding VNA-3 (Oct 2025) - Multiple Invalid Prefixes
+     *
+     * Validates that all invalid prefixes (not just 0x04) are rejected,
+     * including compressed key prefixes (0x02, 0x03) per VNA-5 resolution.
+     */
+    it("should reject all invalid ephemeral key prefixes during deserialization", async () => {
+      const publicKey = new Uint8Array(
+        Buffer.from(
+          "04bb50e2d89a4ed70663d080659fe0ad4b9bc3e06c17a227433966cb59ceee020decddbf6e00192011648d13b1c00af770c0c1bb609d4d3a5c98a43772e0e18ef4",
+          "hex",
+        ),
+      );
+      const message = new TextEncoder().encode("Test");
+      const encrypted = await nodeProvider.encrypt(publicKey, message);
+
+      // Test various invalid prefixes including compressed (now rejected per VNA-5)
+      const invalidPrefixes = [
+        0x00, // Invalid
+        0x01, // Invalid
+        0x02, // Compressed even (rejected per VNA-5)
+        0x03, // Compressed odd (rejected per VNA-5)
+        0x05, // Invalid
+        0xff, // Invalid
+      ];
+
+      for (const invalidPrefix of invalidPrefixes) {
+        const tampered = new Uint8Array(encrypted.ephemPublicKey);
+        tampered[0] = invalidPrefix;
+
+        const tamperedEncrypted: ECIESEncrypted = {
+          ...encrypted,
+          ephemPublicKey: tampered,
+        };
+
+        const serialized = serializeECIES(tamperedEncrypted);
+
+        expect(() => deserializeECIES(serialized)).toThrow(
+          /Invalid ephemeral public key/i,
+        );
+      }
     });
   });
 });

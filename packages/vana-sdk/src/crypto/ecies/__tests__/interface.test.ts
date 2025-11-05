@@ -156,7 +156,7 @@ describe("ECIES interface utilities", () => {
       expect(deserialized.ephemPublicKey).toEqual(testData.ephemPublicKey);
     });
 
-    it("should handle compressed ephemeral keys", () => {
+    it("should reject compressed ephemeral keys (VNA-5)", () => {
       const compressed = {
         ...testData,
         ephemPublicKey: new Uint8Array(33),
@@ -164,10 +164,12 @@ describe("ECIES interface utilities", () => {
       compressed.ephemPublicKey[0] = 0x02; // Compressed prefix
 
       const hex = serializeECIES(compressed);
-      const deserialized = deserializeECIES(hex);
 
-      expect(deserialized.ephemPublicKey.length).toBe(33);
-      expect(deserialized.ephemPublicKey[0]).toBe(0x02);
+      // VNA-5: Strict uncompressed-only policy for ephemeral keys
+      expect(() => deserializeECIES(hex)).toThrow(ECIESError);
+      expect(() => deserializeECIES(hex)).toThrow(
+        /Invalid ephemeral public key.*must be uncompressed format.*0x04 prefix.*got 0x02/i,
+      );
     });
 
     it("should round-trip correctly", () => {

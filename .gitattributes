@@ -1,0 +1,2 @@
+# Treat PDF files as binary (no diff, no merge conflicts)
+*.pdf binary

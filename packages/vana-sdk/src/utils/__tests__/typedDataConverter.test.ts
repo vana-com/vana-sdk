@@ -18,6 +18,7 @@ describe("typedDataConverter", () => {
           name: "Vana",
           version: "1",
           chainId: 14800,
+          verifyingContract: "0x0000000000000000000000000000000000000000",
         },
         types: {
           Permission: [
@@ -48,7 +49,6 @@ describe("typedDataConverter", () => {
           version: "2.0",
           chainId: 1,
           verifyingContract: "0xabcdef1234567890abcdef1234567890abcdef12",
-          salt: "0x1234",
         },
         types: {
           Test: [{ name: "value", type: "uint256" }],
@@ -59,18 +59,23 @@ describe("typedDataConverter", () => {
 
       const result = toViemTypedDataDefinition(vanaTypedData);
 
-      expect(result.domain.name).toBe("TestDApp");
-      expect(result.domain.version).toBe("2.0");
-      expect(result.domain.chainId).toBe(1);
-      expect(result.domain.verifyingContract).toBe(
+      expect(result.domain).toBeDefined();
+      expect(result.domain?.name).toBe("TestDApp");
+      expect(result.domain?.version).toBe("2.0");
+      expect(result.domain?.chainId).toBe(1);
+      expect(result.domain?.verifyingContract).toBe(
         "0xabcdef1234567890abcdef1234567890abcdef12",
       );
-      expect(result.domain.salt).toBe("0x1234");
     });
 
     it("should handle multiple type definitions", () => {
       const vanaTypedData: GenericTypedData = {
-        domain: { name: "Vana", version: "1" },
+        domain: {
+          name: "Vana",
+          version: "1",
+          chainId: 14800,
+          verifyingContract: "0x0000000000000000000000000000000000000000",
+        },
         types: {
           Person: [
             { name: "name", type: "string" },
@@ -100,7 +105,12 @@ describe("typedDataConverter", () => {
 
     it("should convert all field types correctly", () => {
       const vanaTypedData: GenericTypedData = {
-        domain: { name: "Vana" },
+        domain: {
+          name: "Vana",
+          version: "1",
+          chainId: 14800,
+          verifyingContract: "0x0000000000000000000000000000000000000000",
+        },
         types: {
           AllTypes: [
             { name: "addressField", type: "address" },
@@ -135,7 +145,12 @@ describe("typedDataConverter", () => {
 
     it("should handle array types", () => {
       const vanaTypedData: GenericTypedData = {
-        domain: { name: "Vana" },
+        domain: {
+          name: "Vana",
+          version: "1",
+          chainId: 14800,
+          verifyingContract: "0x0000000000000000000000000000000000000000",
+        },
         types: {
           ArrayTest: [
             { name: "addresses", type: "address[]" },
@@ -160,7 +175,12 @@ describe("typedDataConverter", () => {
 
     it("should handle nested custom types", () => {
       const vanaTypedData: GenericTypedData = {
-        domain: { name: "Vana" },
+        domain: {
+          name: "Vana",
+          version: "1",
+          chainId: 14800,
+          verifyingContract: "0x0000000000000000000000000000000000000000",
+        },
         types: {
           Inner: [{ name: "value", type: "uint256" }],
           Outer: [
@@ -195,7 +215,12 @@ describe("typedDataConverter", () => {
       };
 
       const vanaTypedData: GenericTypedData = {
-        domain: { name: "Vana" },
+        domain: {
+          name: "Vana",
+          version: "1",
+          chainId: 14800,
+          verifyingContract: "0x0000000000000000000000000000000000000000",
+        },
         types: {
           Test: [{ name: "value", type: "string" }],
         },
@@ -212,7 +237,12 @@ describe("typedDataConverter", () => {
 
     it("should handle empty types object", () => {
       const vanaTypedData: GenericTypedData = {
-        domain: { name: "Vana" },
+        domain: {
+          name: "Vana",
+          version: "1",
+          chainId: 14800,
+          verifyingContract: "0x0000000000000000000000000000000000000000",
+        },
         types: {},
         primaryType: "Empty",
         message: {},
@@ -225,7 +255,12 @@ describe("typedDataConverter", () => {
 
     it("should handle type with no fields", () => {
       const vanaTypedData: GenericTypedData = {
-        domain: { name: "Vana" },
+        domain: {
+          name: "Vana",
+          version: "1",
+          chainId: 14800,
+          verifyingContract: "0x0000000000000000000000000000000000000000",
+        },
         types: {
           Empty: [],
         },
@@ -241,7 +276,12 @@ describe("typedDataConverter", () => {
 
     it("should handle minimal domain", () => {
       const vanaTypedData: GenericTypedData = {
-        domain: {},
+        domain: {
+          name: "Test",
+          version: "1",
+          chainId: 14800,
+          verifyingContract: "0x0000000000000000000000000000000000000000",
+        },
         types: {
           Test: [{ name: "value", type: "string" }],
         },
@@ -251,12 +291,22 @@ describe("typedDataConverter", () => {
 
       const result = toViemTypedDataDefinition(vanaTypedData);
 
-      expect(result.domain).toEqual({});
+      expect(result.domain).toEqual({
+        name: "Test",
+        version: "1",
+        chainId: 14800,
+        verifyingContract: "0x0000000000000000000000000000000000000000",
+      });
     });
 
     it("should create independent copies of type arrays", () => {
       const vanaTypedData: GenericTypedData = {
-        domain: { name: "Vana" },
+        domain: {
+          name: "Vana",
+          version: "1",
+          chainId: 14800,
+          verifyingContract: "0x0000000000000000000000000000000000000000",
+        },
         types: {
           Test: [
             { name: "field1", type: "string" },
@@ -325,7 +375,12 @@ describe("typedDataConverter", () => {
 
     it("should handle type names with special characters", () => {
       const vanaTypedData: GenericTypedData = {
-        domain: { name: "Test" },
+        domain: {
+          name: "Test",
+          version: "1",
+          chainId: 14800,
+          verifyingContract: "0x0000000000000000000000000000000000000000",
+        },
         types: {
           "Type_With-Special.Chars": [{ name: "value", type: "uint256" }],
         },
@@ -340,7 +395,12 @@ describe("typedDataConverter", () => {
 
     it("should handle field names with underscores", () => {
       const vanaTypedData: GenericTypedData = {
-        domain: { name: "Test" },
+        domain: {
+          name: "Test",
+          version: "1",
+          chainId: 14800,
+          verifyingContract: "0x0000000000000000000000000000000000000000",
+        },
         types: {
           Test: [
             { name: "_privateField", type: "uint256" },
@@ -365,7 +425,12 @@ describe("typedDataConverter", () => {
 
     it("should be compatible with viem's TypedDataDefinition type", () => {
       const vanaTypedData: GenericTypedData = {
-        domain: { name: "Vana", version: "1", chainId: 14800 },
+        domain: {
+          name: "Vana",
+          version: "1",
+          chainId: 14800,
+          verifyingContract: "0x0000000000000000000000000000000000000000",
+        },
         types: {
           Test: [{ name: "value", type: "string" }],
         },
@@ -390,7 +455,12 @@ describe("typedDataConverter", () => {
       }));
 
       const vanaTypedData: GenericTypedData = {
-        domain: { name: "Test" },
+        domain: {
+          name: "Test",
+          version: "1",
+          chainId: 14800,
+          verifyingContract: "0x0000000000000000000000000000000000000000",
+        },
         types: {
           LargeType: fields,
         },
@@ -405,7 +475,12 @@ describe("typedDataConverter", () => {
 
     it("should handle unicode in string values", () => {
       const vanaTypedData: GenericTypedData = {
-        domain: { name: "Vana 🚀" },
+        domain: {
+          name: "Vana 🚀",
+          version: "1",
+          chainId: 14800,
+          verifyingContract: "0x0000000000000000000000000000000000000000",
+        },
         types: {
           Test: [{ name: "message", type: "string" }],
         },
@@ -415,13 +490,18 @@ describe("typedDataConverter", () => {
 
       const result = toViemTypedDataDefinition(vanaTypedData);
 
-      expect(result.domain.name).toBe("Vana 🚀");
+      expect(result.domain?.name).toBe("Vana 🚀");
       expect(result.message.message).toBe("Hello 世界! 🌍");
     });
 
     it("should preserve numeric types in message", () => {
       const vanaTypedData: GenericTypedData = {
-        domain: { name: "Test" },
+        domain: {
+          name: "Test",
+          version: "1",
+          chainId: 14800,
+          verifyingContract: "0x0000000000000000000000000000000000000000",
+        },
         types: {
           Numbers: [
             { name: "bigNumber", type: "uint256" },

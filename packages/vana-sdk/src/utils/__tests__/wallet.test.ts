@@ -56,13 +56,13 @@ describe("wallet utilities", () => {
           publicKey: "0x...",
           name: "test",
         };
-        const result = extractAddress(account);
+        const result = extractAddress(account as any);
         expect(result).toBe(validAddress);
       });
 
       it("should extract address from object with only address property", () => {
         const account = { address: validAddress };
-        const result = extractAddress(account);
+        const result = extractAddress(account as any);
         expect(result).toBe(validAddress);
       });
 
@@ -74,13 +74,13 @@ describe("wallet utilities", () => {
           signTransaction: () => Promise.resolve("0x..."),
           signTypedData: () => Promise.resolve("0x..."),
         };
-        const result = extractAddress(localAccount);
+        const result = extractAddress(localAccount as any);
         expect(result).toBe(validAddress);
       });
 
       it("should handle different address values in objects", () => {
         const account = { address: anotherValidAddress };
-        const result = extractAddress(account);
+        const result = extractAddress(account as any);
         expect(result).toBe(anotherValidAddress);
       });
     });
@@ -97,26 +97,26 @@ describe("wallet utilities", () => {
 
     describe("invalid account formats", () => {
       it("should throw error for empty string (falsy value)", () => {
-        expect(() => extractAddress("")).toThrow("No account provided");
+        expect(() => extractAddress("" as any)).toThrow("No account provided");
       });
 
       it("should throw error for object without address property", () => {
         const account = { notAddress: validAddress };
-        expect(() => extractAddress(account)).toThrow(
+        expect(() => extractAddress(account as any)).toThrow(
           "Unable to determine wallet address from account",
         );
       });
 
       it("should throw error for object with null address", () => {
         const account = { address: null };
-        expect(() => extractAddress(account)).toThrow(
+        expect(() => extractAddress(account as any)).toThrow(
           "Unable to determine wallet address from account",
         );
       });
 
       it("should throw error for object with undefined address", () => {
         const account = { address: undefined };
-        expect(() => extractAddress(account)).toThrow(
+        expect(() => extractAddress(account as any)).toThrow(
           "Unable to determine wallet address from account",
         );
       });
@@ -127,7 +127,7 @@ describe("wallet utilities", () => {
         const invalidAddress = "0x123"; // Too short
         const account = { address: invalidAddress };
         // extractAddress doesn't validate, it just returns the address
-        const result = extractAddress(account);
+        const result = extractAddress(account as any);
         expect(result).toBe(invalidAddress);
       });
 
@@ -162,7 +162,7 @@ describe("wallet utilities", () => {
 
       it("should have descriptive error message for invalid format", () => {
         try {
-          extractAddress({});
+          extractAddress({} as any);
           expect.fail("Should have thrown");
         } catch (error) {
           expect((error as Error).message).toBe(
@@ -212,25 +212,25 @@ describe("wallet utilities", () => {
       });
 
       it("should return undefined for empty string", () => {
-        const result = extractAddressSafe("");
+        const result = extractAddressSafe("" as any);
         expect(result).toBeUndefined();
       });
 
       it("should return undefined for object without address property", () => {
         const account = { notAddress: validAddress };
-        const result = extractAddressSafe(account);
+        const result = extractAddressSafe(account as any);
         expect(result).toBeUndefined();
       });
 
       it("should return undefined for object with null address", () => {
         const account = { address: null };
-        const result = extractAddressSafe(account);
+        const result = extractAddressSafe(account as any);
         expect(result).toBeUndefined();
       });
 
       it("should return undefined for object with undefined address", () => {
         const account = { address: undefined };
-        const result = extractAddressSafe(account);
+        const result = extractAddressSafe(account as any);
         expect(result).toBeUndefined();
       });
 
@@ -250,15 +250,15 @@ describe("wallet utilities", () => {
       });
 
       it("should return undefined for plain object without address", () => {
-        const result = extractAddressSafe({});
+        const result = extractAddressSafe({} as any);
         expect(result).toBeUndefined();
       });
     });
 
     describe("graceful degradation", () => {
       it("should handle partial Account objects", () => {
-        const partialAccount = { address: validAddress } as unknown;
-        const result = extractAddressSafe(partialAccount);
+        const partialAccount = { address: validAddress };
+        const result = extractAddressSafe(partialAccount as any);
         expect(result).toBe(validAddress);
       });
 
@@ -276,7 +276,7 @@ describe("wallet utilities", () => {
       });
 
       it("should enable conditional logic without try-catch", () => {
-        const maybeAddress = extractAddressSafe({ invalidData: true });
+        const maybeAddress = extractAddressSafe({ invalidData: true } as any);
         let result: string | undefined;
         if (maybeAddress) {
           result = maybeAddress;
@@ -563,7 +563,7 @@ describe("wallet utilities", () => {
       const userB = { account: null };
       const userC = { account: undefined };
 
-      const addrA = extractAddressSafe(userA.account);
+      const addrA = extractAddressSafe(userA.account as any);
       const addrB = extractAddressSafe(userB.account);
       const addrC = extractAddressSafe(userC.account);
 
@@ -597,7 +597,8 @@ describe("wallet utilities", () => {
       const backupWallet = { address: validAddress };
 
       const address =
-        extractAddressSafe(primaryWallet) ?? extractAddressSafe(backupWallet);
+        extractAddressSafe(primaryWallet) ??
+        extractAddressSafe(backupWallet as any);
 
       expect(address).toBe(validAddress);
     });

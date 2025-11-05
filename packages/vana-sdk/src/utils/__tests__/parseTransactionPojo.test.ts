@@ -14,23 +14,21 @@ import type { TransactionResult } from "../../types/operations";
 vi.mock("../../generated/eventRegistry", () => {
   const mockEventTopic =
     "0x1234567890123456789012345678901234567890123456789012345678901234" as `0x${string}`;
-  const mockUnknownTopic =
-    "0xabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd" as `0x${string}`;
 
   return {
     EVENT_REGISTRY: {
-      "DataPortabilityPermissions.grantPermission": {
+      "DataPortabilityPermissions.addPermission": {
         contract: "DataPortabilityPermissions",
-        fn: "grantPermission",
-        eventNames: ["PermissionGranted"],
+        fn: "addPermission",
+        eventNames: ["PermissionAdded"],
       },
       "DataPortabilityPermissions.revokePermission": {
         contract: "DataPortabilityPermissions",
         fn: "revokePermission",
         eventNames: ["PermissionRevoked"],
       },
-      "FileRegistry.addFile": {
-        contract: "FileRegistry",
+      "DataRegistry.addFile": {
+        contract: "DataRegistry",
         fn: "addFile",
         eventNames: ["FileAdded", "MetadataUpdated"],
       },
@@ -41,22 +39,32 @@ vi.mock("../../generated/eventRegistry", () => {
         [
           {
             type: "event",
-            name: "PermissionGranted",
+            name: "PermissionAdded",
             inputs: [
               {
                 indexed: true,
-                name: "fileId",
+                name: "permissionId",
                 type: "uint256",
               },
               {
                 indexed: true,
-                name: "grantee",
+                name: "user",
                 type: "address",
               },
               {
-                indexed: false,
-                name: "expiresAt",
+                indexed: true,
+                name: "granteeId",
                 type: "uint256",
+              },
+              {
+                indexed: false,
+                name: "grant",
+                type: "string",
+              },
+              {
+                indexed: false,
+                name: "fileIds",
+                type: "uint256[]",
               },
             ],
           },
@@ -83,12 +91,13 @@ vi.mock("viem", async () => {
         "0x1234567890123456789012345678901234567890123456789012345678901234"
       ) {
         return {
-          eventName: "PermissionGranted",
+          eventName: "PermissionAdded",
           args: {
-            fileId: 42n,
-            grantee:
-              "0x1234567890123456789012345678901234567890" as `0x${string}`,
-            expiresAt: 1234567890n,
+            permissionId: 1n,
+            user: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+            granteeId: 5n,
+            grant: "0xgrantdata",
+            fileIds: [42n],
           },
         };
       }
@@ -102,12 +111,12 @@ vi.mock("viem", async () => {
 describe("parseTransaction", () => {
   const mockTransactionResult: TransactionResult<
     "DataPortabilityPermissions",
-    "grantPermission"
+    "addPermission"
   > = {
     hash: "0xabc123" as `0x${string}`,
     from: "0x1111111111111111111111111111111111111111" as `0x${string}`,
     contract: "DataPortabilityPermissions",
-    fn: "grantPermission",
+    fn: "addPermission",
   };
 
   beforeEach(() => {
@@ -157,11 +166,11 @@ describe("parseTransaction", () => {
       expect(result.hash).toBe(mockTransactionResult.hash);
       expect(result.from).toBe(mockTransactionResult.from);
       expect(result.contract).toBe("DataPortabilityPermissions");
-      expect(result.fn).toBe("grantPermission");
+      expect(result.fn).toBe("addPermission");
       expect(result.hasExpectedEvents).toBe(true);
-      expect(result.expectedEvents).toHaveProperty("PermissionGranted");
+      expect(result.expectedEvents).toHaveProperty("PermissionAdded");
       expect(result.allEvents).toHaveLength(1);
-      expect(result.allEvents[0].eventName).toBe("PermissionGranted");
+      expect(result.allEvents[0].eventName).toBe("PermissionAdded");
       expect(result.allEvents[0].contractAddress).toBe(
         "0x2222222222222222222222222222222222222222",
       );
@@ -210,7 +219,10 @@ describe("parseTransaction", () => {
         type: "0x2" as const,
       };
 
-      const result = parseTransaction(mockTransactionResult, receipt);
+      const result = parseTransaction(
+        mockTransactionResult,
+        receipt as unknown as TransactionReceipt,
+      );
 
       expect(result.hasExpectedEvents).toBe(false);
       expect(result.allEvents).toEqual([]);
@@ -255,14 +267,11 @@ describe("parseTransaction", () => {
 
       // Event is in registry for this function
       expect(result.hasExpectedEvents).toBe(true);
-      expect(result.expectedEvents).toHaveProperty("PermissionGranted");
+      expect(result.expectedEvents).toHaveProperty("PermissionAdded");
     });
 
     it("should not mark events as expected when registry key missing", () => {
-      const unknownFunctionTx: TransactionResult<
-        "UnknownContract",
-        "unknownFunction"
-      > = {
+      const unknownFunctionTx = {
         hash: "0xabc123" as `0x${string}`,
         from: "0x1111111111111111111111111111111111111111" as `0x${string}`,
         contract: "UnknownContract",
@@ -301,7 +310,7 @@ describe("parseTransaction", () => {
         type: "0x2",
       };
 
-      const result = parseTransaction(unknownFunctionTx, receipt);
+      const result = parseTransaction(unknownFunctionTx as any, receipt);
 
       // Event is decoded but not marked as expected (not in registry)
       expect(result.hasExpectedEvents).toBe(false);
@@ -310,10 +319,10 @@ describe("parseTransaction", () => {
     });
 
     it("should handle function with multiple expected events", () => {
-      const multiEventTx: TransactionResult<"FileRegistry", "addFile"> = {
+      const multiEventTx: TransactionResult<"DataRegistry", "addFile"> = {
         hash: "0xabc123" as `0x${string}`,
         from: "0x1111111111111111111111111111111111111111" as `0x${string}`,
-        contract: "FileRegistry",
+        contract: "DataRegistry",
         fn: "addFile",
       };
 
@@ -604,7 +613,7 @@ describe("parseTransaction", () => {
       const result = parseTransaction(mockTransactionResult, receipt);
 
       expect(result.allEvents).toHaveLength(2);
-      expect(result.allEvents[0].eventName).toBe("PermissionGranted");
+      expect(result.allEvents[0].eventName).toBe("PermissionAdded");
       expect(result.allEvents[1].eventName).toBe("Unknown");
     });
   });
@@ -692,12 +701,12 @@ describe("parseTransaction", () => {
     it("should preserve all transaction result fields", () => {
       const extendedTxResult: TransactionResult<
         "DataPortabilityPermissions",
-        "grantPermission"
+        "addPermission"
       > = {
         hash: "0xabc123" as `0x${string}`,
         from: "0x1111111111111111111111111111111111111111" as `0x${string}`,
         contract: "DataPortabilityPermissions",
-        fn: "grantPermission",
+        fn: "addPermission",
         chainId: 14800,
         value: 1000000000000000000n,
         nonce: 42,
@@ -732,12 +741,12 @@ describe("parseTransaction", () => {
     it("should work with minimal transaction result", () => {
       const minimalTxResult: TransactionResult<
         "DataPortabilityPermissions",
-        "grantPermission"
+        "addPermission"
       > = {
         hash: "0xabc123" as `0x${string}`,
         from: "0x1111111111111111111111111111111111111111" as `0x${string}`,
         contract: "DataPortabilityPermissions",
-        fn: "grantPermission",
+        fn: "addPermission",
       };
 
       const receipt: TransactionReceipt = {
@@ -803,18 +812,17 @@ describe("parseTransaction", () => {
 
       const result = parseTransaction(mockTransactionResult, receipt);
 
+      expect(result.expectedEvents.PermissionAdded).toBeDefined();
       const permissionEvent = result.expectedEvents
-        .PermissionGranted as unknown as {
-        fileId: bigint;
-        grantee: `0x${string}`;
-        expiresAt: bigint;
+        .PermissionAdded as unknown as {
+        fileIds: readonly bigint[];
+        user: `0x${string}`;
       };
 
-      expect(permissionEvent.fileId).toBe(42n);
-      expect(permissionEvent.grantee).toBe(
+      expect(permissionEvent.fileIds[0]).toBe(42n);
+      expect(permissionEvent.user).toBe(
         "0x1234567890123456789012345678901234567890",
       );
-      expect(permissionEvent.expiresAt).toBe(1234567890n);
     });
 
     it("should handle args as Record<string, unknown> in allEvents", () => {
@@ -854,9 +862,11 @@ describe("parseTransaction", () => {
 
       expect(result.allEvents[0].args).toBeDefined();
       expect(typeof result.allEvents[0].args).toBe("object");
-      expect(result.allEvents[0].args).toHaveProperty("fileId");
-      expect(result.allEvents[0].args).toHaveProperty("grantee");
-      expect(result.allEvents[0].args).toHaveProperty("expiresAt");
+      expect(result.allEvents[0].args).toHaveProperty("permissionId");
+      expect(result.allEvents[0].args).toHaveProperty("user");
+      expect(result.allEvents[0].args).toHaveProperty("granteeId");
+      expect(result.allEvents[0].args).toHaveProperty("grant");
+      expect(result.allEvents[0].args).toHaveProperty("fileIds");
     });
   });
 });

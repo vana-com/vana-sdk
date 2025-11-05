@@ -297,7 +297,9 @@ describe("grantFiles", () => {
 
       const call = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0][1];
       const formData = call.body as unknown as FormData;
-      const blob = formData.get("file") as Blob & { parts: BlobPart[] };
+      const blob = formData.get("file") as unknown as Blob & {
+        parts: BlobPart[];
+      };
 
       expect(blob).toBeDefined();
       expect(blob.parts[0]).toContain(grantFile.grantee);

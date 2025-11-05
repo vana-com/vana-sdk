@@ -5,7 +5,7 @@
  * Tests event waiting and transformation helpers for POJO-based transactions.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { withEvents, txWithEvents, txForRelayed } from "../withEvents";
 import type { TransactionResult } from "../../types/operations";
 import type { TypedTransactionResult } from "../../generated/event-types";
@@ -15,38 +15,41 @@ describe("withEvents", () => {
 
   const mockTransactionResult: TransactionResult<
     "DataPortabilityPermissions",
-    "grantPermission"
+    "addPermission"
   > = {
     hash: "0xabc123" as `0x${string}`,
     from: "0x1111111111111111111111111111111111111111" as `0x${string}`,
     contract: "DataPortabilityPermissions",
-    fn: "grantPermission",
+    fn: "addPermission",
   };
 
   const mockTypedResult: TypedTransactionResult<
     "DataPortabilityPermissions",
-    "grantPermission"
+    "addPermission"
   > = {
     hash: "0xabc123" as `0x${string}`,
     from: "0x1111111111111111111111111111111111111111" as `0x${string}`,
     contract: "DataPortabilityPermissions",
-    fn: "grantPermission",
+    fn: "addPermission",
     expectedEvents: {
-      PermissionGranted: {
-        fileId: 42n,
-        grantee: "0x1234567890123456789012345678901234567890" as `0x${string}`,
-        expiresAt: 1234567890n,
+      PermissionAdded: {
+        permissionId: 1n,
+        user: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        granteeId: 5n,
+        grant: "0xgrantdata",
+        fileIds: [42n],
       },
     },
     allEvents: [
       {
         contractAddress: "0x2222222222222222222222222222222222222222",
-        eventName: "PermissionGranted",
+        eventName: "PermissionAdded",
         args: {
-          fileId: 42n,
-          grantee:
-            "0x1234567890123456789012345678901234567890" as `0x${string}`,
-          expiresAt: 1234567890n,
+          permissionId: 1n,
+          user: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+          granteeId: 5n,
+          grant: "0xgrantdata",
+          fileIds: [42n],
         },
         logIndex: 0,
       },
@@ -64,15 +67,15 @@ describe("withEvents", () => {
       const select = (
         result: TypedTransactionResult<
           "DataPortabilityPermissions",
-          "grantPermission"
+          "addPermission"
         >,
       ) => {
         return {
           fileId: (
-            result.expectedEvents.PermissionGranted as {
-              fileId: bigint;
+            result.expectedEvents.PermissionAdded as {
+              fileIds: readonly bigint[];
             }
-          ).fileId,
+          ).fileIds[0],
           success: true,
         };
       };
@@ -115,7 +118,7 @@ describe("withEvents", () => {
       const select = (
         result: TypedTransactionResult<
           "DataPortabilityPermissions",
-          "grantPermission"
+          "addPermission"
         >,
       ) => ({
         hash: result.hash,
@@ -138,7 +141,7 @@ describe("withEvents", () => {
       const select = (
         result: TypedTransactionResult<
           "DataPortabilityPermissions",
-          "grantPermission"
+          "addPermission"
         >,
       ) => result.allEvents.map((e) => e.eventName);
 
@@ -148,24 +151,23 @@ describe("withEvents", () => {
         select,
       );
 
-      expect(result).toEqual(["PermissionGranted"]);
+      expect(result).toEqual(["PermissionAdded"]);
     });
 
     it("should handle selector extracting event data", async () => {
       const select = (
         result: TypedTransactionResult<
           "DataPortabilityPermissions",
-          "grantPermission"
+          "addPermission"
         >,
       ) => {
-        const event = result.expectedEvents.PermissionGranted as unknown as {
-          fileId: bigint;
-          grantee: `0x${string}`;
-          expiresAt: bigint;
+        const event = result.expectedEvents.PermissionAdded as unknown as {
+          fileIds: readonly bigint[];
+          user: `0x${string}`;
         };
         return {
-          fileId: Number(event.fileId),
-          grantee: event.grantee,
+          fileId: Number(event.fileIds[0]),
+          grantee: event.user,
         };
       };
 
@@ -187,7 +189,7 @@ describe("withEvents", () => {
       const select = (
         result: TypedTransactionResult<
           "DataPortabilityPermissions",
-          "grantPermission"
+          "addPermission"
         >,
       ) => result.hash;
 
@@ -209,7 +211,7 @@ describe("withEvents", () => {
     it("should handle selector with no expected events", async () => {
       const noEventResult: TypedTransactionResult<
         "DataPortabilityPermissions",
-        "grantPermission"
+        "addPermission"
       > = {
         ...mockTypedResult,
         expectedEvents: {},
@@ -221,7 +223,7 @@ describe("withEvents", () => {
       const select = (
         result: TypedTransactionResult<
           "DataPortabilityPermissions",
-          "grantPermission"
+          "addPermission"
         >,
       ) => ({
         hasEvents: result.hasExpectedEvents,
@@ -241,26 +243,27 @@ describe("withEvents", () => {
     });
 
     it("should work with different contract/function combinations", async () => {
-      const fileRegistryTx: TransactionResult<"FileRegistry", "addFile"> = {
+      const fileRegistryTx: TransactionResult<"DataRegistry", "addFile"> = {
         hash: "0xdef456" as `0x${string}`,
         from: "0x5555555555555555555555555555555555555555" as `0x${string}`,
-        contract: "FileRegistry",
+        contract: "DataRegistry",
         fn: "addFile",
       };
 
       const fileRegistryResult: TypedTransactionResult<
-        "FileRegistry",
+        "DataRegistry",
         "addFile"
       > = {
         hash: "0xdef456" as `0x${string}`,
         from: "0x5555555555555555555555555555555555555555" as `0x${string}`,
-        contract: "FileRegistry",
+        contract: "DataRegistry",
         fn: "addFile",
         expectedEvents: {
           FileAdded: {
             fileId: 99n,
-            owner:
+            ownerAddress:
               "0x5555555555555555555555555555555555555555" as `0x${string}`,
+            url: "ipfs://test",
           },
         },
         allEvents: [],
@@ -270,7 +273,7 @@ describe("withEvents", () => {
       const fileWaitFor = vi.fn().mockResolvedValue(fileRegistryResult);
 
       const select = (
-        result: TypedTransactionResult<"FileRegistry", "addFile">,
+        result: TypedTransactionResult<"DataRegistry", "addFile">,
       ) => {
         const event = result.expectedEvents.FileAdded as unknown as {
           fileId: bigint;
@@ -289,7 +292,7 @@ describe("withEvents", () => {
       const select = (
         result: TypedTransactionResult<
           "DataPortabilityPermissions",
-          "grantPermission"
+          "addPermission"
         >,
       ) => result.hash;
 
@@ -299,7 +302,7 @@ describe("withEvents", () => {
           hash: "0xabc123" as `0x${string}`,
           from: "0x1111111111111111111111111111111111111111" as `0x${string}`,
           contract: "DataPortabilityPermissions",
-          fn: "grantPermission",
+          fn: "addPermission",
         },
         select,
       );
@@ -312,7 +315,7 @@ describe("withEvents", () => {
       const select = (
         result: TypedTransactionResult<
           "DataPortabilityPermissions",
-          "grantPermission"
+          "addPermission"
         >,
       ) => result.hash;
 
@@ -322,7 +325,7 @@ describe("withEvents", () => {
           hash: "0xabc123" as `0x${string}`,
           from: "0x1111111111111111111111111111111111111111" as `0x${string}`,
           contract: "DataPortabilityPermissions",
-          fn: "grantPermission",
+          fn: "addPermission",
         },
         select,
       );
@@ -331,14 +334,14 @@ describe("withEvents", () => {
       expect(callArg.hash).toBe("0xabc123");
       expect(callArg.from).toBe("0x1111111111111111111111111111111111111111");
       expect(callArg.contract).toBe("DataPortabilityPermissions");
-      expect(callArg.fn).toBe("grantPermission");
+      expect(callArg.fn).toBe("addPermission");
     });
 
     it("should work with complex selectors", async () => {
       const select = (
         result: TypedTransactionResult<
           "DataPortabilityPermissions",
-          "grantPermission"
+          "addPermission"
         >,
       ) => ({
         success: result.hasExpectedEvents,
@@ -351,7 +354,7 @@ describe("withEvents", () => {
           hash: "0xabc123" as `0x${string}`,
           from: "0x1111111111111111111111111111111111111111" as `0x${string}`,
           contract: "DataPortabilityPermissions",
-          fn: "grantPermission",
+          fn: "addPermission",
         },
         select,
       );
@@ -368,7 +371,7 @@ describe("withEvents", () => {
       const select = (
         result: TypedTransactionResult<
           "DataPortabilityPermissions",
-          "grantPermission"
+          "addPermission"
         >,
       ) => result.hash;
 
@@ -379,7 +382,7 @@ describe("withEvents", () => {
             hash: "0xabc123" as `0x${string}`,
             from: "0x1111111111111111111111111111111111111111" as `0x${string}`,
             contract: "DataPortabilityPermissions",
-            fn: "grantPermission",
+            fn: "addPermission",
           },
           select,
         ),
@@ -398,7 +401,7 @@ describe("withEvents", () => {
             hash: "0xabc123" as `0x${string}`,
             from: "0x1111111111111111111111111111111111111111" as `0x${string}`,
             contract: "DataPortabilityPermissions",
-            fn: "grantPermission",
+            fn: "addPermission",
           },
           select,
         ),
@@ -412,14 +415,14 @@ describe("withEvents", () => {
         hash: "0xabc123" as `0x${string}`,
         from: "0x1111111111111111111111111111111111111111" as `0x${string}`,
         contract: "DataPortabilityPermissions",
-        fn: "grantPermission",
+        fn: "addPermission",
       });
 
       expect(result).toEqual({
         hash: "0xabc123",
         from: "0x1111111111111111111111111111111111111111",
         contract: "DataPortabilityPermissions",
-        fn: "grantPermission",
+        fn: "addPermission",
       });
     });
 
@@ -427,13 +430,13 @@ describe("withEvents", () => {
       const result = txForRelayed({
         hash: "0xdef456" as `0x${string}`,
         from: "0x2222222222222222222222222222222222222222" as `0x${string}`,
-        contract: "FileRegistry",
+        contract: "DataRegistry",
         fn: "addFile",
       });
 
       expect(result.hash).toBe("0xdef456");
       expect(result.from).toBe("0x2222222222222222222222222222222222222222");
-      expect(result.contract).toBe("FileRegistry");
+      expect(result.contract).toBe("DataRegistry");
       expect(result.fn).toBe("addFile");
     });
 
@@ -454,7 +457,7 @@ describe("withEvents", () => {
         hash: "0xabc123" as `0x${string}`,
         from: "0x1111111111111111111111111111111111111111" as `0x${string}`,
         contract: "DataPortabilityPermissions" as const,
-        fn: "grantPermission" as const,
+        fn: "addPermission" as const,
       };
 
       const result1 = txForRelayed(input);
@@ -468,25 +471,25 @@ describe("withEvents", () => {
   describe("Integration Patterns", () => {
     it("should support typical controller usage pattern", async () => {
       // Simulating a controller method that grants permission
-      const grantPermission = async (fileId: number, grantee: string) => {
+      const grantPermission = async (_fileId: number, _grantee: string) => {
         const tx: TransactionResult<
           "DataPortabilityPermissions",
-          "grantPermission"
+          "addPermission"
         > = {
           hash: "0xabc123" as `0x${string}`,
           from: "0x1111111111111111111111111111111111111111" as `0x${string}`,
           contract: "DataPortabilityPermissions",
-          fn: "grantPermission",
+          fn: "addPermission",
         };
 
         return withEvents(mockWaitFor, tx, (result) => {
-          const event = result.expectedEvents.PermissionGranted as unknown as {
-            fileId: bigint;
-            grantee: `0x${string}`;
+          const event = result.expectedEvents.PermissionAdded as unknown as {
+            fileIds: readonly bigint[];
+            user: `0x${string}`;
           };
           return {
-            fileId: Number(event.fileId),
-            grantee: event.grantee,
+            fileId: Number(event.fileIds[0]),
+            grantee: event.user,
           };
         });
       };
@@ -508,7 +511,7 @@ describe("withEvents", () => {
         hash: "0xabc123" as `0x${string}`,
         from: "0x1111111111111111111111111111111111111111" as `0x${string}`,
         contract: "DataPortabilityPermissions",
-        fn: "grantPermission",
+        fn: "addPermission",
       });
 
       // Step 2: Wait externally (user code)
@@ -528,7 +531,7 @@ describe("withEvents", () => {
           hash: "0xabc123" as `0x${string}`,
           from: "0x1111111111111111111111111111111111111111" as `0x${string}`,
           contract: "DataPortabilityPermissions",
-          fn: "grantPermission",
+          fn: "addPermission",
         },
         (result) => ({
           hash: result.hash,

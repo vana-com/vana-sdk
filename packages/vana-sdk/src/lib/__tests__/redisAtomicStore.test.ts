@@ -3,14 +3,14 @@ import type { IRedisClient } from "../redisAtomicStore";
 import { RedisAtomicStore } from "../redisAtomicStore";
 
 // Mock ioredis
-const mockRedis: IRedisClient = {
+const mockRedis = {
   incr: vi.fn(),
   set: vi.fn(),
   get: vi.fn(),
   del: vi.fn(),
   eval: vi.fn(),
   setex: vi.fn(),
-};
+} as unknown as IRedisClient;
 
 describe("RedisAtomicStore", () => {
   let store: RedisAtomicStore;
@@ -25,7 +25,7 @@ describe("RedisAtomicStore", () => {
 
   describe("incr", () => {
     it("should atomically increment a counter", async () => {
-      mockRedis.incr.mockResolvedValue(42);
+      vi.mocked(mockRedis.incr).mockResolvedValue(42);
 
       const result = await store.incr("counter");
 
@@ -36,7 +36,7 @@ describe("RedisAtomicStore", () => {
 
   describe("acquireLock", () => {
     it("should acquire lock when available", async () => {
-      mockRedis.set.mockResolvedValue("OK");
+      vi.mocked(mockRedis.set).mockResolvedValue("OK");
 
       const lockId = await store.acquireLock("resource", 5);
 
@@ -52,7 +52,7 @@ describe("RedisAtomicStore", () => {
     });
 
     it("should return null when lock is held", async () => {
-      mockRedis.set.mockResolvedValue(null);
+      vi.mocked(mockRedis.set).mockResolvedValue(null);
 
       const lockId = await store.acquireLock("resource", 5);
 
@@ -62,7 +62,7 @@ describe("RedisAtomicStore", () => {
 
   describe("releaseLock", () => {
     it("should release lock with matching ID", async () => {
-      mockRedis.eval.mockResolvedValue(1);
+      vi.mocked(mockRedis.eval).mockResolvedValue(1);
 
       await store.releaseLock("resource", "lock-123");
 
@@ -75,7 +75,7 @@ describe("RedisAtomicStore", () => {
     });
 
     it("should warn when lock ID doesn't match", async () => {
-      mockRedis.eval.mockResolvedValue(0);
+      vi.mocked(mockRedis.eval).mockResolvedValue(0);
       const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
       await store.releaseLock("resource", "wrong-id");
@@ -89,7 +89,7 @@ describe("RedisAtomicStore", () => {
 
   describe("get/set", () => {
     it("should store and retrieve values", async () => {
-      mockRedis.get.mockResolvedValue("stored-value");
+      vi.mocked(mockRedis.get).mockResolvedValue("stored-value");
 
       await store.set("key", "stored-value");
       const value = await store.get("key");
@@ -99,7 +99,7 @@ describe("RedisAtomicStore", () => {
     });
 
     it("should return null for missing keys", async () => {
-      mockRedis.get.mockResolvedValue(null);
+      vi.mocked(mockRedis.get).mockResolvedValue(null);
 
       const value = await store.get("missing");
 
@@ -135,7 +135,7 @@ describe("RedisAtomicStore", () => {
     it("should reject string redis connection", () => {
       expect(() => {
         new RedisAtomicStore({
-          redis: "redis://localhost:6379",
+          redis: "redis://localhost:6379" as unknown as IRedisClient,
         });
       }).toThrow("requires an initialized Redis client instance");
     });

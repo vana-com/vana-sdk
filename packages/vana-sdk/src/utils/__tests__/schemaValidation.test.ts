@@ -777,11 +777,17 @@ describe("schemaValidation", () => {
         schema: { type: "array" },
       };
 
+      // Extract method with explicit type to satisfy TS2775
+      const validate: (schema: DataSchema) => void =
+        schemaValidator.validateDataSchemaAgainstMetaSchema.bind(
+          schemaValidator,
+        );
+
       expect(() => {
-        schemaValidator.validateDataSchemaAgainstMetaSchema(schema1);
+        validate(schema1 as DataSchema);
       }).not.toThrow();
       expect(() => {
-        schemaValidator.validateDataSchemaAgainstMetaSchema(schema2);
+        validate(schema2 as DataSchema);
       }).not.toThrow();
     });
   });

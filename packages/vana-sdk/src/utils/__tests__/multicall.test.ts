@@ -989,8 +989,8 @@ describe("multicall utility - comprehensive tests", () => {
 
       const config = analyzeCallsForOptimalConfig(contracts);
 
-      expect(config.checkpointFrequency.calls).toBe(32);
-      expect(config.checkpointFrequency.bytes).toBe(8192);
+      expect(config.checkpointFrequency?.calls).toBe(32);
+      expect(config.checkpointFrequency?.bytes).toBe(8192);
       expect(config.maxCalldataBytes).toBe(100_000);
     });
 
@@ -1014,8 +1014,8 @@ describe("multicall utility - comprehensive tests", () => {
 
       const config = analyzeCallsForOptimalConfig(contracts);
 
-      expect(config.checkpointFrequency.calls).toBe(16);
-      expect(config.checkpointFrequency.bytes).toBe(4096);
+      expect(config.checkpointFrequency?.calls).toBe(16);
+      expect(config.checkpointFrequency?.bytes).toBe(4096);
     });
 
     it("should suggest higher calldata limit for many calls", () => {
@@ -1105,8 +1105,8 @@ describe("multicall utility - comprehensive tests", () => {
       const config = analyzeCallsForOptimalConfig(contracts);
 
       // Average is (5 * small + 5 * 2000) / 10 > 500
-      expect(config.checkpointFrequency.calls).toBe(16);
-      expect(config.checkpointFrequency.bytes).toBe(4096);
+      expect(config.checkpointFrequency?.calls).toBe(16);
+      expect(config.checkpointFrequency?.bytes).toBe(4096);
     });
   });
 });

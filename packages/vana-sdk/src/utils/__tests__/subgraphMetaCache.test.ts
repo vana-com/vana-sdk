@@ -29,7 +29,8 @@ describe("SubgraphMetaCache", () => {
 
     it("should store and retrieve metadata", () => {
       const meta: SubgraphMeta = {
-        block: { number: 100 },
+        blockNumber: 100,
+        hasIndexingErrors: false,
         deployment: "QmTest123",
       };
 
@@ -40,11 +41,13 @@ describe("SubgraphMetaCache", () => {
 
     it("should handle multiple entries", () => {
       const meta1: SubgraphMeta = {
-        block: { number: 100 },
+        blockNumber: 100,
+        hasIndexingErrors: false,
         deployment: "QmTest1",
       };
       const meta2: SubgraphMeta = {
-        block: { number: 200 },
+        blockNumber: 200,
+        hasIndexingErrors: false,
         deployment: "QmTest2",
       };
 
@@ -57,11 +60,13 @@ describe("SubgraphMetaCache", () => {
 
     it("should overwrite existing entries", () => {
       const meta1: SubgraphMeta = {
-        block: { number: 100 },
+        blockNumber: 100,
+        hasIndexingErrors: false,
         deployment: "QmOld",
       };
       const meta2: SubgraphMeta = {
-        block: { number: 200 },
+        blockNumber: 200,
+        hasIndexingErrors: false,
         deployment: "QmNew",
       };
 
@@ -73,7 +78,8 @@ describe("SubgraphMetaCache", () => {
 
     it("should clear all entries", () => {
       const meta: SubgraphMeta = {
-        block: { number: 100 },
+        blockNumber: 100,
+        hasIndexingErrors: false,
         deployment: "QmTest",
       };
 
@@ -91,7 +97,8 @@ describe("SubgraphMetaCache", () => {
   describe("TTL Expiration", () => {
     it("should return undefined for expired entries", () => {
       const meta: SubgraphMeta = {
-        block: { number: 100 },
+        blockNumber: 100,
+        hasIndexingErrors: false,
         deployment: "QmTest",
       };
 
@@ -105,7 +112,8 @@ describe("SubgraphMetaCache", () => {
 
     it("should remove expired entries from cache", () => {
       const meta: SubgraphMeta = {
-        block: { number: 100 },
+        blockNumber: 100,
+        hasIndexingErrors: false,
         deployment: "QmTest",
       };
 
@@ -121,7 +129,8 @@ describe("SubgraphMetaCache", () => {
 
     it("should return valid entries before TTL expires", () => {
       const meta: SubgraphMeta = {
-        block: { number: 100 },
+        blockNumber: 100,
+        hasIndexingErrors: false,
         deployment: "QmTest",
       };
 
@@ -135,11 +144,13 @@ describe("SubgraphMetaCache", () => {
 
     it("should handle entries with different ages", () => {
       const meta1: SubgraphMeta = {
-        block: { number: 100 },
+        blockNumber: 100,
+        hasIndexingErrors: false,
         deployment: "QmOld",
       };
       const meta2: SubgraphMeta = {
-        block: { number: 200 },
+        blockNumber: 200,
+        hasIndexingErrors: false,
         deployment: "QmNew",
       };
 
@@ -156,11 +167,13 @@ describe("SubgraphMetaCache", () => {
 
     it("should reset timestamp when overwriting entry", () => {
       const meta1: SubgraphMeta = {
-        block: { number: 100 },
+        blockNumber: 100,
+        hasIndexingErrors: false,
         deployment: "QmOld",
       };
       const meta2: SubgraphMeta = {
-        block: { number: 200 },
+        blockNumber: 200,
+        hasIndexingErrors: false,
         deployment: "QmNew",
       };
 
@@ -178,19 +191,23 @@ describe("SubgraphMetaCache", () => {
   describe("LRU Eviction", () => {
     it("should evict oldest entry when maxSize reached", () => {
       const meta1: SubgraphMeta = {
-        block: { number: 100 },
+        blockNumber: 100,
+        hasIndexingErrors: false,
         deployment: "QmFirst",
       };
       const meta2: SubgraphMeta = {
-        block: { number: 200 },
+        blockNumber: 200,
+        hasIndexingErrors: false,
         deployment: "QmSecond",
       };
       const meta3: SubgraphMeta = {
-        block: { number: 300 },
+        blockNumber: 300,
+        hasIndexingErrors: false,
         deployment: "QmThird",
       };
       const meta4: SubgraphMeta = {
-        block: { number: 400 },
+        blockNumber: 400,
+        hasIndexingErrors: false,
         deployment: "QmFourth",
       };
 
@@ -212,19 +229,23 @@ describe("SubgraphMetaCache", () => {
 
     it("should move accessed entry to end (LRU)", () => {
       const meta1: SubgraphMeta = {
-        block: { number: 100 },
+        blockNumber: 100,
+        hasIndexingErrors: false,
         deployment: "QmFirst",
       };
       const meta2: SubgraphMeta = {
-        block: { number: 200 },
+        blockNumber: 200,
+        hasIndexingErrors: false,
         deployment: "QmSecond",
       };
       const meta3: SubgraphMeta = {
-        block: { number: 300 },
+        blockNumber: 300,
+        hasIndexingErrors: false,
         deployment: "QmThird",
       };
       const meta4: SubgraphMeta = {
-        block: { number: 400 },
+        blockNumber: 400,
+        hasIndexingErrors: false,
         deployment: "QmFourth",
       };
 
@@ -246,19 +267,23 @@ describe("SubgraphMetaCache", () => {
 
     it("should not evict when overwriting existing entry", () => {
       const meta1: SubgraphMeta = {
-        block: { number: 100 },
+        blockNumber: 100,
+        hasIndexingErrors: false,
         deployment: "QmFirst",
       };
       const meta2: SubgraphMeta = {
-        block: { number: 200 },
+        blockNumber: 200,
+        hasIndexingErrors: false,
         deployment: "QmSecond",
       };
       const meta3: SubgraphMeta = {
-        block: { number: 300 },
+        blockNumber: 300,
+        hasIndexingErrors: false,
         deployment: "QmThird",
       };
       const meta3Updated: SubgraphMeta = {
-        block: { number: 350 },
+        blockNumber: 350,
+        hasIndexingErrors: false,
         deployment: "QmThirdUpdated",
       };
 
@@ -278,11 +303,13 @@ describe("SubgraphMetaCache", () => {
     it("should handle single entry cache", () => {
       const singleCache = new SubgraphMetaCache(2000, 1);
       const meta1: SubgraphMeta = {
-        block: { number: 100 },
+        blockNumber: 100,
+        hasIndexingErrors: false,
         deployment: "QmFirst",
       };
       const meta2: SubgraphMeta = {
-        block: { number: 200 },
+        blockNumber: 200,
+        hasIndexingErrors: false,
         deployment: "QmSecond",
       };
 
@@ -299,19 +326,23 @@ describe("SubgraphMetaCache", () => {
   describe("Combined TTL and LRU", () => {
     it("should handle expired entries not counting toward maxSize", () => {
       const meta1: SubgraphMeta = {
-        block: { number: 100 },
+        blockNumber: 100,
+        hasIndexingErrors: false,
         deployment: "QmFirst",
       };
       const meta2: SubgraphMeta = {
-        block: { number: 200 },
+        blockNumber: 200,
+        hasIndexingErrors: false,
         deployment: "QmSecond",
       };
       const meta3: SubgraphMeta = {
-        block: { number: 300 },
+        blockNumber: 300,
+        hasIndexingErrors: false,
         deployment: "QmThird",
       };
       const meta4: SubgraphMeta = {
-        block: { number: 400 },
+        blockNumber: 400,
+        hasIndexingErrors: false,
         deployment: "QmFourth",
       };
 
@@ -336,19 +367,23 @@ describe("SubgraphMetaCache", () => {
 
     it("should prioritize LRU over TTL for eviction", () => {
       const meta1: SubgraphMeta = {
-        block: { number: 100 },
+        blockNumber: 100,
+        hasIndexingErrors: false,
         deployment: "QmFirst",
       };
       const meta2: SubgraphMeta = {
-        block: { number: 200 },
+        blockNumber: 200,
+        hasIndexingErrors: false,
         deployment: "QmSecond",
       };
       const meta3: SubgraphMeta = {
-        block: { number: 300 },
+        blockNumber: 300,
+        hasIndexingErrors: false,
         deployment: "QmThird",
       };
       const meta4: SubgraphMeta = {
-        block: { number: 400 },
+        blockNumber: 400,
+        hasIndexingErrors: false,
         deployment: "QmFourth",
       };
 
@@ -380,7 +415,8 @@ describe("SubgraphMetaCache", () => {
 
     it("should report correct stats after additions", () => {
       const meta: SubgraphMeta = {
-        block: { number: 100 },
+        blockNumber: 100,
+        hasIndexingErrors: false,
         deployment: "QmTest",
       };
 
@@ -406,7 +442,8 @@ describe("SubgraphMetaCache", () => {
 
     it("should report size after clear", () => {
       const meta: SubgraphMeta = {
-        block: { number: 100 },
+        blockNumber: 100,
+        hasIndexingErrors: false,
         deployment: "QmTest",
       };
 
@@ -421,7 +458,8 @@ describe("SubgraphMetaCache", () => {
     it("should handle zero maxSize gracefully", () => {
       const zeroCache = new SubgraphMetaCache(2000, 0);
       const meta: SubgraphMeta = {
-        block: { number: 100 },
+        blockNumber: 100,
+        hasIndexingErrors: false,
         deployment: "QmTest",
       };
 
@@ -433,7 +471,8 @@ describe("SubgraphMetaCache", () => {
     it("should handle very short TTL", () => {
       const shortCache = new SubgraphMetaCache(1, 10); // 1ms TTL
       const meta: SubgraphMeta = {
-        block: { number: 100 },
+        blockNumber: 100,
+        hasIndexingErrors: false,
         deployment: "QmTest",
       };
 
@@ -446,7 +485,8 @@ describe("SubgraphMetaCache", () => {
     it("should handle very long TTL", () => {
       const longCache = new SubgraphMetaCache(1000000, 10); // 1000s TTL
       const meta: SubgraphMeta = {
-        block: { number: 100 },
+        blockNumber: 100,
+        hasIndexingErrors: false,
         deployment: "QmTest",
       };
 
@@ -458,7 +498,8 @@ describe("SubgraphMetaCache", () => {
 
     it("should handle URLs with special characters", () => {
       const meta: SubgraphMeta = {
-        block: { number: 100 },
+        blockNumber: 100,
+        hasIndexingErrors: false,
         deployment: "QmTest",
       };
 
@@ -476,11 +517,13 @@ describe("SubgraphMetaCache", () => {
 
     it("should treat different URLs as separate entries", () => {
       const meta1: SubgraphMeta = {
-        block: { number: 100 },
+        blockNumber: 100,
+        hasIndexingErrors: false,
         deployment: "QmTest1",
       };
       const meta2: SubgraphMeta = {
-        block: { number: 200 },
+        blockNumber: 200,
+        hasIndexingErrors: false,
         deployment: "QmTest2",
       };
 
@@ -495,7 +538,9 @@ describe("SubgraphMetaCache", () => {
 
     it("should handle metadata with missing optional fields", () => {
       const minimalMeta: SubgraphMeta = {
-        block: { number: 100 },
+        blockNumber: 100,
+        hasIndexingErrors: false,
+        deployment: "QmMinimal",
       };
 
       cache.set("https://example.com/subgraph", minimalMeta);
@@ -505,11 +550,9 @@ describe("SubgraphMetaCache", () => {
 
     it("should handle metadata with all fields", () => {
       const fullMeta: SubgraphMeta = {
-        block: {
-          number: 100,
-          hash: "0xabc123",
-          timestamp: 1234567890,
-        },
+        blockNumber: 100,
+        blockHash: "0xabc123",
+        blockTimestamp: 1234567890,
         deployment: "QmTest123",
         hasIndexingErrors: false,
       };
@@ -535,7 +578,8 @@ describe("SubgraphMetaCache", () => {
       globalMetaCache.clear(); // Ensure clean state
 
       const meta: SubgraphMeta = {
-        block: { number: 100 },
+        blockNumber: 100,
+        hasIndexingErrors: false,
         deployment: "QmTest",
       };
 

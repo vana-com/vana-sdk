@@ -45,7 +45,7 @@ describe("OperationsController", () => {
         transactionHash: "0xhash123",
         blockNumber: 1000n,
         gasUsed: 21000n,
-      } as TransactionReceipt),
+      } as unknown as TransactionReceipt),
     } as unknown as PublicClient;
 
     // Mock wallet client
@@ -121,7 +121,7 @@ describe("OperationsController", () => {
         status: "success",
         transactionHash: "0xhash123",
         blockNumber: 1000n,
-      } as TransactionReceipt;
+      } as unknown as TransactionReceipt;
 
       const response: UnifiedRelayerResponse = {
         type: "confirmed",
@@ -232,7 +232,7 @@ describe("OperationsController", () => {
       const receipt = {
         status: "success",
         transactionHash: "0xhash123",
-      } as TransactionReceipt;
+      } as unknown as TransactionReceipt;
 
       mockRelayer.mockResolvedValue({
         type: "confirmed",
@@ -274,7 +274,7 @@ describe("OperationsController", () => {
       const mockPollingManager = {
         startPolling: vi.fn().mockResolvedValue({
           hash: "0xhash123",
-          receipt: { status: "success" } as TransactionReceipt,
+          receipt: { status: "success" } as unknown as TransactionReceipt,
         }),
       };
 
@@ -425,7 +425,7 @@ describe("OperationsController", () => {
       vi.mocked(mockPublicClient.waitForTransactionReceipt).mockResolvedValue({
         status: "success",
         transactionHash: "0xburntx",
-      } as TransactionReceipt);
+      } as unknown as TransactionReceipt);
 
       const hash = await controller.burnStuckNonce({
         walletClient: mockWalletClient,
@@ -462,7 +462,7 @@ describe("OperationsController", () => {
       vi.mocked(mockPublicClient.waitForTransactionReceipt).mockResolvedValue({
         status: "success",
         transactionHash: "0xburntx",
-      } as TransactionReceipt);
+      } as unknown as TransactionReceipt);
 
       vi.mocked(mockAtomicStore.get).mockResolvedValue("40");
 
@@ -485,7 +485,7 @@ describe("OperationsController", () => {
       vi.mocked(mockPublicClient.waitForTransactionReceipt).mockResolvedValue({
         status: "success",
         transactionHash: "0xburntx",
-      } as TransactionReceipt);
+      } as unknown as TransactionReceipt);
 
       vi.mocked(mockAtomicStore.get).mockResolvedValue("50");
 
@@ -505,7 +505,7 @@ describe("OperationsController", () => {
       vi.mocked(mockPublicClient.waitForTransactionReceipt).mockResolvedValue({
         status: "success",
         transactionHash: "0xburntx",
-      } as TransactionReceipt);
+      } as unknown as TransactionReceipt);
 
       vi.mocked(mockAtomicStore.get).mockResolvedValue(null);
 
@@ -529,7 +529,7 @@ describe("OperationsController", () => {
       vi.mocked(mockPublicClient.waitForTransactionReceipt).mockResolvedValue({
         status: "reverted",
         transactionHash: "0xburntx",
-      } as TransactionReceipt);
+      } as unknown as TransactionReceipt);
 
       await expect(
         controller.burnStuckNonce({
@@ -730,7 +730,8 @@ describe("OperationsController", () => {
         await new Promise((resolve) => setTimeout(resolve, 10));
         return {
           type: "pending",
-          operationId: request.operationId,
+          operationId:
+            request.type === "status_check" ? request.operationId : "unknown",
         };
       });
 
@@ -741,9 +742,15 @@ describe("OperationsController", () => {
       ]);
 
       expect(results).toHaveLength(3);
-      expect(results[0].operationId).toBe("op-1");
-      expect(results[1].operationId).toBe("op-2");
-      expect(results[2].operationId).toBe("op-3");
+      expect(results[0].type).toBe("pending");
+      expect(results[1].type).toBe("pending");
+      expect(results[2].type).toBe("pending");
+      if (results[0].type === "pending")
+        expect(results[0].operationId).toBe("op-1");
+      if (results[1].type === "pending")
+        expect(results[1].operationId).toBe("op-2");
+      if (results[2].type === "pending")
+        expect(results[2].operationId).toBe("op-3");
     });
 
     it("should handle malformed relayer response", async () => {

@@ -6,6 +6,7 @@ on:
       - feature/data-portability-sdk-v1
       - feat/compressed-key-support
       - tim/pro-526-personal-server-agent-operation-poc
+      - chore/PRO-775/integrate-pge
 
 jobs:
   publish-prerelease:

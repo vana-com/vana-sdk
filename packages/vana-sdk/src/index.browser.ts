@@ -241,6 +241,19 @@ export { BrowserPlatformAdapter } from "./platform/browser";
 export { BrowserECIESUint8Provider as BrowserECIESProvider } from "./crypto/ecies/browser";
 export type { VanaPlatformAdapter } from "./platform/interface";
 
+// ECIES utilities and types (exported via module index for consistency)
+export {
+  ECIESError,
+  isECIESEncrypted,
+  serializeECIES,
+  deserializeECIES,
+} from "./crypto/ecies";
+export type {
+  ECIESProvider,
+  ECIESEncrypted,
+  ECIESOptions,
+} from "./crypto/ecies";
+
 // Browser-only platform adapter utilities
 export {
   createBrowserPlatformAdapter,

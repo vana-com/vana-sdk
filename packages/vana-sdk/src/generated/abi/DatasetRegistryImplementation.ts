@@ -1,8 +1,20 @@
-// Treasury contract for DLP Registry
-// Contract: DLPRegistryTreasury
-// Generated automatically - do not edit manually
+// THIS FILE IS GENERATED, DO NOT EDIT MANUALLY
+// Run `npm run fetch-abis` to regenerate
+//
+// DatasetRegistry Implementation Contract
+//
+// Generated: 2025-11-13T06:17:15.583Z
+// Network: Moksha Testnet (Chain ID: 14800)
+//
+//   Proxy Address:
+//     0xDad92767DD14308F1a72573fc47004A278Ac7479
+//     https://moksha.vanascan.io/address/0xDad92767DD14308F1a72573fc47004A278Ac7479
+//
+//   Implementation Address:
+//     0x49f8A49F571eDA18E21C40A88DBE8E322D4603Da
+//     https://moksha.vanascan.io/address/0x49f8A49F571eDA18E21C40A88DBE8E322D4603Da
 
-export const DLPRegistryTreasuryABI = [
+export const DatasetRegistryABI = [
   {
     inputs: [],
     stateMutability: "nonpayable",
@@ -44,17 +56,6 @@ export const DLPRegistryTreasuryABI = [
     inputs: [
       {
         internalType: "address",
-        name: "account",
-        type: "address",
-      },
-    ],
-    name: "AddressInsufficientBalance",
-    type: "error",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
         name: "implementation",
         type: "address",
       },
@@ -65,16 +66,6 @@ export const DLPRegistryTreasuryABI = [
   {
     inputs: [],
     name: "ERC1967NonPayable",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "EnforcedPause",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "ExpectedPause",
     type: "error",
   },
   {
@@ -98,17 +89,6 @@ export const DLPRegistryTreasuryABI = [
     type: "error",
   },
   {
-    inputs: [
-      {
-        internalType: "address",
-        name: "token",
-        type: "address",
-      },
-    ],
-    name: "SafeERC20FailedOperation",
-    type: "error",
-  },
-  {
     inputs: [],
     name: "UUPSUnauthorizedCallContext",
     type: "error",
@@ -125,14 +105,117 @@ export const DLPRegistryTreasuryABI = [
     type: "error",
   },
   {
-    inputs: [],
-    name: "ZeroAddress",
-    type: "error",
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "datasetId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "owner",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "schemaId",
+        type: "uint256",
+      },
+    ],
+    name: "DatasetCreated",
+    type: "event",
   },
   {
-    inputs: [],
-    name: "ZeroAmount",
-    type: "error",
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "datasetId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "previousOwner",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "newOwner",
+        type: "address",
+      },
+    ],
+    name: "DatasetOwnershipTransferred",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "datasetId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "fileId",
+        type: "uint256",
+      },
+    ],
+    name: "FileAccepted",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "datasetId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "fileId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "bool",
+        name: "isPending",
+        type: "bool",
+      },
+    ],
+    name: "FileAddedToDataset",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "datasetId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "fileId",
+        type: "uint256",
+      },
+    ],
+    name: "FileRejected",
+    type: "event",
   },
   {
     anonymous: false,
@@ -145,19 +228,6 @@ export const DLPRegistryTreasuryABI = [
       },
     ],
     name: "Initialized",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: false,
-        internalType: "address",
-        name: "account",
-        type: "address",
-      },
-    ],
-    name: "Paused",
     type: "event",
   },
   {
@@ -241,44 +311,6 @@ export const DLPRegistryTreasuryABI = [
       {
         indexed: true,
         internalType: "address",
-        name: "to",
-        type: "address",
-      },
-      {
-        indexed: true,
-        internalType: "address",
-        name: "token",
-        type: "address",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "amount",
-        type: "uint256",
-      },
-    ],
-    name: "Transfer",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: false,
-        internalType: "address",
-        name: "account",
-        type: "address",
-      },
-    ],
-    name: "Unpaused",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "address",
         name: "implementation",
         type: "address",
       },
@@ -288,7 +320,7 @@ export const DLPRegistryTreasuryABI = [
   },
   {
     inputs: [],
-    name: "CUSTODIAN_ROLE",
+    name: "DATASET_MANAGER_ROLE",
     outputs: [
       {
         internalType: "bytes32",
@@ -314,6 +346,19 @@ export const DLPRegistryTreasuryABI = [
   },
   {
     inputs: [],
+    name: "FILE_MANAGER_ROLE",
+    outputs: [
+      {
+        internalType: "bytes32",
+        name: "",
+        type: "bytes32",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
     name: "UPGRADE_INTERFACE_VERSION",
     outputs: [
       {
@@ -326,26 +371,168 @@ export const DLPRegistryTreasuryABI = [
     type: "function",
   },
   {
-    inputs: [],
-    name: "VANA",
-    outputs: [
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "datasetId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "fileId",
+        type: "uint256",
+      },
+    ],
+    name: "acceptFile",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "datasetId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "fileId",
+        type: "uint256",
+      },
+    ],
+    name: "addPendingFile",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
       {
         internalType: "address",
-        name: "",
+        name: "owner",
         type: "address",
+      },
+      {
+        internalType: "uint256",
+        name: "schemaId",
+        type: "uint256",
+      },
+    ],
+    name: "createDataset",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "datasetId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "fileId",
+        type: "uint256",
+      },
+    ],
+    name: "fileExistsInDataset",
+    outputs: [
+      {
+        internalType: "bool",
+        name: "exists",
+        type: "bool",
       },
     ],
     stateMutability: "view",
     type: "function",
   },
   {
-    inputs: [],
-    name: "custodian",
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "datasetId",
+        type: "uint256",
+      },
+    ],
+    name: "getDataset",
     outputs: [
       {
-        internalType: "address",
-        name: "",
-        type: "address",
+        components: [
+          {
+            internalType: "address",
+            name: "owner",
+            type: "address",
+          },
+          {
+            internalType: "uint256[]",
+            name: "pendingFileIds",
+            type: "uint256[]",
+          },
+          {
+            internalType: "uint256[]",
+            name: "fileIds",
+            type: "uint256[]",
+          },
+          {
+            internalType: "uint256",
+            name: "schemaId",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "createdAt",
+            type: "uint256",
+          },
+        ],
+        internalType: "struct IDatasetRegistry.Dataset",
+        name: "dataset",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "datasetId",
+        type: "uint256",
+      },
+    ],
+    name: "getDatasetFiles",
+    outputs: [
+      {
+        internalType: "uint256[]",
+        name: "fileIds",
+        type: "uint256[]",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "datasetId",
+        type: "uint256",
+      },
+    ],
+    name: "getPendingFiles",
+    outputs: [
+      {
+        internalType: "uint256[]",
+        name: "pendingFileIds",
+        type: "uint256[]",
       },
     ],
     stateMutability: "view",
@@ -416,38 +603,13 @@ export const DLPRegistryTreasuryABI = [
     inputs: [
       {
         internalType: "address",
-        name: "ownerAddress",
-        type: "address",
-      },
-      {
-        internalType: "address",
-        name: "initCustodian",
+        name: "admin",
         type: "address",
       },
     ],
     name: "initialize",
     outputs: [],
     stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "pause",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "paused",
-    outputs: [
-      {
-        internalType: "bool",
-        name: "",
-        type: "bool",
-      },
-    ],
-    stateMutability: "view",
     type: "function",
   },
   {
@@ -461,6 +623,24 @@ export const DLPRegistryTreasuryABI = [
       },
     ],
     stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "datasetId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "fileId",
+        type: "uint256",
+      },
+    ],
+    name: "rejectFile",
+    outputs: [],
+    stateMutability: "nonpayable",
     type: "function",
   },
   {
@@ -521,42 +701,17 @@ export const DLPRegistryTreasuryABI = [
   {
     inputs: [
       {
-        internalType: "address",
-        name: "to",
-        type: "address",
-      },
-      {
-        internalType: "address",
-        name: "token",
-        type: "address",
-      },
-      {
         internalType: "uint256",
-        name: "amount",
+        name: "datasetId",
         type: "uint256",
       },
-    ],
-    name: "transfer",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "unpause",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
       {
         internalType: "address",
-        name: "newCustodian",
+        name: "newOwner",
         type: "address",
       },
     ],
-    name: "updateCustodian",
+    name: "transferDatasetOwnership",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -579,10 +734,6 @@ export const DLPRegistryTreasuryABI = [
     stateMutability: "payable",
     type: "function",
   },
-  {
-    stateMutability: "payable",
-    type: "receive",
-  },
 ] as const;
 
-export default DLPRegistryTreasuryABI;
+export default DatasetRegistryABI;

@@ -1,20 +1,20 @@
 // THIS FILE IS GENERATED, DO NOT EDIT MANUALLY
 // Run `npm run fetch-abis` to regenerate
 //
-// VanaPoolStaking Implementation Contract
+// VanaRuntimeServers Implementation Contract
 //
-// Generated: 2025-11-13T21:10:28.205Z
+// Generated: 2025-11-13T06:17:15.780Z
 // Network: Moksha Testnet (Chain ID: 14800)
 //
 //   Proxy Address:
-//     0x641C18E2F286c86f96CE95C8ec1EB9fC0415Ca0e
-//     https://moksha.vanascan.io/address/0x641C18E2F286c86f96CE95C8ec1EB9fC0415Ca0e
+//     0x6a159Dc0751fC79F1b2cd5c588Fa0a904847dfcF
+//     https://moksha.vanascan.io/address/0x6a159Dc0751fC79F1b2cd5c588Fa0a904847dfcF
 //
 //   Implementation Address:
-//     0xAa83536FdDFBbf8147b5647c19E07B5eC4ace760
-//     https://moksha.vanascan.io/address/0xAa83536FdDFBbf8147b5647c19E07B5eC4ace760
+//     0x01Af784887745b647152D5a33495D17ab6c7aCFC
+//     https://moksha.vanascan.io/address/0x01Af784887745b647152D5a33495D17ab6c7aCFC
 
-export const VanaPoolStakingABI = [
+export const VanaRuntimeServersABI = [
   {
     inputs: [],
     stateMutability: "nonpayable",
@@ -53,11 +53,6 @@ export const VanaPoolStakingABI = [
     type: "error",
   },
   {
-    inputs: [],
-    name: "CannotRemoveRegistrationStake",
-    type: "error",
-  },
-  {
     inputs: [
       {
         internalType: "address",
@@ -75,77 +70,12 @@ export const VanaPoolStakingABI = [
   },
   {
     inputs: [],
-    name: "EnforcedPause",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "EntityNotActive",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "EntityNotFound",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "ExpectedPause",
-    type: "error",
-  },
-  {
-    inputs: [],
     name: "FailedInnerCall",
     type: "error",
   },
   {
     inputs: [],
-    name: "InsufficientShares",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "InsufficientStakeAmount",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "InvalidAddress",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "InvalidAmount",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "InvalidEntity",
-    type: "error",
-  },
-  {
-    inputs: [],
     name: "InvalidInitialization",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "InvalidRecipient",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "InvalidSlippage",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "NotAuthorized",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "NotEntityOwner",
     type: "error",
   },
   {
@@ -156,11 +86,6 @@ export const VanaPoolStakingABI = [
   {
     inputs: [],
     name: "ReentrancyGuardReentrantCall",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "TransferFailed",
     type: "error",
   },
   {
@@ -183,25 +108,6 @@ export const VanaPoolStakingABI = [
     anonymous: false,
     inputs: [
       {
-        indexed: true,
-        internalType: "uint256",
-        name: "entityId",
-        type: "uint256",
-      },
-      {
-        indexed: true,
-        internalType: "address",
-        name: "ownerAddress",
-        type: "address",
-      },
-    ],
-    name: "EntityStakeRegistered",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
         indexed: false,
         internalType: "uint64",
         name: "version",
@@ -209,32 +115,6 @@ export const VanaPoolStakingABI = [
       },
     ],
     name: "Initialized",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "newMinStake",
-        type: "uint256",
-      },
-    ],
-    name: "MinStakeUpdated",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: false,
-        internalType: "address",
-        name: "account",
-        type: "address",
-      },
-    ],
-    name: "Paused",
     type: "event",
   },
   {
@@ -318,42 +198,11 @@ export const VanaPoolStakingABI = [
       {
         indexed: true,
         internalType: "uint256",
-        name: "entityId",
-        type: "uint256",
-      },
-      {
-        indexed: true,
-        internalType: "address",
-        name: "staker",
-        type: "address",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "amount",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "sharesIssued",
+        name: "serverId",
         type: "uint256",
       },
     ],
-    name: "Staked",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: false,
-        internalType: "address",
-        name: "account",
-        type: "address",
-      },
-    ],
-    name: "Unpaused",
+    name: "ServerDeactivated",
     type: "event",
   },
   {
@@ -362,29 +211,61 @@ export const VanaPoolStakingABI = [
       {
         indexed: true,
         internalType: "uint256",
-        name: "entityId",
+        name: "serverId",
+        type: "uint256",
+      },
+    ],
+    name: "ServerReactivated",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "serverId",
         type: "uint256",
       },
       {
         indexed: true,
         internalType: "address",
-        name: "staker",
+        name: "owner",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "runtimeAddress",
         type: "address",
       },
       {
         indexed: false,
+        internalType: "string",
+        name: "url",
+        type: "string",
+      },
+    ],
+    name: "ServerRegistered",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
         internalType: "uint256",
-        name: "amount",
+        name: "serverId",
         type: "uint256",
       },
       {
         indexed: false,
-        internalType: "uint256",
-        name: "sharesBurned",
-        type: "uint256",
+        internalType: "string",
+        name: "newUrl",
+        type: "string",
       },
     ],
-    name: "Unstaked",
+    name: "ServerUrlUpdated",
     type: "event",
   },
   {
@@ -415,7 +296,7 @@ export const VanaPoolStakingABI = [
   },
   {
     inputs: [],
-    name: "MAINTAINER_ROLE",
+    name: "RUNTIME_REGISTRAR_ROLE",
     outputs: [
       {
         internalType: "bytes32",
@@ -440,13 +321,32 @@ export const VanaPoolStakingABI = [
     type: "function",
   },
   {
-    inputs: [],
-    name: "VANA_POOL_ENTITY",
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "serverId",
+        type: "uint256",
+      },
+    ],
+    name: "deactivateServer",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "runtimeAddress",
+        type: "address",
+      },
+    ],
+    name: "getOwnerOfRuntime",
     outputs: [
       {
-        internalType: "bytes32",
+        internalType: "address",
         name: "",
-        type: "bytes32",
+        type: "address",
       },
     ],
     stateMutability: "view",
@@ -466,6 +366,189 @@ export const VanaPoolStakingABI = [
         internalType: "bytes32",
         name: "",
         type: "bytes32",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "serverId",
+        type: "uint256",
+      },
+    ],
+    name: "getServer",
+    outputs: [
+      {
+        components: [
+          {
+            internalType: "uint256",
+            name: "id",
+            type: "uint256",
+          },
+          {
+            internalType: "address",
+            name: "owner",
+            type: "address",
+          },
+          {
+            internalType: "address",
+            name: "runtimeAddress",
+            type: "address",
+          },
+          {
+            internalType: "bytes",
+            name: "publicKey",
+            type: "bytes",
+          },
+          {
+            internalType: "bytes",
+            name: "escrowedPrivateKey",
+            type: "bytes",
+          },
+          {
+            internalType: "string",
+            name: "url",
+            type: "string",
+          },
+          {
+            internalType: "bool",
+            name: "isActive",
+            type: "bool",
+          },
+          {
+            internalType: "uint256",
+            name: "registeredAt",
+            type: "uint256",
+          },
+        ],
+        internalType: "struct IVanaRuntimeServers.Server",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "runtimeAddress",
+        type: "address",
+      },
+    ],
+    name: "getServerByAddress",
+    outputs: [
+      {
+        components: [
+          {
+            internalType: "uint256",
+            name: "id",
+            type: "uint256",
+          },
+          {
+            internalType: "address",
+            name: "owner",
+            type: "address",
+          },
+          {
+            internalType: "address",
+            name: "runtimeAddress",
+            type: "address",
+          },
+          {
+            internalType: "bytes",
+            name: "publicKey",
+            type: "bytes",
+          },
+          {
+            internalType: "bytes",
+            name: "escrowedPrivateKey",
+            type: "bytes",
+          },
+          {
+            internalType: "string",
+            name: "url",
+            type: "string",
+          },
+          {
+            internalType: "bool",
+            name: "isActive",
+            type: "bool",
+          },
+          {
+            internalType: "uint256",
+            name: "registeredAt",
+            type: "uint256",
+          },
+        ],
+        internalType: "struct IVanaRuntimeServers.Server",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "owner",
+        type: "address",
+      },
+    ],
+    name: "getServersByOwner",
+    outputs: [
+      {
+        components: [
+          {
+            internalType: "uint256",
+            name: "id",
+            type: "uint256",
+          },
+          {
+            internalType: "address",
+            name: "owner",
+            type: "address",
+          },
+          {
+            internalType: "address",
+            name: "runtimeAddress",
+            type: "address",
+          },
+          {
+            internalType: "bytes",
+            name: "publicKey",
+            type: "bytes",
+          },
+          {
+            internalType: "bytes",
+            name: "escrowedPrivateKey",
+            type: "bytes",
+          },
+          {
+            internalType: "string",
+            name: "url",
+            type: "string",
+          },
+          {
+            internalType: "bool",
+            name: "isActive",
+            type: "bool",
+          },
+          {
+            internalType: "uint256",
+            name: "registeredAt",
+            type: "uint256",
+          },
+        ],
+        internalType: "struct IVanaRuntimeServers.Server[]",
+        name: "",
+        type: "tuple[]",
       },
     ],
     stateMutability: "view",
@@ -517,18 +600,8 @@ export const VanaPoolStakingABI = [
     inputs: [
       {
         internalType: "address",
-        name: "trustedForwarderAddress",
+        name: "admin",
         type: "address",
-      },
-      {
-        internalType: "address",
-        name: "ownerAddress",
-        type: "address",
-      },
-      {
-        internalType: "uint256",
-        name: "initialMinStake",
-        type: "uint256",
       },
     ],
     name: "initialize",
@@ -540,11 +613,11 @@ export const VanaPoolStakingABI = [
     inputs: [
       {
         internalType: "address",
-        name: "forwarder",
+        name: "runtimeAddress",
         type: "address",
       },
     ],
-    name: "isTrustedForwarder",
+    name: "isRuntimeActive",
     outputs: [
       {
         internalType: "bool",
@@ -556,47 +629,14 @@ export const VanaPoolStakingABI = [
     type: "function",
   },
   {
-    inputs: [],
-    name: "minStakeAmount",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
     inputs: [
       {
-        internalType: "bytes[]",
-        name: "data",
-        type: "bytes[]",
+        internalType: "address",
+        name: "runtimeAddress",
+        type: "address",
       },
     ],
-    name: "multicall",
-    outputs: [
-      {
-        internalType: "bytes[]",
-        name: "results",
-        type: "bytes[]",
-      },
-    ],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "pause",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "paused",
+    name: "isRuntimeRegistered",
     outputs: [
       {
         internalType: "bool",
@@ -624,22 +664,51 @@ export const VanaPoolStakingABI = [
     inputs: [
       {
         internalType: "uint256",
-        name: "entityId",
-        type: "uint256",
-      },
-      {
-        internalType: "address",
-        name: "ownerAddress",
-        type: "address",
-      },
-      {
-        internalType: "uint256",
-        name: "registrationStake",
+        name: "serverId",
         type: "uint256",
       },
     ],
-    name: "registerEntityStake",
+    name: "reactivateServer",
     outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "owner",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "runtimeAddress",
+        type: "address",
+      },
+      {
+        internalType: "bytes",
+        name: "publicKey",
+        type: "bytes",
+      },
+      {
+        internalType: "bytes",
+        name: "escrowedPrivateKey",
+        type: "bytes",
+      },
+      {
+        internalType: "string",
+        name: "url",
+        type: "string",
+      },
+    ],
+    name: "registerServer",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
     stateMutability: "nonpayable",
     type: "function",
   },
@@ -682,60 +751,6 @@ export const VanaPoolStakingABI = [
   {
     inputs: [
       {
-        internalType: "uint256",
-        name: "entityId",
-        type: "uint256",
-      },
-      {
-        internalType: "address",
-        name: "recipient",
-        type: "address",
-      },
-      {
-        internalType: "uint256",
-        name: "shareAmountMin",
-        type: "uint256",
-      },
-    ],
-    name: "stake",
-    outputs: [],
-    stateMutability: "payable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "staker",
-        type: "address",
-      },
-      {
-        internalType: "uint256",
-        name: "entityId",
-        type: "uint256",
-      },
-    ],
-    name: "stakerEntities",
-    outputs: [
-      {
-        components: [
-          {
-            internalType: "uint256",
-            name: "shares",
-            type: "uint256",
-          },
-        ],
-        internalType: "struct IVanaPoolStaking.StakerEntity",
-        name: "",
-        type: "tuple",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
         internalType: "bytes4",
         name: "interfaceId",
         type: "bytes4",
@@ -753,96 +768,19 @@ export const VanaPoolStakingABI = [
     type: "function",
   },
   {
-    inputs: [],
-    name: "trustedForwarder",
-    outputs: [
-      {
-        internalType: "address",
-        name: "",
-        type: "address",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "unpause",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
     inputs: [
       {
         internalType: "uint256",
-        name: "entityId",
+        name: "serverId",
         type: "uint256",
       },
       {
-        internalType: "uint256",
-        name: "shareAmount",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "vanaAmountMin",
-        type: "uint256",
+        internalType: "string",
+        name: "newUrl",
+        type: "string",
       },
     ],
-    name: "unstake",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "newMinStake",
-        type: "uint256",
-      },
-    ],
-    name: "updateMinStakeAmount",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "trustedForwarderAddress",
-        type: "address",
-      },
-    ],
-    name: "updateTrustedForwarder",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "newVanaPoolEntityAddress",
-        type: "address",
-      },
-    ],
-    name: "updateVanaPoolEntity",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "newVanaPoolTreasuryAddress",
-        type: "address",
-      },
-    ],
-    name: "updateVanaPoolTreasury",
+    name: "updateServerUrl",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -865,45 +803,6 @@ export const VanaPoolStakingABI = [
     stateMutability: "payable",
     type: "function",
   },
-  {
-    inputs: [],
-    name: "vanaPoolEntity",
-    outputs: [
-      {
-        internalType: "contract IVanaPoolEntity",
-        name: "",
-        type: "address",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "vanaPoolTreasury",
-    outputs: [
-      {
-        internalType: "contract IVanaPoolTreasury",
-        name: "",
-        type: "address",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "version",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
-    stateMutability: "pure",
-    type: "function",
-  },
 ] as const;
 
-export default VanaPoolStakingABI;
+export default VanaRuntimeServersABI;

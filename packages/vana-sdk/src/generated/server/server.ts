@@ -1,7 +1,8 @@
 // Vana Personal Server API Types
 // Generated automatically from OpenAPI specification - do not edit manually
-// Source: https://vana-personal-server-test-432753364585.europe-west1.run.app/openapi.json
-// Generated on: 2025-10-16T03:35:12.349Z
+// Network: mainnet
+// Source: https://server.vana.com/openapi.json
+// Generated on: 2025-11-13T22:24:20.859Z
 
 export interface paths {
   "/api/v1/operations": {

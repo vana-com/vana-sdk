@@ -1,20 +1,20 @@
 // THIS FILE IS GENERATED, DO NOT EDIT MANUALLY
 // Run `npm run fetch-abis` to regenerate
 //
-// DLPRewardDeployer Implementation Contract
+// VanaRuntimePermissions Implementation Contract
 //
-// Generated: 2025-11-13T21:10:28.019Z
+// Generated: 2025-11-13T06:17:16.009Z
 // Network: Moksha Testnet (Chain ID: 14800)
 //
 //   Proxy Address:
-//     0xEFD0F9Ba9De70586b7c4189971cF754adC923B04
-//     https://moksha.vanascan.io/address/0xEFD0F9Ba9De70586b7c4189971cF754adC923B04
+//     0xf63F60b2dD7D3992ec720548198F694D15AA2bfd
+//     https://moksha.vanascan.io/address/0xf63F60b2dD7D3992ec720548198F694D15AA2bfd
 //
 //   Implementation Address:
-//     0x569EB4302269dD55F62F69A48531A1894DE312C3
-//     https://moksha.vanascan.io/address/0x569EB4302269dD55F62F69A48531A1894DE312C3
+//     0x7B1C6ff0FA8C5F2F5aDcE30BeC457a77dbe83294
+//     https://moksha.vanascan.io/address/0x7B1C6ff0FA8C5F2F5aDcE30BeC457a77dbe83294
 
-export const DLPRewardDeployerABI = [
+export const VanaRuntimePermissionsABI = [
   {
     inputs: [],
     stateMutability: "nonpayable",
@@ -70,21 +70,6 @@ export const DLPRewardDeployerABI = [
   },
   {
     inputs: [],
-    name: "EnforcedPause",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "EpochNotFinalized",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "ExpectedPause",
-    type: "error",
-  },
-  {
-    inputs: [],
     name: "FailedInnerCall",
     type: "error",
   },
@@ -99,19 +84,8 @@ export const DLPRewardDeployerABI = [
     type: "error",
   },
   {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "dlpId",
-        type: "uint256",
-      },
-    ],
-    name: "NothingToDistribute",
-    type: "error",
-  },
-  {
     inputs: [],
-    name: "NothingToWithdraw",
+    name: "ReentrancyGuardReentrantCall",
     type: "error",
   },
   {
@@ -134,92 +108,6 @@ export const DLPRewardDeployerABI = [
     anonymous: false,
     inputs: [
       {
-        indexed: true,
-        internalType: "uint256",
-        name: "epochId",
-        type: "uint256",
-      },
-      {
-        indexed: true,
-        internalType: "uint256",
-        name: "dlpId",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "distributedAmount",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "totalPenaltyAmount",
-        type: "uint256",
-      },
-    ],
-    name: "EpochDlpPenaltyDistributed",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "uint256",
-        name: "epochId",
-        type: "uint256",
-      },
-      {
-        indexed: true,
-        internalType: "uint256",
-        name: "dlpId",
-        type: "uint256",
-      },
-      {
-        indexed: true,
-        internalType: "uint256",
-        name: "trancheId",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "trancheAmount",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "tokenRewardAmount",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "spareToken",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "spareVana",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "usedVanaAmount",
-        type: "uint256",
-      },
-    ],
-    name: "EpochDlpRewardDistributed",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
         indexed: false,
         internalType: "uint64",
         name: "version",
@@ -233,13 +121,63 @@ export const DLPRewardDeployerABI = [
     anonymous: false,
     inputs: [
       {
+        indexed: true,
+        internalType: "uint256",
+        name: "permissionId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "datasetId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "granteeId",
+        type: "uint256",
+      },
+      {
         indexed: false,
-        internalType: "address",
-        name: "account",
-        type: "address",
+        internalType: "string",
+        name: "grant",
+        type: "string",
       },
     ],
-    name: "Paused",
+    name: "PermissionCreated",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "permissionId",
+        type: "uint256",
+      },
+    ],
+    name: "PermissionRevoked",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "permissionId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "string",
+        name: "newGrant",
+        type: "string",
+      },
+    ],
+    name: "PermissionUpdated",
     type: "event",
   },
   {
@@ -321,19 +259,6 @@ export const DLPRewardDeployerABI = [
     anonymous: false,
     inputs: [
       {
-        indexed: false,
-        internalType: "address",
-        name: "account",
-        type: "address",
-      },
-    ],
-    name: "Unpaused",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
         indexed: true,
         internalType: "address",
         name: "implementation",
@@ -358,20 +283,7 @@ export const DLPRewardDeployerABI = [
   },
   {
     inputs: [],
-    name: "MAINTAINER_ROLE",
-    outputs: [
-      {
-        internalType: "bytes32",
-        name: "",
-        type: "bytes32",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "REWARD_DEPLOYER_ROLE",
+    name: "PERMISSION_MANAGER_ROLE",
     outputs: [
       {
         internalType: "bytes32",
@@ -399,39 +311,47 @@ export const DLPRewardDeployerABI = [
     inputs: [
       {
         internalType: "uint256",
-        name: "epochId",
+        name: "datasetId",
         type: "uint256",
       },
       {
-        internalType: "uint256[]",
-        name: "dlpIds",
-        type: "uint256[]",
+        internalType: "uint256",
+        name: "granteeId",
+        type: "uint256",
+      },
+      {
+        internalType: "string",
+        name: "grant",
+        type: "string",
+      },
+      {
+        internalType: "uint256",
+        name: "startBlock",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "endBlock",
+        type: "uint256",
       },
     ],
-    name: "distributeRewards",
-    outputs: [],
+    name: "createPermission",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
     stateMutability: "nonpayable",
     type: "function",
   },
   {
     inputs: [],
-    name: "dlpRegistry",
+    name: "datasetRegistry",
     outputs: [
       {
-        internalType: "contract IDLPRegistry",
-        name: "",
-        type: "address",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "dlpRewardSwap",
-    outputs: [
-      {
-        internalType: "contract IDLPRewardSwap",
+        internalType: "contract IDatasetRegistry",
         name: "",
         type: "address",
       },
@@ -443,51 +363,51 @@ export const DLPRewardDeployerABI = [
     inputs: [
       {
         internalType: "uint256",
-        name: "epochId",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "dlpId",
+        name: "datasetId",
         type: "uint256",
       },
     ],
-    name: "epochDlpDistributedRewards",
+    name: "getDatasetPermissions",
     outputs: [
       {
         components: [
           {
             internalType: "uint256",
-            name: "amount",
+            name: "id",
             type: "uint256",
           },
           {
             internalType: "uint256",
-            name: "blockNumber",
+            name: "datasetId",
             type: "uint256",
           },
           {
             internalType: "uint256",
-            name: "tokenRewardAmount",
+            name: "nonce",
             type: "uint256",
           },
           {
             internalType: "uint256",
-            name: "spareToken",
+            name: "granteeId",
+            type: "uint256",
+          },
+          {
+            internalType: "string",
+            name: "grant",
+            type: "string",
+          },
+          {
+            internalType: "uint256",
+            name: "startBlock",
             type: "uint256",
           },
           {
             internalType: "uint256",
-            name: "spareVana",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "usedVanaAmount",
+            name: "endBlock",
             type: "uint256",
           },
         ],
-        internalType: "struct IDLPRewardDeployer.DistributedReward[]",
+        internalType: "struct IVanaRuntimePermissions.Permission[]",
         name: "",
         type: "tuple[]",
       },
@@ -499,31 +419,107 @@ export const DLPRewardDeployerABI = [
     inputs: [
       {
         internalType: "uint256",
-        name: "epochId",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "dlpId",
+        name: "granteeId",
         type: "uint256",
       },
     ],
-    name: "epochDlpRewards",
+    name: "getGranteePermissions",
     outputs: [
       {
         components: [
           {
             internalType: "uint256",
-            name: "totalDistributedAmount",
+            name: "id",
             type: "uint256",
           },
           {
             internalType: "uint256",
-            name: "tranchesCount",
+            name: "datasetId",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "nonce",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "granteeId",
+            type: "uint256",
+          },
+          {
+            internalType: "string",
+            name: "grant",
+            type: "string",
+          },
+          {
+            internalType: "uint256",
+            name: "startBlock",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "endBlock",
             type: "uint256",
           },
         ],
-        internalType: "struct IDLPRewardDeployer.EpochDlpRewardInfo",
+        internalType: "struct IVanaRuntimePermissions.Permission[]",
+        name: "",
+        type: "tuple[]",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "permissionId",
+        type: "uint256",
+      },
+    ],
+    name: "getPermission",
+    outputs: [
+      {
+        components: [
+          {
+            internalType: "uint256",
+            name: "id",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "datasetId",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "nonce",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "granteeId",
+            type: "uint256",
+          },
+          {
+            internalType: "string",
+            name: "grant",
+            type: "string",
+          },
+          {
+            internalType: "uint256",
+            name: "startBlock",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "endBlock",
+            type: "uint256",
+          },
+        ],
+        internalType: "struct IVanaRuntimePermissions.Permission",
         name: "",
         type: "tuple",
       },
@@ -596,38 +592,13 @@ export const DLPRewardDeployerABI = [
     inputs: [
       {
         internalType: "address",
-        name: "ownerAddress",
+        name: "admin",
         type: "address",
       },
       {
         internalType: "address",
-        name: "dlpRegistryAddress",
+        name: "_datasetRegistry",
         type: "address",
-      },
-      {
-        internalType: "address",
-        name: "vanaEpochAddress",
-        type: "address",
-      },
-      {
-        internalType: "address",
-        name: "dlpRewardSwapAddress",
-        type: "address",
-      },
-      {
-        internalType: "uint256",
-        name: "newNumberOfTranches",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "newRewardPercentage",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "newMaximumSlippagePercentage",
-        type: "uint256",
       },
     ],
     name: "initialize",
@@ -636,41 +607,14 @@ export const DLPRewardDeployerABI = [
     type: "function",
   },
   {
-    inputs: [],
-    name: "maximumSlippagePercentage",
-    outputs: [
+    inputs: [
       {
         internalType: "uint256",
-        name: "",
+        name: "permissionId",
         type: "uint256",
       },
     ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "numberOfTranches",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "pause",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "paused",
+    name: "isPermissionActive",
     outputs: [
       {
         internalType: "bool",
@@ -715,6 +659,19 @@ export const DLPRewardDeployerABI = [
   {
     inputs: [
       {
+        internalType: "uint256",
+        name: "permissionId",
+        type: "uint256",
+      },
+    ],
+    name: "revokePermission",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
         internalType: "bytes32",
         name: "role",
         type: "bytes32",
@@ -728,19 +685,6 @@ export const DLPRewardDeployerABI = [
     name: "revokeRole",
     outputs: [],
     stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "rewardPercentage",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
-    stateMutability: "view",
     type: "function",
   },
   {
@@ -763,99 +707,19 @@ export const DLPRewardDeployerABI = [
     type: "function",
   },
   {
-    inputs: [],
-    name: "treasury",
-    outputs: [
-      {
-        internalType: "contract ITreasury",
-        name: "",
-        type: "address",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "unpause",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "dlpRegistryAddress",
-        type: "address",
-      },
-    ],
-    name: "updateDlpRegistry",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "dlpRewardSwapAddress",
-        type: "address",
-      },
-    ],
-    name: "updateDlpRewardSwap",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
     inputs: [
       {
         internalType: "uint256",
-        name: "newMaximumSlippagePercentage",
+        name: "permissionId",
         type: "uint256",
       },
-    ],
-    name: "updateMaximumSlippagePercentage",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
       {
-        internalType: "uint256",
-        name: "newRewardPercentage",
-        type: "uint256",
+        internalType: "string",
+        name: "newGrant",
+        type: "string",
       },
     ],
-    name: "updateRewardPercentage",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "treasuryAddress",
-        type: "address",
-      },
-    ],
-    name: "updateTreasury",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "vanaEpochAddress",
-        type: "address",
-      },
-    ],
-    name: "updateVanaEpoch",
+    name: "updatePermission",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -878,59 +742,6 @@ export const DLPRewardDeployerABI = [
     stateMutability: "payable",
     type: "function",
   },
-  {
-    inputs: [],
-    name: "vanaEpoch",
-    outputs: [
-      {
-        internalType: "contract IVanaEpoch",
-        name: "",
-        type: "address",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "version",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
-    stateMutability: "pure",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "epochId",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "dlpId",
-        type: "uint256",
-      },
-      {
-        internalType: "address",
-        name: "recipientAddress",
-        type: "address",
-      },
-    ],
-    name: "withdrawEpochDlpPenaltyAmount",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    stateMutability: "payable",
-    type: "receive",
-  },
 ] as const;
 
-export default DLPRewardDeployerABI;
+export default VanaRuntimePermissionsABI;

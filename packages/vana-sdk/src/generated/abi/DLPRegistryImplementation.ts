@@ -3,16 +3,16 @@
 //
 // DLPRegistry Implementation Contract
 //
-// Generated: 2025-10-30T23:21:16.756Z
-// Network: Vana (Chain ID: 1480)
+// Generated: 2025-11-13T21:10:27.812Z
+// Network: Moksha Testnet (Chain ID: 14800)
 //
 //   Proxy Address:
 //     0x4D59880a924526d1dD33260552Ff4328b1E18a43
-//     https://vanascan.io/address/0x4D59880a924526d1dD33260552Ff4328b1E18a43
+//     https://moksha.vanascan.io/address/0x4D59880a924526d1dD33260552Ff4328b1E18a43
 //
 //   Implementation Address:
-//     0x8c2d4de80a36EfA6936D233EF06D5FBf16C063dB
-//     https://vanascan.io/address/0x8c2d4de80a36EfA6936D233EF06D5FBf16C063dB
+//     0x8dEe5872b99995d7892af177eF7296f5b7528E62
+//     https://moksha.vanascan.io/address/0x8dEe5872b99995d7892af177eF7296f5b7528E62
 
 export const DLPRegistryABI = [
   {
@@ -110,11 +110,6 @@ export const DLPRegistryABI = [
   },
   {
     inputs: [],
-    name: "InvalidDlpId",
-    type: "error",
-  },
-  {
-    inputs: [],
     name: "InvalidDlpStatus",
     type: "error",
   },
@@ -141,6 +136,11 @@ export const DLPRegistryABI = [
   {
     inputs: [],
     name: "InvalidTokenAddress",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "LastEpochMustBeFinalized",
     type: "error",
   },
   {
@@ -178,6 +178,25 @@ export const DLPRegistryABI = [
     ],
     name: "UUPSUnsupportedProxiableUUID",
     type: "error",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "dlpId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "datasetId",
+        type: "uint256",
+      },
+    ],
+    name: "DlpDatasetUpdated",
+    type: "event",
   },
   {
     anonymous: false,
@@ -961,6 +980,25 @@ export const DLPRegistryABI = [
   {
     inputs: [
       {
+        internalType: "uint256",
+        name: "dlpId",
+        type: "uint256",
+      },
+    ],
+    name: "getDlpDataset",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
         internalType: "bytes32",
         name: "role",
         type: "bytes32",
@@ -1296,6 +1334,24 @@ export const DLPRegistryABI = [
       },
     ],
     name: "updateDlp",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "dlpId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "datasetId",
+        type: "uint256",
+      },
+    ],
+    name: "updateDlpDataset",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",

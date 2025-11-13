@@ -3,16 +3,16 @@
 //
 // DataRegistry Implementation Contract
 //
-// Generated: 2025-10-30T23:21:11.412Z
-// Network: Vana (Chain ID: 1480)
+// Generated: 2025-11-13T21:10:24.564Z
+// Network: Moksha Testnet (Chain ID: 14800)
 //
 //   Proxy Address:
 //     0x8C8788f98385F6ba1adD4234e551ABba0f82Cb7C
-//     https://vanascan.io/address/0x8C8788f98385F6ba1adD4234e551ABba0f82Cb7C
+//     https://moksha.vanascan.io/address/0x8C8788f98385F6ba1adD4234e551ABba0f82Cb7C
 //
 //   Implementation Address:
-//     0x0F3538367A7aab9E30Fbf289655585aB58560042
-//     https://vanascan.io/address/0x0F3538367A7aab9E30Fbf289655585aB58560042
+//     0x6B7DF57B5d56F52E22650e838c48D346cEd4648e
+//     https://moksha.vanascan.io/address/0x6B7DF57B5d56F52E22650e838c48D346cEd4648e
 
 export const DataRegistryABI = [
   {
@@ -469,6 +469,19 @@ export const DataRegistryABI = [
   {
     inputs: [],
     name: "MAINTAINER_ROLE",
+    outputs: [
+      {
+        internalType: "bytes32",
+        name: "",
+        type: "bytes32",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "PGE_ROLE",
     outputs: [
       {
         internalType: "bytes32",

@@ -1,5 +1,87 @@
 {
   "contracts": {
+    "ProtocolConfig": {
+      "abiExport": "ProtocolConfigABI",
+      "functions": {
+        "updatePGEPublicKey": ["PGEPublicKeyUpdated"],
+        "updateAttestationPolicy": ["AttestationPolicyUpdated"],
+        "updatePGERecoveryCommittee": ["PGERecoveryCommitteeUpdated"],
+        "grantRole": ["RoleGranted"],
+        "revokeRole": ["RoleRevoked"],
+        "renounceRole": ["RoleRevoked"],
+        "initialize": ["Initialized"],
+        "upgradeToAndCall": ["Upgraded"]
+      }
+    },
+    "AttestationPolicy": {
+      "abiExport": "AttestationPolicyABI",
+      "functions": {
+        "trustTeePool": ["TeePoolTrusted"],
+        "untrustTeePool": ["TeePoolUntrusted"],
+        "trustVanaRuntimeImage": ["VanaRuntimeImageTrusted"],
+        "untrustVanaRuntimeImage": ["VanaRuntimeImageUntrusted"],
+        "grantRole": ["RoleGranted"],
+        "revokeRole": ["RoleRevoked"],
+        "renounceRole": ["RoleRevoked"],
+        "initialize": ["Initialized"],
+        "upgradeToAndCall": ["Upgraded"]
+      }
+    },
+    "DatasetRegistry": {
+      "abiExport": "DatasetRegistryABI",
+      "functions": {
+        "createDataset": ["DatasetCreated"],
+        "addPendingFile": ["FileAddedToDataset"],
+        "acceptFile": ["FileAccepted"],
+        "rejectFile": ["FileRejected"],
+        "transferDatasetOwnership": ["DatasetOwnershipTransferred"],
+        "grantRole": ["RoleGranted"],
+        "revokeRole": ["RoleRevoked"],
+        "renounceRole": ["RoleRevoked"],
+        "initialize": ["Initialized"],
+        "upgradeToAndCall": ["Upgraded"]
+      }
+    },
+    "VanaRuntimeServers": {
+      "abiExport": "VanaRuntimeServersABI",
+      "functions": {
+        "registerServer": ["ServerRegistered"],
+        "deactivateServer": ["ServerDeactivated"],
+        "reactivateServer": ["ServerReactivated"],
+        "updateServerUrl": ["ServerUrlUpdated"],
+        "grantRole": ["RoleGranted"],
+        "revokeRole": ["RoleRevoked"],
+        "renounceRole": ["RoleRevoked"],
+        "initialize": ["Initialized"],
+        "upgradeToAndCall": ["Upgraded"]
+      }
+    },
+    "VanaRuntimePermissions": {
+      "abiExport": "VanaRuntimePermissionsABI",
+      "functions": {
+        "createPermission": ["PermissionCreated"],
+        "revokePermission": ["PermissionRevoked"],
+        "updatePermission": ["PermissionUpdated"],
+        "grantRole": ["RoleGranted"],
+        "revokeRole": ["RoleRevoked"],
+        "renounceRole": ["RoleRevoked"],
+        "initialize": ["Initialized"],
+        "upgradeToAndCall": ["Upgraded"]
+      }
+    },
+    "AccessSettlement": {
+      "abiExport": "AccessSettlementABI",
+      "functions": {
+        "logOperation": ["OperationReadyForSettlement"],
+        "settlePaymentWithToken": ["PaymentSettled"],
+        "settlePaymentWithNative": ["PaymentSettled"],
+        "grantRole": ["RoleGranted"],
+        "revokeRole": ["RoleRevoked"],
+        "renounceRole": ["RoleRevoked"],
+        "initialize": ["Initialized"],
+        "upgradeToAndCall": ["Upgraded"]
+      }
+    },
     "DataPortabilityPermissions": {
       "abiExport": "DataPortabilityPermissionsABI",
       "functions": {

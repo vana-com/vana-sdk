@@ -3,16 +3,16 @@
 //
 // DataPortabilityGrantees Implementation Contract
 //
-// Generated: 2025-10-30T23:21:11.005Z
-// Network: Vana (Chain ID: 1480)
+// Generated: 2025-11-13T21:10:24.365Z
+// Network: Moksha Testnet (Chain ID: 14800)
 //
 //   Proxy Address:
 //     0x8325C0A0948483EdA023A1A2Fd895e62C5131234
-//     https://vanascan.io/address/0x8325C0A0948483EdA023A1A2Fd895e62C5131234
+//     https://moksha.vanascan.io/address/0x8325C0A0948483EdA023A1A2Fd895e62C5131234
 //
 //   Implementation Address:
-//     0x53A4e13caF2EbC03224981B6f22644A720f74166
-//     https://vanascan.io/address/0x53A4e13caF2EbC03224981B6f22644A720f74166
+//     0x719D75A559C8141F66B2D8DE81E2C5B4D0b56651
+//     https://moksha.vanascan.io/address/0x719D75A559C8141F66B2D8DE81E2C5B4D0b56651
 
 export const DataPortabilityGranteesABI = [
   {
@@ -122,11 +122,6 @@ export const DataPortabilityGranteesABI = [
       },
     ],
     name: "UUPSUnsupportedProxiableUUID",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "UnauthorizedRegistration",
     type: "error",
   },
   {
@@ -813,6 +808,25 @@ export const DataPortabilityGranteesABI = [
       },
     ],
     stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "bytes[]",
+        name: "data",
+        type: "bytes[]",
+      },
+    ],
+    name: "multicall",
+    outputs: [
+      {
+        internalType: "bytes[]",
+        name: "results",
+        type: "bytes[]",
+      },
+    ],
+    stateMutability: "nonpayable",
     type: "function",
   },
   {

@@ -3,16 +3,16 @@
 //
 // DLPPerformance Implementation Contract
 //
-// Generated: 2025-10-30T23:21:21.436Z
-// Network: Vana (Chain ID: 1480)
+// Generated: 2025-11-13T21:10:30.682Z
+// Network: Moksha Testnet (Chain ID: 14800)
 //
 //   Proxy Address:
 //     0x847715C7DB37cF286611182Be0bD333cbfa29cc1
-//     https://vanascan.io/address/0x847715C7DB37cF286611182Be0bD333cbfa29cc1
+//     https://moksha.vanascan.io/address/0x847715C7DB37cF286611182Be0bD333cbfa29cc1
 //
 //   Implementation Address:
-//     0xffF4a041Db8E0CC0Da7f2E20fFAfEF59606B7241
-//     https://vanascan.io/address/0xffF4a041Db8E0CC0Da7f2E20fFAfEF59606B7241
+//     0xb0125515F3DF6cF17E211DABB6C7eDCF4Ec567fe
+//     https://moksha.vanascan.io/address/0xb0125515F3DF6cF17E211DABB6C7eDCF4Ec567fe
 
 export const DLPPerformanceABI = [
   {
@@ -61,17 +61,6 @@ export const DLPPerformanceABI = [
       },
     ],
     name: "DlpNotEligible",
-    type: "error",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "dlpId",
-        type: "uint256",
-      },
-    ],
-    name: "DuplicateDlpId",
     type: "error",
   },
   {
@@ -142,11 +131,6 @@ export const DLPPerformanceABI = [
   },
   {
     inputs: [],
-    name: "InvalidPenaltyScores",
-    type: "error",
-  },
-  {
-    inputs: [],
     name: "InvalidTradingVolumeScore",
     type: "error",
   },
@@ -158,32 +142,6 @@ export const DLPPerformanceABI = [
   {
     inputs: [],
     name: "NotInitializing",
-    type: "error",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "epochId",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "dlpId",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "penaltyAmount",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "distributedPenaltyAmount",
-        type: "uint256",
-      },
-    ],
-    name: "PenaltyAmountLessThanPenaltyDistributed",
     type: "error",
   },
   {

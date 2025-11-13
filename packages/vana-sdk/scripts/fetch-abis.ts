@@ -311,9 +311,8 @@ async function updateIndexFile(): Promise<void> {
   const indexPath = path.join(abiDir, "index.ts");
 
   // Import CONTRACTS and LEGACY_CONTRACTS dynamically
-  const { CONTRACTS } = await import("../src/config/contracts.config.js");
-  const { LEGACY_CONTRACTS } = await import(
-    "../src/config/contracts.config.js"
+  const { CONTRACTS, LEGACY_CONTRACTS } = await import(
+    "../src/config/contracts.config.ts"
   );
 
   // Scan for all Implementation.ts files

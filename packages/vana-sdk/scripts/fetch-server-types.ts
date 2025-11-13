@@ -132,39 +132,61 @@ function generateServerPaths(spec: any): string {
   const paths = spec.paths ?? {};
   const pathEntries: string[] = [];
 
+  // HTTP methods to process (filter out metadata properties like "parameters", "$ref", etc.)
+  const httpMethods = [
+    "get",
+    "post",
+    "put",
+    "delete",
+    "patch",
+    "options",
+    "head",
+    "trace",
+  ];
+
   for (const [path, pathConfig] of Object.entries(paths)) {
-    // Get the operation info from the first HTTP method
     const methods = pathConfig as Record<string, any>;
-    const firstMethod = Object.values(methods)[0] as any;
 
-    // Use operationId from spec, converted to camelCase
-    const operationId = firstMethod?.operationId;
-    if (!operationId) {
-      console.warn(`⚠️  No operationId for path: ${path} - skipping`);
-      continue;
-    }
+    // Process each HTTP method defined for this path
+    for (const [methodName, methodConfig] of Object.entries(methods)) {
+      // Skip non-HTTP-method properties
+      if (!httpMethods.includes(methodName.toLowerCase())) {
+        continue;
+      }
 
-    const camelCaseName = snakeToCamel(operationId);
-    const description = firstMethod?.summary ?? firstMethod?.description ?? "";
+      const operation = methodConfig as any;
 
-    // Check if path has parameters
-    const paramMatches = path.match(/\{([^}]+)\}/g);
+      // Use operationId from spec, converted to camelCase
+      const operationId = operation?.operationId;
+      if (!operationId) {
+        console.warn(
+          `⚠️  No operationId for ${methodName.toUpperCase()} ${path} - skipping`,
+        );
+        continue;
+      }
 
-    if (paramMatches) {
-      // Extract parameter names
-      const params = paramMatches.map((p) => p.slice(1, -1));
-      const paramTypes = params.map((p) => `${p}: string`).join(", ");
+      const camelCaseName = snakeToCamel(operationId);
+      const description = operation?.summary ?? operation?.description ?? "";
 
-      // Generate function that returns the path
-      const pathTemplate = path.replace(/\{([^}]+)\}/g, "${$1}");
-      pathEntries.push(
-        `  /** ${description} */\n  ${camelCaseName}: (${paramTypes}) => \`${pathTemplate}\`,`,
-      );
-    } else {
-      // Simple string constant
-      pathEntries.push(
-        `  /** ${description} */\n  ${camelCaseName}: "${path}",`,
-      );
+      // Check if path has parameters
+      const paramMatches = path.match(/\{([^}]+)\}/g);
+
+      if (paramMatches) {
+        // Extract parameter names
+        const params = paramMatches.map((p) => p.slice(1, -1));
+        const paramTypes = params.map((p) => `${p}: string`).join(", ");
+
+        // Generate function that returns the path
+        const pathTemplate = path.replace(/\{([^}]+)\}/g, "${$1}");
+        pathEntries.push(
+          `  /** ${description} */\n  ${camelCaseName}: (${paramTypes}) => \`${pathTemplate}\`,`,
+        );
+      } else {
+        // Simple string constant
+        pathEntries.push(
+          `  /** ${description} */\n  ${camelCaseName}: "${path}",`,
+        );
+      }
     }
   }
 

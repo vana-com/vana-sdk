@@ -3,16 +3,16 @@
 //
 // VanaPoolStaking Implementation Contract
 //
-// Generated: 2025-11-13T21:10:28.205Z
-// Network: Moksha Testnet (Chain ID: 14800)
+// Generated: 2025-11-13T22:43:38.983Z
+// Network: Vana (Chain ID: 1480)
 //
 //   Proxy Address:
 //     0x641C18E2F286c86f96CE95C8ec1EB9fC0415Ca0e
-//     https://moksha.vanascan.io/address/0x641C18E2F286c86f96CE95C8ec1EB9fC0415Ca0e
+//     https://vanascan.io/address/0x641C18E2F286c86f96CE95C8ec1EB9fC0415Ca0e
 //
 //   Implementation Address:
-//     0xAa83536FdDFBbf8147b5647c19E07B5eC4ace760
-//     https://moksha.vanascan.io/address/0xAa83536FdDFBbf8147b5647c19E07B5eC4ace760
+//     0x45869CeFA87bfEA07a6cB817687D6C64334c0032
+//     https://vanascan.io/address/0x45869CeFA87bfEA07a6cB817687D6C64334c0032
 
 export const VanaPoolStakingABI = [
   {
@@ -441,12 +441,68 @@ export const VanaPoolStakingABI = [
   },
   {
     inputs: [],
-    name: "VANA_POOL_ENTITY",
+    name: "VANA_POOL_ENTITY_ROLE",
     outputs: [
       {
         internalType: "bytes32",
         name: "",
         type: "bytes32",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "index",
+        type: "uint256",
+      },
+    ],
+    name: "activeStakersListAt",
+    outputs: [
+      {
+        internalType: "address",
+        name: "",
+        type: "address",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "activeStakersListCount",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "from",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "to",
+        type: "uint256",
+      },
+    ],
+    name: "activeStakersListValues",
+    outputs: [
+      {
+        internalType: "address[]",
+        name: "",
+        type: "address[]",
       },
     ],
     stateMutability: "view",
@@ -508,6 +564,62 @@ export const VanaPoolStakingABI = [
         internalType: "bool",
         name: "",
         type: "bool",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "index",
+        type: "uint256",
+      },
+    ],
+    name: "inactiveStakersListAt",
+    outputs: [
+      {
+        internalType: "address",
+        name: "",
+        type: "address",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "inactiveStakersListCount",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "from",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "to",
+        type: "uint256",
+      },
+    ],
+    name: "inactiveStakersListValues",
+    outputs: [
+      {
+        internalType: "address[]",
+        name: "",
+        type: "address[]",
       },
     ],
     stateMutability: "view",

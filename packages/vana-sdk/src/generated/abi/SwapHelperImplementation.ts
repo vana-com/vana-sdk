@@ -3,16 +3,16 @@
 //
 // SwapHelper Implementation Contract
 //
-// Generated: 2025-11-13T21:10:31.829Z
-// Network: Moksha Testnet (Chain ID: 14800)
+// Generated: 2025-11-13T22:43:47.820Z
+// Network: Vana (Chain ID: 1480)
 //
 //   Proxy Address:
 //     0x55D5e6F73326315bF2E091e97F04f0770e5C54e2
-//     https://moksha.vanascan.io/address/0x55D5e6F73326315bF2E091e97F04f0770e5C54e2
+//     https://vanascan.io/address/0x55D5e6F73326315bF2E091e97F04f0770e5C54e2
 //
 //   Implementation Address:
-//     0x97753371B6005B3b6bEca100c902d74929A7d44b
-//     https://moksha.vanascan.io/address/0x97753371B6005B3b6bEca100c902d74929A7d44b
+//     0xee728a6D537f5e90a51Cb8538D1B76A2F2104083
+//     https://vanascan.io/address/0xee728a6D537f5e90a51Cb8538D1B76A2F2104083
 
 export const SwapHelperABI = [
   {
@@ -274,49 +274,6 @@ export const SwapHelperABI = [
       },
     ],
     name: "RoleRevoked",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "address",
-        name: "sender",
-        type: "address",
-      },
-      {
-        indexed: true,
-        internalType: "address",
-        name: "recipient",
-        type: "address",
-      },
-      {
-        indexed: true,
-        internalType: "address",
-        name: "tokenIn",
-        type: "address",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "amountIn",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "address",
-        name: "tokenOut",
-        type: "address",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "amountOut",
-        type: "uint256",
-      },
-    ],
-    name: "Swap",
     type: "event",
   },
   {

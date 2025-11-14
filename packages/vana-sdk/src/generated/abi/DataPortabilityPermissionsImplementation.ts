@@ -3,16 +3,16 @@
 //
 // DataPortabilityPermissions Implementation Contract
 //
-// Generated: 2025-11-13T21:10:23.920Z
-// Network: Moksha Testnet (Chain ID: 14800)
+// Generated: 2025-11-13T22:43:30.502Z
+// Network: Vana (Chain ID: 1480)
 //
 //   Proxy Address:
 //     0xD54523048AdD05b4d734aFaE7C68324Ebb7373eF
-//     https://moksha.vanascan.io/address/0xD54523048AdD05b4d734aFaE7C68324Ebb7373eF
+//     https://vanascan.io/address/0xD54523048AdD05b4d734aFaE7C68324Ebb7373eF
 //
 //   Implementation Address:
-//     0xAB6fb9A7eC170b2E1557ae69241D35245704F828
-//     https://moksha.vanascan.io/address/0xAB6fb9A7eC170b2E1557ae69241D35245704F828
+//     0x1473D4c66E230Fd7F8C3e48a4dFc026e259C1Edf
+//     https://vanascan.io/address/0x1473D4c66E230Fd7F8C3e48a4dFc026e259C1Edf
 
 export const DataPortabilityPermissionsABI = [
   {
@@ -830,25 +830,6 @@ export const DataPortabilityPermissionsABI = [
       },
     ],
     stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "bytes[]",
-        name: "data",
-        type: "bytes[]",
-      },
-    ],
-    name: "multicall",
-    outputs: [
-      {
-        internalType: "bytes[]",
-        name: "results",
-        type: "bytes[]",
-      },
-    ],
-    stateMutability: "nonpayable",
     type: "function",
   },
   {

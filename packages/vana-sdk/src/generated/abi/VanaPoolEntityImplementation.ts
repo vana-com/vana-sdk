@@ -3,16 +3,16 @@
 //
 // VanaPoolEntity Implementation Contract
 //
-// Generated: 2025-11-13T21:10:31.627Z
-// Network: Moksha Testnet (Chain ID: 14800)
+// Generated: 2025-11-13T22:43:47.409Z
+// Network: Vana (Chain ID: 1480)
 //
 //   Proxy Address:
 //     0x44f20490A82e1f1F1cC25Dd3BA8647034eDdce30
-//     https://moksha.vanascan.io/address/0x44f20490A82e1f1F1cC25Dd3BA8647034eDdce30
+//     https://vanascan.io/address/0x44f20490A82e1f1F1cC25Dd3BA8647034eDdce30
 //
 //   Implementation Address:
-//     0x0D8A17dD54a62860690F3D7c51FDa064D613F99e
-//     https://moksha.vanascan.io/address/0x0D8A17dD54a62860690F3D7c51FDa064D613F99e
+//     0x150E238c35537715Ec92D551FCE03b756b4bEAf9
+//     https://vanascan.io/address/0x150E238c35537715Ec92D551FCE03b756b4bEAf9
 
 export const VanaPoolEntityABI = [
   {
@@ -486,25 +486,6 @@ export const VanaPoolEntityABI = [
     type: "function",
   },
   {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "exponent",
-        type: "uint256",
-      },
-    ],
-    name: "_calculateExponential",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "r",
-        type: "uint256",
-      },
-    ],
-    stateMutability: "pure",
-    type: "function",
-  },
-  {
     inputs: [],
     name: "activeEntitiesValues",
     outputs: [
@@ -553,12 +534,31 @@ export const VanaPoolEntityABI = [
     inputs: [
       {
         internalType: "uint256",
-        name: "apy",
+        name: "exponent",
+        type: "uint256",
+      },
+    ],
+    name: "calculateExponential",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "r",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "pure",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "principal",
         type: "uint256",
       },
       {
         internalType: "uint256",
-        name: "principal",
+        name: "apy",
         type: "uint256",
       },
       {
@@ -567,7 +567,7 @@ export const VanaPoolEntityABI = [
         type: "uint256",
       },
     ],
-    name: "calculateContinuousCompoundingYield",
+    name: "calculateYield",
     outputs: [
       {
         internalType: "uint256",
@@ -899,49 +899,6 @@ export const VanaPoolEntityABI = [
       },
     ],
     stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "entityId",
-        type: "uint256",
-      },
-      {
-        internalType: "string",
-        name: "name",
-        type: "string",
-      },
-      {
-        internalType: "uint256",
-        name: "maxAPY",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "lockedRewardPool",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "activeRewardPool",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "totalShares",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "lastUpdateTimestamp",
-        type: "uint256",
-      },
-    ],
-    name: "overrideEntity",
-    outputs: [],
-    stateMutability: "nonpayable",
     type: "function",
   },
   {

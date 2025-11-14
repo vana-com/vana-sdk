@@ -3,16 +3,16 @@
 //
 // VanaEpoch Implementation Contract
 //
-// Generated: 2025-11-13T21:10:27.609Z
-// Network: Moksha Testnet (Chain ID: 14800)
+// Generated: 2025-11-13T22:43:37.649Z
+// Network: Vana (Chain ID: 1480)
 //
 //   Proxy Address:
 //     0x2063cFF0609D59bCCc196E20Eb58A8696a6b15A0
-//     https://moksha.vanascan.io/address/0x2063cFF0609D59bCCc196E20Eb58A8696a6b15A0
+//     https://vanascan.io/address/0x2063cFF0609D59bCCc196E20Eb58A8696a6b15A0
 //
 //   Implementation Address:
-//     0x1fc31e06e14C9A23AeAB7701fFc4327f624eE45b
-//     https://moksha.vanascan.io/address/0x1fc31e06e14C9A23AeAB7701fFc4327f624eE45b
+//     0x4642bB0ae9A11c2aFBd858cCEFd3b60C59Efca11
+//     https://vanascan.io/address/0x4642bB0ae9A11c2aFBd858cCEFd3b60C59Efca11
 
 export const VanaEpochABI = [
   {
@@ -84,6 +84,11 @@ export const VanaEpochABI = [
     type: "error",
   },
   {
+    inputs: [],
+    name: "EpochNotFinalized",
+    type: "error",
+  },
+  {
     inputs: [
       {
         internalType: "uint256",
@@ -126,12 +131,44 @@ export const VanaEpochABI = [
   },
   {
     inputs: [],
+    name: "LastEpochAlreadySet",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "lastEpoch",
+        type: "uint256",
+      },
+    ],
+    name: "LastEpochExceeded",
+    type: "error",
+  },
+  {
+    inputs: [],
     name: "NotInitializing",
     type: "error",
   },
   {
     inputs: [],
     name: "ReentrancyGuardReentrantCall",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "a",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "b",
+        type: "uint256",
+      },
+    ],
+    name: "Test",
     type: "error",
   },
   {
@@ -192,6 +229,37 @@ export const VanaEpochABI = [
       },
     ],
     name: "EpochDayUpdated",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "epochId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "dlpId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "oldBonusAmount",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "newBonusAmount",
+        type: "uint256",
+      },
+    ],
+    name: "EpochDlpBonusUpdated",
     type: "event",
   },
   {
@@ -344,6 +412,19 @@ export const VanaEpochABI = [
     inputs: [
       {
         indexed: false,
+        internalType: "uint256",
+        name: "lastEpoch",
+        type: "uint256",
+      },
+    ],
+    name: "LastEpochSet",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: false,
         internalType: "address",
         name: "account",
         type: "address",
@@ -481,6 +562,19 @@ export const VanaEpochABI = [
   },
   {
     inputs: [],
+    name: "DLP_REWARD_DEPLOYER_ROLE",
+    outputs: [
+      {
+        internalType: "bytes32",
+        name: "",
+        type: "bytes32",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
     name: "MAINTAINER_ROLE",
     outputs: [
       {
@@ -503,6 +597,29 @@ export const VanaEpochABI = [
       },
     ],
     stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "epochId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "dlpId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "addEpochDlpBonusAmount",
+    outputs: [],
+    stateMutability: "nonpayable",
     type: "function",
   },
   {
@@ -603,6 +720,25 @@ export const VanaEpochABI = [
         name: "epochId",
         type: "uint256",
       },
+    ],
+    name: "epochDlpIdsWithBonus",
+    outputs: [
+      {
+        internalType: "uint256[]",
+        name: "",
+        type: "uint256[]",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "epochId",
+        type: "uint256",
+      },
       {
         internalType: "uint256",
         name: "dlpId",
@@ -630,7 +766,17 @@ export const VanaEpochABI = [
           },
           {
             internalType: "uint256",
+            name: "bonusAmount",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
             name: "distributedAmount",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "distributedPenaltyAmount",
             type: "uint256",
           },
         ],
@@ -837,6 +983,42 @@ export const VanaEpochABI = [
     type: "function",
   },
   {
+    inputs: [],
+    name: "lastEpoch",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "epochId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "dlpId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "overrideEpochDlpBonusAmount",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
     inputs: [
       {
         internalType: "uint256",
@@ -964,6 +1146,19 @@ export const VanaEpochABI = [
       },
     ],
     name: "saveEpochDlpRewards",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "_lastEpoch",
+        type: "uint256",
+      },
+    ],
+    name: "setLastEpoch",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",

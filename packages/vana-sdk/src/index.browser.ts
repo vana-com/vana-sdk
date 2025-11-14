@@ -168,6 +168,8 @@ export * from "./errors";
 
 // Controllers
 export { PermissionsController } from "./controllers/permissions";
+export { RuntimePermissionsController } from "./controllers/runtimePermissions";
+export { AccessSettlementController } from "./controllers/accessSettlement";
 export { DataController } from "./controllers/data";
 export { ServerController } from "./controllers/server";
 export { ProtocolController } from "./controllers/protocol";

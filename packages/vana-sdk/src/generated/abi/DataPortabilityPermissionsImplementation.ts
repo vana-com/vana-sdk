@@ -3,7 +3,7 @@
 //
 // DataPortabilityPermissions Implementation Contract
 //
-// Generated: 2025-10-30T23:21:10.229Z
+// Generated: 2025-11-13T22:43:30.502Z
 // Network: Vana (Chain ID: 1480)
 //
 //   Proxy Address:

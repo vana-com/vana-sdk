@@ -16,6 +16,7 @@ import type {
   PermissionGrantTypedData,
   GenericTypedData,
 } from "./permissions";
+import type { RuntimeGrantFile } from "./runtimePermissions";
 import type { Contract, Fn } from "../generated/event-types";
 
 /**
@@ -444,7 +445,7 @@ export type DirectRelayerRequest =
   | {
       type: "direct";
       operation: "storeGrantFile";
-      params: GrantFile;
+      params: GrantFile | RuntimeGrantFile;
     }
   | {
       type: "direct";

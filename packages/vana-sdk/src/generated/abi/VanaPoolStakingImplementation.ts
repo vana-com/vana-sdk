@@ -3,7 +3,7 @@
 //
 // VanaPoolStaking Implementation Contract
 //
-// Generated: 2025-10-30T23:21:17.540Z
+// Generated: 2025-11-13T22:43:38.983Z
 // Network: Vana (Chain ID: 1480)
 //
 //   Proxy Address:

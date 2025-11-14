@@ -132,7 +132,7 @@ export class ServerController extends BaseController {
   ): Promise<PersonalServerIdentity> {
     try {
       const response = await fetch(
-        `${this.personalServerBaseUrl}${SERVER_PATHS.identity}?address=${request.userAddress}`,
+        `${this.personalServerBaseUrl}${SERVER_PATHS.getIdentityApiV1IdentityGet}?address=${request.userAddress}`,
         {
           method: "GET",
           headers: {
@@ -270,7 +270,7 @@ export class ServerController extends BaseController {
       console.debug("Polling Operation Status:", operationId);
 
       const response = await fetch(
-        `${this.personalServerBaseUrl}${SERVER_PATHS.getOperation(operationId)}`,
+        `${this.personalServerBaseUrl}${SERVER_PATHS.getOperationApiV1Operations_OperationId_Get(operationId)}`,
         {
           method: "GET",
           headers: {
@@ -465,7 +465,7 @@ export class ServerController extends BaseController {
       };
 
       const response = await fetch(
-        `${this.personalServerBaseUrl}${SERVER_PATHS.downloadArtifact}`,
+        `${this.personalServerBaseUrl}${SERVER_PATHS.downloadArtifactApiV1ArtifactsDownloadPost}`,
         {
           method: "POST",
           headers: {
@@ -574,7 +574,7 @@ export class ServerController extends BaseController {
       };
 
       const response = await fetch(
-        `${this.personalServerBaseUrl}${SERVER_PATHS.listArtifacts(operationId)}`,
+        `${this.personalServerBaseUrl}${SERVER_PATHS.listArtifactsApiV1Artifacts_OperationId_ListPost(operationId)}`,
         {
           method: "POST",
           headers: {
@@ -654,7 +654,7 @@ export class ServerController extends BaseController {
   async cancelOperation(operationId: string): Promise<void> {
     try {
       const response = await fetch(
-        `${this.personalServerBaseUrl}${SERVER_PATHS.cancelOperation(operationId)}`,
+        `${this.personalServerBaseUrl}${SERVER_PATHS.cancelOperationApiV1Operations_OperationId_CancelPost(operationId)}`,
         {
           method: "POST",
         },
@@ -687,7 +687,7 @@ export class ServerController extends BaseController {
   ): Promise<CreateOperationResponse> {
     try {
       console.debug("Personal Server Request:", {
-        url: `${this.personalServerBaseUrl}${SERVER_PATHS.operations}`,
+        url: `${this.personalServerBaseUrl}${SERVER_PATHS.createOperationApiV1OperationsPost}`,
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -696,7 +696,7 @@ export class ServerController extends BaseController {
       });
 
       const response = await fetch(
-        `${this.personalServerBaseUrl}${SERVER_PATHS.operations}`,
+        `${this.personalServerBaseUrl}${SERVER_PATHS.createOperationApiV1OperationsPost}`,
         {
           method: "POST",
           headers: {

@@ -17,19 +17,21 @@ export * from "./server";
  */
 export const SERVER_PATHS = {
   /** Create a new operation */
-  operations: "/api/v1/operations",
-  /** Get operation status by ID */
-  getOperation: (operationId: string) => `/api/v1/operations/${operationId}`,
-  /** Cancel a running operation */
-  cancelOperation: (operationId: string) =>
-    `/api/v1/operations/${operationId}/cancel`,
+  createOperationApiV1OperationsPost: "/api/v1/operations",
+  /** Get operation status */
+  getOperationApiV1Operations_OperationId_Get: (operation_id: string) =>
+    `/api/v1/operations/${operation_id}`,
+  /** Cancel an operation */
+  cancelOperationApiV1Operations_OperationId_CancelPost: (
+    operation_id: string,
+  ) => `/api/v1/operations/${operation_id}/cancel`,
   /** Get user identity */
-  identity: "/api/v1/identity",
-  /** Download an artifact file */
-  downloadArtifact: "/api/v1/artifacts/download",
-  /** List artifacts for an operation */
-  listArtifacts: (operationId: string) =>
-    `/api/v1/artifacts/${operationId}/list`,
+  getIdentityApiV1IdentityGet: "/api/v1/identity",
+  /** Download operation artifact */
+  downloadArtifactApiV1ArtifactsDownloadPost: "/api/v1/artifacts/download",
+  /** List operation artifacts */
+  listArtifactsApiV1Artifacts_OperationId_ListPost: (operation_id: string) =>
+    `/api/v1/artifacts/${operation_id}/list`,
 } as const;
 
 // Namespace all server types for clearer usage
@@ -44,23 +46,22 @@ export type {
 // Common server schema type aliases for easier usage
 import type { components } from "./server";
 
-// Operation types
+// Auto-generated type aliases for all schemas
+export type ArtifactDownloadRequest =
+  components["schemas"]["ArtifactDownloadRequest"];
+export type ArtifactInfo = components["schemas"]["ArtifactInfo"];
+export type ArtifactListRequest = components["schemas"]["ArtifactListRequest"];
+export type ArtifactListResponse =
+  components["schemas"]["ArtifactListResponse"];
 export type CreateOperationRequest =
   components["schemas"]["CreateOperationRequest"];
 export type CreateOperationResponse =
   components["schemas"]["CreateOperationResponse"];
+export type ErrorResponse = components["schemas"]["ErrorResponse"];
 export type GetOperationResponse =
   components["schemas"]["GetOperationResponse"];
-
-// Identity types
+export type HTTPValidationError = components["schemas"]["HTTPValidationError"];
 export type IdentityResponseModel =
   components["schemas"]["IdentityResponseModel"];
 export type PersonalServerModel = components["schemas"]["PersonalServerModel"];
-
-// Artifact types
-export type ArtifactInfo = components["schemas"]["ArtifactInfo"];
-
-// Error types
-export type ErrorResponse = components["schemas"]["ErrorResponse"];
-export type HTTPValidationError = components["schemas"]["HTTPValidationError"];
 export type ValidationError = components["schemas"]["ValidationError"];

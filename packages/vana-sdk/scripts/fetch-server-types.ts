@@ -4,32 +4,44 @@ import * as fs from "fs";
 import * as path from "path";
 import { promisify } from "util";
 import openapiTS, { astToString } from "openapi-typescript";
-import { mokshaServices } from "../src/config/default-services.js";
+import {
+  mokshaServices,
+  mainnetServices,
+} from "../src/config/default-services.js";
 
 const writeFile = promisify(fs.writeFile);
 const mkdir = promisify(fs.mkdir);
 const access = promisify(fs.access);
 
-// Configuration for the personal server OpenAPI spec
-const OPENAPI_CONFIG = {
-  url:
-    mokshaServices.personalServerUrl.replace(/\/api\/v1\/?$/, "") +
-    "/openapi.json",
-  outputPath: "src/generated/server/server.ts",
-  exportsPath: "src/generated/server/server-exports.ts",
-} as const;
+/**
+ * Get OpenAPI configuration for a specific network
+ * @param network - Network to fetch server types for (moksha or mainnet)
+ */
+function getOpenAPIConfig(network: "moksha" | "mainnet" = "mainnet") {
+  const services = network === "moksha" ? mokshaServices : mainnetServices;
+  return {
+    url:
+      services.personalServerUrl.replace(/\/api\/v1\/?$/, "") + "/openapi.json",
+    outputPath: "src/generated/server/server.ts",
+    exportsPath: "src/generated/server/server-exports.ts",
+    network,
+  } as const;
+}
 
 /**
  * Generates TypeScript types from the OpenAPI specification
  *
+ * @param config - OpenAPI configuration
  * @returns Promise resolving to the generated TypeScript definitions
  */
-async function generateTypes(): Promise<string> {
+async function generateTypes(
+  config: ReturnType<typeof getOpenAPIConfig>,
+): Promise<string> {
   try {
-    console.log(`🔄 Generating TypeScript types from: ${OPENAPI_CONFIG.url}`);
+    console.log(`🔄 Generating TypeScript types from: ${config.url}`);
 
     // Generate AST using openapi-typescript directly from URL
-    const ast = await openapiTS(new URL(OPENAPI_CONFIG.url), {
+    const ast = await openapiTS(new URL(config.url), {
       // TODO: Re-enable pathParamsAsTypes when vana-personal-server fixes
       // the conflicting /operations/cancel vs /operations/{id} paths
       // See: https://github.com/vana-com/vana-personal-server/issues/XXX
@@ -51,12 +63,17 @@ async function generateTypes(): Promise<string> {
  * Generates the final TypeScript file with proper header comments
  *
  * @param types - The generated TypeScript types
+ * @param config - OpenAPI configuration
  * @returns The final file content with headers
  */
-function generateTypesFile(types: string): string {
+function generateTypesFile(
+  types: string,
+  config: ReturnType<typeof getOpenAPIConfig>,
+): string {
   const header = `// Vana Personal Server API Types
 // Generated automatically from OpenAPI specification - do not edit manually
-// Source: ${OPENAPI_CONFIG.url}
+// Network: ${config.network}
+// Source: ${config.url}
 // Generated on: ${new Date().toISOString()}
 
 `;
@@ -82,17 +99,141 @@ async function ensureDirectoryExists(dirPath: string): Promise<void> {
 }
 
 /**
- * Generates a simple re-export of all types from the server types file
+ * Fetches the OpenAPI spec JSON to extract paths
  *
- * @returns String containing the server type exports
+ * @param url - URL to the OpenAPI JSON spec
+ * @returns The OpenAPI spec object
  */
-function generateServerTypeExports(): string {
+async function fetchOpenAPISpec(url: string): Promise<any> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch OpenAPI spec: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Converts snake_case to camelCase
+ *
+ * @param str - String in snake_case format
+ * @returns String in camelCase format
+ */
+function snakeToCamel(str: string): string {
+  return str.replace(/_([a-z0-9])/g, (_, letter) => letter.toUpperCase());
+}
+
+/**
+ * Extracts path information from OpenAPI spec and generates SERVER_PATHS code
+ *
+ * @param spec - The OpenAPI specification object
+ * @returns Generated TypeScript code for SERVER_PATHS constant
+ */
+function generateServerPaths(spec: any): string {
+  const paths = spec.paths ?? {};
+  const pathEntries: string[] = [];
+
+  // HTTP methods to process (filter out metadata properties like "parameters", "$ref", etc.)
+  const httpMethods = [
+    "get",
+    "post",
+    "put",
+    "delete",
+    "patch",
+    "options",
+    "head",
+    "trace",
+  ];
+
+  for (const [path, pathConfig] of Object.entries(paths)) {
+    const methods = pathConfig as Record<string, any>;
+
+    // Process each HTTP method defined for this path
+    for (const [methodName, methodConfig] of Object.entries(methods)) {
+      // Skip non-HTTP-method properties
+      if (!httpMethods.includes(methodName.toLowerCase())) {
+        continue;
+      }
+
+      const operation = methodConfig as any;
+
+      // Use operationId from spec, converted to camelCase
+      const operationId = operation?.operationId;
+      if (!operationId) {
+        console.warn(
+          `⚠️  No operationId for ${methodName.toUpperCase()} ${path} - skipping`,
+        );
+        continue;
+      }
+
+      const camelCaseName = snakeToCamel(operationId);
+      const description = operation?.summary ?? operation?.description ?? "";
+
+      // Check if path has parameters
+      const paramMatches = path.match(/\{([^}]+)\}/g);
+
+      if (paramMatches) {
+        // Extract parameter names
+        const params = paramMatches.map((p) => p.slice(1, -1));
+        const paramTypes = params.map((p) => `${p}: string`).join(", ");
+
+        // Generate function that returns the path
+        const pathTemplate = path.replace(/\{([^}]+)\}/g, "${$1}");
+        pathEntries.push(
+          `  /** ${description} */\n  ${camelCaseName}: (${paramTypes}) => \`${pathTemplate}\`,`,
+        );
+      } else {
+        // Simple string constant
+        pathEntries.push(
+          `  /** ${description} */\n  ${camelCaseName}: "${path}",`,
+        );
+      }
+    }
+  }
+
+  return `/**
+ * Personal Server API endpoint paths.
+ *
+ * @remarks
+ * These paths are extracted from the OpenAPI spec to ensure consistency
+ * between the SDK and the server implementation. All paths are relative
+ * to the personal server base URL.
+ *
+ * @category Server
+ */
+export const SERVER_PATHS = {
+${pathEntries.join("\n")}
+} as const;`;
+}
+
+/**
+ * Generates a complete server exports file with paths and type re-exports
+ *
+ * @param spec - The OpenAPI specification object
+ * @returns String containing the complete server type exports
+ */
+function generateServerTypeExports(spec: any): string {
+  const serverPaths = generateServerPaths(spec);
+
+  // Extract all schemas from the spec
+  const schemas = spec.components?.schemas ?? {};
+  const schemaNames = Object.keys(schemas);
+
+  // Generate type aliases for all schemas
+  const typeAliases = schemaNames
+    .map(
+      (schemaName) =>
+        `export type ${schemaName} = components["schemas"]["${schemaName}"];`,
+    )
+    .join("\n");
+
   return `// Server API types (auto-generated from OpenAPI spec)
 // This file re-exports all types from the generated server types
 // DO NOT EDIT - regenerated automatically by fetch-server-types.ts
 
 // Re-export all types with original names
 export * from "./server";
+
+${serverPaths}
 
 // Namespace all server types for clearer usage
 export type {
@@ -106,47 +247,33 @@ export type {
 // Common server schema type aliases for easier usage
 import type { components } from "./server";
 
-// Operation types
-export type CreateOperationRequest = components["schemas"]["CreateOperationRequest"];
-export type CreateOperationResponse = components["schemas"]["CreateOperationResponse"];
-export type GetOperationResponse = components["schemas"]["GetOperationResponse"];
-
-// Identity types
-export type IdentityResponseModel = components["schemas"]["IdentityResponseModel"];
-export type PersonalServerModel = components["schemas"]["PersonalServerModel"];
-
-// Error types
-export type ErrorResponse = components["schemas"]["ErrorResponse"];
-export type ValidationErrorResponse = components["schemas"]["ValidationErrorResponse"];
-export type AuthenticationErrorResponse = components["schemas"]["AuthenticationErrorResponse"];
-export type NotFoundErrorResponse = components["schemas"]["NotFoundErrorResponse"];
-export type BlockchainErrorResponse = components["schemas"]["BlockchainErrorResponse"];
-export type FileAccessErrorResponse = components["schemas"]["FileAccessErrorResponse"];
-export type ComputeErrorResponse = components["schemas"]["ComputeErrorResponse"];
-export type DecryptionErrorResponse = components["schemas"]["DecryptionErrorResponse"];
-export type GrantValidationErrorResponse = components["schemas"]["GrantValidationErrorResponse"];
-export type OperationErrorResponse = components["schemas"]["OperationErrorResponse"];
-export type InternalServerErrorResponse = components["schemas"]["InternalServerErrorResponse"];
+// Auto-generated type aliases for all schemas
+${typeAliases}
 `;
 }
 
 /**
  * Generates a dedicated server exports file
  *
+ * @param config - OpenAPI configuration
  * @returns Promise that resolves when exports file is created
  */
-async function generateServerExportsFile(): Promise<void> {
-  const exportsPath = path.join(process.cwd(), OPENAPI_CONFIG.exportsPath);
+async function generateServerExportsFile(
+  config: ReturnType<typeof getOpenAPIConfig>,
+): Promise<void> {
+  const exportsPath = path.join(process.cwd(), config.exportsPath);
 
   try {
-    // Generate the server exports file content (generic re-export)
-    const serverExports = generateServerTypeExports();
+    // Fetch the OpenAPI spec to extract paths
+    console.log(`🔄 Fetching OpenAPI spec for path extraction...`);
+    const spec = await fetchOpenAPISpec(config.url);
+
+    // Generate the server exports file content with extracted paths
+    const serverExports = generateServerTypeExports(spec);
 
     // Write the exports file
     await writeFile(exportsPath, serverExports);
-    console.log(
-      `✅ Generated server exports file: ${OPENAPI_CONFIG.exportsPath}`,
-    );
+    console.log(`✅ Generated server exports file: ${config.exportsPath}`);
   } catch (error) {
     console.error(
       `⚠️  Warning: Failed to generate server exports file:`,
@@ -159,30 +286,38 @@ async function generateServerExportsFile(): Promise<void> {
 /**
  * Main function to generate TypeScript types from OpenAPI spec
  *
+ * @param network - Network to fetch server types for
  * @returns Promise that resolves when types are generated and saved
  */
-async function fetchAndGenerateServerTypes(): Promise<void> {
+async function fetchAndGenerateServerTypes(
+  network: "moksha" | "mainnet" = "mainnet",
+): Promise<void> {
   try {
+    const config = getOpenAPIConfig(network);
     const serverDir = path.join(process.cwd(), "src", "generated", "server");
-    const outputPath = path.join(process.cwd(), OPENAPI_CONFIG.outputPath);
+    const outputPath = path.join(process.cwd(), config.outputPath);
+
+    console.log(`🔄 Fetching server types for ${network}...`);
 
     // Ensure output directory exists
     await ensureDirectoryExists(serverDir);
 
     // Generate TypeScript types directly from URL
-    const types = await generateTypes();
+    const types = await generateTypes(config);
 
     // Generate final file content with headers
-    const fileContent = generateTypesFile(types);
+    const fileContent = generateTypesFile(types, config);
 
     // Write the generated types to file
     await writeFile(outputPath, fileContent);
-    console.log(`✅ Saved server types to ${OPENAPI_CONFIG.outputPath}`);
+    console.log(`✅ Saved server types to ${config.outputPath}`);
 
     // Generate server exports file
-    await generateServerExportsFile();
+    await generateServerExportsFile(config);
 
-    console.log(`🎉 Successfully generated Vana Personal Server types!`);
+    console.log(
+      `🎉 Successfully generated Vana Personal Server types for ${network}!`,
+    );
   } catch (error) {
     console.error(`❌ Failed to generate server types:`, error);
     throw error;
@@ -195,8 +330,16 @@ async function fetchAndGenerateServerTypes(): Promise<void> {
  * @returns Promise that resolves when script execution completes
  */
 async function main(): Promise<void> {
+  const network = (process.argv[2] as "moksha" | "mainnet") || "mainnet";
+
+  if (!["moksha", "mainnet"].includes(network)) {
+    console.error("Usage: npm run fetch-server-types [moksha|mainnet]");
+    console.error("Defaults to mainnet if not specified");
+    process.exit(1);
+  }
+
   try {
-    await fetchAndGenerateServerTypes();
+    await fetchAndGenerateServerTypes(network);
   } catch (error) {
     console.error("❌ Script failed:", error);
     process.exit(1);

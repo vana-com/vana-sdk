@@ -14,6 +14,7 @@ import {
 import { BlockchainError, NetworkError } from "../errors";
 import { getContractAddress } from "../generated/addresses";
 import { getAbi } from "../generated/abi";
+import { tx } from "../utils/transactionHelpers";
 
 /**
  * Controller for VanaRuntimePermissions contract
@@ -155,18 +156,31 @@ export class RuntimePermissionsController extends BaseController {
         chain: this.context.walletClient?.chain ?? null,
       });
 
-      // 8. Wait for transaction confirmation
-      await this.context.publicClient.waitForTransactionReceipt({
+      // 8. Create transaction result for event parsing
+      const txResult = tx({
         hash,
+        from: typeof account === "string" ? account : account.address,
+        contract: "VanaRuntimePermissions",
+        fn: "createPermission",
       });
 
-      // 9. Parse PermissionCreated event to get permission ID
-      // For MVP, we'll use a placeholder. In production, parse event logs.
-      // TODO: Add proper event parsing from receipt.logs
-      const permissionId = 0n; // Placeholder
+      // 9. Wait for transaction and parse events
+      if (!this.context.waitForTransactionEvents) {
+        throw new BlockchainError("waitForTransactionEvents not configured");
+      }
+
+      const result = await this.context.waitForTransactionEvents(txResult);
+
+      // 10. Extract permission ID from PermissionCreated event
+      const event = result.expectedEvents.PermissionCreated;
+      if (!event) {
+        throw new BlockchainError(
+          "No PermissionCreated event found in transaction",
+        );
+      }
 
       return {
-        permissionId,
+        permissionId: event.permissionId,
         hash,
         grantUrl,
       };

@@ -117,6 +117,17 @@ describe("RuntimePermissionsController", () => {
       userAddress: "0xOwner",
       relayer: mockRelayer,
       platform: mockPlatformAdapter,
+      waitForTransactionEvents: vi.fn().mockResolvedValue({
+        hash: "0xTransactionHash",
+        expectedEvents: {
+          PermissionCreated: {
+            permissionId: 1024n,
+            datasetId: 123n,
+            granteeId: 456n,
+            grant: "ipfs://QmTestHash",
+          },
+        },
+      }),
     };
 
     controller = new RuntimePermissionsController(mockContext);
@@ -141,8 +152,7 @@ describe("RuntimePermissionsController", () => {
     it("should create permission with relayer for grant file upload", async () => {
       const result = await controller.createPermission(validParams);
 
-      // Note: permissionId is placeholder (0n) until event parsing is implemented
-      expect(result.permissionId).toBe(0n);
+      expect(result.permissionId).toBe(1024n);
       expect(result.hash).toBe("0xTransactionHash");
       expect(result.grantUrl).toBe("ipfs://QmTestGrantFile");
 
@@ -267,9 +277,26 @@ describe("RuntimePermissionsController", () => {
       ).rejects.toThrow(BlockchainError);
     });
 
-    // Note: This test is currently not applicable since the implementation uses
-    // a placeholder permissionId (0n) and doesn't parse events yet.
-    // Re-enable this test once event parsing is implemented (see TODO in runtimePermissions.ts:165)
+    it("should throw error when no PermissionCreated event found", async () => {
+      // Mock waitForTransactionEvents to return no PermissionCreated event
+      const contextWithNoEvents = {
+        ...mockContext,
+        waitForTransactionEvents: vi.fn().mockResolvedValue({
+          hash: "0xTransactionHash",
+          expectedEvents: {}, // No PermissionCreated event
+        }),
+      };
+      const controllerWithNoEvents = new RuntimePermissionsController(
+        contextWithNoEvents,
+      );
+
+      await expect(
+        controllerWithNoEvents.createPermission({
+          ...validParams,
+          grantUrl: "ipfs://QmTest",
+        }),
+      ).rejects.toThrow("No PermissionCreated event found in transaction");
+    });
   });
 
   describe("getPermission", () => {

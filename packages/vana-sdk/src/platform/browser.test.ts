@@ -2,12 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { BrowserPlatformAdapter } from "./browser";
 
 // Mock modules
-vi.mock("eccrypto-js", () => ({
-  encrypt: vi.fn(),
-  decrypt: vi.fn(),
-  getPublicCompressed: vi.fn(),
-}));
-
 vi.mock("openpgp", () => ({
   generateKey: vi.fn(),
   readKey: vi.fn(),

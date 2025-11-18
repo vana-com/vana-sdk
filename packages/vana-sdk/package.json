@@ -120,7 +120,6 @@
     "abitype": "^1.0.9",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
-    "eccrypto-js": "^5.4.0",
     "graphql": "^16.11.0",
     "openpgp": "^6.1.1",
     "uuid": "^13.0.0",

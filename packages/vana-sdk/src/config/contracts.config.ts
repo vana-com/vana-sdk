@@ -42,6 +42,7 @@ export const CONTRACTS: Record<string, ContractConfig> = {
   // ========================================
   // DATA ACCESS V1 CONTRACTS
   // ========================================
+  // NOTE: ABIs should be fetched from Moksha (contracts not yet deployed to Mainnet as of 2025-11-13)
   ProtocolConfig: {
     addresses: {
       14800: "0x62e050fB82678E666CA8671A142e421648Ae6302",
@@ -340,6 +341,7 @@ export const CONTRACTS: Record<string, ContractConfig> = {
       1480: "0x00EDdD9621Fb08436d0331c149D1690909a5906d",
     },
   },
+  // NOTE: ABI should be fetched from Moksha (Mainnet contract not verified on block explorer)
   UniswapV3NonfungiblePositionManager: {
     addresses: {
       14800: "0x48Bd633f4B9128a38Ebb4a48b6975EB3Eaf1931b",
@@ -372,6 +374,7 @@ export const CONTRACTS: Record<string, ContractConfig> = {
   // ========================================
   // TEMPLATE CONTRACTS (reference instance for ABI)
   // ========================================
+  // NOTE: ABI should be fetched from Moksha (template contract, ABIs identical on both networks)
   DataLiquidityPool: {
     addresses: {
       14800: "0x5dB02626233a192aa4e6c34c31664A580881fD2d",

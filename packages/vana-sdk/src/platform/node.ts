@@ -50,6 +50,7 @@ import {
   parseEncryptedDataBuffer,
   processWalletPublicKey,
 } from "../utils/crypto-utils";
+import { fromHex } from "viem";
 
 // Lazy-loaded dependencies to avoid Turbopack TDZ issues
 const getOpenPGP = lazyImport(() => import("openpgp"));
@@ -113,7 +114,12 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
     try {
       if (features.useCustomECIES) {
         // Use custom ECIES implementation
-        const publicKey = Buffer.from(publicKeyHex, "hex");
+        // Handle 0x prefix using viem (matches browser implementation)
+        const prefixedHex = publicKeyHex.startsWith("0x")
+          ? publicKeyHex
+          : `0x${publicKeyHex}`;
+        const publicKeyBytes = fromHex(prefixedHex as `0x${string}`, "bytes");
+        const publicKey = Buffer.from(publicKeyBytes);
         const message = Buffer.from(data, "utf8");
 
         const encrypted = await this.customEciesProvider.encrypt(
@@ -186,7 +192,12 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
       if (features.useCustomECIES) {
         // Use custom ECIES implementation
         const privateKeyBuffer = processWalletPrivateKey(privateKeyHex);
-        const encryptedBuffer = Buffer.from(encryptedData, "hex");
+        // Handle 0x prefix using viem (matches browser implementation)
+        const prefixedHex = encryptedData.startsWith("0x")
+          ? encryptedData
+          : `0x${encryptedData}`;
+        const encryptedBytes = fromHex(prefixedHex as `0x${string}`, "bytes");
+        const encryptedBuffer = Buffer.from(encryptedBytes);
         const { iv, ephemPublicKey, ciphertext, mac } =
           parseEncryptedDataBuffer(encryptedBuffer);
 

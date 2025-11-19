@@ -7,6 +7,7 @@ on:
       - feat/compressed-key-support
       - tim/pro-526-personal-server-agent-operation-poc
       - chore/PRO-775/integrate-pge
+      - fix/update-lockfile
 
 jobs:
   publish-prerelease:

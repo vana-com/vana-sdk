@@ -3,7 +3,7 @@
 //
 // DLPRegistry Implementation Contract
 //
-// Generated: 2025-10-30T23:21:16.756Z
+// Generated: 2025-11-13T22:43:38.105Z
 // Network: Vana (Chain ID: 1480)
 //
 //   Proxy Address:

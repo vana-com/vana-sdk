@@ -202,6 +202,22 @@ export type {
   Permission,
 } from "./permissions";
 
+// Runtime Permissions types
+export type {
+  RuntimePermissionParams,
+  RuntimeGrantFile,
+  RuntimePermission,
+  RuntimePermissionResult,
+} from "./runtimePermissions";
+
+// Access Settlement types
+export type {
+  OperationInvoice,
+  PaymentSettlementResult,
+  SettleWithNativeParams,
+  SettleWithTokenParams,
+} from "./accessSettlement";
+
 // Personal server types
 export type {
   PostRequestParams,

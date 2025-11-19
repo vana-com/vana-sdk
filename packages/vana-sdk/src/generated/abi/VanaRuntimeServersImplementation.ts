@@ -1,20 +1,20 @@
 // THIS FILE IS GENERATED, DO NOT EDIT MANUALLY
 // Run `npm run fetch-abis` to regenerate
 //
-// DataPortabilityGrantees Implementation Contract
+// VanaRuntimeServers Implementation Contract
 //
-// Generated: 2025-11-13T22:43:31.318Z
-// Network: Vana (Chain ID: 1480)
+// Generated: 2025-11-13T06:17:15.780Z
+// Network: Moksha Testnet (Chain ID: 14800)
 //
 //   Proxy Address:
-//     0x8325C0A0948483EdA023A1A2Fd895e62C5131234
-//     https://vanascan.io/address/0x8325C0A0948483EdA023A1A2Fd895e62C5131234
+//     0x6a159Dc0751fC79F1b2cd5c588Fa0a904847dfcF
+//     https://moksha.vanascan.io/address/0x6a159Dc0751fC79F1b2cd5c588Fa0a904847dfcF
 //
 //   Implementation Address:
-//     0x53A4e13caF2EbC03224981B6f22644A720f74166
-//     https://vanascan.io/address/0x53A4e13caF2EbC03224981B6f22644A720f74166
+//     0x01Af784887745b647152D5a33495D17ab6c7aCFC
+//     https://moksha.vanascan.io/address/0x01Af784887745b647152D5a33495D17ab6c7aCFC
 
-export const DataPortabilityGranteesABI = [
+export const VanaRuntimeServersABI = [
   {
     inputs: [],
     stateMutability: "nonpayable",
@@ -70,32 +70,7 @@ export const DataPortabilityGranteesABI = [
   },
   {
     inputs: [],
-    name: "EmptyPublicKey",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "EnforcedPause",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "ExpectedPause",
-    type: "error",
-  },
-  {
-    inputs: [],
     name: "FailedInnerCall",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "GranteeAlreadyRegistered",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "GranteeNotFound",
     type: "error",
   },
   {
@@ -106,6 +81,11 @@ export const DataPortabilityGranteesABI = [
   {
     inputs: [],
     name: "NotInitializing",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "ReentrancyGuardReentrantCall",
     type: "error",
   },
   {
@@ -125,47 +105,6 @@ export const DataPortabilityGranteesABI = [
     type: "error",
   },
   {
-    inputs: [],
-    name: "UnauthorizedRegistration",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "ZeroAddress",
-    type: "error",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "uint256",
-        name: "granteeId",
-        type: "uint256",
-      },
-      {
-        indexed: true,
-        internalType: "address",
-        name: "owner",
-        type: "address",
-      },
-      {
-        indexed: true,
-        internalType: "address",
-        name: "granteeAddress",
-        type: "address",
-      },
-      {
-        indexed: false,
-        internalType: "string",
-        name: "publicKey",
-        type: "string",
-      },
-    ],
-    name: "GranteeRegistered",
-    type: "event",
-  },
-  {
     anonymous: false,
     inputs: [
       {
@@ -176,19 +115,6 @@ export const DataPortabilityGranteesABI = [
       },
     ],
     name: "Initialized",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: false,
-        internalType: "address",
-        name: "account",
-        type: "address",
-      },
-    ],
-    name: "Paused",
     type: "event",
   },
   {
@@ -270,13 +196,76 @@ export const DataPortabilityGranteesABI = [
     anonymous: false,
     inputs: [
       {
-        indexed: false,
-        internalType: "address",
-        name: "account",
-        type: "address",
+        indexed: true,
+        internalType: "uint256",
+        name: "serverId",
+        type: "uint256",
       },
     ],
-    name: "Unpaused",
+    name: "ServerDeactivated",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "serverId",
+        type: "uint256",
+      },
+    ],
+    name: "ServerReactivated",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "serverId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "owner",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "runtimeAddress",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "string",
+        name: "url",
+        type: "string",
+      },
+    ],
+    name: "ServerRegistered",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "serverId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "string",
+        name: "newUrl",
+        type: "string",
+      },
+    ],
+    name: "ServerUrlUpdated",
     type: "event",
   },
   {
@@ -307,20 +296,7 @@ export const DataPortabilityGranteesABI = [
   },
   {
     inputs: [],
-    name: "MAINTAINER_ROLE",
-    outputs: [
-      {
-        internalType: "bytes32",
-        name: "",
-        type: "bytes32",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "PERMISSION_MANAGER_ROLE",
+    name: "RUNTIME_REGISTRAR_ROLE",
     outputs: [
       {
         internalType: "bytes32",
@@ -348,18 +324,32 @@ export const DataPortabilityGranteesABI = [
     inputs: [
       {
         internalType: "uint256",
-        name: "granteeId",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "permissionId",
+        name: "serverId",
         type: "uint256",
       },
     ],
-    name: "addPermissionToGrantee",
+    name: "deactivateServer",
     outputs: [],
     stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "runtimeAddress",
+        type: "address",
+      },
+    ],
+    name: "getOwnerOfRuntime",
+    outputs: [
+      {
+        internalType: "address",
+        name: "",
+        type: "address",
+      },
+    ],
+    stateMutability: "view",
     type: "function",
   },
   {
@@ -384,6 +374,189 @@ export const DataPortabilityGranteesABI = [
   {
     inputs: [
       {
+        internalType: "uint256",
+        name: "serverId",
+        type: "uint256",
+      },
+    ],
+    name: "getServer",
+    outputs: [
+      {
+        components: [
+          {
+            internalType: "uint256",
+            name: "id",
+            type: "uint256",
+          },
+          {
+            internalType: "address",
+            name: "owner",
+            type: "address",
+          },
+          {
+            internalType: "address",
+            name: "runtimeAddress",
+            type: "address",
+          },
+          {
+            internalType: "bytes",
+            name: "publicKey",
+            type: "bytes",
+          },
+          {
+            internalType: "bytes",
+            name: "escrowedPrivateKey",
+            type: "bytes",
+          },
+          {
+            internalType: "string",
+            name: "url",
+            type: "string",
+          },
+          {
+            internalType: "bool",
+            name: "isActive",
+            type: "bool",
+          },
+          {
+            internalType: "uint256",
+            name: "registeredAt",
+            type: "uint256",
+          },
+        ],
+        internalType: "struct IVanaRuntimeServers.Server",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "runtimeAddress",
+        type: "address",
+      },
+    ],
+    name: "getServerByAddress",
+    outputs: [
+      {
+        components: [
+          {
+            internalType: "uint256",
+            name: "id",
+            type: "uint256",
+          },
+          {
+            internalType: "address",
+            name: "owner",
+            type: "address",
+          },
+          {
+            internalType: "address",
+            name: "runtimeAddress",
+            type: "address",
+          },
+          {
+            internalType: "bytes",
+            name: "publicKey",
+            type: "bytes",
+          },
+          {
+            internalType: "bytes",
+            name: "escrowedPrivateKey",
+            type: "bytes",
+          },
+          {
+            internalType: "string",
+            name: "url",
+            type: "string",
+          },
+          {
+            internalType: "bool",
+            name: "isActive",
+            type: "bool",
+          },
+          {
+            internalType: "uint256",
+            name: "registeredAt",
+            type: "uint256",
+          },
+        ],
+        internalType: "struct IVanaRuntimeServers.Server",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "owner",
+        type: "address",
+      },
+    ],
+    name: "getServersByOwner",
+    outputs: [
+      {
+        components: [
+          {
+            internalType: "uint256",
+            name: "id",
+            type: "uint256",
+          },
+          {
+            internalType: "address",
+            name: "owner",
+            type: "address",
+          },
+          {
+            internalType: "address",
+            name: "runtimeAddress",
+            type: "address",
+          },
+          {
+            internalType: "bytes",
+            name: "publicKey",
+            type: "bytes",
+          },
+          {
+            internalType: "bytes",
+            name: "escrowedPrivateKey",
+            type: "bytes",
+          },
+          {
+            internalType: "string",
+            name: "url",
+            type: "string",
+          },
+          {
+            internalType: "bool",
+            name: "isActive",
+            type: "bool",
+          },
+          {
+            internalType: "uint256",
+            name: "registeredAt",
+            type: "uint256",
+          },
+        ],
+        internalType: "struct IVanaRuntimeServers.Server[]",
+        name: "",
+        type: "tuple[]",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
         internalType: "bytes32",
         name: "role",
         type: "bytes32",
@@ -397,361 +570,6 @@ export const DataPortabilityGranteesABI = [
     name: "grantRole",
     outputs: [],
     stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "granteeAddress",
-        type: "address",
-      },
-    ],
-    name: "granteeAddressToId",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "granteeId",
-        type: "uint256",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "granteeAddress",
-        type: "address",
-      },
-    ],
-    name: "granteeByAddress",
-    outputs: [
-      {
-        components: [
-          {
-            internalType: "address",
-            name: "owner",
-            type: "address",
-          },
-          {
-            internalType: "address",
-            name: "granteeAddress",
-            type: "address",
-          },
-          {
-            internalType: "string",
-            name: "publicKey",
-            type: "string",
-          },
-          {
-            internalType: "uint256[]",
-            name: "permissionIds",
-            type: "uint256[]",
-          },
-        ],
-        internalType: "struct IDataPortabilityGrantees.GranteeInfo",
-        name: "",
-        type: "tuple",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "granteeAddress",
-        type: "address",
-      },
-    ],
-    name: "granteeByAddressV2",
-    outputs: [
-      {
-        components: [
-          {
-            internalType: "address",
-            name: "owner",
-            type: "address",
-          },
-          {
-            internalType: "address",
-            name: "granteeAddress",
-            type: "address",
-          },
-          {
-            internalType: "string",
-            name: "publicKey",
-            type: "string",
-          },
-          {
-            internalType: "uint256",
-            name: "permissionsCount",
-            type: "uint256",
-          },
-        ],
-        internalType: "struct IDataPortabilityGrantees.GranteeInfoV2",
-        name: "",
-        type: "tuple",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "granteeId",
-        type: "uint256",
-      },
-    ],
-    name: "granteeInfo",
-    outputs: [
-      {
-        components: [
-          {
-            internalType: "address",
-            name: "owner",
-            type: "address",
-          },
-          {
-            internalType: "address",
-            name: "granteeAddress",
-            type: "address",
-          },
-          {
-            internalType: "string",
-            name: "publicKey",
-            type: "string",
-          },
-          {
-            internalType: "uint256[]",
-            name: "permissionIds",
-            type: "uint256[]",
-          },
-        ],
-        internalType: "struct IDataPortabilityGrantees.GranteeInfo",
-        name: "",
-        type: "tuple",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "granteeId",
-        type: "uint256",
-      },
-    ],
-    name: "granteeInfoV2",
-    outputs: [
-      {
-        components: [
-          {
-            internalType: "address",
-            name: "owner",
-            type: "address",
-          },
-          {
-            internalType: "address",
-            name: "granteeAddress",
-            type: "address",
-          },
-          {
-            internalType: "string",
-            name: "publicKey",
-            type: "string",
-          },
-          {
-            internalType: "uint256",
-            name: "permissionsCount",
-            type: "uint256",
-          },
-        ],
-        internalType: "struct IDataPortabilityGrantees.GranteeInfoV2",
-        name: "",
-        type: "tuple",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "granteeId",
-        type: "uint256",
-      },
-    ],
-    name: "granteePermissionIds",
-    outputs: [
-      {
-        internalType: "uint256[]",
-        name: "",
-        type: "uint256[]",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "granteeId",
-        type: "uint256",
-      },
-    ],
-    name: "granteePermissions",
-    outputs: [
-      {
-        internalType: "uint256[]",
-        name: "",
-        type: "uint256[]",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "granteeId",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "offset",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "limit",
-        type: "uint256",
-      },
-    ],
-    name: "granteePermissionsPaginated",
-    outputs: [
-      {
-        internalType: "uint256[]",
-        name: "permissionIds",
-        type: "uint256[]",
-      },
-      {
-        internalType: "uint256",
-        name: "totalCount",
-        type: "uint256",
-      },
-      {
-        internalType: "bool",
-        name: "hasMore",
-        type: "bool",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "granteeId",
-        type: "uint256",
-      },
-    ],
-    name: "grantees",
-    outputs: [
-      {
-        components: [
-          {
-            internalType: "address",
-            name: "owner",
-            type: "address",
-          },
-          {
-            internalType: "address",
-            name: "granteeAddress",
-            type: "address",
-          },
-          {
-            internalType: "string",
-            name: "publicKey",
-            type: "string",
-          },
-          {
-            internalType: "uint256[]",
-            name: "permissionIds",
-            type: "uint256[]",
-          },
-        ],
-        internalType: "struct IDataPortabilityGrantees.GranteeInfo",
-        name: "",
-        type: "tuple",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "granteesCount",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "granteeId",
-        type: "uint256",
-      },
-    ],
-    name: "granteesV2",
-    outputs: [
-      {
-        components: [
-          {
-            internalType: "address",
-            name: "owner",
-            type: "address",
-          },
-          {
-            internalType: "address",
-            name: "granteeAddress",
-            type: "address",
-          },
-          {
-            internalType: "string",
-            name: "publicKey",
-            type: "string",
-          },
-          {
-            internalType: "uint256",
-            name: "permissionsCount",
-            type: "uint256",
-          },
-        ],
-        internalType: "struct IDataPortabilityGrantees.GranteeInfoV2",
-        name: "",
-        type: "tuple",
-      },
-    ],
-    stateMutability: "view",
     type: "function",
   },
   {
@@ -782,12 +600,7 @@ export const DataPortabilityGranteesABI = [
     inputs: [
       {
         internalType: "address",
-        name: "trustedForwarderAddress",
-        type: "address",
-      },
-      {
-        internalType: "address",
-        name: "ownerAddress",
+        name: "admin",
         type: "address",
       },
     ],
@@ -800,11 +613,11 @@ export const DataPortabilityGranteesABI = [
     inputs: [
       {
         internalType: "address",
-        name: "forwarder",
+        name: "runtimeAddress",
         type: "address",
       },
     ],
-    name: "isTrustedForwarder",
+    name: "isRuntimeActive",
     outputs: [
       {
         internalType: "bool",
@@ -816,15 +629,14 @@ export const DataPortabilityGranteesABI = [
     type: "function",
   },
   {
-    inputs: [],
-    name: "pause",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "paused",
+    inputs: [
+      {
+        internalType: "address",
+        name: "runtimeAddress",
+        type: "address",
+      },
+    ],
+    name: "isRuntimeRegistered",
     outputs: [
       {
         internalType: "bool",
@@ -851,22 +663,45 @@ export const DataPortabilityGranteesABI = [
   {
     inputs: [
       {
+        internalType: "uint256",
+        name: "serverId",
+        type: "uint256",
+      },
+    ],
+    name: "reactivateServer",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
         internalType: "address",
         name: "owner",
         type: "address",
       },
       {
         internalType: "address",
-        name: "granteeAddress",
+        name: "runtimeAddress",
         type: "address",
       },
       {
-        internalType: "string",
+        internalType: "bytes",
         name: "publicKey",
+        type: "bytes",
+      },
+      {
+        internalType: "bytes",
+        name: "escrowedPrivateKey",
+        type: "bytes",
+      },
+      {
+        internalType: "string",
+        name: "url",
         type: "string",
       },
     ],
-    name: "registerGrantee",
+    name: "registerServer",
     outputs: [
       {
         internalType: "uint256",
@@ -874,24 +709,6 @@ export const DataPortabilityGranteesABI = [
         type: "uint256",
       },
     ],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "granteeId",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "permissionId",
-        type: "uint256",
-      },
-    ],
-    name: "removePermissionFromGrantee",
-    outputs: [],
     stateMutability: "nonpayable",
     type: "function",
   },
@@ -934,24 +751,6 @@ export const DataPortabilityGranteesABI = [
   {
     inputs: [
       {
-        internalType: "bytes32",
-        name: "role",
-        type: "bytes32",
-      },
-      {
-        internalType: "bytes32",
-        name: "adminRole",
-        type: "bytes32",
-      },
-    ],
-    name: "setRoleAdmin",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
         internalType: "bytes4",
         name: "interfaceId",
         type: "bytes4",
@@ -969,34 +768,19 @@ export const DataPortabilityGranteesABI = [
     type: "function",
   },
   {
-    inputs: [],
-    name: "trustedForwarder",
-    outputs: [
-      {
-        internalType: "address",
-        name: "",
-        type: "address",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "unpause",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
     inputs: [
       {
-        internalType: "address",
-        name: "trustedForwarderAddress",
-        type: "address",
+        internalType: "uint256",
+        name: "serverId",
+        type: "uint256",
+      },
+      {
+        internalType: "string",
+        name: "newUrl",
+        type: "string",
       },
     ],
-    name: "updateTrustedForwarder",
+    name: "updateServerUrl",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -1021,4 +805,4 @@ export const DataPortabilityGranteesABI = [
   },
 ] as const;
 
-export default DataPortabilityGranteesABI;
+export default VanaRuntimeServersABI;

@@ -40,6 +40,47 @@ interface ContractConfig {
 
 export const CONTRACTS: Record<string, ContractConfig> = {
   // ========================================
+  // DATA ACCESS V1 CONTRACTS
+  // ========================================
+  // NOTE: ABIs should be fetched from Moksha (contracts not yet deployed to Mainnet as of 2025-11-13)
+  ProtocolConfig: {
+    addresses: {
+      14800: "0x62e050fB82678E666CA8671A142e421648Ae6302",
+      1480: "0x62e050fB82678E666CA8671A142e421648Ae6302",
+    },
+  },
+  AttestationPolicy: {
+    addresses: {
+      14800: "0xbeA180833BC728475ce9cFaEb869b801A25EC7D9",
+      1480: "0xbeA180833BC728475ce9cFaEb869b801A25EC7D9",
+    },
+  },
+  DatasetRegistry: {
+    addresses: {
+      14800: "0xDad92767DD14308F1a72573fc47004A278Ac7479",
+      1480: "0xDad92767DD14308F1a72573fc47004A278Ac7479",
+    },
+  },
+  VanaRuntimeServers: {
+    addresses: {
+      14800: "0x6a159Dc0751fC79F1b2cd5c588Fa0a904847dfcF",
+      1480: "0x6a159Dc0751fC79F1b2cd5c588Fa0a904847dfcF",
+    },
+  },
+  VanaRuntimePermissions: {
+    addresses: {
+      14800: "0xf63F60b2dD7D3992ec720548198F694D15AA2bfd",
+      1480: "0xf63F60b2dD7D3992ec720548198F694D15AA2bfd",
+    },
+  },
+  AccessSettlement: {
+    addresses: {
+      14800: "0x50c2D36b3Ae23E71abA9eFc03D937319E1Dc122a",
+      1480: "0x50c2D36b3Ae23E71abA9eFc03D937319E1Dc122a",
+    },
+  },
+
+  // ========================================
   // DATA PORTABILITY CONTRACTS
   // ========================================
   DataPortabilityPermissions: {
@@ -118,6 +159,12 @@ export const CONTRACTS: Record<string, ContractConfig> = {
   // ========================================
   // TEE POOLS (Canonical Deployments)
   // ========================================
+  TeePool: {
+    addresses: {
+      14800: "0x3c92fD91639b41f13338CE62f19131e7d19eaa0D",
+      1480: "0x3c92fD91639b41f13338CE62f19131e7d19eaa0D",
+    },
+  },
   TeePoolPhala: {
     addresses: {
       14800: "0xE8EC6BD73b23Ad40E6B9a6f4bD343FAc411bD99A",
@@ -294,6 +341,7 @@ export const CONTRACTS: Record<string, ContractConfig> = {
       1480: "0x00EDdD9621Fb08436d0331c149D1690909a5906d",
     },
   },
+  // NOTE: ABI should be fetched from Moksha (Mainnet contract not verified on block explorer)
   UniswapV3NonfungiblePositionManager: {
     addresses: {
       14800: "0x48Bd633f4B9128a38Ebb4a48b6975EB3Eaf1931b",
@@ -322,6 +370,17 @@ export const CONTRACTS: Record<string, ContractConfig> = {
       1480: "0x8807e8BCDFbaA8c2761760f3FBA37F6f7F2C5b2d",
     },
   },
+
+  // ========================================
+  // TEMPLATE CONTRACTS (reference instance for ABI)
+  // ========================================
+  // NOTE: ABI should be fetched from Moksha (template contract, ABIs identical on both networks)
+  DataLiquidityPool: {
+    addresses: {
+      14800: "0x5dB02626233a192aa4e6c34c31664A580881fD2d",
+      1480: "0x064De7A6B7353d96F70cE27198B189F87B0535a0",
+    },
+  },
 } as const;
 
 // Legacy/Deprecated Contracts
@@ -336,12 +395,6 @@ export const CONTRACTS: Record<string, ContractConfig> = {
  * @category Configuration
  */
 export const LEGACY_CONTRACTS = {
-  TeePool: {
-    addresses: {
-      14800: "0x3c92fD91639b41f13338CE62f19131e7d19eaa0D",
-      1480: "0x3c92fD91639b41f13338CE62f19131e7d19eaa0D",
-    },
-  },
   DLPRootEpoch: {
     addresses: {
       14800: "0xc3d176cF6BccFCB9225b53B87a95147218e1537F",

@@ -22,6 +22,8 @@ import type {
 import { InvalidConfigurationError } from "./errors";
 import type { ControllerContext } from "./controllers/permissions";
 import { PermissionsController } from "./controllers/permissions";
+import { RuntimePermissionsController } from "./controllers/runtimePermissions";
+import { AccessSettlementController } from "./controllers/accessSettlement";
 import { DataController } from "./controllers/data";
 import { SchemaController } from "./controllers/schemas";
 import { ServerController } from "./controllers/server";
@@ -160,6 +162,12 @@ export class VanaCoreFactory {
 export class VanaCore {
   /** Manages gasless data access permissions and trusted server registry. */
   public readonly permissions: PermissionsController;
+
+  /** Manages runtime permissions for dataset monetization via Vana Runtime. */
+  public readonly runtimePermissions: RuntimePermissionsController;
+
+  /** Manages payment settlement for runtime operations. */
+  public readonly accessSettlement: AccessSettlementController;
 
   /** Handles user data file operations. */
   public readonly data: DataController;
@@ -395,6 +403,8 @@ export class VanaCore {
 
     // Initialize controllers
     this.permissions = new PermissionsController(sharedContext);
+    this.runtimePermissions = new RuntimePermissionsController(sharedContext);
+    this.accessSettlement = new AccessSettlementController(sharedContext);
     this.data = new DataController(sharedContext);
     this.schemas = new SchemaController(sharedContext);
     this.operations = new OperationsController(sharedContext);

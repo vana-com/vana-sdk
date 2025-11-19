@@ -52,8 +52,8 @@ describe("ABI utilities", () => {
       expect(treasuryAbi.length).toBeGreaterThan(0);
     });
 
-    it("should return ABI for DLPRegistryTreasuryImplementation", () => {
-      const registryTreasuryAbi = getAbi("DLPRegistryTreasuryImplementation");
+    it("should return ABI for DLPRegistryTreasury", () => {
+      const registryTreasuryAbi = getAbi("DLPRegistryTreasury");
       expect(registryTreasuryAbi).toBeDefined();
       expect(Array.isArray(registryTreasuryAbi)).toBe(true);
       expect(registryTreasuryAbi.length).toBeGreaterThan(0);

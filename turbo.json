@@ -19,7 +19,8 @@
         "NEXT_PUBLIC_DEFAULT_GRANTEE_ID",
         "GOOGLE_DRIVE_CLIENT_ID",
         "GOOGLE_DRIVE_CLIENT_SECRET",
-        "GOOGLE_DRIVE_FOLDER"
+        "GOOGLE_DRIVE_FOLDER",
+        "GOOGLE_DRIVE_REDIRECT_URI"
       ]
     },
     "build:types": {

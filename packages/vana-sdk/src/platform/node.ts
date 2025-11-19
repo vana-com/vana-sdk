@@ -4,8 +4,8 @@
  * @remarks
  * This module implements all platform-specific operations for Node.js environments,
  * including cryptography, PGP operations, HTTP requests, and caching. It dynamically
- * imports dependencies to avoid Turbopack TDZ issues and supports both standard
- * eccrypto and custom ECIES implementations based on feature flags.
+ * imports dependencies to avoid Turbopack TDZ issues and uses a custom ECIES
+ * implementation with native secp256k1 for optimal performance.
  *
  * WARNING: Dependencies that access globals during init MUST be dynamically imported
  * to support Turbopack. See: https://github.com/vercel/next.js/issues/82632
@@ -13,7 +13,7 @@
  * @example
  * ```typescript
  * // Use the Node.js platform adapter
- * import { nodePlatformAdapter } from '@vana-sdk/platform/node';
+ * import { nodePlatformAdapter} from '@vana-sdk/platform/node';
  *
  * // Encrypt data with public key
  * const encrypted = await nodePlatformAdapter.crypto.encryptWithPublicKey(
@@ -43,7 +43,6 @@ import { getPGPKeyGenParams } from "./shared/pgp-utils";
 import { wrapCryptoError } from "./shared/error-utils";
 import { streamToUint8Array } from "./shared/stream-utils";
 import { lazyImport } from "../utils/lazy-import";
-import { features } from "../config/features";
 import { WalletKeyEncryptionService } from "../crypto/services/WalletKeyEncryptionService";
 import {
   processWalletPrivateKey,
@@ -53,9 +52,8 @@ import {
 
 // Lazy-loaded dependencies to avoid Turbopack TDZ issues
 const getOpenPGP = lazyImport(() => import("openpgp"));
-const getEccryptoJS = lazyImport(() => import("eccrypto-js"));
 
-// Import both ECIES implementations statically
+// Import ECIES implementation
 import { NodeECIESUint8Provider } from "../crypto/ecies/node";
 import { ECIESError } from "../crypto/ecies/interface";
 import type { ECIESEncrypted } from "../crypto/ecies";
@@ -83,16 +81,14 @@ interface Secp256k1Module {
  *
  * @remarks
  * Provides ECIES encryption/decryption, key generation, and password-based
- * encryption using either eccrypto-js or a custom ECIES implementation.
- * The implementation choice is controlled by the `useCustomECIES` feature flag.
+ * encryption using a custom ECIES implementation with native secp256k1.
  *
  * @internal
  */
 class NodeCryptoAdapter implements VanaCryptoAdapter {
-  // Initialize both providers - only one will be used based on feature flag
-  private customEciesProvider = new NodeECIESUint8Provider();
-  private customWalletService = new WalletKeyEncryptionService({
-    eciesProvider: this.customEciesProvider,
+  private eciesProvider = new NodeECIESUint8Provider();
+  private walletService = new WalletKeyEncryptionService({
+    eciesProvider: this.eciesProvider,
   });
 
   /**
@@ -111,53 +107,24 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
     publicKeyHex: string,
   ): Promise<string> {
     try {
-      if (features.useCustomECIES) {
-        // Use custom ECIES implementation
-        const publicKey = Buffer.from(publicKeyHex, "hex");
-        const message = Buffer.from(data, "utf8");
+      // Process public key to handle 0x prefix and convert to Buffer
+      const publicKeyBytes = processWalletPublicKey(publicKeyHex);
+      const publicKey = Buffer.from(publicKeyBytes);
+      const message = Buffer.from(data, "utf8");
 
-        const encrypted = await this.customEciesProvider.encrypt(
-          publicKey,
-          message,
-        );
+      const encrypted = await this.eciesProvider.encrypt(publicKey, message);
 
-        // Concatenate all components and return as hex string for API consistency
-        const result = Buffer.concat([
-          encrypted.iv,
-          encrypted.ephemPublicKey,
-          encrypted.ciphertext,
-          encrypted.mac,
-        ]);
+      // Concatenate all components and return as hex string for API consistency
+      const result = Buffer.concat([
+        encrypted.iv,
+        encrypted.ephemPublicKey,
+        encrypted.ciphertext,
+        encrypted.mac,
+      ]);
 
-        return result.toString("hex");
-      } else {
-        // Use eccrypto-js (default)
-        const eccryptojs = await getEccryptoJS();
-        const publicKeyBytes = Buffer.from(publicKeyHex, "hex");
-
-        // Normalize to uncompressed format using the ECIES provider
-        // This handles both compressed (33 bytes) and uncompressed (65 bytes) keys
-        const uncompressed = this.customEciesProvider.normalizeToUncompressed(
-          new Uint8Array(publicKeyBytes),
-        );
-        const publicKey = Buffer.from(uncompressed);
-
-        const message = Buffer.from(data, "utf8");
-
-        const encrypted = await eccryptojs.encrypt(publicKey, message);
-
-        // Concatenate all components and return as hex string for API consistency
-        const result = Buffer.concat([
-          encrypted.iv,
-          encrypted.ephemPublicKey,
-          encrypted.ciphertext,
-          encrypted.mac,
-        ]);
-
-        return result.toString("hex");
-      }
+      return result.toString("hex");
     } catch (error) {
-      if (features.useCustomECIES && error instanceof ECIESError) {
+      if (error instanceof ECIESError) {
         throw error;
       }
       throw new Error(
@@ -183,47 +150,30 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
     privateKeyHex: string,
   ): Promise<string> {
     try {
-      if (features.useCustomECIES) {
-        // Use custom ECIES implementation
-        const privateKeyBuffer = processWalletPrivateKey(privateKeyHex);
-        const encryptedBuffer = Buffer.from(encryptedData, "hex");
-        const { iv, ephemPublicKey, ciphertext, mac } =
-          parseEncryptedDataBuffer(encryptedBuffer);
+      const privateKeyBuffer = processWalletPrivateKey(privateKeyHex);
+      // Handle 0x prefix in encrypted data (e.g., from viem's toHex)
+      const encryptedHex = encryptedData.startsWith("0x")
+        ? encryptedData.slice(2)
+        : encryptedData;
+      const encryptedBuffer = Buffer.from(encryptedHex, "hex");
+      const { iv, ephemPublicKey, ciphertext, mac } =
+        parseEncryptedDataBuffer(encryptedBuffer);
 
-        // Reconstruct the encrypted data structure
-        const encryptedObj: ECIESEncrypted = {
-          iv,
-          ephemPublicKey,
-          ciphertext,
-          mac,
-        };
+      // Reconstruct the encrypted data structure
+      const encryptedObj: ECIESEncrypted = {
+        iv,
+        ephemPublicKey,
+        ciphertext,
+        mac,
+      };
 
-        const decrypted = await this.customEciesProvider.decrypt(
-          privateKeyBuffer,
-          encryptedObj,
-        );
-        return new TextDecoder().decode(decrypted);
-      } else {
-        // Use eccrypto-js (default)
-        const eccryptojs = await getEccryptoJS();
-        const privateKey = Buffer.from(privateKeyHex, "hex");
-        const encryptedBuffer = Buffer.from(encryptedData, "hex");
-
-        // Parse the encrypted data
-        const { iv, ephemPublicKey, ciphertext, mac } =
-          parseEncryptedDataBuffer(encryptedBuffer);
-
-        const decrypted = await eccryptojs.decrypt(privateKey, {
-          iv: Buffer.from(iv),
-          ephemPublicKey: Buffer.from(ephemPublicKey),
-          ciphertext: Buffer.from(ciphertext),
-          mac: Buffer.from(mac),
-        });
-
-        return decrypted.toString("utf8");
-      }
+      const decrypted = await this.eciesProvider.decrypt(
+        privateKeyBuffer,
+        encryptedObj,
+      );
+      return new TextDecoder().decode(decrypted);
     } catch (error) {
-      if (features.useCustomECIES && error instanceof ECIESError) {
+      if (error instanceof ECIESError) {
         throw error;
       }
       throw new Error(
@@ -243,36 +193,23 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
    */
   async generateKeyPair(): Promise<{ publicKey: string; privateKey: string }> {
     try {
-      if (features.useCustomECIES) {
-        // Use custom implementation with secp256k1
-        const secp256k1 = secp256k1Import as unknown as Secp256k1Module;
+      const secp256k1 = secp256k1Import as unknown as Secp256k1Module;
 
-        // Generate private key
-        let privateKey: Buffer;
-        do {
-          privateKey = randomBytes(32);
-        } while (!secp256k1.privateKeyVerify(privateKey));
+      // Generate private key
+      let privateKey: Buffer;
+      do {
+        privateKey = randomBytes(32);
+      } while (!secp256k1.privateKeyVerify(privateKey));
 
-        // Get compressed public key
-        const publicKey = Buffer.from(
-          secp256k1.publicKeyCreate(privateKey, true),
-        );
+      // Get compressed public key
+      const publicKey = Buffer.from(
+        secp256k1.publicKeyCreate(privateKey, true),
+      );
 
-        return {
-          privateKey: privateKey.toString("hex"),
-          publicKey: publicKey.toString("hex"),
-        };
-      } else {
-        // Use eccrypto-js (default)
-        const eccryptojs = await getEccryptoJS();
-        const privateKey = eccryptojs.generatePrivate();
-        const publicKey = eccryptojs.getPublic(privateKey);
-
-        return {
-          privateKey: privateKey.toString("hex"),
-          publicKey: publicKey.toString("hex"),
-        };
-      }
+      return {
+        privateKey: privateKey.toString("hex"),
+        publicKey: publicKey.toString("hex"),
+      };
     } catch (error) {
       throw wrapCryptoError("key generation", error);
     }
@@ -294,37 +231,10 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
     publicKey: string,
   ): Promise<string> {
     try {
-      if (features.useCustomECIES) {
-        // Use custom ECIES implementation via WalletKeyEncryptionService
-        return await this.customWalletService.encryptWithWalletPublicKey(
-          data,
-          publicKey,
-        );
-      } else {
-        // Use eccrypto-js directly for wallet encryption
-        const eccryptojs = await getEccryptoJS();
-        const publicKeyBytes = processWalletPublicKey(publicKey);
-
-        // Normalize to uncompressed format using the ECIES provider
-        // This handles both compressed (33 bytes) and uncompressed (65 bytes) keys
-        const uncompressed =
-          this.customEciesProvider.normalizeToUncompressed(publicKeyBytes);
-        const publicKeyBuffer = Buffer.from(uncompressed);
-
-        const message = Buffer.from(data, "utf8");
-
-        const encrypted = await eccryptojs.encrypt(publicKeyBuffer, message);
-
-        // Concatenate all components and return as hex string
-        const result = Buffer.concat([
-          encrypted.iv,
-          encrypted.ephemPublicKey,
-          encrypted.ciphertext,
-          encrypted.mac,
-        ]);
-
-        return result.toString("hex");
-      }
+      return await this.walletService.encryptWithWalletPublicKey(
+        data,
+        publicKey,
+      );
     } catch (error) {
       throw wrapCryptoError("encrypt with wallet public key", error);
     }
@@ -346,33 +256,10 @@ class NodeCryptoAdapter implements VanaCryptoAdapter {
     privateKey: string,
   ): Promise<string> {
     try {
-      if (features.useCustomECIES) {
-        // Use custom ECIES implementation via WalletKeyEncryptionService
-        return await this.customWalletService.decryptWithWalletPrivateKey(
-          encryptedData,
-          privateKey,
-        );
-      } else {
-        // Use eccrypto-js directly for wallet decryption
-        const eccryptojs = await getEccryptoJS();
-        const privateKeyBuffer = Buffer.from(
-          processWalletPrivateKey(privateKey),
-        );
-        const encryptedBuffer = Buffer.from(encryptedData, "hex");
-
-        // Parse the encrypted data
-        const { iv, ephemPublicKey, ciphertext, mac } =
-          parseEncryptedDataBuffer(encryptedBuffer);
-
-        const decrypted = await eccryptojs.decrypt(privateKeyBuffer, {
-          iv: Buffer.from(iv),
-          ephemPublicKey: Buffer.from(ephemPublicKey),
-          ciphertext: Buffer.from(ciphertext),
-          mac: Buffer.from(mac),
-        });
-
-        return decrypted.toString("utf8");
-      }
+      return await this.walletService.decryptWithWalletPrivateKey(
+        encryptedData,
+        privateKey,
+      );
     } catch (error) {
       throw wrapCryptoError("decrypt with wallet private key", error);
     }
@@ -686,8 +573,8 @@ class NodeCacheAdapter implements VanaCacheAdapter {
  *
  * @remarks
  * This adapter aggregates all Node.js-specific implementations of platform
- * operations. It automatically selects appropriate cryptographic implementations
- * based on feature flags and provides consistent APIs across all operations.
+ * operations using a custom ECIES implementation with native secp256k1 for
+ * optimal performance and provides consistent APIs across all operations.
  *
  * @example
  * ```typescript

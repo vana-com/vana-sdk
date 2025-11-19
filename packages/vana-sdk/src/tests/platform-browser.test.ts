@@ -1,13 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 
-// Mock the eccrypto-js module
-vi.mock("eccrypto-js", () => ({
-  // Mock the functions that your adapter actually calls
-  getPublicCompressed: vi.fn(),
-  encrypt: vi.fn(),
-  decrypt: vi.fn(),
-}));
-
 // Mock openpgp module
 vi.mock("openpgp", () => ({
   createMessage: vi.fn(),
@@ -35,8 +27,6 @@ describe("BrowserPlatformAdapter", () => {
   });
 
   describe("BrowserCryptoAdapter", () => {
-    // Removed obsolete eccrypto-js error tests - we now use our own ECIES implementation
-
     describe("decryptWithPrivateKey", () => {
       it("should handle invalid hex data", async () => {
         const { BrowserPlatformAdapter } = await import("../platform/browser");
@@ -45,38 +35,6 @@ describe("BrowserPlatformAdapter", () => {
         await expect(
           adapter.crypto.decryptWithPrivateKey("invalid-hex", "privatekey"),
         ).rejects.toThrow("decryptWithPrivateKey failed:");
-      });
-    });
-
-    describe("encryptWithWalletPublicKey", () => {
-      it("should handle eccrypto-js import errors", async () => {
-        // Re-mock eccrypto-js to fail on import
-        vi.doMock("eccrypto-js", () => {
-          throw new Error("Module not found");
-        });
-
-        const { BrowserPlatformAdapter } = await import("../platform/browser");
-        const adapter = new BrowserPlatformAdapter();
-
-        await expect(
-          adapter.crypto.encryptWithWalletPublicKey("data", "publickey"),
-        ).rejects.toThrow("encryptWithWalletPublicKey failed");
-      });
-    });
-
-    describe("decryptWithWalletPrivateKey", () => {
-      it("should handle eccrypto-js import errors", async () => {
-        // Re-mock eccrypto-js to fail on import
-        vi.doMock("eccrypto-js", () => {
-          throw new Error("Module not found");
-        });
-
-        const { BrowserPlatformAdapter } = await import("../platform/browser");
-        const adapter = new BrowserPlatformAdapter();
-
-        await expect(
-          adapter.crypto.decryptWithWalletPrivateKey("encrypted", "privatekey"),
-        ).rejects.toThrow("decryptWithWalletPrivateKey failed");
       });
     });
 

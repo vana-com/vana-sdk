@@ -12,6 +12,89 @@ describe("NodePlatformAdapter", () => {
   describe("NodeCryptoAdapter", () => {
     // Removed obsolete eccrypto error handling tests - we now use our own ECIES implementation
 
+    describe("encryptWithPublicKey 0x prefix handling", () => {
+      it("should handle public keys with 0x prefix", async () => {
+        const { NodePlatformAdapter: NPAdapter } = await import(
+          "../platform/node"
+        );
+        const adapter = new NPAdapter();
+
+        // Generate a test key pair
+        const keyPair = await adapter.crypto.generateKeyPair();
+
+        // Add 0x prefix to public key
+        const publicKeyWith0x = `0x${keyPair.publicKey}`;
+        const testData = "test message";
+
+        // Should not throw when using 0x-prefixed public key
+        const encrypted = await adapter.crypto.encryptWithPublicKey(
+          testData,
+          publicKeyWith0x,
+        );
+
+        expect(encrypted).toBeTruthy();
+        expect(typeof encrypted).toBe("string");
+        expect(encrypted.length).toBeGreaterThan(0);
+
+        // Verify we can decrypt it
+        const decrypted = await adapter.crypto.decryptWithPrivateKey(
+          encrypted,
+          keyPair.privateKey,
+        );
+        expect(decrypted).toBe(testData);
+      });
+
+      it("should handle public keys without 0x prefix", async () => {
+        const { NodePlatformAdapter: NPAdapter } = await import(
+          "../platform/node"
+        );
+        const adapter = new NPAdapter();
+
+        const keyPair = await adapter.crypto.generateKeyPair();
+        const testData = "test message";
+
+        // Should work without 0x prefix as well
+        const encrypted = await adapter.crypto.encryptWithPublicKey(
+          testData,
+          keyPair.publicKey,
+        );
+
+        expect(encrypted).toBeTruthy();
+        expect(typeof encrypted).toBe("string");
+
+        const decrypted = await adapter.crypto.decryptWithPrivateKey(
+          encrypted,
+          keyPair.privateKey,
+        );
+        expect(decrypted).toBe(testData);
+      });
+
+      it("should handle encrypted data with 0x prefix in decryption", async () => {
+        const { NodePlatformAdapter: NPAdapter } = await import(
+          "../platform/node"
+        );
+        const adapter = new NPAdapter();
+
+        const keyPair = await adapter.crypto.generateKeyPair();
+        const testData = "test message";
+
+        const encrypted = await adapter.crypto.encryptWithPublicKey(
+          testData,
+          keyPair.publicKey,
+        );
+
+        // Add 0x prefix to encrypted data (as viem.toHex would do)
+        const encryptedWith0x = `0x${encrypted}`;
+
+        // Should handle 0x-prefixed encrypted data
+        const decrypted = await adapter.crypto.decryptWithPrivateKey(
+          encryptedWith0x,
+          keyPair.privateKey,
+        );
+        expect(decrypted).toBe(testData);
+      });
+    });
+
     describe("encryptWithPassword edge cases", () => {
       it("should handle unexpected encrypted data format", async () => {
         // Mock openpgp to return unexpected format

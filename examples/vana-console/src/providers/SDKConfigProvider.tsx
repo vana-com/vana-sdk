@@ -26,7 +26,7 @@ export interface SDKConfig {
   dropboxAccessToken: string;
   dropboxRefreshToken: string;
   dropboxExpiresAt: number | null;
-  defaultPersonalServerUrl: string;
+  defaultPersonalServerUrl?: string;
   readOnlyAddress: string;
 }
 
@@ -108,12 +108,7 @@ export function SDKConfigProvider({ children }: SDKConfigProviderProps) {
     dropboxExpiresAt: null,
     readOnlyAddress: "",
     defaultPersonalServerUrl:
-      process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL ??
-      (() => {
-        throw new Error(
-          "NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL environment variable is required",
-        );
-      })(),
+      process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL ?? undefined,
   }));
 
   // App Configuration state

@@ -87,7 +87,9 @@ export function useTrustedServers(): UseTrustedServersReturn {
       const servers = await vana.data.getUserTrustedServers(
         {
           user: address as `0x${string}`,
-          subgraphUrl: process.env.NEXT_PUBLIC_SUBGRAPH_URL,
+          ...(process.env.NEXT_PUBLIC_SUBGRAPH_URL && {
+            subgraphUrl: process.env.NEXT_PUBLIC_SUBGRAPH_URL,
+          }),
         },
         {
           limit: 10, // For demo purposes, limit to 10 servers

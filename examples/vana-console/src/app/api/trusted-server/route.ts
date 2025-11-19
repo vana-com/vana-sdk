@@ -32,13 +32,9 @@ export async function POST(request: NextRequest) {
     );
 
     // Use the SDK's chain configuration approach
+    // If not provided, SDK will use default personal server URL for the chain
     const defaultPersonalServerUrl =
-      process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL;
-    if (!defaultPersonalServerUrl) {
-      throw new Error(
-        "NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL environment variable is required",
-      );
-    }
+      process.env.NEXT_PUBLIC_PERSONAL_SERVER_BASE_URL ?? undefined;
 
     const vana = Vana({
       chainId,

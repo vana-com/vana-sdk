@@ -3,9 +3,6 @@ name: Vana SDK Pre-release
 on:
   push:
     branches:
-      - feature/data-portability-sdk-v1
-      - feat/compressed-key-support
-      - tim/pro-526-personal-server-agent-operation-poc
       - feat/data-access-v1
 
 jobs:

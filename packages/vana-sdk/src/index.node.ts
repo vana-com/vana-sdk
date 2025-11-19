@@ -339,7 +339,21 @@ export type {
 // Platform adapters
 export { NodePlatformAdapter } from "./platform/node";
 export { BrowserPlatformAdapter } from "./platform/browser";
+export { NodeECIESUint8Provider as NodeECIESProvider } from "./crypto/ecies/node";
 export type { VanaPlatformAdapter } from "./platform/interface";
+
+// ECIES utilities and types (platform-agnostic, exported via module index)
+export {
+  ECIESError,
+  isECIESEncrypted,
+  serializeECIES,
+  deserializeECIES,
+} from "./crypto/ecies";
+export type {
+  ECIESProvider,
+  ECIESEncrypted,
+  ECIESOptions,
+} from "./crypto/ecies";
 
 // Platform utilities
 export {

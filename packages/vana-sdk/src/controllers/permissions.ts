@@ -74,6 +74,10 @@ type SubgraphPermissionsResponse = {
   errors?: Array<{ message: string }>;
 };
 
+// Sentinel value meaning "no expiration" for permit endBlock
+const MAX_UINT256 =
+  115792089237316195423570985008687907853269984665640564039457584007913129639935n;
+
 /**
  * Provides shared configuration and services for all SDK controllers.
  *
@@ -1987,19 +1991,30 @@ export class PermissionsController extends BaseController {
 
       // Process all permissions without expensive network calls - FAST PATH
       const onChainGrants: OnChainPermissionGrant[] = allPermissions.map(
-        (permission: any) => ({
-          id: BigInt(permission.id),
-          grantUrl: permission.grant,
-          grantSignature: permission.signature,
-          nonce: BigInt(permission.nonce),
-          startBlock: BigInt(permission.startBlock),
-          addedAtBlock: BigInt(permission.addedAtBlock),
-          addedAtTimestamp: BigInt(permission.addedAtTimestamp ?? "0"),
-          transactionHash: permission.transactionHash ?? "",
-          grantor: userAddress,
-          grantee: permission.grantee,
-          active: !permission.endBlock || BigInt(permission.endBlock) === 0n, // Active if no end block or end block is 0
-        }),
+        (permission: any) => {
+          const endBlock =
+            permission.endBlock === undefined || permission.endBlock === null
+              ? 0n
+              : BigInt(permission.endBlock);
+
+          const active =
+            !permission.endBlock || endBlock === 0n || endBlock === MAX_UINT256;
+
+          return {
+            id: BigInt(permission.id),
+            grantUrl: permission.grant,
+            grantSignature: permission.signature,
+            nonce: BigInt(permission.nonce),
+            startBlock: BigInt(permission.startBlock),
+            endBlock,
+            addedAtBlock: BigInt(permission.addedAtBlock),
+            addedAtTimestamp: BigInt(permission.addedAtTimestamp ?? "0"),
+            transactionHash: permission.transactionHash ?? "",
+            grantor: userAddress,
+            grantee: permission.grantee,
+            active,
+          };
+        },
       );
 
       return onChainGrants.sort((a, b) => {

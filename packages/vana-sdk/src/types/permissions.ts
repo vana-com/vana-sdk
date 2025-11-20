@@ -37,6 +37,8 @@ export interface OnChainPermissionGrant {
   nonce: bigint;
   /** Block number when permission started */
   startBlock: bigint;
+  /** Block number when permission ends (0 or MAX_UINT256 means no expiry) */
+  endBlock: bigint;
   /** Block number when permission was granted */
   addedAtBlock: bigint;
   /** Timestamp when permission was added */

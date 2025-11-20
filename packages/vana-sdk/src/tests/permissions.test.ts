@@ -764,6 +764,52 @@ describe("PermissionsController", () => {
       );
     });
 
+    it("should treat MAX_UINT256 endBlock as active and return endBlock", async () => {
+      const mockFetch = fetch as Mock;
+      const MAX_UINT256 =
+        115792089237316195423570985008687907853269984665640564039457584007913129639935n;
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              user: {
+                id: mockWalletClient.account.address.toLowerCase(),
+                permissions: [
+                  {
+                    id: "3",
+                    grant: "https://ipfs.io/ipfs/QmForever",
+                    nonce: "3",
+                    signature: "0xsig3",
+                    startBlock: "123452",
+                    endBlock: MAX_UINT256.toString(),
+                    addedAtBlock: "123458",
+                    addedAtTimestamp: "1640995400",
+                    transactionHash: "0x789...",
+                    grantee: {
+                      id: "7",
+                      address: "0x742d35Cc6558Fd4D9e9E0E888F0462ef6919Bd38",
+                    },
+                    user: {
+                      id: mockWalletClient.account.address.toLowerCase(),
+                    },
+                  },
+                ],
+              },
+            },
+          }),
+      });
+
+      const result = await controller.getUserPermissionGrantsOnChain({
+        subgraphUrl: "https://api.thegraph.com/subgraphs/name/vana/test",
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].endBlock).toBe(MAX_UINT256);
+      expect(result[0].active).toBe(true);
+    });
+
     it("should return empty array when user has no permissions", async () => {
       const mockFetch = fetch as Mock;
 

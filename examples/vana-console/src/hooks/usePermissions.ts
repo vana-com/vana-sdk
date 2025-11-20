@@ -589,6 +589,7 @@ export function usePermissions(): UsePermissionsReturn {
                 grantSignature: "", // Would need lookup
                 nonce: BigInt(Number(permission.nonce) || 0),
                 startBlock: BigInt(0), // Would need lookup
+                endBlock: BigInt(0), // Fallback: unknown end, treat as active
                 addedAtBlock: BigInt(Number(permission.blockNumber) || 0),
                 addedAtTimestamp: BigInt(Number(permission.grantedAt) || 0),
                 transactionHash: permission.transactionHash ?? "",

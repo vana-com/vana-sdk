@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@heroui/react";
-import { Database, Settings, Zap, FileCode } from "lucide-react";
+import { Database, Settings, Zap, FileCode, DollarSign } from "lucide-react";
 
 /**
  * Represents a navigation view in the sidebar
@@ -54,6 +54,13 @@ const navigationViews: NavigationView[] = [
     label: "Contracts",
     icon: FileCode,
     description: "View network contracts",
+  },
+  {
+    id: "dlp-operations",
+    href: "/dlp-operations",
+    label: "DLP Operations",
+    icon: DollarSign,
+    description: "Monetize dataset access",
   },
   {
     id: "developer-tools",

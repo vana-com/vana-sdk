@@ -259,6 +259,8 @@ export * from "./errors";
 
 // Controllers
 export { PermissionsController } from "./controllers/permissions";
+// TODO: Re-enable when VanaRuntimePermissions contract is deployed and added to SDK
+// export { RuntimePermissionsController } from "./controllers/runtimePermissions";
 export { DataController } from "./controllers/data";
 export { ServerController } from "./controllers/server";
 export { ProtocolController } from "./controllers/protocol";

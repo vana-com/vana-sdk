@@ -122,6 +122,7 @@
     "ajv-formats": "^3.0.1",
     "eccrypto-js": "^5.4.0",
     "graphql": "^16.11.0",
+    "multiformats": "^9.9.0",
     "openpgp": "^6.1.1",
     "uuid": "^13.0.0",
     "viem": "^2.35.1"

@@ -202,6 +202,14 @@ export type {
   Permission,
 } from "./permissions";
 
+// Runtime Permissions types
+export type {
+  RuntimePermissionParams,
+  RuntimeGrantFile,
+  RuntimePermission,
+  RuntimePermissionResult,
+} from "./runtimePermissions";
+
 // Personal server types
 export type {
   PostRequestParams,

@@ -5,6 +5,11 @@
  * and extracting IPFS hashes from various URL formats.
  */
 
+// @ts-expect-error - multiformats package.json exports may not resolve correctly
+import { CID } from "multiformats/cid";
+// @ts-expect-error - multiformats package.json exports may not resolve correctly
+import * as base32 from "multiformats/bases/base32";
+
 /**
  * Default IPFS gateway URL
  */
@@ -19,6 +24,15 @@ export const IPFS_GATEWAYS = [
   "https://gateway.pinata.cloud/ipfs/", // Pinata - backup option (has rate limits)
   "https://ipfs.filebase.io/ipfs/", // Filebase - emerging reliable option
 ] as const;
+
+/**
+ * Gateways that support and prefer subdomain format for better origin isolation
+ */
+const SUBDOMAIN_GATEWAYS = new Set([
+  "https://dweb.link",
+  "https://w3s.link",
+  "https://nftstorage.link",
+]);
 
 /**
  * Check if a URL is an IPFS URL (starts with ipfs://)
@@ -92,6 +106,71 @@ export function extractIpfsHash(url: string): string | null {
   }
 
   return null;
+}
+
+/**
+ * Convert a CID to CIDv1 in base32 encoding (required for subdomain gateways)
+ *
+ * @param cidString - The CID string (can be CIDv0 or CIDv1)
+ * @returns CIDv1 in base32 encoding, or null if invalid
+ * @example
+ * ```ts
+ * convertToBase32CIDv1("QmHash123") // Returns: "bafybeida6ainxibwil5..."
+ * convertToBase32CIDv1("bafybeida6ainxibwil5...") // Returns: "bafybeida6ainxibwil5..."
+ * ```
+ */
+export function convertToBase32CIDv1(cidString: string): string | null {
+  try {
+    const cid = CID.parse(cidString);
+    // Convert to CIDv1 if it's CIDv0
+    const cidv1 = cid.version === 0 ? cid.toV1() : cid;
+    // Encode in base32 (case-insensitive, required for subdomain)
+    return cidv1.toString(base32.base32);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Check if a gateway supports subdomain format
+ *
+ * @param gateway - The gateway URL (e.g., "https://dweb.link/ipfs/")
+ * @returns True if the gateway supports subdomain format
+ * @internal Reserved for future use
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function supportsSubdomainFormat(gateway: string): boolean {
+  try {
+    const url = new URL(gateway);
+    const baseUrl = `${url.protocol}//${url.hostname}`;
+    return SUBDOMAIN_GATEWAYS.has(baseUrl);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Convert a CID to a subdomain gateway URL
+ *
+ * @param cidString - The IPFS CID
+ * @param gateway - The gateway base URL (e.g., "https://dweb.link/ipfs/")
+ * @returns Subdomain URL (e.g., "https://bafybeida....ipfs.dweb.link/")
+ * @internal Reserved for future use
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function toSubdomainGatewayUrl(cidString: string, gateway: string): string | null {
+  const cidv1Base32 = convertToBase32CIDv1(cidString);
+  if (!cidv1Base32) {
+    return null;
+  }
+
+  try {
+    const url = new URL(gateway);
+    // Format: https://<cid>.ipfs.<gateway-host>/
+    return `${url.protocol}//${cidv1Base32}.ipfs.${url.hostname}/`;
+  } catch {
+    return null;
+  }
 }
 
 /**

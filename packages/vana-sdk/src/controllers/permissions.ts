@@ -1997,6 +1997,8 @@ export class PermissionsController extends BaseController {
               ? 0n
               : BigInt(permission.endBlock);
 
+          // TODO: known issue: permissions with end times configured are incorrectly described as active
+          // We'd need to compare against the current block number to determine if the permission is active
           const active =
             !permission.endBlock || endBlock === 0n || endBlock === MAX_UINT256;
 

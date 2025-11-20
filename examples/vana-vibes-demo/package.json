@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@getpara/react-sdk": "2.0.0-fc.3",
+    "@getpara/react-sdk": "2.0.0-alpha.57",
     "@opendatalabs/vana-sdk": "*",
     "@radix-ui/react-label": "^2.1.7",
     "@radix-ui/react-slot": "^1.2.3",

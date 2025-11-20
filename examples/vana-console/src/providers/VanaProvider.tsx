@@ -244,9 +244,46 @@ export function VanaProvider({ children }: VanaProviderProps) {
     }
 
     // Handle full mode (requires wallet with chain configured)
+    // If no wallet, fall back to read-only mode with zero address
     if (!isConnected || !walletClient?.account || !walletClient?.chain) {
-      setVana(null);
-      setIsInitialized(false);
+      const initializeFallbackReadOnly = async () => {
+        try {
+          console.info(
+            "📖 No wallet connected, initializing in read-only mode with zero address",
+          );
+
+          // Use zero address as fallback for browsing without wallet
+          const ZERO_ADDRESS =
+            "0x0000000000000000000000000000000000000000" as Address;
+
+          const vanaInstance = Vana({
+            address: ZERO_ADDRESS,
+            chain: walletClient?.chain, // Use chain from wallet if available
+            ...(sdkConfig.subgraphUrl && {
+              subgraphUrl: sdkConfig.subgraphUrl,
+            }),
+            defaultPersonalServerUrl: sdkConfig.defaultPersonalServerUrl,
+          });
+
+          setVana(vanaInstance);
+          setIsInitialized(true);
+          console.info("✅ Vana SDK initialized in fallback read-only mode");
+
+          // Fetch application address
+          const appAddress = await fetchApplicationAddress();
+          if (appAddress) setApplicationAddress(appAddress);
+        } catch (err) {
+          console.error("Failed to initialize Vana SDK in fallback mode:", err);
+          setError(
+            err instanceof Error
+              ? err
+              : new Error("Failed to initialize Vana SDK"),
+          );
+          setIsInitialized(false);
+        }
+      };
+
+      void initializeFallbackReadOnly();
       return;
     }
 

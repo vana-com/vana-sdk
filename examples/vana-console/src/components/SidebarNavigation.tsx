@@ -4,7 +4,15 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@heroui/react";
-import { Database, Settings, Zap, FileCode, Users } from "lucide-react";
+import {
+  Database,
+  Settings,
+  Zap,
+  FileCode,
+  Users,
+  Server,
+  FolderOpen,
+} from "lucide-react";
 
 /**
  * Represents a navigation view in the sidebar
@@ -42,11 +50,25 @@ const navigationViews: NavigationView[] = [
     description: "Manage data & permissions",
   },
   {
+    id: "datasets",
+    href: "/datasets",
+    label: "Datasets",
+    icon: FolderOpen,
+    description: "Manage contributor workflows",
+  },
+  {
     id: "personal-server-operations",
     href: "/personal-server-operations",
     label: "Personal Server",
     icon: Zap,
     description: "Process data with servers",
+  },
+  {
+    id: "runtime-servers",
+    href: "/runtime-servers",
+    label: "Runtime Servers",
+    icon: Server,
+    description: "Manage TEE runtime servers",
   },
   {
     id: "contracts",

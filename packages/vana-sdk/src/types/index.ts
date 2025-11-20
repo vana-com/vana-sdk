@@ -131,6 +131,9 @@ export type {
   GetUserTrustedServersParams,
 } from "./data";
 
+// Dataset types
+export type { Dataset, CreateDatasetParams } from "./dataset";
+
 // Schema types
 export type {
   CreateSchemaParams,

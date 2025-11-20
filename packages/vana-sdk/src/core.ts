@@ -25,6 +25,7 @@ import { PermissionsController } from "./controllers/permissions";
 import { RuntimePermissionsController } from "./controllers/runtimePermissions";
 import { AccessSettlementController } from "./controllers/accessSettlement";
 import { DataController } from "./controllers/data";
+import { DatasetController } from "./controllers/dataset";
 import { SchemaController } from "./controllers/schemas";
 import { ServerController } from "./controllers/server";
 import { ProtocolController } from "./controllers/protocol";
@@ -171,6 +172,9 @@ export class VanaCore {
 
   /** Handles user data file operations. */
   public readonly data: DataController;
+
+  /** Manages dataset creation and contributor workflows. */
+  public readonly dataset: DatasetController;
 
   /** Manages data schemas and refiners. */
   public readonly schemas: SchemaController;
@@ -406,6 +410,7 @@ export class VanaCore {
     this.runtimePermissions = new RuntimePermissionsController(sharedContext);
     this.accessSettlement = new AccessSettlementController(sharedContext);
     this.data = new DataController(sharedContext);
+    this.dataset = new DatasetController(sharedContext);
     this.schemas = new SchemaController(sharedContext);
     this.operations = new OperationsController(sharedContext);
     this.server = new ServerController(sharedContext);

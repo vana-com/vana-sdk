@@ -308,7 +308,7 @@ describe("VanaProvider", () => {
     consoleSpy.mockRestore();
   });
 
-  it("renders children without initializing when wallet is not connected", () => {
+  it("initializes in read-only mode when wallet is not connected", () => {
     useAccountMock.mockReturnValue(
       createMockUseAccountReturn({
         address: undefined,
@@ -324,15 +324,17 @@ describe("VanaProvider", () => {
       </VanaProvider>,
     );
 
-    expect(screen.getByTestId("vana-status")).toHaveTextContent("vana-null");
+    // Now initializes in read-only mode with zero address
+    expect(screen.getByTestId("vana-status")).toHaveTextContent(
+      "vana-initialized",
+    );
     expect(screen.getByTestId("initialized-status")).toHaveTextContent(
-      "not-initialized",
+      "initialized",
     );
     expect(screen.getByTestId("error-status")).toHaveTextContent("no-error");
-    expect(screen.getByTestId("app-address")).toHaveTextContent("no-address");
   });
 
-  it("renders children without initializing when wallet client is not available", () => {
+  it("initializes in read-only mode when wallet client is not available", () => {
     useAccountMock.mockReturnValue(
       createMockUseAccountReturn({
         address: "0x123" as `0x${string}`,
@@ -352,9 +354,12 @@ describe("VanaProvider", () => {
       </VanaProvider>,
     );
 
-    expect(screen.getByTestId("vana-status")).toHaveTextContent("vana-null");
+    // Now initializes in read-only mode when wallet client unavailable
+    expect(screen.getByTestId("vana-status")).toHaveTextContent(
+      "vana-initialized",
+    );
     expect(screen.getByTestId("initialized-status")).toHaveTextContent(
-      "not-initialized",
+      "initialized",
     );
   });
 
@@ -798,8 +803,10 @@ describe("VanaProvider", () => {
       </VanaProvider>,
     );
 
-    // Initially not connected
-    expect(screen.getByTestId("vana-status")).toHaveTextContent("vana-null");
+    // Initially not connected but initialized in read-only mode
+    expect(screen.getByTestId("vana-status")).toHaveTextContent(
+      "vana-initialized",
+    );
 
     // Connect wallet
     useAccountMock.mockReturnValue(
@@ -867,12 +874,15 @@ describe("VanaProvider", () => {
       </VanaProvider>,
     );
 
+    // After disconnecting, it reinitializes in read-only mode
     await waitFor(() => {
-      expect(screen.getByTestId("vana-status")).toHaveTextContent("vana-null");
+      expect(screen.getByTestId("vana-status")).toHaveTextContent(
+        "vana-initialized",
+      );
     });
 
     expect(screen.getByTestId("initialized-status")).toHaveTextContent(
-      "not-initialized",
+      "initialized",
     );
   });
 

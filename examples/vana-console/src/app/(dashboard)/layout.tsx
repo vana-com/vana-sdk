@@ -1,13 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
-import { useAccount, useChainId } from "wagmi";
+import React, { useState, useEffect } from "react";
+import { useAccount, useChainId, useDisconnect } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useModal, useAccount as useParaAccount } from "@getpara/react-sdk";
 import {
-  Card,
-  CardHeader,
-  CardBody,
   useDisclosure,
   Modal,
   ModalContent,
@@ -25,6 +22,10 @@ import { SDKConfigProvider, useSDKConfig } from "@/providers/SDKConfigProvider";
 import { VanaProvider } from "@/providers/VanaProvider";
 import { GrantPreviewModalContent } from "@/components/GrantPreviewModalContent";
 import type { GrantPermissionParams } from "@opendatalabs/vana-sdk/browser";
+import {
+  WalletProviderToggle,
+  type WalletProvider,
+} from "@/components/ui/WalletProviderToggle";
 
 // Types for grant preview modal
 interface GrantPreview {
@@ -42,13 +43,60 @@ interface GrantPreview {
 
 // Inner component that consumes SDKConfigContext
 function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
-  const useRainbow =
-    process.env.NEXT_PUBLIC_WALLET_PROVIDER === "rainbow" ||
-    !process.env.NEXT_PUBLIC_WALLET_PROVIDER;
+  // Wallet provider selection with localStorage persistence
+  const [walletProvider, setWalletProvider] =
+    useState<WalletProvider>("rainbow");
+  const [mounted, setMounted] = useState(false);
+
+  // Check if both wallet providers are configured
+  const isParaConfigured = !!process.env.NEXT_PUBLIC_PARA_KEY;
+  const isRainbowConfigured = true; // Rainbow is always available
+  const showProviderToggle = isParaConfigured && isRainbowConfigured;
+
+  // Load wallet provider preference from localStorage on mount
+  useEffect(() => {
+    setMounted(true);
+    const savedProvider = localStorage.getItem(
+      "vana-console-wallet-provider",
+    ) as WalletProvider | null;
+
+    // If only one provider is configured, use that one
+    if (!showProviderToggle) {
+      setWalletProvider(isParaConfigured ? "para" : "rainbow");
+      return;
+    }
+
+    if (savedProvider === "rainbow" || savedProvider === "para") {
+      setWalletProvider(savedProvider);
+    } else {
+      // Default based on env var for backwards compatibility
+      const envProvider =
+        process.env.NEXT_PUBLIC_WALLET_PROVIDER === "rainbow" ||
+        !process.env.NEXT_PUBLIC_WALLET_PROVIDER
+          ? "rainbow"
+          : "para";
+      setWalletProvider(envProvider);
+    }
+  }, [showProviderToggle, isParaConfigured]);
+
+  // Save to localStorage when provider changes and disconnect if needed
+  const handleProviderChange = (provider: WalletProvider) => {
+    // If switching providers while connected, disconnect first
+    if (walletConnected) {
+      disconnect();
+    }
+
+    // Update provider preference
+    setWalletProvider(provider);
+    localStorage.setItem("vana-console-wallet-provider", provider);
+  };
+
+  const useRainbow = walletProvider === "rainbow";
 
   // Wagmi hooks (work with both Rainbow and Para)
   const { isConnected } = useAccount();
   const chainId = useChainId();
+  const { disconnect } = useDisconnect();
 
   // Para wallet hooks
   const { openModal } = useModal?.() || {};
@@ -110,54 +158,37 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // If not connected, show wallet connection prompt
-  if (!walletConnected) {
-    return (
-      <div className="min-h-screen bg-background">
-        <Navbar isBordered>
-          <NavbarBrand>
-            <h1 className="text-xl font-bold text-foreground">
-              Vana Console{walletConnected ? "" : " (🔒 Read-Only)"}
-            </h1>
-          </NavbarBrand>
-          <NavbarContent justify="end">
-            <NavbarItem>{renderConnectButton()}</NavbarItem>
-          </NavbarContent>
-        </Navbar>
-
-        <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
-          <Card className="max-w-md">
-            <CardHeader className="flex-col items-start">
-              <div>Get Started</div>
-            </CardHeader>
-            <CardBody>
-              <p className="text-muted-foreground">
-                Connect your wallet above to begin exploring the Vana SDK
-                capabilities.
-              </p>
-            </CardBody>
-          </Card>
-        </div>
-      </div>
-    );
-  }
-
-  // Main dashboard layout with VanaProvider
+  // Main dashboard layout with VanaProvider (always render, supports read-only mode)
   return (
     <VanaProvider>
       <div className="min-h-screen bg-background">
         <Navbar isBordered>
           <NavbarBrand>
-            <h1 className="text-xl font-bold text-foreground">
-              Vana Console
-              {appConfig.enableReadOnlyMode
-                ? " (📖 Read-Only)"
-                : walletConnected
-                  ? ""
-                  : " (🔒 Disconnected)"}
-            </h1>
+            <h1 className="text-xl font-bold text-foreground">Vana Console</h1>
           </NavbarBrand>
+          <NavbarContent justify="center">
+            {!walletConnected && (
+              <NavbarItem>
+                <span className="text-sm text-warning flex items-center gap-2">
+                  🔒 Read-Only Mode
+                  <span className="text-xs text-muted-foreground">
+                    (Browsing: 0x000...000)
+                  </span>
+                </span>
+              </NavbarItem>
+            )}
+          </NavbarContent>
           <NavbarContent justify="end">
+            {mounted && showProviderToggle && (
+              <NavbarItem>
+                <WalletProviderToggle
+                  provider={walletProvider}
+                  onProviderChange={handleProviderChange}
+                  disabled={false}
+                  size="sm"
+                />
+              </NavbarItem>
+            )}
             <NavbarItem>{renderConnectButton()}</NavbarItem>
           </NavbarContent>
         </Navbar>

@@ -115,12 +115,15 @@ export abstract class BaseController {
    * @returns Properly formatted options for viem
    * @internal
    */
-  protected spreadTransactionOptions(options?: TransactionOptions) {
+  protected spreadTransactionOptions(
+    options?: TransactionOptions,
+  ): Record<string, bigint | number | undefined> {
     if (!options) return {};
 
-    const baseOptions: any = {
+    const baseOptions: Record<string, bigint | number | undefined> = {
       ...(options.nonce !== undefined && { nonce: options.nonce }),
       ...(options.gas !== undefined && { gas: options.gas }),
+      ...(options.value !== undefined && { value: options.value }),
     };
 
     // EIP-1559 and legacy gasPrice are mutually exclusive in viem

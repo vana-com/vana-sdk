@@ -62,6 +62,32 @@ const DEFAULT_POLLING_OPTIONS: Required<PollingOptions> = {
 };
 
 /**
+ * Platform-agnostic timeout ID type.
+ *
+ * @remarks
+ * In Node.js, setTimeout returns a NodeJS.Timeout object.
+ * In browsers, setTimeout returns a number.
+ * This type union handles both platforms safely.
+ */
+type TimeoutId = ReturnType<typeof setTimeout>;
+
+/**
+ * Type guard to check if a result object has queue status.
+ *
+ * @internal
+ */
+function hasQueueStatus(
+  result: unknown,
+): result is { status: string; position?: number; estimatedWait?: number } {
+  return (
+    typeof result === "object" &&
+    result !== null &&
+    "status" in result &&
+    typeof (result as { status: unknown }).status === "string"
+  );
+}
+
+/**
  * Internal polling manager that handles asynchronous relayer operations.
  *
  * @internal
@@ -72,8 +98,8 @@ const DEFAULT_POLLING_OPTIONS: Required<PollingOptions> = {
  */
 export class PollingManager {
   private abortController?: AbortController;
-  private timeoutId?: NodeJS.Timeout | number;
-  private pollIntervalId?: NodeJS.Timeout | number;
+  private timeoutId?: TimeoutId;
+  private pollIntervalId?: TimeoutId;
 
   constructor(
     private readonly relayerCallback: (
@@ -266,16 +292,17 @@ export class PollingManager {
 
       case "direct":
         // Direct responses during polling might include queue info
-        const result = response.result as any;
-        if (result?.status === "queued") {
-          return {
-            type: "queued",
-            position: result.position,
-            estimatedWait: result.estimatedWait,
-          };
-        }
-        if (result?.status === "processing") {
-          return { type: "processing" };
+        if (hasQueueStatus(response.result)) {
+          if (response.result.status === "queued") {
+            return {
+              type: "queued",
+              position: response.result.position,
+              estimatedWait: response.result.estimatedWait,
+            };
+          }
+          if (response.result.status === "processing") {
+            return { type: "processing" };
+          }
         }
         // Fallback
         return { type: "pending", operationId };
@@ -340,7 +367,7 @@ export class PollingManager {
         reject(new Error("Polling cancelled"));
       });
 
-      this.pollIntervalId = timeoutId as any;
+      this.pollIntervalId = timeoutId;
     });
   }
 
@@ -359,7 +386,7 @@ export class PollingManager {
             this.getLastKnownStatus(context),
           ),
         );
-      }, context.options.timeout) as any;
+      }, context.options.timeout);
     });
   }
 
@@ -416,12 +443,12 @@ export class PollingManager {
    */
   private cleanup(): void {
     if (this.timeoutId) {
-      clearTimeout(this.timeoutId as any);
+      clearTimeout(this.timeoutId);
       this.timeoutId = undefined;
     }
 
     if (this.pollIntervalId) {
-      clearTimeout(this.pollIntervalId as any);
+      clearTimeout(this.pollIntervalId);
       this.pollIntervalId = undefined;
     }
 

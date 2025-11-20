@@ -345,8 +345,15 @@ export class DistributedNonceManager {
       );
 
       // Send minimal self-transfer to burn the nonce
+      const account = walletClient.account;
+      if (!account) {
+        throw new Error(
+          "WalletClient must be configured with an account to burn stuck nonces",
+        );
+      }
+
       const burnTx = await walletClient.sendTransaction({
-        account: walletClient.account!, // WalletClient should have an account
+        account,
         to: address, // Self-transfer
         value: 0n,
         nonce: nonceToBurn,

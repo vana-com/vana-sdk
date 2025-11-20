@@ -37,7 +37,7 @@ describe("EnhancedTransactionResponse", () => {
           },
         },
       }),
-      relayerCallback: vi.fn(),
+      relayer: vi.fn(),
     } as any;
 
     // Reset mocks
@@ -203,7 +203,7 @@ describe("EnhancedTransactionResponse", () => {
         onStatusUpdate: vi.fn(),
       });
 
-      expect(PollingManager).toHaveBeenCalledWith(mockSdk.relayerCallback);
+      expect(PollingManager).toHaveBeenCalledWith(mockSdk.relayer);
       expect(mockStartPolling).toHaveBeenCalledWith(
         mockOperationId,
         expect.objectContaining({
@@ -223,7 +223,7 @@ describe("EnhancedTransactionResponse", () => {
       // SDK without relayer callback
       const sdkNoRelayer = {
         ...mockSdk,
-        relayerCallback: undefined,
+        relayer: undefined,
       } as any;
 
       const enhanced = new EnhancedTransactionResponse(response, sdkNoRelayer);

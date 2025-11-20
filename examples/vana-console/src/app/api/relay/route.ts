@@ -4,6 +4,7 @@ import {
   handleRelayerOperation,
   RedisAtomicStore,
   type UnifiedRelayerRequest,
+  type IRedisClient,
   vanaMainnet,
   mokshaTestnet,
   PinataStorage,
@@ -11,6 +12,7 @@ import {
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { RedisOperationStore } from "@/lib/operationStore";
+import Redis from "ioredis";
 
 export async function POST(request: NextRequest) {
   try {
@@ -43,8 +45,13 @@ export async function POST(request: NextRequest) {
           redis: process.env.REDIS_URL,
         });
 
+        // Create Redis client instance for atomic store
+        // ioredis.Redis is structurally compatible with IRedisClient (duck typing).
+        // Type assertion required because Redis has additional method overloads that IRedisClient doesn't declare.
+        // Runtime validation in RedisAtomicStore constructor ensures compatibility.
+        const redisClient = new Redis(process.env.REDIS_URL);
         atomicStore = new RedisAtomicStore({
-          redis: process.env.REDIS_URL,
+          redis: redisClient as unknown as IRedisClient,
         });
 
         console.info(

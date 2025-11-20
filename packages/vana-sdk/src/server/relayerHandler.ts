@@ -21,6 +21,7 @@ import type {
   ServerFilesAndPermissionTypedData,
   TypedDataPrimaryType,
 } from "../types/permissions";
+import type { RelayerHandlerSDK } from "../types/controller-context";
 import { SignatureError } from "../errors";
 import { recoverTypedDataAddress, getAddress, type Hash } from "viem";
 
@@ -168,13 +169,24 @@ export async function handleRelayerOperation(
               receipt = await publicClient.getTransactionReceipt({
                 hash: state.transactionHash,
               });
-            } catch (receiptError: any) {
+            } catch (receiptError: unknown) {
               // Transaction not found is expected - it may not be mined yet
-              if (receiptError?.name !== "TransactionReceiptNotFoundError") {
+              if (
+                typeof receiptError === "object" &&
+                receiptError !== null &&
+                "name" in receiptError &&
+                receiptError.name !== "TransactionReceiptNotFoundError"
+              ) {
                 // Unexpected error - log but don't fail
+                const errorMessage =
+                  typeof receiptError === "object" &&
+                  receiptError !== null &&
+                  "message" in receiptError
+                    ? (receiptError.message as unknown)
+                    : receiptError;
                 console.warn(
                   `⚠️ [Relayer] Unexpected error checking receipt:`,
-                  receiptError?.message ?? receiptError,
+                  errorMessage,
                 );
               }
               // Continue returning pending status
@@ -640,9 +652,10 @@ async function handleDirectOperation(
     case "storeGrantFile": {
       const grantFile = request.params;
 
-      // Access the data controller's context which has storage
-      const dataController = sdk.data as any;
-      const context = dataController.context;
+      // Access the data controller's context which has storage using type-safe interface.
+      // Cast through unknown first to safely bridge from VanaInstance to RelayerHandlerSDK.
+      const sdkForStorageAccess = sdk as unknown as RelayerHandlerSDK;
+      const context = sdkForStorageAccess.data.context;
 
       if (!context?.storageManager) {
         throw new Error(

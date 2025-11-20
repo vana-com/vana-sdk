@@ -17,6 +17,7 @@ import type {
 } from "../types/relayer";
 import { PollingManager } from "../core/pollingManager";
 import type { OperationStatus } from "../types/options";
+import type { EnhancedResponseSDK } from "../types/controller-context";
 
 /**
  * Enhanced transaction response that provides a fluent API for waiting.
@@ -52,9 +53,10 @@ export class EnhancedTransactionResponse {
   /** Transaction context for event parsing */
   public readonly context?: TransactionContext;
 
-  private readonly sdk: any; // Using any to avoid circular dependency
+  /** SDK instance providing blockchain and relayer functionality */
+  private readonly sdk: EnhancedResponseSDK;
 
-  constructor(response: UnifiedRelayerResponse, sdk: any) {
+  constructor(response: UnifiedRelayerResponse, sdk: EnhancedResponseSDK) {
     this.response = response;
     this.sdk = sdk;
 
@@ -103,7 +105,17 @@ export class EnhancedTransactionResponse {
     signal?: AbortSignal;
     /** Timeout in milliseconds */
     timeout?: number;
-  }): Promise<any> {
+  }): Promise<{
+    hash: Hash;
+    receipt?: TransactionReceipt;
+    expectedEvents?: Record<string, unknown>;
+    allEvents?: Array<{
+      contractAddress: string;
+      eventName: string;
+      args: Record<string, unknown>;
+      logIndex: number;
+    }>;
+  }> {
     // Handle 'confirmed' responses - already complete
     if (this.response.type === "confirmed") {
       return {
@@ -140,15 +152,12 @@ export class EnhancedTransactionResponse {
 
     // Handle 'pending' responses - use PollingManager
     if (this.response.type === "pending") {
-      // Access the relayer callback from the SDK's internal config
-      const sdkInternal = this.sdk as any;
-      const relayerCallback = sdkInternal.relayerCallback;
-
-      if (typeof relayerCallback !== "function") {
+      // Access the relayer callback from the SDK
+      if (!this.sdk.relayer) {
         throw new Error("Relayer callback not configured for polling");
       }
 
-      const pollingManager = new PollingManager(relayerCallback);
+      const pollingManager = new PollingManager(this.sdk.relayer);
       return await pollingManager.startPolling(this.response.operationId, {
         signal: options?.signal,
         onStatusUpdate: options?.onStatusUpdate,
@@ -156,9 +165,10 @@ export class EnhancedTransactionResponse {
       });
     }
 
-    // Response type cannot be waited on
+    // Response type cannot be waited on - use discriminated union exhaustiveness
+    const unknownType = this.response.type;
     throw new Error(
-      `Cannot wait on response type: ${(this.response as any).type}. ` +
+      `Cannot wait on response type: ${unknownType}. ` +
         `Only 'submitted', 'signed', 'pending', and 'confirmed' responses can be waited on.`,
     );
   }
@@ -220,7 +230,7 @@ export function canEnhanceResponse(response: UnifiedRelayerResponse): boolean {
  * Factory function to create an enhanced response if applicable.
  *
  * @param response - The unified relayer response
- * @param sdk - The Vana SDK instance
+ * @param sdk - The Vana SDK instance (or minimal SDK interface)
  * @returns EnhancedTransactionResponse if enhanceable, null otherwise
  *
  * @example
@@ -234,7 +244,7 @@ export function canEnhanceResponse(response: UnifiedRelayerResponse): boolean {
  */
 export function enhanceResponse(
   response: UnifiedRelayerResponse,
-  sdk: any,
+  sdk: EnhancedResponseSDK,
 ): EnhancedTransactionResponse | null {
   if (canEnhanceResponse(response)) {
     return new EnhancedTransactionResponse(response, sdk);

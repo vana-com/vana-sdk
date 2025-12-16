@@ -27,7 +27,7 @@ import type { StakerEntitySummary } from "@opendatalabs/vana-sdk/node";
 
 // Subgraph URL for querying indexed staking data
 const SUBGRAPH_URL =
-  "https://api.goldsky.com/api/public/project_cm168cz887zva010j39il7a6p/subgraphs/moksha/staking-only/gn";
+  "https://api.goldsky.com/api/public/project_cm168cz887zva010j39il7a6p/subgraphs/moksha/staking/gn";
 
 async function main() {
   const publicClient = createPublicClient({
@@ -239,6 +239,23 @@ async function main() {
     });
     console.log(`Transaction confirmed in block ${receipt.blockNumber}`);
 
+    // Get share price at stake block to compute exact expected values
+    const entityAddress = getContractAddress(
+      mokshaTestnet.id,
+      "VanaPoolEntity",
+    );
+    const entityAbi = getAbi("VanaPoolEntity");
+    const shareToVanaAtStake = (await publicClient.readContract({
+      address: entityAddress,
+      abi: entityAbi,
+      functionName: "entityShareToVana",
+      args: [stakeEntityId],
+      blockNumber: receipt.blockNumber,
+    })) as bigint;
+    console.log(
+      `Share price at stake block: ${(Number(shareToVanaAtStake) / 1e18).toFixed(18)} VANA/share`,
+    );
+
     // Get entity info after stake
     const entityAfter = await vana.staking.getEntity(stakeEntityId);
     console.log(`\nEntity #${stakeEntityId} after stake:`);
@@ -261,15 +278,23 @@ async function main() {
     console.log("\n=== Stake Verification ===\n");
 
     const stakeAmountWei = BigInt(Math.floor(Number(stakeAmount) * 1e18));
-    const sharesDiff = summaryAfter.shares - summaryBefore.shares;
-    const costBasisDiff = summaryAfter.costBasis - summaryBefore.costBasis;
+    const sharesDiff =
+      BigInt(summaryAfter.shares) - BigInt(summaryBefore.shares);
+    const costBasisDiff =
+      BigInt(summaryAfter.costBasis) - BigInt(summaryBefore.costBasis);
     const currentValueDiff =
       summaryAfter.currentValue - summaryBefore.currentValue;
     const activePoolDiff =
       entityAfter.activeRewardPool - entityBefore.activeRewardPool;
     const lockedPoolDiff =
       entityBefore.lockedRewardPool - entityAfter.lockedRewardPool; // Decrease in locked
-    const entitySharesDiff = entityAfter.totalShares - entityBefore.totalShares;
+    const entitySharesDiff =
+      BigInt(entityAfter.totalShares) - BigInt(entityBefore.totalShares);
+
+    // Calculate expected current value of new shares using share price at stake block
+    // The contract uses truncating division: costBasis = (shares * shareToVana) / 1e18
+    const expectedCurrentValueOfNewShares =
+      (sharesDiff * shareToVanaAtStake) / 10n ** 18n;
 
     console.log(
       `Stake Amount: ${stakeAmount} VANA (${stakeAmountWei.toString()} wei)`,
@@ -282,6 +307,9 @@ async function main() {
       `Current Value Increase: ${(Number(currentValueDiff) / 1e18).toLocaleString()} VANA`,
     );
     console.log(
+      `Expected Current Value (at stake block): ${(Number(expectedCurrentValueOfNewShares) / 1e18).toLocaleString()} VANA`,
+    );
+    console.log(
       `Active Pool Increase: ${(Number(activePoolDiff) / 1e18).toLocaleString()} VANA`,
     );
     console.log(
@@ -290,8 +318,9 @@ async function main() {
     console.log(`Entity Shares Increase: ${entitySharesDiff.toString()}`);
 
     // Validate
-    // Cost basis = current value of new shares (stake amount + vested rewards from share appreciation)
-    const costBasisMatchesCurrentValue = costBasisDiff === currentValueDiff;
+    // Cost basis should equal the expected current value at stake time (shares * sharePrice at stake block)
+    const costBasisMatchesExpectedValue =
+      costBasisDiff === expectedCurrentValueOfNewShares;
     // Active pool increases by exactly: stake amount + rewards moved from locked pool
     const expectedActivePoolIncrease = stakeAmountWei + lockedPoolDiff;
     const activePoolCorrect = activePoolDiff === expectedActivePoolIncrease;
@@ -300,8 +329,13 @@ async function main() {
 
     console.log("\nValidation:");
     console.log(
-      `  ✓ Cost basis equals current value of new shares: ${costBasisMatchesCurrentValue ? "PASS" : "FAIL"}`,
+      `  ✓ Cost basis equals expected value at stake block: ${costBasisMatchesExpectedValue ? "PASS" : "FAIL"}`,
     );
+    if (!costBasisMatchesExpectedValue) {
+      console.log(
+        `    Cost basis: ${costBasisDiff.toString()}, Expected: ${expectedCurrentValueOfNewShares.toString()}`,
+      );
+    }
     console.log(
       `  ✓ Active pool increased by stake + locked rewards: ${activePoolCorrect ? "PASS" : "FAIL"} (expected: ${(Number(expectedActivePoolIncrease) / 1e18).toLocaleString()} VANA)`,
     );
@@ -311,7 +345,7 @@ async function main() {
     );
 
     if (
-      costBasisMatchesCurrentValue &&
+      costBasisMatchesExpectedValue &&
       activePoolCorrect &&
       sharesCorrect &&
       sharesMatchEntity

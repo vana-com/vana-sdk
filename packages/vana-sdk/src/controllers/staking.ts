@@ -571,9 +571,14 @@ export class StakingController extends BaseController {
         ? parseEther(params.amount)
         : params.amount;
 
+    // Get account with fallback to userAddress
+    const account =
+      this.context.walletClient.account ?? this.context.userAddress;
+    const accountAddress =
+      typeof account === "string" ? account : account.address;
+
     // Default recipient to the sender's address
-    const recipient =
-      params.recipient ?? this.context.walletClient.account.address;
+    const recipient = params.recipient ?? accountAddress;
 
     // Default minShares to 0 (no slippage protection)
     const minShares = params.minShares ?? 0n;
@@ -584,7 +589,7 @@ export class StakingController extends BaseController {
       functionName: "stake",
       args: [params.entityId, recipient, minShares],
       value: amountWei,
-      account: this.context.walletClient.account,
+      account,
       chain: this.context.walletClient.chain,
       ...this.spreadTransactionOptions(options),
     });
@@ -700,12 +705,16 @@ export class StakingController extends BaseController {
     // Default maxShares to 0 (no slippage protection)
     const maxShares = params.maxShares ?? 0n;
 
+    // Get account with fallback to userAddress
+    const account =
+      this.context.walletClient.account ?? this.context.userAddress;
+
     const txHash = await this.context.walletClient.writeContract({
       address: stakingAddress,
       abi: stakingAbi,
       functionName: "unstakeVana",
       args: [params.entityId, amountWei, maxShares],
-      account: this.context.walletClient.account,
+      account,
       chain: this.context.walletClient.chain,
       ...this.spreadTransactionOptions(options),
     });

@@ -8,6 +8,7 @@ on:
       - tim/pro-526-personal-server-agent-operation-poc
       - chore/PRO-775/integrate-pge
       - fix/update-lockfile
+      - staking
 
 jobs:
   publish-prerelease:

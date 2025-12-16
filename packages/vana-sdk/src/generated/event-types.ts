@@ -1018,6 +1018,10 @@ export interface EventArgs {
     url: string;
     schemaId: bigint;
   };
+  ForfeitedRewardsReturned: {
+    entityId: bigint;
+    amount: bigint;
+  };
   GranteeRegistered: {
     granteeId: bigint;
     owner: `0x${string}`;

@@ -3,16 +3,16 @@
 //
 // VanaPoolStaking Implementation Contract
 //
-// Generated: 2025-10-30T23:21:17.540Z
-// Network: Vana (Chain ID: 1480)
+// Generated: 2025-12-15T18:48:14.442Z
+// Network: Moksha Testnet (Chain ID: 14800)
 //
 //   Proxy Address:
 //     0x641C18E2F286c86f96CE95C8ec1EB9fC0415Ca0e
-//     https://vanascan.io/address/0x641C18E2F286c86f96CE95C8ec1EB9fC0415Ca0e
+//     https://moksha.vanascan.io/address/0x641C18E2F286c86f96CE95C8ec1EB9fC0415Ca0e
 //
 //   Implementation Address:
-//     0x45869CeFA87bfEA07a6cB817687D6C64334c0032
-//     https://vanascan.io/address/0x45869CeFA87bfEA07a6cB817687D6C64334c0032
+//     0x6DE6FA77080f8a5a8D43689E5C0d4a1554A4255C
+//     https://moksha.vanascan.io/address/0x6DE6FA77080f8a5a8D43689E5C0d4a1554A4255C
 
 export const VanaPoolStakingABI = [
   {
@@ -509,6 +509,106 @@ export const VanaPoolStakingABI = [
     type: "function",
   },
   {
+    inputs: [],
+    name: "bondingPeriod",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "staker",
+        type: "address",
+      },
+      {
+        internalType: "uint256",
+        name: "entityId",
+        type: "uint256",
+      },
+    ],
+    name: "getAccruingInterest",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "staker",
+        type: "address",
+      },
+      {
+        internalType: "uint256",
+        name: "entityId",
+        type: "uint256",
+      },
+    ],
+    name: "getEarnedRewards",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "staker",
+        type: "address",
+      },
+      {
+        internalType: "uint256",
+        name: "entityId",
+        type: "uint256",
+      },
+    ],
+    name: "getMaxUnstakeAmount",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "maxVana",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "maxShares",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "limitingFactor",
+        type: "uint256",
+      },
+      {
+        internalType: "bool",
+        name: "isInBondingPeriod",
+        type: "bool",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     inputs: [
       {
         internalType: "bytes32",
@@ -681,25 +781,6 @@ export const VanaPoolStakingABI = [
     type: "function",
   },
   {
-    inputs: [
-      {
-        internalType: "bytes[]",
-        name: "data",
-        type: "bytes[]",
-      },
-    ],
-    name: "multicall",
-    outputs: [
-      {
-        internalType: "bytes[]",
-        name: "results",
-        type: "bytes[]",
-      },
-    ],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
     inputs: [],
     name: "pause",
     outputs: [],
@@ -836,6 +917,26 @@ export const VanaPoolStakingABI = [
             name: "shares",
             type: "uint256",
           },
+          {
+            internalType: "uint256",
+            name: "costBasis",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "rewardEligibilityTimestamp",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "realizedRewards",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "vestedRewards",
+            type: "uint256",
+          },
         ],
         internalType: "struct IVanaPoolStaking.StakerEntity",
         name: "",
@@ -903,6 +1004,42 @@ export const VanaPoolStakingABI = [
       },
     ],
     name: "unstake",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "entityId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "vanaAmount",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "shareAmountMax",
+        type: "uint256",
+      },
+    ],
+    name: "unstakeVana",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "newBondingPeriod",
+        type: "uint256",
+      },
+    ],
+    name: "updateBondingPeriod",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",

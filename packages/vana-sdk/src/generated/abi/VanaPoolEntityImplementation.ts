@@ -3,16 +3,16 @@
 //
 // VanaPoolEntity Implementation Contract
 //
-// Generated: 2025-10-30T23:21:22.979Z
-// Network: Vana (Chain ID: 1480)
+// Generated: 2025-12-15T18:48:18.187Z
+// Network: Moksha Testnet (Chain ID: 14800)
 //
 //   Proxy Address:
 //     0x44f20490A82e1f1F1cC25Dd3BA8647034eDdce30
-//     https://vanascan.io/address/0x44f20490A82e1f1F1cC25Dd3BA8647034eDdce30
+//     https://moksha.vanascan.io/address/0x44f20490A82e1f1F1cC25Dd3BA8647034eDdce30
 //
 //   Implementation Address:
-//     0x150E238c35537715Ec92D551FCE03b756b4bEAf9
-//     https://vanascan.io/address/0x150E238c35537715Ec92D551FCE03b756b4bEAf9
+//     0x7a094F82d4a5BEDF58d2970841933EED8F4d5068
+//     https://moksha.vanascan.io/address/0x7a094F82d4a5BEDF58d2970841933EED8F4d5068
 
 export const VanaPoolEntityABI = [
   {
@@ -266,6 +266,25 @@ export const VanaPoolEntityABI = [
       },
     ],
     name: "EntityUpdated",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "entityId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "ForfeitedRewardsReturned",
     type: "event",
   },
   {
@@ -961,6 +980,24 @@ export const VanaPoolEntityABI = [
       },
     ],
     name: "renounceRole",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "entityId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "returnForfeitedRewards",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",

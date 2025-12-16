@@ -492,7 +492,7 @@ export class StakingController extends BaseController {
     // Calculate current value of shares
     // entityShareToVana returns the VANA value of 1 share (scaled by 1e18)
     const shareToVana = await entityContract.read.entityShareToVana([entityId]);
-    const currentValue = (position.shares * shareToVana) / BigInt(1e18);
+    const currentValue = (position.shares * shareToVana) / 10n ** 18n;
 
     // Calculate pending interest (unvested rewards)
     // pendingInterest = currentValue - costBasis (if positive)
@@ -550,17 +550,16 @@ export class StakingController extends BaseController {
    * });
    * ```
    */
-  async stake(params: {
-    entityId: bigint;
-    amount: bigint | string;
-    recipient?: Address;
-    minShares?: bigint;
-  }): Promise<Hash> {
-    if (!this.context.walletClient) {
-      throw new BlockchainError(
-        "Wallet client is required for staking. Please configure a wallet in the Vana constructor.",
-      );
-    }
+  async stake(
+    params: {
+      entityId: bigint;
+      amount: bigint | string;
+      recipient?: Address;
+      minShares?: bigint;
+    },
+    options?: TransactionOptions,
+  ): Promise<Hash> {
+    this.assertWallet();
 
     const chainId = this.getChainId();
     const stakingAddress = getContractAddress(chainId, "VanaPoolStaking");
@@ -574,15 +573,10 @@ export class StakingController extends BaseController {
 
     // Default recipient to the sender's address
     const recipient =
-      params.recipient ??
-      this.context.walletClient.account?.address ??
-      this.context.userAddress;
+      params.recipient ?? this.context.walletClient.account.address;
 
     // Default minShares to 0 (no slippage protection)
     const minShares = params.minShares ?? 0n;
-
-    const account =
-      this.context.walletClient.account ?? this.context.userAddress;
 
     const txHash = await this.context.walletClient.writeContract({
       address: stakingAddress,
@@ -590,8 +584,9 @@ export class StakingController extends BaseController {
       functionName: "stake",
       args: [params.entityId, recipient, minShares],
       value: amountWei,
-      account,
+      account: this.context.walletClient.account,
       chain: this.context.walletClient.chain,
+      ...this.spreadTransactionOptions(options),
     });
 
     return txHash;
@@ -690,11 +685,7 @@ export class StakingController extends BaseController {
     },
     options?: TransactionOptions,
   ): Promise<Hash> {
-    if (!this.context.walletClient) {
-      throw new BlockchainError(
-        "Wallet client is required for unstaking. Please configure a wallet in the Vana constructor.",
-      );
-    }
+    this.assertWallet();
 
     const chainId = this.getChainId();
     const stakingAddress = getContractAddress(chainId, "VanaPoolStaking");
@@ -709,15 +700,12 @@ export class StakingController extends BaseController {
     // Default maxShares to 0 (no slippage protection)
     const maxShares = params.maxShares ?? 0n;
 
-    const account =
-      this.context.walletClient.account ?? this.context.userAddress;
-
     const txHash = await this.context.walletClient.writeContract({
       address: stakingAddress,
       abi: stakingAbi,
       functionName: "unstakeVana",
       args: [params.entityId, amountWei, maxShares],
-      account,
+      account: this.context.walletClient.account,
       chain: this.context.walletClient.chain,
       ...this.spreadTransactionOptions(options),
     });

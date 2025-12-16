@@ -1,5 +1,7 @@
 branches:
   - main
+  - name: staking
+    prerelease: true
 preset: "conventionalcommits"
 plugins:
   - "@semantic-release/commit-analyzer"

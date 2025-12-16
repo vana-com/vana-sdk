@@ -4,7 +4,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { mokshaTestnet } from "../config/chains";
 import { StakingController } from "../controllers/staking";
 import type { ControllerContext } from "../types/controller-context";
-import { BlockchainError } from "../errors";
+import { ReadOnlyError } from "../errors";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock the config and ABI modules
@@ -165,7 +165,7 @@ describe("StakingController", () => {
           entityId: 1n,
           amount: "10",
         }),
-      ).rejects.toThrow(BlockchainError);
+      ).rejects.toThrow(ReadOnlyError);
     });
   });
 
@@ -345,7 +345,7 @@ describe("StakingController", () => {
           entityId: 1n,
           amount: parseEther("10"),
         }),
-      ).rejects.toThrow(BlockchainError);
+      ).rejects.toThrow(ReadOnlyError);
     });
 
     it("should pass maxFeePerGas and maxPriorityFeePerGas options", async () => {

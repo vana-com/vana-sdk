@@ -3,7 +3,7 @@
 //
 // VanaPoolEntity Implementation Contract
 //
-// Generated: 2025-12-15T18:48:18.187Z
+// Generated: 2026-01-05T17:36:48.917Z
 // Network: Moksha Testnet (Chain ID: 14800)
 //
 //   Proxy Address:

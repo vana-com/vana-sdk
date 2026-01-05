@@ -3,7 +3,7 @@
 //
 // VanaPoolStaking Implementation Contract
 //
-// Generated: 2025-12-15T18:48:14.442Z
+// Generated: 2026-01-05T17:36:46.222Z
 // Network: Moksha Testnet (Chain ID: 14800)
 //
 //   Proxy Address:
@@ -11,8 +11,8 @@
 //     https://moksha.vanascan.io/address/0x641C18E2F286c86f96CE95C8ec1EB9fC0415Ca0e
 //
 //   Implementation Address:
-//     0x6DE6FA77080f8a5a8D43689E5C0d4a1554A4255C
-//     https://moksha.vanascan.io/address/0x6DE6FA77080f8a5a8D43689E5C0d4a1554A4255C
+//     0x8ffd88ADa6E26B4b1585a2F994AA5DaA147053d3
+//     https://moksha.vanascan.io/address/0x8ffd88ADa6E26B4b1585a2F994AA5DaA147053d3
 
 export const VanaPoolStakingABI = [
   {
@@ -120,6 +120,11 @@ export const VanaPoolStakingABI = [
   },
   {
     inputs: [],
+    name: "InvalidBondingPeriod",
+    type: "error",
+  },
+  {
+    inputs: [],
     name: "InvalidEntity",
     type: "error",
   },
@@ -178,6 +183,19 @@ export const VanaPoolStakingABI = [
     ],
     name: "UUPSUnsupportedProxiableUUID",
     type: "error",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "newBondingPeriod",
+        type: "uint256",
+      },
+    ],
+    name: "BondingPeriodUpdated",
+    type: "event",
   },
   {
     anonymous: false,
@@ -421,6 +439,19 @@ export const VanaPoolStakingABI = [
         internalType: "bytes32",
         name: "",
         type: "bytes32",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "MAX_BONDING_PERIOD",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
       },
     ],
     stateMutability: "view",

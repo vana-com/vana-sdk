@@ -462,23 +462,63 @@ export class StakingController extends BaseController {
     staker: Address,
     entityId: bigint,
   ): Promise<StakerEntitySummary> {
-    const stakingContract = this.getStakingContract();
-    const entityContract = this.getEntityContract();
+    const chainId = this.getChainId();
+    const stakingAddress = getContractAddress(chainId, "VanaPoolStaking");
+    const entityAddress = getContractAddress(chainId, "VanaPoolEntity");
+    const stakingAbi = getAbi("VanaPoolStaking");
+    const entityAbi = getAbi("VanaPoolEntity");
 
-    // Get staker's position data
-    const position = await stakingContract.read.stakerEntities([
-      staker,
-      entityId,
-    ]);
-
-    // Get earned rewards from contract
-    const earnedRewards = await stakingContract.read.getEarnedRewards([
-      staker,
-      entityId,
-    ]);
-
-    // Get current timestamp from the blockchain
+    // Get latest block first to ensure all reads are from the same block
     const block = await this.context.publicClient.getBlock();
+    const blockNumber = block.number;
+
+    // Batch all contract reads into a single multicall RPC request at the same block
+    const multicallResults = await this.context.publicClient.multicall({
+      contracts: [
+        {
+          address: stakingAddress,
+          abi: stakingAbi,
+          functionName: "stakerEntities",
+          args: [staker, entityId],
+        },
+        {
+          address: stakingAddress,
+          abi: stakingAbi,
+          functionName: "getEarnedRewards",
+          args: [staker, entityId],
+        },
+        {
+          address: entityAddress,
+          abi: entityAbi,
+          functionName: "entityShareToVana",
+          args: [entityId],
+        },
+      ],
+      blockNumber,
+    });
+
+    const [positionResult, earnedRewardsResult, shareToVanaResult] =
+      multicallResults;
+
+    if (
+      positionResult.status === "failure" ||
+      earnedRewardsResult.status === "failure" ||
+      shareToVanaResult.status === "failure"
+    ) {
+      throw new BlockchainError(
+        "Failed to fetch staker summary: one or more contract calls failed",
+      );
+    }
+
+    const position = positionResult.result as {
+      shares: bigint;
+      costBasis: bigint;
+      rewardEligibilityTimestamp: bigint;
+      realizedRewards: bigint;
+      vestedRewards: bigint;
+    };
+    const earnedRewards = earnedRewardsResult.result as bigint;
+    const shareToVana = shareToVanaResult.result as bigint;
     const currentTimestamp = block.timestamp;
 
     // Calculate remaining bonding time
@@ -491,7 +531,6 @@ export class StakingController extends BaseController {
 
     // Calculate current value of shares
     // entityShareToVana returns the VANA value of 1 share (scaled by 1e18)
-    const shareToVana = await entityContract.read.entityShareToVana([entityId]);
     const currentValue = (position.shares * shareToVana) / 10n ** 18n;
 
     // Calculate pending interest (unvested rewards)

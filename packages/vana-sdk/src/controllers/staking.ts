@@ -687,6 +687,171 @@ export class StakingController extends BaseController {
   }
 
   /**
+   * Computes the new bonding period end timestamp after adding stake.
+   *
+   * @remarks
+   * When a staker adds more stake to an existing position, the reward eligibility timestamp
+   * is recalculated as a weighted average of the existing and new positions. This function
+   * allows you to preview what the new eligibility timestamp would be without executing
+   * the stake transaction.
+   *
+   * The formula used (matching the contract):
+   * ```
+   * newEligibility = (existingShares * existingEligibility + newShares * newEligibility) / totalShares
+   * ```
+   *
+   * Where `newEligibility` for the incoming stake is `currentTimestamp + bondingPeriod`.
+   *
+   * @param params - The parameters for computing the new bonding period
+   * @param params.staker - The address of the staker
+   * @param params.entityId - The ID of the entity
+   * @param params.stakeAmount - The amount of VANA to stake (in wei)
+   * @returns Object containing the new eligibility timestamp and related info
+   *
+   * @example
+   * ```typescript
+   * // Preview bonding period after staking 100 VANA
+   * const preview = await vana.staking.computeNewBondingPeriod({
+   *   staker: '0x742d35...',
+   *   entityId: 1n,
+   *   stakeAmount: parseEther("100"),
+   * });
+   * console.log(`New eligibility: ${new Date(Number(preview.newEligibilityTimestamp) * 1000)}`);
+   * console.log(`Remaining bonding time: ${Number(preview.newRemainingBondingTime) / 86400} days`);
+   * ```
+   */
+  async computeNewBondingPeriod(params: {
+    staker: Address;
+    entityId: bigint;
+    stakeAmount: bigint;
+  }): Promise<{
+    /** The new reward eligibility timestamp after staking */
+    newEligibilityTimestamp: bigint;
+    /** Remaining bonding time in seconds after staking */
+    newRemainingBondingTime: bigint;
+    /** Current eligibility timestamp (before staking) */
+    currentEligibilityTimestamp: bigint;
+    /** Current remaining bonding time (before staking) */
+    currentRemainingBondingTime: bigint;
+    /** Current shares held by staker */
+    currentShares: bigint;
+    /** Estimated new shares to be received */
+    estimatedNewShares: bigint;
+    /** Total shares after staking */
+    totalSharesAfter: bigint;
+    /** The bonding period duration in seconds */
+    bondingPeriodDuration: bigint;
+    /** Current block timestamp used for calculation */
+    currentTimestamp: bigint;
+  }> {
+    const chainId = this.getChainId();
+    const stakingAddress = getContractAddress(chainId, "VanaPoolStaking");
+    const entityAddress = getContractAddress(chainId, "VanaPoolEntity");
+    const stakingAbi = getAbi("VanaPoolStaking");
+    const entityAbi = getAbi("VanaPoolEntity");
+
+    // Get latest block first to ensure all reads are from the same block
+    const block = await this.context.publicClient.getBlock();
+    const blockNumber = block.number;
+    const currentTimestamp = block.timestamp;
+
+    // Batch all contract reads into a single multicall RPC request at the same block
+    const multicallResults = await this.context.publicClient.multicall({
+      contracts: [
+        {
+          address: stakingAddress,
+          abi: stakingAbi,
+          functionName: "stakerEntities",
+          args: [params.staker, params.entityId],
+        },
+        {
+          address: stakingAddress,
+          abi: stakingAbi,
+          functionName: "bondingPeriod",
+          args: [],
+        },
+        {
+          address: entityAddress,
+          abi: entityAbi,
+          functionName: "vanaToEntityShare",
+          args: [params.entityId],
+        },
+      ],
+      blockNumber,
+    });
+
+    const [positionResult, bondingPeriodResult, vanaToShareResult] =
+      multicallResults;
+
+    if (
+      positionResult.status === "failure" ||
+      bondingPeriodResult.status === "failure" ||
+      vanaToShareResult.status === "failure"
+    ) {
+      throw new BlockchainError(
+        "Failed to compute new bonding period: one or more contract calls failed",
+      );
+    }
+
+    const position = positionResult.result as {
+      shares: bigint;
+      costBasis: bigint;
+      rewardEligibilityTimestamp: bigint;
+      realizedRewards: bigint;
+      vestedRewards: bigint;
+    };
+    const bondingPeriodDuration = bondingPeriodResult.result as bigint;
+    const vanaToShare = vanaToShareResult.result as bigint;
+
+    const currentShares = position.shares;
+    const currentEligibilityTimestamp = position.rewardEligibilityTimestamp;
+
+    // Calculate current remaining bonding time
+    const currentRemainingBondingTime =
+      currentEligibilityTimestamp > currentTimestamp
+        ? currentEligibilityTimestamp - currentTimestamp
+        : 0n;
+
+    // Estimate new shares: newShares = (stakeAmount * vanaToShare) / 1e18
+    const estimatedNewShares = (params.stakeAmount * vanaToShare) / 10n ** 18n;
+
+    // Calculate new eligibility timestamp using weighted average formula
+    // newEligibility = (existingShares * existingEligibility + newShares * (currentTime + bondingPeriod)) / totalShares
+    const totalSharesAfter = currentShares + estimatedNewShares;
+    const newStakeEligibility = currentTimestamp + bondingPeriodDuration;
+
+    let newEligibilityTimestamp: bigint;
+    if (currentShares === 0n) {
+      // First stake: eligibility is simply current time + bonding period
+      newEligibilityTimestamp = newStakeEligibility;
+    } else {
+      // Weighted average of existing and new positions
+      newEligibilityTimestamp =
+        (currentShares * currentEligibilityTimestamp +
+          estimatedNewShares * newStakeEligibility) /
+        totalSharesAfter;
+    }
+
+    // Calculate new remaining bonding time
+    const newRemainingBondingTime =
+      newEligibilityTimestamp > currentTimestamp
+        ? newEligibilityTimestamp - currentTimestamp
+        : 0n;
+
+    return {
+      newEligibilityTimestamp,
+      newRemainingBondingTime,
+      currentEligibilityTimestamp,
+      currentRemainingBondingTime,
+      currentShares,
+      estimatedNewShares,
+      totalSharesAfter,
+      bondingPeriodDuration,
+      currentTimestamp,
+    };
+  }
+
+  /**
    * Unstakes VANA from an entity in the VanaPool protocol.
    *
    * @remarks

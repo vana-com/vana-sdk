@@ -4,7 +4,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { mokshaTestnet } from "../config/chains";
 import { StakingController } from "../controllers/staking";
 import type { ControllerContext } from "../types/controller-context";
-import { ReadOnlyError } from "../errors";
+import { ReadOnlyError, BlockchainError } from "../errors";
 import { mockPlatformAdapter } from "./mocks/platformAdapter";
 
 // Mock the config and ABI modules
@@ -43,6 +43,8 @@ describe("StakingController", () => {
     waitForTransactionReceipt: ReturnType<typeof vi.fn>;
     getTransactionReceipt: ReturnType<typeof vi.fn>;
     getBlock: ReturnType<typeof vi.fn>;
+    multicall: ReturnType<typeof vi.fn>;
+    chain: { id: number };
   };
 
   beforeEach(() => {
@@ -68,7 +70,11 @@ describe("StakingController", () => {
         status: "success" as const,
         logs: [],
       }),
-      getBlock: vi.fn().mockResolvedValue({ timestamp: BigInt(Date.now()) }),
+      getBlock: vi
+        .fn()
+        .mockResolvedValue({ number: 12345n, timestamp: BigInt(Date.now()) }),
+      multicall: vi.fn(),
+      chain: { id: 14800 },
     };
 
     mockContext = {
@@ -367,6 +373,239 @@ describe("StakingController", () => {
           maxFeePerGas: options.maxFeePerGas,
           maxPriorityFeePerGas: options.maxPriorityFeePerGas,
         }),
+      );
+    });
+  });
+
+  describe("computeNewBondingPeriod", () => {
+    const bondingPeriodDuration = 5n * 24n * 60n * 60n; // 5 days in seconds
+    const currentTimestamp = 1700000000n; // Fixed timestamp for testing
+
+    beforeEach(() => {
+      mockPublicClient.getBlock.mockResolvedValue({
+        number: 12345n,
+        timestamp: currentTimestamp,
+      });
+    });
+
+    it("should compute bonding period for first stake (no existing position)", async () => {
+      // Mock multicall results for first-time staker
+      mockPublicClient.multicall.mockResolvedValue([
+        {
+          status: "success",
+          result: {
+            shares: 0n,
+            costBasis: 0n,
+            rewardEligibilityTimestamp: 0n,
+            realizedRewards: 0n,
+            vestedRewards: 0n,
+          },
+        },
+        { status: "success", result: bondingPeriodDuration },
+        { status: "success", result: parseEther("1") }, // 1:1 vanaToShare ratio
+      ]);
+
+      const result = await controller.computeNewBondingPeriod({
+        staker: testAccount.address,
+        entityId: 1n,
+        stakeAmount: parseEther("100"),
+      });
+
+      // First stake: eligibility = currentTimestamp + bondingPeriod
+      const expectedEligibility = currentTimestamp + bondingPeriodDuration;
+      expect(result.newEligibilityTimestamp).toBe(expectedEligibility);
+      expect(result.newRemainingBondingTime).toBe(bondingPeriodDuration);
+      expect(result.currentShares).toBe(0n);
+      expect(result.estimatedNewShares).toBe(parseEther("100"));
+      expect(result.totalSharesAfter).toBe(parseEther("100"));
+      expect(result.bondingPeriodDuration).toBe(bondingPeriodDuration);
+    });
+
+    it("should compute weighted average bonding period for additional stake", async () => {
+      const existingShares = parseEther("100");
+      // Existing eligibility: 2.5 days from now (half through 5-day bonding period)
+      const existingEligibility =
+        currentTimestamp + (5n * 24n * 60n * 60n) / 2n;
+
+      mockPublicClient.multicall.mockResolvedValue([
+        {
+          status: "success",
+          result: {
+            shares: existingShares,
+            costBasis: parseEther("100"),
+            rewardEligibilityTimestamp: existingEligibility,
+            realizedRewards: 0n,
+            vestedRewards: 0n,
+          },
+        },
+        { status: "success", result: bondingPeriodDuration },
+        { status: "success", result: parseEther("1") }, // 1:1 ratio
+      ]);
+
+      const newStakeAmount = parseEther("100"); // Same amount as existing
+      const result = await controller.computeNewBondingPeriod({
+        staker: testAccount.address,
+        entityId: 1n,
+        stakeAmount: newStakeAmount,
+      });
+
+      // Weighted average: (100 * (now+2.5d) + 100 * (now+5d)) / 200 = now + 3.75d
+      const newStakeEligibility = currentTimestamp + bondingPeriodDuration;
+      const expectedEligibility =
+        (existingShares * existingEligibility +
+          parseEther("100") * newStakeEligibility) /
+        parseEther("200");
+
+      expect(result.newEligibilityTimestamp).toBe(expectedEligibility);
+      expect(result.currentShares).toBe(existingShares);
+      expect(result.estimatedNewShares).toBe(parseEther("100"));
+      expect(result.totalSharesAfter).toBe(parseEther("200"));
+    });
+
+    it("should handle expired bonding period with additional stake", async () => {
+      const existingShares = parseEther("100");
+      // Eligibility already passed (1 day ago)
+      const existingEligibility = currentTimestamp - 24n * 60n * 60n;
+
+      mockPublicClient.multicall.mockResolvedValue([
+        {
+          status: "success",
+          result: {
+            shares: existingShares,
+            costBasis: parseEther("100"),
+            rewardEligibilityTimestamp: existingEligibility,
+            realizedRewards: 0n,
+            vestedRewards: 0n,
+          },
+        },
+        { status: "success", result: bondingPeriodDuration },
+        { status: "success", result: parseEther("1") },
+      ]);
+
+      const result = await controller.computeNewBondingPeriod({
+        staker: testAccount.address,
+        entityId: 1n,
+        stakeAmount: parseEther("100"),
+      });
+
+      // Current remaining bonding time should be 0 (already eligible)
+      expect(result.currentRemainingBondingTime).toBe(0n);
+      // New remaining time should be > 0 because of new stake
+      expect(result.newRemainingBondingTime).toBeGreaterThan(0n);
+    });
+
+    it("should account for different vanaToShare ratios", async () => {
+      // 2:1 ratio means 100 VANA = 50 shares
+      const vanaToShareRatio = parseEther("0.5");
+
+      mockPublicClient.multicall.mockResolvedValue([
+        {
+          status: "success",
+          result: {
+            shares: 0n,
+            costBasis: 0n,
+            rewardEligibilityTimestamp: 0n,
+            realizedRewards: 0n,
+            vestedRewards: 0n,
+          },
+        },
+        { status: "success", result: bondingPeriodDuration },
+        { status: "success", result: vanaToShareRatio },
+      ]);
+
+      const result = await controller.computeNewBondingPeriod({
+        staker: testAccount.address,
+        entityId: 1n,
+        stakeAmount: parseEther("100"),
+      });
+
+      // 100 VANA * 0.5 ratio = 50 shares
+      expect(result.estimatedNewShares).toBe(parseEther("50"));
+      expect(result.totalSharesAfter).toBe(parseEther("50"));
+    });
+
+    it("should throw BlockchainError when multicall fails", async () => {
+      mockPublicClient.multicall.mockResolvedValue([
+        { status: "failure", error: new Error("Call failed") },
+        { status: "success", result: bondingPeriodDuration },
+        { status: "success", result: parseEther("1") },
+      ]);
+
+      await expect(
+        controller.computeNewBondingPeriod({
+          staker: testAccount.address,
+          entityId: 1n,
+          stakeAmount: parseEther("100"),
+        }),
+      ).rejects.toThrow(BlockchainError);
+    });
+
+    it("should return correct current timestamp", async () => {
+      mockPublicClient.multicall.mockResolvedValue([
+        {
+          status: "success",
+          result: {
+            shares: 0n,
+            costBasis: 0n,
+            rewardEligibilityTimestamp: 0n,
+            realizedRewards: 0n,
+            vestedRewards: 0n,
+          },
+        },
+        { status: "success", result: bondingPeriodDuration },
+        { status: "success", result: parseEther("1") },
+      ]);
+
+      const result = await controller.computeNewBondingPeriod({
+        staker: testAccount.address,
+        entityId: 1n,
+        stakeAmount: parseEther("100"),
+      });
+
+      expect(result.currentTimestamp).toBe(currentTimestamp);
+    });
+
+    it("should handle large stake amounts with proper weighted average", async () => {
+      const existingShares = parseEther("100");
+      // 1 day remaining in bonding period
+      const existingEligibility = currentTimestamp + 1n * 24n * 60n * 60n;
+
+      mockPublicClient.multicall.mockResolvedValue([
+        {
+          status: "success",
+          result: {
+            shares: existingShares,
+            costBasis: parseEther("100"),
+            rewardEligibilityTimestamp: existingEligibility,
+            realizedRewards: 0n,
+            vestedRewards: 0n,
+          },
+        },
+        { status: "success", result: bondingPeriodDuration },
+        { status: "success", result: parseEther("1") },
+      ]);
+
+      // Large new stake (10x existing)
+      const newStakeAmount = parseEther("1000");
+      const result = await controller.computeNewBondingPeriod({
+        staker: testAccount.address,
+        entityId: 1n,
+        stakeAmount: newStakeAmount,
+      });
+
+      // With 100 shares at 1 day and 1000 new shares at 5 days,
+      // weighted average should be much closer to 5 days
+      const newStakeEligibility = currentTimestamp + bondingPeriodDuration;
+      const expectedEligibility =
+        (existingShares * existingEligibility +
+          parseEther("1000") * newStakeEligibility) /
+        parseEther("1100");
+
+      expect(result.newEligibilityTimestamp).toBe(expectedEligibility);
+      expect(result.totalSharesAfter).toBe(parseEther("1100"));
+      // New remaining time should be close to 5 days (at least 4.5 days)
+      expect(result.newRemainingBondingTime).toBeGreaterThanOrEqual(
+        (9n * 24n * 60n * 60n) / 2n, // 4.5 days
       );
     });
   });

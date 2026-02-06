@@ -27,6 +27,7 @@ import { SchemaController } from "./controllers/schemas";
 import { ServerController } from "./controllers/server";
 import { ProtocolController } from "./controllers/protocol";
 import { OperationsController } from "./controllers/operations";
+import { StakingController } from "./controllers/staking";
 import { StorageManager } from "./storage";
 import { createWalletClient, createPublicClient, http } from "viem";
 import type {
@@ -175,6 +176,9 @@ export class VanaCore {
 
   /** Offers low-level access to Vana protocol smart contracts. */
   public readonly protocol: ProtocolController;
+
+  /** Provides VanaPool staking information and operations. */
+  public readonly staking: StakingController;
 
   /** Handles environment-specific operations like encryption and file systems. */
   protected platform: VanaPlatformAdapter;
@@ -400,6 +404,7 @@ export class VanaCore {
     this.operations = new OperationsController(sharedContext);
     this.server = new ServerController(sharedContext);
     this.protocol = new ProtocolController(sharedContext);
+    this.staking = new StakingController(sharedContext);
   }
 
   /**

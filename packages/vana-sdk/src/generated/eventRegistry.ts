@@ -3035,6 +3035,24 @@ export const TOPIC_TO_ABIS = /*#__PURE__*/ new Map<
     ] as const,
   ],
   [
+    "0x7412027f2d81b758163c26c866f9ce4ab666a843e33bec6153fbc5032edd1bcc" as `0x${string}`,
+    [
+      {
+        anonymous: false,
+        inputs: [
+          {
+            indexed: false,
+            internalType: "uint256",
+            name: "newBondingPeriod",
+            type: "uint256",
+          },
+        ],
+        name: "BondingPeriodUpdated",
+        type: "event",
+      },
+    ] as const,
+  ],
+  [
     "0x750e6bbedd4312ada35caa75e07fc0b85f1a6fc9c675e6962aef846918711097" as `0x${string}`,
     [
       {
@@ -3438,6 +3456,30 @@ export const TOPIC_TO_ABIS = /*#__PURE__*/ new Map<
           },
         ],
         name: "EntityStatusUpdated",
+        type: "event",
+      },
+    ] as const,
+  ],
+  [
+    "0xa8fdc3ef22baab43fd31cd482a94de0be672c1b5f522294e8b2ce117095bb1e2" as `0x${string}`,
+    [
+      {
+        anonymous: false,
+        inputs: [
+          {
+            indexed: true,
+            internalType: "uint256",
+            name: "entityId",
+            type: "uint256",
+          },
+          {
+            indexed: false,
+            internalType: "uint256",
+            name: "amount",
+            type: "uint256",
+          },
+        ],
+        name: "ForfeitedRewardsReturned",
         type: "event",
       },
     ] as const,

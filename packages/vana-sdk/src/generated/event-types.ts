@@ -806,6 +806,9 @@ export interface EventArgs {
     spender: `0x${string}`;
     value: bigint;
   };
+  BondingPeriodUpdated: {
+    newBondingPeriod: bigint;
+  };
   Claimed: {
     teeAddress: `0x${string}`;
     amount: bigint;
@@ -1017,6 +1020,10 @@ export interface EventArgs {
     ownerAddress: `0x${string}`;
     url: string;
     schemaId: bigint;
+  };
+  ForfeitedRewardsReturned: {
+    entityId: bigint;
+    amount: bigint;
   };
   GranteeRegistered: {
     granteeId: bigint;

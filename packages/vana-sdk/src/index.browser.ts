@@ -173,6 +173,12 @@ export { ServerController } from "./controllers/server";
 export { ProtocolController } from "./controllers/protocol";
 export { SchemaController } from "./controllers/schemas";
 export { OperationsController } from "./controllers/operations";
+export { StakingController } from "./controllers/staking";
+export type {
+  EntityInfo,
+  StakerEntityInfo,
+  StakerEntitySummary,
+} from "./controllers/staking";
 
 // Contract controller
 export * from "./contracts/contractController";

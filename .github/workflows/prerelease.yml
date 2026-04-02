@@ -9,6 +9,7 @@ on:
       - chore/PRO-775/integrate-pge
       - fix/update-lockfile
       - staking
+      - remove-subgraph
 
 jobs:
   publish-prerelease:

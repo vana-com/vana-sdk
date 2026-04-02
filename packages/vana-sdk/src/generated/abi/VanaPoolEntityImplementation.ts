@@ -3,7 +3,7 @@
 //
 // VanaPoolEntity Implementation Contract
 //
-// Generated: 2026-01-05T17:36:48.917Z
+// Generated: 2026-04-02T16:08:31.343Z
 // Network: Moksha Testnet (Chain ID: 14800)
 //
 //   Proxy Address:
@@ -11,8 +11,8 @@
 //     https://moksha.vanascan.io/address/0x44f20490A82e1f1F1cC25Dd3BA8647034eDdce30
 //
 //   Implementation Address:
-//     0x7a094F82d4a5BEDF58d2970841933EED8F4d5068
-//     https://moksha.vanascan.io/address/0x7a094F82d4a5BEDF58d2970841933EED8F4d5068
+//     0x208cFA5A89386f1a33b6F43A2303d5cd5acc118a
+//     https://moksha.vanascan.io/address/0x208cFA5A89386f1a33b6F43A2303d5cd5acc118a
 
 export const VanaPoolEntityABI = [
   {
@@ -533,6 +533,24 @@ export const VanaPoolEntityABI = [
   {
     inputs: [
       {
+        internalType: "uint256[]",
+        name: "entityIds",
+        type: "uint256[]",
+      },
+      {
+        internalType: "uint256[]",
+        name: "amounts",
+        type: "uint256[]",
+      },
+    ],
+    name: "addTotalDistributedRewards",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
         internalType: "uint256",
         name: "entityId",
         type: "uint256",
@@ -679,6 +697,11 @@ export const VanaPoolEntityABI = [
             name: "lastUpdateTimestamp",
             type: "uint256",
           },
+          {
+            internalType: "uint256",
+            name: "totalDistributedRewards",
+            type: "uint256",
+          },
         ],
         internalType: "struct IVanaPoolEntity.EntityInfo",
         name: "",
@@ -756,6 +779,11 @@ export const VanaPoolEntityABI = [
           {
             internalType: "uint256",
             name: "lastUpdateTimestamp",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "totalDistributedRewards",
             type: "uint256",
           },
         ],

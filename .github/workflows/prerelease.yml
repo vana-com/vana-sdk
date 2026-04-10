@@ -37,9 +37,19 @@ jobs:
           SHORT_SHA=$(git rev-parse --short HEAD)
           npm version "${CURRENT_VERSION}-canary.${SHORT_SHA}" --no-git-tag-version --allow-same-version
 
+      - name: Verify npm token
+        run: |
+          echo "Token length: ${#NODE_AUTH_TOKEN}"
+          echo "Token prefix: ${NODE_AUTH_TOKEN:0:4}..."
+          npm whoami --registry https://registry.npmjs.org/ || echo "npm whoami failed - token may be invalid"
+          npm view @opendatalabs/vana-sdk version --registry https://registry.npmjs.org/ || echo "Cannot access package"
+          cat ~/.npmrc 2>/dev/null | sed 's/=.*/=<REDACTED>/' || echo "No .npmrc found"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Build and Publish canary pre-release
         run: |
           cd packages/vana-sdk
           NODE_OPTIONS="--max-old-space-size=4096" npm run build && npm publish --tag canary
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN_TIM }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

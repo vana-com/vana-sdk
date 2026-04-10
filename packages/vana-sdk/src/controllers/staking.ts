@@ -32,6 +32,7 @@ export interface EntityInfo {
   activeRewardPool: bigint;
   totalShares: bigint;
   lastUpdateTimestamp: bigint;
+  totalDistributedRewards: bigint;
 }
 
 /**
@@ -207,6 +208,7 @@ export class StakingController extends BaseController {
       activeRewardPool: result.activeRewardPool,
       totalShares: result.totalShares,
       lastUpdateTimestamp: result.lastUpdateTimestamp,
+      totalDistributedRewards: result.totalDistributedRewards,
     };
   }
 
@@ -349,20 +351,16 @@ export class StakingController extends BaseController {
   }
 
   /**
-   * Gets the total distributed rewards for a specific entity from the subgraph.
+   * Gets the total distributed rewards for a specific entity from the contract.
    *
    * @remarks
-   * This queries the VanaPool subgraph to retrieve the cumulative `totalDistributedRewards`
-   * for a staking entity. This value represents the sum of all rewards that have been
-   * processed (moved from lockedRewardPool to activeRewardPool) minus any forfeited
+   * This reads the `totalDistributedRewards` field from the entity's on-chain state.
+   * This value represents the sum of all rewards that have been processed
+   * (moved from lockedRewardPool to activeRewardPool) minus any forfeited
    * rewards that were returned.
    *
-   * Requires a configured `subgraphUrl` in the Vana constructor options.
-   *
    * @param entityId - The ID of the entity to query
-   * @param options - Optional configuration including custom subgraph URL
    * @returns The total distributed rewards in wei
-   * @throws {BlockchainError} When subgraph URL is not configured or query fails
    *
    * @example
    * ```typescript
@@ -371,61 +369,10 @@ export class StakingController extends BaseController {
    * console.log(`Total distributed rewards: ${totalRewardsVana.toLocaleString()} VANA`);
    * ```
    */
-  async getTotalDistributedRewards(
-    entityId: bigint,
-    options: { subgraphUrl?: string } = {},
-  ): Promise<bigint> {
-    const graphqlEndpoint = options.subgraphUrl ?? this.context.subgraphUrl;
-
-    if (!graphqlEndpoint) {
-      throw new BlockchainError(
-        "subgraphUrl is required. Please provide a valid subgraph endpoint or configure it in Vana constructor.",
-      );
-    }
-
-    const query = `
-      query GetStakingEntityRewards($entityId: ID!) {
-        stakingEntity(id: $entityId) {
-          totalDistributedRewards
-        }
-      }
-    `;
-
-    const response = await fetch(graphqlEndpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        query,
-        variables: {
-          entityId: entityId.toString(),
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      throw new BlockchainError(
-        `Subgraph query failed with status ${response.status}`,
-      );
-    }
-
-    const result = (await response.json()) as {
-      data?: { stakingEntity?: { totalDistributedRewards: string } };
-      errors?: Array<{ message: string }>;
-    };
-
-    if (result.errors && result.errors.length > 0) {
-      throw new BlockchainError(
-        `Subgraph query error: ${result.errors[0].message}`,
-      );
-    }
-
-    if (!result.data?.stakingEntity) {
-      throw new BlockchainError(`Staking entity ${entityId} not found`);
-    }
-
-    return BigInt(result.data.stakingEntity.totalDistributedRewards);
+  async getTotalDistributedRewards(entityId: bigint): Promise<bigint> {
+    const entityContract = this.getEntityContract();
+    const result = await entityContract.read.entities([entityId]);
+    return result.totalDistributedRewards;
   }
 
   /**

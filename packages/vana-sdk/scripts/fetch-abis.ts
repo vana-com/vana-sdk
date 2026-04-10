@@ -87,32 +87,26 @@ async function getImplementationAddress(
   network: "moksha" | "mainnet" = "moksha",
 ): Promise<string> {
   const contractInfo = (await fetchContractInfo(proxyAddress, network)) as {
-    implementations?: Array<{ address: string }>;
+    implementations?: Array<{ address?: string; address_hash?: string }>;
   };
-  if (!contractInfo.implementations?.[0]?.address) {
+  const firstImpl = contractInfo.implementations?.[0];
+  if (!firstImpl?.address && !firstImpl?.address_hash) {
     throw new Error(`No implementation found for proxy ${proxyAddress}`);
   }
 
   // ASSUMPTION: Blockscout returns implementations in chronological order (oldest first)
   // Therefore, the LAST element ([length-1]) is the newest/current implementation.
   //
-  // Evidence:
-  // - All current Vana contracts (as of 2025-01) have only 1 implementation
-  // - Blockscout docs say contract lists are "ascending order by time indexed"
-  // - Standard array append pattern suggests newest = last
-  //
-  // Verification: If ABIs suddenly break after a proxy upgrade, verify the API response:
-  //   curl "https://vanascan.io/api/v2/smart-contracts/<PROXY_ADDRESS>"
-  //   curl "https://moksha.vanascan.io/api/v2/smart-contracts/<PROXY_ADDRESS>"
-  // Check if implementations[0] or implementations[length-1] matches the current impl.
-  const latestImplementation =
-    contractInfo.implementations[contractInfo.implementations.length - 1]
-      .address;
+  // Note: Blockscout API may return the address as either "address" or "address_hash"
+  // depending on the version. We support both.
+  const lastImpl =
+    contractInfo.implementations![contractInfo.implementations!.length - 1];
+  const latestImplementation = (lastImpl.address ?? lastImpl.address_hash)!;
 
   // Log when multiple implementations exist (helps detect future upgrades)
-  if (contractInfo.implementations.length > 1) {
+  if (contractInfo.implementations!.length > 1) {
     console.log(
-      `   ⚠️  ${contractInfo.implementations.length} implementations found - using latest (${latestImplementation})`,
+      `   ⚠️  ${contractInfo.implementations!.length} implementations found - using latest (${latestImplementation})`,
     );
   }
 
@@ -349,6 +343,7 @@ async function updateIndexFile(contractNames: string[]): Promise<void> {
  */
 async function fetchAndSaveABIs(
   network: "moksha" | "mainnet" = "moksha",
+  contractFilter?: string,
 ): Promise<void> {
   const networkConfig = NETWORK_CONFIG[network];
   const abiDir = path.join(process.cwd(), "src", "generated", "abi");
@@ -357,6 +352,22 @@ async function fetchAndSaveABIs(
 
   // Get all contracts to fetch (entry points + discoverable)
   const allContracts = getAllContractsToFetch(networkConfig.chainId);
+
+  if (contractFilter) {
+    if (!allContracts.has(contractFilter)) {
+      console.error(
+        `❌ Contract "${contractFilter}" not found. Available contracts:`,
+      );
+      for (const name of allContracts.keys()) {
+        console.error(`   - ${name}`);
+      }
+      process.exit(1);
+    }
+    // Keep only the specified contract
+    const address = allContracts.get(contractFilter)!;
+    allContracts.clear();
+    allContracts.set(contractFilter, address);
+  }
 
   console.log(`🔄 Fetching ${networkConfig.name} contract ABIs...`);
   console.log(`📋 Total contracts to fetch: ${allContracts.size}`);
@@ -434,15 +445,23 @@ async function fetchAndSaveABIs(
  */
 async function main(): Promise<void> {
   const network = (process.argv[2] as "moksha" | "mainnet") || "mainnet";
+  const contractFilter = process.argv[3];
 
   if (!["moksha", "mainnet"].includes(network)) {
-    console.error("Usage: npm run fetch-abis [moksha|mainnet]");
+    console.error("Usage: npm run fetch-abis [moksha|mainnet] [ContractName]");
     console.error("Defaults to mainnet if not specified");
+    console.error("Examples:");
+    console.error(
+      "  npm run fetch-abis moksha                  # fetch all moksha ABIs",
+    );
+    console.error(
+      "  npm run fetch-abis moksha VanaPoolEntity    # fetch only VanaPoolEntity",
+    );
     process.exit(1);
   }
 
   try {
-    await fetchAndSaveABIs(network);
+    await fetchAndSaveABIs(network, contractFilter);
   } catch (error) {
     console.error("❌ Script failed:", error);
     process.exit(1);

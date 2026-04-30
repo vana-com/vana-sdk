@@ -100,11 +100,7 @@
     "fetch-abis": "tsx scripts/fetch-abis.ts",
     "generate:types": "tsx scripts/generate-types.ts",
     "generate:types:check": "tsx scripts/generate-types.ts --check",
-    "generate": "npm run discover-addresses && npm run fetch-abis && npm run generate:types",
-    "fetch-server-types": "tsx scripts/fetch-server-types.ts",
-    "codegen:subgraph": "graphql-codegen --config codegen.ts",
-    "codegen:subgraph:moksha": "VANA_CODEGEN_NETWORK=moksha graphql-codegen --config codegen.ts",
-    "codegen:subgraph:mainnet": "VANA_CODEGEN_NETWORK=mainnet graphql-codegen --config codegen.ts"
+    "generate": "npm run discover-addresses && npm run fetch-abis && npm run generate:types"
   },
   "keywords": [
     "vana",
@@ -120,16 +116,11 @@
     "abitype": "^1.0.9",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
-    "graphql": "^16.11.0",
     "openpgp": "^6.1.1",
     "uuid": "^13.0.0",
     "viem": "^2.35.1"
   },
   "devDependencies": {
-    "@graphql-codegen/cli": "^5.0.7",
-    "@graphql-codegen/typed-document-node": "^5.1.2",
-    "@graphql-codegen/typescript": "^4.1.6",
-    "@graphql-codegen/typescript-operations": "^4.6.1",
     "@types/node": "^24.3.0",
     "@types/secp256k1": "^4.0.6",
     "@types/uuid": "^10.0.0",
@@ -146,7 +137,6 @@
     "eslint-plugin-unused-imports": "^4.2.0",
     "fix-dts-default-cjs-exports": "^1.0.1",
     "globals": "^16.3.0",
-    "openapi-typescript": "^7.8.0",
     "prettier": "^3.5.3",
     "rimraf": "^6.0.1",
     "tree-kill": "^1.2.2",

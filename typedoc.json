@@ -5,9 +5,7 @@
   ],
   "entryPointStrategy": "resolve",
   "exclude": [
-    "packages/vana-sdk/src/abi/**/*",
-    "packages/vana-sdk/src/contracts/**/*",
-    "packages/vana-sdk/src/types/server.ts",
+    "packages/vana-sdk/src/generated/abi/**/*",
     "packages/vana-sdk/src/**/*.test.ts",
     "packages/vana-sdk/src/__tests__/**/*",
     "packages/vana-sdk/src/tests/**/*"

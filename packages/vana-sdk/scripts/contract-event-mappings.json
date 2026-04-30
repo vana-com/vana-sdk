@@ -295,84 +295,6 @@
         "upgradeToAndCall": ["Upgraded"]
       }
     },
-    "DLPPerformance": {
-      "abiExport": "DLPPerformanceABI",
-      "functions": {
-        "updateMetricWeights": ["MetricWeightsUpdated"],
-        "saveEpochPerformances": ["EpochDlpPerformancesSaved"],
-        "overrideEpochPerformances": ["EpochDlpPerformancesOverridden"],
-        "overrideEpochDlpPenalty": ["EpochDlpPenaltyUpdated"],
-        "pause": ["Paused"],
-        "unpause": ["Unpaused"],
-        "grantRole": ["RoleGranted"],
-        "revokeRole": ["RoleRevoked"],
-        "renounceRole": ["RoleRevoked"],
-        "initialize": ["Initialized"],
-        "upgradeToAndCall": ["Upgraded"]
-      }
-    },
-    "DLPRewardDeployer": {
-      "abiExport": "DLPRewardDeployerABI",
-      "functions": {
-        "distributeRewards": ["EpochDlpRewardDistributed"],
-        "withdrawEpochDlpPenaltyAmount": ["EpochDlpPenaltyDistributed"],
-        "pause": ["Paused"],
-        "unpause": ["Unpaused"],
-        "grantRole": ["RoleGranted"],
-        "revokeRole": ["RoleRevoked"],
-        "renounceRole": ["RoleRevoked"],
-        "initialize": ["Initialized"],
-        "upgradeToAndCall": ["Upgraded"]
-      }
-    },
-    "DLPRewardDeployerTreasury": {
-      "abiExport": "DLPRewardDeployerTreasuryABI",
-      "functions": {
-        "transfer": ["Transfer"],
-        "deposit": [],
-        "withdraw": [],
-        "allocateRewards": [],
-        "updateAllocation": [],
-        "pause": ["Paused"],
-        "unpause": ["Unpaused"],
-        "grantRole": ["RoleGranted"],
-        "revokeRole": ["RoleRevoked"],
-        "renounceRole": ["RoleRevoked"],
-        "initialize": ["Initialized"],
-        "upgradeToAndCall": ["Upgraded"]
-      }
-    },
-    "DLPRewardSwap": {
-      "abiExport": "DLPRewardSwapABI",
-      "functions": {
-        "splitRewardSwap": ["Reward"],
-        "swap": [],
-        "addLiquidity": [],
-        "removeLiquidity": [],
-        "updateSwapFee": [],
-        "pause": ["Paused"],
-        "unpause": ["Unpaused"],
-        "grantRole": ["RoleGranted"],
-        "revokeRole": ["RoleRevoked"],
-        "renounceRole": ["RoleRevoked"],
-        "initialize": ["Initialized"],
-        "upgradeToAndCall": ["Upgraded"]
-      }
-    },
-    "SwapHelper": {
-      "abiExport": "SwapHelperABI",
-      "functions": {
-        "swap": [],
-        "getQuote": [],
-        "updateSlippage": [],
-        "updateRouter": [],
-        "grantRole": ["RoleGranted"],
-        "revokeRole": ["RoleRevoked"],
-        "renounceRole": ["RoleRevoked"],
-        "initialize": ["Initialized"],
-        "upgradeToAndCall": ["Upgraded"]
-      }
-    },
     "VanaPoolStaking": {
       "abiExport": "VanaPoolStakingABI",
       "functions": {
@@ -476,18 +398,6 @@
         "delegateBySig": ["DelegateChanged", "DelegateVotesChanged"],
         "blockAddress": ["AddressBlocked"],
         "unblockAddress": ["AddressUnblocked"]
-      }
-    },
-    "TeePool": {
-      "abiExport": "TeePoolABI",
-      "functions": {
-        "addJob": [],
-        "submitProof": [],
-        "cancelJob": [],
-        "claimReward": [],
-        "updateFeeRecipient": [],
-        "updateJobTimeout": [],
-        "updateMinJobDuration": []
       }
     }
   }

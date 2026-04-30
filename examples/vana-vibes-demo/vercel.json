@@ -1,7 +1,0 @@
-{
-  "functions": {
-    "app/api/trusted-server/route.ts": {
-      "maxDuration": 60
-    }
-  }
-}

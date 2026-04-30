@@ -27,7 +27,6 @@ export type VanaContractName =
   | "DataPortabilityServers"
   | "DataPortabilityGrantees"
   | "DataRegistry"
-  | "TeePool"
   | "ComputeEngine"
   | "TeePoolPhala"
   | "DataRefinerRegistry"
@@ -41,20 +40,13 @@ export type VanaContractName =
   | "VanaEpoch"
   | "DLPRegistry"
   | "DLPRegistryTreasury"
-  | "DLPPerformance"
-  | "DLPRewardDeployer"
-  | "DLPRewardDeployerTreasury"
-  | "DLPRewardSwap"
-  | "SwapHelper"
   | "VanaPoolStaking"
   | "VanaPoolEntity"
   | "VanaPoolTreasury"
   | "DAT"
   | "DATFactory"
   | "DATPausable"
-  | "DATVotes"
-  | "DataLiquidityPool"
-  | "DLPRoot";
+  | "DATVotes";
 
 /**
  * Provides contract deployment information with typed ABI.

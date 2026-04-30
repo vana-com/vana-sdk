@@ -46,10 +46,10 @@ matches your runtime:
 
 ```typescript
 // Browser / web app
-import {} from /* … */ "@opendatalabs/vana-sdk/browser";
+import { BrowserPlatformAdapter } from "@opendatalabs/vana-sdk/browser";
 
 // Node.js / server
-import {} from /* … */ "@opendatalabs/vana-sdk/node";
+import { NodePlatformAdapter } from "@opendatalabs/vana-sdk/node";
 ```
 
 The bare `@opendatalabs/vana-sdk` import intentionally throws — it forces a

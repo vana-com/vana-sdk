@@ -15,7 +15,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { promisify } from "util";
 import { createPublicClient, http } from "viem";
-import { CONTRACTS, LEGACY_CONTRACTS } from "../src/config/contracts.config";
+import { CONTRACTS } from "../src/config/contracts.config";
 import { chains } from "../src/config/chains";
 import { getAbi } from "../src/generated/abi";
 import type { VanaContract } from "../src/generated/abi";
@@ -289,19 +289,6 @@ import type { VanaContract } from "./abi";
 
   content += `} as const;\n\n`;
 
-  // Add legacy contracts
-  content += `// Legacy/Deprecated Contracts (backwards compatibility)\n`;
-  content += `export const LEGACY_CONTRACTS = {\n`;
-  for (const [name, info] of Object.entries(LEGACY_CONTRACTS)) {
-    content += `  ${name}: {\n`;
-    content += `    addresses: {\n`;
-    content += `      14800: "${info.addresses[14800]}",\n`;
-    content += `      1480: "${info.addresses[1480]}",\n`;
-    content += `    },\n`;
-    content += `  },\n`;
-  }
-  content += `} as const;\n\n`;
-
   // Add backwards compatibility exports
   content += `// Transform for backwards compatibility\n`;
   content += `export const CONTRACT_ADDRESSES: Record<number, Record<string, string>> = {\n`;
@@ -326,19 +313,6 @@ import type { VanaContract } from "./abi";
   content += `    Multicall3: CONTRACTS.Multicall3.addresses[1480],\n`;
   content += `    Multisend: CONTRACTS.Multisend.addresses[1480],\n`;
   content += `  },\n`;
-  content += `} as const;\n\n`;
-
-  content += `export const LEGACY_ADDRESSES = {\n`;
-  content += `  14800: Object.fromEntries(\n`;
-  content += `    Object.entries(LEGACY_CONTRACTS)\n`;
-  content += `      .map(([name, info]) => [name, info.addresses[14800]])\n`;
-  content += `      .filter(([, addr]) => addr),\n`;
-  content += `  ),\n`;
-  content += `  1480: Object.fromEntries(\n`;
-  content += `    Object.entries(LEGACY_CONTRACTS)\n`;
-  content += `      .map(([name, info]) => [name, info.addresses[1480]])\n`;
-  content += `      .filter(([, addr]) => addr),\n`;
-  content += `  ),\n`;
   content += `} as const;\n\n`;
 
   // Add helper functions
@@ -394,10 +368,7 @@ async function main() {
   console.log(`\nSummary:`);
   console.log(`  Entry points: ${entryPoints.size}`);
   console.log(`  Discovered: ${discovered.size}`);
-  console.log(`  Legacy: ${Object.keys(LEGACY_CONTRACTS).length}`);
-  console.log(
-    `  Total: ${entryPoints.size + discovered.size + Object.keys(LEGACY_CONTRACTS).length}`,
-  );
+  console.log(`  Total: ${entryPoints.size + discovered.size}`);
 }
 
 main().catch((error) => {

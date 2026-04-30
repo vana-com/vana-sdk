@@ -8,12 +8,7 @@
 import type { Chain } from "viem";
 import { mainnetServices, mokshaServices } from "../config/default-services";
 
-export interface VanaChainConfig extends Chain {
-  /** URL for the subgraph API endpoint used to query on-chain data */
-  subgraphUrl: string;
-  /** URL for the personal server used for computation operations */
-  personalServerUrl: string;
-}
+export type VanaChainConfig = Chain;
 
 /**
  * Vana Mainnet configuration
@@ -37,8 +32,6 @@ export const vanaMainnet: VanaChainConfig = {
       url: mainnetServices.blockExplorerUrl,
     },
   },
-  subgraphUrl: mainnetServices.subgraphUrl,
-  personalServerUrl: mainnetServices.personalServerUrl,
 } as const;
 
 /**
@@ -63,8 +56,6 @@ export const moksha: VanaChainConfig = {
       url: mokshaServices.blockExplorerUrl,
     },
   },
-  subgraphUrl: mokshaServices.subgraphUrl,
-  personalServerUrl: mokshaServices.personalServerUrl,
 } as const;
 
 /**
@@ -77,7 +68,6 @@ export const moksha: VanaChainConfig = {
  * const config = getChainConfig(1480);
  * if (config) {
  *   console.log('Chain name:', config.name);
- *   console.log('Subgraph URL:', config.subgraphUrl);
  * }
  * ```
  */

@@ -18,7 +18,7 @@ the `2.x` line on npm.
 ## Repository Structure
 
 - **packages/vana-sdk** — `@opendatalabs/vana-sdk` (isomorphic SDK, browser + Node bundles)
-- **packages/eslint-config-vana-base**, **eslint-config-vana-sdk**, **eslint-config-vana-apps** — shared lint configs
+- **packages/eslint-config-vana-base**, **eslint-config-vana-sdk** — shared lint configs
 
 ## Using the SDK
 

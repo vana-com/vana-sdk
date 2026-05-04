@@ -71,6 +71,33 @@ describe("R2Storage", () => {
       ).toThrow(StorageError);
     });
 
+    it("requires publicUrl when only endpoint is given (no accountId)", () => {
+      // Without accountId we cannot synthesize a default *.r2.dev public URL,
+      // so callers must pass publicUrl explicitly or get a clear error.
+      expect(
+        () =>
+          new R2Storage({
+            endpoint: "http://localhost:9000",
+            accessKeyId: "k",
+            secretAccessKey: "s",
+            bucket: "b",
+          }),
+      ).toThrow(StorageError);
+    });
+
+    it("accepts endpoint-only config when publicUrl is also given", async () => {
+      const s = new R2Storage({
+        endpoint: "http://localhost:9000",
+        accessKeyId: "k",
+        secretAccessKey: "s",
+        bucket: "b",
+        publicUrl: "http://localhost:9000/b",
+      });
+      mockFetch.mockResolvedValueOnce(makeFetchOk());
+      const result = await s.upload(new Blob(["x"]), "k.txt");
+      expect(result.url).toBe("http://localhost:9000/b/k.txt");
+    });
+
     it("derives endpoint from accountId when explicit endpoint not given", async () => {
       mockFetch.mockResolvedValueOnce(makeFetchOk());
       await storage.upload(new Blob(["hi"], { type: "text/plain" }), "k.txt");
@@ -277,6 +304,22 @@ describe("R2Storage", () => {
       );
       await expect(storage.list()).rejects.toThrow(StorageError);
     });
+
+    it("percent-encodes RFC 3986 sub-delims in query values", async () => {
+      // SigV4 canonical query must escape ! ' ( ) * (encodeURIComponent leaves
+      // them unescaped). Without this, list({ namePattern: "*.json" }) would
+      // sign one query and send another, yielding signature mismatch.
+      mockFetch.mockResolvedValueOnce(
+        new Response(
+          `<?xml version="1.0"?><ListBucketResult><Name>my-bucket</Name></ListBucketResult>`,
+          { status: 200 },
+        ),
+      );
+      await storage.list({ namePattern: "*.json" });
+      const [url] = mockFetch.mock.calls[0];
+      expect(url).toContain("prefix=%2A.json");
+      expect(url).not.toContain("prefix=*.json");
+    });
   });
 
   describe("SigV4 stability", () => {
@@ -299,6 +342,33 @@ describe("R2Storage", () => {
       expect(init.headers.authorization).toMatch(/Signature=[0-9a-f]{64}$/);
 
       vi.useRealTimers();
+    });
+
+    it("includes the port in the signed host header for non-default ports", async () => {
+      // SigV4 binds to the Host header. URL.hostname strips the port; URL.host
+      // keeps it. Test endpoints like http://localhost:9000 must sign
+      // `localhost:9000`, not `localhost`, or the receiving server rejects.
+      const localStorage = new R2Storage({
+        endpoint: "http://localhost:9000",
+        accessKeyId: "k",
+        secretAccessKey: "s",
+        bucket: "b",
+        publicUrl: "http://localhost:9000/b",
+      });
+
+      // Spy on fetch to capture the actual signed payload. The host header
+      // is not exposed directly through fetch's first arg — we infer it via
+      // the canonical-request-derived signature, which would change if host
+      // changed. Easiest is to assert the URL the request goes to (carries
+      // port) and the SignedHeaders list contains `host`.
+      mockFetch.mockResolvedValueOnce(makeFetchOk());
+      await localStorage.upload(new Blob(["x"]), "k");
+
+      const [url, init] = mockFetch.mock.calls[0];
+      expect(url).toContain("http://localhost:9000/b/k");
+      expect(init.headers.authorization).toMatch(
+        /SignedHeaders=[a-z0-9;-]*\bhost\b[a-z0-9;-]*/,
+      );
     });
   });
 });

@@ -119,6 +119,13 @@ export class R2Storage implements StorageProvider {
         "r2",
       );
     }
+    if (!config.publicUrl && !config.accountId) {
+      throw new StorageError(
+        "R2 publicUrl is required when accountId is not provided",
+        "MISSING_PUBLIC_URL",
+        "r2",
+      );
+    }
 
     this.bucket = config.bucket;
     this.region = config.region ?? DEFAULT_REGION;
@@ -326,7 +333,10 @@ export class R2Storage implements StorageProvider {
     body?: Uint8Array;
     extraHeaders?: Record<string, string>;
   }): Promise<SignedRequest> {
-    const { hostname } = new URL(this.endpoint);
+    // SigV4's host header must include the port for non-default ports
+    // (e.g. localhost:9000 for S3-compatible test endpoints). URL.host keeps
+    // the port; URL.hostname strips it.
+    const { host } = new URL(this.endpoint);
     const now = new Date();
     const amzDate = formatAmzDate(now);
     const dateStamp = amzDate.slice(0, 8);
@@ -336,7 +346,7 @@ export class R2Storage implements StorageProvider {
     const canonicalQuery = req.query ? canonicalizeQuery(req.query) : "";
 
     const headers: Record<string, string> = {
-      host: hostname,
+      host,
       "x-amz-content-sha256": payloadHash,
       "x-amz-date": amzDate,
       ...(req.extraHeaders ?? {}),
@@ -424,19 +434,23 @@ function toHex(bytes: Uint8Array): string {
 }
 
 /**
+ * RFC 3986-compliant percent-encoding. `encodeURIComponent` leaves `! ' ( ) *`
+ * unescaped, but AWS SigV4 (and RFC 3986 reserved sub-delims) require them
+ * encoded. Used for both path segments and query keys/values.
+ */
+function rfc3986Encode(value: string): string {
+  return encodeURIComponent(value).replace(
+    /[!'()*]/g,
+    (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase(),
+  );
+}
+
+/**
  * Encode each path segment per AWS canonical-URI rules. Slashes between segments
  * are preserved; everything else (including `+`, `=`, etc.) is percent-encoded.
  */
 function encodePath(key: string): string {
-  return key
-    .split("/")
-    .map((seg) =>
-      encodeURIComponent(seg).replace(
-        /[!'()*]/g,
-        (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase(),
-      ),
-    )
-    .join("/");
+  return key.split("/").map(rfc3986Encode).join("/");
 }
 
 function canonicalizeQuery(params: URLSearchParams): string {
@@ -446,7 +460,7 @@ function canonicalizeQuery(params: URLSearchParams): string {
   }
   entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
   return entries
-    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+    .map(([k, v]) => `${rfc3986Encode(k)}=${rfc3986Encode(v)}`)
     .join("&");
 }
 

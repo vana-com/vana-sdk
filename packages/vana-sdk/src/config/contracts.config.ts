@@ -156,22 +156,16 @@ export const CONTRACTS: Record<string, ContractConfig> = {
   },
 
   // ========================================
-  // DLP REWARD SYSTEM
+  // VANA EPOCH / DLP REGISTRY
   // ========================================
+  // Note: DLP rewards-specific contracts (DLPPerformance, DLPRewardDeployer,
+  // DLPRewardDeployerTreasury, DLPRewardSwap, SwapHelper) were removed in the
+  // protocol unification cleanup. VanaEpoch, DLPRegistry, and DLPRegistryTreasury
+  // are kept because they may be referenced beyond the rewards system.
   VanaEpoch: {
     addresses: {
       14800: "0x2063cFF0609D59bCCc196E20Eb58A8696a6b15A0",
       1480: "0x2063cFF0609D59bCCc196E20Eb58A8696a6b15A0",
-    },
-  },
-  DLPPerformance: {
-    addresses: {
-      14800: "0x847715C7DB37cF286611182Be0bD333cbfa29cc1",
-      1480: "0x847715C7DB37cF286611182Be0bD333cbfa29cc1",
-    },
-    discovery: {
-      parent: "VanaEpoch",
-      getter: "dlpPerformance",
     },
   },
   DLPRegistry: {
@@ -188,42 +182,6 @@ export const CONTRACTS: Record<string, ContractConfig> = {
     discovery: {
       parent: "DLPRegistry",
       getter: "treasury",
-    },
-  },
-  DLPRewardDeployer: {
-    addresses: {
-      14800: "0xEFD0F9Ba9De70586b7c4189971cF754adC923B04",
-      1480: "0xEFD0F9Ba9De70586b7c4189971cF754adC923B04",
-    },
-  },
-  DLPRewardDeployerTreasury: {
-    addresses: {
-      14800: "0xb547ca8Fe4990fe330FeAeb1C2EBb42F925Af5b8",
-      1480: "0xb547ca8Fe4990fe330FeAeb1C2EBb42F925Af5b8",
-    },
-    discovery: {
-      parent: "DLPRewardDeployer",
-      getter: "treasury",
-    },
-  },
-  DLPRewardSwap: {
-    addresses: {
-      14800: "0x7c6862C46830F0fc3bF3FF509EA1bD0EE7267fB0",
-      1480: "0x7c6862C46830F0fc3bF3FF509EA1bD0EE7267fB0",
-    },
-    discovery: {
-      parent: "DLPRewardDeployer",
-      getter: "dlpRewardSwap",
-    },
-  },
-  SwapHelper: {
-    addresses: {
-      14800: "0x55D5e6F73326315bF2E091e97F04f0770e5C54e2",
-      1480: "0x55D5e6F73326315bF2E091e97F04f0770e5C54e2",
-    },
-    discovery: {
-      parent: "DLPRewardSwap",
-      getter: "swapHelper",
     },
   },
 
@@ -324,58 +282,6 @@ export const CONTRACTS: Record<string, ContractConfig> = {
   },
 } as const;
 
-// Legacy/Deprecated Contracts
-/**
- * Registry of deprecated Vana protocol contracts maintained for backwards compatibility.
- *
- * @remarks
- * These contracts have been superseded by newer implementations but are maintained
- * for backwards compatibility with existing applications.
- *
- * @deprecated Use the main CONTRACTS registry for new development
- * @category Configuration
- */
-export const LEGACY_CONTRACTS = {
-  TeePool: {
-    addresses: {
-      14800: "0x3c92fD91639b41f13338CE62f19131e7d19eaa0D",
-      1480: "0x3c92fD91639b41f13338CE62f19131e7d19eaa0D",
-    },
-  },
-  DLPRootEpoch: {
-    addresses: {
-      14800: "0xc3d176cF6BccFCB9225b53B87a95147218e1537F",
-      1480: "0xc3d176cF6BccFCB9225b53B87a95147218e1537F",
-    },
-  },
-  DLPRootCore: {
-    addresses: {
-      14800: "0x0aBa5e28228c323A67712101d61a54d4ff5720FD",
-      1480: "0x0aBa5e28228c323A67712101d61a54d4ff5720FD",
-    },
-  },
-  DLPRoot: {
-    addresses: {
-      14800: "0xff14346dF2B8Fd0c95BF34f1c92e49417b508AD5",
-      1480: "0xff14346dF2B8Fd0c95BF34f1c92e49417b508AD5",
-    },
-  },
-  DLPRootMetrics: {
-    addresses: {
-      14800: "0xbb532917B6407c060Afd9Cb7d53527eCb91d6662",
-      1480: "0xbb532917B6407c060Afd9Cb7d53527eCb91d6662",
-    },
-  },
-  DLPRootStakesTreasury: {
-    addresses: {
-      14800: "0x52c3260ED5C235fcA43524CF508e29c897318775",
-      1480: "0x52c3260ED5C235fcA43524CF508e29c897318775",
-    },
-  },
-  DLPRootRewardsTreasury: {
-    addresses: {
-      14800: "0xDBFb6B8b9E2eCAEbdE64d665cD553dB81e524479",
-      1480: "0xDBFb6B8b9E2eCAEbdE64d665cD553dB81e524479",
-    },
-  },
-} as const;
+// Legacy DLPRoot* and deprecated TeePool entries were removed in the protocol
+// unification cleanup. They were part of the old DLP rewards system superseded
+// by other contracts.

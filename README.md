@@ -6,29 +6,26 @@ TypeScript SDK for building user-owned data applications on the Vana Network.
 [![Downloads](https://img.shields.io/npm/dm/@opendatalabs/vana-sdk)](https://www.npmjs.com/package/@opendatalabs/vana-sdk)
 [![License](https://img.shields.io/npm/l/@opendatalabs/vana-sdk)](./LICENSE)
 
-This is a monorepo containing the Vana SDK and example applications demonstrating its capabilities.
+This monorepo hosts the Vana SDK package. The SDK is currently a minimal scaffold
+focused on the primitives that ship across browser and Node — ECIES crypto, smart
+contract bindings (ABIs, addresses, chains), storage providers, and platform
+adapters — while the protocol unification work continues on top of it.
 
-## Quick Start
-
-```bash
-npm install
-npm run dev:console  # SDK console at http://localhost:3000
-npm run dev:vibes    # Vibes demo at http://localhost:3001
-```
+The pre-unification SDK (controllers, subgraph queries, personal-server client,
+DLP rewards, examples) is preserved as the `legacy-pre-unification` git tag and
+the `2.x` line on npm.
 
 ## Repository Structure
 
-- **packages/vana-sdk** - Core TypeScript SDK with platform-specific builds
-- **examples/vana-console** - Comprehensive demo application
-- **examples/vana-vibes-demo** - Social features demonstration
-- **examples/vana-rbac-auditor** - RBAC auditing tool
+- **packages/vana-sdk** — `@opendatalabs/vana-sdk` (isomorphic SDK, browser + Node bundles)
+- **packages/eslint-config-vana-base**, **eslint-config-vana-sdk** — shared lint configs
 
 ## Using the SDK
 
 Install from npm:
 
 ```bash
-npm install @opendatalabs/vana-sdk viem@^2.31.7
+npm install @opendatalabs/vana-sdk viem
 ```
 
 See the [SDK package README](./packages/vana-sdk/README.md) for usage details.

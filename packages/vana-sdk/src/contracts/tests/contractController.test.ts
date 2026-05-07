@@ -201,7 +201,6 @@ describe("contractController", () => {
       const contractTypes: VanaContract[] = [
         "DataRegistry",
         "TeePoolPhala",
-        "DataLiquidityPool",
         "DataPortabilityPermissions",
         "DLPRegistry",
       ];

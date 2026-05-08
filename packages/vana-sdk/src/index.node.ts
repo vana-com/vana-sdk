@@ -123,6 +123,9 @@ export {
   generatePkceVerifier,
   computePkceChallenge,
   verifyPkceChallenge,
+  assertValidPkceVerifier,
+  PKCE_VERIFIER_PATTERN,
+  PKCE_CHALLENGE_PATTERN,
 } from "./auth/pkce";
 export {
   InMemoryTokenStore,

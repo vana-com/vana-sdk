@@ -3,6 +3,9 @@ import {
   generatePkceVerifier,
   computePkceChallenge,
   verifyPkceChallenge,
+  assertValidPkceVerifier,
+  PKCE_VERIFIER_PATTERN,
+  PKCE_CHALLENGE_PATTERN,
 } from "./pkce";
 
 const RFC_VERIFIER_ALPHABET_RE = /^[A-Za-z0-9\-._~]+$/;
@@ -117,5 +120,55 @@ describe("verifyPkceChallenge", () => {
     await expect(
       verifyPkceChallenge("a".repeat(129), RFC_CHALLENGE),
     ).resolves.toBe(false);
+  });
+
+  it("returns false (does not throw) for malformed challenges", async () => {
+    await expect(verifyPkceChallenge(RFC_VERIFIER, "")).resolves.toBe(false);
+    await expect(
+      verifyPkceChallenge(RFC_VERIFIER, "a".repeat(42)),
+    ).resolves.toBe(false);
+    await expect(
+      verifyPkceChallenge(RFC_VERIFIER, "a".repeat(44)),
+    ).resolves.toBe(false);
+    await expect(
+      verifyPkceChallenge(RFC_VERIFIER, `unicode-é-${"a".repeat(34)}`),
+    ).resolves.toBe(false);
+    await expect(
+      verifyPkceChallenge(RFC_VERIFIER, `padded-with-eq=${"a".repeat(28)}`),
+    ).resolves.toBe(false);
+  });
+});
+
+describe("validation primitives", () => {
+  it("PKCE_VERIFIER_PATTERN matches RFC 7636 §4.1 shape", () => {
+    expect(PKCE_VERIFIER_PATTERN.test("a".repeat(43))).toBe(true);
+    expect(PKCE_VERIFIER_PATTERN.test("a".repeat(128))).toBe(true);
+    expect(PKCE_VERIFIER_PATTERN.test("a".repeat(42))).toBe(false);
+    expect(PKCE_VERIFIER_PATTERN.test("a".repeat(129))).toBe(false);
+    expect(PKCE_VERIFIER_PATTERN.test(`a${"a".repeat(40)}é${"a"}`)).toBe(false);
+  });
+
+  it("PKCE_CHALLENGE_PATTERN matches S256 base64url shape (43 chars)", () => {
+    expect(PKCE_CHALLENGE_PATTERN.test("a".repeat(43))).toBe(true);
+    expect(
+      PKCE_CHALLENGE_PATTERN.test(
+        "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+      ),
+    ).toBe(true);
+    expect(PKCE_CHALLENGE_PATTERN.test("a".repeat(42))).toBe(false);
+    expect(PKCE_CHALLENGE_PATTERN.test("a".repeat(44))).toBe(false);
+    expect(PKCE_CHALLENGE_PATTERN.test(`${"a".repeat(42)}=`)).toBe(false);
+  });
+
+  it("assertValidPkceVerifier accepts valid verifiers and throws on invalid", () => {
+    expect(() => {
+      assertValidPkceVerifier("a".repeat(43));
+    }).not.toThrow();
+    expect(() => {
+      assertValidPkceVerifier("a".repeat(42));
+    }).toThrow(RangeError);
+    expect(() => {
+      assertValidPkceVerifier(`unicode-é-${"a".repeat(40)}`);
+    }).toThrow(RangeError);
   });
 });

@@ -19,9 +19,27 @@ const PKCE_VERIFIER_MIN_LENGTH = 43;
 const PKCE_VERIFIER_MAX_LENGTH = 128;
 const PKCE_VERIFIER_DEFAULT_LENGTH = 64;
 
-const PKCE_VERIFIER_PATTERN = /^[A-Za-z0-9._~-]{43,128}$/;
+/**
+ * RFC 7636 §4.1 verifier shape: 43-128 unreserved chars.
+ *
+ * @category Auth
+ */
+export const PKCE_VERIFIER_PATTERN = /^[A-Za-z0-9._~-]{43,128}$/;
 
-function assertValidPkceVerifier(verifier: string): void {
+/**
+ * S256 challenge shape: 43-char base64url (SHA-256 = 32 bytes → 43 chars
+ * after base64url-no-padding encoding).
+ *
+ * @category Auth
+ */
+export const PKCE_CHALLENGE_PATTERN = /^[A-Za-z0-9_-]{43}$/;
+
+/**
+ * Throws {@link RangeError} unless `verifier` matches RFC 7636 §4.1.
+ *
+ * @category Auth
+ */
+export function assertValidPkceVerifier(verifier: string): void {
   if (!PKCE_VERIFIER_PATTERN.test(verifier)) {
     throw new RangeError(
       `PKCE verifier must match RFC 7636 §4.1: ${PKCE_VERIFIER_MIN_LENGTH}-${PKCE_VERIFIER_MAX_LENGTH} unreserved chars [A-Za-z0-9._~-]`,
@@ -96,6 +114,7 @@ export async function verifyPkceChallenge(
   challenge: string,
 ): Promise<boolean> {
   if (!PKCE_VERIFIER_PATTERN.test(verifier)) return false;
+  if (!PKCE_CHALLENGE_PATTERN.test(challenge)) return false;
   const computed = await computePkceChallenge(verifier);
   return constantTimeEqualString(computed, challenge);
 }
